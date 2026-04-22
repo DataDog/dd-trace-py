@@ -1,5 +1,7 @@
 #include "code_provenance.hpp"
 
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -12,9 +14,15 @@ Datadog::CodeProvenance::get_json_str()
 }
 
 void
-Datadog::CodeProvenance::set_json_str(std::string_view _json_str)
+Datadog::CodeProvenance::set_file_path(std::string_view file_path)
 {
-    this->json_str = _json_str;
+    std::ifstream ifs{ std::string(file_path) };
+    if (!ifs.is_open()) {
+        return;
+    }
+    std::ostringstream oss;
+    oss << ifs.rdbuf();
+    this->json_str = oss.str();
 }
 
 }

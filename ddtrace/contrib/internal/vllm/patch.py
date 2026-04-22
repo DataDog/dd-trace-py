@@ -7,9 +7,7 @@ from typing import Optional
 import vllm
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
@@ -38,8 +36,7 @@ logger = get_logger(__name__)
 config._add("vllm", {})
 
 
-@with_traced_module
-def traced_engine_init(vllm, pin, func, instance, args, kwargs):
+def traced_engine_init(func, instance, args, kwargs):
     """Inject model name into OutputProcessor and force-enable stats for tracing."""
     # Force log_stats=True to enable vLLM's internal stats collection.
     # We need these stats for:
@@ -60,8 +57,7 @@ def traced_engine_init(vllm, pin, func, instance, args, kwargs):
     return result
 
 
-@with_traced_module
-def traced_processor_process_inputs(vllm, pin, func, instance, args, kwargs):
+def traced_processor_process_inputs(func, instance, args, kwargs):
     """Inject Datadog trace context into trace_headers for propagation."""
 
     if len(args) > ARG_POSITION_TRACE_HEADERS:
@@ -102,7 +98,6 @@ def _capture_request_states(
 
 
 def _create_finished_spans(
-    pin: Pin,
     integration: VLLMIntegration,
     model_name: Optional[str],
     instance: "OutputProcessor",
@@ -114,7 +109,6 @@ def _create_finished_spans(
             continue
 
         span = create_span(
-            pin=pin,
             integration=integration,
             model_name=model_name,
             trace_headers=span_info["trace_headers"],
@@ -144,8 +138,7 @@ def _create_finished_spans(
         span.finish()
 
 
-@with_traced_module
-def traced_output_processor_process_outputs(vllm, pin, func, instance, args, kwargs):
+def traced_output_processor_process_outputs(func, instance, args, kwargs):
     """Create Datadog spans for finished requests."""
     integration = getattr(vllm, ATTR_DATADOG_INTEGRATION)
 
@@ -159,7 +152,7 @@ def traced_output_processor_process_outputs(vllm, pin, func, instance, args, kwa
 
     result = func(*args, **kwargs)
 
-    _create_finished_spans(pin, integration, model_name, instance, spans_data)
+    _create_finished_spans(integration, model_name, instance, spans_data)
 
     return result
 
@@ -199,17 +192,16 @@ def patch():
 
     setattr(vllm, ATTR_DATADOG_PATCH, True)
 
-    Pin().onto(vllm)
     integration = VLLMIntegration(integration_config=config.vllm)
     setattr(vllm, ATTR_DATADOG_INTEGRATION, integration)
 
-    wrap("vllm.v1.engine.llm_engine", "LLMEngine.__init__", traced_engine_init(vllm))
-    wrap("vllm.v1.engine.async_llm", "AsyncLLM.__init__", traced_engine_init(vllm))
-    wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs(vllm))
+    wrap("vllm.v1.engine.llm_engine", "LLMEngine.__init__", traced_engine_init)
+    wrap("vllm.v1.engine.async_llm", "AsyncLLM.__init__", traced_engine_init)
+    wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs)
     wrap(
         "vllm.v1.engine.output_processor",
         "OutputProcessor.process_outputs",
-        traced_output_processor_process_outputs(vllm),
+        traced_output_processor_process_outputs,
     )
 
 

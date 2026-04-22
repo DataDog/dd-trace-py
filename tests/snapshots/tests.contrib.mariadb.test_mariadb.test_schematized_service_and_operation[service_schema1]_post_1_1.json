@@ -11,26 +11,28 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de45e600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "mariadb",
       "db.name": "test",
       "db.system": "mariadb",
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "dc744e327de747319edc49baa8a17c8e",
+      "runtime-id": "16db8838812f41ee8df13da466e29dd8",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 1,
-      "network.destination.port": 3306,
-      "process_id": 19680
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 1.0,
+      "network.destination.port": 3306.0,
+      "process_id": 61589.0
     },
-    "duration": 280166,
-    "start": 1692647306436758633
+    "duration": 177375,
+    "start": 1776174566127429342
   }]]

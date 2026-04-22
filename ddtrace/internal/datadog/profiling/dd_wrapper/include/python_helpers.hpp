@@ -37,7 +37,7 @@ class PythonErrorRestorer
   public:
     PythonErrorRestorer()
     {
-#ifdef _PY312_AND_LATER
+#ifdef PY312_AND_LATER
         // Python 3.12+: Use the new API that returns a single exception object
         // Reference ownership note:
         // - PyErr_GetRaisedException() returns a new reference.
@@ -59,7 +59,7 @@ class PythonErrorRestorer
         // continue after an API failure (for example, PyUnicode_AsUTF8AndSize
         // and PyFrame_GetBack), because some C-API paths are not safe to keep
         // running with an error set.
-#ifdef _PY312_AND_LATER
+#ifdef PY312_AND_LATER
         if (saved_exception != NULL) {
             PyErr_SetRaisedException(saved_exception);
         } else if (PyErr_Occurred()) {
@@ -81,7 +81,7 @@ class PythonErrorRestorer
     PythonErrorRestorer& operator=(PythonErrorRestorer&&) = delete;
 
   private:
-#ifdef _PY312_AND_LATER
+#ifdef PY312_AND_LATER
     PyObject* saved_exception;
 #else
     PyObject* saved_exc_type;

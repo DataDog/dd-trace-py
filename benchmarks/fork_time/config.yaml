@@ -1,0 +1,4 @@
+baseline:
+  configure: false
+configured:
+  configure: true

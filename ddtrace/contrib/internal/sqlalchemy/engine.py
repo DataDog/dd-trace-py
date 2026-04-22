@@ -7,6 +7,7 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -83,17 +84,16 @@ class EngineTracer(object):
 
         span = tracer.trace(
             self.name,
-            service=pin.service,
             span_type=SpanTypes.SQL,
             resource=statement,
         )
-        span._set_tag_str(COMPONENT, config.sqlalchemy.integration_name)
+        set_service_and_source(span, pin.service, config.sqlalchemy)
+        span._set_attribute(COMPONENT, config.sqlalchemy.integration_name)
 
         # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         if not _set_tags_from_url(span, conn.engine.url):
             _set_tags_from_cursor(span, self.vendor, cursor)
@@ -133,12 +133,12 @@ class EngineTracer(object):
 def _set_tags_from_url(span, url):
     """set connection tags from the url. return true if successful."""
     if url.host:
-        span._set_tag_str(netx.TARGET_HOST, url.host)
-        span._set_tag_str(netx.SERVER_ADDRESS, url.host)
+        span._set_attribute(netx.TARGET_HOST, url.host)
+        span._set_attribute(netx.SERVER_ADDRESS, url.host)
     if url.port:
         span.set_tag(netx.TARGET_PORT, url.port)
     if url.database:
-        span._set_tag_str(sqlx.DB, url.database)
+        span._set_attribute(sqlx.DB, url.database)
 
     return bool(span.get_tag(netx.TARGET_HOST))
 
@@ -150,7 +150,13 @@ def _set_tags_from_cursor(span, vendor, cursor):
             dsn = getattr(cursor.connection, "dsn", None)
             if dsn:
                 d = sqlx.parse_pg_dsn(dsn)
-                span._set_tag_str(sqlx.DB, d.get("dbname"))
-                span._set_tag_str(netx.TARGET_HOST, d.get("host"))
-                span._set_tag_str(netx.SERVER_ADDRESS, d.get("host"))
-                span.set_metric(netx.TARGET_PORT, int(d.get("port")))
+                dbname = d.get("dbname")
+                if dbname is not None:
+                    span._set_attribute(sqlx.DB, dbname)
+                host = d.get("host")
+                if host is not None:
+                    span._set_attribute(netx.TARGET_HOST, host)
+                    span._set_attribute(netx.SERVER_ADDRESS, host)
+                port = d.get("port")
+                if port is not None:
+                    span._set_attribute(netx.TARGET_PORT, int(port))

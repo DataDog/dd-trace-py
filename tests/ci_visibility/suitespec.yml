@@ -6,8 +6,6 @@ components:
     - ddtrace/ext/test.py
   dd_coverage:
     - ddtrace/internal/coverage/*
-  coverage_utils:
-    - ddtrace/contrib/internal/coverage/*
   pytest:
     - ddtrace/contrib/internal/pytest/*
     - ddtrace/contrib/internal/pytest_bdd/*
@@ -32,9 +30,23 @@ suites:
       - '@unittest'
       - '@testing'
       - tests/ci_visibility/*
+    pattern: 'ci_visibility$'
+  ci_visibility:snapshot:
+    parallelism: 4
+    paths:
+      - '@ci_visibility'
+      - '@ci'
+      - '@core'
+      - '@coverage'
+      - '@git'
+      - '@pytest'
+      - '@codeowners'
+      - '@unittest'
+      - '@testing'
+      - tests/ci_visibility/*
       - tests/snapshots/test_api_fake_runners.*
-    runner: riot
     snapshot: true
+    pattern: 'ci_visibility:snapshot'
   dd_coverage:
     parallelism: 3
     paths:
@@ -43,9 +55,24 @@ suites:
       - '@tracing'
       - '@dd_coverage'
       - tests/coverage/*
-    runner: riot
     snapshot: true
   pytest:
+    venvs_per_job: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@codeowners'
+      - '@testing'
+      - tests/contrib/pytest/*
+      - tests/contrib/internal/coverage/*
+    snapshot: true
+    pattern: 'pytest$'
+  pytest:snapshot:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -55,17 +82,64 @@ suites:
       - '@pytest'
       - '@ci_visibility'
       - '@coverage'
-      - '@coverage_utils'
+      - '@codeowners'
+      - '@testing'
+      - tests/contrib/pytest/snapshot/*
+      - tests/snapshots/tests.contrib.pytest.*
+    snapshot: true
+    pattern: 'pytest:snapshot'
+  pytest_benchmark:
+    venvs_per_job: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
       - '@codeowners'
       - '@testing'
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
+      - tests/contrib/internal/coverage/*
+      - tests/snapshots/tests.contrib.pytest.*
+    snapshot: true
+  pytest_bdd:
+    venvs_per_job: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@codeowners'
+      - '@testing'
+      - tests/contrib/pytest/*
       - tests/contrib/pytest_bdd/*
+      - tests/contrib/internal/coverage/*
+      - tests/snapshots/tests.contrib.pytest.*
+    snapshot: true
+  pytest_flaky:
+    venvs_per_job: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@codeowners'
+      - '@testing'
+      - tests/contrib/pytest/*
       - tests/contrib/pytest_flaky/*
       - tests/contrib/internal/coverage/*
       - tests/snapshots/tests.contrib.pytest.*
-    runner: riot
     snapshot: true
+    pattern: 'pytest:flaky'
   testing:
     venvs_per_job: 1
     paths:
@@ -76,12 +150,10 @@ suites:
       - '@pytest'
       - '@ci_visibility'
       - '@coverage'
-      - '@coverage_utils'
       - '@codeowners'
       - '@testing'
       - tests/testing/*
       - tests/contrib/internal/coverage/*
-    runner: riot
     snapshot: true
   selenium:
     parallelism: 2
@@ -97,7 +169,6 @@ suites:
       - '@testing'
       - tests/contrib/selenium/*
       - tests/snapshots/test_selenium*
-    runner: riot
     snapshot: true
   unittest:
     parallelism: 2
@@ -109,5 +180,4 @@ suites:
       - '@testing'
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*
-    runner: riot
     snapshot: true

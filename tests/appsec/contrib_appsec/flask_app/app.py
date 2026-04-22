@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 from typing import Optional
 
 from flask import Blueprint
@@ -11,12 +12,14 @@ from flask import request
 
 # from ddtrace.appsec.iast import ddtrace_iast_flask_patch
 from ddtrace import config
-import ddtrace.constants
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
 from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
 tracer.configure(trace_processors=[PingFilter()])
+DOWNSTREAM_HTTP_TIMEOUT = 2.0
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 tmpl_path = os.path.join(cur_dir, "test_templates")
 app = Flask(__name__, template_folder=tmpl_path)
@@ -48,7 +51,7 @@ def multi_view(param_int=0, param_str=""):
     if priority in ("keep", "drop"):
         span = tracer.current_span()
         if span is not None:
-            span.set_tag(ddtrace.constants.MANUAL_KEEP_KEY if priority == "keep" else ddtrace.constants.MANUAL_DROP_KEY)
+            span._override_sampling_decision(USER_KEEP if priority == "keep" else USER_REJECT)
     response_headers = {}
     for header in headers_query:
         vk = header.split("=")
@@ -206,7 +209,7 @@ def redirect(route: str, port: int):
             )
         else:
             request_urllib = urllib.request.Request(url, method="GET", headers={"TagRoute": route})
-        with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+        with urllib.request.urlopen(request_urllib, timeout=DOWNSTREAM_HTTP_TIMEOUT) as f:
             payload = {"payload": f.read().decode(errors="ignore")}
     except Exception as e:
         import traceback
@@ -257,7 +260,12 @@ def redirect_httpx(route: str, port: int):
     try:
         with httpx.Client() as client:
             response = client.request(
-                method, full_url, content=body, headers=headers, timeout=0.5, follow_redirects=True
+                method,
+                full_url,
+                content=body,
+                headers=headers,
+                timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                follow_redirects=True,
             )
             payload = {"payload": response.text}
     except Exception as e:
@@ -288,7 +296,12 @@ def redirect_httpx_async(route: str, port: int):
         async def _request():
             async with httpx.AsyncClient() as client:
                 return await client.request(
-                    method, full_url, content=body, headers=headers, timeout=0.5, follow_redirects=True
+                    method,
+                    full_url,
+                    content=body,
+                    headers=headers,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                    follow_redirects=True,
                 )
 
         response = asyncio.run(_request())
@@ -392,6 +405,18 @@ def login_user_sdk():
         login(user_id, username)
         return "OK"
     return "login failure", 401
+
+
+@app.route("/exception-group-block", methods=["GET"])
+def exception_group_block():
+    """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
+    if sys.version_info < (3, 11) or request.args.get("block") != "true":
+        return "ok", 200
+
+    from ddtrace.appsec._utils import Block_config
+    from ddtrace.internal._exceptions import BlockingException
+
+    raise BaseExceptionGroup("test", [BlockingException(Block_config())])  # noqa: F821
 
 
 @app.route("/buggy_endpoint/", methods=None)

@@ -1,9 +1,9 @@
 from abc import ABC
 from abc import abstractmethod
 from collections import defaultdict
-import os
 import typing as t
 
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import TAG_FALSE
 from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.test_data import Test
@@ -47,6 +47,9 @@ class RetryHandler(ABC):
         """
         Return the final status to assign to the test, and set the final test run tags on the passed test.
 
+        This is always called when the handler applies to a test, even if no retries were performed (e.g. due to
+        early exit). Implementations must handle the single-run case correctly.
+
         Final status and tags are calculated together because they typically depend on the same data (count of
         passed/failed/skipped test runs).
         """
@@ -67,8 +70,8 @@ class RetryHandler(ABC):
 class AutoTestRetriesHandler(RetryHandler):
     def __init__(self, session_manager: "SessionManager") -> None:
         super().__init__(session_manager=session_manager)
-        self.max_tests_to_retry_per_session = int(os.getenv("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT", "1000"))
-        self.max_retries_per_test = int(os.getenv("DD_CIVISIBILITY_FLAKY_RETRY_COUNT", "5"))
+        self.max_tests_to_retry_per_session = int(env.get("DD_CIVISIBILITY_TOTAL_FLAKY_RETRY_COUNT", "1000"))
+        self.max_retries_per_test = int(env.get("DD_CIVISIBILITY_FLAKY_RETRY_COUNT", "5"))
 
     def get_pretty_name(self) -> str:
         return "Auto Test Retries"
@@ -77,11 +80,15 @@ class AutoTestRetriesHandler(RetryHandler):
         return self.max_tests_to_retry_per_session > 0
 
     def should_retry(self, test: Test) -> bool:
+        if test.has_passed():
+            return False
+
         retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
         return test.last_test_run.get_status() == TestStatus.FAIL and retries_so_far < self.max_retries_per_test
 
     def get_final_status(self, test: Test) -> TestStatus:
-        self.max_tests_to_retry_per_session -= 1
+        if len(test.test_runs) > 1:
+            self.max_tests_to_retry_per_session -= 1
         return test.last_test_run.get_status()
 
     def set_tags_for_test_run(self, test_run: TestRun) -> None:
@@ -127,6 +134,9 @@ class EarlyFlakeDetectionHandler(RetryHandler):
             test.set_early_flake_detection_abort_reason("slow")
             return False
 
+        if test.has_passed() and test.has_failed():
+            return False
+
         target_number_of_retries = self._target_number_of_retries(test)
         retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
         return retries_so_far < target_number_of_retries
@@ -169,6 +179,9 @@ class AttemptToFixHandler(RetryHandler):
         return test.is_attempt_to_fix()
 
     def should_retry(self, test: Test) -> bool:
+        if test.has_failed():
+            return False
+
         retries_so_far = len(test.test_runs) - 1  # Initial attempt does not count.
         return retries_so_far < self.session_manager.settings.test_management.attempt_to_fix_retries
 

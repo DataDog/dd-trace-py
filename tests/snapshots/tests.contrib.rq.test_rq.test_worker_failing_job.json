@@ -11,74 +11,23 @@
     "meta": {
       "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de954800000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
-      "job.id": "35dbf249-04f7-4614-a196-6a59fe593928",
+      "job.id": "b65d1144-bc68-45d8-9460-69f3bb617f1c",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "696c3bcd1bb346e982f3c710445cbea1",
+      "runtime-id": "6a01082606b940feb84197d38404ca13",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 2601
+      "_sampling_priority_v1": 1.0,
+      "process_id": 62795.0
     },
-    "duration": 2535834,
-    "start": 1692649888765254300
-  },
-     {
-       "name": "rq.worker.perform_job",
-       "service": "rq-worker",
-       "resource": "tests.contrib.rq.jobs.job_fail",
-       "trace_id": 0,
-       "span_id": 2,
-       "parent_id": 1,
-       "type": "worker",
-       "error": 1,
-       "meta": {
-         "_dd.base_service": "tests.contrib.rq",
-         "_dd.p.dm": "-0",
-         "_dd.p.tid": "654a694400000000",
-         "component": "rq",
-         "job.id": "35dbf249-04f7-4614-a196-6a59fe593928",
-         "job.origin": "q",
-         "job.status": "failed",
-         "language": "python",
-         "runtime-id": "696c3bcd1bb346e982f3c710445cbea1",
-         "span.kind": "consumer",
-         "traceparent": "00-0000000000000000e2f04af73ae29c55-cb7ccbfebe59f9f5-01",
-         "tracestate": "dd=s:1;t.dm:-0"
-       },
-       "metrics": {
-         "_dd.top_level": 1,
-         "_dd.tracer_kr": 1.0,
-         "_sampling_priority_v1": 1,
-         "process_id": 2601
-       },
-       "duration": 4420417,
-       "start": 1692649888775108050
-     },
-        {
-          "name": "rq.job.perform",
-          "service": "rq-worker",
-          "resource": "tests.contrib.rq.jobs.job_fail",
-          "trace_id": 0,
-          "span_id": 3,
-          "parent_id": 2,
-          "type": "",
-          "error": 1,
-          "meta": {
-            "_dd.base_service": "tests.contrib.rq",
-            "_dd.p.tid": "654a694400000000",
-            "component": "rq",
-            "error.message": "error",
-            "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 215, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 709, in perform\n    self._result = self._execute()\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 732, in _execute\n    result = self.func(*self.args, **self.kwargs)\n  File \"/root/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n",
-            "error.type": "tests.contrib.rq.jobs.MyException",
-            "job.id": "35dbf249-04f7-4614-a196-6a59fe593928"
-          },
-          "duration": 687375,
-          "start": 1692649888776920592
-        }]]
+    "duration": 1249416,
+    "start": 1776194888091495052
+  }]]

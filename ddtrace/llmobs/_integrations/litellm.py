@@ -1,23 +1,26 @@
 from typing import Any
 from typing import Optional
 
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
-from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
-from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._llmobs import LLMObs
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.trace import Span
 
 
@@ -51,9 +54,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
         self, span: Span, model: Optional[str] = None, host: Optional[str] = None, **kwargs: dict[str, Any]
     ) -> None:
         if model is not None:
-            span._set_tag_str("litellm.request.model", model)
+            span._set_attribute("litellm.request.model", model)
         if host is not None:
-            span._set_tag_str("litellm.request.host", host)
+            span._set_attribute("litellm.request.host", host)
 
     def _llmobs_set_tags(
         self,
@@ -64,7 +67,14 @@ class LiteLLMIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
-        model_name, model_provider = self._model_map.get(model_name, (model_name, ""))
+        model_name, model_provider = self._model_map.get(model_name, (model_name, UNKNOWN_MODEL_PROVIDER))
+
+        span_kind = self._get_span_kind(span, kwargs, model_name, operation)
+        metrics = self._extract_llmobs_metrics(response, span_kind)
+        # Set kind before helpers so that input/output messages are routed correctly
+        _annotate_llmobs_span_data(
+            span, kind=span_kind, model_name=model_name or "", model_provider=model_provider, metrics=metrics
+        )
 
         # use Open AI helpers since response format will match Open AI
         if self.is_completion_operation(operation):
@@ -75,17 +85,8 @@ class LiteLLMIntegration(BaseLLMIntegration):
         # custom logic for updating metadata on litellm spans
         self._update_litellm_metadata(span, kwargs, operation)
 
-        # update input and output value for non-LLM spans
-        span_kind = self._get_span_kind(span, kwargs, model_name, operation)
-        update_proxy_workflow_input_output_value(span, span_kind)
-
-        metrics = self._extract_llmobs_metrics(response, span_kind)
-        span._set_ctx_items(
-            {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
-        )
-
     def _update_litellm_metadata(self, span: Span, kwargs: dict[str, Any], operation: str):
-        metadata = span._get_ctx_item(METADATA) or {}
+        metadata = get_llmobs_metadata(span) or {}
         base_url = kwargs.get("base_url") or kwargs.get("api_base")
         # select certain keys within metadata to avoid sending sensitive data
         if "metadata" in metadata:
@@ -104,29 +105,23 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         if base_url and "model" in kwargs:
             metadata["model"] = kwargs["model"]
-            span._set_ctx_items({METADATA: metadata})
-            return
-        if base_url or "router" not in operation:
-            span._set_ctx_items({METADATA: metadata})
-            return
+        elif not base_url and "router" in operation:
+            llm_router = kwargs.get(LITELLM_ROUTER_INSTANCE_KEY)
+            if llm_router:
+                metadata["router_settings"] = {
+                    "router_general_settings": getattr(llm_router, "router_general_settings", None),
+                    "routing_strategy": getattr(llm_router, "routing_strategy", None),
+                    "routing_strategy_args": getattr(llm_router, "routing_strategy_args", None),
+                    "provider_budget_config": getattr(llm_router, "provider_budget_config", None),
+                    "retry_policy": getattr(llm_router, "retry_policy", None),
+                    "enable_tag_filtering": getattr(llm_router, "enable_tag_filtering", None),
+                }
+                if hasattr(llm_router, "get_model_list"):
+                    metadata["router_settings"]["model_list"] = self._construct_litellm_model_list(
+                        llm_router.get_model_list()
+                    )
 
-        llm_router = kwargs.get(LITELLM_ROUTER_INSTANCE_KEY)
-        if not llm_router:
-            span._set_ctx_items({METADATA: metadata})
-            return
-
-        metadata["router_settings"] = {
-            "router_general_settings": getattr(llm_router, "router_general_settings", None),
-            "routing_strategy": getattr(llm_router, "routing_strategy", None),
-            "routing_strategy_args": getattr(llm_router, "routing_strategy_args", None),
-            "provider_budget_config": getattr(llm_router, "provider_budget_config", None),
-            "retry_policy": getattr(llm_router, "retry_policy", None),
-            "enable_tag_filtering": getattr(llm_router, "enable_tag_filtering", None),
-        }
-        if hasattr(llm_router, "get_model_list"):
-            metadata["router_settings"]["model_list"] = self._construct_litellm_model_list(llm_router.get_model_list())
-
-        span._set_ctx_items({METADATA: metadata})
+        _annotate_llmobs_span_data(span, metadata=metadata)
 
     def _construct_litellm_model_list(self, model_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
         new_model_list = []
@@ -152,6 +147,19 @@ class LiteLLMIntegration(BaseLLMIntegration):
         """
         stream = kwargs.get("stream", False)
         model_lower = model.lower() if model else ""
+        # Detect litellm proxy routing — the OpenAI integration never fires when requests go through a proxy.
+        # Three mechanisms exist (v1.72.1+ for use_litellm_proxy):
+        #   1. model prefix:        model="litellm_proxy/<model>"
+        #   2. per-call kwarg:      use_litellm_proxy=True
+        #   3. module-level flag:   litellm.use_litellm_proxy = True  /  USE_LITELLM_PROXY env var
+        if model_lower.startswith("litellm_proxy/"):
+            return False
+        if kwargs.get("use_litellm_proxy"):
+            return False
+        import litellm as _litellm
+
+        if getattr(_litellm, "use_litellm_proxy", False) or env.get("USE_LITELLM_PROXY", "").lower() == "true":
+            return False
         # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
         is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
         return is_openai_model and not stream and LLMObs._integration_is_enabled("openai")
@@ -194,13 +202,52 @@ class LiteLLMIntegration(BaseLLMIntegration):
             token_usage = _get_attr(resp, "usage", None)
         if token_usage is None:
             return {}
+
         prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
         completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
-        return {
+
+        metrics: dict[str, Any] = {
             INPUT_TOKENS_METRIC_KEY: prompt_tokens,
             OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
             TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
         }
+        completion_tokens_details = _get_attr(token_usage, "completion_tokens_details", {})
+        if completion_tokens_details:
+            reasoning_tokens = _get_attr(completion_tokens_details, "reasoning_tokens", None)
+            if reasoning_tokens is not None:
+                metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_tokens
+
+        # Extract cache read tokens from litellm's normalized prompt_tokens_details
+        prompt_tokens_details = _get_attr(token_usage, "prompt_tokens_details", None)
+        if prompt_tokens_details is not None:
+            cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
+            if cached_tokens:
+                metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
+            # cache_creation_tokens + cache TTL breakdown is on prompt_tokens_details in litellm >=1.77.3
+            cache_creation_tokens = _get_attr(prompt_tokens_details, "cache_creation_tokens", None)
+            if cache_creation_tokens:
+                metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_creation_tokens
+                cache_creation_token_details = _get_attr(prompt_tokens_details, "cache_creation_token_details", None)
+                if cache_creation_token_details is not None:
+                    ephemeral_1h = _get_attr(cache_creation_token_details, "ephemeral_1h_input_tokens", None)
+                    ephemeral_5m = _get_attr(cache_creation_token_details, "ephemeral_5m_input_tokens", None)
+                    metrics[CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY] = ephemeral_1h or 0
+                    metrics[CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY] = ephemeral_5m or 0
+                else:
+                    # if no cache write TTL breakdown available, assume all writes are 5m TTL
+                    metrics[CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY] = 0
+                    metrics[CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY] = cache_creation_tokens
+
+        # Fallback: cache_creation_input_tokens on usage object (litellm 1.65.4)
+        if CACHE_WRITE_INPUT_TOKENS_METRIC_KEY not in metrics:
+            cache_creation_tokens = _get_attr(token_usage, "cache_creation_input_tokens", None)
+            if cache_creation_tokens:
+                metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_creation_tokens
+                # if no cache write TTL breakdown available, assume all writes are 5m TTL
+                metrics[CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY] = 0
+                metrics[CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY] = cache_creation_tokens
+
+        return metrics
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         base_url = kwargs.get("base_url")

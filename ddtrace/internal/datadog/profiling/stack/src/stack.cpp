@@ -1,4 +1,5 @@
 #include "cast_to_pyfunc.hpp"
+#include "dd_wrapper/include/profiler_state.hpp"
 #include "python_headers.hpp"
 #include "sampler.hpp"
 #include "thread_span_links.hpp"
@@ -8,7 +9,7 @@
 using namespace Datadog;
 
 static PyObject*
-_stack_start(PyObject* self, PyObject* args, PyObject* kwargs)
+stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 {
     (void)self;
     static const char* const_kwlist[] = { "min_interval", NULL };
@@ -27,19 +28,25 @@ _stack_start(PyObject* self, PyObject* args, PyObject* kwargs)
 }
 
 // Bypasses the old-style cast warning with an unchecked helper function
-PyCFunction stack_start = cast_to_pycfunction(_stack_start);
+PyCFunction stack_start = cast_to_pycfunction(stack_start_impl);
 
 static PyObject*
 stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     Sampler::get().stop();
 
+    Py_BEGIN_ALLOW_THREADS; // Release GIL
+
     // Explicitly clear ThreadSpanLinks. The memory should be cleared up
     // when the program exits as ThreadSpanLinks is a static singleton instance.
     // However, this was necessary to make sure that the state is not shared
     // across tests, as the tests are run in the same process.
-    Py_BEGIN_ALLOW_THREADS; // Release GIL before busy-waiting
     ThreadSpanLinks::get_instance().reset();
+
+    // Clear the native call registry. This is safe because we stop the
+    // Sampler at the beginning of this function.
+    ProfilerState::get().native_call_registry.reset();
+
     Py_END_ALLOW_THREADS; // Re-acquire GIL
 
     Py_RETURN_NONE;
@@ -100,7 +107,7 @@ stack_thread_unregister(PyObject* self, PyObject* args)
 }
 
 static PyObject*
-_stack_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
+stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 {
     (void)self;
     uint64_t thread_id;
@@ -136,7 +143,7 @@ _stack_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
     Py_RETURN_NONE;
 }
 
-PyCFunction stack_link_span = cast_to_pycfunction(_stack_link_span);
+PyCFunction stack_link_span = cast_to_pycfunction(stack_link_span_impl);
 
 static PyObject*
 stack_track_asyncio_loop(PyObject* self, PyObject* args)
@@ -216,6 +223,49 @@ stack_set_adaptive_sampling(PyObject* Py_UNUSED(self), PyObject* args)
     }
 
     Sampler::get().set_adaptive_sampling(do_adaptive_sampling);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_target_overhead(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    double target_overhead;
+
+    if (!PyArg_ParseTuple(args, "d", &target_overhead)) {
+        return NULL;
+    }
+
+    // Convert from percentage (0-100) to fraction (0-1)
+    Sampler::get().set_target_overhead(target_overhead / 100.0);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_max_sampling_period(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned int max_interval_us;
+
+    if (!PyArg_ParseTuple(args, "I", &max_interval_us)) {
+        return NULL;
+    }
+
+    Sampler::get().set_max_sampling_period(max_interval_us);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_max_threads(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned int max_threads;
+
+    if (!PyArg_ParseTuple(args, "I", &max_threads)) {
+        return NULL;
+    }
+
+    Sampler::get().set_max_threads_per_sample(max_threads);
 
     Py_RETURN_NONE;
 }
@@ -307,7 +357,330 @@ update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
     Py_RETURN_NONE;
 }
 
-static PyMethodDef _stack_methods[] = {
+// ---- Native call monitoring (C callback for sys.monitoring CALL events) ----
+
+// Cached sys.monitoring.DISABLE sentinel and tool ID (looked up at runtime)
+static constexpr const char* g_tool_name = "dd-profiling";
+static PyObject* g_disable_sentinel = nullptr;
+static int g_tool_id = -1;
+
+// C callback for sys.monitoring CALL events.
+// On every CALL, extracts callable info, registers C callables in the registry,
+// and returns DISABLE for all callables (Python and C) so each call site fires only once.
+static PyObject*
+native_call_handler(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t nargs)
+{
+    // args: [code, instruction_offset, callable, arg0]
+    if (nargs < 3) {
+        Py_INCREF(g_disable_sentinel);
+        return g_disable_sentinel;
+    }
+
+    PyObject* callable = args[2];
+
+    // Exclude non-C callables: these are Python-level constructs whose
+    // actual work (if any) will fire separate CALL events for the underlying
+    // C functions they delegate to.
+    // For types: heap types (Python-defined classes) are excluded because their
+    // __init__/__new__ are Python functions visible as regular frames.
+    // Non-heap types (builtins like str, dict, list, set) are kept because their
+    // __init__/__new__ are C implementations that don't fire separate CALL events.
+    if (PyFunction_Check(callable)  // def / lambda / async def
+        || PyMethod_Check(callable) // bound method wrapping a PyFunction
+        || (PyType_Check(callable) && (reinterpret_cast<PyTypeObject*>(callable)->tp_flags & Py_TPFLAGS_HEAPTYPE)) ||
+        PyGen_Check(callable)              // generator object (not a C call)
+        || PyCoro_CheckExact(callable)     // coroutine object
+        || PyAsyncGen_CheckExact(callable) // async generator object
+    ) {
+        Py_INCREF(g_disable_sentinel);
+        return g_disable_sentinel;
+    }
+
+    // Remaining callables are assumed to be C-level: builtin_function_or_method,
+    // method_descriptor, slot_wrapper, classmethod_descriptor, etc.
+    // Extract name+module, register call site, then return DISABLE.
+    PyObject* code = args[0];
+    PyObject* offset_obj = args[1];
+    int offset_bytes = static_cast<int>(PyLong_AsLong(offset_obj));
+    if (offset_bytes == -1 && PyErr_Occurred()) {
+        PyErr_Clear();
+        Py_INCREF(g_disable_sentinel);
+        return g_disable_sentinel;
+    }
+
+    uintptr_t code_ptr = reinterpret_cast<uintptr_t>(code);
+
+    // Extract co_firstlineno to guard against code object address reuse after GC
+    int first_lineno = reinterpret_cast<PyCodeObject*>(code)->co_firstlineno;
+
+    // Get name: try __qualname__, fall back to __name__, then type name
+    std::string name;
+    PyObject* qualname = PyObject_GetAttrString(callable, "__qualname__");
+    if (qualname && PyUnicode_Check(qualname)) {
+        const char* s = PyUnicode_AsUTF8(qualname);
+        if (s) {
+            name = s;
+        }
+        Py_DECREF(qualname);
+    } else {
+        Py_XDECREF(qualname);
+        PyErr_Clear();
+        PyObject* pyname = PyObject_GetAttrString(callable, "__name__");
+        if (pyname && PyUnicode_Check(pyname)) {
+            const char* s = PyUnicode_AsUTF8(pyname);
+            if (s) {
+                name = s;
+            }
+            Py_DECREF(pyname);
+        } else {
+            Py_XDECREF(pyname);
+            PyErr_Clear();
+            name = Py_TYPE(callable)->tp_name;
+        }
+    }
+
+    // Get module: try __module__, default ""
+    std::string module;
+    PyObject* pymod = PyObject_GetAttrString(callable, "__module__");
+    if (pymod && PyUnicode_Check(pymod)) {
+        const char* s = PyUnicode_AsUTF8(pymod);
+        if (s) {
+            module = s;
+        }
+        Py_DECREF(pymod);
+    } else {
+        Py_XDECREF(pymod);
+        PyErr_Clear();
+    }
+
+    ProfilerState::get().native_call_registry.register_call_site(
+      code_ptr, offset_bytes, first_lineno, std::move(name), std::move(module));
+
+    Py_INCREF(g_disable_sentinel);
+    return g_disable_sentinel;
+}
+
+static PyMethodDef native_call_handler_def = {
+    "native_call_handler",
+    // Double cast: METH_FASTCALL signature (PyObject*, PyObject*const*, Py_ssize_t) differs from
+    // PyCFunction (PyObject*, PyObject*), but CPython dispatches correctly based on ml_flags.
+    // NOLINTNEXTLINE(bugprone-casting-through-void)
+    reinterpret_cast<PyCFunction>(reinterpret_cast<void*>(native_call_handler)),
+    METH_FASTCALL,
+    "C callback for sys.monitoring CALL events"
+};
+
+// Helper to clean up sys.monitoring state on error during start_native_monitoring.
+// Unregisters events and frees the tool ID so a subsequent start attempt can succeed.
+static void
+cleanup_native_monitoring(PyObject* monitoring, bool events_set)
+{
+    if (events_set) {
+        PyObject* r = PyObject_CallMethod(monitoring, "set_events", "ii", g_tool_id, 0);
+        Py_XDECREF(r);
+    }
+    PyObject* r = PyObject_CallMethod(monitoring, "free_tool_id", "i", g_tool_id);
+    Py_XDECREF(r);
+}
+
+static PyObject*
+start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Import sys.monitoring
+    PyObject* sys_mod = PyImport_ImportModule("sys");
+    if (!sys_mod) {
+        return NULL;
+    }
+
+    PyObject* monitoring = PyObject_GetAttrString(sys_mod, "monitoring");
+    Py_DECREF(sys_mod);
+    if (!monitoring) {
+        return NULL;
+    }
+
+    // Cache the DISABLE sentinel
+    if (!g_disable_sentinel) {
+        g_disable_sentinel = PyObject_GetAttrString(monitoring, "DISABLE");
+        if (!g_disable_sentinel) {
+            Py_DECREF(monitoring);
+            return NULL;
+        }
+    }
+
+    // Look up PROFILER_ID at runtime instead of hardcoding
+    if (g_tool_id < 0) {
+        PyObject* id_obj = PyObject_GetAttrString(monitoring, "PROFILER_ID");
+        if (!id_obj) {
+            Py_DECREF(monitoring);
+            return NULL;
+        }
+        g_tool_id = static_cast<int>(PyLong_AsLong(id_obj));
+        Py_DECREF(id_obj);
+        if (g_tool_id == -1 && PyErr_Occurred()) {
+            Py_DECREF(monitoring);
+            return NULL;
+        }
+    }
+
+    // use_tool_id(g_tool_id, "dd-profiling")
+    // If the tool ID is already claimed, check whether it's ours (idempotent
+    // start) or belongs to another tool (raise RuntimeError).
+    PyObject* result = PyObject_CallMethod(monitoring, "use_tool_id", "is", g_tool_id, g_tool_name);
+    if (!result) {
+        if (!PyErr_ExceptionMatches(PyExc_ValueError)) {
+            Py_DECREF(monitoring);
+            return NULL;
+        }
+        PyErr_Clear();
+
+        PyObject* current_name = PyObject_CallMethod(monitoring, "get_tool", "i", g_tool_id);
+        if (!current_name) {
+            Py_DECREF(monitoring);
+            return NULL;
+        }
+
+        const char* name = PyUnicode_AsUTF8(current_name);
+        bool is_ours = name && strcmp(name, g_tool_name) == 0;
+        Py_DECREF(current_name);
+
+        if (!is_ours) {
+            Py_DECREF(monitoring);
+            PyErr_SetString(PyExc_RuntimeError, "sys.monitoring PROFILER_ID is already claimed by another tool");
+            return NULL;
+        }
+    } else {
+        Py_DECREF(result);
+    }
+
+    // Get events.CALL
+    PyObject* events = PyObject_GetAttrString(monitoring, "events");
+    if (!events) {
+        cleanup_native_monitoring(monitoring, false);
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+
+    PyObject* call_event = PyObject_GetAttrString(events, "CALL");
+    Py_DECREF(events);
+    if (!call_event) {
+        cleanup_native_monitoring(monitoring, false);
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+
+    // set_events(g_tool_id, CALL)
+    result = PyObject_CallMethod(monitoring, "set_events", "iO", g_tool_id, call_event);
+    if (!result) {
+        cleanup_native_monitoring(monitoring, false);
+        Py_DECREF(call_event);
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+    Py_DECREF(result);
+
+    // restart_events() re-arms call sites that previously returned
+    // sys.monitoring.DISABLE. Without this, a start->stop->start cycle would
+    // leave already-seen call sites permanently disabled, and any new C call
+    // sites sharing those code-object/offset pairs would never fire the
+    // callback. This is a no-op on the first start (nothing is disabled yet).
+    result = PyObject_CallMethod(monitoring, "restart_events", NULL);
+    if (!result) {
+        cleanup_native_monitoring(monitoring, true);
+        Py_DECREF(call_event);
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+    Py_DECREF(result);
+
+    // Create the handler function object
+    PyObject* handler = PyCFunction_New(&native_call_handler_def, NULL);
+    if (!handler) {
+        cleanup_native_monitoring(monitoring, true);
+        Py_DECREF(call_event);
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+
+    // register_callback(g_tool_id, CALL, handler)
+    result = PyObject_CallMethod(monitoring, "register_callback", "iOO", g_tool_id, call_event, handler);
+    Py_DECREF(handler);
+    Py_DECREF(call_event);
+
+    if (!result) {
+        cleanup_native_monitoring(monitoring, true);
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+    Py_DECREF(result);
+    Py_DECREF(monitoring);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (g_tool_id < 0) {
+        Py_RETURN_NONE;
+    }
+
+    PyObject* sys_mod = PyImport_ImportModule("sys");
+    if (!sys_mod) {
+        return NULL;
+    }
+
+    PyObject* monitoring = PyObject_GetAttrString(sys_mod, "monitoring");
+    Py_DECREF(sys_mod);
+    if (!monitoring) {
+        return NULL;
+    }
+
+    // set_events(g_tool_id, 0) - disable all events
+    PyObject* result = PyObject_CallMethod(monitoring, "set_events", "ii", g_tool_id, 0);
+    if (!result) {
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+    Py_DECREF(result);
+
+    // Get events.CALL for unregistering
+    PyObject* events = PyObject_GetAttrString(monitoring, "events");
+    if (!events) {
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+
+    PyObject* call_event = PyObject_GetAttrString(events, "CALL");
+    Py_DECREF(events);
+    if (!call_event) {
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+
+    // register_callback(g_tool_id, CALL, None)
+    result = PyObject_CallMethod(monitoring, "register_callback", "iOO", g_tool_id, call_event, Py_None);
+    Py_DECREF(call_event);
+    if (!result) {
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+    Py_DECREF(result);
+
+    // free_tool_id(g_tool_id)
+    result = PyObject_CallMethod(monitoring, "free_tool_id", "i", g_tool_id);
+    Py_DECREF(monitoring);
+    if (!result) {
+        return NULL;
+    }
+    Py_DECREF(result);
+    g_tool_id = -1;
+
+    Py_CLEAR(g_disable_sentinel);
+
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef stack_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_stop, METH_VARARGS, "Stop the sampler" },
     { "register_thread", stack_thread_register, METH_VARARGS, "Register a thread" },
@@ -329,16 +702,31 @@ static PyMethodDef _stack_methods[] = {
     { "update_greenlet_frame", update_greenlet_frame, METH_VARARGS, "Update the frame of a greenlet" },
 
     { "set_adaptive_sampling", stack_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
+    { "set_target_overhead",
+      stack_set_target_overhead,
+      METH_VARARGS,
+      "Set target overhead for adaptive sampling (e.g. 10 for 10% of the app's own CPU time)" },
+    { "set_max_sampling_period",
+      stack_set_max_sampling_period,
+      METH_VARARGS,
+      "Set max sampling period for adaptive sampling" },
+    { "set_max_threads", stack_set_max_threads, METH_VARARGS, "Set max threads to sample per cycle (0 = unlimited)" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
+    // Native call monitoring
+    { "start_native_monitoring",
+      start_native_monitoring,
+      METH_NOARGS,
+      "Start sys.monitoring-based native call tracking" },
+    { "stop_native_monitoring", stop_native_monitoring, METH_NOARGS, "Stop sys.monitoring-based native call tracking" },
     { NULL, NULL, 0, NULL }
 };
 
 PyMODINIT_FUNC
-PyInit__stack(void)
+PyInit__stack(void) // NOLINT(bugprone-reserved-identifier)
 {
     PyObject* m;
     static struct PyModuleDef moduledef = {
-        PyModuleDef_HEAD_INIT, "_stack", NULL, -1, _stack_methods, NULL, NULL, NULL, NULL
+        PyModuleDef_HEAD_INIT, "_stack", NULL, -1, stack_methods, NULL, NULL, NULL, NULL
     };
 
     m = PyModule_Create(&moduledef);

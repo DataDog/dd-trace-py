@@ -11,23 +11,25 @@
     "meta": {
       "_dd.base_service": "tests.contrib.graphql",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "679b96df00000000",
+      "_dd.p.tid": "69de9e4000000000",
+      "_dd.svc_src": "graphql",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.graphql",
       "component": "graphql",
       "error.message": "Cannot query field 'invalid_schema' on type 'RootQueryType'.\n\nGraphQL request:1:17\n1 | query my_query{ invalid_schema }\n  |                 ^",
       "error.type": "graphql.error.graphql_error.GraphQLError",
-      "events": "[{\"name\": \"dd.graphql.query.error\", \"time_unix_nano\": 1738249951802662000, \"attributes\": {\"message\": \"Cannot query field 'invalid_schema' on type 'RootQueryType'.\", \"type\": \"graphql.error.graphql_error.GraphQLError\", \"locations\": \"1:17\"}}]",
+      "events": "[{\"name\": \"dd.graphql.query.error\",\"time_unix_nano\": 1776197184203243173,\"attributes\": {\"locations\": [\"1:17\"],\"message\": \"Cannot query field 'invalid_schema' on type 'RootQueryType'.\",\"type\": \"graphql.error.graphql_error.GraphQLError\"}}]",
       "language": "python",
-      "runtime-id": "9a4c224e6fdd49cea07a7a3954fd5db7"
+      "runtime-id": "6b5a1e496034457f826b52cf30d11ad4"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 26822
+      "_sampling_priority_v1": 1.0,
+      "process_id": 75639.0
     },
-    "duration": 1221000,
-    "start": 1738249951801442000
+    "duration": 1824209,
+    "start": 1776197184201432839
   },
      {
        "name": "graphql.parse",
@@ -40,11 +42,12 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.graphql",
+         "_dd.svc_src": "graphql",
          "component": "graphql",
          "graphql.source": "query my_query{ invalid_schema }"
        },
-       "duration": 143000,
-       "start": 1738249951801693000
+       "duration": 173625,
+       "start": 1776197184201711006
      },
      {
        "name": "graphql.validate",
@@ -57,12 +60,13 @@
        "error": 1,
        "meta": {
          "_dd.base_service": "tests.contrib.graphql",
+         "_dd.svc_src": "graphql",
          "component": "graphql",
          "error.message": "Cannot query field 'invalid_schema' on type 'RootQueryType'.\n\nGraphQL request:1:17\n1 | query my_query{ invalid_schema }\n  |                 ^",
          "error.type": "graphql.error.graphql_error.GraphQLError",
-         "events": "[{\"name\": \"dd.graphql.query.error\", \"time_unix_nano\": 1738249951802627000, \"attributes\": {\"message\": \"Cannot query field 'invalid_schema' on type 'RootQueryType'.\", \"type\": \"graphql.error.graphql_error.GraphQLError\", \"locations\": \"1:17\"}}]",
+         "events": "[{\"name\": \"dd.graphql.query.error\",\"time_unix_nano\": 1776197184203068756,\"attributes\": {\"locations\": [\"1:17\"],\"message\": \"Cannot query field 'invalid_schema' on type 'RootQueryType'.\",\"type\": \"graphql.error.graphql_error.GraphQLError\"}}]",
          "graphql.source": "query my_query{ invalid_schema }"
        },
-       "duration": 745000,
-       "start": 1738249951801884000
+       "duration": 1145333,
+       "start": 1776197184201929798
      }]]

@@ -26,6 +26,7 @@ from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
+from ddtrace.internal.encoding import AgentlessTraceJSONEncoder
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV04
@@ -226,6 +227,55 @@ class TestEncoders(TestCase):
                 assert isinstance(items[i][j]["span_id"], str)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
 
+    def test_encode_traces_json_agentless(self):
+        span = Span(
+            name="span1", trace_id=0x12341234567890ABCDEF, span_id=0x1234567890ABCDEF, service="svc", resource="/r"
+        )
+        span.set_tag("tag1", "value1")
+        span.set_tag("manual.keep")
+        span._set_attribute("munir.metric", 1.0)
+        span.set_link(trace_id=3, span_id=4)
+        span.error = 1
+        span.start_ns = 1771941568700091000
+        span.duration_ns = 1000000000
+
+        span.span_type = SpanTypes.WEB
+        span._set_struct_tag("payload", {"key": "value"})
+        encoder = AgentlessTraceJSONEncoder(1 << 11, 1 << 11)
+        encoder.put([span])
+        encoded_traces = encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(payload_bytes, n_traces)] = encoded_traces
+        data = json.loads(payload_bytes.decode("utf-8"))
+
+        assert n_traces == 1
+        assert data == {
+            "traces": [
+                {
+                    "spans": [
+                        {
+                            "trace_id": "1234567890abcdef",
+                            "parent_id": "0000000000000000",
+                            "span_id": "1234567890abcdef",
+                            "service": "svc",
+                            "resource": "/r",
+                            "name": "span1",
+                            "error": 1,
+                            "start": 1771941568700091000,
+                            "duration": 1000000000,
+                            "meta": {"tag1": "value1", "_dd.compute_stats": "1"},
+                            "metrics": {"munir.metric": 1.0, "_trace_root": 1, "_top_level": 1},
+                            "type": "web",
+                            "span_links": [
+                                {"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}
+                            ],
+                            "meta_struct": {"payload": {"key": "value"}},
+                        }
+                    ]
+                }
+            ]
+        }
+
 
 def test_encode_meta_struct():
     # test encoding for MsgPack format
@@ -319,7 +369,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     trace = gen_trace(nspans=1, ntags=100, nmetrics=100, key_size=10, value_size=10)
     rand_string = rands(size=20, chars=string.ascii_letters)
     # trace only has one span
-    trace[0]._set_tag_str("some_tag", rand_string)
+    trace[0]._set_attribute("some_tag", rand_string)
     try:
         # Encode a trace that will trigger a rollback/BufferItemTooLarge exception
         # BufferFull is not raised since only one span is being encoded
@@ -331,7 +381,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     # Successfully encode a small trace
     small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
     # Add a tag to the small trace that was previously encoded in the encoder's StringTable
-    small_trace[0]._set_tag_str("previously_encoded_string", rand_string)
+    small_trace[0]._set_attribute("previously_encoded_string", rand_string)
     rolledback_encoder.put(small_trace)
 
     # Encode a trace without triggering a rollback/BufferFull exception
@@ -548,7 +598,6 @@ def test_span_link_v04_encoding():
                     "link.name": "link_name",
                     "link.kind": "link_kind",
                     "someval": 1,
-                    "drop_me": "bye",
                     "key_other": [True, 2, ["hello", 4, {"5"}]],
                 },
             ),
@@ -560,11 +609,7 @@ def test_span_link_v04_encoding():
         pointer_hash="some-hash",
         extra_attributes={"some": "extra"},
     )
-    assert span._links
-    # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    [link_6, *others] = [link for link in span._links if link.span_id == 6]
-    assert not others
-    link_6._drop_attribute("drop_me")
+    assert span._get_links()
     # Finish the span to ensure a duration exists.
     span.finish()
 
@@ -603,7 +648,6 @@ def test_span_link_v04_encoding():
                 b"key_other.2.1": b"4",
                 b"key_other.2.2.0": b"5",
             },
-            b"dropped_attributes_count": 1,
             b"tracestate": b"congo=t61rcWkgMzE",
             b"flags": 1 | (1 << 31),
             b"trace_id_high": 123,
@@ -626,9 +670,8 @@ def test_span_link_v04_encoding():
     parametrize={"DD_TRACE_API_VERSION": ["v0.4", "v0.5"], "DD_TRACE_NATIVE_SPAN_EVENTS": ["True", "False"]}, err=None
 )
 def test_span_event_encoding_msgpack():
+    import json
     import os
-
-    import mock
 
     from ddtrace.internal.encoding import MSGPACK_ENCODERS
     from ddtrace.trace import Span
@@ -668,8 +711,7 @@ def test_span_event_encoding_msgpack():
         {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
         17353464354546,
     )
-    with mock.patch("ddtrace._trace.span.Time.time_ns", return_value=2234567890123456):
-        span._add_event("We are going to the moon")
+    span._add_event("We are going to the moon", time_unix_nano=2234567890123456)
 
     # Get test parameters from environment variables
     version = os.getenv("DD_TRACE_API_VERSION")
@@ -686,16 +728,21 @@ def test_span_event_encoding_msgpack():
     # ensure trace has one span
     assert len(decoded_trace[0]) == 1
 
+    expected_events_json = [
+        {"name": "Something went so wrong", "time_unix_nano": 1, "attributes": {"type": "error"}},
+        {
+            "name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx",
+            "time_unix_nano": 17353464354546,
+            "attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
+        },
+        {"name": "We are going to the moon", "time_unix_nano": 2234567890123456},
+    ]
+
     if version == "v0.5":
         encoded_span_meta = decoded_trace[0][0][9]
         assert b"events" in encoded_span_meta
-        assert (
-            encoded_span_meta[b"events"]
-            == b'[{"name": "Something went so wrong", "time_unix_nano": 1, "attributes": {"type": "error"}}, '
-            b'{"name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx", "time_unix_nano": 17353464354546, '
-            b'"attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": false}}, '
-            b'{"name": "We are going to the moon", "time_unix_nano": 2234567890123456}]'
-        )
+        decoded_events = json.loads(encoded_span_meta[b"events"])
+        assert decoded_events == expected_events_json
     elif trace_native_span_events:
         encoded_span_meta = decoded_trace[0][0]
         assert b"span_events" in encoded_span_meta
@@ -703,13 +750,8 @@ def test_span_event_encoding_msgpack():
     else:
         encoded_span_meta = decoded_trace[0][0][b"meta"]
         assert b"events" in encoded_span_meta
-        assert (
-            encoded_span_meta[b"events"]
-            == b'[{"name": "Something went so wrong", "time_unix_nano": 1, "attributes": {"type": "error"}}, '
-            b'{"name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx", "time_unix_nano": 17353464354546, '
-            b'"attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": false}}, '
-            b'{"name": "We are going to the moon", "time_unix_nano": 2234567890123456}]'
-        )
+        decoded_events = json.loads(encoded_span_meta[b"events"])
+        assert decoded_events == expected_events_json
 
 
 def test_span_link_v05_encoding():
@@ -729,7 +771,6 @@ def test_span_link_v05_encoding():
                     "moon": "ears",
                     "link.name": "link_name",
                     "link.kind": "link_kind",
-                    "drop_me": "bye",
                     "key2": ["false", 2, ["hello", 4, {"5"}]],
                 },
             ),
@@ -741,11 +782,7 @@ def test_span_link_v05_encoding():
         pointer_hash="some-hash",
     )
 
-    assert len(span._links) == 3
-    # Drop one attribute so SpanLink.dropped_attributes_count is serialized
-    [link_bignum, *others] = [link for link in span._links if link.span_id == (2**64) - 1]
-    assert not others
-    link_bignum._drop_attribute("drop_me")
+    assert len(span._get_links()) == 3
 
     # Finish the span to ensure a duration exists.
     span.finish()
@@ -759,18 +796,38 @@ def test_span_link_v05_encoding():
 
     encoded_span_meta = decoded_trace[0][0][9]
     assert b"_dd.span_links" in encoded_span_meta
-    assert (
-        encoded_span_meta[b"_dd.span_links"] == b"["
-        b'{"trace_id": "00000000000000000000000000000010", "span_id": "0000000000000011"}, '
-        b'{"trace_id": "7fffffffffffffffffffffffffffffff", "span_id": "ffffffffffffffff", '
-        b'"attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", '
-        b'"key2.0": "false", "key2.1": "2", "key2.2.0": "hello", "key2.2.1": "4", "key2.2.2.0": "5"}, '
-        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}, '
-        b'{"trace_id": "00000000000000000000000000000000", "span_id": "0000000000000000", '
-        b'"attributes": {"ptr.kind": "some-kind", "ptr.dir": "u", "ptr.hash": "some-hash", '
-        b'"link.kind": "span-pointer"}}'
-        b"]"
-    )
+    # Parse the JSON so the comparison is order-independent for attribute keys
+    # (HashMap iteration order in Rust is non-deterministic).
+    decoded_links = json.loads(encoded_span_meta[b"_dd.span_links"])
+    assert decoded_links == [
+        {"trace_id": "00000000000000000000000000000010", "span_id": "0000000000000011"},
+        {
+            "trace_id": "7fffffffffffffffffffffffffffffff",
+            "span_id": "ffffffffffffffff",
+            "attributes": {
+                "key2.0": "false",
+                "key2.1": "2",
+                "key2.2.0": "hello",
+                "key2.2.1": "4",
+                "key2.2.2.0": "5",
+                "link.kind": "link_kind",
+                "link.name": "link_name",
+                "moon": "ears",
+            },
+            "tracestate": "congo=t61rcWkgMzE",
+            "flags": 0,
+        },
+        {
+            "trace_id": "00000000000000000000000000000000",
+            "span_id": "0000000000000000",
+            "attributes": {
+                "link.kind": "span-pointer",
+                "ptr.dir": "u",
+                "ptr.hash": "some-hash",
+                "ptr.kind": "some-kind",
+            },
+        },
+    ]
 
 
 @pytest.mark.parametrize(
@@ -828,9 +885,10 @@ def test_custom_msgpack_encode_trace_size(encoding, trace_id, name, service, res
     assert encoder.size == len(encoder.encode()[0][0])
 
 
-def test_encoder_buffer_size_limit_v05():
+@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05, AgentlessTraceJSONEncoder])
+def test_encoder_buffer_size_limit(encoder_cls):
     buffer_size = 1 << 10
-    encoder = MsgpackEncoderV05(buffer_size, buffer_size)
+    encoder = encoder_cls(buffer_size, buffer_size)
 
     trace = [Span(name="test")]
     encoder.put(trace)
@@ -849,20 +907,16 @@ def test_encoder_buffer_size_limit_v05():
         encoder.put(trace)
 
 
-def test_encoder_buffer_item_size_limit_v05():
+@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05, AgentlessTraceJSONEncoder])
+def test_encoder_buffer_item_size_limit(encoder_cls):
     max_item_size = 1 << 10
-    encoder = MsgpackEncoderV05(max_item_size << 1, max_item_size)
+    encoder = encoder_cls(max_item_size << 1, max_item_size)
 
     span = Span(name="test")
-    trace = [span]
-    encoder.put(trace)
-    base_size = encoder.size
-    encoder.put(trace)
-
-    trace_size = encoder.size - base_size
-
+    encoder.put([span])
     with pytest.raises(BufferItemTooLarge):
-        encoder.put([span] * (int(max_item_size / trace_size) + 2))
+        span.set_tag("test", "a" * (max_item_size + 1))
+        encoder.put([span])
 
 
 def test_custom_msgpack_encode_v05():
@@ -945,41 +999,6 @@ def _value():
 
 
 @pytest.mark.parametrize(
-    "data",
-    [
-        {"trace_id": "trace_id"},
-        {"span_id": "span_id"},
-        {"parent_id": "parent_id"},
-        # {"service": True},  # Now handled gracefully by Rust (converts to None)
-        # {"resource": 50},  # Now handled gracefully by Rust (falls back to name or "")
-        # {"name": [1, 2, 3]},  # Now handled gracefully by Rust (converts to "")
-        # {"span_type": 100},  # Now handled gracefully by Rust (converts to None)
-        # {"start_ns": []},  # Now handled gracefully by Rust (falls back to 0)
-        # {"duration_ns": {}},  # Now handled gracefully by Rust (falls back to -1/None)
-    ],
-)
-def test_encoding_invalid_data_raises(data):
-    """Test that invalid data types for certain fields raise during encoding.
-
-    Note: name, service, resource, start_ns, and duration_ns are now validated at the
-    Rust layer and convert invalid types gracefully, so they no longer raise during encoding.
-    """
-    encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
-
-    span = Span(name="test")
-    for key, value in data.items():
-        setattr(span, key, value)
-
-    trace = [span]
-    with pytest.raises(RuntimeError) as e:
-        encoder.put(trace)
-
-    assert e.match(r"failed to pack span: Span\(name="), e
-    encoded_traces = encoder.encode()
-    assert (not encoded_traces) or (encoded_traces[0][0] is None)
-
-
-@pytest.mark.parametrize(
     "field,invalid_value,expected_value,span_name",
     [
         ("service", True, None, "test"),  # Invalid service type -> None
@@ -1045,8 +1064,8 @@ def test_encoding_invalid_data_ok(meta: dict[str, Any], metrics: dict[str, Any])
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
     span = Span(name="test")
-    span._meta = meta  # type: ignore
-    span._metrics = metrics  # type: ignore
+    span._meta = meta  # type: ignore  # ast-grep-ignore: span-meta-access
+    span._metrics = metrics  # type: ignore  # ast-grep-ignore: span-metrics-access
 
     trace = [span]
     encoder.put(trace)

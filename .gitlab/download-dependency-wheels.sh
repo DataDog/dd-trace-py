@@ -17,6 +17,7 @@ export PYTHONUNBUFFERED=TRUE
 
 ../lib-injection/dl_wheels.py \
     --python-version=$PYTHON_VERSION \
+    --ddtrace-flavor=${DDTRACE_FLAVOR:-} \
     --local-ddtrace \
     --arch x86_64 \
     --arch aarch64 \

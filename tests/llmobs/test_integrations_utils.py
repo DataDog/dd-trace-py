@@ -1,5 +1,6 @@
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
+from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
 
 
 def test_basic_functionality():
@@ -181,3 +182,160 @@ def test_extract_chat_template_with_falsy_values():
     # 0 and False should be replaced with placeholders
     # Empty string should remain as-is (not replaceable through reverse-templating)
     assert result[0]["content"] == "Count: {{count}}, Flag: {{flag}}, Empty: "
+
+
+class TestOpenAIParseInputResponseMessages:
+    """Tests for _openai_parse_input_response_messages with both dict and SDK object inputs."""
+
+    def test_dict_regular_message(self):
+        messages = [{"role": "user", "content": "Hello"}]
+        processed, tool_call_ids = _openai_parse_input_response_messages(messages)
+        assert len(processed) == 1
+        assert processed[0]["role"] == "user"
+        assert processed[0]["content"] == "Hello"
+        assert tool_call_ids == []
+
+    def test_dict_function_call(self):
+        messages = [
+            {
+                "type": "function_call",
+                "call_id": "call_abc",
+                "name": "get_weather",
+                "arguments": '{"location": "SF"}',
+            }
+        ]
+        processed, tool_call_ids = _openai_parse_input_response_messages(messages)
+        assert len(processed) == 1
+        assert processed[0]["role"] == "assistant"
+        tc = processed[0]["tool_calls"][0]
+        assert tc["tool_id"] == "call_abc"
+        assert tc["name"] == "get_weather"
+        assert tc["arguments"] == {"location": "SF"}
+        assert tc["type"] == "function_call"
+
+    def test_dict_function_call_output(self):
+        messages = [
+            {
+                "type": "function_call_output",
+                "call_id": "call_abc",
+                "output": '{"temp": "72F"}',
+            }
+        ]
+        processed, tool_call_ids = _openai_parse_input_response_messages(messages)
+        assert len(processed) == 1
+        assert processed[0]["role"] == "user"
+        tr = processed[0]["tool_results"][0]
+        assert tr["tool_id"] == "call_abc"
+        assert tr["result"] == '{"temp": "72F"}'
+        assert tool_call_ids == ["call_abc"]
+
+    def test_sdk_object_function_call(self):
+        """SDK objects (e.g. ResponseFunctionToolCall) must be handled via _get_attr, not dict access."""
+
+        class FakeResponseFunctionToolCall:
+            type = "function_call"
+            call_id = "call_sdk_123"
+            name = "search"
+            arguments = '{"query": "python"}'
+
+        messages = [FakeResponseFunctionToolCall()]
+        processed, tool_call_ids = _openai_parse_input_response_messages(messages)
+        assert len(processed) == 1
+        assert processed[0]["role"] == "assistant"
+        tc = processed[0]["tool_calls"][0]
+        assert tc["tool_id"] == "call_sdk_123"
+        assert tc["name"] == "search"
+        assert tc["arguments"] == {"query": "python"}
+        assert tc["type"] == "function_call"
+        assert tool_call_ids == []
+
+    def test_sdk_object_function_call_output(self):
+        """SDK objects representing function call output must be parsed correctly."""
+
+        class FakeFunctionCallOutput:
+            type = "function_call_output"
+            call_id = "call_sdk_456"
+            output = '{"result": "42"}'
+            name = "calculate"
+
+        messages = [FakeFunctionCallOutput()]
+        processed, tool_call_ids = _openai_parse_input_response_messages(messages)
+        assert len(processed) == 1
+        assert processed[0]["role"] == "user"
+        tr = processed[0]["tool_results"][0]
+        assert tr["tool_id"] == "call_sdk_456"
+        assert tr["result"] == '{"result": "42"}'
+        assert tool_call_ids == ["call_sdk_456"]
+
+    def test_mixed_dict_and_sdk_objects(self):
+        """A list mixing dicts and SDK objects should all be parsed correctly."""
+
+        class FakeResponseFunctionToolCall:
+            type = "function_call"
+            call_id = "call_mixed_1"
+            name = "get_weather"
+            arguments = '{"location": "NYC"}'
+
+        class FakeFunctionCallOutput:
+            type = "function_call_output"
+            call_id = "call_mixed_1"
+            output = "sunny"
+            name = "get_weather"
+
+        messages = [
+            {"role": "user", "content": "What's the weather?"},
+            FakeResponseFunctionToolCall(),
+            FakeFunctionCallOutput(),
+        ]
+        processed, tool_call_ids = _openai_parse_input_response_messages(messages)
+        assert len(processed) == 3
+        assert processed[0]["role"] == "user"
+        assert processed[0]["content"] == "What's the weather?"
+        assert processed[1]["role"] == "assistant"
+        assert processed[1]["tool_calls"][0]["tool_id"] == "call_mixed_1"
+        assert processed[2]["role"] == "user"
+        assert processed[2]["tool_results"][0]["tool_id"] == "call_mixed_1"
+        assert tool_call_ids == ["call_mixed_1"]
+
+    def test_function_call_output_list_output(self):
+        """output as a list: only input_text parts are captured; images/files are skipped."""
+
+        class TextPart:
+            type = "input_text"
+            text = "42 degrees"
+
+        class ImagePart:
+            type = "input_image"
+            image_url = "https://example.com/img.png"
+
+        messages = [
+            {
+                "type": "function_call_output",
+                "call_id": "call_list",
+                "output": [TextPart(), ImagePart()],
+            }
+        ]
+        processed, tool_call_ids = _openai_parse_input_response_messages(messages)
+        assert len(processed) == 1
+        assert processed[0]["role"] == "user"
+        tr = processed[0]["tool_results"][0]
+        assert tr["tool_id"] == "call_list"
+        assert tr["result"] == "42 degrees"
+        assert tool_call_ids == ["call_list"]
+
+    def test_sdk_reasoning_item_skipped(self):
+        """ResponseReasoningItem (type='reasoning') should be skipped silently."""
+
+        class FakeResponseReasoningItem:
+            type = "reasoning"
+            id = "reasoning_1"
+            summary = []
+
+        messages = [
+            {"role": "user", "content": "Think about this"},
+            FakeResponseReasoningItem(),
+        ]
+        processed, tool_call_ids = _openai_parse_input_response_messages(messages)
+        assert len(processed) == 1
+        assert processed[0]["role"] == "user"
+        assert tool_call_ids == []

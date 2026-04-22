@@ -195,6 +195,7 @@ class SessionManagerMockBuilder:
             mock_client.get_known_commits.return_value = self._known_commits
             mock_client.send_git_pack_file.return_value = None
             mock_client.get_skippable_tests.return_value = (self._skippable_items, None)
+            mock_client.configuration_errors = {}
             mock_api_client.return_value = mock_client
 
             with (
@@ -396,6 +397,11 @@ class APIClientMockBuilder:
         self._skippable_items = items
         return self
 
+    def with_test_management_properties(self, properties: dict[TestRef, TestProperties]) -> "APIClientMockBuilder":
+        """Set test management properties."""
+        self._test_management_properties = properties
+        return self
+
     def build(self) -> Mock:
         """Build the APIClient mock with comprehensive mocking."""
         mock_client = Mock()
@@ -416,7 +422,7 @@ class APIClientMockBuilder:
         )
 
         mock_client.get_known_tests.return_value = self._known_tests
-        mock_client.get_test_management_properties.return_value = {}
+        mock_client.get_test_management_properties.return_value = getattr(self, "_test_management_properties", {})
         mock_client.get_known_commits.return_value = []
         mock_client.send_git_pack_file.return_value = None
         mock_client.get_skippable_tests.return_value = (
@@ -426,6 +432,8 @@ class APIClientMockBuilder:
 
         # Always add upload_coverage_report method that returns True (mocked success)
         mock_client.upload_coverage_report = Mock(return_value=True)
+
+        mock_client.configuration_errors = {}
 
         return mock_client
 
@@ -464,23 +472,23 @@ class BackendConnectorMockBuilder:
         mock_connector = Mock()
 
         # Mock methods to prevent real HTTP calls
-        def mock_post_json(endpoint: str, data: t.Any, telemetry: t.Any = None) -> tuple[Mock, t.Any]:
+        def mock_post_json(endpoint: str, data: t.Any, telemetry: t.Any = None) -> BackendResult:
             if endpoint in self._post_json_responses:
                 return BackendResult(response=Mock(status=200), parsed_response=self._post_json_responses[endpoint])
             return self._make_404_response()
 
-        def mock_get_json(endpoint: str, max_attempts: int = 0) -> tuple[Mock, t.Any]:
+        def mock_get_json(endpoint: str, max_attempts: int = 0) -> BackendResult:
             if endpoint in self._get_json_responses:
                 return BackendResult(response=Mock(status=200), parsed_response=self._get_json_responses[endpoint])
             return self._make_404_response()
 
-        def mock_request(method: str, path: str, **kwargs: t.Any) -> tuple[Mock, t.Any]:
+        def mock_request(method: str, path: str, **kwargs: t.Any) -> BackendResult:
             key = f"{method}:{path}"
             if key in self._request_responses:
-                BackendResult(response=Mock(status=200), parsed_response=self._request_responses[key])
+                return BackendResult(response=Mock(status=200), parsed_response=self._request_responses[key])
             return self._make_404_response()
 
-        def mock_post_files(path: str, files: t.Any, **kwargs: t.Any) -> tuple[Mock, dict[str, t.Any]]:
+        def mock_post_files(path: str, files: t.Any, **kwargs: t.Any) -> BackendResult:
             return BackendResult(response=Mock(status=200))
 
         mock_connector.post_json.side_effect = mock_post_json
@@ -545,6 +553,7 @@ def mock_api_client_settings(
     skippable_items: t.Optional[set[t.Union[TestRef, SuiteRef]]] = None,
     known_tests: t.Optional[set[TestRef]] = None,
     coverage_upload_capture: t.Optional["CoverageReportUploadCapture"] = None,
+    test_management_properties: t.Optional[dict[TestRef, TestProperties]] = None,
 ) -> Mock:
     """Create a comprehensive API client mock - convenience function."""
     builder: "APIClientMockBuilder" = APIClientMockBuilder()
@@ -565,6 +574,8 @@ def mock_api_client_settings(
         builder = builder.with_known_tests(enabled=True, tests=known_tests)
     if skippable_items:
         builder = builder.with_skippable_items(skippable_items)
+    if test_management_properties is not None:
+        builder = builder.with_test_management_properties(test_management_properties)
 
     mock_client = builder.build()
 
@@ -682,14 +693,14 @@ class EventCapture:
             if event["type"] == event_type:
                 yield event
 
-    def events_by_test_name(self, test_name: str) -> t.Iterable[Event]:
+    def events_by_test_name(self, test_name: str) -> t.Iterator[Event]:
         for event in self.events():
             if event["type"] == "test" and event["content"]["meta"]["test.name"] == test_name:
                 yield event
 
     def event_by_test_name(self, test_name: str) -> Event:
         try:
-            return next(self.events_by_test_name(test_name))
+            return next(iter(self.events_by_test_name(test_name)))
         except StopIteration:
             raise AssertionError(f"Expected event with test name {test_name!r}, found none")
 

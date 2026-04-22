@@ -1,30 +1,19 @@
-SPAN_KIND = "_ml_obs.meta.span.kind"
+from typing import Final
+
+
 SESSION_ID = "_ml_obs.session_id"
-METADATA = "_ml_obs.meta.metadata"
-METRICS = "_ml_obs.metrics"
 ML_APP = "_ml_obs.meta.ml_app"
+ML_APP_DEFAULT = "unnamed-ml-app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
+LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
-PARENT_ID_KEY = "_ml_obs.llmobs_parent_id"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
-LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"
-TAGS = "_ml_obs.tags"
-AGENT_MANIFEST = "_ml_obs.meta.agent_manifest"
+LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
-MODEL_NAME = "_ml_obs.meta.model_name"
-MODEL_PROVIDER = "_ml_obs.meta.model_provider"
+UNKNOWN_MODEL_PROVIDER = "unknown"
+UNKNOWN_MODEL_NAME = "unknown"
 
-INPUT_DOCUMENTS = "_ml_obs.meta.input.documents"
-INPUT_MESSAGES = "_ml_obs.meta.input.messages"
-INPUT_VALUE = "_ml_obs.meta.input.value"
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
-TOOL_DEFINITIONS = "_ml_obs.meta.tool_definitions"
-
-OUTPUT_DOCUMENTS = "_ml_obs.meta.output.documents"
-OUTPUT_MESSAGES = "_ml_obs.meta.output.messages"
-OUTPUT_VALUE = "_ml_obs.meta.output.value"
-
-MCP_TOOL_CALL_INTENT = "_ml_obs.meta.intent"
 
 SPAN_START_WHILE_DISABLED_WARNING = (
     "Span started with LLMObs disabled."
@@ -32,12 +21,13 @@ SPAN_START_WHILE_DISABLED_WARNING = (
     " See https://docs.datadoghq.com/llm_observability/setup/sdk/python/#setup."
 )
 
+CLAUDE_AGENT_SDK_APM_SPAN_NAME = "claude_agent_sdk.request"
+CREWAI_APM_SPAN_NAME = "crewai.request"
 GEMINI_APM_SPAN_NAME = "gemini.request"
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
 LITELLM_APM_SPAN_NAME = "litellm.request"
 OPENAI_APM_SPAN_NAME = "openai.request"
 VERTEXAI_APM_SPAN_NAME = "vertexai.request"
-CREWAI_APM_SPAN_NAME = "crewai.request"
 
 INPUT_TOKENS_METRIC_KEY = "input_tokens"
 OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
@@ -46,6 +36,8 @@ CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "cache_write_input_tokens"
 CACHE_READ_INPUT_TOKENS_METRIC_KEY = "cache_read_input_tokens"
 BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
+CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
+CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
 
 TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
@@ -54,7 +46,6 @@ TIME_IN_MODEL_DECODE_METRIC_KEY = "time_in_model_decode"
 TIME_IN_MODEL_INFERENCE_METRIC_KEY = "time_in_model_inference"
 # TIME_E2E_METRIC_KEY = "time_e2e"
 
-EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
 SPAN_ENDPOINT = "/api/v2/llmobs"
 SPAN_SUBDOMAIN_NAME = "llmobs-intake"
@@ -66,32 +57,18 @@ AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
 
 # from https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 DD_SITES_NEEDING_APP_SUBDOMAIN = {"datadoghq.com", "datadoghq.eu", "ddog-gov.com"}
+DD_SITE_STAGING = "datad0g.com"
 
 EXPERIMENT_CSV_FIELD_MAX_SIZE = 10 * 1024 * 1024
 
 DROPPED_IO_COLLECTION_ERROR = "dropped_io"
-DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the 1MB size limit.]"
+DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the 5MB size limit.]"
 
 ROOT_PARENT_ID = "undefined"
-
-# Set for traces of evaluator integrations e.g. `runner.integration:ragas`.
-# Used to differentiate traces of Datadog-run operations vs user-application operations.
-RUNNER_IS_INTEGRATION_SPAN_TAG = "runner.integration"
-
-# All ragas traces have this context item set so we can differentiate
-# spans generated from the ragas integration vs user application spans.
-IS_EVALUATION_SPAN = "_ml_obs.evaluation_span"
 
 ANNOTATIONS_CONTEXT_ID = "annotations_context_id"
 INTERNAL_CONTEXT_VARIABLE_KEYS = "_dd_context_variable_keys"
 INTERNAL_QUERY_VARIABLE_KEYS = "_dd_query_variable_keys"
-
-FAITHFULNESS_DISAGREEMENTS_METADATA = "_dd.faithfulness_disagreements"
-EVALUATION_KIND_METADATA = "_dd.evaluation_kind"
-EVALUATION_SPAN_METADATA = "_dd.evaluation_span"
-
-SPAN_LINKS = "_ml_obs.span_links"
-NAME = "_ml_obs.name"
 
 # Prompt constants
 DEFAULT_PROMPT_NAME = "unnamed-prompt"
@@ -101,9 +78,6 @@ PROMPT_TRACKING_INSTRUMENTATION_METHOD = "prompt_tracking_instrumentation_method
 PROMPT_MULTIMODAL = "prompt_multimodal"
 INSTRUMENTATION_METHOD_AUTO = "auto"
 INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
-
-DECORATOR = "_ml_obs.decorator"
-INTEGRATION = "_ml_obs.integration"
 
 DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"
 DISPATCH_ON_LLM_TOOL_CHOICE = "on_llm_tool_choice"
@@ -131,10 +105,6 @@ EXPERIMENT_DATASET_NAME_KEY = "_ml_obs.experiment_dataset_name"
 EXPERIMENT_NAME_KEY = "_ml_obs.experiment_name"
 
 # experiment context keys
-EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
-EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
-EXPERIMENTS_INPUT = "_ml_obs.meta.input"
-EXPERIMENTS_OUTPUT = "_ml_obs.meta.output"
 DEFAULT_PROJECT_NAME = "default-project"
 
 # Fallback markers for prompt tracking when OpenAI strips values
@@ -145,3 +115,67 @@ FILE_FALLBACK_MARKER = "[file]"
 INPUT_TYPE_IMAGE = "input_image"
 INPUT_TYPE_FILE = "input_file"
 INPUT_TYPE_TEXT = "input_text"
+
+# Managed Prompts Cache and Timeout defaults
+DEFAULT_PROMPTS_CACHE_TTL = 60  # seconds before stale
+DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
+
+# Managed Prompts API
+PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
+
+
+class LLMOBS_STRUCT:
+    """Nested LLMObs struct keys in span._meta_struct."""
+
+    KEY: Final = "_llmobs"
+    NAME: Final = "name"
+    PARENT_ID: Final = "parent_id"
+    TRACE_ID: Final = "trace_id"
+    ML_APP: Final = "ml_app"
+    SESSION_ID: Final = "session_id"
+    TAGS: Final = "tags"
+    INTEGRATION: Final = "integration"
+    PROMPT: Final = "prompt"
+    METRICS: Final = "metrics"
+    METADATA: Final = "metadata"
+    METADATA_DD: Final = "_dd"
+    SPAN_LINKS: Final = "span_links"
+    META: Final = "meta"
+    ERROR: Final = "error"
+    TOOL_DEFINITIONS: Final = "tool_definitions"
+    INPUT: Final = "input"
+    OUTPUT: Final = "output"
+    EXPECTED_OUTPUT: Final = "expected_output"
+    VALUE: Final = "value"
+    MESSAGES: Final = "messages"
+    DOCUMENTS: Final = "documents"
+    AGENT_MANIFEST: Final = "agent_manifest"
+    SPAN: Final = "span"
+    KIND: Final = "kind"
+    MODEL_NAME: Final = "model_name"
+    MODEL_PROVIDER: Final = "model_provider"
+    INTENT: Final = "intent"
+    CONFIG: Final = "config"
+
+
+SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
+    "anthropic": "anthropic",
+    "bedrock": "botocore",
+    "openai": "openai",
+    "langchain": "langchain",
+    "google_adk": "google_adk",
+    "google_genai": "google_genai",
+    "vertexai": "vertexai",
+    "langgraph": "langgraph",
+    "litellm": "litellm",
+    "crewai": "crewai",
+    "openai_agents": "openai_agents",
+    "mcp": "mcp",
+    "pydantic_ai": "pydantic_ai",
+    "claude_agent_sdk": "claude_agent_sdk",
+}
+
+# Deprecated constants kept for backwards compatibility with downstream consumers of ddtrace internals.
+# These were removed in the span._store -> span._meta_struct migration (PR #16774).
+EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
+EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"

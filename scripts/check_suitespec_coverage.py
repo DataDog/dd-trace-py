@@ -43,7 +43,7 @@ def uncovered(path: Path) -> set[str]:
 
 
 def unmatched() -> set[str]:
-    return {pattern for pattern in SPEC_PATTERNS if not filter_ignored(ROOT.glob(pattern))}
+    return {pattern for pattern in SPEC_PATTERNS if not filter_ignored(ROOT.glob(pattern.lstrip("!")))}
 
 
 uncovered_sources = uncovered(DDTRACE_PATH)

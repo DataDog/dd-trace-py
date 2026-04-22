@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <iostream>
 #include <string>
 
 #include <cstdint>
@@ -55,7 +54,7 @@ VmReader::create(size_t sz)
         unlink(tmpfile.data());
 
         // Make sure we have enough size
-        if (ftruncate(fd, sz) == -1) {
+        if (ftruncate(fd, static_cast<off_t>(sz)) == -1) {
             continue;
         }
 
@@ -84,7 +83,7 @@ VmReader::get_instance()
     if (instance == nullptr) {
         instance = VmReader::create(MB);
         if (!instance) {
-            std::cerr << "Failed to initialize VmReader with buffer size " << instance->sz << std::endl;
+            std::cerr << "Failed to initialize VmReader" << std::endl;
             return nullptr;
         }
     }
@@ -109,7 +108,7 @@ VmReader::safe_copy(pid_t process_id,
 
     // Check to see if we need to resize the buffer
     if (remote_iov[0].iov_len > sz) {
-        if (ftruncate(fd, remote_iov[0].iov_len) == -1) {
+        if (ftruncate(fd, static_cast<off_t>(remote_iov[0].iov_len)) == -1) {
             return 0;
         } else {
             void* tmp = mremap(buffer, sz, remote_iov[0].iov_len, MREMAP_MAYMOVE);
@@ -121,7 +120,7 @@ VmReader::safe_copy(pid_t process_id,
         }
     }
 
-    ssize_t ret = pwritev(fd, remote_iov, riovcnt, 0);
+    ssize_t ret = pwritev(fd, remote_iov, static_cast<int>(riovcnt), 0);
     if (ret == -1) {
         return ret;
     }
@@ -158,6 +157,7 @@ init_safe_copy()
     if (use_alternative_copy_memory()) {
         if (init_segv_catcher() == 0) {
             safe_copy = safe_memcpy_wrapper;
+            fast_copy_active = true;
             return;
         }
 
@@ -211,7 +211,7 @@ copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)
 
     // Early exit on zero page
     if (reinterpret_cast<uintptr_t>(addr) < 4096) {
-        return result;
+        return static_cast<int>(result);
     }
 
 #if defined PL_LINUX
@@ -232,12 +232,18 @@ copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)
                                  reinterpret_cast<mach_vm_address_t>(buf),
                                  reinterpret_cast<mach_vm_size_t*>(&result));
 
-    if (kr != KERN_SUCCESS)
+    if (kr != KERN_SUCCESS) {
+        g_copy_memory_error_count.fetch_add(1, std::memory_order_relaxed);
         return -1;
+    }
 
 #endif
 
-    return len != result;
+    int ret = len != result;
+    if (ret) {
+        g_copy_memory_error_count.fetch_add(1, std::memory_order_relaxed);
+    }
+    return ret;
 }
 
 void

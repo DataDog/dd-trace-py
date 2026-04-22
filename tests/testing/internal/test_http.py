@@ -10,6 +10,7 @@ import pytest
 
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.http import DEFAULT_TIMEOUT_SECONDS
+from ddtrace.testing.internal.http import MAX_RETRY_AFTER_SECONDS
 from ddtrace.testing.internal.http import BackendConnector
 from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
 from ddtrace.testing.internal.http import BackendConnectorEVPProxySetup
@@ -83,10 +84,17 @@ class TestBackendConnector:
         assert result.parsed_response == {"answer": 42}
         assert result.is_gzip_response is False
         assert result.response_length == 14
+        assert result.request_length == len(b'{"question": 1}')
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=None)
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=None,
+                request_bytes=len(b'{"question": 1}'),
+            )
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -127,8 +135,20 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=None),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_5XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=None,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -169,11 +189,41 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_5XX),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_5XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_5XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_5XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_5XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_5XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -210,11 +260,41 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
-            call(seconds=0.0, response_bytes=14, compressed_response=False, error=ErrorType.BAD_JSON),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=ErrorType.BAD_JSON,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=ErrorType.BAD_JSON,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=ErrorType.BAD_JSON,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=ErrorType.BAD_JSON,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=ErrorType.BAD_JSON,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -250,7 +330,13 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=0, compressed_response=False, error=ErrorType.CODE_4XX),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.CODE_4XX,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @pytest.mark.parametrize(
@@ -301,11 +387,41 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.NETWORK),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.NETWORK,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.NETWORK,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.NETWORK,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.NETWORK,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.NETWORK,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -339,11 +455,41 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.TIMEOUT),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.TIMEOUT,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.TIMEOUT,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.TIMEOUT,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.TIMEOUT,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.TIMEOUT,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
 
     @patch("http.client.HTTPSConnection")
@@ -373,8 +519,288 @@ class TestBackendConnector:
         assert isinstance(result.elapsed_seconds, float)
 
         assert mock_telemetry.record_request.call_args_list == [
-            call(seconds=0.0, response_bytes=None, compressed_response=False, error=ErrorType.UNKNOWN),
+            call(
+                seconds=0.0,
+                response_bytes=None,
+                compressed_response=False,
+                error=ErrorType.UNKNOWN,
+                request_bytes=len(b'{"question": 1}'),
+            ),
         ]
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_rate_limited_retry_then_ok(
+        self, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock
+    ) -> None:
+        mock_response_429 = Mock()
+        mock_response_429.headers = {}
+        mock_response_429.read.return_value = b"Rate limited"
+        mock_response_429.status = 429
+        mock_response_429.reason = "Too Many Requests"
+
+        mock_response_ok = Mock()
+        mock_response_ok.headers = {"Content-Length": 14}
+        mock_response_ok.read.return_value = b'{"answer": 42}'
+        mock_response_ok.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = [mock_response_429, mock_response_ok]
+        mock_https_connection.return_value = mock_conn
+
+        mock_telemetry = Mock()
+
+        connector = BackendConnector(url="https://api.example.com")
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=mock_telemetry)
+
+        assert mock_conn.request.call_args_list == [
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+        ]
+        assert len(mock_sleep.call_args_list) == 1
+
+        assert result.error_type is None
+        assert result.parsed_response == {"answer": 42}
+
+        assert mock_telemetry.record_request.call_args_list == [
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.RATE_LIMITED,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                error=None,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+        ]
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_rate_limited_retry_limit(
+        self, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock
+    ) -> None:
+        mock_response_429 = Mock()
+        mock_response_429.headers = {}
+        mock_response_429.read.return_value = b"Rate limited"
+        mock_response_429.status = 429
+        mock_response_429.reason = "Too Many Requests"
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response_429
+        mock_https_connection.return_value = mock_conn
+
+        mock_telemetry = Mock()
+
+        connector = BackendConnector(url="https://api.example.com")
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=mock_telemetry)
+
+        assert mock_conn.request.call_args_list == [
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+            call("POST", "/v1/some-endpoint", body=b'{"question": 1}', headers={"Content-Type": "application/json"}),
+        ]
+        assert len(mock_sleep.call_args_list) == 4
+
+        assert result.error_type is ErrorType.RATE_LIMITED
+        assert result.error_description == "429 Too Many Requests"
+
+        assert mock_telemetry.record_request.call_args_list == [
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.RATE_LIMITED,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.RATE_LIMITED,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.RATE_LIMITED,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.RATE_LIMITED,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+            call(
+                seconds=0.0,
+                response_bytes=0,
+                compressed_response=False,
+                error=ErrorType.RATE_LIMITED,
+                request_bytes=len(b'{"question": 1}'),
+            ),
+        ]
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    @patch("time.time", return_value=1700000000)
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_rate_limited_uses_header_unix_timestamp(
+        self, mock_perf: Mock, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock
+    ) -> None:
+        """When X-RateLimit-Reset is a future Unix timestamp, sleep until that point."""
+        reset_timestamp = 1700000000 + 60  # 60 seconds in the future
+
+        mock_response_429 = Mock()
+        mock_response_429.headers = {"X-RateLimit-Reset": str(reset_timestamp)}
+        mock_response_429.read.return_value = b"Rate limited"
+        mock_response_429.status = 429
+        mock_response_429.reason = "Too Many Requests"
+
+        mock_response_ok = Mock()
+        mock_response_ok.headers = {"Content-Length": 14}
+        mock_response_ok.read.return_value = b'{"answer": 42}'
+        mock_response_ok.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = [mock_response_429, mock_response_ok]
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=Mock())
+
+        assert result.error_type is None
+        mock_sleep.assert_called_once_with(60.0)
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    @patch("time.time", return_value=1700000000)
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_rate_limited_uses_header_duration(
+        self, mock_perf: Mock, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock
+    ) -> None:
+        """When X-RateLimit-Reset is a small value (≤ current time), treat it as a duration in seconds."""
+        mock_response_429 = Mock()
+        mock_response_429.headers = {"X-RateLimit-Reset": "30"}
+        mock_response_429.read.return_value = b"Rate limited"
+        mock_response_429.status = 429
+        mock_response_429.reason = "Too Many Requests"
+
+        mock_response_ok = Mock()
+        mock_response_ok.headers = {"Content-Length": 14}
+        mock_response_ok.read.return_value = b'{"answer": 42}'
+        mock_response_ok.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = [mock_response_429, mock_response_ok]
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=Mock())
+
+        assert result.error_type is None
+        mock_sleep.assert_called_once_with(30.0)
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.sleep")
+    @patch("time.time", return_value=1700000000)
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_rate_limited_caps_retry_delay(
+        self, mock_perf: Mock, mock_time: Mock, mock_sleep: Mock, mock_https_connection: Mock
+    ) -> None:
+        """Retry delay is capped at 120 seconds to avoid unreasonable waits."""
+        reset_timestamp = 1700000000 + 600  # 600 seconds in the future, exceeds 120s cap
+
+        mock_response_429 = Mock()
+        mock_response_429.headers = {"X-RateLimit-Reset": str(reset_timestamp)}
+        mock_response_429.read.return_value = b"Rate limited"
+        mock_response_429.status = 429
+        mock_response_429.reason = "Too Many Requests"
+
+        mock_response_ok = Mock()
+        mock_response_ok.headers = {"Content-Length": 14}
+        mock_response_ok.read.return_value = b'{"answer": 42}'
+        mock_response_ok.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = [mock_response_429, mock_response_ok]
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=Mock())
+
+        assert result.error_type is None
+        mock_sleep.assert_called_once_with(MAX_RETRY_AFTER_SECONDS)
+
+    @patch("http.client.HTTPSConnection")
+    @patch("random.uniform", return_value=0.5)
+    @patch("time.sleep")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_rate_limited_falls_back_to_exponential_backoff_without_header(
+        self, mock_perf: Mock, mock_sleep: Mock, mock_uniform: Mock, mock_https_connection: Mock
+    ) -> None:
+        """When no X-RateLimit-Reset header is present, exponential backoff is used."""
+        mock_response_429 = Mock()
+        mock_response_429.headers = {}
+        mock_response_429.read.return_value = b"Rate limited"
+        mock_response_429.status = 429
+        mock_response_429.reason = "Too Many Requests"
+
+        mock_response_ok = Mock()
+        mock_response_ok.headers = {"Content-Length": 14}
+        mock_response_ok.read.return_value = b'{"answer": 42}'
+        mock_response_ok.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = [mock_response_429, mock_response_ok]
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=Mock())
+
+        assert result.error_type is None
+        mock_uniform.assert_called_once()
+        mock_sleep.assert_called_once_with(0.5)
+
+    @patch("http.client.HTTPSConnection")
+    @patch("random.uniform", return_value=0.5)
+    @patch("time.sleep")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_rate_limited_falls_back_to_exponential_backoff_with_invalid_header(
+        self, mock_perf: Mock, mock_sleep: Mock, mock_uniform: Mock, mock_https_connection: Mock
+    ) -> None:
+        """When X-RateLimit-Reset header is non-numeric, exponential backoff is used."""
+        mock_response_429 = Mock()
+        mock_response_429.headers = {"X-RateLimit-Reset": "not-a-number"}
+        mock_response_429.read.return_value = b"Rate limited"
+        mock_response_429.status = 429
+        mock_response_429.reason = "Too Many Requests"
+
+        mock_response_ok = Mock()
+        mock_response_ok.headers = {"Content-Length": 14}
+        mock_response_ok.read.return_value = b'{"answer": 42}'
+        mock_response_ok.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = [mock_response_429, mock_response_ok]
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, telemetry=Mock())
+
+        assert result.error_type is None
+        mock_uniform.assert_called_once()
+        mock_sleep.assert_called_once_with(0.5)
 
     @patch("http.client.HTTPSConnection")
     @patch("uuid.uuid4")
@@ -435,7 +861,10 @@ class TestBackendConnectorSetup:
         assert connector.use_gzip is True
         assert connector.default_headers["dd-api-key"] == "the-key"
 
-    def test_detect_agentless_setup_with_citestcycle_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @pytest.mark.parametrize("subdomain", list(Subdomain))
+    def test_detect_agentless_setup_with_url_override_for_all_subdomains(
+        self, monkeypatch: pytest.MonkeyPatch, subdomain: Subdomain
+    ) -> None:
         monkeypatch.setattr(
             os,
             "environ",
@@ -449,14 +878,7 @@ class TestBackendConnectorSetup:
         connector_setup = BackendConnectorSetup.detect_setup()
         assert isinstance(connector_setup, BackendConnectorAgentlessSetup)
 
-        connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
-        assert isinstance(connector.conn, http.client.HTTPSConnection)
-        assert connector.conn.host == "api.datadoghq.com"
-        assert connector.conn.port == 443
-        assert connector.use_gzip is True
-        assert connector.default_headers["dd-api-key"] == "the-key"
-
-        connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCYCLE)
+        connector = connector_setup.get_connector_for_subdomain(subdomain)
         assert isinstance(connector.conn, http.client.HTTPSConnection)
         assert connector.conn.host == "localhost"
         assert connector.conn.port == 33333
@@ -659,3 +1081,63 @@ class TestBackendConnectorSetup:
         assert connector.base_path == "/evp_proxy/v4"
         assert connector.use_gzip is True
         assert connector.default_headers["X-Datadog-EVP-Subdomain"] == "api"
+
+
+class TestUnixDomainSocketTimeout:
+    """Regression test: Unix domain socket must respect the configured timeout."""
+
+    def test_connect_applies_timeout(self) -> None:
+        conn = UnixDomainSocketHTTPConnection(path="/tmp/nonexistent.sock", host="localhost", port=80, timeout=3.5)
+        with patch("socket.socket") as mock_socket_cls:
+            mock_sock = Mock()
+            mock_socket_cls.return_value = mock_sock
+            conn.connect()
+
+            mock_sock.settimeout.assert_called_once_with(3.5)
+            mock_sock.connect.assert_called_once_with("/tmp/nonexistent.sock")
+
+
+class TestRequestFailureWarning:
+    """Regression test: request() must log a warning when giving up with an error."""
+
+    @patch("http.client.HTTPSConnection")
+    def test_non_retriable_error_logs_warning(self, mock_https_connection: Mock) -> None:
+        """A 4xx (non-retriable) error should log a warning immediately."""
+        mock_response = Mock()
+        mock_response.headers = {"Content-Length": "0"}
+        mock_response.read.return_value = b""
+        mock_response.status = 403
+        mock_response.reason = "Forbidden"
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        with patch("ddtrace.testing.internal.http.log") as mock_log:
+            result = connector.request("POST", "/api/v2/citestcycle", data=b"x")
+
+        assert result.error_type == ErrorType.CODE_4XX
+        mock_log.warning.assert_called_once()
+        # Format: "Request %s %s failed after %d attempt(s): %s"
+        assert "403 Forbidden" in mock_log.warning.call_args[0][4]
+
+    @patch("http.client.HTTPSConnection")
+    def test_successful_request_no_warning(self, mock_https_connection: Mock) -> None:
+        mock_response = Mock()
+        mock_response.headers = {"Content-Length": "2"}
+        mock_response.read.return_value = b"ok"
+        mock_response.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+
+        with patch("ddtrace.testing.internal.http.log") as mock_log:
+            result = connector.request("GET", "/info", is_json_response=False)
+
+        assert result.error_type is None
+        mock_log.warning.assert_not_called()

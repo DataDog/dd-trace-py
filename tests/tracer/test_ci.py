@@ -146,10 +146,7 @@ def test_git_extract_workspace_path_error(tmpdir):
 
 def test_extract_git_metadata(git_repo):
     """Test that extract_git_metadata() sets all tags correctly."""
-    with mock.patch("ddtrace.ext.git._set_safe_directory") as mock_git_set_safe_directory:
-        extracted_tags = git.extract_git_metadata(cwd=git_repo)
-
-    mock_git_set_safe_directory.assert_called()
+    extracted_tags = git.extract_git_metadata(cwd=git_repo)
     assert extracted_tags["git.repository_url"] == "git@github.com:test-repo-url.git"
     assert extracted_tags["git.commit.message"] == "this is a commit msg"
     assert extracted_tags["git.commit.author.name"] == "John Doe"
@@ -160,6 +157,116 @@ def test_extract_git_metadata(git_repo):
     assert extracted_tags["git.commit.committer.date"] == "2021-01-20T04:37:21-0400"
     assert extracted_tags["git.branch"] == "master"
     assert extracted_tags.get("git.commit.sha") is not None  # Commit hash will always vary, just ensure a value is set
+
+
+def test_git_safe_directory_override_added_for_repo_root(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    subdir = repo / "subdir"
+    subdir.mkdir()
+
+    captured = {}
+
+    class FakePopen:
+        def __init__(self, args, **kwargs):
+            captured["args"] = args
+            self.returncode = 0
+
+        def communicate(self, input=None):  # noqa: A002
+            return b"", b""
+
+    monkeypatch.setattr(git.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(git, "_get_executable_path", lambda name, mode=None: "/usr/bin/git")
+
+    git._git_subprocess_cmd_with_details("status", cwd=str(subdir))
+
+    assert captured["args"][:3] == ["/usr/bin/git", "-c", "safe.directory={0}".format(str(repo))]
+
+
+def test_git_safe_directory_override_uses_start_dir_without_repo(monkeypatch, tmp_path):
+    captured = {}
+
+    class FakePopen:
+        def __init__(self, args, **kwargs):
+            captured["args"] = args
+            self.returncode = 0
+
+        def communicate(self, input=None):  # noqa: A002
+            return b"", b""
+
+    monkeypatch.setattr(git.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(git, "_get_executable_path", lambda name, mode=None: "/usr/bin/git")
+
+    git._git_subprocess_cmd_with_details("status", cwd=str(tmp_path))
+
+    assert captured["args"] == [
+        "/usr/bin/git",
+        "-c",
+        "safe.directory={0}".format(os.path.realpath(str(tmp_path))),
+        "status",
+    ]
+
+
+def test_git_safe_directory_override_uses_realpath_for_symlinked_repo(monkeypatch, tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    subdir = repo / "subdir"
+    subdir.mkdir()
+    symlink = tmp_path / "repo-link"
+    try:
+        os.symlink(repo, symlink)
+    except OSError:
+        pytest.skip("Symlinks not supported on this platform")
+
+    captured = {}
+
+    class FakePopen:
+        def __init__(self, args, **kwargs):
+            captured["args"] = args
+            self.returncode = 0
+
+        def communicate(self, input=None):  # noqa: A002
+            return b"", b""
+
+    monkeypatch.setattr(git.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(git, "_get_executable_path", lambda name, mode=None: "/usr/bin/git")
+
+    git._git_subprocess_cmd_with_details("status", cwd=str(symlink / "subdir"))
+
+    assert captured["args"][:3] == [
+        "/usr/bin/git",
+        "-c",
+        "safe.directory={0}".format(os.path.realpath(str(repo))),
+    ]
+
+
+def test_git_safe_directory_override_uses_bare_repo_root(monkeypatch, tmp_path):
+    repo = tmp_path / "repo.git"
+    repo.mkdir()
+    (repo / "objects").mkdir()
+    (repo / "refs").mkdir()
+    (repo / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    subdir = repo / "objects" / "pack"
+    subdir.mkdir(parents=True)
+
+    captured = {}
+
+    class FakePopen:
+        def __init__(self, args, **kwargs):
+            captured["args"] = args
+            self.returncode = 0
+
+        def communicate(self, input=None):  # noqa: A002
+            return b"", b""
+
+    monkeypatch.setattr(git.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(git, "_get_executable_path", lambda name, mode=None: "/usr/bin/git")
+
+    git._git_subprocess_cmd_with_details("status", cwd=str(subdir))
+
+    assert captured["args"][:3] == ["/usr/bin/git", "-c", "safe.directory={0}".format(str(repo))]
 
 
 def test_extract_git_user_provided_metadata_overwrites_ci(git_repo):
@@ -187,7 +294,7 @@ def test_extract_git_user_provided_metadata_overwrites_ci(git_repo):
         "APPVEYOR_REPO_COMMIT_AUTHOR": "John Jack",
         "APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL": "john@jack.com",
     }
-    extracted_tags = ci.tags(env=ci_env, cwd=git_repo)
+    extracted_tags = ci.tags(environ=ci_env, cwd=git_repo)
 
     assert extracted_tags["git.repository_url"] == "https://github.com/user-repo-name.git"
     assert extracted_tags["git.commit.sha"] == "1234"
@@ -228,7 +335,7 @@ def test_ci_provider_tags_not_overwritten_by_git_executable(git_repo):
         "APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL": "john@jack.com",
     }
 
-    extracted_tags = ci.tags(env=ci_provider_env, cwd=git_repo)
+    extracted_tags = ci.tags(environ=ci_provider_env, cwd=git_repo)
 
     assert extracted_tags["git.repository_url"] == "https://github.com/appveyor-repo-name.git"
     assert extracted_tags["git.commit.message"] == "this is the correct commit message"
@@ -251,7 +358,7 @@ def test_falsey_ci_provider_values_overwritten_by_git_executable(git_repo):
         "APPVEYOR_REPO_COMMIT_AUTHOR": "",
     }
 
-    extracted_tags = ci.tags(env=ci_provider_env, cwd=git_repo)
+    extracted_tags = ci.tags(environ=ci_provider_env, cwd=git_repo)
 
     assert extracted_tags["git.repository_url"] == "git@github.com:test-repo-url.git"
     assert extracted_tags["git.commit.message"] == "this is a commit msg"
@@ -497,7 +604,7 @@ def test_github_pull_request_head_sha():
         "GITHUB_WORKSPACE": "/workspace",
     }
 
-    tags = ci.extract_github_actions(env=env)
+    tags = ci.extract_github_actions(environ=env)
 
     os.remove(event_file_path)
 
@@ -517,6 +624,26 @@ def test_github_pull_request_head_sha():
         tags[ci._CI_ENV_VARS] == '{"GITHUB_SERVER_URL":"https://github.com","GITHUB_REPOSITORY":'
         '"DataDog/dd-trace-py","GITHUB_RUN_ID":"12345"}'
     )
+
+
+def test_pull_request_base_branch_normalized_when_branch_is_tag():
+    with (
+        mock.patch("ddtrace.ext.ci.git.extract_git_metadata", return_value={}),
+        mock.patch("ddtrace.ext.ci.git.extract_user_git_metadata", return_value={}),
+    ):
+        tags = ci.tags(
+            environ={
+                "APPVEYOR": "true",
+                "APPVEYOR_REPO_PROVIDER": "github",
+                "APPVEYOR_REPO_BRANCH": "refs/heads/main",
+                "APPVEYOR_REPO_TAG_NAME": "refs/tags/v1.2.3",
+                "APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH": "refs/tags/v1.2.3",
+            }
+        )
+
+    assert tags[git.TAG] == "v1.2.3"
+    assert git.BRANCH not in tags
+    assert tags[git.PULL_REQUEST_BASE_BRANCH] == "main"
 
 
 def test_extract_git_head_metadata():

@@ -276,8 +276,7 @@ def test_symbols_force_upload():
     from ddtrace.internal.symbol_db.symbols import ScopeType
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
-    SymbolDatabaseUploader.install(shallow=False)
-    assert SymbolDatabaseUploader.shallow is False
+    SymbolDatabaseUploader.install()
 
     context = t.cast(SymbolDatabaseUploader, SymbolDatabaseUploader._instance)._context
 
@@ -308,7 +307,7 @@ def test_symbols_timeout_upload():
 
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
-    SymbolDatabaseUploader.install(shallow=False)
+    SymbolDatabaseUploader.install()
     assert SymbolDatabaseUploader.is_installed()
 
     context = t.cast(SymbolDatabaseUploader, SymbolDatabaseUploader._instance)._context

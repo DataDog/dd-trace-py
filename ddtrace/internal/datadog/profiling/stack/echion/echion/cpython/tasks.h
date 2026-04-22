@@ -377,7 +377,11 @@ extern "C"
             if (c == nullptr)
                 return NULL;
 
-            if (c[(frame.f_lasti + 1) * sizeof(_Py_CODEUNIT)] != YIELD_FROM)
+            Py_ssize_t idx = (frame.f_lasti + 1) * sizeof(_Py_CODEUNIT);
+            if (idx < 0 || idx >= s)
+                return NULL;
+
+            if (c[idx] != YIELD_FROM)
                 return NULL;
 
             ssize_t nvalues = frame.f_stackdepth;
@@ -421,7 +425,11 @@ extern "C"
             if (c == nullptr)
                 return NULL;
 
-            if (c[f->f_lasti + sizeof(_Py_CODEUNIT)] != YIELD_FROM)
+            Py_ssize_t idx = frame.f_lasti + sizeof(_Py_CODEUNIT);
+            if (idx < 0 || idx >= s)
+                return NULL;
+
+            if (c[idx] != YIELD_FROM)
                 return NULL;
 
             auto stacktop = std::make_unique<PyObject*>();

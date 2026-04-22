@@ -141,10 +141,11 @@ safe_memcpy(void* dst, const void* src, size_t n)
 
     // Copy in page-bounded chunks (at most one fault per bad page).
     while (rem) {
-        safe_memcpy_return_t to_src_pg =
-          page_size - (static_cast<uintptr_t>(reinterpret_cast<uintptr_t>(s)) & (page_size - 1));
-        safe_memcpy_return_t to_dst_pg =
-          page_size - (static_cast<uintptr_t>(reinterpret_cast<uintptr_t>(d)) & (page_size - 1));
+        // Values are always <= page_size, so the unsigned-to-signed narrowing is safe.
+        safe_memcpy_return_t to_src_pg = static_cast<safe_memcpy_return_t>(
+          page_size - (static_cast<uintptr_t>(reinterpret_cast<uintptr_t>(s)) & (page_size - 1)));
+        safe_memcpy_return_t to_dst_pg = static_cast<safe_memcpy_return_t>(
+          page_size - (static_cast<uintptr_t>(reinterpret_cast<uintptr_t>(d)) & (page_size - 1)));
         safe_memcpy_return_t chunk = std::min(rem, std::min(to_src_pg, to_dst_pg));
 
         // Optional early probe to fault before entering large memcpy
@@ -172,19 +173,19 @@ landing:
 #if defined PL_LINUX
 ssize_t
 safe_memcpy_wrapper(pid_t,
-                    const struct iovec* __dstvec,
-                    unsigned long int __dstiovcnt,
-                    const struct iovec* __srcvec,
-                    unsigned long int __srciovcnt,
+                    const struct iovec* dstvec,
+                    unsigned long int dstiovcnt,
+                    const struct iovec* srcvec,
+                    unsigned long int srciovcnt,
                     unsigned long int)
 {
-    (void)__dstiovcnt;
-    (void)__srciovcnt;
-    assert(__dstiovcnt == 1);
-    assert(__srciovcnt == 1);
+    (void)dstiovcnt;
+    (void)srciovcnt;
+    assert(dstiovcnt == 1);
+    assert(srciovcnt == 1);
 
-    size_t to_copy = std::min(__dstvec->iov_len, __srcvec->iov_len);
-    return safe_memcpy(__dstvec->iov_base, __srcvec->iov_base, to_copy);
+    size_t to_copy = std::min(dstvec->iov_len, srcvec->iov_len);
+    return safe_memcpy(dstvec->iov_base, srcvec->iov_base, to_copy);
 }
 #elif defined PL_DARWIN
 kern_return_t

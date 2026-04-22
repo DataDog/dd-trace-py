@@ -55,6 +55,7 @@ typedef PyObject* PyDictValues;
 #endif
 
 constexpr ssize_t MAX_MIRROR_SIZE = 1 << 20; // 1 MiB
+constexpr ssize_t MAX_MIRROR_ITEMS = MAX_MIRROR_SIZE / sizeof(setentry);
 
 class MirrorObject
 {

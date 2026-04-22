@@ -1,0 +1,4 @@
+fixes:
+  - |
+    flask: The Flask integration now properly captures the ``template`` parameter value
+    for all Flask versions.

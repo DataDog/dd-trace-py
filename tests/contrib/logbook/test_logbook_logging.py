@@ -4,7 +4,6 @@ import pytest
 
 from ddtrace import config
 from ddtrace.constants import ENV_KEY
-from ddtrace.constants import SERVICE_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.logbook.patch import patch
 from ddtrace.contrib.internal.logbook.patch import unpatch
@@ -104,7 +103,7 @@ def test_log_trace_global_values():
     """
     span = tracer.trace("test.logging")
     span.set_tag(ENV_KEY, "local-env")
-    span.set_tag(SERVICE_KEY, "local-service")
+    span.service = "local-service"
     span.set_tag(VERSION_KEY, "local-version")
 
     logbook.info("Hello!")

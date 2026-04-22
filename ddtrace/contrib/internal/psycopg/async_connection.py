@@ -14,14 +14,16 @@ from ddtrace.internal.constants import COMPONENT
 
 
 class Psycopg3TracedAsyncConnection(dbapi_async.TracedAsyncConnection):
-    def __init__(self, conn, pin=None, cursor_cls=None):
+    def __init__(self, conn, cursor_cls=None, db_tags=None):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = (
                 Psycopg3FetchTracedAsyncCursor if config.psycopg.trace_fetch_methods else Psycopg3TracedAsyncCursor
             )
 
-        super(Psycopg3TracedAsyncConnection, self).__init__(conn, pin, config.psycopg, cursor_cls=cursor_cls)
+        super(Psycopg3TracedAsyncConnection, self).__init__(
+            conn, cfg=config.psycopg, cursor_cls=cursor_cls, db_tags=db_tags
+        )
 
     async def execute(self, *args, **kwargs):
         """Execute a query and return a cursor to read its results."""
@@ -60,9 +62,10 @@ def patched_connect_async_factory(psycopg_module):
                     db.SYSTEM: pin._config.dbms_name,
                 },
                 measured=True,
+                integration_config=config.psycopg,
             ):
                 conn = await connect_func(*args, **kwargs)
 
-        return patch_conn(conn, pin=pin, traced_conn_cls=traced_conn_cls)
+        return patch_conn(conn, traced_conn_cls=traced_conn_cls)
 
     return patched_connect_async

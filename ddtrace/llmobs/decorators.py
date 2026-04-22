@@ -10,8 +10,10 @@ from typing import OrderedDict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
+from ddtrace.llmobs._llmobs import LLMObsAnnotateSpanError
+from ddtrace.llmobs._utils import get_llmobs_output_messages
+from ddtrace.llmobs._utils import get_llmobs_output_value
 
 
 log = get_logger(__name__)
@@ -102,8 +104,23 @@ def _model_decorator(operation_kind):
                         session_id=session_id,
                         ml_app=ml_app,
                         _decorator=True,
-                    ):
-                        return await func(*args, **kwargs)
+                    ) as span:
+                        resp = await func(*args, **kwargs)
+                        if (
+                            resp is not None
+                            and get_llmobs_output_value(span) is None
+                            and get_llmobs_output_messages(span) is None
+                            and operation_kind != "embedding"
+                        ):
+                            try:
+                                LLMObs.annotate(span=span, output_data=resp)
+                            except LLMObsAnnotateSpanError:
+                                log.debug(
+                                    "Failed to auto-annotate output for @%s decorated function. "
+                                    "Use LLMObs.annotate() to manually annotate the output.",
+                                    operation_kind,
+                                )
+                        return resp
 
             else:
 
@@ -147,8 +164,23 @@ def _model_decorator(operation_kind):
                         session_id=session_id,
                         ml_app=ml_app,
                         _decorator=True,
-                    ):
-                        return func(*args, **kwargs)
+                    ) as span:
+                        resp = func(*args, **kwargs)
+                        if (
+                            resp is not None
+                            and get_llmobs_output_value(span) is None
+                            and get_llmobs_output_messages(span) is None
+                            and operation_kind != "embedding"
+                        ):
+                            try:
+                                LLMObs.annotate(span=span, output_data=resp)
+                            except LLMObsAnnotateSpanError:
+                                log.debug(
+                                    "Failed to auto-annotate output for @%s decorated function. "
+                                    "Use LLMObs.annotate() to manually annotate the output.",
+                                    operation_kind,
+                                )
+                        return resp
 
             return generator_wrapper if (isgeneratorfunction(func) or isasyncgenfunction(func)) else wrapper
 
@@ -199,13 +231,9 @@ def _llmobs_decorator(operation_kind):
                         if _automatic_io_annotation and bound_args.arguments:
                             LLMObs.annotate(span=span, input_data=_get_span_inputs(bound_args.arguments))
                         resp = await func(*args, **kwargs)
-                        if (
-                            _automatic_io_annotation
-                            and resp is not None
-                            and operation_kind != "retrieval"
-                            and span._get_ctx_item(OUTPUT_VALUE) is None
-                        ):
-                            LLMObs.annotate(span=span, output_data=resp)
+                        if _automatic_io_annotation and resp is not None and operation_kind != "retrieval":
+                            if get_llmobs_output_value(span) is None:
+                                LLMObs.annotate(span=span, output_data=resp)
                         return resp
 
             else:
@@ -249,13 +277,9 @@ def _llmobs_decorator(operation_kind):
                         if _automatic_io_annotation and bound_args.arguments:
                             LLMObs.annotate(span=span, input_data=_get_span_inputs(bound_args.arguments))
                         resp = func(*args, **kwargs)
-                        if (
-                            _automatic_io_annotation
-                            and resp is not None
-                            and operation_kind != "retrieval"
-                            and span._get_ctx_item(OUTPUT_VALUE) is None
-                        ):
-                            LLMObs.annotate(span=span, output_data=resp)
+                        if _automatic_io_annotation and resp is not None and operation_kind != "retrieval":
+                            if get_llmobs_output_value(span) is None:
+                                LLMObs.annotate(span=span, output_data=resp)
                         return resp
 
             return generator_wrapper if (isgeneratorfunction(func) or isasyncgenfunction(func)) else wrapper

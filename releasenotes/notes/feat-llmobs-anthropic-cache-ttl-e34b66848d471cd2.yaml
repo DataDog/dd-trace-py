@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: This adds cache creation breakdown metrics for the Anthropic integration.
+    When making Anthropic calls with prompt caching, ``ephemeral_5m_input_tokens`` and ``ephemeral_1h_input_tokens``
+    metrics are now reported, distinguishing between 5 minute and 1 hour prompt caches.

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: This introduces ``RemoteEvaluator`` which allows users to reference LLM-as-Judge
+    evaluations configured in the Datadog UI by name when running local experiments.
+    For more information, see the documentation: https://docs.datadoghq.com/llm_observability/guide/evaluation_developer_guide/#using-managed-evaluators

@@ -246,7 +246,7 @@ def can_capture(span: Span) -> bool:
             # If we are in a debug session we always capture
             return True
         result = GLOBAL_RATE_LIMITER.limit() is not RateLimitExceeded
-        root._set_tag_str(CAPTURE_TRACE_TAG, str(result).lower())
+        root._set_attribute(CAPTURE_TRACE_TAG, str(result).lower())
         return result
 
     msg = f"unexpected value for {CAPTURE_TRACE_TAG}: {info_captured}"
@@ -315,10 +315,10 @@ class SpanExceptionHandler:
                 frame.f_locals[SNAPSHOT_KEY] = snapshot_id = snapshot.uuid
 
             # Add correlation tags on the span
-            span._set_tag_str(FRAME_SNAPSHOT_ID_TAG % seq_nr, snapshot_id)
-            span._set_tag_str(FRAME_FUNCTION_TAG % seq_nr, code.co_name)
-            span._set_tag_str(FRAME_FILE_TAG % seq_nr, code.co_filename)
-            span._set_tag_str(FRAME_LINE_TAG % seq_nr, str(tb.tb_lineno))
+            span._set_attribute(FRAME_SNAPSHOT_ID_TAG % seq_nr, snapshot_id)
+            span._set_attribute(FRAME_FUNCTION_TAG % seq_nr, code.co_name)
+            span._set_attribute(FRAME_FILE_TAG % seq_nr, code.co_filename)
+            span._set_attribute(FRAME_LINE_TAG % seq_nr, str(tb.tb_lineno))
 
             return snapshot is not None
         except Exception:  # noqa: F841
@@ -373,14 +373,14 @@ class SpanExceptionHandler:
             frames_captured += self._attach_tb_frame_snapshot_to_span(span, tb, exc_id, only_user_code=False)
 
         if frames_captured:
-            span._set_tag_str(DEBUG_INFO_TAG, "true")
-            span._set_tag_str(EXCEPTION_HASH_TAG, str(exc_ident))
-            span._set_tag_str(EXCEPTION_ID_TAG, str(exc_id))
+            span._set_attribute(DEBUG_INFO_TAG, "true")
+            span._set_attribute(EXCEPTION_HASH_TAG, str(exc_ident))
+            span._set_attribute(EXCEPTION_ID_TAG, str(exc_id))
 
             # Update the snapshot count
             root = span._local_root
             if root is not None:
-                root.set_metric(SNAPSHOT_COUNT_TAG, frames_captured)
+                root._set_attribute(SNAPSHOT_COUNT_TAG, frames_captured)
 
     @classmethod
     def enable(cls) -> None:

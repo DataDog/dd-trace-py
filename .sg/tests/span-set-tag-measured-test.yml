@@ -1,0 +1,20 @@
+id: span-set-tag-measured
+valid:
+  # Direct _set_attribute is the correct pattern
+  - span._set_attribute(_SPAN_MEASURED_KEY, 1)
+  - span._set_attribute(_SPAN_MEASURED_KEY, 0)
+  # set_tag with other keys is fine
+  - span.set_tag("some.other.key", "value")
+  - span.set_tag(SOME_OTHER_KEY, value)
+  # set_metric with other keys is fine
+  - span.set_metric("some.other.metric", 1)
+
+invalid:
+  # One-arg form (mark as measured)
+  - span.set_tag(_SPAN_MEASURED_KEY)
+  # Two-arg form
+  - span.set_tag(_SPAN_MEASURED_KEY, 1)
+  - span.set_tag(_SPAN_MEASURED_KEY, 0)
+  - |
+    s = tracer.trace("op")
+    s.set_tag(_SPAN_MEASURED_KEY)

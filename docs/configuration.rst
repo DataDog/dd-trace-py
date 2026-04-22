@@ -380,6 +380,30 @@ Traces
      version_added:
         v3.11.0:
 
+   DD_LLMOBS_PAYLOAD_SIZE_BYTES:
+     type: Int
+     default: 5242880
+
+     description: |
+         The max size in bytes of an LLMObs payload submitted to Datadog. When the buffer reaches this
+         limit it is flushed immediately before the next event is enqueued. Defaults to 5 MiB.
+
+         This controls the size of LLMObs payloads sent directly to Datadog when agentless mode is
+         enabled (``DD_LLMOBS_AGENTLESS_ENABLED=true``). In agent mode, this value should not exceed
+         the EVP proxy max payload size configured in the Datadog Agent.
+
+   DD_LLMOBS_EVENT_SIZE_BYTES:
+     type: Int
+     default: 5000000
+
+     description: |
+         The max size in bytes of a single LLMObs event submitted to Datadog. Events that exceed this
+         limit have their input/output fields truncated before submission. Defaults to 5 MB.
+
+         This controls the size of individual LLMObs events sent directly to Datadog when agentless
+         mode is enabled (``DD_LLMOBS_AGENTLESS_ENABLED=true``). In agent mode, this value should not
+         exceed the EVP proxy max event size configured in the Datadog Agent.
+
 Trace Context propagation
 -------------------------
 
@@ -565,6 +589,20 @@ Application & API Security
      type: Float
      default: 0.5 (between 0. and 1.)
      description: sampling rate for body analysis of downstream requests. Default value is 50%.
+
+AI Guard
+--------
+
+.. ddtrace-configuration-options::
+
+   DD_AI_GUARD_BLOCK:
+     type: Boolean
+     default: True
+     description: |
+       Controls whether AI Guard blocking is enabled. When set to ``True`` (default), the blocking
+       behavior configured in the Datadog AI Guard UI (in-app) will be honored. Set to ``False`` to
+       force monitor-only mode locally: evaluations are still performed but ``AIGuardAbortError`` is
+       never raised, regardless of the in-app blocking setting.
 
 Code Security
 -------------
@@ -765,6 +803,61 @@ Test Visibility
 
      version_added:
         v3.15.0:
+
+   DD_AGENTLESS_LOG_SUBMISSION_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+        When used with ``DD_CIVISIBILITY_AGENTLESS_ENABLED=true``, enables log submission from the
+        ``ddtrace.testing`` pytest plugin directly to the Datadog logs intake. Log records emitted
+        during tests are enriched with the active test span's ``dd.trace_id`` and ``dd.span_id``
+        and forwarded as structured JSON. When using the Datadog Agent instead of agentless mode,
+        set ``DD_LOGS_INJECTION=true`` to achieve the same result via the agent's intake.
+
+     version_added:
+        v4.8.0:
+
+   DD_TEST_OPTIMIZATION_MANIFEST_FILE:
+     type: String
+     default: ""
+
+     description: |
+        Enables manifest mode for Bazel offline execution. When set to the path of a manifest
+        file (or a Bazel rlocation), the ``CIVisibility`` service reads settings, known tests,
+        and test management data from pre-fetched cache files inside ``.testoptimization/``
+        instead of making HTTP requests to the Datadog backend. Test skipping is disabled
+        unconditionally in this mode.
+
+     version_added:
+        v4.9.0:
+
+   DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES:
+     type: Boolean
+     default: False
+
+     description: |
+        Enables payload-files mode for Bazel offline execution. When set to ``true``, test
+        event, coverage, and telemetry payloads are written as JSON files to
+        ``TEST_UNDECLARED_OUTPUTS_DIR/payloads/{tests,coverage,telemetry}/`` instead of
+        being sent over HTTP. CI and Git tags can be provided via
+        ``DD_TEST_OPTIMIZATION_ENV_DATA_FILE`` to avoid invoking the git CLI.
+
+     version_added:
+        v4.9.0:
+
+   DD_TEST_OPTIMIZATION_ENV_DATA_FILE:
+     type: String
+     default: ""
+
+     description: |
+        Path to a JSON file containing CI and Git environment tags. Used in payload-files
+        mode (``DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES=true``) to supply CI/Git metadata
+        without invoking the git CLI. When no other CI provider is detected and this variable
+        is unset, the provider name falls back to ``bazel``.
+
+     version_added:
+        v4.9.0:
 
 Agent
 -----

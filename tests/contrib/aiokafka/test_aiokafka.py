@@ -86,14 +86,17 @@ async def test_send_multiple_servers():
     topic = await create_topic("send_multiple_servers")
     async with producer_ctx([BOOTSTRAP_SERVERS] * 3) as producer:
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
+        await producer.flush()
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
-async def test_send_and_wait_failure():
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+async def test_send_and_wait_failure(test_spans):
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
         with pytest.raises(MessageSizeTooLargeError):
             await producer.send_and_wait("nonexistent_topic", value=b"x" * (10 * 1024 * 1024), key=KEY)
+            spans = test_spans.pop()
+            assert spans[0].meta["error.message"].startswith("[Error 10] MessageSizeTooLargeError: ")
 
 
 @pytest.mark.asyncio
@@ -168,6 +171,6 @@ async def test_getmany_multiple_messages_multiple_topics_with_distributed_tracin
 
     assert consumer_span is not None, "Consumer span not found"
 
-    span_links = consumer_span._links
+    span_links = consumer_span._get_links()
     assert span_links is not None, "Consumer span should have span links"
     assert len(span_links) == 3, "Consumer span should have at least one span link"

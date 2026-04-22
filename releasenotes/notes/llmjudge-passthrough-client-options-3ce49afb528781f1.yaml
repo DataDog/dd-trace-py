@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: ``LLMJudge`` now forwards any extra ``client_options`` to the underlying provider client constructor.
+    This allows passing provider-specific options such as ``base_url``, ``timeout``, ``organization``, or ``max_retries``
+    directly through ``client_options``.

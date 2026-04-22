@@ -1,0 +1,17 @@
+id: span-set-metric
+valid:
+  # Using the preferred internal API
+  - span._set_attribute("key", 1)
+  - span._set_attribute("key", 3.14)
+  - s._set_attribute(db.ROWCOUNT, row_count)
+  - ctx.span._set_attribute(db.ROWCOUNT, rowcount)
+  - self._ddspan._set_attribute(key, value)
+invalid:
+  - span.set_metric("key", 1)
+  - span.set_metric("key", 3.14)
+  - s.set_metric(db.ROWCOUNT, row_count)
+  - ctx.span.set_metric(db.ROWCOUNT, rowcount)
+  - self._ddspan.set_metric(key, value)
+  - |
+    span = tracer.start_span("test")
+    span.set_metric("my.metric", 42)

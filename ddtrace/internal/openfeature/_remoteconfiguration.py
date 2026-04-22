@@ -10,6 +10,7 @@ import os
 import typing as t
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
@@ -50,7 +51,8 @@ class FeatureFlagCallback(RCCallback):
                     payload.metadata.product_name,
                     payload.path,
                 )
-                # Handle deletion/removal of configuration
+                # Handle deletion/removal of configuration by clearing the stored config
+                _set_ffe_config(None)
                 continue
 
             try:
@@ -66,12 +68,14 @@ _featureflag_rc_callback = FeatureFlagCallback()
 
 def enable_featureflags_rc() -> None:
     log.debug("[%s][P: %s] Register FFE Remote Config Callback", os.getpid(), os.getppid())
-    remoteconfig_poller.register(
+    remoteconfig_poller.register_callback(
         FFE_FLAGS_PRODUCT,
         _featureflag_rc_callback,
         capabilities=[FFECapabilities.FFE_FLAG_CONFIGURATION_RULES],
     )
+    remoteconfig_poller.enable_product(FFE_FLAGS_PRODUCT)
 
 
 def disable_featureflags_rc() -> None:
-    remoteconfig_poller.unregister(FFE_FLAGS_PRODUCT)
+    remoteconfig_poller.unregister_callback(FFE_FLAGS_PRODUCT)
+    remoteconfig_poller.disable_product(FFE_FLAGS_PRODUCT)

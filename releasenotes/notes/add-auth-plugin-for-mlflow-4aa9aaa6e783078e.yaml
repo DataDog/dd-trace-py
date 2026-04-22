@@ -1,0 +1,3 @@
+features:
+  - |
+    mlflow: Adds a request header provider (auth plugin) for MLFlow. If the environment variables DD_API_KEY, DD_APP_KEY and DD_MODEL_LAB_ENABLED are set, HTTP requests to the MLFlow tracking server will include the DD-API-KEY and DD-APPLICATION-KEY headers. #16685

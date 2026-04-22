@@ -1,6 +1,9 @@
 from collections import Counter
 import os
+from pathlib import Path
 import subprocess
+import sys
+import time
 from time import sleep
 
 import celery
@@ -16,6 +19,8 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
 
 from ...utils import override_global_config
+from .base import BACKEND_URL
+from .base import BROKER_URL
 from .base import CeleryBaseTestCase
 
 
@@ -30,10 +35,8 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
     def tearDown(self):
         super(CeleryIntegrationTask, self).tearDown()
-        if os.path.isfile("celerybeat-schedule.dir"):
-            os.remove("celerybeat-schedule.bak")
-            os.remove("celerybeat-schedule.dat")
-            os.remove("celerybeat-schedule.dir")
+        for file_path in ("celerybeat-schedule.bak", "celerybeat-schedule.dat", "celerybeat-schedule.dir"):
+            Path(file_path).unlink(missing_ok=True)
 
     def test_concurrent_delays(self):
         # it should create one trace for each delayed execution
@@ -819,3 +822,85 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             output, _ = celery_proc.communicate(timeout=10)
             # Check for panics in the output
             assert b"panic" not in output.lower(), f"Found panic in celery beat output:\n{output}"
+
+
+@pytest.mark.parametrize("distributed_tracing_enabled", [True, False])
+@pytest.mark.snapshot(
+    ignores=[
+        "meta.tracestate",
+        "meta.celery.id",
+        "meta.celery.correlation_id",
+        "meta.celery.hostname",
+        "meta.celery.reply_to",
+    ]
+)
+def test_distributed_tracing_propagation_no_producer_span(
+    ddtrace_run_python_code_in_subprocess, distributed_tracing_enabled
+):
+    """Snapshot: one trace across producer and worker when send_task is used without registering the task locally."""
+    producer_code = f"""
+import os
+import sys
+from celery import Celery
+from ddtrace import tracer
+
+celery_app = Celery()
+
+with tracer.trace("mock.request") as span:
+    result = celery_app.send_task("consumer.is_single_trace", args=(span.trace_id,))
+    is_single_trace = result.get(timeout=5)
+    if {distributed_tracing_enabled}:
+        assert is_single_trace
+    else:
+        assert not is_single_trace
+sys.exit(0)
+"""
+
+    consumer_code = """
+import os
+from celery import Celery
+from ddtrace import tracer
+
+celery_app = Celery("consumer")
+
+@celery_app.task
+def is_single_trace(trace_id):
+    span = tracer.current_span()
+    assert span is not None
+    return span.trace_id == trace_id
+
+celery_app.worker_main(["worker", "--loglevel=info"])
+"""
+
+    env = os.environ.copy()
+    env["CELERY_BROKER_URL"] = BROKER_URL
+    env["CELERY_RESULT_BACKEND"] = BACKEND_URL
+    env["DD_CELERY_DISTRIBUTED_TRACING"] = str(distributed_tracing_enabled)
+    # Disable Redis to reduce noise in the snapshot file
+    env["DD_TRACE_REDIS_ENABLED"] = "false"
+
+    worker_process = subprocess.Popen(
+        ["ddtrace-run", sys.executable, "-c", consumer_code],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+        preexec_fn=os.setsid if os.name != "nt" else None,
+        close_fds=True,
+    )
+    try:
+        # Wait for the worker to be ready instead of a fixed sleep to avoid flakiness on slow CI machines.
+        # app.control.inspect().active() returns a dict when at least one worker is connected, None otherwise.
+        _inspect_app = celery.Celery(broker=BROKER_URL, backend=BACKEND_URL)
+        max_wait = 15
+        waited = 0
+        while _inspect_app.control.inspect(timeout=1).active() is None and waited < max_wait:
+            time.sleep(0.5)
+            waited += 0.5
+        _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(producer_code, env=env, timeout=30)
+        assert status == 0, stderr.decode() if stderr else "producer failed"
+    finally:
+        try:
+            worker_process.terminate()
+            worker_process.wait(timeout=5)
+        except Exception:
+            worker_process.kill()

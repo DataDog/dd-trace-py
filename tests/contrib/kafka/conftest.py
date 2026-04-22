@@ -4,7 +4,6 @@ from confluent_kafka import TopicPartition
 from confluent_kafka import admin as kafka_admin
 import pytest
 
-from ddtrace import config
 from ddtrace._trace.filters import TraceFilter
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
@@ -83,16 +82,10 @@ def patch_kafka():
 def kafka_tracer(patch_kafka, should_filter_empty_polls, tracer):
     if should_filter_empty_polls:
         tracer.configure(trace_processors=[KafkaConsumerPollFilter()])
-    # disable backoff because it makes these tests less reliable
-    if not config._trace_writer_native:
-        previous_backoff = tracer._span_aggregator.writer._send_payload_with_backoff
-        tracer._span_aggregator.writer._send_payload_with_backoff = tracer._span_aggregator.writer._send_payload
     try:
         yield tracer
     finally:
         tracer.flush()
-        if not config._trace_writer_native:
-            tracer._span_aggregator.writer._send_payload_with_backoff = previous_backoff
 
 
 @pytest.fixture
@@ -108,6 +101,7 @@ def consumer(kafka_tracer, kafka_topic):
             "bootstrap.servers": BOOTSTRAP_SERVERS,
             "group.id": GROUP_ID,
             "auto.offset.reset": "earliest",
+            "auto.commit.interval.ms": 500,
         }
     )
 

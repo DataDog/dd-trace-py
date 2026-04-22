@@ -1,0 +1,224 @@
+interactions:
+- request:
+    body: '{"model": "claude-sonnet-4-20250514", "messages": [{"role": "user", "content":
+      [{"type": "text", "text": "What are the key principles for designing scalable
+      systems?", "cache_control": {"type": "ephemeral", "ttl": "5m"}}]}], "system":
+      [{"type": "text", "text": "Hardware engineering best practices guide: farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell farewell farewell farewell
+      farewell farewell farewell farewell farewell farewell ", "cache_control": {"type":
+      "ephemeral", "ttl": "1h"}}], "max_tokens": 64000}'
+    headers:
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '9599'
+      Host:
+      - api.anthropic.com
+      User-Agent:
+      - litellm/1.80.16
+      accept:
+      - application/json
+      anthropic-version:
+      - '2023-06-01'
+      content-type:
+      - application/json
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA2RW33PbNgz+V3DqS+qT2yRL2tVv+bG7dmu6tG63h2Xng0lYYkOBKgjZ9Xr533ek
+        LFtJn3wmQADfhw+gfhRNsOSLWWE8dpamMTCTTs+mp8en58fnJ2dFWThbzIomVovjk9OwbC7PXuGX
+        6/nvl6fLX9/cfqVvn4uy0G1LyYtixIqKspDg0wHG6KIia1EWJrASazH758fgr/Q9WfLPrHhLQoBC
+        oDXBPW2hFcfGtZ4irIKApegqdlxBNOhx6QniNio1cXbHd/zsGUwmb4O4/wIrelhH+ItEnUEPc4Pe
+        cTWZ3PH0sVccLDO4sBaaIASRZE0SXzpOtRuKcNQKrUiEbK5EpaNdEc473T7vw+7TjYJ+aStBS0Df
+        XdRUe41iNwnlkXeNU7Kw3B4OTeCogo415qDXGXNOWv9UNKwkNJmtqCi6J2GuqOQpxt31HvYN3vfQ
+        XEIU9z6bmpjWJNCGGN3SU3Kea09EjC4wWFQEx0DflYRTAckc4egTWRfLbF9ipL7m3zj3Bnm7YxI0
+        QI1sd4dC3zqKmtO4pvVu5SiCD2hhiR7ZJGjIdoC5x3W9SwNXgaOzJKgucBy6+onQglDrncE4mWTS
+        hNBOa8L1FjZB7lOS2Hvvg8VEfu5WqtO6qOKWnVKPGo2EGKHpvCYlHqD2Ua7Q1FmRKqhUOUqJB1pu
+        qDFoarLPU2Qh25lDgAx4FyRNnUlYoA2hV0660SBjNbph9n4RaLVyxhGr3+75uXGp2KHDF2Jqp2S0
+        E+opuhTCe2gCB++0juBYA8QGvScpwbGlltgS614muZ1o6uEADHJuC43dUwlT+BIJLm7fQYVKG9z2
+        MzvcC2JqyiS5wMn7XdN6aka5EvMmrEm20JCpkV1s4h7a+6SO66E3Luw0nXKOhEMS4eg9bkng7OXr
+        54/z7Fv4VGm+CuK0biIcSejYTiUsHZfgCaOOSS+B1LzIYQcFQkWhEmxrZw7SSY3cOK3h6vpDpvBj
+        R91+WWVeMG7Z1BI4dBFaCSZN2kjqg67mI131YrkZYGRpgU9oY9o0lxI2MTXy6vpDCdjmOUi1HObz
+        oFmaYqq/hI04panWErqqHv4uqXZsJxNoUdPEZxD5Gjheo3c2Bx6p/hEnfWUblCYvqSBgxPWbMVWy
+        B3kxJuF2T8Khtbv3BL4l/tK6weXS6c3HEi7anOMPXN1jCRd/z2H+cf6k4bQm1qkVtyYGHE1DrvYS
+        zX2V+w1fw/JRD9LaNaHLJIemDUysse9o7ls6bTre0XsYv8BOgwzb689lUvbuhegxXYWmFaqJo1sn
+        HVbV4NyQijO5sFuSVZAmyTnN6jgk+vTC7ErcLyoLKmgGqpvxEuj71qJxuoXWI+fnM0nBQuBD1jv+
+        XFOk8Yub1iVoqEjrfoMbIdSDirVGzetgt9kdJ4cUOM9XJWho1Xm/7fGlJw0dQztChxEsNclcJe2+
+        KB7+LYuooV2kSIGLWUFsF9oJFztDTG8HGypm3HlfFl3+3pj9KBy3nS403BPHYvZLWWQRLnLRLvDi
+        sf30+PXx4JKeiCfmvW24njJQW1NDgn5x3jzxPzkrR+aT+qds568eyiJ0Oj49O39TFrtGLdSRFLMi
+        fW9YFJs+u3hFkqAuKgrFrOCgC1yjyx8+xcPD/wAAAP//AwBD5TacvAkAAA==
+    headers:
+      CF-RAY:
+      - 9da63316ceaa7095-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Security-Policy:
+      - default-src 'none'; frame-ancestors 'none'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 10 Mar 2026 23:46:44 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Robots-Tag:
+      - none
+      anthropic-organization-id:
+      - 4257e925-ee99-4ee8-9c62-8e53716d5203
+      anthropic-ratelimit-input-tokens-limit:
+      - '20000000'
+      anthropic-ratelimit-input-tokens-remaining:
+      - '19999000'
+      anthropic-ratelimit-input-tokens-reset:
+      - '2026-03-10T23:46:35Z'
+      anthropic-ratelimit-output-tokens-limit:
+      - '2500000'
+      anthropic-ratelimit-output-tokens-remaining:
+      - '2499000'
+      anthropic-ratelimit-output-tokens-reset:
+      - '2026-03-10T23:46:44Z'
+      anthropic-ratelimit-requests-limit:
+      - '20000'
+      anthropic-ratelimit-requests-remaining:
+      - '19998'
+      anthropic-ratelimit-requests-reset:
+      - '2026-03-10T23:46:34Z'
+      anthropic-ratelimit-tokens-limit:
+      - '22500000'
+      anthropic-ratelimit-tokens-remaining:
+      - '22498000'
+      anthropic-ratelimit-tokens-reset:
+      - '2026-03-10T23:46:35Z'
+      cf-cache-status:
+      - DYNAMIC
+      request-id:
+      - req_011CYvHqxxUdqGDC7PxMErB5
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-envoy-upstream-service-time:
+      - '9342'
+    status:
+      code: 200
+      message: OK
+version: 1

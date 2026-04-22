@@ -129,21 +129,21 @@ class DDRedactedExpressionError(Exception):
 
 class DDRedactedCompiler(DDCompiler):
     @classmethod
-    def __getmember__(cls, s, a):
+    def __getmember__(cls, s: t.Any, a: str) -> t.Any:
         if redact(a):
             raise DDRedactedExpressionError(f"Access to attribute {a!r} is not allowed")
 
         return super().__getmember__(s, a)
 
     @classmethod
-    def __index__(cls, o, i):
+    def __index__(cls, o: t.Any, i: t.Any) -> t.Any:
         if isinstance(i, (str, bytes)) and redact(i):
             raise DDRedactedExpressionError(f"Access to entry {i!r} is not allowed")
 
         return super().__index__(o, i)
 
     @classmethod
-    def __ref__(cls, s):
+    def __ref__(cls, s: str) -> str:
         if redact(s):
             raise DDRedactedExpressionError(f"Access to local {s!r} is not allowed")
 
@@ -153,8 +153,8 @@ class DDRedactedCompiler(DDCompiler):
 dd_compile_redacted = DDRedactedCompiler().compile
 
 
-def _redacted_expr(exc):
-    def _(_):
+def _redacted_expr(exc: Exception) -> t.Callable[[t.Any], t.Any]:
+    def _(_: t.Any) -> t.Any:
         raise exc
 
     return _
@@ -164,7 +164,7 @@ class DDRedactedExpression(DDExpression):
     __compiler__ = dd_compile_redacted
 
     @classmethod
-    def on_compiler_error(cls, dsl, exc):
+    def on_compiler_error(cls, dsl: str, exc: Exception) -> t.Callable[[t.Any], t.Any]:
         if isinstance(exc, DDRedactedExpressionError):
             log.error("Cannot compile expression that references potential PII: %s", dsl, exc_info=True)
             return _redacted_expr(exc)

@@ -83,7 +83,7 @@ class ProbeFactory(object):
     __function_class__: Optional[type[FunctionProbe]] = None
 
     @classmethod
-    def update_args(cls, args, attribs):
+    def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         raise NotImplementedError()
 
     @classmethod
@@ -116,7 +116,7 @@ class LogProbeFactory(ProbeFactory):
     __function_class__ = LogFunctionProbe
 
     @classmethod
-    def update_args(cls, args, attribs):
+    def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         take_snapshot = attribs.get("captureSnapshot", False)
 
         rate = DEFAULT_SNAPSHOT_PROBE_RATE if take_snapshot else DEFAULT_PROBE_RATE
@@ -153,7 +153,7 @@ class MetricProbeFactory(ProbeFactory):
     __function_class__ = MetricFunctionProbe
 
     @classmethod
-    def update_args(cls, args, attribs):
+    def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         # adding probe_id to probe-tags so it would be recorded as a metric tag
         args["tags"]["debugger.probeid"] = args["probe_id"]
 
@@ -170,7 +170,7 @@ class SpanProbeFactory(ProbeFactory):
     __function_class__ = SpanFunctionProbe
 
     @classmethod
-    def update_args(cls, args, attribs):
+    def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         args.update(
             condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
@@ -182,7 +182,7 @@ class SpanDecorationProbeFactory(ProbeFactory):
     __function_class__ = SpanDecorationFunctionProbe
 
     @classmethod
-    def update_args(cls, args, attribs):
+    def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         args.update(
             target_span=attribs["targetSpan"],
             decorations=[
@@ -209,7 +209,7 @@ class TriggerProbeFactory(ProbeFactory):
     __function_class__ = TriggerFunctionProbe
 
     @classmethod
-    def update_args(cls, args, attribs):
+    def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         args.update(
             rate=attribs.get("sampling", {}).get("cooldownInSeconds", DEFAULT_TRIGGER_PROBE_RATE),
             session_id=attribs["session_id"],

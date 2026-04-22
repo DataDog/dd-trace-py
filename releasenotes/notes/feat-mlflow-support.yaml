@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: Adds instrumentation support for ``mlflow>=2.11.0`. See the
+    `mlflow <https://ddtrace.readthedocs.io/en/stable/integrations.html#mlflow>`
+    documentation for more information.

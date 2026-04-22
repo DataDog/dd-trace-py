@@ -70,17 +70,17 @@ class WsgiCustomMiddleware(_DDWSGIMiddlewareBase):
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
         req_span.set_tag("request_tag", "req test tag set")
-        req_span.set_metric("request_metric", 1)
+        req_span._set_attribute("request_metric", 1)
         req_span.resource = "request resource was modified"
 
     def _application_span_modifier(self, app_span, environ, result):
         app_span.set_tag("app_tag", "app test tag set")
-        app_span.set_metric("app_metric", 2)
+        app_span._set_attribute("app_metric", 2)
         app_span.resource = "app resource was modified"
 
     def _response_span_modifier(self, resp_span, response):
         resp_span.set_tag("response_tag", "resp test tag set")
-        resp_span.set_metric("response_metric", 3)
+        resp_span._set_attribute("response_metric", 3)
         resp_span.resource = "response resource was modified"
 
 

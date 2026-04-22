@@ -31,6 +31,7 @@ NATIVE_PATTERNS=(
     "Cargo.lock"
     "setup.py"
     "pyproject.toml"
+    "requirements*.txt"
 )
 
 # Check if we're in a git repository
@@ -81,7 +82,7 @@ main() {
         for file in $changed_files; do
             if [ $count -lt 10 ]; then
                 echo -e "  ${GREEN}•${NC} $file"
-                ((count++))
+                count=$((count + 1))
             fi
         done
 
@@ -93,22 +94,43 @@ main() {
         fi
 
         echo ""
-        echo -e "${YELLOW}You need to rebuild native extensions!${NC}"
-        echo ""
-        echo -e "${BLUE}Run one of the following commands:${NC}"
-        echo ""
-        echo -e "  ${GREEN}# Quick rebuild (recommended):${NC}"
-        echo -e "    pip install -e ."
-        echo ""
-        echo -e "  ${GREEN}# Full clean rebuild:${NC}"
-        echo -e "    pip install -e . --force-reinstall --no-deps --no-build-isolation"
-        echo ""
-        echo -e "  ${GREEN}# Using project scripts:${NC}"
-        echo -e "    scripts/ddtest pip install -e ."
-        echo ""
+
+        # Check if any requirements files changed
+        local has_requirements=false
+        local has_native=false
+        for file in $changed_files; do
+            case "$file" in
+                requirements*.txt) has_requirements=true ;;
+                *) has_native=true ;;
+            esac
+        done
+
+        if [ "$has_requirements" = "true" ]; then
+            echo -e "${YELLOW}Python dependency files changed. You may need to run:${NC}"
+            echo -e "    pip install -r requirements.txt"
+            echo ""
+        fi
+
+        if [ "$has_native" = "true" ]; then
+            echo -e "${YELLOW}You may need to rebuild native extensions.${NC}"
+            echo ""
+            echo -e "${BLUE}Run one of the following commands:${NC}"
+            echo ""
+            echo -e "  ${GREEN}# Quick rebuild (recommended):${NC}"
+            echo -e "    pip install -e ."
+            echo ""
+            echo -e "  ${GREEN}# Full clean rebuild:${NC}"
+            echo -e "    pip install -e . --force-reinstall --no-deps --no-build-isolation"
+            echo ""
+            echo -e "  ${GREEN}# Using project scripts:${NC}"
+            echo -e "    scripts/ddtest pip install -e ."
+            echo ""
+        fi
+
         echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo ""
     fi
 }
 
 main "$@"
+exit 0

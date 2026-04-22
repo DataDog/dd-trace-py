@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: the memory profiler now uses the weighted allocation size in heap live size,
+    fixing a bug where the reported heap live size was much lower than it really was.

@@ -17,7 +17,7 @@ from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.datadog.profiling._types import StringType
-from ddtrace.internal.datadog.profiling.code_provenance import json_str_to_export
+from ddtrace.internal.datadog.profiling.code_provenance import get_code_provenance_file
 from ddtrace.internal.datadog.profiling.util import sanitize_string
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import config as agent_config
@@ -41,6 +41,8 @@ cdef extern from "sample.hpp" namespace "Datadog":
 
 cdef extern from "ddup_interface.hpp":
     ctypedef struct PyFrameObject:
+        pass
+    ctypedef struct PyTracebackObject:
         pass
 
     void ddup_config_env(string_view env)
@@ -85,10 +87,12 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
     void ddup_push_trace_type(Sample *sample, string_view trace_type)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
+    void ddup_push_exception_message(Sample *sample, string_view exception_message)
     void ddup_push_class_name(Sample *sample, string_view class_name)
     void ddup_push_gpu_device_name(Sample *sample, string_view device_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
     void ddup_push_pyframes(Sample *sample, PyFrameObject* frame)
+    void ddup_push_pytraceback(Sample *sample, PyTracebackObject* tb)
     void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_push_absolute_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
@@ -96,7 +100,7 @@ cdef extern from "ddup_interface.hpp":
 
 
 cdef extern from "code_provenance_interface.hpp":
-    void code_provenance_set_json_str(string_view json_str)
+    void code_provenance_set_file_path(string_view file_path)
 
 
 # Create wrappers for cython
@@ -130,12 +134,12 @@ cdef call_ddup_config_user_tag(key: StringType, val: StringType):
             string_view(val_utf8_data, val_utf8_size)
         )
 
-cdef call_code_provenance_set_json_str(str json_str):
-    cdef const char* json_str_data
-    cdef Py_ssize_t json_str_size
-    json_str_data = PyUnicode_AsUTF8AndSize(json_str, &json_str_size)
-    if json_str_data != NULL:
-        code_provenance_set_json_str(string_view(json_str_data, json_str_size))
+cdef call_code_provenance_set_file_path(str file_path):
+    cdef const char* file_path_data
+    cdef Py_ssize_t file_path_size
+    file_path_data = PyUnicode_AsUTF8AndSize(file_path, &file_path_size)
+    if file_path_data != NULL:
+        code_provenance_set_file_path(string_view(file_path_data, file_path_size))
 
 cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
     # We want to make sure that endpoint strings outlive the for loop below
@@ -271,6 +275,18 @@ cdef call_ddup_push_exceptioninfo(Sample* sample, exception_name: StringType, ui
     utf8_data = PyUnicode_AsUTF8AndSize(exception_name, &utf8_size)
     if utf8_data != NULL:
         ddup_push_exceptioninfo(sample, string_view(utf8_data, utf8_size), count)
+
+cdef call_ddup_push_exception_message(Sample* sample, exception_message: StringType):
+    if not exception_message:
+        return
+    if isinstance(exception_message, bytes):
+        ddup_push_exception_message(sample, string_view(<const char*>exception_message, len(exception_message)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(exception_message, &utf8_size)
+    if utf8_data != NULL:
+        ddup_push_exception_message(sample, string_view(utf8_data, utf8_size))
 
 cdef call_ddup_push_class_name(Sample* sample, class_name: StringType):
     if not class_name:
@@ -409,8 +425,10 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
     call_func_with_str(ddup_config_url, endpoint)
 
     if enable_code_provenance and not _code_provenance_set:
-        call_code_provenance_set_json_str(json_str_to_export())
-        _code_provenance_set = True
+        code_provenance_file = get_code_provenance_file()
+        if code_provenance_file:
+            call_code_provenance_set_file_path(code_provenance_file)
+            _code_provenance_set = True
 
     with nogil:
         ddup_upload()
@@ -490,6 +508,21 @@ cdef class SampleHandle:
             frame_ptr = <PyFrameObject*>frame_obj
             ddup_push_pyframes(self.ptr, frame_ptr)
 
+    def push_pytraceback(self, object tb) -> None:
+        cdef PyObject* tb_obj
+        cdef PyTracebackObject* tb_ptr
+
+        if self.ptr is not NULL and tb is not None:
+            # Validate that tb is actually a traceback object to avoid crashes
+            # from invalid casts (e.g., if tb contains a non-traceback object)
+            if not isinstance(tb, types.TracebackType):
+                return
+            # In Cython, 'tb' is already a PyObject*. Get the raw pointer.
+            tb_obj = <PyObject*>tb
+            # Cast to PyTracebackObject* - both are just pointers to the same memory
+            tb_ptr = <PyTracebackObject*>tb_obj
+            ddup_push_pytraceback(self.ptr, tb_ptr)
+
     def push_threadinfo(self, thread_id: int, thread_native_id: int, thread_name: StringType) -> None:
         if self.ptr is not NULL:
             thread_id = thread_id if thread_id is not None else 0
@@ -515,10 +548,18 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             exc_name = None
             if isinstance(exc_type, type):
-                exc_name = exc_type.__module__ + "." + exc_type.__name__
+                module = exc_type.__module__
+                exc_name = f"{module}.{exc_type.__name__}" if module else exc_type.__name__
             else:
                 exc_name = exc_type
             call_ddup_push_exceptioninfo(self.ptr, exc_name, clamp_to_uint64_unsigned(count))
+
+    def push_exception_message(self, exception_message: StringType) -> None:
+        if self.ptr is NULL:
+            return
+        if exception_message is None:
+            return
+        call_ddup_push_exception_message(self.ptr, exception_message)
 
     def push_class_name(self, class_name: StringType) -> None:
         if self.ptr is not NULL:

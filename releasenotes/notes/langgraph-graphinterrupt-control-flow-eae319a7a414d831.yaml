@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    langgraph: Fixed an issue where ``GraphInterrupt`` exceptions were incorrectly marked as errors in APM traces. ``GraphInterrupt`` is a control-flow exception used in LangGraph's human-in-the-loop workflows and should not be treated as an error condition.

@@ -8,8 +8,8 @@ specific Django apps like Django Rest Framework (DRF).
 """
 
 from inspect import getmro
+from inspect import iscoroutinefunction
 from inspect import unwrap
-import os
 from typing import cast
 
 import wrapt
@@ -28,6 +28,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.telemetry import get_config as _get_config
@@ -45,25 +46,25 @@ config._add(
     "django",
     dict(
         _default_service=schematize_service_name("django"),
-        cache_service_name=os.getenv("DD_DJANGO_CACHE_SERVICE_NAME", default="django"),
-        database_service_name_prefix=os.getenv("DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX", default=""),
-        database_service_name=os.getenv("DD_DJANGO_DATABASE_SERVICE_NAME", default=""),
-        trace_fetch_methods=asbool(os.getenv("DD_DJANGO_TRACE_FETCH_METHODS", default=False)),
+        cache_service_name=env.get("DD_DJANGO_CACHE_SERVICE_NAME", default="django"),
+        database_service_name_prefix=env.get("DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX", default=""),
+        database_service_name=env.get("DD_DJANGO_DATABASE_SERVICE_NAME", default=""),
+        trace_fetch_methods=asbool(env.get("DD_DJANGO_TRACE_FETCH_METHODS", default=False)),
         distributed_tracing_enabled=True,
-        instrument_middleware=asbool(os.getenv("DD_DJANGO_INSTRUMENT_MIDDLEWARE", default=True)),
-        instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=not DJANGO_TRACING_MINIMAL)),
-        instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=not DJANGO_TRACING_MINIMAL)),
-        instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=not DJANGO_TRACING_MINIMAL)),
+        instrument_middleware=asbool(env.get("DD_DJANGO_INSTRUMENT_MIDDLEWARE", default=True)),
+        instrument_templates=asbool(env.get("DD_DJANGO_INSTRUMENT_TEMPLATES", default=not DJANGO_TRACING_MINIMAL)),
+        instrument_databases=asbool(env.get("DD_DJANGO_INSTRUMENT_DATABASES", default=not DJANGO_TRACING_MINIMAL)),
+        instrument_caches=asbool(env.get("DD_DJANGO_INSTRUMENT_CACHES", default=not DJANGO_TRACING_MINIMAL)),
         trace_query_string=None,  # Default to global config
         include_user_name=asm_config._django_include_user_name,
         include_user_email=asm_config._django_include_user_email,
         include_user_login=asm_config._django_include_user_login,
         include_user_realname=asm_config._django_include_user_realname,
         use_handler_with_url_name_resource_format=asbool(
-            os.getenv("DD_DJANGO_USE_HANDLER_WITH_URL_NAME_RESOURCE_FORMAT", default=False)
+            env.get("DD_DJANGO_USE_HANDLER_WITH_URL_NAME_RESOURCE_FORMAT", default=False)
         ),
-        use_handler_resource_format=asbool(os.getenv("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
-        use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
+        use_handler_resource_format=asbool(env.get("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
+        use_legacy_resource_format=asbool(env.get("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
         trace_asgi_websocket_messages=_get_config(
             "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED",
             default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=True, modifier=asbool),
@@ -76,7 +77,7 @@ config._add(
         websocket_messages_separate_traces=asbool(
             _get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)
         ),
-        obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
+        obfuscate_404_resource=env.get("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
         views={},
         # DEV: Used only for testing purposes, do not use in production
         _tracer=None,
@@ -160,6 +161,30 @@ def traced_populate(django, pin, func, instance, args, kwargs):
 def traced_func(django, name, resource=None, ignored_excs=None):
     def wrapped(django, pin, func, instance, args, kwargs):
         tags = {COMPONENT: config_django.integration_name}
+
+        if iscoroutinefunction(func):
+
+            async def _async():
+                with (
+                    core.context_with_data(
+                        "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
+                    ) as ctx,
+                    ctx.span,
+                ):
+                    core.dispatch(
+                        "django.func.wrapped",
+                        (
+                            args,
+                            kwargs,
+                            django.core.handlers.wsgi.WSGIRequest if hasattr(django.core.handlers, "wsgi") else object,
+                            ctx,
+                            ignored_excs,
+                        ),
+                    )
+                    return await func(*args, **kwargs)
+
+            return _async()
+
         with (
             core.context_with_data("django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin) as ctx,
             ctx.span,
@@ -346,7 +371,7 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 
     def django_asgi_modifier(span, scope):
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)
-        span._set_tag_str(COMPONENT, config_django.integration_name)
+        span._set_attribute(COMPONENT, config_django.integration_name)
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config_django, span_modifier=django_asgi_modifier)
 
@@ -523,6 +548,8 @@ def _unpatch(django):
     trace_utils.unwrap(django.views.generic.base.View, "as_view")
     for conn in django.db.connections.all():
         trace_utils.unwrap(conn, "cursor")
+        if hasattr(conn, "get_new_connection"):
+            trace_utils.unwrap(conn, "get_new_connection")
     trace_utils.unwrap(django.db.utils.ConnectionHandler, "__getitem__")
 
     if config.django.instrument_templates:

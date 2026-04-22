@@ -27,7 +27,7 @@ log = get_logger(__name__)
 
 
 class JsonBuffer(object):
-    def __init__(self, max_size=None):
+    def __init__(self, max_size: Optional[int] = None) -> None:
         self.max_size = max_size
         self._reset()
 
@@ -46,12 +46,12 @@ class JsonBuffer(object):
         self.size += size
         return size
 
-    def _reset(self):
+    def _reset(self) -> None:
         self.size = 2
         self._buffer = bytearray(b"[")
         self._flushed = False
 
-    def flush(self):
+    def flush(self) -> bytearray:
         self._buffer += b"]"
         try:
             return self._buffer
@@ -89,7 +89,7 @@ def _logs_track_logger_details(thread: Thread, frame: FrameType) -> dict[str, An
     }
 
 
-def add_tags(payload):
+def add_tags(payload: dict[str, Any]) -> None:
     if not di_config._tags_in_qs and di_config.tags:
         payload["ddtags"] = di_config.tags
 
@@ -140,19 +140,19 @@ class JSONTree:
         not_captured: bool = False
 
         @property
-        def key(self):
+        def key(self) -> tuple[bool, int, bool, int]:
             return self.not_captured_depth, self.level, self.not_captured, len(self)
 
-        def __len__(self):
+        def __len__(self) -> int:
             return self.end - self.start
 
-        def __lt__(self, other):
+        def __lt__(self, other: Any) -> bool:
             # The Python heapq pops the smallest item, so we reverse the
             # comparison.
             return self.key > other.key
 
         @property
-        def leaves(self):
+        def leaves(self) -> Iterator["JSONTree.Node"]:
             if not self.children:
                 yield self
             else:
@@ -172,11 +172,11 @@ class JSONTree:
 
         self._parse()
 
-    def _depth_string(self, i, c):
+    def _depth_string(self, i: int, c: str) -> Any:
         self._stack[-1].not_captured_depth = True
         return self._object
 
-    def _not_captured(self, i, c):
+    def _not_captured(self, i: int, c: str) -> Any:
         if c == '"':
             self._string_iter = iter("depth")
             self._on_string_match = self._depth_string
@@ -187,14 +187,14 @@ class JSONTree:
 
         return self._state
 
-    def _not_captured_string(self, i, c):
+    def _not_captured_string(self, i: int, c: str) -> Any:
         self._stack[-1].not_captured = True
         return self._not_captured
 
-    def _escape(self, i, c):
+    def _escape(self, i: int, c: str) -> Any:
         return self._string
 
-    def _string(self, i, c):
+    def _string(self, i: int, c: str) -> Any:
         if c == '"':
             return (
                 self._on_string_match(i, c)
@@ -211,7 +211,9 @@ class JSONTree:
         if self._string_iter is not None and c != next(self._string_iter, None):
             self._string_iter = None
 
-    def _object(self, i, c):
+        return None
+
+    def _object(self, i: int, c: str) -> Any:
         if c == "}":
             o = self._stack.pop()
             o.end = i + 1
@@ -232,14 +234,16 @@ class JSONTree:
                 o.parent.children.append(o)
             self._stack.append(o)
 
-    def _parse(self):
+        return None
+
+    def _parse(self) -> None:
         for i, c in self._iter:
             self._state = self._state(i, c) or self._state
             if self.root is not None:
                 return
 
     @property
-    def leaves(self):
+    def leaves(self) -> list["JSONTree.Node"]:
         return list(self.root.leaves) if self.root is not None else []
 
 

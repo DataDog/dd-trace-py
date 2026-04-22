@@ -10,7 +10,6 @@ import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import override_env
@@ -148,15 +147,6 @@ def reset_ragas_answer_relevancy_llm():
 
 
 @pytest.fixture
-def mock_ragas_evaluator(mock_llmobs_eval_metric_writer, ragas):
-    patcher = mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate")
-    LLMObsMockRagas = patcher.start()
-    LLMObsMockRagas.return_value = 1.0
-    yield RagasFaithfulnessEvaluator
-    patcher.stop()
-
-
-@pytest.fixture
 def mock_ragas_answer_relevancy_calculate_similarity():
     import numpy
 
@@ -172,7 +162,7 @@ def llmobs_env():
     return {
         "DD_API_KEY": os.environ.get("DD_API_KEY", "<default-not-a-real-key>"),
         "DD_LLMOBS_ML_APP": "unnamed-ml-app",
-        "DD_LLMOBS_PROJECT_NAME": "test-project",
+        "DD_LLMOBS_PROJECT_NAME": os.environ.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean"),
     }
 
 
@@ -244,7 +234,7 @@ def llmobs_backend(_llmobs_backend):
 
 @pytest.fixture
 def llmobs_enable_opts():
-    yield {"project_name": "test-project"}
+    yield {"project_name": os.environ.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean")}
 
 
 @pytest.fixture

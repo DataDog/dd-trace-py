@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/eec41712-46c6-4376-9f5e-5466d8df94d8/records",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "0",
+      "Content-Type": "application/json"
+    },
+    "body": ""
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "829",
+      "date": "Thu, 26 Mar 2026 20:01:57 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"record-id-2\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"fdc2c3e1-faed-4911-b3c3-4da99e88ac20\",\"created_at\":\"2026-03-26T20:01:55.101014Z\",\"dataset_id\":\"eec41712-46c6-4376-9f5e-5466d8df94d8\",\"expected_output\":\"\",\"input\":{\"prompt\":\"What is the capital of Mexico?\"},\"metadata\":{\"difficulty\":\"easy\"},\"updated_at\":\"2026-03-26T20:01:55.101014Z\"}},{\"id\":\"record-id-1\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"88c2f786-695a-4b0f-837c-8e0375b05edc\",\"created_at\":\"2026-03-26T20:01:55.100963Z\",\"dataset_id\":\"eec41712-46c6-4376-9f5e-5466d8df94d8\",\"expected_output\":{\"answer\":\"Berlin\"},\"input\":{\"prompt\":\"What is the capital of Germany?\"},\"updated_at\":\"2026-03-26T20:01:55.100963Z\"}}],\"meta\":{\"after\":\"\"}}"
+  }
+}

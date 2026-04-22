@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/2fdcd392-5830-4fd6-8d05-d4c03bf19190/batch_update",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "339",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"datasets\", \"id\": \"2fdcd392-5830-4fd6-8d05-d4c03bf19190\", \"attributes\": {\"insert_records\": [{\"input\": {\"prompt\": \"What is the capital of Italy?\"}, \"expected_output\": {\"answer\": \"Rome\"}, \"metadata\": null, \"id\": \"record-id-2\"}], \"update_records\": [], \"delete_records\": [], \"deduplicate\": true, \"create_new_version\": true}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "426",
+      "date": "Thu, 26 Mar 2026 20:02:26 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"record-id-2\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"31b9d86a-34ee-4297-8ff9-8114a89b4f98\",\"created_at\":\"2026-03-26T20:02:26.779682916Z\",\"dataset_id\":\"2fdcd392-5830-4fd6-8d05-d4c03bf19190\",\"expected_output\":{\"answer\":\"Rome\"},\"input\":{\"prompt\":\"What is the capital of Italy?\"},\"tags\":[],\"updated_at\":\"2026-03-26T20:02:26.779682916Z\",\"version\":2}}]}"
+  }
+}

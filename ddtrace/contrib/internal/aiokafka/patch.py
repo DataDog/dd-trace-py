@@ -1,4 +1,3 @@
-import os
 from time import time_ns
 
 import aiokafka
@@ -22,6 +21,7 @@ from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -33,7 +33,7 @@ config._add(
     "aiokafka",
     dict(
         _default_service=schematize_service_name("kafka"),
-        distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
+        distributed_tracing_enabled=asbool(env.get("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
     ),
 )
 
@@ -87,6 +87,7 @@ async def traced_send(func, instance, args, kwargs):
         span_type=SpanTypes.WORKER,
         service=trace_utils.ext_service(None, config.aiokafka),
         tags=common_aiokafka_tags(topic, bootstrap_servers),
+        integration_config=config.aiokafka,
     ) as ctx:
         core.dispatch("aiokafka.send.start", (topic, value, key, headers, ctx, partition))
         args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
@@ -140,6 +141,7 @@ async def traced_getone(func, instance, args, kwargs):
             service=trace_utils.ext_service(None, config.aiokafka),
             distributed_context=parent_ctx,
             tags=common_consume_aiokafka_tags(getattr(message, "topic", None), bootstrap_servers, group_id),
+            integration_config=config.aiokafka,
         ) as ctx:
             core.dispatch("aiokafka.getone.message", (instance, ctx, start_ns, message, err))
     return message
@@ -156,6 +158,7 @@ async def traced_getmany(func, instance, args, kwargs):
         span_type=SpanTypes.WORKER,
         service=trace_utils.ext_service(None, config.aiokafka),
         tags=common_consume_aiokafka_tags(None, bootstrap_servers, group_id),
+        integration_config=config.aiokafka,
     ) as ctx:
         messages = await func(*args, **kwargs)
 

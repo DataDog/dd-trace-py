@@ -240,6 +240,310 @@ class TestLLMJudge:
         assert result.reasoning is None
 
 
+class TestLLMJudgePublish:
+    @staticmethod
+    def _mock_publish_backend(monkeypatch, llmobs):
+        mock_publish = mock.Mock(return_value=mock.Mock(status=200))
+        monkeypatch.setattr(llmobs._instance._dne_client, "publish_custom_evaluator", mock_publish)
+        return mock_publish
+
+    @pytest.mark.parametrize(
+        "provider,expected_provider,expects_wrapped_schema",
+        [
+            ("openai", "openai", True),
+            ("azure_openai", "azure_openai", True),
+            ("anthropic", "anthropic", False),
+            ("vertexai", "vertex_ai", False),
+            ("bedrock", "amazon_bedrock", False),
+        ],
+    )
+    def test_publish_provider_mapping_and_schema_format(
+        self, provider, expected_provider, expects_wrapped_schema, monkeypatch, llmobs
+    ):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider=provider,
+            user_prompt="Evaluate: {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            model_params={"temperature": 0.2},
+            name="quality_eval",
+        )
+
+        with mock.patch("ddtrace.llmobs._llmobs._get_base_url", return_value="https://app.datadoghq.com"):
+            result = llmobs.publish_evaluator(judge, ml_app="test-app")
+
+        assert result["ui_url"] == (
+            "https://app.datadoghq.com/llm/evaluations/custom?evalName=quality_eval&applicationName=test-app"
+        )
+
+        payload = mock_publish.call_args.args[0]
+        assert payload["eval_name"] == "quality_eval"
+        app_payload = payload["applications"][0]
+
+        assert app_payload["application_name"] == "test-app"
+        assert app_payload["enabled"] is False
+        assert app_payload["integration_provider"] == expected_provider
+        assert app_payload["model_provider"] == expected_provider
+        assert set(app_payload) == {
+            "application_name",
+            "enabled",
+            "integration_provider",
+            "model_provider",
+            "byop_config",
+        }
+
+        byop_config = app_payload["byop_config"]
+        assert byop_config["inference_params"] == {"temperature": 0.2}
+        assert byop_config["parsing_type"] == "structured_output"
+        assert byop_config["assessment_criteria"] == {"pass_when": True}
+        assert byop_config["prompt_template"] == [
+            {"role": "system", "content": ""},
+            {"role": "user", "content": "Evaluate: {{output_data}}"},
+        ]
+
+        output_schema = byop_config["output_schema"]
+        if expects_wrapped_schema:
+            assert output_schema["name"] == "boolean_eval"
+            assert output_schema["strict"] is True
+            assert output_schema["schema"]["properties"]["boolean_eval"]["type"] == "boolean"
+        else:
+            assert output_schema["properties"]["boolean_eval"]["type"] == "boolean"
+
+    def test_publish_score_output_includes_threshold_assessment_criteria(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Score: {{output_data}}",
+            structured_output=ScoreStructuredOutput(
+                "Quality",
+                min_score=0.0,
+                max_score=1.0,
+                min_threshold=0.3,
+                max_threshold=0.8,
+            ),
+            name="score_eval_publish",
+        )
+
+        llmobs.publish_evaluator(judge, ml_app="test-app")
+        payload = mock_publish.call_args.args[0]
+        byop_config = payload["applications"][0]["byop_config"]
+
+        assert byop_config["parsing_type"] == "structured_output"
+        assert byop_config["assessment_criteria"] == {"min_threshold": 0.3, "max_threshold": 0.8}
+
+    def test_publish_categorical_output_includes_pass_values_assessment_criteria(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Classify: {{output_data}}",
+            structured_output=CategoricalStructuredOutput(
+                categories={
+                    "positive": "Positive sentiment",
+                    "negative": "Negative sentiment",
+                },
+                pass_values=["positive"],
+            ),
+            name="categorical_eval_publish",
+        )
+
+        llmobs.publish_evaluator(judge, ml_app="test-app")
+        payload = mock_publish.call_args.args[0]
+        byop_config = payload["applications"][0]["byop_config"]
+
+        assert byop_config["parsing_type"] == "structured_output"
+        assert byop_config["assessment_criteria"] == {"pass_values": ["positive"]}
+
+    @pytest.mark.parametrize(
+        "model,expected_model_name",
+        [
+            ("  gpt-4o  ", "gpt-4o"),
+            (None, None),
+            ("   ", None),
+        ],
+    )
+    def test_publish_sends_model_name_only_when_present(self, model, expected_model_name, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            model=model,
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="model_eval",
+        )
+
+        llmobs.publish_evaluator(judge, ml_app="my-app")
+        app_payload = mock_publish.call_args.args[0]["applications"][0]
+
+        assert app_payload["model_provider"] == app_payload["integration_provider"]
+        if expected_model_name is None:
+            assert "model_name" not in app_payload
+        else:
+            assert app_payload["model_name"] == expected_model_name
+
+    def test_publish_variable_mapping_replaces_prompt_placeholders(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            system_prompt="System sees {{input_data}}",
+            user_prompt=(
+                "Input {{input_data}} Output {{output_data}} Expected {{expected_output}} "
+                "Metadata {{metadata.customer_id}}"
+            ),
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="mapping_eval",
+        )
+
+        llmobs.publish_evaluator(
+            judge,
+            ml_app="test-app",
+            variable_mapping={"input_data": "span_input", "output_data": "span_output"},
+        )
+
+        payload = mock_publish.call_args.args[0]
+        prompt_template = payload["applications"][0]["byop_config"]["prompt_template"]
+
+        assert prompt_template[0]["content"] == "System sees {{input_data}}"
+        assert prompt_template[1]["content"] == (
+            "Input {{span_input}} Output {{span_output}} Expected {{expected_output}} Metadata {{metadata.customer_id}}"
+        )
+
+    def test_publish_variable_mapping_does_not_chain_replacements(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Input {{input_data}} Output {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="mapping_eval",
+        )
+
+        llmobs.publish_evaluator(
+            judge,
+            ml_app="test-app",
+            variable_mapping={"input_data": "output_data", "output_data": "span_output"},
+        )
+
+        payload = mock_publish.call_args.args[0]
+        prompt_template = payload["applications"][0]["byop_config"]["prompt_template"]
+
+        assert prompt_template[1]["content"] == "Input {{output_data}} Output {{span_output}}"
+
+    def test_publish_custom_schema_uses_json_parsing_and_encoded_url(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        custom_schema = {
+            "type": "object",
+            "properties": {
+                "grade": {"type": "string"},
+                "reasoning": {"type": "string"},
+            },
+            "required": ["grade"],
+            "additionalProperties": False,
+        }
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="vertexai",
+            user_prompt="Grade {{output_data}}",
+            structured_output=custom_schema,
+            name="json_eval",
+        )
+
+        with mock.patch("ddtrace.llmobs._llmobs._get_base_url", return_value="https://app.datadoghq.com"):
+            result = llmobs.publish_evaluator(judge, ml_app="my app")
+
+        assert result["ui_url"] == (
+            "https://app.datadoghq.com/llm/evaluations/custom?evalName=json_eval&applicationName=my+app"
+        )
+
+        payload = mock_publish.call_args.args[0]
+        app_payload = payload["applications"][0]
+        assert app_payload["integration_provider"] == "vertex_ai"
+        assert app_payload["byop_config"]["parsing_type"] == "json"
+        assert app_payload["byop_config"]["output_schema"] == custom_schema
+        assert "assessment_criteria" not in app_payload["byop_config"]
+
+    def test_publish_requires_ml_app(self, llmobs):
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+        )
+        with pytest.raises(ValueError, match="ml_app"):
+            llmobs.publish_evaluator(judge, ml_app="   ")
+
+    def test_publish_requires_structured_output(self, llmobs):
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=None,
+        )
+        with pytest.raises(ValueError, match="structured_output"):
+            llmobs.publish_evaluator(judge, ml_app="my-app")
+
+    def test_publish_requires_llmobs_enabled(self, monkeypatch, llmobs):
+        monkeypatch.setattr(llmobs, "enabled", False)
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+        )
+        with pytest.raises(ValueError, match="LLMObs is not enabled"):
+            llmobs.publish_evaluator(judge, ml_app="my-app")
+
+    def test_publish_validates_eval_name_format(self, monkeypatch, llmobs):
+        self._mock_publish_backend(monkeypatch, llmobs)
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+            name="valid_name",
+        )
+        with pytest.raises(ValueError, match="Evaluator name .* is invalid"):
+            llmobs.publish_evaluator(judge, ml_app="my-app", eval_name="invalid name!")
+
+    def test_publish_accepts_hyphenated_eval_name(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+            name="fallback",
+        )
+        llmobs.publish_evaluator(judge, ml_app="my-app", eval_name="hyphen-name")
+        payload = mock_publish.call_args.args[0]
+        assert payload["eval_name"] == "hyphen-name"
+
+    def test_publish_validates_variable_mapping(self, llmobs):
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+        )
+        with pytest.raises(ValueError, match="variable_mapping keys"):
+            llmobs.publish_evaluator(judge, ml_app="my-app", variable_mapping={"": "span_output"})
+
+        with pytest.raises(ValueError, match="variable_mapping values"):
+            llmobs.publish_evaluator(judge, ml_app="my-app", variable_mapping={"output_data": "   "})
+
+
 AZURE_OPENAI_CLIENT_OPTIONS = {
     "api_key": "testing",
     "azure_endpoint": "https://test.openai.azure.com",
@@ -541,3 +845,95 @@ class TestBedrockClient:
 
         parsed = json.loads(result)
         assert parsed["categorical_eval"] == "positive"
+
+
+class TestClientOptionsPassthrough:
+    """Tests that extra client_options are forwarded to underlying client constructors."""
+
+    def test_openai_extra_options(self):
+        mock_openai_mod = mock.MagicMock()
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_mod}):
+            from ddtrace.llmobs._evaluators import llm_judge as lj
+
+            lj._create_openai_client(client_options={"api_key": "test-key", "base_url": "https://custom.endpoint/v1"})
+            mock_openai_mod.OpenAI.assert_called_once_with(api_key="test-key", base_url="https://custom.endpoint/v1")
+
+    def test_anthropic_extra_options(self):
+        mock_anthropic_mod = mock.MagicMock()
+        with mock.patch.dict("sys.modules", {"anthropic": mock_anthropic_mod}):
+            from ddtrace.llmobs._evaluators import llm_judge as lj
+
+            lj._create_anthropic_client(
+                client_options={"api_key": "test-key", "base_url": "https://custom.endpoint", "max_retries": 5}
+            )
+            mock_anthropic_mod.Anthropic.assert_called_once_with(
+                api_key="test-key", base_url="https://custom.endpoint", max_retries=5
+            )
+
+    def test_azure_openai_extra_options(self):
+        mock_openai_mod = mock.MagicMock()
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_mod}):
+            from ddtrace.llmobs._evaluators import llm_judge as lj
+
+            lj._create_azure_openai_client(
+                client_options={
+                    "api_key": "test-key",
+                    "azure_endpoint": "https://test.openai.azure.com",
+                    "api_version": "2024-10-21",
+                    "azure_deployment": "my-deploy",
+                    "timeout": 30,
+                }
+            )
+            mock_openai_mod.AzureOpenAI.assert_called_once_with(
+                api_key="test-key",
+                azure_endpoint="https://test.openai.azure.com",
+                api_version="2024-10-21",
+                timeout=30,
+            )
+
+    def test_bedrock_extra_options(self):
+        mock_boto3 = mock.MagicMock()
+        with mock.patch.dict("sys.modules", {"boto3": mock_boto3}):
+            from ddtrace.llmobs._evaluators import llm_judge as lj
+
+            lj._create_bedrock_client(
+                client_options={
+                    "aws_access_key_id": "key",
+                    "aws_secret_access_key": "secret",
+                    "region_name": "us-west-2",
+                    "botocore_session": "custom-session",
+                }
+            )
+            mock_boto3.Session.assert_called_once_with(
+                region_name="us-west-2",
+                aws_access_key_id="key",
+                aws_secret_access_key="secret",
+                botocore_session="custom-session",
+            )
+
+    def test_vertexai_extra_options(self):
+        mock_vertexai = mock.MagicMock()
+        mock_creds = mock.MagicMock()
+        with mock.patch.dict(
+            "sys.modules",
+            {
+                "vertexai": mock_vertexai,
+                "vertexai.generative_models": mock_vertexai.generative_models,
+            },
+        ):
+            from ddtrace.llmobs._evaluators import llm_judge as lj
+
+            lj._create_vertexai_client(
+                client_options={
+                    "credentials": mock_creds,
+                    "project": "my-project",
+                    "location": "europe-west1",
+                    "api_transport": "rest",
+                }
+            )
+            mock_vertexai.init.assert_called_once_with(
+                project="my-project",
+                location="europe-west1",
+                credentials=mock_creds,
+                api_transport="rest",
+            )

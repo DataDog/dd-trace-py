@@ -305,7 +305,6 @@ def test_falsey_ci_provider_values_overwritten_by_git_executable(
         "APPVEYOR_REPO_COMMIT": "appveyor-repo-commit",
         "APPVEYOR_REPO_NAME": "appveyor-repo-name",
         "APPVEYOR_REPO_PROVIDER": "not-github",
-        "APPVEYOR_REPO_COMMIT_MESSAGE": None,
         "APPVEYOR_REPO_COMMIT_AUTHOR": "",
     }
 
@@ -333,3 +332,23 @@ def test_custom_dd_tags(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:
 
     assert tags["foo"] == "1"
     assert tags["bar.baz"] == "2"
+
+
+def test_pull_request_base_branch_normalized_when_branch_is_tag(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:
+    env = {
+        "APPVEYOR": "true",
+        "APPVEYOR_REPO_PROVIDER": "github",
+        "APPVEYOR_REPO_BRANCH": "refs/heads/main",
+        "APPVEYOR_REPO_TAG_NAME": "refs/tags/v1.2.3",
+        "APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH": "refs/tags/v1.2.3",
+    }
+
+    monkeypatch.setattr(os, "environ", env)
+    monkeypatch.chdir(git_repo)
+
+    with mock.patch("ddtrace.testing.internal.git.get_git_tags_from_git_command", return_value={}):
+        tags = get_env_tags()
+
+    assert tags[GitTag.TAG] == "v1.2.3"
+    assert GitTag.BRANCH not in tags
+    assert tags[GitTag.PULL_REQUEST_BASE_BRANCH] == "main"

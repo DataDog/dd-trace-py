@@ -95,6 +95,20 @@ Azure Functions
 .. automodule:: ddtrace.contrib.internal.azure_functions
 
 
+.. _azure_cosmos:
+
+Azure CosmosDB
+^^^^^^^^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.azure_cosmos
+
+
+.. _azure_durable_functions:
+
+Azure Durable Functions
+^^^^^^^^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.azure_durable_functions
+
+
 .. _botocore:
 
 botocore
@@ -128,6 +142,13 @@ Celery
 CherryPy
 ^^^^^^^^
 .. automodule:: ddtrace.contrib.cherrypy
+
+
+.. _claude_agent_sdk:
+
+Claude Agent SDK
+^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.claude_agent_sdk
 
 
 .. _consul:
@@ -243,6 +264,13 @@ google-genai
 .. automodule:: ddtrace.contrib.internal.google_genai
 
 
+.. _google_cloud_pubsub:
+
+google-cloud-pubsub
+^^^^^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.google_cloud_pubsub
+
+
 .. _graphql:
 
 graphql
@@ -314,6 +342,12 @@ LiteLLM
 ^^^^^^^
 .. automodule:: ddtrace.contrib.internal.litellm
 
+.. _llama_index:
+
+LlamaIndex
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.llama_index
+
 .. _logbook:
 
 Logbook
@@ -345,6 +379,12 @@ Mako
 MCP
 ^^^
 .. automodule:: ddtrace.contrib.internal.mcp
+
+.. _mlflow:
+
+MLflow
+^^^^^^
+.. automodule:: ddtrace.contrib.internal.mlflow
 
 
 .. _mariadb:

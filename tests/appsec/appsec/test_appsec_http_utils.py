@@ -9,7 +9,7 @@ from ddtrace.appsec import _http_utils
         ({"Host": "Example.COM"}, {"host": "Example.COM"}),
         (
             {"X-Custom-None": "", "Content-Type": "application/json", "X-Custom-Spacing ": " trim spaces  "},
-            {"x-custom-none": None, "content-type": "application/json", "x-custom-spacing": "trim spaces"},
+            {"x-custom-none": "", "content-type": "application/json", "x-custom-spacing": "trim spaces"},
         ),
     ],
 )

@@ -48,4 +48,4 @@ def test_sampling_decision_downstream():
     tracer.context_provider.activate(kept_trace_context)
 
     with tracer.trace("p", service="downstream") as span_to_reject:
-        span_to_reject.set_tag(MANUAL_DROP_KEY)
+        span_to_reject.set_tag(MANUAL_DROP_KEY)  # ast-grep-ignore: span-set-tag-manual-drop

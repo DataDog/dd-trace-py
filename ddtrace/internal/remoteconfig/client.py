@@ -29,15 +29,23 @@ from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnect
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.utils.version import _pep440_to_semver
 
 
 log = get_logger(__name__)
 
 TARGET_FORMAT = re.compile(r"^(datadog/\d+|employee)/([^/]+)/([^/]+)/([^/]+)$")
+
+# Threshold for callback execution time warning (in seconds)
+CALLBACK_EXECUTION_WARNING_THRESHOLD = 0.5
 
 
 REQUIRE_SKIP_SHUTDOWN = frozenset({"django-q"})
@@ -206,7 +214,7 @@ class RemoteConfigClient:
         self.agent_url = agent_config.trace_agent_url
 
         self._headers = {"content-type": "application/json"}
-        additional_header_str = os.environ.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")
+        additional_header_str = env.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             self._headers.update(parse_tags_str(additional_header_str))
 
@@ -241,6 +249,9 @@ class RemoteConfigClient:
         # Product callbacks for single subscriber architecture
         self._product_callbacks: dict[str, RCCallback] = {}
 
+        # Track which products are enabled
+        self._enabled_products: set[str] = set()
+
         # Single global connector and subscriber for all products
         self._global_connector = PublisherSubscriberConnector()
         self._global_subscriber = RemoteConfigSubscriber(
@@ -273,13 +284,19 @@ class RemoteConfigClient:
         # Call periodic method for all registered callbacks
         for product_name, callback in product_callbacks.items():
             try:
-                log.debug(
-                    "[%s][P: %s] Calling periodic method for product %s",
-                    os.getpid(),
-                    os.getppid(),
-                    product_name,
-                )
-                callback.periodic()
+                with StopWatch() as sw:
+                    callback.periodic()
+
+                if (elapsed_time := sw.elapsed()) > CALLBACK_EXECUTION_WARNING_THRESHOLD:
+                    telemetry_writer.add_log(
+                        TELEMETRY_LOG_LEVEL.WARNING,
+                        "Periodic RC operation exceeded threshold",
+                        tags={
+                            "product": product_name,
+                            "callback_type": "periodic",
+                            "elapsed_time": "%.3f" % elapsed_time,
+                        },
+                    )
             except Exception:
                 log.error(
                     "[%s][P: %s] Error calling periodic method for product %s",
@@ -313,13 +330,26 @@ class RemoteConfigClient:
                         len(product_payload_list),
                         product_name,
                     )
-                    product_callback(product_payload_list)
+                    with StopWatch() as sw:
+                        product_callback(product_payload_list)
+
+                    if (elapsed_time := sw.elapsed()) > CALLBACK_EXECUTION_WARNING_THRESHOLD:
+                        telemetry_writer.add_log(
+                            TELEMETRY_LOG_LEVEL.WARNING,
+                            "RC callback operation exceeded threshold",
+                            tags={
+                                "product": product_name,
+                                "callback_type": "payload",
+                                "elapsed_time": "%.3f" % elapsed_time,
+                            },
+                        )
                 except Exception:
                     log.error(
-                        "[%s][P: %s] Error dispatching to product %s",
+                        "[%s][P: %s] Error dispatching to product %s. Payloads: %r",
                         os.getpid(),
                         os.getppid(),
                         product_name,
+                        product_payload_list,
                         exc_info=True,
                     )
 
@@ -329,7 +359,7 @@ class RemoteConfigClient:
         self._client_tracer["runtime_id"] = runtime.get_runtime_id()
         self._applied_configs.clear()
 
-    def register_product(
+    def register_callback(
         self,
         product_name: str,
         callback: RCCallback,
@@ -343,6 +373,34 @@ class RemoteConfigClient:
         """
         self._product_callbacks[product_name] = callback
         log.debug("[%s][P: %s] Registered callback for product %s", os.getpid(), os.getppid(), product_name)
+
+    def enable_product(self, product_name: str) -> None:
+        """
+        Enable a product to be included in client payloads sent to the agent.
+
+        Enabling a product means it will be added to the 'products' list in the
+        payload, signaling to the agent that this client wants to receive
+        configurations for this product.
+
+        Args:
+            product_name: Name of the product to enable
+        """
+        self._enabled_products.add(product_name)
+        log.debug("[%s][P: %s] Enabled product %s", os.getpid(), os.getppid(), product_name)
+
+    def disable_product(self, product_name: str) -> None:
+        """
+        Disable a product, removing it from client payloads sent to the agent.
+
+        The product's callback will remain registered and can still receive
+        configurations if the agent sends them, but the client will not
+        request configurations for this product.
+
+        Args:
+            product_name: Name of the product to disable
+        """
+        self._enabled_products.discard(product_name)
+        log.debug("[%s][P: %s] Disabled product %s", os.getpid(), os.getppid(), product_name)
 
     def add_capabilities(self, capabilities: Iterable[enum.IntFlag]) -> None:
         for capability in capabilities:
@@ -383,10 +441,23 @@ class RemoteConfigClient:
         log.debug("[%s][P: %s] Restarted global subscriber", os.getpid(), os.getppid())
 
     def reset_products(self) -> None:
-        """Clear all registered products."""
+        """Clear all registered products and enabled products."""
         self._product_callbacks = dict()
+        self._enabled_products = set()
 
     def _send_request(self, payload: str) -> Optional[Mapping[str, Any]]:
+        try:
+            return self._send_request_with_retry(payload)
+        except OSError as e:
+            log.debug("Unexpected connection error in remote config client request: %s", str(e))
+            return None
+
+    @fibonacci_backoff_with_jitter(
+        attempts=3,
+        initial_wait=0.2,
+        until=lambda result: isinstance(result, Mapping) or result is None,
+    )
+    def _send_request_with_retry(self, payload: str) -> Optional[Mapping[str, Any]]:
         conn = None
         try:
             if config.log_payloads:
@@ -403,9 +474,6 @@ class RemoteConfigClient:
 
             if config.log_payloads:
                 log.debug("[%s][P: %s] RC response payload: %s", os.getpid(), os.getppid(), data.decode("utf-8"))
-        except OSError as e:
-            log.debug("Unexpected connection error in remote config client request: %s", str(e))
-            return None
         finally:
             if conn is not None:
                 conn.close()
@@ -450,7 +518,7 @@ class RemoteConfigClient:
         return dict(
             client=dict(
                 id=self.id,
-                products=list(self._product_callbacks.keys()),
+                products=list(self._enabled_products),
                 is_tracer=True,
                 client_tracer=self._client_tracer,
                 state=state,
@@ -546,7 +614,13 @@ class RemoteConfigClient:
                     continue
 
                 try:
-                    log.debug("[%s][P: %s] Load new configuration: %s. content", os.getpid(), os.getppid(), target)
+                    log.debug(
+                        "[%s][P: %s] Load new configuration: %s. content: %s",
+                        os.getpid(),
+                        os.getppid(),
+                        target,
+                        config_content,
+                    )
                     self._accumulate_payload(payload_list, config_content, target, config)
                 except Exception:
                     error_message = "Failed to apply configuration %s for product %r" % (config, config.product_name)
@@ -592,9 +666,7 @@ class RemoteConfigClient:
             if (payload_targets_signed.targets and not payload_targets_signed.targets.get(target.path)) and (
                 client_configs and not client_configs.get(target.path)
             ):
-                raise RemoteConfigError(
-                    "target file %s not exists in client_config and signed targets" % (target.path,)
-                )
+                raise RemoteConfigError(f"target file {target.path} does not exist in client_config and signed targets")
 
     def _publish_configuration(self, payload_list: list[Payload]) -> None:
         """Publish all accumulated payloads to the global connector."""
@@ -648,13 +720,6 @@ class RemoteConfigClient:
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
-        log.debug(
-            "[%s][P: %s] Retrieved client configs last version %s: %s",
-            os.getpid(),
-            os.getppid(),
-            last_targets_version,
-            client_configs,
-        )
 
         self._validate_signed_target_files(payload.target_files, payload.targets.signed, client_configs)
 

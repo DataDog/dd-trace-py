@@ -45,6 +45,7 @@ if pip_version < MIN_PIP_VERSION:
 supported_versions = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 supported_arches = ["aarch64", "x86_64", "i686"]
 supported_platforms = ["musllinux_1_2", "manylinux2014"]
+supported_flavors = ["", "slim"]
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
@@ -52,6 +53,12 @@ parser.add_argument(
     choices=supported_versions,
     action="append",
     required=True,
+)
+parser.add_argument(
+    "--ddtrace-flavor",
+    choices=supported_flavors,
+    default="",
+    required=False,
 )
 parser.add_argument(
     "--arch",
@@ -75,6 +82,10 @@ args = parser.parse_args()
 dl_dir = args.output_dir
 print("saving wheels to %s" % dl_dir)
 
+package_basename = "ddtrace"
+if args.ddtrace_flavor:
+    package_basename = f"ddtrace{args.ddtrace_flavor}"
+
 
 for python_version, platform in itertools.product(args.python_version, args.platform):
     for arch in args.arch:
@@ -85,10 +96,16 @@ for python_version, platform in itertools.product(args.python_version, args.plat
             abi += "m"
 
         if args.ddtrace_version:
-            ddtrace_specifier = "ddtrace==%s" % args.ddtrace_version
+            ddtrace_specifier = "%s==%s" % (package_basename, args.ddtrace_version)
         elif args.local_ddtrace:
             wheel_files = [
-                f for f in os.listdir(".") if f.endswith(".whl") and abi in f and platform in f and arch in f
+                f
+                for f in os.listdir(".")
+                if f.startswith(f"{package_basename}-")
+                and f.endswith(".whl")
+                and abi in f
+                and platform in f
+                and arch in f
             ]
 
             if len(wheel_files) > 1:

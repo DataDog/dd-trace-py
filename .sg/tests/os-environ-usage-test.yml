@@ -1,0 +1,16 @@
+id: os-environ-usage
+valid:
+  # These should NOT trigger the rule (valid code)
+  - from ddtrace.internal.settings.env import setenv; setenv("HOME", "/path")
+  - from ddtrace.internal.settings.env import setenv; getenv("HOME")
+  - import sys; sys.path
+
+invalid:
+  # Aliased imports
+  - from os import environ as env
+  - from os import getenv as genv
+  # Comma-separated imports
+  - from os import path, environ
+  - from os import environ, path
+  - from os import path, getenv
+  - from os import getenv, path

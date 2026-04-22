@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where ``cache_creation_input_tokens`` and ``cache_read_input_tokens``
+    were not captured when using the LiteLLM integration with providers that support prompt caching (e.g., Anthropic,
+    OpenAI, Deepseek).

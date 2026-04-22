@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Tracing: fixes an issue where telemetry debug mode was incorrectly enabled by ``DD_TRACE_DEBUG``
+    instead of its own dedicated environment variable ``DD_INTERNAL_TELEMETRY_DEBUG_ENABLED``.
+    Setting ``DD_TRACE_DEBUG=true`` no longer enables telemetry debug mode.
+    To enable telemetry debug mode, set ``DD_INTERNAL_TELEMETRY_DEBUG_ENABLED=true``.

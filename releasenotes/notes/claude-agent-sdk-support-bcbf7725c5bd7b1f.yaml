@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    claude_agent_sdk: Introduces tracing support for the Claude Agent SDK's ``query``, ``ClaudeSDKClient.query``, and ``ClaudeSDKClient.receive_messages`` methods.
+      See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#claude-agent-sdk>`
+      for more information.
+  - |
+    LLM Observability: Adds LLM Observability tracing support for Claude Agent SDK requests.
+  

@@ -1,3 +1,5 @@
+import inspect
+
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -6,7 +8,6 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.trace import tracer
 
-from .._trace.pin import Pin
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
 from ..ext import SpanKind
@@ -14,6 +15,7 @@ from ..ext import SpanTypes
 from .dbapi import TracedConnection
 from .dbapi import TracedCursor
 from .internal.trace_utils import ext_service
+from .internal.trace_utils import is_tracing_enabled
 from .internal.trace_utils import iswrapped
 
 
@@ -55,26 +57,24 @@ class TracedAsyncCursor(TracedCursor):
         :param kwargs: The args that will be passed as kwargs to the wrapped method
         :return: The result of the wrapped method invocation
         """
-        pin = Pin.get_from(self)
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             return await method(*args, **kwargs)
         measured = name == self._self_datadog_name
 
         with tracer.trace(
-            name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
+            name, service=ext_service(None, self._self_config), resource=resource, span_type=SpanTypes.SQL
         ) as s:
             if measured:
-                # PERF: avoid setting via Span.set_tag
-                s.set_metric(_SPAN_MEASURED_KEY, 1)
+                s._set_attribute(_SPAN_MEASURED_KEY, 1)
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
-            s.set_tags(pin.tags)
+            s.set_tags(self._self_db_tags)
             s.set_tags(extra_tags)
 
-            s._set_tag_str(COMPONENT, self._self_config.integration_name)
+            s._set_attribute(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed
-            s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
             # Security and IAST validations
             core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
@@ -168,11 +168,11 @@ class FetchTracedAsyncCursor(TracedAsyncCursor):
 
 
 class TracedAsyncConnection(TracedConnection):
-    def __init__(self, conn, pin=None, cfg=config.dbapi2, cursor_cls=None):
+    def __init__(self, conn, pin=None, cfg=config.dbapi2, cursor_cls=None, db_tags=None):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = FetchTracedAsyncCursor if cfg.trace_fetch_methods else TracedAsyncCursor
-        super(TracedAsyncConnection, self).__init__(conn, pin, cfg, cursor_cls)
+        super(TracedAsyncConnection, self).__init__(conn, pin=pin, cfg=cfg, cursor_cls=cursor_cls, db_tags=db_tags)
 
     async def __aenter__(self):
         """Context management is not defined by the dbapi spec.
@@ -210,11 +210,7 @@ class TracedAsyncConnection(TracedConnection):
             # r is Cursor-like.
             if iswrapped(r):
                 return r
-            else:
-                pin = Pin.get_from(self)
-                if not pin:
-                    return r
-                return self._self_cursor_cls(r, pin, self._self_config)
+            return self._self_cursor_cls(r, cfg=self._self_config, db_tags=self._self_db_tags)
         else:
             # Otherwise r is some other object, so maintain the functionality
             # of the original.
@@ -230,18 +226,30 @@ class TracedAsyncConnection(TracedConnection):
         # messages will be the same.
         return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
+    def cursor(self, *args, **kwargs):
+        cursor = self.__wrapped__.cursor(*args, **kwargs)
+        # mysql.connector.aio returns an awaitable cursor.
+        if inspect.isawaitable(cursor):
+
+            async def _wrap_cursor():
+                awaited_cursor = await cursor
+                return self._self_cursor_cls(awaited_cursor, cfg=self._self_config, db_tags=self._self_db_tags)
+
+            return _wrap_cursor()
+
+        return self._self_cursor_cls(cursor, cfg=self._self_config, db_tags=self._self_db_tags)
+
     async def _trace_method(self, method, name, extra_tags, *args, **kwargs):
-        pin = Pin.get_from(self)
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             return await method(*args, **kwargs)
 
-        with tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
-            s._set_tag_str(COMPONENT, self._self_config.integration_name)
+        with tracer.trace(name, service=ext_service(None, self._self_config)) as s:
+            s._set_attribute(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed
-            s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-            s.set_tags(pin.tags)
+            s.set_tags(self._self_db_tags)
             s.set_tags(extra_tags)
 
             return await method(*args, **kwargs)

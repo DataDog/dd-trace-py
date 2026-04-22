@@ -1,0 +1,10 @@
+id: span-set-tag-service-key
+message: "Use `span.service = value` directly instead of `set_tag(SERVICE_KEY, value)`"
+severity: warning
+language: python
+rule:
+  pattern: $X.set_tag(SERVICE_KEY, $VALUE)
+fix: $X.service = $VALUE
+note: |
+  `set_tag(SERVICE_KEY, value)` is a special case that routes to `self.service = value`.
+  Use `span.service = value` directly to make this side-effect explicit.

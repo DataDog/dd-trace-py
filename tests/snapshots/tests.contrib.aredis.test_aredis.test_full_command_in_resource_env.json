@@ -11,17 +11,20 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "69de94d700000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpz3g7ns_9,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "b527c7abd2434e7a9f0484bebc97fc28"
+      "runtime-id": "74d740e4e6a44d71a5c550380559ebd3"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 77958
+      "_sampling_priority_v1": 1.0,
+      "process_id": 61322.0
     },
-    "duration": 6564000,
-    "start": 1698860024079389000
+    "duration": 4173250,
+    "start": 1776194775135773555
   },
      {
        "name": "redis.command",
@@ -34,6 +37,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
+         "_dd.svc_src": "aredis",
          "component": "aredis",
          "db.system": "redis",
          "out.host": "localhost",
@@ -42,15 +46,15 @@
          "span.kind": "client"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1,
-         "db.row_count": 0,
-         "network.destination.port": 6379,
-         "out.redis_db": 0,
-         "redis.args_length": 2
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "db.row_count": 0.0,
+         "network.destination.port": 6379.0,
+         "out.redis_db": 0.0,
+         "redis.args_length": 2.0
        },
-       "duration": 5496000,
-       "start": 1698860024079464000
+       "duration": 3727334,
+       "start": 1776194775135927763
      },
      {
        "name": "redis.command",
@@ -63,6 +67,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
+         "_dd.svc_src": "aredis",
          "component": "aredis",
          "db.system": "redis",
          "out.host": "localhost",
@@ -71,12 +76,12 @@
          "span.kind": "client"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1,
-         "network.destination.port": 6379,
-         "out.redis_db": 0,
-         "redis.pipeline_length": 2
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "network.destination.port": 6379.0,
+         "out.redis_db": 0.0,
+         "redis.pipeline_length": 2.0
        },
-       "duration": 923000,
-       "start": 1698860024085021000
+       "duration": 184875,
+       "start": 1776194775139744138
      }]]

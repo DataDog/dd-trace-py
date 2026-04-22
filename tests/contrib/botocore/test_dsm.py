@@ -79,6 +79,23 @@ class BotocoreDSMTest(TracerTestCase):
     def _kinesis_generate_records(self, data, count):
         return [{"Data": data, "PartitionKey": str(i)} for i in range(count)]
 
+    def _entry_for_tags(self, pathway_stats, expected_tags, expected_parent_hash=None):
+        matching_entries = [
+            (hash_value, parent_hash, stats)
+            for (tags, hash_value, parent_hash), stats in pathway_stats.items()
+            if tags == expected_tags
+        ]
+        if expected_parent_hash is not None:
+            matching_entries = [entry for entry in matching_entries if entry[1] == expected_parent_hash]
+        assert len(matching_entries) == 1
+        hash_value, parent_hash, stats = matching_entries[0]
+        return hash_value, parent_hash, stats
+
+    def _assert_dsm_counts(self, stats, min_latency_count, payload_count):
+        assert stats.full_pathway_latency.count >= min_latency_count
+        assert stats.edge_latency.count >= min_latency_count
+        assert stats.payload_size.count == payload_count
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs(self):
         self._test_data_streams_sns_to_sqs(False)
@@ -141,54 +158,16 @@ class BotocoreDSMTest(TracerTestCase):
             assert len(buckets) == 1, "Expected 1 bucket but found {}".format(len(buckets))
             first = list(buckets.values())[0].pathway_stats
 
-            assert (
-                first[
-                    (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
-                        3337976778666780987,
-                        0,
-                    )
-                ].full_pathway_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
-                        3337976778666780987,
-                        0,
-                    )
-                ].edge_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
-                        3337976778666780987,
-                        0,
-                    )
-                ].payload_size.count
-                == 1
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                ].full_pathway_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                ].edge_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                ].payload_size.count
-                == 1
-            )
+            out_tags = "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns"
+            in_tags = "direction:in,topic:Test,type:sqs"
+
+            out_hash, out_parent_hash, out_stats = self._entry_for_tags(first, out_tags, expected_parent_hash=0)
+            assert out_parent_hash == 0
+            self._assert_dsm_counts(out_stats, min_latency_count=1, payload_count=1)
+
+            _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
+            assert in_parent_hash == out_hash
+            self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
@@ -227,27 +206,16 @@ class BotocoreDSMTest(TracerTestCase):
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
 
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency.count >= 1
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency.count >= 1
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 1
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].full_pathway_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].edge_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].payload_size.count
-                == 1
-            )
+            out_tags = "direction:out,topic:Test,type:sqs"
+            in_tags = "direction:in,topic:Test,type:sqs"
+
+            out_hash, out_parent_hash, out_stats = self._entry_for_tags(first, out_tags, expected_parent_hash=0)
+            assert out_parent_hash == 0
+            self._assert_dsm_counts(out_stats, min_latency_count=1, payload_count=1)
+
+            _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
+            assert in_parent_hash == out_hash
+            self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
@@ -291,27 +259,16 @@ class BotocoreDSMTest(TracerTestCase):
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
 
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency.count >= 3
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency.count >= 3
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 3
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].full_pathway_latency.count
-                >= 3
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].edge_latency.count
-                >= 3
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].payload_size.count
-                == 3
-            )
+            out_tags = "direction:out,topic:Test,type:sqs"
+            in_tags = "direction:in,topic:Test,type:sqs"
+
+            out_hash, out_parent_hash, out_stats = self._entry_for_tags(first, out_tags, expected_parent_hash=0)
+            assert out_parent_hash == 0
+            self._assert_dsm_counts(out_stats, min_latency_count=3, payload_count=3)
+
+            _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
+            assert in_parent_hash == out_hash
+            self._assert_dsm_counts(in_stats, min_latency_count=3, payload_count=3)
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
@@ -365,12 +322,16 @@ class BotocoreDSMTest(TracerTestCase):
             assert len(buckets) == 1
             first = list(buckets.values())[0].pathway_stats
 
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency.count >= 1
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency.count >= 1
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 1
-            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].full_pathway_latency.count >= 1
-            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].edge_latency.count >= 1
-            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].payload_size.count == 1
+            out_tags = "direction:out,topic:Test,type:sqs"
+            in_tags = "direction:in,topic:Test,type:sqs"
+
+            _out_hash, out_parent_hash, out_stats = self._entry_for_tags(first, out_tags, expected_parent_hash=0)
+            assert out_parent_hash == 0
+            self._assert_dsm_counts(out_stats, min_latency_count=1, payload_count=1)
+
+            _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=0)
+            assert in_parent_hash == 0
+            self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
     @mock_kinesis
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
@@ -410,66 +371,13 @@ class BotocoreDSMTest(TracerTestCase):
                 "type:kinesis",
             ]
         )
-        assert (
-            first[
-                (
-                    in_tags,
-                    7250761453654470644,
-                    17012262583645342129,
-                )
-            ].full_pathway_latency.count
-            >= 2
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    7250761453654470644,
-                    17012262583645342129,
-                )
-            ].edge_latency.count
-            >= 2
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    7250761453654470644,
-                    17012262583645342129,
-                )
-            ].payload_size.count
-            == 2
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    17012262583645342129,
-                    0,
-                )
-            ].full_pathway_latency.count
-            >= 2
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    17012262583645342129,
-                    0,
-                )
-            ].edge_latency.count
-            >= 2
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    17012262583645342129,
-                    0,
-                )
-            ].payload_size.count
-            == 2
-        )
+        out_hash, out_parent_hash, out_stats = self._entry_for_tags(first, out_tags, expected_parent_hash=0)
+        assert out_parent_hash == 0
+        self._assert_dsm_counts(out_stats, min_latency_count=2, payload_count=2)
+
+        _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
+        assert in_parent_hash == out_hash
+        self._assert_dsm_counts(in_stats, min_latency_count=2, payload_count=2)
 
     @mock_kinesis
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
@@ -508,66 +416,13 @@ class BotocoreDSMTest(TracerTestCase):
                 "type:kinesis",
             ]
         )
-        assert (
-            first[
-                (
-                    in_tags,
-                    7186383338881463054,
-                    14715769790627487616,
-                )
-            ].full_pathway_latency.count
-            >= 1
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    7186383338881463054,
-                    14715769790627487616,
-                )
-            ].edge_latency.count
-            >= 1
-        )
-        assert (
-            first[
-                (
-                    in_tags,
-                    7186383338881463054,
-                    14715769790627487616,
-                )
-            ].payload_size.count
-            == 1
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    14715769790627487616,
-                    0,
-                )
-            ].full_pathway_latency.count
-            >= 1
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    14715769790627487616,
-                    0,
-                )
-            ].edge_latency.count
-            >= 1
-        )
-        assert (
-            first[
-                (
-                    out_tags,
-                    14715769790627487616,
-                    0,
-                )
-            ].payload_size.count
-            == 1
-        )
+        out_hash, out_parent_hash, out_stats = self._entry_for_tags(first, out_tags, expected_parent_hash=0)
+        assert out_parent_hash == 0
+        self._assert_dsm_counts(out_stats, min_latency_count=1, payload_count=1)
+
+        _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
+        assert in_parent_hash == out_hash
+        self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(

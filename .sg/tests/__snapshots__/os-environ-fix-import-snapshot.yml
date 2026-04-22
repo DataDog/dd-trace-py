@@ -1,0 +1,16 @@
+id: os-environ-fix-import
+snapshots:
+  from os import environ:
+    fixed: from ddtrace.internal.settings import env
+    labels:
+    - source: from os import environ
+      style: primary
+      start: 0
+      end: 22
+  from os import getenv:
+    fixed: from ddtrace.internal.settings import env
+    labels:
+    - source: from os import getenv
+      style: primary
+      start: 0
+      end: 21

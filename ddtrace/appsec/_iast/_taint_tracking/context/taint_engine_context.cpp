@@ -71,6 +71,7 @@ TaintEngineContext::set_shutting_down(bool v)
 std::optional<size_t>
 TaintEngineContext::start_request_context()
 {
+    std::lock_guard<std::mutex> lock(slots_mutex_);
     for (size_t i = 0; i < request_context_slots.size(); ++i) {
         if (request_context_slots[i] == nullptr) {
             auto map_ptr = make_shared<TaintedObjectMapType>();
@@ -84,6 +85,7 @@ TaintEngineContext::start_request_context()
 void
 TaintEngineContext::finish_request_context(size_t ctx_id)
 {
+    std::lock_guard<std::mutex> lock(slots_mutex_);
     const auto cap = request_context_slots.size();
     if (ctx_id >= cap) {
         return;
@@ -100,12 +102,26 @@ TaintEngineContext::finish_request_context(size_t ctx_id)
 void
 TaintEngineContext::clear_all_request_context_slots()
 {
+    std::lock_guard<std::mutex> lock(slots_mutex_);
     for (auto& slot : request_context_slots) {
         if (slot) {
             slot->clear();
             slot = nullptr;
         }
     }
+}
+
+size_t
+TaintEngineContext::debug_context_array_free_slots_number() const
+{
+    std::lock_guard<std::mutex> lock(slots_mutex_);
+    size_t free_count = 0;
+    for (const auto& slot : request_context_slots) {
+        if (slot == nullptr) {
+            ++free_count;
+        }
+    }
+    return free_count;
 }
 
 void

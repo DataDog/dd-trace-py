@@ -1,4 +1,7 @@
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 import os
+import threading
 import time
 
 import mock
@@ -61,9 +64,21 @@ def test_truncating_oversized_events(mock_writer_logs):
     llmobs_span_writer.enqueue(_oversized_workflow_event())
     mock_writer_logs.warning.assert_has_calls(
         [
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200729),
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200469),
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200450),
+            mock.call(
+                "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
+                5200729,
+                5000000,
+            ),
+            mock.call(
+                "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
+                5200469,
+                5000000,
+            ),
+            mock.call(
+                "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
+                5200450,
+                5000000,
+            ),
         ]
     )
 
@@ -85,16 +100,38 @@ def test_send_chat_completion_event(mock_writer_logs):
 
 
 def test_send_completion_bad_api_key(mock_writer_logs):
-    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key="<bad-api-key>")
+    class _Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            content_length = int(self.headers["Content-Length"])
+            self.rfile.read(content_length)
+            self.send_response(403)
+            self.end_headers()
+            self.wfile.write(b'{"errors":["Forbidden"]}')
+
+        def log_message(self, *args):
+            pass  # suppress server noise in test output
+
+    server = HTTPServer(("localhost", 0), _Handler)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+
+    mock_url = f"http://localhost:{server.server_address[1]}"
+
+    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _override_url=mock_url, _api_key="<bad-api-key>")
     llmobs_span_writer.enqueue(_completion_event())
     llmobs_span_writer.periodic()
+
+    server.shutdown()
+    server.server_close()
+
     mock_writer_logs.error.assert_called_with(
         "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
         1,
         "span",
-        "https://llmobs-intake.datad0g.com/api/v2/llmobs",
+        f"{mock_url}/api/v2/llmobs",
         403,
-        mock.ANY,  # Backend may return "API key is invalid" or "API key is missing"
+        b'{"errors":["Forbidden"]}',
         extra={"send_to_telemetry": False},
     )
 
@@ -138,25 +175,70 @@ def test_send_multiple_events(mock_writer_logs):
 
 
 def test_send_on_exit(run_python_code_in_subprocess):
+    requests_received = []
+
+    class _Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            content_length = int(self.headers["Content-Length"])
+            requests_received.append(self.rfile.read(content_length))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass  # suppress server noise in test output
+
+    server = HTTPServer(("localhost", 0), _Handler)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+
+    mock_url = f"http://localhost:{server.server_address[1]}"
+
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"PYTHONPATH": ":".join(pypath)})
+    env.update({"PYTHONPATH": ":".join(pypath), "DD_LLMOBS_OVERRIDE_ORIGIN": mock_url})
 
     out, err, status, pid = run_python_code_in_subprocess(
         """
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from tests.llmobs.test_llmobs_span_agentless_writer import _completion_event
 
-llmobs_span_writer = LLMObsSpanWriter(0.01, 1, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
+llmobs_span_writer = LLMObsSpanWriter(1000, 1, is_agentless=True, _api_key="<not-a-real-key>")
 llmobs_span_writer.start()
 llmobs_span_writer.enqueue(_completion_event())
 """,
         env=env,
     )
+
+    server.shutdown()
+    server.server_close()
+
     assert status == 0, err
     assert out == b""
-    assert b"got response code 403" in err
-    # Backend may return "API key is invalid" or "API key is missing"
-    assert b'"status":"403"' in err and b'"title":"Forbidden"' in err
+    assert len(requests_received) == 1
+
+
+@mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
+def test_configurable_payload_size_limit(mock_send_payload, mock_writer_logs):
+    """DD_LLMOBS_PAYLOAD_SIZE_BYTES overrides the flush threshold."""
+    with override_global_config(dict(_llmobs_payload_size_limit=100)):
+        llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+        llmobs_span_writer.enqueue(_completion_event())
+        llmobs_span_writer.enqueue(_completion_event())
+    mock_writer_logs.debug.assert_any_call(
+        "manually flushing buffer because queueing next event will exceed EVP payload limit"
+    )
+
+
+def test_configurable_event_size_limit(mock_writer_logs):
+    """DD_LLMOBS_EVENT_SIZE_BYTES overrides the truncation threshold."""
+    with override_global_config(dict(_llmobs_event_size_limit=100)):
+        llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+        llmobs_span_writer.enqueue(_completion_event())
+    mock_writer_logs.warning.assert_called_once_with(
+        "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
+        mock.ANY,
+        100,
+    )

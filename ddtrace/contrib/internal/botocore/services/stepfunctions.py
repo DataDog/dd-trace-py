@@ -75,6 +75,7 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: dict, f
             endpoint_name=endpoint_name,
             operation=operation,
             pin=pin,
+            integration_config=config.botocore,
         ) as ctx,
         ctx.span,
     ):

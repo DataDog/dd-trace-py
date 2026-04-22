@@ -27,7 +27,7 @@ def test_load_new_configurations_update_applied_configs(mock_extract_target_file
         client_configs = {"mock/ASM_FEATURES": mock_config}
 
         rc_client = RemoteConfigClient()
-        rc_client.register_product("ASM_FEATURES", mock_callback)
+        rc_client.register_callback("ASM_FEATURES", mock_callback)
 
         payload_list = []
         rc_client._load_new_configurations(payload_list, applied_configs, client_configs, payload=agent_payload)
@@ -72,8 +72,8 @@ def test_load_new_configurations_multiple_products_same_callback(mock_extract_ta
 
         rc_client = RemoteConfigClient()
         # Register the same callback for both products
-        rc_client.register_product("ASM_DATA", mock_callback)
-        rc_client.register_product("ASM_FEATURES", mock_callback)
+        rc_client.register_callback("ASM_DATA", mock_callback)
+        rc_client.register_callback("ASM_FEATURES", mock_callback)
 
         payload_list = []
         rc_client._load_new_configurations(payload_list, applied_configs, client_configs, payload=agent_payload)
@@ -104,7 +104,7 @@ def test_load_new_configurations_config_exists(mock_extract_target_file):
         client_configs = {"mock/ASM_FEATURES": mock_config}
 
         rc_client = RemoteConfigClient()
-        rc_client.register_product("ASM_FEATURES", mock_callback)
+        rc_client.register_callback("ASM_FEATURES", mock_callback)
         rc_client._applied_configs = {"mock/ASM_FEATURES": mock_config}
 
         payload_list = []
@@ -130,7 +130,7 @@ def test_load_new_configurations_error_extract_target_file(mock_extract_target_f
         client_configs = {"mock/ASM_FEATURES": mock_config}
 
         rc_client = RemoteConfigClient()
-        rc_client.register_product("ASM_FEATURES", mock_callback)
+        rc_client.register_callback("ASM_FEATURES", mock_callback)
 
         payload_list = []
         rc_client._load_new_configurations(payload_list, applied_configs, client_configs, payload=agent_payload)

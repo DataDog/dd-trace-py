@@ -50,7 +50,7 @@ def safe_getattr(obj: Any, name: str, default: Optional[Any] = None) -> Optional
         return default
 
 
-def safe_getitem(obj, index):
+def safe_getitem(obj: Any, index: Any) -> Any:
     if isinstance(obj, list):
         return list.__getitem__(obj, index)
     elif isinstance(obj, dict):

@@ -1,0 +1,7 @@
+id: span-set-metric
+message: Internal ddtrace code should use the unified `Span._set_attribute` method instead of `Span.set_metric`
+severity: error
+language: python
+rule:
+  pattern: $X.set_metric($KEY, $VALUE)
+fix: $X._set_attribute($KEY, $VALUE)

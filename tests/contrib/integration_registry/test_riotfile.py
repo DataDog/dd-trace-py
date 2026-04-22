@@ -1,6 +1,7 @@
 import pathlib
+from typing import Any
 
-from ddtrace.contrib.integration_registry.mappings import EXCLUDED_FROM_TESTING
+from mappings import EXCLUDED_FROM_TESTING
 
 
 def test_integrations_have_riot_envs(
@@ -26,7 +27,7 @@ def test_integrations_have_riot_envs(
     )
 
 
-def test_contrib_tests_have_valid_contrib_venv_name(riot_venvs: set[str], integration_dir_names: set[str]):
+def test_contrib_tests_have_valid_contrib_venv_name(riot_venvs: Any, integration_dir_names: set[str]):
     """
     Verify that every riot venv with a test path that contains 'contrib' is an actual
     contrib directory.

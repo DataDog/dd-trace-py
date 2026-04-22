@@ -1,6 +1,5 @@
 import flask
 
-from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.contrib.internal.flask.patch import unpatch
 
 from . import BaseFlaskTestCase
@@ -49,13 +48,24 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
 
         self.assertEqual(spans[0].service, "tests.contrib.flask")
         self.assertEqual(spans[0].name, "flask.render_template")
-        resource = "tests.contrib.flask" if flask_version >= (2, 2, 0) else "test.html"
-        self.assertEqual(spans[0].resource, resource)  # FIXME: should always be 'test.html'?
+        resource = "test.html"
+        self.assertEqual(spans[0].resource, resource)
         self.assertEqual(
             set(spans[0].get_tags().keys()),
-            set(["flask.template_name", "runtime-id", "_dd.p.tid", "_dd.p.dm", "component", "language"]),
+            set(
+                [
+                    "flask.template_name",
+                    "runtime-id",
+                    "_dd.p.tid",
+                    "_dd.p.dm",
+                    "_dd.svc_src",
+                    "component",
+                    "language",
+                    "_dd.tags.process",
+                ]
+            ),
         )
-        self.assertEqual(spans[0].get_tag("flask.template_name"), resource)  # FIXME: should always be 'test.html'?
+        self.assertEqual(spans[0].get_tag("flask.template_name"), resource)
         self.assertEqual(spans[1].name, "flask.do_teardown_request")
         self.assertEqual(spans[2].name, "flask.do_teardown_appcontext")
 
@@ -92,13 +102,24 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
 
         self.assertEqual(spans[0].service, "tests.contrib.flask")
         self.assertEqual(spans[0].name, "flask.render_template_string")
-        resource = "tests.contrib.flask" if flask_version >= (2, 2, 0) else "<memory>"
-        self.assertEqual(spans[0].resource, resource)  # FIXME: should always be '<memory>'?
+        resource = "<memory>"
+        self.assertEqual(spans[0].resource, resource)
         self.assertEqual(
             set(spans[0].get_tags().keys()),
-            set(["flask.template_name", "runtime-id", "_dd.p.tid", "_dd.p.dm", "component", "language"]),
+            set(
+                [
+                    "flask.template_name",
+                    "runtime-id",
+                    "_dd.p.tid",
+                    "_dd.p.dm",
+                    "_dd.svc_src",
+                    "component",
+                    "language",
+                    "_dd.tags.process",
+                ]
+            ),
         )
-        self.assertEqual(spans[0].get_tag("flask.template_name"), resource)  # FIXME: should always be '<memory>'?
+        self.assertEqual(spans[0].get_tag("flask.template_name"), resource)
         self.assertEqual(spans[1].name, "flask.do_teardown_request")
         self.assertEqual(spans[2].name, "flask.do_teardown_appcontext")
 

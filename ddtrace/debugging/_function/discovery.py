@@ -45,7 +45,7 @@ class FullyNamedFunction(FullyNamed):
 
     __qualname__: str
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         pass
 
 

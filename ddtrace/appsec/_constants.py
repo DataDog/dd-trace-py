@@ -6,6 +6,7 @@ import os
 from re import Match
 import sys
 from typing import Any
+from typing import Generator
 from typing import Iterator
 from typing import Literal  # noqa:F401
 
@@ -39,7 +40,7 @@ class Constant_Class(type):
         raise TypeError("Constant class does not support item assignment: %s.%s" % (self.__name__, __name))
 
     def __iter__(self) -> Iterator[tuple[str, Any]]:
-        def aux():
+        def aux() -> Generator[tuple[str, Any], Any, None]:
             for t in self.__dict__.items():
                 if not t[0].startswith("_"):
                     yield t
@@ -443,6 +444,9 @@ class STACK_TRACE(metaclass=Constant_Class):
 
 
 class AI_GUARD(metaclass=Constant_Class):
+    # environment variables
+    BLOCK_ENV: Literal["DD_AI_GUARD_BLOCK"] = "DD_AI_GUARD_BLOCK"
+
     # span related information
     RESOURCE_TYPE: Literal["ai_guard"] = "ai_guard"
 
@@ -452,6 +456,7 @@ class AI_GUARD(metaclass=Constant_Class):
     TARGET_TAG: str = TAG + ".target"
     BLOCKED_TAG: str = TAG + ".blocked"
     TOOL_NAME_TAG: str = TAG + ".tool_name"
+    EVENT_TAG: str = TAG + ".event"
 
     # meta struct
     STRUCT: Literal["ai_guard"] = "ai_guard"
@@ -460,3 +465,16 @@ class AI_GUARD(metaclass=Constant_Class):
     METRIC_PREFIX: Literal["ai_guard"] = "ai_guard"
     REQUESTS_METRIC: str = METRIC_PREFIX + ".requests"
     TRUNCATED_METRIC: str = METRIC_PREFIX + ".truncated"
+
+    # environment variables
+    ENV_ENABLED: Literal["DD_AI_GUARD_ENABLED"] = "DD_AI_GUARD_ENABLED"
+    ENV_ENDPOINT: Literal["DD_AI_GUARD_ENDPOINT"] = "DD_AI_GUARD_ENDPOINT"
+    ENV_MAX_CONTENT_SIZE: Literal["DD_AI_GUARD_MAX_CONTENT_SIZE"] = "DD_AI_GUARD_MAX_CONTENT_SIZE"
+    ENV_MAX_MESSAGES_LENGTH: Literal["DD_AI_GUARD_MAX_MESSAGES_LENGTH"] = "DD_AI_GUARD_MAX_MESSAGES_LENGTH"
+    ENV_TIMEOUT: Literal["DD_AI_GUARD_TIMEOUT"] = "DD_AI_GUARD_TIMEOUT"
+
+
+class SCA(metaclass=Constant_Class):
+    """SCA (Software Composition Analysis) related constants."""
+
+    ENV_ENABLED: Literal["DD_APPSEC_SCA_ENABLED"] = "DD_APPSEC_SCA_ENABLED"

@@ -1,0 +1,135 @@
+[[
+  {
+    "name": "gcp.pubsub.request",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "createTopic projects/test-project/topics/test-topic",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69ccf96400000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "pubsub.method": "createTopic",
+      "runtime-id": "04b700d26ed547939d34024f0c1f82a5",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 22395875,
+    "start": 1775040868516623633
+  }],
+[
+  {
+    "name": "gcp.pubsub.request",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "createSubscription projects/test-project/subscriptions/test-subscription",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69ccf96400000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "pubsub.method": "createSubscription",
+      "runtime-id": "04b700d26ed547939d34024f0c1f82a5",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 6577250,
+    "start": 1775040868541369883
+  }],
+[
+  {
+    "name": "gcp.pubsub.send",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "test-topic",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69de79fb00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "messaging.destination.name": "test-topic",
+      "messaging.message_id": "13",
+      "messaging.operation": "send",
+      "messaging.system": "pubsub",
+      "runtime-id": "81d5f547d82b48beb7c771f8376ffe49",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 38691.0
+    },
+    "duration": 15626375,
+    "start": 1776187899454462381
+  },
+     {
+       "name": "gcp.pubsub.receive",
+       "service": "tests.contrib.google_cloud_pubsub",
+       "resource": "test-subscription",
+       "trace_id": 2,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 1,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "_dd.p.tid": "69de79fb00000000",
+         "_dd.svc_src": "m",
+         "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+         "component": "google_cloud_pubsub",
+         "error.message": "callback error",
+         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/google_cloud_pubsub/patch.py\", line 67, in _traced_subscribe_callback\n    callback(message)\n  File \"/home/bits/project/tests/contrib/google_cloud_pubsub/test_pubsub.py\", line 129, in callback\n    raise ValueError(\"callback error\")\nValueError: callback error\n",
+         "error.type": "builtins.ValueError",
+         "gcloud.project_id": "test-project",
+         "language": "python",
+         "messaging.destination.name": "test-subscription",
+         "messaging.message_id": "13",
+         "messaging.operation": "receive",
+         "messaging.system": "pubsub",
+         "runtime-id": "81d5f547d82b48beb7c771f8376ffe49",
+         "span.kind": "consumer",
+         "tracestate": "dd=p:32be625f12eb62cd;t.tid:69de79fb00000000"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1.0,
+         "process_id": 38691.0
+       },
+       "duration": 2734666,
+       "start": 1776187899515324215
+     }]]

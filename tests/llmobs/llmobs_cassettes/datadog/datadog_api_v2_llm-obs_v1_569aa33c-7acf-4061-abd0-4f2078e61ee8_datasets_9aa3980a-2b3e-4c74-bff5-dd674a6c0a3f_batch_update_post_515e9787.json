@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/9aa3980a-2b3e-4c74-bff5-dd674a6c0a3f/batch_update",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "319",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"datasets\", \"id\": \"9aa3980a-2b3e-4c74-bff5-dd674a6c0a3f\", \"attributes\": {\"insert_records\": [{\"input\": {\"prompt\": \"hello\"}, \"expected_output\": \"\", \"metadata\": {}, \"id\": \"record-id-1\", \"tags\": [\"env:prod\"]}], \"update_records\": [], \"delete_records\": [], \"deduplicate\": true, \"create_new_version\": true}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "411",
+      "date": "Thu, 26 Mar 2026 20:03:39 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"record-id-1\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"9f6a09aa-c15f-4dde-97b4-e09842b1ecce\",\"created_at\":\"2026-03-26T20:03:39.279033228Z\",\"dataset_id\":\"9aa3980a-2b3e-4c74-bff5-dd674a6c0a3f\",\"expected_output\":\"\",\"input\":{\"prompt\":\"hello\"},\"metadata\":{},\"tags\":[\"env:prod\"],\"updated_at\":\"2026-03-26T20:03:39.279033228Z\",\"version\":1}}]}"
+  }
+}

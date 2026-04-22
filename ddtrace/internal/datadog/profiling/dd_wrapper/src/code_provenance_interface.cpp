@@ -5,7 +5,7 @@
 #include <string_view>
 
 void
-code_provenance_set_json_str(std::string_view json_str)
+code_provenance_set_file_path(std::string_view file_path)
 {
-    Datadog::CodeProvenance::get_instance().set_json_str(json_str);
+    Datadog::CodeProvenance::get_instance().set_file_path(file_path);
 }

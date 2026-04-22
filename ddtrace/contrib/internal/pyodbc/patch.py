@@ -1,15 +1,13 @@
-import os
-
 import pyodbc
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.ext import db
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -18,7 +16,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("pyodbc"),
         _dbapi_span_name_prefix="pyodbc",
-        trace_fetch_methods=asbool(os.getenv("DD_PYODBC_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(env.get("DD_PYODBC_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 
@@ -57,10 +55,7 @@ def patch_conn(conn):
         }
     except pyodbc.Error:
         tags = {}
-    pin = Pin(service=None, tags=tags)
-    wrapped = PyODBCTracedConnection(conn, pin=pin)
-    pin.onto(wrapped)
-    return wrapped
+    return PyODBCTracedConnection(conn, db_tags=tags)
 
 
 class PyODBCTracedCursor(TracedCursor):
@@ -68,7 +63,7 @@ class PyODBCTracedCursor(TracedCursor):
 
 
 class PyODBCTracedConnection(TracedConnection):
-    def __init__(self, conn, pin=None, cursor_cls=None):
+    def __init__(self, conn, cursor_cls=None, db_tags=None):
         if not cursor_cls:
             cursor_cls = PyODBCTracedCursor
-        super(PyODBCTracedConnection, self).__init__(conn, pin, config.pyodbc, cursor_cls=cursor_cls)
+        super(PyODBCTracedConnection, self).__init__(conn, cfg=config.pyodbc, cursor_cls=cursor_cls, db_tags=db_tags)

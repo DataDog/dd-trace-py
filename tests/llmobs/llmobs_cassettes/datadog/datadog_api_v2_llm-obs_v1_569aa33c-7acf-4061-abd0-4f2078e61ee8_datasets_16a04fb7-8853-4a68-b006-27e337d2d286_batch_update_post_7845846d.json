@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/16a04fb7-8853-4a68-b006-27e337d2d286/batch_update",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "284",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"datasets\", \"id\": \"16a04fb7-8853-4a68-b006-27e337d2d286\", \"attributes\": {\"insert_records\": [], \"update_records\": [{\"input\": null, \"expected_output\": \"\", \"metadata\": null, \"id\": \"record-id-1\"}], \"delete_records\": [], \"deduplicate\": true, \"create_new_version\": true}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "412",
+      "date": "Thu, 26 Mar 2026 20:02:11 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"record-id-1\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"d5132200-ba8f-406b-8bd0-2638526e61ec\",\"created_at\":\"2026-03-26T20:02:11.740326684Z\",\"dataset_id\":\"16a04fb7-8853-4a68-b006-27e337d2d286\",\"expected_output\":\"\",\"input\":{\"prompt\":\"What is the capital of France?\"},\"tags\":[],\"updated_at\":\"2026-03-26T20:02:11.740326758Z\",\"version\":2}}]}"
+  }
+}

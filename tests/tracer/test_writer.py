@@ -21,11 +21,12 @@ from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings._opentelemetry import ExporterConfig
+from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.uds import UDSHTTPConnection
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
-from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
 from ddtrace.trace import Span
 from tests.utils import AnyInt
@@ -68,9 +69,9 @@ class DummyOutput:
         pass
 
 
-class AgentWriterTests(BaseTestCase):
+class NativeWriterTests(BaseTestCase):
     N_TRACES = 11
-    WRITER_CLASS = AgentWriter
+    WRITER_CLASS = NativeWriter
 
     def test_metrics_disabled(self):
         statsd = mock.Mock()
@@ -95,10 +96,7 @@ class AgentWriterTests(BaseTestCase):
 
         statsd.distribution.assert_has_calls(
             [mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=None)] * 10
-            + [mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None)] * 10
-            + [mock.call("datadog.%s.http.requests" % writer.STATSD_NAMESPACE, 1, tags=None)] * writer.RETRY_ATTEMPTS
-            + [mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"])]
-            + [mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=None)],
+            + [mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None)] * 10,
             any_order=True,
         )
 
@@ -117,7 +115,7 @@ class AgentWriterTests(BaseTestCase):
                 for j in range(50):
                     key = "opqr012|~" + str(i) + str(j)
                     val = "stuv345!@#" + str(i) + str(j)
-                    span._set_tag_str(key, val)
+                    span._set_attribute(key, val)
                 massive_trace.append(span)
 
             writer.write(massive_trace)
@@ -130,10 +128,7 @@ class AgentWriterTests(BaseTestCase):
                 mock.call(
                     "datadog.%s.buffer.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=["reason:t_too_big"]
                 )
-            ]
-            + [mock.call("datadog.%s.http.requests" % writer.STATSD_NAMESPACE, 1, tags=None)] * writer.RETRY_ATTEMPTS
-            + [mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"])]
-            + [mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=None)],
+            ],
             any_order=True,
         )
 
@@ -148,11 +143,7 @@ class AgentWriterTests(BaseTestCase):
             writer.flush_queue()
             statsd.distribution.assert_has_calls(
                 [mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=None)] * 10
-                + [mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None)] * 10
-                + [mock.call("datadog.%s.http.requests" % writer.STATSD_NAMESPACE, 1, tags=None)]
-                * writer.RETRY_ATTEMPTS
-                + [mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"])]
-                + [mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=None)],
+                + [mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None)] * 10,
                 any_order=True,
             )
 
@@ -160,13 +151,11 @@ class AgentWriterTests(BaseTestCase):
 
             for i in range(10):
                 writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)])
+            writer.flush_queue()
 
         statsd.distribution.assert_has_calls(
             [mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=None)] * 10
-            + [mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None)] * 10
-            + [mock.call("datadog.%s.http.requests" % writer.STATSD_NAMESPACE, 1, tags=None)] * writer.RETRY_ATTEMPTS
-            + [mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"])]
-            + [mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=None)],
+            + [mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None)] * 10,
             any_order=True,
         )
 
@@ -251,30 +240,6 @@ class AgentWriterTests(BaseTestCase):
                 [
                     mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=None),
                     mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None),
-                    mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
-                    mock.call("datadog.%s.http.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=None),
-                ]
-                + [mock.call("datadog.%s.http.requests" % writer.STATSD_NAMESPACE, 1, tags=None)]
-                * writer.RETRY_ATTEMPTS,
-                any_order=True,
-            )
-
-    def test_drop_reason_bad_endpoint(self):
-        statsd = mock.Mock()
-        with (
-            override_global_config(dict(_health_metrics_enabled=True)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
-        ):
-            for i in range(10):
-                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
-            writer.flush_queue()
-
-            # metrics should be reset after traces are sent
-            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}
-            statsd.distribution.assert_has_calls(
-                [
-                    mock.call("datadog.%s.http.errors" % writer.STATSD_NAMESPACE, 1, tags=["type:err"]),
-                    mock.call("datadog.%s.http.dropped.traces" % writer.STATSD_NAMESPACE, 10, tags=None),
                 ],
                 any_order=True,
             )
@@ -291,7 +256,7 @@ class AgentWriterTests(BaseTestCase):
             writer.flush_queue()
 
             # metrics should be reset after traces are sent
-            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}
+            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
 
             statsd.distribution.assert_has_calls(
                 [
@@ -316,7 +281,7 @@ class AgentWriterTests(BaseTestCase):
             writer.flush_queue()
 
             # metrics should be reset after traces are sent
-            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}
+            assert writer._metrics == {"accepted_traces": 0, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
 
             client_count = len(writer._clients)
             statsd.distribution.assert_has_calls(
@@ -347,237 +312,12 @@ class AgentWriterTests(BaseTestCase):
             writer.flush_queue()
 
             # writer should have has 10 unsent traces, sent traces should be reset to zero
-            assert writer._metrics == {"accepted_traces": 10, "sent_traces": 0}
+            assert writer._metrics == {"accepted_traces": 10, "sent_traces": 0}  # ast-grep-ignore: span-metrics-access
             statsd.distribution.assert_has_calls(
                 [
                     mock.call("datadog.%s.encoder.dropped.traces" % writer.STATSD_NAMESPACE, n_traces, tags=None),
                 ]
                 * len(writer._clients),
-                any_order=True,
-            )
-
-    def test_gzip_compression_exception_logging_and_metrics(self):
-        """
-        Regression test to ensure gzip compression exceptions are properly logged and metrics recorded.
-        """
-        n_traces = 5
-        statsd = mock.Mock()
-
-        with (
-            override_global_config(dict(_health_metrics_enabled=True)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=True) as writer,
-        ):
-            # Manually enable gzip compression to trigger the compression code path
-            writer._intake_accepts_gzip = True
-
-            # Create mock client for testing
-            mock_client = mock.Mock()
-            mock_client.encoder = mock.Mock()
-
-            # Test payload data
-            test_payload = b"test encoded data"
-
-            # Mock gzip.compress to raise an exception
-            with mock.patch("gzip.compress") as mock_gzip_compress:
-                mock_gzip_compress.side_effect = RuntimeError("Gzip compression failed")
-
-                # Mock _send_payload_with_backoff to verify it's not called
-                with mock.patch.object(writer, "_send_payload_with_backoff") as mock_send_payload:
-                    # Mock the logger to capture log calls
-                    with mock.patch("ddtrace.internal.writer.writer.log") as mock_log:
-                        # Call _flush_single_payload directly to test gzip compression exception
-                        writer._flush_single_payload(test_payload, n_traces, mock_client)
-
-                        # Verify gzip.compress was called
-                        mock_gzip_compress.assert_called_once_with(test_payload, compresslevel=6)
-
-                        # Verify _send_payload_with_backoff was NOT called (early return)
-                        mock_send_payload.assert_not_called()
-
-                        # Verify error was logged with proper message and exc_info=True
-                        mock_log.error.assert_called_once()
-                        call_args, call_kwargs = mock_log.error.call_args
-
-                        # Check the error message
-                        self.assertEqual(call_args[0], "failed to compress traces with encoder %r")
-                        self.assertEqual(call_args[1], mock_client.encoder)
-                        # Verify exc_info=True was passed
-                        self.assertTrue(call_kwargs.get("exc_info", False))
-
-                        # Verify encoder.dropped.traces metric was recorded
-                        statsd.distribution.assert_called_once_with(
-                            "datadog.%s.encoder.dropped.traces" % writer.STATSD_NAMESPACE, n_traces, tags=None
-                        )
-
-    def test_keep_rate(self):
-        statsd = mock.Mock()
-        writer_run_periodic = mock.Mock()
-        writer_put = mock.Mock()
-        writer_put.return_value = Response(status=200)
-        with (
-            override_global_config(dict(_health_metrics_enabled=False, _trace_writer_buffer_size=8 << 20)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, api_version="v0.4") as writer,
-        ):
-            # this test decodes the msgpack payload to verify the keep rate. v04 is easier to decode so we use that here
-            writer.run_periodic = writer_run_periodic
-            writer._put = writer_put
-
-            traces = [
-                [Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)] for i in range(1, 5)
-            ]
-
-            traces_too_big = [
-                [Span(name="a" * 5000, trace_id=i, span_id=j + 1, parent_id=j) for j in range(1, 2**10)]
-                for i in range(4)
-            ]
-
-            # 1. We write 4 traces successfully.
-            for trace in traces:
-                writer.write(trace)
-            writer.flush_queue()
-
-            payload = msgpack.unpackb(writer_put.call_args.args[0])
-            # No previous drops.
-            assert 0.0 == writer._drop_sma.get()
-            # 4 traces written.
-            assert 4 == len(payload)
-            # 100% of traces kept (refers to the past).
-            # No traces sent before now so 100% kept.
-            for trace in payload:
-                assert 1.0 == trace[0]["metrics"].get(_KEEP_SPANS_RATE_KEY, -1)
-
-            # 2. We fail to write 4 traces because of size limitation.
-            for trace in traces_too_big:
-                writer.write(trace)
-            writer.flush_queue()
-
-            # 50% of traces were dropped historically.
-            # 4 successfully written before and 4 dropped now.
-            assert 0.5 == writer._drop_sma.get()
-            # put not called since no new traces are available.
-            writer_put.assert_called_once()
-
-            # 3. We write 2 traces successfully.
-            for trace in traces[:2]:
-                writer.write(trace)
-            writer.flush_queue()
-
-            payload = msgpack.unpackb(writer_put.call_args.args[0])
-            # 40% of traces were dropped historically.
-            assert 0.4 == writer._drop_sma.get()
-            # 2 traces written.
-            assert 2 == len(payload)
-            # 50% of traces kept (refers to the past).
-            # We had 4 successfully written and 4 dropped.
-            for trace in payload:
-                assert 0.5 == trace[0]["metrics"].get(_KEEP_SPANS_RATE_KEY, -1)
-
-            # 4. We write 1 trace successfully and fail to write 3.
-            writer.write(traces[0])
-            for trace in traces_too_big[:3]:
-                writer.write(trace)
-            writer.flush_queue()
-
-            payload = msgpack.unpackb(writer_put.call_args.args[0])
-            # 50% of traces were dropped historically.
-            assert 0.5 == writer._drop_sma.get()
-            # 1 trace written.
-            assert 1 == len(payload)
-            # 60% of traces kept (refers to the past).
-            # We had 4 successfully written, then 4 dropped, then 2 written.
-            for trace in payload:
-                assert 0.6 == trace[0]["metrics"].get(_KEEP_SPANS_RATE_KEY, -1)
-
-
-class NativeWriterTests(AgentWriterTests):
-    WRITER_CLASS = NativeWriter
-
-    def test_metrics_bad_endpoint(self):
-        statsd = mock.Mock()
-        with (
-            override_global_config(dict(_health_metrics_enabled=True)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
-        ):
-            for i in range(10):
-                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
-
-        statsd.distribution.assert_has_calls(
-            [mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=None)] * 10
-            + [mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None)] * 10,
-            any_order=True,
-        )
-
-    def test_metrics_trace_too_big(self):
-        statsd = mock.Mock()
-        with (
-            override_global_config(dict(_health_metrics_enabled=True, _trace_writer_buffer_size=15000)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd) as writer,
-        ):
-            for i in range(10):
-                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(5)])
-
-            massive_trace = []
-            for i in range(10):
-                span = Span("mmon", "mmon" + str(i), "mmon" + str(i))
-                for j in range(50):
-                    key = "opqr012|~" + str(i) + str(j)
-                    val = "stuv345!@#" + str(i) + str(j)
-                    span._set_tag_str(key, val)
-                massive_trace.append(span)
-
-            writer.write(massive_trace)
-
-        statsd.distribution.assert_has_calls(
-            [mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=None)] * 10
-            + [mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None)] * 10
-            + [mock.call("datadog.%s.buffer.dropped.traces" % writer.STATSD_NAMESPACE, 1, tags=["reason:t_too_big"])]
-            + [
-                mock.call(
-                    "datadog.%s.buffer.dropped.bytes" % writer.STATSD_NAMESPACE, AnyInt(), tags=["reason:t_too_big"]
-                )
-            ],
-            any_order=True,
-        )
-
-    def test_metrics_multi(self):
-        statsd = mock.Mock()
-        with (
-            override_global_config(dict(_health_metrics_enabled=True)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=False) as writer,
-        ):
-            for i in range(10):
-                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)])
-            writer.flush_queue()
-            statsd.distribution.assert_has_calls(
-                [mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=None)] * 10
-                + [mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None)] * 10,
-                any_order=True,
-            )
-
-            statsd.reset_mock()
-
-            for i in range(10):
-                writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j) for j in range(5)])
-            writer.flush_queue()
-
-            statsd.distribution.assert_has_calls(
-                [mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=None)] * 10
-                + [mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None)] * 10,
-                any_order=True,
-            )
-
-    def test_write_sync(self):
-        statsd = mock.Mock()
-        with (
-            override_global_config(dict(_health_metrics_enabled=True)),
-            managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd, sync_mode=True) as writer,
-        ):
-            writer.write([Span(name="name", trace_id=1, span_id=j + 1, parent_id=j or None) for j in range(5)])
-            statsd.distribution.assert_has_calls(
-                [
-                    mock.call("datadog.%s.buffer.accepted.traces" % writer.STATSD_NAMESPACE, 1, tags=None),
-                    mock.call("datadog.%s.buffer.accepted.spans" % writer.STATSD_NAMESPACE, 5, tags=None),
-                ],
                 any_order=True,
             )
 
@@ -627,7 +367,7 @@ class NativeWriterTests(AgentWriterTests):
             # 50% of traces were dropped historically.
             # 4 successfully written before and 4 dropped now.
             assert 0.5 == writer._drop_sma.get()
-            # put not called since no new traces are available.
+            # send not called since no new traces are available.
             writer_exporter_send.assert_called_once()
 
             # 3. We write 2 traces successfully.
@@ -685,7 +425,7 @@ class NativeWriterTests(AgentWriterTests):
         pytest.skip()
 
 
-class CIVisibilityWriterTests(AgentWriterTests):
+class CIVisibilityWriterTests(NativeWriterTests):
     WRITER_CLASS = CIVisibilityWriter
 
     def setUp(self):
@@ -708,6 +448,12 @@ class CIVisibilityWriterTests(AgentWriterTests):
         pytest.skip()
 
     def test_keep_rate(self):
+        pytest.skip()
+
+    def test_on_shutdown_idempotent(self):
+        pytest.skip()
+
+    def test_on_shutdown_before_start(self):
         pytest.skip()
 
     def test_metadata_included(self):
@@ -742,6 +488,57 @@ class LogWriterTests(BaseTestCase):
     def test_log_writer(self):
         self.create_writer()
         self.assertEqual(len(self.output.entries), self.N_TRACES)
+
+
+def test_agentless_trace_writer_uses_post():
+    """AgentlessTraceWriter uses POST and has expected intake URL and encoder."""
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+    )
+    assert writer.HTTP_METHOD == "POST"
+    assert writer.intake_url == "https://public-trace-http-intake.logs.datadoghq.com"
+    assert writer._headers.get("dd-api-key") == "test-api-key"
+    assert writer._clients[0].ENDPOINT == "v1/input"
+    assert writer._encoder.content_type == "application/json"
+
+
+def test_agentless_trace_writer_buffer_size_capped_at_max():
+    """AgentlessTraceWriter caps buffer_size at MAX_BUFFER_SIZE (15 MB) regardless of config."""
+    max_size = AgentlessTraceWriter.MAX_BUFFER_SIZE
+
+    # Default: no explicit buffer_size -> capped at MAX_BUFFER_SIZE
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+    )
+    assert writer._encoder.max_size == max_size
+
+    # Explicit buffer_size smaller than MAX_BUFFER_SIZE -> respected as-is
+    small = max_size // 2
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+        buffer_size=small,
+    )
+    assert writer._encoder.max_size == small
+
+    # Explicit buffer_size larger than MAX_BUFFER_SIZE -> capped at MAX_BUFFER_SIZE
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+        buffer_size=max_size * 2,
+    )
+    assert writer._encoder.max_size == max_size
+
+
+def test_agentless_trace_writer_encode_traces():
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+    )
+    writer.write([Span(name="span1", trace_id=123456789, span_id=1, service="svc", resource="/r")])
+    writer.flush_queue(raise_exc=True)
 
 
 def test_humansize():
@@ -921,9 +718,7 @@ def endpoint_assert_path():
         thread.join()
 
 
-@pytest.mark.parametrize(
-    "writer_and_path", ((AgentWriter, "/v0."), (NativeWriter, "/v0."), (CIVisibilityWriter, "/api/v2/citestcycle"))
-)
+@pytest.mark.parametrize("writer_and_path", ((NativeWriter, "/v0."), (CIVisibilityWriter, "/api/v2/citestcycle")))
 def test_agent_url_path(endpoint_assert_path, writer_and_path):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         writer_class, path = writer_and_path
@@ -945,7 +740,7 @@ def test_agent_url_path(endpoint_assert_path, writer_and_path):
             writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
+@pytest.mark.parametrize("writer_class", (CIVisibilityWriter, NativeWriter))
 def test_flush_connection_timeout_connect(writer_class):
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
@@ -957,7 +752,7 @@ def test_flush_connection_timeout_connect(writer_class):
             writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
+@pytest.mark.parametrize("writer_class", (CIVisibilityWriter, NativeWriter))
 def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
@@ -969,7 +764,76 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
             writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
+def test_periodic_thread_uds_callback_unblocks_with_timeout():
+    import os
+    import socket
+    import tempfile
+    import threading
+
+    from ddtrace.internal._threads import PeriodicThread
+    from ddtrace.internal.uds import UDSHTTPConnection
+
+    sock_dir = tempfile.mkdtemp(prefix="ddtrace-uds-fork-repro-")
+    sock_path = os.path.join(sock_dir, "blackhole.sock")
+    server_ready = threading.Event()
+    server_stop = threading.Event()
+    callback_started = threading.Event()
+    callback_done = threading.Event()
+
+    def _blackhole_server():
+        srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        conn = None
+        try:
+            srv.bind(sock_path)
+            srv.listen(1)
+            server_ready.set()
+            conn, _ = srv.accept()
+            # Keep the connection open and never send a response so the client
+            # can only make progress via its socket timeout.
+            while not server_stop.wait(0.05):
+                pass
+        finally:
+            if conn is not None:
+                conn.close()
+            srv.close()
+
+    def _callback():
+        callback_started.set()
+        conn = UDSHTTPConnection(sock_path, "localhost", 80, timeout=0.5)
+        try:
+            conn.request("GET", "/")
+            conn.getresponse().read()
+        except Exception:
+            # Timeout (or an equivalent network error path) is expected.
+            pass
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            callback_done.set()
+
+    server_thread = threading.Thread(target=_blackhole_server, daemon=True)
+    server_thread.start()
+    assert server_ready.wait(timeout=2)
+
+    worker = PeriodicThread(interval=60.0, target=_callback, name="repro:UDSForkTimeout", no_wait_at_start=True)
+    worker.start()
+    assert callback_started.wait(timeout=2)
+
+    try:
+        assert callback_done.wait(timeout=5)
+    finally:
+        server_stop.set()
+        worker.stop()
+        worker.join(timeout=1.0)
+        server_thread.join(timeout=1.0)
+        if os.path.exists(sock_path):
+            os.unlink(sock_path)
+        os.rmdir(sock_dir)
+
+
+@pytest.mark.parametrize("writer_class", (CIVisibilityWriter, NativeWriter))
 def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
@@ -982,7 +846,7 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
             writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
+@pytest.mark.parametrize("writer_class", (CIVisibilityWriter, NativeWriter))
 def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, writer_class):
     """Test that IncompleteRead errors are handled properly by resetting the connection"""
     with managed_writer(writer_class, f"http://{_HOST}:{_INCOMPLETE_READ_PORT}") as writer:
@@ -998,15 +862,14 @@ def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, 
     "UDS server shutdown/unlink in fixture cleanup.",
     strict=False,
 )
-@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
-def test_flush_connection_uds(endpoint_uds_server, writer_class):
+def test_flush_connection_uds(endpoint_uds_server):
     url = f"unix://{endpoint_uds_server.server_address}"
-    with managed_writer(writer_class, url) as writer:
+    with managed_writer(NativeWriter, url) as writer:
         writer._encoder.put([Span("foobar")])
         writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
+@pytest.mark.parametrize("writer_class", (CIVisibilityWriter, NativeWriter))
 def test_flush_queue_raise(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")), managed_writer(writer_class, "http://dne:1234") as writer:
         # Should not raise
@@ -1019,9 +882,8 @@ def test_flush_queue_raise(writer_class):
             writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
-def test_racing_start(writer_class):
-    with managed_writer(writer_class, "http://dne:1234") as writer:
+def test_racing_start():
+    with managed_writer(NativeWriter, "http://dne:1234") as writer:
 
         def do_write(i):
             writer.write([Span(str(i))])
@@ -1036,33 +898,12 @@ def test_racing_start(writer_class):
         assert len(writer._encoder) == 100
 
 
-@pytest.mark.subprocess(
-    env={"_DD_TRACE_WRITER_ADDITIONAL_HEADERS": "additional-header:additional-value,header2:value2"}
-)
-def test_additional_headers():
-    from ddtrace.internal.writer import AgentWriter
-
-    writer = AgentWriter("http://localhost:9126")
-    assert writer._headers["additional-header"] == "additional-value"
-    assert writer._headers["header2"] == "value2"
-
-
-def test_additional_headers_constructor():
-    writer = AgentWriter(
-        intake_url="http://localhost:9126", headers={"additional-header": "additional-value", "header2": "value2"}
-    )
-    assert writer._headers["additional-header"] == "additional-value"
-    assert writer._headers["header2"] == "value2"
-
-
-@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
-def test_bad_encoding(monkeypatch, writer_class):
+def test_bad_encoding(monkeypatch):
     with override_global_config({"_trace_api": "foo"}):
-        writer = writer_class("http://localhost:9126")
+        writer = NativeWriter("http://localhost:9126")
         assert writer._api_version == "v0.5"
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
 @pytest.mark.parametrize(
     "init_api_version,api_version,endpoint,encoder_cls",
     [
@@ -1071,8 +912,8 @@ def test_bad_encoding(monkeypatch, writer_class):
         ("v0.5", "v0.5", "v0.5/traces", MSGPACK_ENCODERS["v0.5"]),
     ],
 )
-def test_writer_recreate_api_version(writer_class, init_api_version, api_version, endpoint, encoder_cls):
-    writer = writer_class("http://dne:1234", api_version=init_api_version)
+def test_writer_recreate_api_version(init_api_version, api_version, endpoint, encoder_cls):
+    writer = NativeWriter("http://dne:1234", api_version=init_api_version)
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
     assert isinstance(writer._encoder, encoder_cls)
@@ -1081,16 +922,6 @@ def test_writer_recreate_api_version(writer_class, init_api_version, api_version
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
     assert isinstance(writer._encoder, encoder_cls)
-
-
-def test_writer_recreate_keeps_headers():
-    writer = AgentWriter("http://dne:1234", headers={"Datadog-Client-Computed-Stats": "yes"})
-    assert "Datadog-Client-Computed-Stats" in writer._headers
-    assert writer._headers["Datadog-Client-Computed-Stats"] == "yes"
-
-    writer = writer.recreate()
-    assert "Datadog-Client-Computed-Stats" in writer._headers
-    assert writer._headers["Datadog-Client-Computed-Stats"] == "yes"
 
 
 def test_native_writer_recreate_keeps_stats_opt_out():
@@ -1101,15 +932,14 @@ def test_native_writer_recreate_keeps_stats_opt_out():
     assert writer._stats_opt_out
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
-def test_writer_recreate_keeps_response_callback(writer_class):
+def test_writer_recreate_keeps_response_callback():
     def response_callback(response):
         pass
 
-    writer = writer_class("http://dne:1234", response_callback=response_callback)
+    writer = NativeWriter("http://dne:1234", response_callback=response_callback)
     assert writer._response_cb is response_callback
     writer = writer.recreate()
-    assert isinstance(writer, writer_class)
+    assert isinstance(writer, NativeWriter)
     assert writer._response_cb is response_callback
 
 
@@ -1154,7 +984,6 @@ def test_writer_recreate_keeps_response_callback(writer_class):
         ("darwin", None, "v0.5", False, "v0.5"),
     ],
 )
-@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
 def test_writer_api_version_selection(
     sys_platform,
     api_version,
@@ -1162,7 +991,6 @@ def test_writer_api_version_selection(
     raises_error,
     expected,
     monkeypatch,
-    writer_class,
 ):
     """test to verify that we are unable to select v0.5 api version when on a windows machine.
 
@@ -1177,9 +1005,9 @@ def test_writer_api_version_selection(
             # Create a new writer
             if ddtrace_api_version is not None:
                 with override_global_config({"_trace_api": ddtrace_api_version}):
-                    writer = writer_class("http://dne:1234", api_version=api_version)
+                    writer = NativeWriter("http://dne:1234", api_version=api_version)
             else:
-                writer = writer_class("http://dne:1234", api_version=api_version)
+                writer = NativeWriter("http://dne:1234", api_version=api_version)
             assert writer._api_version == expected
         except RuntimeError:
             # If we were not expecting a RuntimeError, then cause the test to fail
@@ -1187,23 +1015,21 @@ def test_writer_api_version_selection(
                 pytest.fail("Raised RuntimeError when it was not expected")
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
-def test_writer_reuse_connections_envvar(monkeypatch, writer_class):
+def test_writer_reuse_connections_envvar(monkeypatch):
     with override_env(dict(DD_API_KEY="foobar.baz")):
         with override_global_config({"_trace_writer_connection_reuse": False}):
-            writer = writer_class("http://localhost:9126")
+            writer = CIVisibilityWriter("http://localhost:9126")
             assert not writer._reuse_connections
 
         with override_global_config({"_trace_writer_connection_reuse": True}):
-            writer = writer_class("http://localhost:9126")
+            writer = CIVisibilityWriter("http://localhost:9126")
             assert writer._reuse_connections
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
-def test_writer_reuse_connections(writer_class):
+def test_writer_reuse_connections():
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
-        managed_writer(writer_class, "http://localhost:9126", reuse_connections=True) as writer,
+        managed_writer(CIVisibilityWriter, "http://localhost:9126", reuse_connections=True) as writer,
     ):
         # Ensure connection is not reused
         # Do an initial flush to get a connection
@@ -1213,11 +1039,10 @@ def test_writer_reuse_connections(writer_class):
         assert writer._conn is None
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter))
-def test_writer_reuse_connections_false(writer_class):
+def test_writer_reuse_connections_false():
     with (
         override_env(dict(DD_API_KEY="foobar.baz")),
-        managed_writer(writer_class, "http://localhost:9126", reuse_connections=False) as writer,
+        managed_writer(CIVisibilityWriter, "http://localhost:9126", reuse_connections=False) as writer,
     ):
         # Ensure connection is reused
         # Do an initial flush to get a connection
@@ -1244,7 +1069,7 @@ def test_trace_with_128bit_trace_ids():
         spans = TracerSpanContainer(tracer).pop()
     chunk_root = spans[0]
     assert chunk_root.trace_id >= 2**64
-    assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(parent.trace_id >> 64)
+    assert chunk_root._get_str_attribute(HIGHER_ORDER_TRACE_ID_BITS) == "{:016x}".format(parent.trace_id >> 64)
 
 
 @pytest.mark.parametrize(
@@ -1398,3 +1223,180 @@ class TestSafelog:
             _safelog(mock_log.error, "Error with extra", extra={"key": "value"}, exc_info=True)
 
             mock_log.error.assert_called_once_with("Error with extra", extra={"key": "value"}, exc_info=True)
+
+
+@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "1", "DD_API_KEY": "test-api-key"})
+def test_agentless_writer_enabled():
+    import json
+    from unittest.mock import patch
+
+    from ddtrace.internal.utils.http import Response
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert isinstance(writer, AgentlessTraceWriter)
+
+    with patch.object(writer, "_put", return_value=Response(status=200)) as mock_put:
+        with tracer.trace("root1") as root1:
+            with tracer.trace("child1") as child1:
+                pass
+            with tracer.trace("child2") as child2:
+                pass
+        with tracer.trace("root2") as root2:
+            pass
+
+        writer.flush_queue()
+
+    # Both traces are batched into a single payload
+    assert mock_put.call_count == 1
+    payload = json.loads(mock_put.call_args_list[0][0][0])
+
+    assert "traces" in payload
+    assert len(payload["traces"]) == 2
+
+    # Find each trace by matching trace_id across all spans
+    trace1_id = "{:016x}".format(root1._trace_id_64bits)
+    trace2_id = "{:016x}".format(root2._trace_id_64bits)
+    trace1_spans_list = next(
+        t["spans"] for t in payload["traces"] if all(s["trace_id"] == trace1_id for s in t["spans"])
+    )
+    trace2_spans_list = next(
+        t["spans"] for t in payload["traces"] if all(s["trace_id"] == trace2_id for s in t["spans"])
+    )
+
+    # trace1: root1, child1, child2
+    assert len(trace1_spans_list) == 3
+    trace1_spans = {s["name"]: s for s in trace1_spans_list}
+    assert set(trace1_spans.keys()) == {"root1", "child1", "child2"}
+    assert trace1_spans["root1"]["span_id"] == "{:016x}".format(root1.span_id)
+    assert trace1_spans["root1"]["parent_id"] == "0000000000000000"
+    assert trace1_spans["child1"]["span_id"] == "{:016x}".format(child1.span_id)
+    assert trace1_spans["child1"]["parent_id"] == "{:016x}".format(root1.span_id)
+    assert trace1_spans["child2"]["span_id"] == "{:016x}".format(child2.span_id)
+    assert trace1_spans["child2"]["parent_id"] == "{:016x}".format(root1.span_id)
+
+    # trace2: root2 only
+    assert len(trace2_spans_list) == 1
+    assert trace2_spans_list[0]["name"] == "root2"
+    assert trace2_spans_list[0]["span_id"] == "{:016x}".format(root2.span_id)
+    assert trace2_spans_list[0]["parent_id"] == "0000000000000000"
+
+    headers = mock_put.call_args_list[0][0][1]
+    assert headers["Content-Type"] == "application/json"
+    assert headers["dd-api-key"] == "test-api-key"
+    assert headers["Datadog-Meta-Lang"] == "python"
+
+
+@pytest.mark.subprocess(
+    env={
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
+        "DD_API_KEY": "test-api-key",
+        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0}]',
+        "DD_TRACE_HEALTH_METRICS_ENABLED": "true",
+        "DD_TRACE_RATE_LIMIT": "1",
+        "DD_TRACE_COMPUTE_STATS": "true",
+    }
+)
+def test_agentless_writer_serialize_span_fields():
+    import json
+    from os import getpid
+    from unittest.mock import patch
+
+    from ddtrace.internal.hostname import get_hostname
+    from ddtrace.internal.runtime import get_runtime_id
+    from ddtrace.internal.utils.http import Response
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert isinstance(writer, AgentlessTraceWriter)
+
+    with patch.object(writer, "_put", return_value=Response(status=200)) as mock_put:
+        with tracer.trace("root1", resource="resource1", service="service1") as span:
+            span.set_tag("tag1", "value1")
+            span.set_tag("tag2", "value2")
+            span._set_attribute("metric1", 1.0)
+            span._set_attribute("metric2", 2.0)
+            span.set_link(trace_id=3, span_id=4)
+            span.error = 1
+            span._set_struct_tag("payload", {"key": "value"})
+        writer.flush_queue()
+
+    assert mock_put.call_count == 1
+    payload_json_bytes = mock_put.call_args_list[0][0][0]
+    payload_json = json.loads(payload_json_bytes.decode("utf-8"))
+
+    assert "traces" in payload_json
+    assert len(payload_json["traces"]) == 1
+    assert len(payload_json["traces"][0]["spans"]) == 1
+    span_json = payload_json["traces"][0]["spans"][0]
+
+    assert span_json["trace_id"] == "{:016x}".format(span._trace_id_64bits)
+    assert span_json["parent_id"] == "0000000000000000"
+    assert span_json["span_id"] == "{:016x}".format(span.span_id)
+    assert span_json["service"] == "service1"
+    assert span_json["resource"] == "resource1"
+    assert span_json["name"] == "root1"
+    assert span_json["error"] == 1
+    assert span_json["start"] == span.start_ns
+    assert span_json["duration"] == span.duration_ns
+    assert span_json["span_links"] == [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}]
+    assert span_json["meta_struct"] == {"payload": {"key": "value"}}
+
+    assert span_json["meta"]["_dd.hostname"] == get_hostname()
+    assert span_json["meta"]["runtime-id"] == get_runtime_id()
+    assert span_json["meta"]["tag1"] == "value1"
+    assert span_json["meta"]["tag2"] == "value2"
+    # Sampling rules and rate limits are ignored. Default is used.
+    assert span_json["meta"]["_dd.p.dm"] == "-0"
+    assert span_json["meta"]["language"] == "python"
+    assert span_json["meta"]["_dd.p.tid"] == "{:016x}".format(span.trace_id >> 64)
+
+    assert span_json["metrics"]["process_id"] == getpid()
+    assert span_json["metrics"]["metric1"] == 1.0
+    assert span_json["metrics"]["metric2"] == 2.0
+    assert span_json["metrics"]["_dd.top_level"] == 1
+    assert span_json["metrics"]["_sampling_priority_v1"] == 1
+
+
+@pytest.mark.subprocess(
+    env={
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
+        "DD_API_KEY": None,
+    },
+    err=b"APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.\n",
+)
+def test_agentless_writer_no_api_key():
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert not isinstance(writer, AgentlessTraceWriter)
+
+
+def test_is_otlp_traces_exporter_enabled_when_otel_traces_exporter_is_otlp():
+    with override_env({"OTEL_TRACES_EXPORTER": "otlp"}):
+        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+
+
+def test_is_otlp_traces_exporter_enabled_case_insensitive():
+    with override_env({"OTEL_TRACES_EXPORTER": "OTLP"}):
+        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is True
+
+
+def test_is_otlp_traces_exporter_enabled_disabled_by_default():
+    with override_env({"OTEL_TRACES_EXPORTER": ""}):
+        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+
+
+def test_is_otlp_traces_exporter_enabled_disabled_when_agent_protocol_version_set():
+    with override_env({"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_AGENT_PROTOCOL_VERSION": "v0.4"}):
+        assert _is_otlp_traces_exporter_enabled(ExporterConfig()) is False
+
+
+def test_native_writer_stores_otlp_endpoint():
+    """NativeWriter stores the otlp_endpoint when provided."""
+    writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
+    assert writer._otlp_endpoint == "http://localhost:4318/v1/traces"

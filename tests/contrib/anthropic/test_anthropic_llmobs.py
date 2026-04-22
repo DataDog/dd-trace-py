@@ -9,6 +9,7 @@ from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
 from tests.contrib.anthropic.test_anthropic import BETA_SKIP_REASON
 from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
 from tests.contrib.anthropic.utils import tools
+from tests.llmobs._utils import DEEP_TOOL_SCHEMA
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.llmobs._utils import aiterate_stream
@@ -68,6 +69,265 @@ class TestLLMObsAnthropic:
         message = {"content": []}
         assert _on_content_block_stop_chunk(chunk=None, message=message) == message
 
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_beta_server_tool_use_stream(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
+    ):
+        """Regression test for streamed server-side tool usage/results being captured"""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_beta_tools_stream.yaml"):
+            stream = llm.beta.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=200,
+                messages=[{"role": "user", "content": WEATHER_PROMPT}],
+                tools=[
+                    {"type": "tool_search_tool_regex_20251119", "name": "tool_search_tool_regex"},
+                    {
+                        "name": "get_weather",
+                        "description": "Get the weather for a specific location",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"location": {"type": "string"}},
+                        },
+                        "defer_loading": True,
+                    },
+                ],
+                betas=[
+                    "context-management-2025-06-27",
+                    "context-1m-2025-08-07",
+                    "advanced-tool-use-2025-11-20",
+                    "interleaved-thinking-2025-05-14",
+                ],
+                stream=True,
+            )
+            consume_stream(stream)
+
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-sonnet-4-6",
+                model_provider="anthropic",
+                input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
+                output_messages=[
+                    {
+                        "content": "Let me search for a weather tool to help answer your question!",
+                        "role": "assistant",
+                    },
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "tool_search_tool_regex",
+                                "arguments": {"pattern": "weather"},
+                                "tool_id": "srvtoolu_01TbRQZ9sz7wNun27iQQ8zKf",
+                                "type": "server_tool_use",
+                            }
+                        ],
+                    },
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_results": [
+                            {
+                                "result": '{"tool_references": [{"tool_name": "get_weather",'
+                                ' "type": "tool_reference"}],'
+                                ' "type": "tool_search_tool_search_result"}',
+                                "tool_id": "srvtoolu_01TbRQZ9sz7wNun27iQQ8zKf",
+                                "type": "tool_result",
+                            }
+                        ],
+                    },
+                    {"content": "Found it! Let me get the weather for San Francisco, CA now.", "role": "assistant"},
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "toolu_01SHf2kbTahK9zYYPDyvNp5r",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
+                ],
+                metadata={"max_tokens": 200},
+                token_metrics={
+                    "input_tokens": 1595,
+                    "output_tokens": 143,
+                    "total_tokens": 1738,
+                    "cache_write_input_tokens": 0,
+                    "ephemeral_1h_input_tokens": 0,
+                    "ephemeral_5m_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
+                tool_definitions=[
+                    {"name": "tool_search_tool_regex", "description": "", "schema": {}},
+                    {
+                        "name": "get_weather",
+                        "description": "",
+                        "schema": {},
+                    },
+                ],
+            )
+        )
+
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
+    def test_beta_server_tool_use_non_stream(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
+    ):
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools_server_tool_use.yaml"):
+            llm.beta.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=200,
+                messages=[{"role": "user", "content": WEATHER_PROMPT}],
+                tools=[
+                    {"type": "tool_search_tool_regex_20251119", "name": "tool_search_tool_regex"},
+                    {
+                        "name": "get_weather",
+                        "description": "Get the weather for a specific location",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"location": {"type": "string"}},
+                        },
+                        "defer_loading": True,
+                    },
+                ],
+                betas=[
+                    "context-management-2025-06-27",
+                    "context-1m-2025-08-07",
+                    "advanced-tool-use-2025-11-20",
+                    "interleaved-thinking-2025-05-14",
+                ],
+            )
+
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-sonnet-4-6",
+                model_provider="anthropic",
+                input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
+                output_messages=[
+                    {
+                        "content": "Let me search for a weather tool to help answer your question!",
+                        "role": "assistant",
+                    },
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "tool_search_tool_regex",
+                                "arguments": {"pattern": "weather"},
+                                "tool_id": "srvtoolu_01YBjcsxNhiKh8MPSRLFpXSk",
+                                "type": "server_tool_use",
+                            }
+                        ],
+                    },
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_results": [
+                            {
+                                "result": '{"tool_references": [{"tool_name": "get_weather",'
+                                ' "type": "tool_reference"}],'
+                                ' "type": "tool_search_tool_search_result"}',
+                                "tool_id": "srvtoolu_01YBjcsxNhiKh8MPSRLFpXSk",
+                                "type": "tool_result",
+                            }
+                        ],
+                    },
+                    {
+                        "content": "I found a weather tool! Let me fetch the current weather for San Francisco, CA.",
+                        "role": "assistant",
+                    },
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "toolu_013vNgEGWuTc17pHztigU6j2",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
+                ],
+                metadata={"max_tokens": 200},
+                token_metrics={
+                    "input_tokens": 1595,
+                    "output_tokens": 146,
+                    "total_tokens": 1741,
+                    "cache_write_input_tokens": 0,
+                    "ephemeral_1h_input_tokens": 0,
+                    "ephemeral_5m_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
+                tool_definitions=[
+                    {"name": "tool_search_tool_regex", "description": "", "schema": {}},
+                    {
+                        "name": "get_weather",
+                        "description": "",
+                        "schema": {},
+                    },
+                ],
+            )
+        )
+
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 47), reason="Thinking support requires anthropic>=0.47.0")
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_stream_with_thinking(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr, consume_stream
+    ):
+        """Ensure thinking blocks are properly captured from streamed responses."""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream_thinking.yaml"):
+            stream = llm.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=16000,
+                temperature=1,
+                thinking={"type": "enabled", "budget_tokens": 1024},
+                messages=[{"role": "user", "content": "What is the best selling book of all time?"}],
+                stream=True,
+            )
+            consume_stream(stream)
+
+            span = test_spans.pop_traces()[0][0]
+            assert mock_llmobs_writer.enqueue.call_count == 1
+            mock_llmobs_writer.enqueue.assert_called_with(
+                _expected_llmobs_llm_span_event(
+                    span,
+                    model_name="claude-sonnet-4-20250514",
+                    model_provider="anthropic",
+                    input_messages=[
+                        {"content": "What is the best selling book of all time?", "role": "user"},
+                    ],
+                    output_messages=[
+                        {
+                            "content": "Let me think about the best selling book.",
+                            "role": "reasoning",
+                        },
+                        {
+                            "content": "The best-selling book of all time is Don Quixote.",
+                            "role": "assistant",
+                        },
+                    ],
+                    metadata={"temperature": 1, "max_tokens": 16000.0},
+                    token_metrics={"input_tokens": 50, "output_tokens": 200, "total_tokens": 250},
+                    tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
+                )
+            )
+
     @patch("anthropic._base_client.SyncAPIClient.post")
     def test_completion_proxy(
         self,
@@ -114,7 +374,7 @@ class TestLLMObsAnthropic:
                     [{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}], ensure_ascii=False
                 ),
                 metadata={"temperature": 0.8, "max_tokens": 15.0},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
         )
 
@@ -130,6 +390,17 @@ class TestLLMObsAnthropic:
         span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
         assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
+
+    @patch("anthropic._base_client.SyncAPIClient.post")
+    def test_completion_unknown_provider(
+        self, mock_anthropic_messages_post, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans
+    ):
+        """Ensure model_provider is set to 'unknown' when base_url doesn't match any known provider."""
+        mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
+        llm = anthropic.Anthropic(base_url="http://localhost:8000")
+        llm.messages.create(model="claude-3-opus-20240229", max_tokens=15, messages=[{"role": "user", "content": "Hi"}])
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        assert mock_llmobs_writer.enqueue.call_args.args[0]["meta"]["model_provider"] == "unknown"
 
     def test_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
@@ -168,7 +439,7 @@ class TestLLMObsAnthropic:
                 output_messages=[{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}],
                 metadata={"temperature": 0.8, "max_tokens": 15.0},
                 token_metrics={"input_tokens": 32, "output_tokens": 15, "total_tokens": 47},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
         )
 
@@ -226,8 +497,10 @@ class TestLLMObsAnthropic:
                     "total_tokens": 58,
                     "cache_write_input_tokens": 0,
                     "cache_read_input_tokens": 0,
+                    "ephemeral_1h_input_tokens": 0,
+                    "ephemeral_5m_input_tokens": 0,
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
         )
 
@@ -272,7 +545,11 @@ class TestLLMObsAnthropic:
                         error_message=span.get_tag("error.message"),
                         error_stack=span.get_tag("error.stack"),
                         metadata={"temperature": 0.8, "max_tokens": 15.0},
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                        tags={
+                            "ml_app": "<ml-app-name>",
+                            "service": "tests.contrib.anthropic",
+                            "integration": "anthropic",
+                        },
                     )
                 )
 
@@ -326,7 +603,7 @@ class TestLLMObsAnthropic:
                     ],
                     metadata={"temperature": 0.8, "max_tokens": 15.0},
                     token_metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
-                    tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                    tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
                 )
             )
 
@@ -385,7 +662,7 @@ class TestLLMObsAnthropic:
                     ],
                     metadata={"temperature": 0.8, "max_tokens": 15.0},
                     token_metrics={"input_tokens": 27, "output_tokens": 15, "total_tokens": 42},
-                    tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                    tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
                 )
             )
 
@@ -440,7 +717,7 @@ class TestLLMObsAnthropic:
                     ],
                     metadata={"temperature": 0.8, "max_tokens": 15.0},
                     token_metrics={"input_tokens": 246, "output_tokens": 15, "total_tokens": 261},
-                    tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                    tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
                 )
             )
 
@@ -482,7 +759,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
@@ -540,7 +817,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
@@ -584,7 +861,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
@@ -638,7 +915,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
@@ -698,7 +975,7 @@ class TestLLMObsAnthropic:
                             {
                                 "name": "get_weather",
                                 "arguments": {"location": "San Francisco, CA"},
-                                "tool_id": "",
+                                "tool_id": "toolu_01DYJo37oETVsCdLTTcCWcdq",
                                 "type": "tool_use",
                             }
                         ],
@@ -706,7 +983,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 135, "total_tokens": 734},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
@@ -757,7 +1034,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 762, "output_tokens": 33, "total_tokens": 795},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
@@ -805,7 +1082,7 @@ class TestLLMObsAnthropic:
                             {
                                 "name": "get_weather",
                                 "arguments": {"location": "San Francisco, CA"},
-                                "tool_id": "",
+                                "tool_id": "toolu_01DYJo37oETVsCdLTTcCWcdq",
                                 "type": "tool_use",
                             }
                         ],
@@ -813,7 +1090,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 146, "total_tokens": 745},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
@@ -868,7 +1145,7 @@ class TestLLMObsAnthropic:
                 ],
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 762, "output_tokens": 18, "total_tokens": 780},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
                 tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
@@ -931,8 +1208,14 @@ class TestLLMObsAnthropic:
                             "total_tokens": 2173,
                             "cache_write_input_tokens": 2055,
                             "cache_read_input_tokens": 0,
+                            "ephemeral_1h_input_tokens": 0,
+                            "ephemeral_5m_input_tokens": 2055,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                        tags={
+                            "ml_app": "<ml-app-name>",
+                            "service": "tests.contrib.anthropic",
+                            "integration": "anthropic",
+                        },
                     )
                 ),
                 mock.call(
@@ -961,11 +1244,74 @@ class TestLLMObsAnthropic:
                             "total_tokens": 2166,
                             "cache_write_input_tokens": 0,
                             "cache_read_input_tokens": 2055,
+                            "ephemeral_1h_input_tokens": 0,
+                            "ephemeral_5m_input_tokens": 0,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                        tags={
+                            "ml_app": "<ml-app-name>",
+                            "service": "tests.contrib.anthropic",
+                            "integration": "anthropic",
+                        },
                     )
                 ),
             ]
+        )
+
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 66), reason="1h cache TTL not available until 0.66.0, skipping.")
+    def test_completion_prompt_caching_1h_ttl(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
+    ):
+        """Test that prompt caching metrics with 1h TTL are properly captured."""
+        llm = anthropic.Anthropic()
+        large_system_prompt = [
+            {
+                "type": "text",
+                "text": "Hardware engineering best practices guide: " + "farewell " * 1024,
+                "cache_control": {"type": "ephemeral", "ttl": "1h"},
+            },
+        ]
+        with request_vcr.use_cassette("anthropic_completion_cache_write_1h_ttl.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=100,
+                system=large_system_prompt,
+                temperature=0.1,
+                messages=[{"role": "user", "content": "What are the key principles for designing scalable systems?"}],
+            )
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-sonnet-4-20250514",
+                model_provider="anthropic",
+                input_messages=[
+                    {
+                        "content": large_system_prompt[0]["text"],
+                        "role": "system",
+                    },
+                    {
+                        "content": "What are the key principles for designing scalable systems?",
+                        "role": "user",
+                    },
+                ],
+                output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                metadata={
+                    "temperature": 0.1,
+                    "max_tokens": 100.0,
+                },
+                token_metrics={
+                    "input_tokens": 2073,
+                    "output_tokens": 100,
+                    "total_tokens": 2173,
+                    "cache_write_input_tokens": 2056,
+                    "cache_read_input_tokens": 0,
+                    "ephemeral_1h_input_tokens": 2056,
+                    "ephemeral_5m_input_tokens": 0,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
+            )
         )
 
     def test_completion_stream_prompt_caching(
@@ -1032,8 +1378,14 @@ class TestLLMObsAnthropic:
                             "total_tokens": 1149,
                             "cache_write_input_tokens": 1031,
                             "cache_read_input_tokens": 0,
+                            "ephemeral_1h_input_tokens": 0,
+                            "ephemeral_5m_input_tokens": 1031,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                        tags={
+                            "ml_app": "<ml-app-name>",
+                            "service": "tests.contrib.anthropic",
+                            "integration": "anthropic",
+                        },
                     )
                 ),
                 mock.call(
@@ -1062,8 +1414,14 @@ class TestLLMObsAnthropic:
                             "total_tokens": 1142,
                             "cache_write_input_tokens": 0,
                             "cache_read_input_tokens": 1031,
+                            "ephemeral_1h_input_tokens": 0,
+                            "ephemeral_5m_input_tokens": 0,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                        tags={
+                            "ml_app": "<ml-app-name>",
+                            "service": "tests.contrib.anthropic",
+                            "integration": "anthropic",
+                        },
                     )
                 ),
             ]
@@ -1093,6 +1451,306 @@ class TestLLMObsAnthropic:
                     "output_tokens": response.usage.output_tokens,
                     "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
         )
+
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 47), reason="Thinking support requires anthropic>=0.47.0")
+    def test_completion_with_thinking(
+        self,
+        anthropic,
+        ddtrace_global_config,
+        mock_llmobs_writer,
+        test_spans,
+        request_vcr,
+    ):
+        """Ensure extended thinking content blocks are captured as reasoning messages."""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_thinking.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=16000,
+                temperature=1,
+                thinking={"type": "enabled", "budget_tokens": 1024},
+                messages=[{"role": "user", "content": "What is the best selling book of all time?"}],
+            )
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-sonnet-4-20250514",
+                model_provider="anthropic",
+                input_messages=[{"content": "What is the best selling book of all time?", "role": "user"}],
+                output_messages=[
+                    {
+                        "content": "Let me think about the best selling book of all time.",
+                        "role": "reasoning",
+                    },
+                    {"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON QUIXOTE"', "role": "assistant"},
+                ],
+                metadata={"temperature": 1, "max_tokens": 16000.0},
+                token_metrics={"input_tokens": 50, "output_tokens": 200, "total_tokens": 250},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
+            )
+        )
+
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 47), reason="Thinking support requires anthropic>=0.47.0")
+    def test_completion_with_thinking_and_tools(
+        self,
+        anthropic,
+        ddtrace_global_config,
+        mock_llmobs_writer,
+        test_spans,
+        request_vcr,
+    ):
+        """Ensure extended thinking + tool_use content blocks are both captured correctly."""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_thinking_tools.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=16000,
+                temperature=1,
+                thinking={"type": "enabled", "budget_tokens": 1024},
+                messages=[{"role": "user", "content": WEATHER_PROMPT}],
+                tools=tools,
+            )
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-sonnet-4-20250514",
+                model_provider="anthropic",
+                input_messages=[{"content": WEATHER_PROMPT, "role": "user"}],
+                output_messages=[
+                    {
+                        "content": "I need to use the get_weather tool to answer this question.",
+                        "role": "reasoning",
+                    },
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "toolu_thinking_001",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
+                ],
+                metadata={"max_tokens": 16000.0, "temperature": 1},
+                token_metrics={"input_tokens": 100, "output_tokens": 150, "total_tokens": 250},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
+            )
+        )
+
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 47), reason="Thinking support requires anthropic>=0.47.0")
+    def test_thinking_in_input_messages(
+        self,
+        anthropic,
+        ddtrace_global_config,
+        mock_llmobs_writer,
+        test_spans,
+        request_vcr,
+    ):
+        """Ensure thinking blocks in assistant input messages (tool use continuations) are captured."""
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_thinking_tool_result.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=16000,
+                temperature=1,
+                thinking={"type": "enabled", "budget_tokens": 1024},
+                messages=[
+                    {"role": "user", "content": WEATHER_PROMPT},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "thinking", "thinking": "I need to check the weather.", "signature": "sig_abc"},
+                            {
+                                "type": "tool_use",
+                                "id": "toolu_thinking_001",
+                                "name": "get_weather",
+                                "input": {"location": "San Francisco, CA"},
+                            },
+                        ],
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "toolu_thinking_001",
+                                "content": [{"type": "text", "text": "The weather is 73f"}],
+                            }
+                        ],
+                    },
+                ],
+                tools=tools,
+            )
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="claude-sonnet-4-20250514",
+                model_provider="anthropic",
+                input_messages=[
+                    {"content": WEATHER_PROMPT, "role": "user"},
+                    {"content": "I need to check the weather.", "role": "reasoning"},
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "get_weather",
+                                "arguments": {"location": "San Francisco, CA"},
+                                "tool_id": "toolu_thinking_001",
+                                "type": "tool_use",
+                            }
+                        ],
+                    },
+                    {
+                        "content": "",
+                        "role": "user",
+                        "tool_results": [
+                            {
+                                "result": "The weather is 73f",
+                                "tool_id": "toolu_thinking_001",
+                                "type": "tool_result",
+                            }
+                        ],
+                    },
+                ],
+                output_messages=[
+                    {
+                        "content": "The weather in San Francisco, CA is currently 73\u00b0F.",
+                        "role": "assistant",
+                    },
+                ],
+                metadata={"max_tokens": 16000.0, "temperature": 1},
+                token_metrics={"input_tokens": 200, "output_tokens": 30, "total_tokens": 230},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
+            )
+        )
+
+    def test_deferred_tool_schema_stripped_in_span(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
+    ):
+        """Regression test: deferred tools (defer_loading=True) should have description and schema
+        stripped from LLMObs spans to avoid inflating payload size. Non-deferred tools keep their
+        full definitions.
+        """
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools_deferred.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=200,
+                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+                tools=[
+                    {
+                        "name": "get_weather",
+                        "description": "Get the weather for a specific location",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"location": {"type": "string"}},
+                        },
+                    },
+                    {
+                        "name": "search_logs",
+                        "description": "Search Datadog logs",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"query": {"type": "string"}},
+                        },
+                        "defer_loading": True,
+                    },
+                ],
+            )
+
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        assert span_event["meta"]["tool_definitions"] == [
+            {
+                "name": "get_weather",
+                "description": "Get the weather for a specific location",
+                "schema": {"type": "object", "properties": {"location": {"type": "string"}}},
+            },
+            {
+                "name": "search_logs",
+                "description": "",
+                "schema": {},
+            },
+        ]
+
+    def test_tool_with_deep_schema_has_schema_truncated(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, test_spans, request_vcr
+    ):
+        """Tool schemas exceeding MAX_TOOL_SCHEMA_DEPTH should be truncated at the depth limit,
+        replacing over-limit containers with empty containers while preserving name, description,
+        and all fields within the limit. Tools with shallow schemas are unaffected.
+        """
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_tools_deep_schema.yaml"):
+            llm.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=200,
+                messages=[{"role": "user", "content": "What is the weather in San Francisco, CA?"}],
+                tools=[
+                    {
+                        "name": "get_weather",
+                        "description": "Get the weather for a specific location",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"location": {"type": "string"}},
+                        },
+                    },
+                    {
+                        "name": "deep_tool",
+                        "description": "A tool with a deeply nested schema",
+                        "input_schema": DEEP_TOOL_SCHEMA,
+                    },
+                ],
+            )
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        assert span_event["meta"]["tool_definitions"] == [
+            {
+                "name": "get_weather",
+                "description": "Get the weather for a specific location",
+                "schema": {"type": "object", "properties": {"location": {"type": "string"}}},
+            },
+            {
+                "name": "deep_tool",
+                "description": "A tool with a deeply nested schema",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "l1": {
+                            "type": "object",
+                            "properties": {
+                                "l2": {
+                                    "type": "object",
+                                    "properties": {
+                                        "l3": {
+                                            "type": "object",
+                                            "properties": {
+                                                "l4": {
+                                                    "type": "object",
+                                                    "properties": {"l5": {}},
+                                                }
+                                            },
+                                        }
+                                    },
+                                }
+                            },
+                        }
+                    },
+                },
+            },
+        ]

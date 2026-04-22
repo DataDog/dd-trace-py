@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    AI Guard: Adds SDS (Sensitive Data Scanner) findings to AI Guard spans, enabling visibility into sensitive data detected in LLM inputs and outputs.

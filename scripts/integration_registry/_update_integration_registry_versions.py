@@ -1,5 +1,5 @@
 """
-Updates the supported version fields in ddtrace/contrib/integration_registry/registry.yaml based on
+Updates the supported version fields in scripts/integration_registry/registry.yaml based on
 supported_versions_table.csv.
 Preserves all other existing fields in registry.yaml.
 """
@@ -15,19 +15,17 @@ from packaging.version import InvalidVersion
 from packaging.version import parse as parse_version
 
 
-# Add the project root to the Python path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+# Add scripts/integration_registry/ to the Python path so registry modules are importable
+_integration_registry_dir = os.path.dirname(__file__)
+if _integration_registry_dir not in sys.path:
+    sys.path.insert(0, _integration_registry_dir)
 
-from tests.contrib.integration_registry.registry_update_helpers.integration_registry_updater import (  # noqa: E402
-    IntegrationRegistryUpdater,  # noqa: E402
-)
+from registry_update_helpers.integration_registry_updater import IntegrationRegistryUpdater  # noqa: E402
 
 
 SCRIPT_DIR = pathlib.Path(__file__).parent.parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.resolve()
-REGISTRY_YAML_PATH = PROJECT_ROOT / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml"
+REGISTRY_YAML_PATH = PROJECT_ROOT / "scripts" / "integration_registry" / "registry.yaml"
 SUPPORTED_VERSIONS_CSV_PATH = PROJECT_ROOT / "supported_versions_table.csv"
 
 
@@ -67,7 +65,12 @@ def _read_supported_versions(filepath: pathlib.Path) -> Optional[dict[str, dict[
             reader = csv.DictReader(csvfile)
             col_integration = next((h for h in header if "integration" in h.lower()), None)
             col_dependency = next(
-                (h for h in header if "dependency" in h.lower() and h.lower() != col_integration.lower()), None
+                (
+                    h
+                    for h in header
+                    if "dependency" in h.lower() and (col_integration is None or h.lower() != col_integration.lower())
+                ),
+                None,
             )
             col_min = next((h for h in header if "minimum" in h.lower()), None)
             col_max = next((h for h in header if "max" in h.lower()), None)

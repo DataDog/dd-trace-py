@@ -55,7 +55,9 @@ def wrap_fetch(original_fetch, ttc, interface, **fetch_kwargs):
     return wrapped_fetch
 
 
-class Test_Tornado(utils.Contrib_TestClass_For_Threats):
+class _Test_Tornado_Base:
+    """Tornado-specific interface, response accessors, and argument parsing."""
+
     @pytest.fixture
     def interface(self, printer):
         ttc = TornadoTestClient()
@@ -84,3 +86,28 @@ class Test_Tornado(utils.Contrib_TestClass_For_Threats):
 
     def location(self, response):
         return self.headers(response)["location"]
+
+
+class Test_Tornado(_Test_Tornado_Base, utils.Contrib_TestClass_For_Threats):
+    ENDPOINT_DISCOVERY_EXPECTED_PATHS = {
+        "/",
+        "/asm/%s/%s/?",
+        "/asm/?",
+        "/new_service/%s/?",
+        "/login/?",
+        "/login_sdk/?",
+        "/rasp/%s/?",
+    }
+
+    @staticmethod
+    def endpoint_path_to_uri(path: str) -> str:
+        # Tornado uses %s for all capturing groups and does not have a notion of typed path parameters.
+        # We substitute with "123" which satisfies both \d+ and [^/]+ patterns.
+        path = path.replace("%s", "123")
+        if path.endswith("/?"):
+            path = path[:-2]
+        return path if path.startswith("/") else ("/" + path)
+
+
+class Test_Tornado_RC(_Test_Tornado_Base, utils.Contrib_TestClass_For_Threats_RC):
+    pass

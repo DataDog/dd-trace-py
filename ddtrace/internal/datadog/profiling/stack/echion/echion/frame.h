@@ -50,17 +50,10 @@ class Frame
     StringTable::Key filename = 0;
     StringTable::Key name = 0;
 
-    struct _location
-    {
-        unsigned line = 0;
-        unsigned line_end = 0;
-        unsigned column = 0;
-        unsigned column_end = 0;
-    } location;
-
-#if PY_VERSION_HEX >= 0x030b0000
-    bool is_entry = false;
-#endif
+    unsigned line = 0;
+    uintptr_t code_object = 0; // PyCodeObject address, matches Python's id(code)
+    int lasti = -1;            // Last bytecode offset in _Py_CODEUNIT units
+    int first_lineno = 0;      // co_firstlineno, used to detect code object address reuse
 
     // ------------------------------------------------------------------------
     Frame(StringTable::Key filename, StringTable::Key name)
@@ -88,8 +81,11 @@ class Frame
     static Frame& get(EchionSampler& echion, StringTable::Key name);
 
   private:
-    [[nodiscard]] Result<void> inline infer_location(PyCodeObject* code, int lasti);
-    static inline Key key(PyCodeObject* code, int lasti);
+    [[nodiscard]] Result<void> inline infer_location(PyCodeObject* code, int instr_offset);
+    // co_firstlineno is included in the key to prevent stale cache hits when Python
+    // reuses a freed PyCodeObject's memory address for a new code object. Without it,
+    // the profiler can return a cached <module> frame for a function frame.
+    static inline Key key(PyCodeObject* code, int lasti, int firstlineno);
 };
 
 inline auto INVALID_FRAME = Frame(StringTable::INVALID);

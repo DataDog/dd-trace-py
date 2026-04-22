@@ -1,0 +1,48 @@
+id: span-set-metric
+snapshots:
+  ctx.span.set_metric(db.ROWCOUNT, rowcount):
+    fixed: ctx.span._set_attribute(db.ROWCOUNT, rowcount)
+    labels:
+    - source: ctx.span.set_metric(db.ROWCOUNT, rowcount)
+      style: primary
+      start: 0
+      end: 42
+  s.set_metric(db.ROWCOUNT, row_count):
+    fixed: s._set_attribute(db.ROWCOUNT, row_count)
+    labels:
+    - source: s.set_metric(db.ROWCOUNT, row_count)
+      style: primary
+      start: 0
+      end: 36
+  self._ddspan.set_metric(key, value):
+    fixed: self._ddspan._set_attribute(key, value)
+    labels:
+    - source: self._ddspan.set_metric(key, value)
+      style: primary
+      start: 0
+      end: 35
+  ? |
+    span = tracer.start_span("test")
+    span.set_metric("my.metric", 42)
+  : fixed: |
+      span = tracer.start_span("test")
+      span._set_attribute("my.metric", 42)
+    labels:
+    - source: span.set_metric("my.metric", 42)
+      style: primary
+      start: 33
+      end: 65
+  span.set_metric("key", 1):
+    fixed: span._set_attribute("key", 1)
+    labels:
+    - source: span.set_metric("key", 1)
+      style: primary
+      start: 0
+      end: 25
+  span.set_metric("key", 3.14):
+    fixed: span._set_attribute("key", 3.14)
+    labels:
+    - source: span.set_metric("key", 3.14)
+      style: primary
+      start: 0
+      end: 28

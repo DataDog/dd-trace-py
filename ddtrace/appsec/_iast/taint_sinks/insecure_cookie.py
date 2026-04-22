@@ -13,6 +13,7 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec._patch_utils import get_caller_frame_info
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -38,7 +39,7 @@ class CookiesVulnerability(VulnerabilityBase):
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
         if insecure_cookie or no_http_only or no_samesite:
             if should_process_vulnerability(InsecureCookie.vulnerability_type):
-                file_name, line_number, function_name, class_name = cls._compute_file_line()
+                file_name, line_number, function_name, class_name = get_caller_frame_info()
                 if file_name is None:
                     return
                 if insecure_cookie:

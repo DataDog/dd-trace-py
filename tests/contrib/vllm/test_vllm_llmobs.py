@@ -50,7 +50,7 @@ def test_llmobs_basic(llmobs_events, test_spans, opt_125m_llm):
             "time_in_model_decode": mock.ANY,
             "time_in_model_inference": mock.ANY,
         },
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm", "integration": "vllm"},
     )
     assert llmobs_events[0] == expected
 
@@ -102,7 +102,7 @@ def test_llmobs_chat(llmobs_events, test_spans, opt_125m_llm):
             "time_in_model_decode": mock.ANY,
             "time_in_model_inference": mock.ANY,
         },
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm", "integration": "vllm"},
     )
     assert llmobs_events[0] == expected
 
@@ -143,7 +143,7 @@ def test_llmobs_classify(llmobs_events, test_spans, bge_reranker_llm):
                 "time_in_model_prefill": mock.ANY,
                 "time_in_model_inference": mock.ANY,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm", "integration": "vllm"},
         )
         assert event == expected
 
@@ -184,7 +184,7 @@ def test_llmobs_embed(llmobs_events, test_spans, e5_small_llm):
                 "time_in_model_prefill": mock.ANY,
                 "time_in_model_inference": mock.ANY,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm", "integration": "vllm"},
         )
         assert event == expected
 
@@ -225,7 +225,7 @@ def test_llmobs_reward(llmobs_events, test_spans, bge_reranker_llm):
                 "time_in_model_prefill": mock.ANY,
                 "time_in_model_inference": mock.ANY,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm", "integration": "vllm"},
         )
         assert event == expected
 
@@ -281,6 +281,6 @@ def test_llmobs_score(llmobs_events, test_spans, bge_reranker_llm):
             output_value="[1 embedding(s) returned with size 1]",
             metadata={"embedding_dim": 1, "num_cached_tokens": 0},
             token_metrics=expected_token_metrics_by_text[token_text],
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm", "integration": "vllm"},
         )
         assert event == expected

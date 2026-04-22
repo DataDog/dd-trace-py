@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed a race condition with internal periodic threads that could have caused
+    a rare crash when forking.

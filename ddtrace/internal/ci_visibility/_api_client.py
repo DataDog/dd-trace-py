@@ -4,7 +4,6 @@ import dataclasses
 from http.client import RemoteDisconnected
 import json
 from json import JSONDecodeError
-import os
 import socket
 import typing as t
 from typing import TypedDict  # noqa:F401
@@ -48,6 +47,7 @@ from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import ConnectionType
@@ -74,7 +74,6 @@ _CONFIGURATIONS_TYPE = dict[str, t.Union[str, dict[str, str]]]
 _KNOWN_TESTS_TYPE = set[TestId]
 
 _NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
-
 
 _RETRIABLE_ERRORS = (*_NETWORK_ERRORS, CIVisibilityAPIServerError)
 
@@ -227,6 +226,29 @@ def _parse_skippable_tests(
     record_skippable_count(len(tests_to_skip), TEST)
 
     return tests_to_skip
+
+
+_DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
+
+
+def _get_known_tests_max_pages() -> int:
+    """Max pages for known tests pagination; configurable via _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES."""
+    try:
+        value = int(env.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
+    except ValueError:
+        log.warning(
+            "Failed to parse _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES, using default: %s",
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    if value <= 0:
+        log.warning(
+            "_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES must be positive (%s), using default: %s",
+            value,
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    return value
 
 
 class _TestVisibilityAPIClientBase(abc.ABC):
@@ -409,7 +431,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             require_git = attributes["require_git"]
             itr_enabled = attributes["itr_enabled"]
             flaky_test_retries_enabled = attributes["flaky_test_retries_enabled"] or asbool(
-                os.getenv("_DD_TEST_FORCE_ENABLE_ATR")
+                env.get("_DD_TEST_FORCE_ENABLE_ATR")
             )
             known_tests_enabled = attributes["known_tests_enabled"]
             coverage_report_upload_enabled = attributes.get("coverage_report_upload_enabled", False)
@@ -428,7 +450,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
             test_management_attributes = attributes.get("test_management", {})
             test_management_enabled = test_management_attributes.get("enabled", False)
-            attempt_to_fix_retries_env = os.getenv("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
+            attempt_to_fix_retries_env = env.get("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
             if attempt_to_fix_retries_env and attempt_to_fix_retries_env.isdigit():
                 attempt_to_fix_retries = int(attempt_to_fix_retries_env)
                 log.debug("Number of Attempt to Fix retries obtained from environment: %d", attempt_to_fix_retries)
@@ -439,7 +461,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 log.debug("Number of Attempt to Fix retries obtained from API: %d", attempt_to_fix_retries)
 
             test_management = TestManagementSettings(
-                enabled=test_management_enabled or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT")),
+                enabled=test_management_enabled or asbool(env.get("_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT")),
                 attempt_to_fix_retries=attempt_to_fix_retries,
             )
 
@@ -554,48 +576,79 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         )
 
         known_test_ids: set[TestId] = set()
+        page_state: t.Optional[str] = None
+        max_pages = _get_known_tests_max_pages()
 
-        payload = {
-            "data": {
-                "id": str(uuid4()),
-                "type": "ci_app_libraries_tests_request",
-                "attributes": {
-                    "service": self._service,
-                    "env": self._dd_env,
-                    "repository_url": self._git_data.repository_url,
-                    "configurations": self._configurations,
-                },
+        for page_number in range(max_pages):
+            # First page: empty page_info lets backend use its default max (10k).
+            # Subsequent pages: only send page_state.
+            request_page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
+
+            payload = {
+                "data": {
+                    "id": str(uuid4()),
+                    "type": "ci_app_libraries_tests_request",
+                    "attributes": {
+                        "service": self._service,
+                        "env": self._dd_env,
+                        "repository_url": self._git_data.repository_url,
+                        "configurations": self._configurations,
+                        "page_info": request_page_info,
+                    },
+                }
             }
-        }
 
-        try:
-            parsed_response = self._do_request_with_telemetry(
-                "POST", KNOWN_TESTS_ENDPOINT, payload, metric_names, read_from_cache=read_from_cache
-            )
-        except Exception:  # noqa: E722
-            return None
+            try:
+                parsed_response = self._do_request_with_telemetry(
+                    "POST", KNOWN_TESTS_ENDPOINT, payload, metric_names, read_from_cache=read_from_cache
+                )
+            except Exception:  # noqa: E722
+                return None
 
-        if "errors" in parsed_response:
-            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
-            log.debug("Unique tests response contained an error")
-            return None
+            if "errors" in parsed_response:
+                record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+                log.debug("Unique tests response contained an error")
+                return None
 
-        try:
-            tests_data = parsed_response["data"]["attributes"]["tests"]
-        except KeyError:
-            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
-            return None
+            try:
+                attributes = parsed_response["data"]["attributes"]
+                tests_data = attributes["tests"]
+            except KeyError:
+                record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+                return None
 
-        try:
-            for module, suites in tests_data.items():
-                module_id = TestModuleId(module)
-                for suite, tests in suites.items():
-                    suite_id = TestSuiteId(module_id, suite)
-                    for test in tests:
-                        known_test_ids.add(TestId(suite_id, test))
-        except Exception:  # noqa: E722
-            log.debug("Failed to parse unique tests data", exc_info=True)
-            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            try:
+                for module, suites in tests_data.items():
+                    module_id = TestModuleId(module)
+                    for suite, tests in suites.items():
+                        suite_id = TestSuiteId(module_id, suite)
+                        for test in tests:
+                            known_test_ids.add(TestId(suite_id, test))
+            except Exception:  # noqa: E722
+                log.debug("Failed to parse unique tests data", exc_info=True)
+                record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+                return None
+
+            response_page_info = attributes.get("page_info")
+            if not response_page_info:
+                break
+            if not isinstance(response_page_info, dict):
+                log.debug("Known tests response page_info is not a dict")
+                record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
+                return None
+
+            has_next = response_page_info.get("has_next")
+            if not has_next:
+                break
+
+            page_state = response_page_info.get("cursor")
+            if not page_state:
+                log.debug("Known tests response missing pagination cursor on page %d", page_number + 1)
+                record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
+                return None
+        else:
+            log.debug("Known tests pagination exceeded max pages: %d", max_pages)
+            record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
             return None
 
         record_early_flake_detection_tests_count(len(known_test_ids))

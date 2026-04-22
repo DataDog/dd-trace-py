@@ -86,7 +86,7 @@ def test_tags_propagated():
         assert tags[k] == v
 
 
-@pytest.mark.subprocess(env=dict(DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="True"))
+@pytest.mark.subprocess()
 def test_process_tags_propagated():
     import sys
     from unittest.mock import Mock

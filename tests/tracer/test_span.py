@@ -3,28 +3,21 @@ from functools import partial
 import sys
 import time
 import traceback
-from unittest.case import SkipTest
 
 import mock
 import pytest
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.constants import ENV_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.constants import SERVICE_VERSION_KEY
-from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.trace import Span
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
-from tests.utils import assert_is_measured
-from tests.utils import assert_is_not_measured
 from tests.utils import override_global_config
 
 
@@ -65,53 +58,6 @@ class SpanTestCase(TracerTestCase):
         deprecation_warns = [w for w in warns if issubclass(w.category, DDTraceDeprecationWarning)]
         assert len(deprecation_warns) >= 1
         assert "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED is deprecated" in str(deprecation_warns[0].message)
-
-    def test_tags(self):
-        s = Span(name="test.span")
-        s.set_tag("a", "a")
-        s.set_tag("b", 1)
-        s.set_tag("c", "1")
-
-        assert s.get_tags() == dict(a="a", c="1")
-        assert s.get_metrics() == dict(b=1)
-
-    def test_numeric_tags(self):
-        s = Span(name="test.span")
-        s.set_tag("negative", -1)
-        s.set_tag("zero", 0)
-        s.set_tag("positive", 1)
-        s.set_tag("large_int", 2**53)
-        s.set_tag("really_large_int", (2**53) + 1)
-        s.set_tag("large_negative_int", -(2**53))
-        s.set_tag("really_large_negative_int", -((2**53) + 1))
-        s.set_tag("float", 12.3456789)
-        s.set_tag("negative_float", -12.3456789)
-        s.set_tag("large_float", 2.0**53)
-        s.set_tag("really_large_float", (2.0**53) + 1)
-
-        assert s.get_tags() == dict(
-            really_large_int=str(((2**53) + 1)),
-            really_large_negative_int=str(-((2**53) + 1)),
-        )
-        assert s.get_metrics() == {
-            "negative": -1,
-            "zero": 0,
-            "positive": 1,
-            "large_int": 2**53,
-            "large_negative_int": -(2**53),
-            "float": 12.3456789,
-            "negative_float": -12.3456789,
-            "large_float": 2.0**53,
-            "really_large_float": (2.0**53) + 1,
-        }
-
-    def test_set_tag_bool(self):
-        s = Span(name="test.span")
-        s.set_tag("true", True)
-        s.set_tag("false", False)
-
-        assert s.get_tags() == dict(true="True", false="False")
-        assert len(s.get_metrics()) == 0
 
     def test_set_baggage_item(self):
         s = Span(name="test.span")
@@ -155,62 +101,6 @@ class SpanTestCase(TracerTestCase):
         span1.context.set_baggage_item("item2", "456")
 
         assert span1.context.get_all_baggage_items() == {"item1": "123", "item2": "456"}
-
-    def test_set_tag_metric(self):
-        s = Span(name="test.span")
-
-        s.set_tag("test", "value")
-        assert s.get_tags() == dict(test="value")
-        assert s.get_metrics() == dict()
-
-        s.set_tag("test", 1)
-        assert s.get_tags() == dict()
-        assert s.get_metrics() == dict(test=1)
-
-    def test_set_valid_metrics(self):
-        s = Span(name="test.span")
-        s.set_metric("a", 0)
-        s.set_metric("b", -12)
-        s.set_metric("c", 12.134)
-        s.set_metric("d", 1231543543265475686787869123)
-        s.set_metric("e", "12.34")
-        expected = {
-            "a": 0,
-            "b": -12,
-            "c": 12.134,
-            "d": 1231543543265475686787869123,
-            "e": 12.34,
-        }
-        assert s.get_metrics() == expected
-
-    def test_set_invalid_metric(self):
-        s = Span(name="test.span")
-
-        invalid_metrics = [None, {}, [], s, "quarante-douze", float("nan"), float("inf"), 1j]
-
-        for i, m in enumerate(invalid_metrics):
-            k = str(i)
-            s.set_metric(k, m)
-            assert s.get_metric(k) is None
-
-    def test_set_numpy_metric(self):
-        try:
-            import numpy as np
-        except ImportError:
-            raise SkipTest("numpy not installed")
-        s = Span(name="test.span")
-        s.set_metric("a", np.int64(1))
-        assert s.get_metric("a") == 1
-        assert type(s.get_metric("a")) == float
-
-    def test_tags_not_string(self):
-        # ensure we can cast as strings
-        class Foo(object):
-            def __repr__(self):
-                1 / 0
-
-        s = Span(name="test.span")
-        s.set_tag("a", Foo())
 
     def test_finish(self):
         # ensure span.finish() marks the end time of the span
@@ -349,35 +239,6 @@ class SpanTestCase(TracerTestCase):
 
         assert s.span_type == "web"
 
-    @mock.patch("ddtrace._trace.span.log")
-    def test_numeric_tags_none(self, span_log):
-        s = Span(name="test.span")
-        s.set_tag("noneval", None)
-        assert len(s.get_metrics()) == 0
-
-    def test_numeric_tags_value(self):
-        s = Span(name="test.span")
-        s.set_tag("point5", 0.5)
-        expected = {"point5": 0.5}
-        assert s.get_metrics() == expected
-
-    def test_numeric_tags_bad_value(self):
-        s = Span(name="test.span")
-        s.set_tag("somestring", "Hello")
-        assert len(s.get_metrics()) == 0
-
-    def test_set_tag_none(self):
-        s = Span(name="root.span", service="s", resource="r")
-        assert s.get_tags() == dict()
-
-        s.set_tag("custom.key", "100")
-
-        assert s.get_tags() == {"custom.key": "100"}
-
-        s.set_tag("custom.key", None)
-
-        assert s.get_tags() == {"custom.key": "None"}
-
     def test_duration_zero(self):
         s = Span(name="foo.bar", service="s", resource="r", start=123)
         s.finish(finish_time=123)
@@ -419,21 +280,6 @@ class SpanTestCase(TracerTestCase):
         assert s.duration_ns == 1000000000
         assert s.duration == 1
 
-    def test_set_tag_version(self):
-        s = Span(name="test.span")
-        s.set_tag(VERSION_KEY, "1.2.3")
-        assert s.get_tag(VERSION_KEY) == "1.2.3"
-        assert s.get_tag(SERVICE_VERSION_KEY) is None
-
-        s.set_tag(SERVICE_VERSION_KEY, "service.version")
-        assert s.get_tag(VERSION_KEY) == "service.version"
-        assert s.get_tag(SERVICE_VERSION_KEY) == "service.version"
-
-    def test_set_tag_env(self):
-        s = Span(name="test.span")
-        s.set_tag(ENV_KEY, "prod")
-        assert s.get_tag(ENV_KEY) == "prod"
-
     def test_span_links(self):
         s1 = Span(name="test.span1")
 
@@ -449,15 +295,18 @@ class SpanTestCase(TracerTestCase):
         }
         s1.link_span(s2.context, link_attributes)
 
-        assert [link for link in s1._links if link.span_id == s2.span_id] == [
-            SpanLink(
-                trace_id=s2.trace_id,
-                span_id=s2.span_id,
-                tracestate="dd=s:1,congo=t61rcWkgMzE",
-                flags=1,
-                attributes=link_attributes,
-            )
-        ]
+        # Attributes containing nested lists are flattened when stored natively;
+        # compare via to_dict() which is the canonical serialized form.
+        expected = SpanLink(
+            trace_id=s2.trace_id,
+            span_id=s2.span_id,
+            tracestate="dd=s:1,congo=t61rcWkgMzE",
+            flags=1,
+            attributes=link_attributes,
+        )
+        actual = [link for link in s1._get_links() if link.span_id == s2.span_id]
+        assert len(actual) == 1
+        assert actual[0].to_dict() == expected.to_dict()
 
     def test_init_with_span_links(self):
         links = [
@@ -468,7 +317,7 @@ class SpanTestCase(TracerTestCase):
         ]
         s = Span(name="test.span", links=links)
 
-        assert s._links == [
+        assert s._get_links() == [
             links[0],
             links[1],
             # duplicate links are overwritten (last one wins)
@@ -481,30 +330,42 @@ class SpanTestCase(TracerTestCase):
         s.set_link(trace_id=1, span_id=20)
         s.set_link(trace_id=2, span_id=30, flags=0)
 
-        with mock.patch("ddtrace._trace.span.log") as log:
-            s.set_link(trace_id=2, span_id=30, flags=1)
-        log.debug.assert_called_once_with(
-            "Span %d already linked to span %d. Overwriting existing link: %s",
-            s.span_id,
-            30,
-            mock.ANY,
-        )
+        s.set_link(trace_id=2, span_id=30, flags=1)
 
-        assert s._links == [
+        assert s._get_links() == [
             SpanLink(trace_id=1, span_id=10),
             SpanLink(trace_id=1, span_id=20),
             # duplicate links are overwritten (last one wins)
             SpanLink(trace_id=2, span_id=30, flags=1),
         ]
 
-    # span links cannot have a span_id or trace_id value of 0 or less
-    def test_span_links_error_with_id_0(self):
-        with pytest.raises(ValueError) as exc_trace:
-            SpanLink(span_id=1, trace_id=0)
-        with pytest.raises(ValueError) as exc_span:
-            SpanLink(span_id=0, trace_id=1)
-        assert str(exc_span.value) == "span_id must be > 0. Value is 0"
-        assert str(exc_trace.value) == "trace_id must be > 0. Value is 0"
+    def test_span_link_flags_none_vs_zero_roundtrip(self):
+        # flags=None and flags=0 are distinct values. Both must round-trip correctly
+        # through native storage. Internally, bit 31 of the native u32 flags field
+        # acts as a "flags present" sentinel: None->0, Some(f)->f|0x8000_0000.
+        s = Span(name="test.span")
+        s.set_link(trace_id=1, span_id=10)  # flags=None
+        s.set_link(trace_id=2, span_id=20, flags=0)  # flags=0 (explicitly set)
+        s.set_link(trace_id=3, span_id=30, flags=1)  # flags=1
+
+        links = s._get_links()
+        assert links[0].flags is None
+        assert links[1].flags == 0
+        assert links[2].flags == 1
+
+    def test_span_link_flags_out_of_range_behavior(self):
+        # flags is stored as u32 with bit 31 as "present" sentinel (None->0, Some(f)->f|0x8000_0000).
+        # Values outside the 31-bit range are silently truncated — this documents the behavior.
+        # W3C tracecontext flags are 8 bits, so this only affects pathological inputs.
+        s = Span(name="test.span")
+        # 0x1_0000_0000 as u32 truncates to 0; ORed with sentinel -> 0x8000_0000; strip sentinel -> 0
+        s.set_link(trace_id=1, span_id=10, flags=0x1_0000_0000)
+        # -1 as i64 -> 0xFFFF_FFFF as u32; ORed with sentinel -> 0xFFFF_FFFF; strip bit 31 -> 0x7FFF_FFFF
+        s.set_link(trace_id=1, span_id=20, flags=-1)
+
+        links = s._get_links()
+        assert links[0].flags == 0  # 0x1_0000_0000 truncated to 0; sentinel set then stripped -> 0
+        assert links[1].flags == 0x7FFF_FFFF  # -1 -> 0xFFFF_FFFF; sentinel strip -> 0x7FFF_FFFF
 
     def test_span_pointers(self):
         s = Span(name="test.span")
@@ -525,9 +386,9 @@ class SpanTestCase(TracerTestCase):
         )
 
         # We don't particularly care about how they're stored, but we do care
-        # that they are serizlied correctly into the _links when they get
+        # that they are serialized correctly into the _links when they get
         # shipped.
-        assert [link.to_dict() for link in s._links] == [
+        assert [link.to_dict() for link in s._get_links()] == [
             {
                 "trace_id": "00000000000000000000000000000001",
                 "span_id": "000000000000000a",
@@ -647,110 +508,6 @@ class SpanTestCase(TracerTestCase):
         assert grandchild._service_entry_span is grandchild
 
 
-@pytest.mark.parametrize(
-    "value,assertion",
-    [
-        (None, assert_is_measured),
-        (1, assert_is_measured),
-        (1.0, assert_is_measured),
-        (-1, assert_is_measured),
-        (True, assert_is_measured),
-        ("true", assert_is_measured),
-        # DEV: Ends up being measured because we do `bool("false")` which is `True`
-        ("false", assert_is_measured),
-        (0, assert_is_not_measured),
-        (0.0, assert_is_not_measured),
-        (False, assert_is_not_measured),
-    ],
-)
-def test_set_tag_measured(value, assertion):
-    s = Span(name="test.span")
-    s.set_tag(_SPAN_MEASURED_KEY, value)
-    assertion(s)
-
-
-def test_set_tag_measured_not_set():
-    # Span is not measured by default
-    s = Span(name="test.span")
-    assert_is_not_measured(s)
-
-
-def test_set_tag_measured_no_value():
-    s = Span(name="test.span")
-    s.set_tag(_SPAN_MEASURED_KEY)
-    assert_is_measured(s)
-
-
-def test_set_tag_measured_change_value():
-    s = Span(name="test.span")
-    s.set_tag(_SPAN_MEASURED_KEY, True)
-    assert_is_measured(s)
-
-    s.set_tag(_SPAN_MEASURED_KEY, False)
-    assert_is_not_measured(s)
-
-    s.set_tag(_SPAN_MEASURED_KEY)
-    assert_is_measured(s)
-
-
-def test_span_unicode_set_tag():
-    span = Span(None)
-    span.set_tag("key", "😌")
-    span.set_tag("😐", "😌")
-    span._set_tag_str("key", "😌")
-    span._set_tag_str("😐", "😌")
-
-
-@pytest.mark.skipif(sys.version_info.major != 2, reason="This test only applies Python 2")
-@mock.patch("ddtrace._trace.span.log")
-def test_span_binary_unicode_set_tag(span_log):
-    span = Span(None)
-    span.set_tag("key", "🤔")
-    span._set_tag_str("key_str", "🤔")
-    # only span.set_tag() will fail
-    span_log.warning.assert_called_once_with("error setting tag %s, ignoring it", "key", exc_info=True)
-    assert "key" not in span.get_tags()
-    assert span.get_tag("key_str") == "🤔"
-
-
-@pytest.mark.skipif(sys.version_info.major == 2, reason="This test does not apply to Python 2")
-@mock.patch("ddtrace._trace.span.log")
-def test_span_bytes_string_set_tag(span_log):
-    span = Span(None)
-    span.set_tag("key", b"\xf0\x9f\xa4\x94")
-    span._set_tag_str("key_str", b"\xf0\x9f\xa4\x94")
-    assert span.get_tag("key") == "b'\\xf0\\x9f\\xa4\\x94'"
-    assert span.get_tag("key_str") == "🤔"
-    span_log.warning.assert_not_called()
-
-
-@mock.patch("ddtrace._trace.span.log")
-def test_span_encoding_set_str_tag(span_log):
-    span = Span(None)
-    span._set_tag_str("foo", "/?foo=bar&baz=정상처리".encode("euc-kr"))
-    span_log.warning.assert_not_called()
-    assert span.get_tag("foo") == "/?foo=bar&baz=����ó��"
-
-
-def test_span_nonstring_set_str_tag_exc():
-    span = Span(None)
-    with pytest.raises(TypeError):
-        span._set_tag_str("foo", dict(a=1))
-    assert "foo" not in span.get_tags()
-
-
-@mock.patch("ddtrace._trace.span.log")
-def test_span_nonstring_set_str_tag_warning(span_log):
-    with override_global_config(dict(_raise=False)):
-        span = Span(None)
-        span._set_tag_str("foo", dict(a=1))
-        span_log.warning.assert_called_once_with(
-            "Failed to set text tag '%s'",
-            "foo",
-            exc_info=True,
-        )
-
-
 def test_span_ignored_exceptions():
     s = Span(None)
     s._ignore_exception(ValueError)
@@ -835,11 +592,57 @@ def test_on_finish_multi_callback():
     m2.assert_called_once_with(s)
 
 
-@pytest.mark.parametrize("arg", ["span_id", "trace_id", "parent_id"])
-def test_span_preconditions(arg):
-    Span("test", **{arg: None})
-    with pytest.raises(TypeError):
-        Span("test", **{arg: "foo"})
+def test_span_trace_id_preconditions():
+    """Test that trace_id accepts None or generates random value for invalid types.
+
+    trace_id no longer raises TypeError for invalid types.
+    Instead, SpanData.__new__ generates a random ID when extraction fails.
+    """
+    # None is valid - generates random ID
+    span1 = Span("test", trace_id=None)
+    assert isinstance(span1.trace_id, int)
+    assert span1.trace_id > 0
+
+    # Invalid type generates random ID instead of raising
+    span2 = Span("test", trace_id="foo")
+    assert isinstance(span2.trace_id, int)
+    assert span2.trace_id > 0
+
+
+def test_span_parent_id_preconditions():
+    """Test that parent_id with invalid types is silently ignored (defaults to None).
+
+    parent_id no longer raises TypeError for invalid types.
+    Instead, SpanData.__new__ defaults to None when extraction fails.
+    """
+    # None is valid - sets parent_id to None
+    span1 = Span("test", parent_id=None)
+    assert span1.parent_id is None
+
+    # Invalid type silently ignored, defaults to None
+    span2 = Span("test", parent_id="foo")
+    assert span2.parent_id is None
+
+    # Valid int is used
+    span3 = Span("test", parent_id=12345)
+    assert span3.parent_id == 12345
+
+
+def test_span_id_preconditions():
+    """Test that invalid span_id types generate a random ID instead of raising"""
+    # None should generate random ID
+    s1 = Span("test", span_id=None)
+    assert isinstance(s1.span_id, int)
+    assert s1.span_id > 0
+
+    # Invalid type (string) should generate random ID, not raise
+    s2 = Span("test", span_id="foo")
+    assert isinstance(s2.span_id, int)
+    assert s2.span_id > 0
+
+    # Valid int should be used
+    s3 = Span("test", span_id=12345)
+    assert s3.span_id == 12345
 
 
 def test_manual_context_usage():
@@ -1003,11 +806,3 @@ def test_get_traceback_honors_config_traceback_max_size():
     split_result = [s + "\n" for item in split_result for s in item.split("\n") if s]
     assert len(split_result) < 8  # Value is 5 for Python 3.10
     assert len(result) < 410  # Value is 377 for Python 3.10
-
-
-def test_span_repr_metastruct():
-    span = Span("span_test")
-    assert "metastruct={}" in repr(span)
-    span._set_struct_tag("key1", {"a": 1, "b": 2})
-    span._set_struct_tag("key2", ["bad item"])  # type: ignore
-    assert "metastruct={'key1': dict_keys(['a', 'b']), 'key2': 'wrong type [list]'}" in repr(span)

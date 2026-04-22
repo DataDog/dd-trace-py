@@ -1,0 +1,166 @@
+[[
+  {
+    "name": "run",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "run",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b2d61200000000",
+      "component": "mlflow",
+      "language": "python",
+      "mlflow.run_id": "aa305481fa9f4f99a28d5b2551284b94",
+      "runtime-id": "b57bdaf873714211badd15a53687df1f",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 661.0
+    },
+    "duration": 4272718961,
+    "start": 1773327890657524172
+  },
+     {
+       "name": "run.step",
+       "service": "ddtrace_subprocess_dir",
+       "resource": "run.step",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "component": "mlflow",
+         "mlflow.run_id": "aa305481fa9f4f99a28d5b2551284b94",
+         "mlflow.step": "0",
+         "span.kind": "internal"
+       },
+       "duration": 4115998836,
+       "start": 1773327890814133547
+     },
+        {
+          "name": "run",
+          "service": "ddtrace_subprocess_dir",
+          "resource": "run",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "worker",
+          "error": 0,
+          "meta": {
+            "component": "mlflow",
+            "mlflow.run_id": "a824594d58a8441db8143a9929bb7248",
+            "runtime-id": "b57bdaf873714211badd15a53687df1f",
+            "span.kind": "internal"
+          },
+          "metrics": {
+            "_dd.top_level": 1.0,
+            "process_id": 661.0
+          },
+          "duration": 4113831377,
+          "start": 1773327890817679881
+        },
+           {
+             "name": "run.step",
+             "service": "ddtrace_subprocess_dir",
+             "resource": "run.step",
+             "trace_id": 0,
+             "span_id": 5,
+             "parent_id": 3,
+             "type": "worker",
+             "error": 0,
+             "meta": {
+               "component": "mlflow",
+               "mlflow.run_id": "a824594d58a8441db8143a9929bb7248",
+               "mlflow.step": "1",
+               "span.kind": "internal"
+             },
+             "metrics": {
+               "mlflow.metrics.loss_0": 1.0
+             },
+             "duration": 809250792,
+             "start": 1773327890842642172
+           },
+           {
+             "name": "run.step",
+             "service": "ddtrace_subprocess_dir",
+             "resource": "run.step",
+             "trace_id": 0,
+             "span_id": 6,
+             "parent_id": 3,
+             "type": "worker",
+             "error": 0,
+             "meta": {
+               "component": "mlflow",
+               "mlflow.run_id": "a824594d58a8441db8143a9929bb7248",
+               "span.kind": "internal"
+             },
+             "duration": 3278357585,
+             "start": 1773327891653092464
+           },
+        {
+          "name": "run",
+          "service": "ddtrace_subprocess_dir",
+          "resource": "run",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "worker",
+          "error": 0,
+          "meta": {
+            "component": "mlflow",
+            "mlflow.run_id": "f659420bf11a4477ad0c13c3fc05ca37",
+            "runtime-id": "b57bdaf873714211badd15a53687df1f",
+            "span.kind": "internal"
+          },
+          "metrics": {
+            "_dd.top_level": 1.0,
+            "process_id": 661.0
+          },
+          "duration": 2512430002,
+          "start": 1773327892419091006
+        },
+           {
+             "name": "run.step",
+             "service": "ddtrace_subprocess_dir",
+             "resource": "run.step",
+             "trace_id": 0,
+             "span_id": 7,
+             "parent_id": 4,
+             "type": "worker",
+             "error": 0,
+             "meta": {
+               "component": "mlflow",
+               "mlflow.run_id": "f659420bf11a4477ad0c13c3fc05ca37",
+               "mlflow.step": "3",
+               "span.kind": "internal"
+             },
+             "metrics": {
+               "mlflow.metrics.loss_1": 2.0
+             },
+             "duration": 2409815667,
+             "start": 1773327892460310340
+           },
+           {
+             "name": "run.step",
+             "service": "ddtrace_subprocess_dir",
+             "resource": "run.step",
+             "trace_id": 0,
+             "span_id": 8,
+             "parent_id": 4,
+             "type": "worker",
+             "error": 0,
+             "meta": {
+               "component": "mlflow",
+               "mlflow.run_id": "f659420bf11a4477ad0c13c3fc05ca37",
+               "span.kind": "internal"
+             },
+             "duration": 61208834,
+             "start": 1773327894870288299
+           }]]

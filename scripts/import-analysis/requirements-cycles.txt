@@ -1,1 +1,0 @@
-betsy @ git+https://github.com/p403n1x87/betsy.git

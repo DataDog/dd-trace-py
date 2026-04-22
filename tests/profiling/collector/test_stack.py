@@ -35,6 +35,11 @@ GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", Fals
 )
 
 
+def _main_thread_has_native_id() -> bool:
+    """True if main thread has native_id (False for _DummyThread which lacks _native_id)."""
+    return getattr(threading.main_thread(), "native_id", None) is not None
+
+
 def func1() -> None:
     return func2()
 
@@ -86,8 +91,7 @@ def test_collect_truncate() -> None:
     assert len(samples) > 0
     for sample in samples:
         # stack adds one extra frame for "%d frames omitted" message
-        # Also, it allows max_nframes + 1 frames, so we add 2 here.
-        assert len(sample.location_id) <= max_nframes + 2, len(sample.location_id)
+        assert len(sample.location_id) <= max_nframes + 1, len(sample.location_id)
 
 
 def test_stack_locations(tmp_path: Path) -> None:
@@ -119,9 +123,11 @@ def test_stack_locations(tmp_path: Path) -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     expected_sample = pprof_utils.StackEvent(
         thread_id=_thread.get_ident(),
-        thread_name="MainThread",
+        thread_name=expected_thread_name,
         locations=[
             pprof_utils.StackLocation(
                 function_name="baz",
@@ -345,94 +351,6 @@ def test_push_span_none_span_type(tmp_path: Path, tracer: Tracer) -> None:
     )
 
 
-def test_exception_collection(tmp_path: Path) -> None:
-    test_name = "test_exception_collection"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
-
-    with stack.StackCollector():
-        try:
-            raise ValueError("hello")
-        except Exception:
-            time.sleep(1)
-
-    ddup.upload()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
-
-    # DEV: update the test once we have exception profiling for stack v2
-    # using echion
-    assert len(samples) == 0
-
-
-def test_exception_collection_threads(tmp_path: Path) -> None:
-    test_name = "test_exception_collection_threads"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
-
-    with stack.StackCollector():
-
-        def target_fun() -> None:
-            try:
-                raise ValueError("hello")
-            except Exception:
-                time.sleep(1)
-
-        threads = []
-        for _ in range(10):
-            t = threading.Thread(target=target_fun)
-            threads.append(t)
-            t.start()
-
-        for t in threads:
-            t.join()
-
-    ddup.upload()
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
-
-    assert len(samples) == 0
-
-
-def test_exception_collection_trace(tmp_path: Path, tracer: Tracer) -> None:
-    test_name = "test_exception_collection_trace"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    tracer._endpoint_call_counter_span_processor.enable()
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
-
-    with stack.StackCollector(tracer=tracer):
-        with tracer.trace("foobar", resource="resource", span_type=ext.SpanTypes.WEB):
-            try:
-                raise ValueError("hello")
-            except Exception:
-                time.sleep(1)
-
-    ddup.upload(tracer=tracer)
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
-
-    assert len(samples) == 0
-
-
 def test_collect_once_with_class(tmp_path: Path) -> None:
     class SomeClass(object):
         @classmethod
@@ -578,6 +496,7 @@ def test_collect_gevent_thread_task() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import _fib
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
 
     test_name = "test_collect_gevent_thread_task"
     pprof_prefix = "/tmp/" + test_name
@@ -615,11 +534,13 @@ def test_collect_gevent_thread_task() -> None:
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=expected_thread_name,
             task_name=r"Greenlet-\d+$",
             locations=[
                 # Since we're using recursive function _fib(), we expect to have
@@ -645,6 +566,84 @@ def test_collect_gevent_thread_task() -> None:
     )
 
 
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_gevent_task_started_before_profiler",
+    ),
+    err=None,
+)
+def test_collect_gevent_task_started_before_profiler() -> None:
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import os
+    import threading
+    import time
+
+    import gevent
+
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
+
+    should_stop = threading.Event()
+
+    def pre_started_greenlet_task() -> None:
+        # Keep this greenlet alive long enough to be sampled after profiler start.
+        while not should_stop.is_set():
+            start = time.time()
+            while time.time() - start < 0.01:
+                pass
+            gevent.sleep(0)
+
+    # Start a named greenlet before profiler startup (remote-enable scenario).
+    pre_started_greenlet_name = "pre-started-before-profiler"
+    pre_started_greenlet = gevent.spawn(pre_started_greenlet_task)
+    pre_started_greenlet.name = pre_started_greenlet_name
+    gevent.sleep(0.05)
+
+    # Import profiler modules after gevent patching and greenlet creation
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    p = profiler.Profiler()
+    p.start()
+
+    try:
+        gevent.sleep(1.0)
+    finally:
+        should_stop.set()
+        pre_started_greenlet.join(timeout=2)
+        p.stop()
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    assert len(samples) > 0
+
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name=expected_thread_name,
+            task_name=pre_started_greenlet_name,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name=pre_started_greenlet_task.__name__,
+                    filename="test_stack.py",
+                    line_no=-1,
+                )
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
 def test_repr() -> None:
     test_collector._test_repr(
         stack.StackCollector,
@@ -652,7 +651,7 @@ def test_repr() -> None:
     )
 
 
-# Tests from tests/profiling/collector/test_stack.py (v1)
+# Tests from tests/profiling/collector/test_stack.py
 # Function to use for stress-test of polling
 MAX_FN_NUM = 30
 FN_TEMPLATE = """def _f{num}():
@@ -898,6 +897,152 @@ def test_collect_nested_span_id(tmp_path: Path, tracer: Tracer, request: Fixture
         ),
         print_samples_on_failure=True,
     )
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_gevent_greenlet_switch_not_blocked_by_profiler",
+    ),
+    out=None,
+    err=None,
+)
+def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
+    """Verify that profiler sampling does not block greenlet switches as the
+    number of tracked greenlets grows.
+
+    Before the fix, unwind_greenlets() held greenlet_info_map_lock for the
+    entire stack unwinding of ALL tracked greenlets.  Every greenlet switch
+    calls update_greenlet_frame() under the same lock, so more tracked
+    greenlets meant longer lock hold and more switch blocking.
+
+    This test measures greenlet-switch wall time with zero vs many idle
+    tracked greenlets (each with deep stacks) while the profiler samples
+    aggressively.  The ratio (many / zero) isolates lock-contention scaling
+    from general profiler overhead.
+
+    With the fix the lock is only held for a fast snapshot, so the ratio
+    stays close to 1.  Without the fix it grows with N.
+    """
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import time
+
+    import gevent
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    N_ACTIVE = 20
+    SWITCHES = 200
+    N_IDLE_HIGH = 2000
+    STACK_DEPTH = 50
+    MAX_SCALING_RATIO = 3.0
+    MEASURE_TIMEOUT = 30  # generous timeout to prevent CI hangs
+
+    def active_worker() -> None:
+        for _ in range(SWITCHES):
+            gevent.sleep(0)
+
+    def _idle_deep(depth: int) -> None:
+        if depth > 0:
+            _idle_deep(depth - 1)
+        else:
+            gevent.sleep(1000)
+
+    def idle_greenlet() -> None:
+        _idle_deep(STACK_DEPTH)
+
+    def measure(n_idle: int) -> float:
+        idles = [gevent.spawn(idle_greenlet) for _ in range(n_idle)]
+        gevent.sleep(0.1)  # let them start and get tracked
+
+        actives = [gevent.spawn(active_worker) for _ in range(N_ACTIVE)]
+        t0 = time.monotonic()
+        try:
+            gevent.joinall(actives, timeout=MEASURE_TIMEOUT)
+            elapsed = time.monotonic() - t0
+            assert all(g.dead for g in actives), "active workers did not finish within timeout"
+        finally:
+            gevent.killall(actives, timeout=5)
+            gevent.killall(idles, timeout=5)
+            gevent.sleep(0)  # let the hub process kills before next measurement
+        return elapsed
+
+    p = profiler.Profiler()
+    p.start()
+    stack.set_interval(0.005)  # 5ms (minimum allowed) for aggressive sampling
+    stack.set_adaptive_sampling(False)
+    try:
+        measure(0)  # warm up
+        t_low = min(measure(0) for _ in range(3))
+        t_high = min(measure(N_IDLE_HIGH) for _ in range(3))
+    finally:
+        p.stop()
+
+    ratio = t_high / t_low if t_low > 0 else 1.0
+
+    assert ratio < MAX_SCALING_RATIO, (
+        f"Greenlet switch time scaled {ratio:.1f}x when adding {N_IDLE_HIGH} "
+        f"tracked greenlets (low={t_low:.4f}s, high={t_high:.4f}s). "
+        f"This indicates greenlet_info_map_lock contention during sampling."
+    )
+
+
+def test_greenlet_string_table_cleanup_after_ephemeral_clear(tmp_path: Path) -> None:
+    """Verify that tracking/untracking greenlets across 25+ uploads (which triggers
+    ephemeral string table clearing) does not crash or lose greenlet names.
+    """
+    test_name = "test_greenlet_string_table_cleanup_after_ephemeral_clear"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    from ddtrace.internal.datadog.profiling import stack as native_stack
+
+    with stack.StackCollector():
+        # Track a long-lived greenlet that should survive the ephemeral clear
+        long_lived_id = 0xDEAD0001
+        native_stack.track_greenlet(long_lived_id, "long-lived-greenlet", False)
+
+        # Track and untrack short-lived greenlets to exercise erase()
+        for i in range(50):
+            short_id = 0xBEEF0000 + i
+            native_stack.track_greenlet(short_id, f"short-lived-{i}", False)
+            native_stack.untrack_greenlet(short_id)
+
+        # Do 30 uploads to trigger the ephemeral clear (threshold is 25)
+        for _ in range(30):
+            ddup.upload()
+
+        # Track more short-lived greenlets after the clear to make sure the
+        # string table is still functional
+        for i in range(50):
+            short_id = 0xCAFE0000 + i
+            native_stack.track_greenlet(short_id, f"post-clear-{i}", False)
+            native_stack.untrack_greenlet(short_id)
+
+        # Give the sampler a moment to collect a sample with the long-lived greenlet
+        time.sleep(0.1)
+
+        native_stack.untrack_greenlet(long_lived_id)
+
+    # Final upload — if the string table is corrupted this would crash
+    ddup.upload()
+
+    # Verify we got a valid profile (no crash, no corruption)
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    assert len(samples) > 0
 
 
 def test_stress_trace_collection(tracer_and_collector: tuple[Tracer, stack.StackCollector]) -> None:

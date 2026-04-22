@@ -70,7 +70,7 @@ async def _run_redis_command_async(ctx: core.ExecutionContext, func, args, kwarg
             rowcount = determine_row_count(redis_command=redis_command, result=result)
         if redis_command not in ROW_RETURNING_COMMANDS:
             rowcount = None
-        core.dispatch("redis.async_command.post", [ctx, rowcount])
+        core.dispatch("redis.async_command.post", (ctx, rowcount))
 
 
 def _extract_conn_tags(conn_kwargs) -> dict[str, str]:
@@ -89,7 +89,7 @@ def _extract_conn_tags(conn_kwargs) -> dict[str, str]:
         return {}
 
 
-def _build_tags(query, pin, instance, integration_name):
+def _build_tags(query, instance, integration_name):
     ret = dict()
     ret[SPAN_KIND] = SpanKind.CLIENT
     ret[COMPONENT] = integration_name
@@ -97,10 +97,6 @@ def _build_tags(query, pin, instance, integration_name):
     if query is not None:
         span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)  # type: ignore[operator]
         ret[span_name] = query
-    if pin.tags:
-        # PERF: avoid Span.set_tag to avoid unnecessary checks
-        for key, value in pin.tags.items():
-            ret[key] = value
     # some redis clients do not have a connection_pool attribute (ex. aioredis v1.3)
     if hasattr(instance, "connection_pool"):
         for key, value in _extract_conn_tags(instance.connection_pool.connection_kwargs).items():
@@ -109,7 +105,7 @@ def _build_tags(query, pin, instance, integration_name):
 
 
 @contextmanager
-def _instrument_redis_execute_pipeline(pin, config_integration, cmds, instance):
+def _instrument_redis_execute_pipeline(config_integration, cmds, instance):
     cmd_string = resource = "\n".join(cmds)
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
@@ -118,28 +114,28 @@ def _instrument_redis_execute_pipeline(pin, config_integration, cmds, instance):
         "redis.execute_pipeline",
         span_name=schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
         resource=resource,
-        service=trace_utils.ext_service(pin, config_integration),
+        service=trace_utils.ext_service(None, config_integration),
         span_type=SpanTypes.REDIS,
-        pin=pin,
         measured=True,
-        tags=_build_tags(cmd_string, pin, instance, config_integration.integration_name),
+        tags=_build_tags(cmd_string, instance, config_integration.integration_name),
+        integration_config=config_integration,
     ) as ctx:
-        core.dispatch("redis.execute_pipeline", [ctx, pin, config_integration, None, instance, cmd_string])
+        core.dispatch("redis.execute_pipeline", (ctx, config_integration, None, instance, cmd_string))
         yield ctx.span
 
 
 @contextmanager
-def _instrument_redis_cmd(pin, config_integration, instance, args):
+def _instrument_redis_cmd(config_integration, instance, args):
     query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
     with core.context_with_data(
         "redis.command",
         span_name=schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
-        pin=pin,
-        service=trace_utils.ext_service(pin, config_integration),
+        service=trace_utils.ext_service(None, config_integration),
         span_type=SpanTypes.REDIS,
         resource=query.split(" ")[0] if config_integration.resource_only_command else query,
         measured=True,
-        tags=_build_tags(query, pin, instance, config_integration.integration_name),
+        tags=_build_tags(query, instance, config_integration.integration_name),
+        integration_config=config_integration,
     ) as ctx:
-        core.dispatch("redis.execute_pipeline", [ctx, pin, config_integration, args, instance, query])
+        core.dispatch("redis.execute_pipeline", (ctx, config_integration, args, instance, query))
         yield ctx

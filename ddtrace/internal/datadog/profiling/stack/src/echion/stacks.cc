@@ -3,19 +3,30 @@
 #include <echion/echion_sampler.h>
 #include <unordered_set>
 
-#include <echion/echion_sampler.h>
+#include "dd_wrapper/include/profiler_state.hpp"
 
 void
 FrameStack::render(EchionSampler& echion)
 {
     auto& renderer = echion.renderer();
-    for (auto it = this->rbegin(); it != this->rend(); ++it) {
-#if PY_VERSION_HEX >= 0x030c0000
-        if ((*it).get().is_entry)
-            // This is a shim frame so we skip it.
-            continue;
-#endif
-        renderer.render_frame((*it).get());
+    auto& registry = Datadog::ProfilerState::get().native_call_registry;
+
+    for (auto it = this->begin(); it != this->end(); ++it) {
+        auto& frame = *it;
+
+        // Inject native frame BEFORE its Python caller.
+        // sys.monitoring reports instruction offsets in bytes, while the sampler computes
+        // frame.lasti in _Py_CODEUNIT units. Convert to bytes for the registry lookup.
+        if (frame.code_object != 0 && frame.lasti >= 0) {
+            int offset_bytes = frame.lasti * static_cast<int>(sizeof(_Py_CODEUNIT));
+            auto maybe_entry = registry.lookup(frame.code_object, offset_bytes, frame.first_lineno);
+            if (maybe_entry) {
+                auto& entry = maybe_entry->get();
+                renderer.render_native_frame(entry.name, entry.module);
+            }
+        }
+
+        renderer.render_frame(frame);
     }
 }
 
@@ -50,7 +61,7 @@ unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, siz
             continue;
         }
 
-        stack.push_back(*maybe_frame);
+        stack.push_back(maybe_frame->get());
         count++;
 
         if (count >= max_depth) {

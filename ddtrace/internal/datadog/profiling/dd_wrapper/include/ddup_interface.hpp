@@ -13,8 +13,12 @@ class Sample;
 // We avoid including Python.h in this public C++ header because CPython headers
 // use old-style casts and our build treats old-style casts as errors. Keep
 // Python includes in implementation files when full API access is required.
+// NOLINTBEGIN(bugprone-reserved-identifier) -- must match CPython's struct names
 struct _frame;
 typedef struct _frame PyFrameObject;
+struct _traceback;
+typedef struct _traceback PyTracebackObject;
+// NOLINTEND(bugprone-reserved-identifier)
 
 #ifdef __cplusplus
 extern "C"
@@ -43,8 +47,19 @@ extern "C"
     void ddup_cleanup();
     void ddup_set_runtime_id(std::string_view runtime_id);
     void ddup_set_process_id();
-    void ddup_profile_set_endpoints(std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints);
-    void ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts);
+
+    // Pass by value is intentional: the map may be modified concurrently by other threads,
+    // so we take a copy to avoid data races while iterating.
+    void ddup_profile_set_endpoints(
+      // NOLINTNEXTLINE(performance-unnecessary-value-param)
+      std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints);
+
+    // Pass by value is intentional: the map may be modified concurrently by other threads,
+    // so we take a copy to avoid data races while iterating.
+    void ddup_profile_add_endpoint_counts(
+      // NOLINTNEXTLINE(performance-unnecessary-value-param)
+      std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts);
+
     bool ddup_upload();
 
     // Proxy functions to the underlying sample
@@ -69,6 +84,7 @@ extern "C"
     void ddup_push_local_root_span_id(Datadog::Sample* sample, uint64_t local_root_span_id);
     void ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type);
     void ddup_push_exceptioninfo(Datadog::Sample* sample, std::string_view exception_type, int64_t count);
+    void ddup_push_exception_message(Datadog::Sample* sample, std::string_view exception_message);
     void ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name);
     void ddup_push_gpu_device_name(Datadog::Sample*, std::string_view device_name);
     void ddup_push_frame(Datadog::Sample* sample,
@@ -77,6 +93,7 @@ extern "C"
                          uint64_t address,
                          int64_t line);
     void ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame);
+    void ddup_push_pytraceback(Datadog::Sample* sample, PyTracebackObject* tb);
     void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
 

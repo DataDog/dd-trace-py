@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import io
 import os
 from pathlib import Path
 import secrets
@@ -169,6 +170,11 @@ class SharedStringFile:
     @contextmanager
     def lock_shared(self):
         """Context manager to acquire a shared/read lock on the file."""
+        if self.filename is None:
+            # No writable temp dir (e.g. readOnlyRootFilesystem). Yield a dummy
+            # file-like so the context manager always yields and callers get [] from peek.
+            yield io.BytesIO(b"")
+            return
         with open_file(self.filename, "rb") as f, ReadLock(f):
             yield f
 
@@ -176,6 +182,9 @@ class SharedStringFile:
     def lock_exclusive(self):
         """Context manager to acquire an exclusive/write lock on the file."""
         if self.filename is None:
+            # No writable temp dir (e.g. readOnlyRootFilesystem). Yield a dummy
+            # file-like so the context manager always yields and callers run without failing.
+            yield io.BytesIO(b"")
             return
         with open_file(self.filename, "r+b") as f, WriteLock(f):
             yield f

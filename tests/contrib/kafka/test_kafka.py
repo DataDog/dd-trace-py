@@ -8,7 +8,6 @@ import confluent_kafka
 from confluent_kafka import TopicPartition
 import pytest
 
-from ddtrace import config
 from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import patch
@@ -252,11 +251,6 @@ def _generate_in_subprocess(random_topic):
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 
     ddtrace.tracer.configure(trace_processors=[KafkaConsumerPollFilter()])
-    # disable backoff because it makes these tests less reliable
-    if not config._trace_writer_native:
-        ddtrace.tracer._span_aggregator.writer._send_payload_with_backoff = (
-            ddtrace.tracer._span_aggregator.writer._send_payload
-        )
     patch()
 
     producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
@@ -651,19 +645,19 @@ def test_cluster_id_failure_caching(kafka_tracer, kafka_topic):
     result1 = _get_cluster_id(producer_with_bad_address, kafka_topic)
     elapsed_time1 = time.time() - start_time
 
-    assert result1 is None
+    assert result1 == ""
     # Should take approximately 1 second (our timeout)
     assert 0.5 < elapsed_time1 < 2.0, f"First call took {elapsed_time1} seconds, expected ~1 second"
 
     assert hasattr(producer_with_bad_address, "_dd_cluster_id_failure_time")
     assert producer_with_bad_address._dd_cluster_id_failure_time > 0
 
-    # Second call should return None immediately
+    # Second call should return "" immediately
     start_time = time.time()
     result2 = _get_cluster_id(producer_with_bad_address, kafka_topic)
     elapsed_time2 = time.time() - start_time
 
-    assert result2 is None
+    assert result2 == ""
     assert elapsed_time2 < 0.1, f"Second call took {elapsed_time2} seconds, expected < 0.1 seconds"
 
     producer_with_bad_address._dd_cluster_id_failure_time = 0  # Simulate 5 minutes passing
@@ -672,7 +666,7 @@ def test_cluster_id_failure_caching(kafka_tracer, kafka_topic):
     result3 = _get_cluster_id(producer_with_bad_address, kafka_topic)
     elapsed_time3 = time.time() - start_time
 
-    assert result3 is None
+    assert result3 == ""
     # Should timeout again after ~1 second
     assert 0.5 < elapsed_time3 < 2.0, f"Third call took {elapsed_time3} seconds, expected ~1 second"
 

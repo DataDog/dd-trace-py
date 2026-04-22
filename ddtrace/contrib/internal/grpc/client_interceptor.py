@@ -14,6 +14,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc import utils
 from ddtrace.contrib.internal.grpc.utils import is_otlp_export
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -35,8 +36,8 @@ log = get_logger(__name__)
 # https://github.com/grpc/grpc/commit/dd4830eae80143f5b0a9a3a1a024af4cf60e7d02
 
 
-def create_client_interceptor(pin, host, port):
-    return _ClientInterceptor(pin, host, port)
+def create_client_interceptor(host, port):
+    return _ClientInterceptor(host, port)
 
 
 def intercept_channel(wrapped, instance, args, kwargs):
@@ -65,7 +66,7 @@ def _future_done_callback(span):
             # pull out response code from gRPC response to use both for `grpc.status.code`
             # tag and the error type tag if the response is an exception
             response_code = response.code()
-            span._set_tag_str(constants.GRPC_STATUS_CODE_KEY, str(response_code))
+            span._set_attribute(constants.GRPC_STATUS_CODE_KEY, str(response_code))
 
             if response_code != grpc.StatusCode.OK:
                 _handle_error(span, response, response_code)
@@ -102,8 +103,8 @@ def _handle_error(span, response_error, status_code):
         # handle cancelled futures separately to avoid raising grpc.FutureCancelledError
         span.error = 1
         exc_val = str(response_error.details())
-        span._set_tag_str(ERROR_MSG, exc_val)
-        span._set_tag_str(ERROR_TYPE, str(status_code))
+        span._set_attribute(ERROR_MSG, exc_val)
+        span._set_attribute(ERROR_TYPE, str(status_code))
         return
 
     exception = response_error.exception()
@@ -115,9 +116,9 @@ def _handle_error(span, response_error, status_code):
             # handle internal gRPC exceptions separately to get status code and
             # details as tags properly
             exc_val = str(response_error.details())
-            span._set_tag_str(ERROR_MSG, exc_val)
-            span._set_tag_str(ERROR_TYPE, str(status_code))
-            span._set_tag_str(ERROR_STACK, str(traceback))
+            span._set_attribute(ERROR_MSG, exc_val)
+            span._set_attribute(ERROR_TYPE, str(status_code))
+            span._set_attribute(ERROR_STACK, str(traceback))
         else:
             exc_type = type(exception)
             span.set_exc_info(exc_type, exception, traceback)
@@ -187,8 +188,7 @@ class _ClientInterceptor(
     grpc.StreamUnaryClientInterceptor,
     grpc.StreamStreamClientInterceptor,
 ):
-    def __init__(self, pin, host, port):
-        self._pin = pin
+    def __init__(self, host, port):
         self._host = host
         self._port = port
 
@@ -206,26 +206,21 @@ class _ClientInterceptor(
         span = tracer.start_span(
             schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.OUTBOUND),
             span_type=SpanTypes.GRPC,
-            service=trace_utils.ext_service(self._pin, config.grpc),
             resource=client_call_details.method,
             child_of=parent,
         )
+        set_service_and_source(span, trace_utils.ext_service(None, config.grpc), config.grpc)
 
-        span._set_tag_str(COMPONENT, config.grpc.integration_name)
+        span._set_attribute(COMPONENT, config.grpc.integration_name)
 
         # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         utils.set_grpc_method_meta(span, client_call_details.method, method_kind)
         utils.set_grpc_client_meta(span, self._host, self._port)
-        span._set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
-
-        # inject tags from pin
-        if self._pin.tags:
-            span.set_tags(self._pin.tags)
+        span._set_attribute(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
         # propagate distributed tracing headers if available
         headers = {}

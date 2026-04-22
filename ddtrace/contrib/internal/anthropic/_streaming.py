@@ -1,4 +1,3 @@
-import json
 from typing import Any
 
 import anthropic
@@ -8,6 +7,7 @@ from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_load_json
 
 
 log = get_logger(__name__)
@@ -25,7 +25,7 @@ async def _async_text_stream_generator(traced_stream):
             yield chunk.delta.text
 
 
-def handle_streamed_response(integration, resp, args, kwargs, span):
+def handle_streamed_response(integration, resp, args, kwargs, ctx):
     """
     Creates a traced stream with a callback that adds a text_stream attribute
     to the underlying stream object when it is created.
@@ -42,13 +42,15 @@ def handle_streamed_response(integration, resp, args, kwargs, span):
 
     if _is_stream(resp) or _is_stream_manager(resp):
         traced_stream = make_traced_stream(
-            resp, AnthropicStreamHandler(integration, span, args, kwargs), on_stream_created=add_text_stream
+            resp,
+            AnthropicStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx),
+            on_stream_created=add_text_stream,
         )
         return traced_stream
     elif _is_async_stream(resp) or _is_async_stream_manager(resp):
         traced_stream = make_traced_stream(
             resp,
-            AnthropicAsyncStreamHandler(integration, span, args, kwargs),
+            AnthropicAsyncStreamHandler(integration, ctx.span, args, kwargs, ctx=ctx),
             on_stream_created=add_async_text_stream,
         )
         return traced_stream
@@ -56,10 +58,20 @@ def handle_streamed_response(integration, resp, args, kwargs, span):
 
 class BaseAnthropicStreamHandler:
     def finalize_stream(self, exception=None):
-        _process_finished_stream(
-            self.integration, self.primary_span, self.request_args, self.request_kwargs, self.chunks
-        )
-        self.primary_span.finish()
+        """Build the response from chunks, then dispatch the deferred ended event.
+
+        The TracingSubscriber's _on_context_ended will finish the span automatically.
+        """
+        ctx = self.options["ctx"]
+        try:
+            resp_message = _construct_message(self.chunks)
+            ctx.event.response = resp_message
+        except Exception:
+            log.warning("Error processing streamed completion/chat response.", exc_info=True)
+        if exception:
+            ctx.dispatch_ended_event(type(exception), exception, exception.__traceback__)
+        else:
+            ctx.dispatch_ended_event()
 
 
 class AnthropicStreamHandler(BaseAnthropicStreamHandler, StreamHandler):
@@ -70,15 +82,6 @@ class AnthropicStreamHandler(BaseAnthropicStreamHandler, StreamHandler):
 class AnthropicAsyncStreamHandler(BaseAnthropicStreamHandler, AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):
         self.chunks.append(chunk)
-
-
-def _process_finished_stream(integration, span, args, kwargs, streamed_chunks):
-    # builds the response message given streamed chunks and sets according span tags
-    try:
-        resp_message = _construct_message(streamed_chunks)
-        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp_message)
-    except Exception:
-        log.warning("Error processing streamed completion/chat response.", exc_info=True)
 
 
 def _construct_message(streamed_chunks):
@@ -140,39 +143,65 @@ def _on_content_block_start_chunk(chunk, message):
         if chunk_content_block_type == "text":
             chunk_content_block_text = _get_attr(chunk_content_block, "text", "")
             message["content"].append({"type": "text", "text": chunk_content_block_text})
-        elif chunk_content_block_type == "tool_use":
+        elif chunk_content_block_type == "thinking":
+            chunk_content_block_thinking = _get_attr(chunk_content_block, "thinking", "")
+            message["content"].append({"type": "thinking", "thinking": chunk_content_block_thinking})
+        elif "tool_use" in chunk_content_block_type:
             chunk_content_block_name = _get_attr(chunk_content_block, "name", "")
-            message["content"].append({"type": "tool_use", "name": chunk_content_block_name, "input": ""})
+            tool_id = _get_attr(chunk_content_block, "id", "")
+            message["content"].append(
+                {"type": chunk_content_block_type, "name": chunk_content_block_name, "input": "", "id": tool_id}
+            )
+        elif "tool_result" in chunk_content_block_type:
+            chunk_content_block_tool_id = _get_attr(chunk_content_block, "tool_use_id", "")
+            chunk_content_block_tool_result = _get_attr(chunk_content_block, "content", {})
+            message["content"].append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": chunk_content_block_tool_id,
+                    "content": chunk_content_block_tool_result,
+                }
+            )
+        else:  # Handle other generic block types
+            message["content"].append({"type": chunk_content_block_type, "text": "", "input": ""})
     return message
 
 
 def _on_content_block_delta_chunk(chunk, message):
-    # delta events contain new content for the current message.content block
+    """Append new content from delta events to current message.content block."""
+    if not message.get("content"):
+        return message
     delta_block = _get_attr(chunk, "delta", "")
     if delta_block:
-        chunk_content_text = _get_attr(delta_block, "text", "")
-        if chunk_content_text:
-            message["content"][-1]["text"] += chunk_content_text
+        delta_type = _get_attr(delta_block, "type", "")
 
-        chunk_content_json = _get_attr(delta_block, "partial_json", "")
-        if chunk_content_json and _get_attr(delta_block, "type", "") == "input_json_delta":
-            # we have a json content block, most likely a tool input dict
-            message["content"][-1]["input"] += chunk_content_json
+        if delta_type == "thinking_delta":
+            chunk_thinking_text = _get_attr(delta_block, "thinking", "")
+            if chunk_thinking_text:
+                message["content"][-1]["thinking"] += chunk_thinking_text
+        elif delta_type == "signature_delta":
+            # Signature is for internal verification only; skip it.
+            pass
+        elif delta_type == "input_json_delta":
+            chunk_content_json = _get_attr(delta_block, "partial_json", "")
+            if chunk_content_json:
+                message["content"][-1]["input"] += chunk_content_json
+        else:
+            chunk_content_text = _get_attr(delta_block, "text", "")
+            if chunk_content_text:
+                message["content"][-1]["text"] += chunk_content_text
     return message
 
 
 def _on_content_block_stop_chunk(chunk, message):
-    # this is the start to a message.content block (possibly 1 of several content blocks)
-    # Anthropic beta streaming can emit content_block_stop without a corresponding
-    # content_block_start (e.g. empty tool blocks / vendor edge cases). Guard to
-    # avoid IndexError which breaks span construction.
+    """Finalize the current content block, parsing tool_use input JSON into a dict."""
     if not message.get("content"):
         return message
 
     content_type = _get_attr(message["content"][-1], "type", "")
-    if content_type == "tool_use":
+    if "tool_use" in content_type:
         input_json = _get_attr(message["content"][-1], "input", "{}")
-        message["content"][-1]["input"] = json.loads(input_json)
+        message["content"][-1]["input"] = safe_load_json(input_json) if input_json else {}
     return message
 
 
@@ -188,8 +217,11 @@ def _on_message_delta_chunk(chunk, message):
         message_usage = message.get("usage", {"output_tokens": 0, "input_tokens": 0})
         message_usage["output_tokens"] = _get_attr(chunk_usage, "output_tokens", 0)
 
+        input_tokens = _get_attr(chunk_usage, "input_tokens", None)
         cache_creation_tokens = _get_attr(chunk_usage, "cache_creation_input_tokens", None)
         cache_read_tokens = _get_attr(chunk_usage, "cache_read_input_tokens", None)
+        if input_tokens is not None:
+            message_usage["input_tokens"] = input_tokens
         if cache_creation_tokens is not None:
             message_usage["cache_creation_input_tokens"] = cache_creation_tokens
         if cache_read_tokens is not None:

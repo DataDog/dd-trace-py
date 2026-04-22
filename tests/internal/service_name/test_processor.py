@@ -74,3 +74,20 @@ if __name__ == "__main__":
         env=env,
     )
     assert status == 0, (out, err)
+
+
+@pytest.mark.subprocess(
+    parametrize={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": [None, "v0", "v1"]},
+    env={"AWS_LAMBDA_FUNCTION_NAME": "my-lambda-func"},
+)
+def test_base_service_runs_in_lambda():
+    import os
+
+    from ddtrace.constants import _BASE_SERVICE_KEY
+    from ddtrace.internal.schema.processor import BaseServiceProcessor
+    from ddtrace.trace import Span
+
+    processor = BaseServiceProcessor()
+    fake_trace = [Span("op", service="some-other-service", resource="res")]
+    processor.process_trace(fake_trace)
+    assert fake_trace[0].get_tag(_BASE_SERVICE_KEY) == os.environ["AWS_LAMBDA_FUNCTION_NAME"]

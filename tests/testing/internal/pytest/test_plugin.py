@@ -21,11 +21,13 @@ from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
 from ddtrace.testing.internal.pytest.plugin import _get_source_lines
 from ddtrace.testing.internal.pytest.plugin import _get_test_command
 from ddtrace.testing.internal.pytest.plugin import _get_test_location_info
+from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
 from ddtrace.testing.internal.pytest.plugin import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
+from tests.testing.mocks import MockDefaults
 from tests.testing.mocks import TestDataFactory
 from tests.testing.mocks import mock_test
 from tests.testing.mocks import pytest_item_mock
@@ -158,7 +160,7 @@ class TestSkippingAndITRFeatures:
         test_ref = TestDataFactory.create_test_ref("test_module", "test_suite.py", "test_function")
 
         # Create plugin and mock dependencies
-        mock_manager = session_manager_mock().build_mock()
+        mock_manager = session_manager_mock().with_settings(MockDefaults.settings(test_management=True)).build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Create mock test that is disabled but NOT attempt_to_fix
@@ -252,7 +254,7 @@ class TestFinalStatusFeatures:
         mock_manager.is_auto_injected = False
         retry_handler = Mock(spec=AutoTestRetriesHandler)
         retry_handler.should_apply.return_value = True
-        retry_handler.should_retry.side_effect = [True, True, True, False]  # Retry 3 times, then stop
+        retry_handler.should_retry.side_effect = [True, True, True, True, False]  # Initial check, retry 3 times, stop
         retry_handler.get_final_status.return_value = TestStatus.PASS
         retry_handler.get_pretty_name.return_value = "Auto Test Retries"
         retry_handler.set_tags_for_test_run = Mock()
@@ -403,37 +405,47 @@ class TestReportGeneration:
 
         result = plugin.pytest_report_teststatus(mock_report)
 
-        assert result == ("dd_retry", "R", "RETRY FAILED (Auto Test Retries)")
+        assert result == ("rerun", "R", "RETRY FAILED (Auto Test Retries)")
 
-    def test_pytest_report_teststatus_quarantined(self) -> None:
-        """Test report status for quarantined tests in call phase."""
+    @pytest.mark.parametrize("when", ["call", "teardown"])
+    def test_pytest_report_teststatus_quarantined(self, when: str) -> None:
+        """Test report status for quarantined tests: QUARANTINED shown for any phase with wasxfail."""
         mock_manager = session_manager_mock().build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
 
-        # Mock report with quarantined property (call phase)
         mock_report = test_report()
-        mock_report.user_properties = [("dd_quarantined", True)]
-        mock_report.when = "call"
+        mock_report.when = when
+        mock_report.wasxfail = "dd_quarantined"
 
         result = plugin.pytest_report_teststatus(mock_report)
 
-        # In non-teardown phases, quarantined tests return empty strings (no logging)
-        assert result == ("", "", "")
-
-    def test_pytest_report_teststatus_quarantined_teardown(self) -> None:
-        """Test report status for quarantined tests in teardown phase."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        # Mock report with quarantined property (teardown phase)
-        mock_report = test_report()
-        mock_report.user_properties = [("dd_quarantined", True)]
-        mock_report.when = "teardown"
-
-        result = plugin.pytest_report_teststatus(mock_report)
-
-        # In teardown phase, quarantined tests show the quarantined status
         assert result == ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
+
+    def test_pytest_report_teststatus_attempt_to_fix_teardown(self) -> None:
+        """Test report status for attempt-to-fix tests: QUARANTINED shown only on teardown."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_report = test_report()
+        mock_report.when = "teardown"
+        mock_report.user_properties = [("dd_disabled_attempt_to_fix", True)]
+
+        result = plugin.pytest_report_teststatus(mock_report)
+
+        assert result == ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
+
+    def test_pytest_report_teststatus_attempt_to_fix_call(self) -> None:
+        """Test report status for attempt-to-fix tests: suppressed on call phase."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_report = test_report()
+        mock_report.when = "call"
+        mock_report.user_properties = [("dd_disabled_attempt_to_fix", True)]
+
+        result = plugin.pytest_report_teststatus(mock_report)
+
+        assert result == ("", "", "")
 
     def test_pytest_report_teststatus_normal(self) -> None:
         """Test report status for normal tests."""
@@ -627,6 +639,20 @@ class TestHelperFunctions:
 
         result = _get_test_parameters_json(mock_item)
         assert result is None
+
+    def test_get_test_original_name_uses_originalname(self) -> None:
+        mock_item = Mock()
+        mock_item.originalname = "test_example"
+        mock_item.name = "test_example[param]"
+
+        assert _get_test_original_name(mock_item) == "test_example"
+
+    def test_get_test_original_name_falls_back_to_none(self) -> None:
+        mock_item = Mock()
+        mock_item.originalname = None
+        mock_item.name = "test_example[param]"
+
+        assert _get_test_original_name(mock_item) is None
 
     def test_encode_test_parameter_simple(self) -> None:
         """Test _encode_test_parameter with simple values."""
@@ -917,8 +943,8 @@ class TestPrivateMethods:
 
         assert result is None
 
-    def test_mark_quarantined_test_report_as_skipped_call_phase(self) -> None:
-        """Test quarantined test report modification for call phase."""
+    def test_mark_attempt_to_fix_report_as_skipped_call_phase(self) -> None:
+        """Test attempt-to-fix test report modification for call phase."""
         mock_manager = session_manager_mock().build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
 
@@ -926,13 +952,13 @@ class TestPrivateMethods:
         mock_report = test_report()
         mock_report.when = "call"
 
-        plugin._mark_quarantined_test_report_as_skipped(mock_item, mock_report)
+        plugin._mark_attempt_to_fix_report_as_skipped(mock_item, mock_report)
 
         assert mock_report.outcome == "skipped"
-        assert mock_report.longrepr == (str(mock_item.path), 10, "Quarantined")
+        assert mock_report.longrepr == (str(mock_item.path), 10, "Quarantined (Attempt to Fix)")
 
-    def test_mark_quarantined_test_report_as_skipped_teardown_phase(self) -> None:
-        """Test quarantined test report modification for teardown phase."""
+    def test_mark_attempt_to_fix_report_as_skipped_teardown_phase(self) -> None:
+        """Test attempt-to-fix test report modification for teardown phase."""
         mock_manager = session_manager_mock().build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
 
@@ -940,19 +966,19 @@ class TestPrivateMethods:
         mock_report = test_report()
         mock_report.when = "teardown"
 
-        plugin._mark_quarantined_test_report_as_skipped(mock_item, mock_report)
+        plugin._mark_attempt_to_fix_report_as_skipped(mock_item, mock_report)
 
         assert mock_report.outcome == "passed"
 
-    def test_mark_quarantined_test_report_as_skipped_none_report(self) -> None:
-        """Test quarantined test report modification with None report."""
+    def test_mark_attempt_to_fix_report_as_skipped_none_report(self) -> None:
+        """Test attempt-to-fix test report modification with None report."""
         mock_manager = session_manager_mock().build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         mock_item = pytest_item_mock("test_file.py::test_name").build()
 
         # Should not raise exception
-        plugin._mark_quarantined_test_report_as_skipped(mock_item, None)
+        plugin._mark_attempt_to_fix_report_as_skipped(mock_item, None)
 
 
 # =============================================================================
@@ -1053,7 +1079,7 @@ class TestReportAndLoggingMethods:
         result = plugin._mark_test_report_as_retry(reports, mock_handler, "call")
 
         assert result is True
-        assert mock_report.outcome == "dd_retry"
+        assert mock_report.outcome == "rerun"
         expected_properties = [("dd_retry_outcome", "failed"), ("dd_retry_reason", "Test Handler")]
         assert mock_report.user_properties == expected_properties
 
@@ -1086,7 +1112,7 @@ class TestReportAndLoggingMethods:
         plugin._mark_test_reports_as_retry(reports, mock_handler)
 
         # Should only mark call report
-        assert mock_call_report.outcome == "dd_retry"
+        assert mock_call_report.outcome == "rerun"
 
     def test_mark_test_reports_as_retry_setup_fallback(self) -> None:
         """Test _mark_test_reports_as_retry falls back to setup when call missing."""
@@ -1105,14 +1131,14 @@ class TestReportAndLoggingMethods:
         plugin._mark_test_reports_as_retry(reports, mock_handler)
 
         # Should mark setup report
-        assert mock_setup_report.outcome == "dd_retry"
+        assert mock_setup_report.outcome == "rerun"
 
 
-class TestQuarantineHandling:
-    """Test quarantine handling methods."""
+class TestAttemptToFixHandling:
+    """Test attempt-to-fix report handling methods."""
 
-    def test_mark_quarantined_test_report_group_as_skipped_with_call(self) -> None:
-        """Test quarantine group marking when call report exists."""
+    def test_mark_attempt_to_fix_report_group_as_skipped_with_call(self) -> None:
+        """Test ATF group marking when call report exists."""
         mock_manager = session_manager_mock().build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
 
@@ -1127,15 +1153,15 @@ class TestQuarantineHandling:
             "teardown": mock_teardown,
         }
 
-        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, reports)
+        plugin._mark_attempt_to_fix_report_group_as_skipped(mock_item, reports)
 
         # Call should be marked as skipped, others as passed
         assert mock_call.outcome == "skipped"
         assert mock_setup.outcome == "passed"
         assert mock_teardown.outcome == "passed"
 
-    def test_mark_quarantined_test_report_group_as_skipped_no_call(self) -> None:
-        """Test quarantine group marking when call report is missing."""
+    def test_mark_attempt_to_fix_report_group_as_skipped_no_call(self) -> None:
+        """Test ATF group marking when call report is missing."""
         mock_manager = session_manager_mock().build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
 
@@ -1148,7 +1174,7 @@ class TestQuarantineHandling:
             "teardown": mock_teardown,
         }
 
-        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, reports)
+        plugin._mark_attempt_to_fix_report_group_as_skipped(mock_item, reports)
 
         # Setup should be marked as skipped, teardown as passed
         assert mock_setup.outcome == "skipped"

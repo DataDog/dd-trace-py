@@ -36,7 +36,6 @@ The suite schema is as follows:
 
 ```yaml
   suite_name:
-    runner: # The test runner (riot | hatch)
     skip: # Skip the suite, even when needed
     env: # Environment variables to pass to the runner
     parallelism: # The parallel degree of the job
@@ -52,7 +51,6 @@ For example
 ```yaml
 suites:
   profile:
-    runner: riot
     env:
       DD_TRACE_AGENT_URL: ''
     parallelism: 20

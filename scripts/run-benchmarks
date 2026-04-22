@@ -1,0 +1,360 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.8"
+# dependencies = [
+#     "ruamel.yaml>=0.17.21",
+# ]
+# ///
+"""Benchmark runner script for dd-trace-py.
+
+This script helps developers run the appropriate benchmark scenarios based on
+changed files. It maps source files to their corresponding benchmark suites
+and provides control over which scenarios to run.
+
+Usage:
+  # Discover benchmarks relevant to changed files
+  scripts/run-benchmarks --list
+
+  # Discover benchmarks relevant to specific files
+  scripts/run-benchmarks --list ddtrace/_trace/span.py
+
+  # Show all available benchmark suites
+  scripts/run-benchmarks --list --all-suites
+
+  # Dry-run a specific scenario
+  scripts/run-benchmarks --dry-run --scenario span
+
+  # Run a specific scenario (compares latest PyPI ddtrace vs local)
+  scripts/run-benchmarks --scenario span
+
+  # Run with specific configs only (faster iteration)
+  scripts/run-benchmarks --scenario span --configs start,start-finish
+
+  # Run with explicit baseline and candidate versions
+  scripts/run-benchmarks --scenario span --baseline ddtrace==2.8.0 --candidate .
+"""
+
+import argparse
+import fnmatch
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import uuid
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "tests"))
+
+from tests.suitespec import get_patterns  # noqa: E402
+from tests.suitespec import get_suites  # noqa: E402
+
+BENCHMARK_SUITE_PREFIX = "benchmarks::"
+
+
+class BenchmarkRunner:
+    def __init__(self):
+        self.root = ROOT
+
+    @staticmethod
+    def check_docker():
+        """Exit early with a clear message if Docker is not available."""
+        try:
+            subprocess.run(["docker", "info"], capture_output=True, check=True, timeout=10)
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            print("Error: Docker is not running or not installed. Start Docker Desktop and retry.", file=sys.stderr)
+            sys.exit(1)
+
+    def _run_git_command(self, cmd: list) -> set:
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.root)
+        return set(result.stdout.strip().split("\n")) if result.stdout.strip() else set()
+
+    def get_git_changed_files(self, base_ref: str = "HEAD") -> set:
+        """Get files changed in git since base_ref."""
+        if base_ref == "HEAD":
+            staged = self._run_git_command(["git", "diff", "--cached", "--name-only"])
+            unstaged = self._run_git_command(["git", "diff", "--name-only"])
+            untracked = self._run_git_command(["git", "ls-files", "--others", "--exclude-standard"])
+            return staged | unstaged | untracked
+        else:
+            return self._run_git_command(["git", "diff", "--name-only", base_ref])
+
+    def find_matching_suites(self, files: set) -> dict:
+        """Find benchmark suites matching the given files.
+
+        Only returns suites from benchmarks/suitespec.yml (prefixed benchmarks::).
+        """
+        all_suites = get_suites()
+        matching = {}
+
+        # Expand directories to include wildcard patterns
+        expanded_files = set()
+        for file_path in files:
+            expanded_files.add(file_path)
+            path_obj = self.root / file_path.rstrip("/")
+            if path_obj.is_dir():
+                base = file_path.rstrip("/")
+                expanded_files.add(f"{base}/*")
+                expanded_files.add(f"{base}/**/*")
+
+        for suite_name, suite_config in all_suites.items():
+            if not suite_name.startswith(BENCHMARK_SUITE_PREFIX):
+                continue
+
+            try:
+                patterns = get_patterns(suite_name)
+                if not patterns:
+                    continue
+
+                matches = []
+                for pattern in patterns:
+                    matches.extend(fnmatch.filter(expanded_files, pattern))
+
+                if matches:
+                    scenario = suite_name[len(BENCHMARK_SUITE_PREFIX):]
+                    matching[scenario] = suite_config.copy()
+                    matching[scenario]["matched_files"] = matches
+                    matching[scenario]["suite_name"] = suite_name
+
+            except Exception as e:
+                print(f"Warning: Error processing suite {suite_name}: {e}")
+
+        return matching
+
+    def get_all_benchmark_suites(self) -> dict:
+        """Get all benchmark suites, stripping the benchmarks:: prefix."""
+        all_suites = get_suites()
+        result = {}
+        for suite_name, suite_config in all_suites.items():
+            if suite_name.startswith(BENCHMARK_SUITE_PREFIX):
+                scenario = suite_name[len(BENCHMARK_SUITE_PREFIX):]
+                result[scenario] = suite_config.copy()
+                result[scenario]["suite_name"] = suite_name
+        return result
+
+    def get_scenario_configs(self, scenario: str) -> dict:
+        """Read config.yaml for a scenario and return variant names."""
+        from ruamel.yaml import YAML
+
+        config_path = self.root / "benchmarks" / scenario / "config.yaml"
+        if not config_path.exists():
+            return {}
+        with YAML() as yaml:
+            return yaml.load(config_path) or {}
+
+    def output_suites_json(self, matching_suites: dict) -> None:
+        """Output matching suites as JSON for AI agent consumption."""
+        suites_data = []
+        for scenario, suite_config in matching_suites.items():
+            configs = self.get_scenario_configs(scenario)
+            suites_data.append(
+                {
+                    "scenario": scenario,
+                    "matched_files": suite_config.get("matched_files", []),
+                    "cpus_per_run": suite_config.get("cpus_per_run", 1),
+                    "configs": list(configs.keys()),
+                }
+            )
+        print(json.dumps({"suites": suites_data}, indent=2))
+
+    def run_scenario(
+        self,
+        scenario: str,
+        baseline: str,
+        candidate: str,
+        run_id: str,
+        configs: str = "",
+        artifacts: str = "",
+        dry_run: bool = False,
+        profile: bool = False,
+    ) -> bool:
+        """Run a benchmark scenario by wrapping scripts/perf-run-scenario."""
+        cmd = [str(self.root / "scripts" / "perf-run-scenario"), scenario, baseline, candidate]
+
+        if configs:
+            cmd += ["--configs", configs]
+
+        if artifacts:
+            cmd += ["--artifacts", artifacts]
+
+        cmd += ["--run-id", run_id]
+
+        env = os.environ.copy()
+        if profile:
+            env["PROFILE_BENCHMARKS"] = "1"
+
+        print(f"\nRunning benchmark: {scenario}")
+        print(f"  Baseline:  {baseline}")
+        print(f"  Candidate: {candidate}")
+        print(f"  Run ID:    {run_id}")
+        if configs:
+            print(f"  Configs:   {configs}")
+        if profile:
+            print(f"  Profiling: enabled (viztracer)")
+        print(f"  Command:   {' '.join(cmd)}")
+
+        if dry_run:
+            print("  (dry-run: not executing)")
+            return True
+
+        result = subprocess.run(cmd, env=env)
+        return result.returncode == 0
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Run benchmark scenarios based on changed files",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Show benchmarks relevant to local changes
+  scripts/run-benchmarks --list
+
+  # Show benchmarks relevant to specific files
+  scripts/run-benchmarks --list ddtrace/_trace/span.py ddtrace/internal/core/__init__.py
+
+  # Show all available benchmark suites
+  scripts/run-benchmarks --list --all-suites
+
+  # Dry-run: see what would be executed for a scenario
+  scripts/run-benchmarks --dry-run --scenario span
+
+  # Run span benchmark (latest PyPI vs local)
+  scripts/run-benchmarks --scenario span
+
+  # Run multiple scenarios under the same run ID (single artifacts directory)
+  scripts/run-benchmarks --scenario span --scenario tracer
+
+  # Run span benchmark with only two configs (faster iteration)
+  # Note: --configs applies to all scenarios; pick configs valid for each scenario you're running
+  scripts/run-benchmarks --scenario span --configs start,start-finish
+
+  # Run with an explicit baseline version
+  scripts/run-benchmarks --scenario span --baseline ddtrace==2.8.4
+
+  # Add a scenario to a previous run (reuse its run ID)
+  scripts/run-benchmarks --scenario tracer --run-id <previous-run-id>
+
+  # Run flask benchmark with artifacts saved
+  scripts/run-benchmarks --scenario flask_simple --artifacts ./my-results/
+        """,
+    )
+
+    parser.add_argument("files", nargs="*", help="Specific files to check (default: git changes)")
+    parser.add_argument(
+        "--git-base", default="HEAD", help="Git ref to compare against (default: HEAD for local changes)"
+    )
+    parser.add_argument("--list", action="store_true", help="Output JSON with matching suites (for AI agents)")
+    parser.add_argument("--all-suites", action="store_true", help="Show all benchmark suites regardless of file changes")
+    parser.add_argument(
+        "--scenario",
+        action="append",
+        dest="scenarios",
+        metavar="SCENARIO",
+        help="Benchmark scenario to run (repeatable: --scenario span --scenario tracer)",
+    )
+    parser.add_argument(
+        "--run-id",
+        default=None,
+        help="Reuse an existing run ID to add scenarios to a previous run's artifact directory. "
+             "Defaults to a new UUID per invocation.",
+    )
+    parser.add_argument(
+        "--baseline",
+        default="ddtrace",
+        help="Baseline ddtrace version (default: 'ddtrace' = latest PyPI). "
+        "Formats: 'ddtrace==2.8.4', 'Datadog/dd-trace-py@v2.8.4', '.' for local",
+    )
+    parser.add_argument(
+        "--candidate",
+        default=".",
+        help="Candidate ddtrace version to test (default: '.' = local source)",
+    )
+    parser.add_argument("--configs", default="", help="Comma-separated list of config variants to run (default: all)")
+    parser.add_argument("--artifacts", default="./benchmark-artifacts/", help="Directory to save benchmark artifacts (default: ./benchmark-artifacts/)")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would run without executing")
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="Collect viztracer profiling data (saved to artifacts/<run-id>/<scenario>/*/viztracer/)",
+    )
+
+    args = parser.parse_args()
+
+    runner = BenchmarkRunner()
+
+    # Determine the set of matching suites
+    if args.all_suites:
+        matching_suites = runner.get_all_benchmark_suites()
+        if not args.list:
+            print(f"Showing all {len(matching_suites)} benchmark suites")
+    elif args.scenarios and not args.list:
+        # Direct scenario execution — skip suite discovery
+        runner.check_docker()
+        run_id = args.run_id or str(uuid.uuid4())
+        print(f"Run ID: {run_id}", file=sys.stderr)
+        all_ok = True
+        for scenario in args.scenarios:
+            success = runner.run_scenario(
+                scenario=scenario,
+                baseline=args.baseline,
+                candidate=args.candidate,
+                run_id=run_id,
+                configs=args.configs,
+                artifacts=args.artifacts,
+                dry_run=args.dry_run,
+                profile=args.profile,
+            )
+            if not success:
+                all_ok = False
+        return 0 if all_ok else 1
+    elif args.files:
+        files = set(args.files)
+        print(f"Checking {len(files)} file(s): {', '.join(sorted(files)[:5])}", file=sys.stderr)
+        if len(files) > 5:
+            print(f"    ... and {len(files) - 5} more", file=sys.stderr)
+        matching_suites = runner.find_matching_suites(files)
+    else:
+        files = runner.get_git_changed_files(args.git_base)
+        if not files:
+            print("No changed files found. Use --all-suites to see all benchmark suites.", file=sys.stderr)
+            return 0
+        print(f"Found {len(files)} changed file(s): {', '.join(sorted(files)[:5])}", file=sys.stderr)
+        if len(files) > 5:
+            print(f"    ... and {len(files) - 5} more", file=sys.stderr)
+        matching_suites = runner.find_matching_suites(files)
+
+    if not matching_suites:
+        print("No benchmark suites match the given files.", file=sys.stderr)
+        print("Use --all-suites to see all available suites.", file=sys.stderr)
+        return 0
+
+    # --list: output JSON for AI agents
+    if args.list:
+        runner.output_suites_json(matching_suites)
+        return 0
+
+    # Without --scenario, show matches and prompt
+    print(f"\nMatching benchmark suites ({len(matching_suites)}):")
+    for scenario in sorted(matching_suites):
+        configs = runner.get_scenario_configs(scenario)
+        print(f"  {scenario}  ({len(configs)} configs: {', '.join(list(configs.keys())[:4])}{'...' if len(configs) > 4 else ''})")
+
+    if len(matching_suites) > 5:
+        print(
+            f"\nWarning: {len(matching_suites)} suites matched (likely broad core/tracing change)."
+        )
+        print("Use --scenario <name> to run a specific one, or --list for JSON output.")
+    else:
+        print("\nUse --scenario <name> to run one of these, or --list for JSON output.")
+        first = next(iter(sorted(matching_suites)))
+        print(f"Example: scripts/run-benchmarks --scenario {first}")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

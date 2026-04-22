@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    pymongo: Add a new configuration option called ``DD_TRACE_MONGODB_OBFUSCATION`` to allow the ``mongodb.query`` to be obfuscated or not. Resource names always remain normalized regardless of the value. To preserve raw ``mongodb.query`` values, pair with ``DD_APM_OBFUSCATION_MONGODB_ENABLED=false`` on the Datadog Agent. See Datadog trace obfuscation docs: `Trace obfuscation <https://docs.datadoghq.com/tracing/configure_data_security/?tab=mongodb#trace-obfuscation>`_.

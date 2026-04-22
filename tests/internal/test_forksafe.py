@@ -1,12 +1,16 @@
 from collections import Counter
-import os
 
 import pytest
 
 from ddtrace.internal import forksafe
 
 
+@pytest.mark.subprocess()
 def test_forksafe():
+    import os
+
+    from ddtrace.internal import forksafe
+
     state = []
 
     @forksafe.register
@@ -30,6 +34,7 @@ def test_forksafe():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess()
 def test_registry():
     """This verifies that registered hooks are called after a fork.
 
@@ -38,6 +43,10 @@ def test_registry():
 
     The original state is checked to be unmodified in the parent after the fork.
     """
+    import os
+
+    from ddtrace.internal import forksafe
+
     state = ["initial"]
 
     @forksafe.register
@@ -73,7 +82,12 @@ def test_registry():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess()
 def test_duplicates():
+    import os
+
+    from ddtrace.internal import forksafe
+
     state = []
 
     @forksafe.register
@@ -103,7 +117,12 @@ def test_duplicates():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess()
 def test_method_usage():
+    import os
+
+    from ddtrace.internal import forksafe
+
     class A:
         def __init__(self):
             self.state = 0
@@ -129,7 +148,12 @@ def test_method_usage():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess(err=None)
 def test_hook_exception():
+    import os
+
+    from ddtrace.internal import forksafe
+
     state = []
 
     @forksafe.register
@@ -177,11 +201,16 @@ def test_event_basic():
     event.clear()
 
 
+@pytest.mark.subprocess()
 def test_event_fork():
     """Check that a forksafe.Event is reset after a fork().
 
     This test fails with a regular threading.Event.
     """
+    import os
+
+    from ddtrace.internal import forksafe
+
     event = forksafe.Event()
     event.set()
 
@@ -199,7 +228,12 @@ def test_event_fork():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess()
 def test_double_fork():
+    import os
+
+    from ddtrace.internal import forksafe
+
     state = []
 
     @forksafe.register
@@ -253,15 +287,17 @@ def test_gevent_gunicorn_behaviour():
         def __init__(self):
             super(TestService, self).__init__(interval=0.1)
             self._has_run = False
+            self._pid = os.getpid()
 
         def reset(self):
             self._has_run = False
 
         def periodic(self):
-            if not self._has_run:
+            if not self._has_run or self._pid != os.getpid():
                 sys.stdout.write("T")
                 sys.stdout.flush()
                 self._has_run = True
+                self._pid = os.getpid()
 
     service = TestService()
     service.start()

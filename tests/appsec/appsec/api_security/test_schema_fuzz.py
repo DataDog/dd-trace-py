@@ -2,15 +2,14 @@ from hypothesis import given
 from hypothesis import strategies as st
 import pytest
 
-from ddtrace.appsec import _metrics
 import ddtrace.appsec._constants as constants
-import ddtrace.appsec._ddwaf as ddwaf
+from ddtrace.appsec._ddwaf import DDWaf
 
 
 def build_schema(obj):
     with open(constants.DEFAULT.RULES, "br") as f_apisec:
         rules = f_apisec.read()
-    waf = ddwaf.DDWaf(rules, b"", b"", _metrics)
+    waf = DDWaf(rules, b"", b"")
     ctx = waf._at_request_start()
     if ctx is None:
         raise RuntimeError("Failed to create WAF context")

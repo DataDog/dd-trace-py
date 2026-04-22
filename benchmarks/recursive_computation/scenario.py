@@ -43,22 +43,22 @@ class RecursiveComputation(bm.Scenario):
                 result = self.cpu_intensive_computation(depth)
                 compute_time = time.time() - start_time
 
-                span.set_metric("computation.time_ms", compute_time * 1000)
-                span.set_metric("computation.result", result)
+                span.set_tag("computation.time_ms", compute_time * 1000)
+                span.set_tag("computation.result", result)
             else:
                 result = depth
-                span.set_metric("computation.time_ms", 0)
-                span.set_metric("computation.result", result)
+                span.set_tag("computation.time_ms", 0)
+                span.set_tag("computation.result", result)
 
             if depth < self.max_depth:
                 child_result = self.recursive_traced_computation(depth + 1)
-                span.set_metric("child.result", child_result)
+                span.set_tag("child.result", child_result)
                 result += child_result
             elif self.enable_sleep:
                 span.set_tag("action", "sleep_at_max_depth")
                 time.sleep(self.sleep_duration)
 
-            span.set_metric("final.result", result)
+            span.set_tag("final.result", result)
             return result
 
     def run(self) -> Generator[Callable[[int], None], None, None]:

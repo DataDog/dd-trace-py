@@ -1,0 +1,27 @@
+id: span-set-metric-measured
+snapshots:
+  ? |
+    s = tracer.trace("op")
+    s.set_metric(_SPAN_MEASURED_KEY, 1)
+  : fixed: |
+      s = tracer.trace("op")
+      s._set_attribute(_SPAN_MEASURED_KEY, 1)
+    labels:
+    - source: s.set_metric(_SPAN_MEASURED_KEY, 1)
+      style: primary
+      start: 23
+      end: 58
+  span.set_metric(_SPAN_MEASURED_KEY, 0):
+    fixed: span._set_attribute(_SPAN_MEASURED_KEY, 0)
+    labels:
+    - source: span.set_metric(_SPAN_MEASURED_KEY, 0)
+      style: primary
+      start: 0
+      end: 38
+  span.set_metric(_SPAN_MEASURED_KEY, 1):
+    fixed: span._set_attribute(_SPAN_MEASURED_KEY, 1)
+    labels:
+    - source: span.set_metric(_SPAN_MEASURED_KEY, 1)
+      style: primary
+      start: 0
+      end: 38

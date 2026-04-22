@@ -1,0 +1,18 @@
+id: os-environ-fix-getenv
+message: Use ddtrace.internal.settings.env instead of os.getenv
+severity: error
+language: python
+files:
+  - "ddtrace/**"
+ignores:
+  - "ddtrace/internal/settings/env.py"
+  - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
+  - "ddtrace/vendor/**"
+  - "ddtrace/testing/**"
+rule:
+  pattern: os.getenv($$$ARGS)
+fix: env.get($$$ARGS)
+note: |
+  Replace `os.getenv(...)` with `env.get(...)` from `ddtrace.internal.settings.env`.
+  After applying fix, add the import manually:
+    from ddtrace.internal.settings import env

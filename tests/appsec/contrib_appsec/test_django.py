@@ -10,7 +10,9 @@ from tests.appsec.contrib_appsec import utils
 from tests.utils import scoped_tracer
 
 
-class Test_Django(utils.Contrib_TestClass_For_Threats):
+class _Test_Django_Base:
+    """Django-specific interface, response accessors, and argument parsing."""
+
     @pytest.fixture
     def interface(self, printer):
         os.environ["DJANGO_SETTINGS_MODULE"] = "tests.appsec.contrib_appsec.django_app.settings"
@@ -80,3 +82,32 @@ class Test_Django(utils.Contrib_TestClass_For_Threats):
 
     def location(self, response):
         return response["location"]
+
+
+class Test_Django(_Test_Django_Base, utils.Contrib_TestClass_For_Threats):
+    ENDPOINT_DISCOVERY_EXPECTED_PATHS = {
+        "^$",
+        "asm/<int:param_int>/<str:param_str>",
+        "^asm/?$",
+        "new_service/<str:service_name>",
+        "login",
+        "login_sdk",
+        "rasp/<str:endpoint>",
+    }
+
+    @staticmethod
+    def endpoint_path_to_uri(path: str) -> str:
+        import re
+
+        # Django regex-style routes: ^asm/?$ → /asm
+        if re.match(r"^\^.*\$$", path):
+            path = path[1:-1]
+        if path.endswith("/?"):
+            path = path[:-2]
+        path = re.sub(r"<int:[a-z_]+>", "123", path)
+        path = re.sub(r"<str:[a-z_]+>", "abczx", path)
+        return path if path.startswith("/") else ("/" + path)
+
+
+class Test_Django_RC(_Test_Django_Base, utils.Contrib_TestClass_For_Threats_RC):
+    pass

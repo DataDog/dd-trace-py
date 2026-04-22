@@ -58,6 +58,14 @@ def _patch_env_for_testing():
             return_value=TestVisibilityAPISettings(),
         ),
         mock.patch("ddtrace.config._ci_visibility_agentless_enabled", True),
+        # AIDEV-NOTE: In xdist workers, DEFAULT_SPAN_SERVICE_NAME is set at module-import
+        # time (span_attribute_schema.py) from _DD_PYTEST_XDIST_INFERRED_SERVICE (e.g.
+        # "tests.ci_visibility"). That frozen value leaks into Config() built here, causing
+        # Config.service to be "tests.ci_visibility" even after env is cleared, which then
+        # propagates to CIVisibility._instance._api_client._service instead of the expected
+        # "dd-test-py" (derived from the mocked git repository URL).  Patching it to None
+        # removes the fallback so the URL-based extraction path is taken instead.
+        mock.patch("ddtrace.internal.settings._config.DEFAULT_SPAN_SERVICE_NAME", None),
     ):
         # Rebuild the config (yes, this is horrible)
         new_ddconfig = Config()

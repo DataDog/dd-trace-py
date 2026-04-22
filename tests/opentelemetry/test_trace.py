@@ -20,8 +20,18 @@ def test_otel_start_span_record_exception(oteltracer):
     # Avoid mocking time_ns when Span is created. This is a workaround to resolve a rate limit bug.
     raised_span = oteltracer.start_span("test-raised-exception")
     with pytest.raises(Exception, match="Sorry Otel Span, I failed you"):
-        # Ensures that the exception is recorded with the consistent timestamp for snapshot testing
-        with mock.patch("ddtrace._trace.span.Time.time_ns", return_value=1716560261227739000):
+        # Mock _add_event (Python-level) to inject a static timestamp when none is provided.
+        # wall_clock_ns() is in Rust and cannot be reached via mock.patch on Time.time_ns.
+        from ddtrace._trace.span import Span as DDSpan
+
+        _original_add_event = DDSpan._add_event
+
+        def _add_event_with_fixed_ts(self, name, attributes=None, time_unix_nano=None):
+            if time_unix_nano is None:
+                time_unix_nano = 1716560261227739000
+            return _original_add_event(self, name, attributes, time_unix_nano)
+
+        with mock.patch.object(DDSpan, "_add_event", _add_event_with_fixed_ts):
             with raised_span:
                 raised_span.record_exception(ValueError("Invalid Operation 1"))
                 raise Exception("Sorry Otel Span, I failed you")
@@ -86,15 +96,17 @@ def test_otel_start_span_with_span_links(oteltracer):
             pass
 
         # assert that span3 has the expected links
+        # DEV: link attributes are stored as strings (pre-encoding to wire format)
         ddspan3 = span3._ddspan
-        for span_context, attributes in ((span1_context, attributes1), (span2_context, attributes2)):
-            [link, *others] = [link for link in ddspan3._links if link.span_id == span_context.span_id]
+        expected_attrs = [{"attr1": "1", "link.name": "moon"}, {"attr2": "2", "link.name": "tree"}]
+        for span_context, expected in zip((span1_context, span2_context), expected_attrs):
+            [link, *others] = [link for link in ddspan3._get_links() if link.span_id == span_context.span_id]
             assert not others
             assert link.trace_id == span_context.trace_id
             assert link.span_id == span_context.span_id
             assert link.tracestate == span_context.trace_state.to_header()
             assert link.flags == span_context.trace_flags
-            assert link.attributes == attributes
+            assert link.attributes == expected
     finally:
         span1.end()
         span2.end()

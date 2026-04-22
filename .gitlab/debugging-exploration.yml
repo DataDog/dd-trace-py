@@ -1,0 +1,113 @@
+# Debugger exploration (boto3/botocore) — parent pipeline, tests stage.
+# Previously appended to tests-gen.yml (child of run-tests-trigger); lives here so
+# needs: build linux artifacts match .gitlab/multi-os-tests.yml (no pipeline: ref).
+#
+# GitLab pairs each parallel job instance with the Nth row of needs.parallel.matrix (same N).
+# Two jobs (boto3 vs botocore) each have 6 Python versions → each needs only 6 build-linux rows.
+#
+# RELEASE_ALLOW_TEST_FAILURES: these jobs are in the parent pipeline and no longer inherit
+# allow_failure from run-tests-trigger. The condition is replicated here via rules so that
+# release/hotfix pipelines can still tolerate exploration failures.
+
+# YAML anchor — shared changes list used by both concrete jobs.
+.exploration_changes: &exploration_changes
+  - .gitlab/debugging-exploration.yml
+  - ddtrace/debugging/**/*
+  - ddtrace/internal/bytecode_injection/__init__.py
+  - ddtrace/internal/wrapping/context.py
+  - tests/debugging/exploration/**/*
+
+".exploration_needs_build_linux_amd64":
+  needs:
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp39-cp39"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp310-cp310"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp311-cp311"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp312-cp312"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp313-cp313"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp314-cp314"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+
+".debugging/exploration":
+  stage: tests
+  extends: .testrunner
+  timeout: 30m
+  variables:
+    DD_DEBUGGER_EXPL_OUTPUT_FILE: "${CI_PROJECT_DIR}/debugger-expl.txt"
+    DD_DEBUGGER_EXPL_STATUS_MESSAGES: 1
+    PYTEST_PLUGINS: "exploration"
+    PYTHONPATH: "${CI_PROJECT_DIR}/tests/debugging/exploration/pytest"
+  before_script:
+    - !reference [.testrunner, before_script]
+    # Install only the wheel matching the running Python version. All 6 per-version
+    # wheels land in pywheels/ because needs: downloads all parallel artifact sets;
+    # a bare ddtrace-*.whl glob would make pip error on the incompatible ones.
+    - PY_TAG="cp$(echo "${PYTHON_VERSION}" | tr -d '.')" && python${PYTHON_VERSION} -m pip install "${CI_PROJECT_DIR}"/pywheels/ddtrace-*-${PY_TAG}-${PY_TAG}-*.whl
+  after_script:
+    - '[ -f "${DD_DEBUGGER_EXPL_OUTPUT_FILE}" ] && cat "${DD_DEBUGGER_EXPL_OUTPUT_FILE}" || echo "No output file at ${DD_DEBUGGER_EXPL_OUTPUT_FILE}"'
+  artifacts:
+    paths:
+      - ${DD_DEBUGGER_EXPL_OUTPUT_FILE}
+
+"debugging/exploration/boto3":
+  extends:
+    - ".debugging/exploration"
+    - ".exploration_needs_build_linux_amd64"
+  rules:
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      changes: *exploration_changes
+      allow_failure: true
+    - changes: *exploration_changes
+    - when: never
+  variables:
+    BOTO3_TAG: "1.38.44"
+    DD_DEBUGGER_EXPL_INCLUDE: "boto3"
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+  script: |
+    git clone --depth 1 --branch ${BOTO3_TAG} https://github.com/boto/boto3.git
+    cd boto3
+    python${PYTHON_VERSION} scripts/ci/install
+    python${PYTHON_VERSION} scripts/ci/run-tests --test-runner 'pytest -svv -W error -W "ignore::dateutil.parser._parser.UnknownTimezoneWarning" -W "ignore::DeprecationWarning" -k "not test_documentation"'
+
+"debugging/exploration/botocore":
+  extends:
+    - ".debugging/exploration"
+    - ".exploration_needs_build_linux_amd64"
+  rules:
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      changes: *exploration_changes
+      allow_failure: true
+    - changes: *exploration_changes
+    - when: never
+  variables:
+    BOTO3_TAG: "1.38.44"
+    DD_DEBUGGER_EXPL_INCLUDE: "botocore"
+    DD_DEBUGGER_EXPL_CAPTURE: "0"
+    DD_DEBUGGER_EXPL_PROFILER_DELETE_FUNCTION_PROBES: "1"
+    DD_DEBUGGER_EXPL_PROFILER_INSTRUMENTATION_RATE: "0.01"
+    DD_DEBUGGER_EXPL_COVERAGE_DELETE_LINE_PROBES: "1"
+    DD_DEBUGGER_EXPL_COVERAGE_INSTRUMENTATION_RATE: "0.01"
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+  script: |
+    git clone --depth 1 --branch ${BOTO3_TAG} https://github.com/boto/boto3.git
+    cd boto3
+    python${PYTHON_VERSION} scripts/ci/install
+    python${PYTHON_VERSION} scripts/ci/run-tests --test-runner 'pytest -svv -W error -W "ignore::dateutil.parser._parser.UnknownTimezoneWarning" -W "ignore::DeprecationWarning" -k "not test_documentation"'

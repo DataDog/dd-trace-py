@@ -3,6 +3,7 @@
 Common tests to aspects, like ensuring that they don't break when receiving extra arguments.
 """
 
+import importlib
 import os
 
 import pytest
@@ -14,7 +15,7 @@ from tests.appsec.iast.iast_utils import iast_hypothesis_test
 
 def generate_callers_from_callees(callees_module, callers_file="", callees_module_str=""):
     """
-    Generate a callers module from a callees module, calling all it's functions.
+    Generate a callers module from a callees module, calling all its functions.
     """
     module_functions = [x for x in dir(callees_module) if not x.startswith(("_", "@"))]
 
@@ -34,8 +35,9 @@ def callee_{function}_direct(*args, **kwargs):
             )
 
 
-PATCHED_CALLERS_FILE = "tests/appsec/iast/fixtures/aspects/callers.py"
-UNPATCHED_CALLERS_FILE = "tests/appsec/iast/fixtures/aspects/unpatched_callers.py"
+_pid = os.getpid()
+PATCHED_CALLERS_FILE = f"tests/appsec/iast/fixtures/aspects/callers_{_pid}_common.py"
+UNPATCHED_CALLERS_FILE = f"tests/appsec/iast/fixtures/aspects/unpatched_callers_{_pid}_common.py"
 
 for _file in (PATCHED_CALLERS_FILE, UNPATCHED_CALLERS_FILE):
     generate_callers_from_callees(
@@ -44,10 +46,9 @@ for _file in (PATCHED_CALLERS_FILE, UNPATCHED_CALLERS_FILE):
         callees_module_str="tests.appsec.iast.fixtures.aspects.callees",
     )
 
+importlib.invalidate_caches()
 patched_callers = _iast_patched_module(PATCHED_CALLERS_FILE.replace("/", ".")[0:-3])
-# This import needs to be done after the file is created (previous line)
-# pylint: disable=[wrong-import-position],[no-name-in-module]
-from tests.appsec.iast.fixtures.aspects import unpatched_callers  # type: ignore[attr-defined] # noqa: E402
+unpatched_callers = importlib.import_module(UNPATCHED_CALLERS_FILE.replace("/", ".")[0:-3])
 
 
 @iast_hypothesis_test

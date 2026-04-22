@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    profiling: This compiles the lock profiler's hot path to C via Cython, reducing
+    per-operation overhead. At the default 1% capture rate, lock operations are ~49% faster
+    for both contended and uncontended workloads. At 100% capture, gains are ~15-19%.
+    No configuration changes are required.

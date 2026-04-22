@@ -11,22 +11,23 @@
     "meta": {
       "_dd.base_service": "tests.contrib.redis",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68b8917800000000",
+      "_dd.p.tid": "69a6e84000000000",
+      "_dd.svc_src": "redis",
       "component": "redis",
       "db.system": "redis",
       "language": "python",
       "redis.raw_command": "SET a 1\nGET a",
-      "runtime-id": "73c800bba8084530a15a15dbcea1a8bc",
+      "runtime-id": "6a4bc7c2cc124d8680725915a7921793",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4422,
-      "redis.pipeline_length": 2
+      "_sampling_priority_v1": 1.0,
+      "process_id": 94392.0,
+      "redis.pipeline_length": 2.0
     },
-    "duration": 1411000,
-    "start": 1756926328130176000
+    "duration": 2173250,
+    "start": 1772546112727569880
   }]]

@@ -3,6 +3,7 @@
 Common tests to aspects, ensuring that they don't break when receiving empty arguments.
 """
 
+import importlib
 import os
 
 import pytest
@@ -13,7 +14,7 @@ from tests.appsec.iast.iast_utils import _iast_patched_module
 
 def generate_callers_from_callees(callers_file=""):
     """
-    Generate a callers module from a callees module, calling all it's functions.
+    Generate a callers module from a callees module, calling all its functions.
     """
     module_functions = [
         "bytearray",
@@ -66,18 +67,18 @@ def callee_{function}(*args, **kwargs):
             )
 
 
-PATCHED_CALLERS_FILE = "tests/appsec/iast/fixtures/aspects/callers.py"
-UNPATCHED_CALLERS_FILE = "tests/appsec/iast/fixtures/aspects/unpatched_callers.py"
+_pid = os.getpid()
+PATCHED_CALLERS_FILE = f"tests/appsec/iast/fixtures/aspects/callers_{_pid}_empty.py"
+UNPATCHED_CALLERS_FILE = f"tests/appsec/iast/fixtures/aspects/unpatched_callers_{_pid}_empty.py"
 
 for _file in (PATCHED_CALLERS_FILE, UNPATCHED_CALLERS_FILE):
     generate_callers_from_callees(
         callers_file=_file,
     )
 
+importlib.invalidate_caches()
 patched_callers = _iast_patched_module(PATCHED_CALLERS_FILE.replace("/", ".")[0:-3])
-# This import needs to be done after the file is created (previous line)
-# pylint: disable=[wrong-import-position],[no-name-in-module]
-from tests.appsec.iast.fixtures.aspects import unpatched_callers  # type: ignore[attr-defined] # noqa: E402
+unpatched_callers = importlib.import_module(UNPATCHED_CALLERS_FILE.replace("/", ".")[0:-3])
 
 
 @pytest.mark.parametrize("aspect", [x for x in dir(unpatched_callers) if not x.startswith(("_", "@"))])

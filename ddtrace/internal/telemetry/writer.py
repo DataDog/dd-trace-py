@@ -21,11 +21,12 @@ from ...internal import atexit
 from ...internal import forksafe
 from ..encoding import JSONEncoderV2
 from ..periodic import PeriodicService
+from ..runtime import get_ancestor_runtime_id
+from ..runtime import get_parent_runtime_id
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.time import StopWatch
 from ..utils.version import version as tracer_version
-from . import modules
 from .constants import TELEMETRY_APM_PRODUCT
 from .constants import TELEMETRY_EVENT_TYPE
 from .constants import TELEMETRY_LOG_LEVEL
@@ -33,7 +34,7 @@ from .constants import TELEMETRY_NAMESPACE
 from .data import get_application
 from .data import get_host_info
 from .data import get_python_config_vars
-from .data import update_imported_dependencies
+from .dependency_tracker import DependencyTracker
 from .logging import DDTelemetryErrorHandler
 from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import MetricTagType
@@ -114,6 +115,11 @@ class _TelemetryClient:
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
         headers["DD-Telemetry-Request-Type"] = request["request_type"]
         headers["DD-Telemetry-API-Version"] = request["api_version"]
+        headers["DD-Session-ID"] = get_runtime_id()
+        if (root := get_ancestor_runtime_id()) is not None:
+            headers["DD-Root-Session-ID"] = root
+        if (parent := get_parent_runtime_id()) is not None:
+            headers["DD-Parent-Session-ID"] = parent
         return headers
 
     def get_endpoint(self, agentless: bool) -> str:
@@ -156,14 +162,14 @@ class TelemetryWriter(PeriodicService):
         self._namespace = MetricNamespace()
         self._logs: set[dict[str, Any]] = set()
         self._events_queue: list[dict[str, Any]] = []
+        self._queued_configs: list[dict] = []
+        self._sent_configs: list[dict] = []
         self._configuration_queue: list[dict] = []
-        self._imported_dependencies: dict[str, str] = dict()
-        self._modules_already_imported: set[str] = set()
+        self._dependency_tracker = DependencyTracker()
         self._product_enablement: dict[str, bool] = {product.value: False for product in TELEMETRY_APM_PRODUCT}
         self._previous_product_enablement: dict[str, bool] = {}
         self._extended_time = time.monotonic()
-        # The extended heartbeat interval is set to 24 hours
-        self._extended_heartbeat_interval = 3600 * 24
+        self._extended_heartbeat_interval = config.EXTENDED_HEARTBEAT_INTERVAL
 
         self.started = False
 
@@ -272,8 +278,8 @@ class TelemetryWriter(PeriodicService):
                 self._integrations_queue[integration_name]["error"] = error_msg
 
     def _report_app_started(self, register_app_shutdown: bool = True) -> Optional[dict[str, Any]]:
-        """Sent when TelemetryWriter is enabled or forks"""
-        if forksafe.is_fork_child() or self.started:
+        """Sent when TelemetryWriter is enabled or on the main process"""
+        if get_parent_runtime_id() is not None or self.started:
             # app-started events should only be sent by the main process
             return None
         #  list of configurations to be collected
@@ -296,15 +302,23 @@ class TelemetryWriter(PeriodicService):
             }
         return payload
 
-    def _report_heartbeat(self) -> Optional[dict[str, Any]]:
-        if config.DEPENDENCY_COLLECTION and time.monotonic() - self._extended_time > self._extended_heartbeat_interval:
-            self._extended_time += self._extended_heartbeat_interval
-            return {
-                "dependencies": [
-                    {"name": name, "version": version} for name, version in self._imported_dependencies.items()
+    def _report_heartbeat(self) -> dict[str, Any]:
+        """Report a heartbeat to keep RC connections alive.
+
+        Extended heartbeats (non-empty payload) include configurations and dependencies;
+        regular heartbeats return an empty payload. Callers should queue this after
+        configuration and dependencies events so values are accurately reported.
+        """
+        payload = {}
+        if time.monotonic() - self._extended_time > self._extended_heartbeat_interval:
+            payload["configuration"] = self._sent_configs
+            if config.DEPENDENCY_COLLECTION:
+                payload["dependencies"] = [
+                    entry.to_telemetry_dict(include_all_metadata=True)
+                    for entry in self._dependency_tracker.get_all_dependencies()
                 ]
-            }
-        return None
+            self._extended_time += self._extended_heartbeat_interval
+        return payload
 
     def _report_integrations(self) -> list[dict]:
         """Flushes and returns a list of all queued integrations"""
@@ -316,20 +330,47 @@ class TelemetryWriter(PeriodicService):
     def _report_configurations(self) -> list[dict]:
         """Flushes and returns a list of all queued configurations"""
         with self._service_lock:
-            configurations = self._configuration_queue
-            self._configuration_queue = []
+            configurations = self._queued_configs
+            self._sent_configs.extend(configurations)
+            self._queued_configs = []
         return configurations
 
     def _report_dependencies(self) -> Optional[list[dict[str, Any]]]:
-        """Adds events to report imports done since the last periodic run"""
-        if not config.DEPENDENCY_COLLECTION or not self._enabled:
-            return None
+        """Report newly imported modules and modules with updated SCA metadata.
 
-        with self._service_lock:
-            newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
-            if not newly_imported_deps:
-                return None
-            return update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
+        Delegates to DependencyTracker.collect_report().
+        """
+        if not self._enabled:
+            return None
+        return self._dependency_tracker.collect_report()
+
+    def attach_dependency_metadata(
+        self,
+        package_name: str,
+        cve_id: str,
+        path: str,
+        symbol: str,
+        line: int,
+    ) -> bool:
+        """Attach reachability metadata to an imported dependency.
+
+        Delegates to DependencyTracker.attach_metadata().
+        """
+        return self._dependency_tracker.attach_metadata(package_name, cve_id, path, symbol, line)
+
+    def register_cve_metadata(self, package_name: str, cve_id: str) -> bool:
+        """Register a CVE on a dependency with reached=[].
+
+        Called at CVE load time. Delegates to DependencyTracker.register_cve().
+        """
+        return self._dependency_tracker.register_cve(package_name, cve_id)
+
+    def enable_sca_metadata(self) -> None:
+        """Activate SCA metadata on all tracked and future dependencies.
+
+        Delegates to DependencyTracker.enable_sca_metadata().
+        """
+        self._dependency_tracker.enable_sca_metadata()
 
     def _report_endpoints(self) -> Optional[dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
@@ -386,13 +427,13 @@ class TelemetryWriter(PeriodicService):
 
         with self._service_lock:
             config["seq_id"] = next(self._sequence_configurations)
-            self._configuration_queue.append(config)
+            self._queued_configs.append(config)
 
     def add_configurations(self, configuration_list: list[tuple[str, str, str]]) -> None:
         """Creates and queues a list of configurations"""
         with self._service_lock:
             for name, value, origin in configuration_list:
-                self._configuration_queue.append(
+                self._queued_configs.append(
                     {
                         "name": name,
                         "origin": origin,
@@ -628,17 +669,13 @@ class TelemetryWriter(PeriodicService):
         if deps := self._report_dependencies():
             events.append(self._get_event({"dependencies": deps}, TELEMETRY_EVENT_TYPE.DEPENDENCIES_LOADED))
 
-        if shutting_down and not forksafe.is_fork_child():
+        if shutting_down and get_parent_runtime_id() is None:
             events.append(self._get_event({}, TELEMETRY_EVENT_TYPE.SHUTDOWN))
 
-        # Always include a heartbeat to keep RC connections alive
-        # Extended heartbeat should be queued after app-dependencies-loaded event. This
-        # ensures that that imported dependencies are accurately reported.
         if heartbeat_payload := self._report_heartbeat():
-            # Extended heartbeat report dependencies while regular heartbeats report empty payloads
             events.append(self._get_event(heartbeat_payload, TELEMETRY_EVENT_TYPE.EXTENDED_HEARTBEAT))
         else:
-            events.append(self._get_event({}, TELEMETRY_EVENT_TYPE.HEARTBEAT))
+            events.append(self._get_event(heartbeat_payload, TELEMETRY_EVENT_TYPE.HEARTBEAT))
 
         # Get any queued events (ie metrics and logs from previous periodic calls) and combine with current batch
         if queued_events := self._report_events():
@@ -671,8 +708,9 @@ class TelemetryWriter(PeriodicService):
         self._integrations_queue = dict()
         self._namespace.flush()
         self._logs = set()
-        self._imported_dependencies = {}
-        self._configuration_queue = []
+        self._dependency_tracker.reset()
+        self._queued_configs = []
+        self._sent_configs = []
 
     def _report_events(self) -> list[dict]:
         """Flushes and returns a list of all telemtery event"""

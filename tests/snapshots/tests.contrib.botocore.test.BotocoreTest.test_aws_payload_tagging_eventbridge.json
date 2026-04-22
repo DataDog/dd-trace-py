@@ -11,31 +11,33 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6725219200000000",
+      "_dd.p.tid": "69dd45ec00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "aws.agent": "botocore",
       "aws.operation": "CreateEventBus",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "MONTVZ2OE8MKTVRDP324AGW89ZT77EJWP8B9LYMCOU3463N9RYAL",
+      "aws.requestid": "67UEGGUWVB2Y054EIIXI3WJ4Z6AGVI82CYX7KXPDETDZGTONH9PS",
       "aws_service": "events",
       "component": "botocore",
       "http.status_code": "200",
       "language": "python",
       "region": "us-east-1",
       "rulename": "a-test-bus",
-      "runtime-id": "45abaca6e35b47d4bbcab4d19d47895a",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 5659,
-      "retry_attempts": 0
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0,
+      "retry_attempts": 0.0
     },
-    "duration": 1347317707,
-    "start": 1730486674014275278
+    "duration": 4455541,
+    "start": 1776109036220649886
   }],
 [
   {
@@ -50,31 +52,33 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6725219300000000",
+      "_dd.p.tid": "69dd45ec00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "aws.agent": "botocore",
       "aws.operation": "PutRule",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "EVXSBTVJ91PNTZP5MRXLAMCQTJ8AM6OD93HW9Y71W0QTQQ8FKBY1",
+      "aws.requestid": "EFFLWHPETIXXHL9MFC414T8H2KGA19JW8GMWJB66CYFDU156NO8B",
       "aws_service": "events",
       "component": "botocore",
       "http.status_code": "200",
       "language": "python",
       "region": "us-east-1",
       "rulename": "a-test-bus-rule",
-      "runtime-id": "45abaca6e35b47d4bbcab4d19d47895a",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 5659,
-      "retry_attempts": 0
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0,
+      "retry_attempts": 0.0
     },
-    "duration": 9324846,
-    "start": 1730486675361990473
+    "duration": 3990417,
+    "start": 1776109036225551677
   }],
 [
   {
@@ -89,30 +93,32 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6725219100000000",
+      "_dd.p.tid": "69dd45ec00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "aws.agent": "botocore",
       "aws.operation": "ListRules",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "60SMT4RD398SJX3QGMNKLNJWVJ2QO0PR21XZPXIUFDOLFU026ZIF",
+      "aws.requestid": "CM8MCFRJLK6FKISBW9QSWRQZQ3FOVMWSCAAC21JI973ETW3ISBPN",
       "aws_service": "events",
       "component": "botocore",
       "http.status_code": "200",
       "language": "python",
       "region": "us-east-1",
-      "runtime-id": "45abaca6e35b47d4bbcab4d19d47895a",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 5659,
-      "retry_attempts": 0
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0,
+      "retry_attempts": 0.0
     },
-    "duration": 148280179,
-    "start": 1730486673839166140
+    "duration": 3885083,
+    "start": 1776109036229771511
   }],
 [
   {
@@ -127,31 +133,33 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6725219100000000",
+      "_dd.p.tid": "69dd45ec00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "aws.agent": "botocore",
       "aws.operation": "PutTargets",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "3JM3A50OTY7PFQ6JJJ1O1YJWZ3D17LS1ZDL4NML7J8FKUEOTTYSI",
+      "aws.requestid": "XYY7SUNATZ6BP8RYD5RARN87RIJH8PD40YP8FQXJL0S4A3IXRVS6",
       "aws_service": "events",
       "component": "botocore",
       "http.status_code": "200",
       "language": "python",
       "region": "us-east-1",
       "rulename": "",
-      "runtime-id": "45abaca6e35b47d4bbcab4d19d47895a",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 5659,
-      "retry_attempts": 0
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0,
+      "retry_attempts": 0.0
     },
-    "duration": 698383864,
-    "start": 1730486673115255701
+    "duration": 7714083,
+    "start": 1776109036233880844
   }],
 [
   {
@@ -166,31 +174,33 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6725219100000000",
+      "_dd.p.tid": "69dd45ec00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "aws.agent": "botocore",
       "aws.operation": "PutEvents",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "KNF5UFDRA15DP2B69OWT2144PWDEEGTL1TPD5JCY0VJR82J4T0O0",
+      "aws.requestid": "FQV1F7T9RTLIG8H4C28GZ7W7BCCEMFJGCUN966F8WB82YNN5WT9C",
       "aws_service": "events",
       "component": "botocore",
       "http.status_code": "200",
       "language": "python",
       "region": "us-east-1",
       "rulename": "",
-      "runtime-id": "45abaca6e35b47d4bbcab4d19d47895a",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 5659,
-      "retry_attempts": 0
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0,
+      "retry_attempts": 0.0
     },
-    "duration": 7914310,
-    "start": 1730486673814005493
+    "duration": 26564000,
+    "start": 1776109036241860344
   }],
 [
   {
@@ -205,7 +215,9 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6725219100000000",
+      "_dd.p.tid": "69dd45ec00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "aws.agent": "botocore",
       "aws.operation": "ReceiveMessage",
       "aws.partition": "aws",
@@ -213,7 +225,7 @@
       "aws.request.body.MessageAttributeNames.0": "_datadog",
       "aws.request.body.QueueUrl": "http://localhost:4566/000000000000/Test",
       "aws.request.body.WaitTimeSeconds": "2",
-      "aws.requestid": "31YPMD8JZYWLL31AK9ONLNHSERKFDEPVILN736TXMRHRPGEFJF7G",
+      "aws.requestid": "5MZCKWI2BGC93IAJHNHAT81FSZC035YEYH8EI8AMYCXANBJANE4Z",
       "aws.response.body.HTTPHeaders.access-control-allow-headers": "authorization,cache-control,content-length,content-md5,content-type,etag,location,x-amz-acl,x-amz-content-sha256,x-amz-date,x-amz-request-id,x-amz-security-token,x-amz-tagging,x-amz-target,x-amz-user-agent,x-amz-version-id,x-amzn-requestid,x-localstack-target,amz-sdk-invocation-id,amz-sdk-request",
       "aws.response.body.HTTPHeaders.access-control-allow-methods": "HEAD,GET,PUT,POST,DELETE,OPTIONS,PATCH",
       "aws.response.body.HTTPHeaders.access-control-allow-origin": "*",
@@ -221,10 +233,10 @@
       "aws.response.body.HTTPHeaders.connection": "close",
       "aws.response.body.HTTPHeaders.content-length": "1579",
       "aws.response.body.HTTPHeaders.content-type": "text/xml",
-      "aws.response.body.HTTPHeaders.date": "Wed, 31 Dec 2025 02:59:01 GMT",
+      "aws.response.body.HTTPHeaders.date": "Mon, 13 Apr 2026 19:37:16 GMT",
       "aws.response.body.HTTPHeaders.server": "hypercorn-h11",
       "aws.response.body.HTTPStatusCode": "200",
-      "aws.response.body.RequestId": "31YPMD8JZYWLL31AK9ONLNHSERKFDEPVILN736TXMRHRPGEFJF7G",
+      "aws.response.body.RequestId": "5MZCKWI2BGC93IAJHNHAT81FSZC035YEYH8EI8AMYCXANBJANE4Z",
       "aws.response.body.RetryAttempts": "0",
       "aws.sqs.queue_name": "Test",
       "aws_account": "000000000000",
@@ -234,19 +246,19 @@
       "language": "python",
       "queuename": "Test",
       "region": "us-east-1",
-      "runtime-id": "45abaca6e35b47d4bbcab4d19d47895a",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 5659,
-      "retry_attempts": 0
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0,
+      "retry_attempts": 0.0
     },
-    "duration": 8146264,
-    "start": 1730486673822260931
+    "duration": 517826500,
+    "start": 1776109036274005969
   }],
 [
   {
@@ -261,29 +273,31 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6725219100000000",
+      "_dd.p.tid": "69dd45ec00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "aws.agent": "botocore",
       "aws.operation": "DeleteEventBus",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "B9WMS96T4C4CO40IRKN8NE6RKATC8FU7W5I9EQNE71WQZE7S3ZD2",
+      "aws.requestid": "SLPTROG41U0VIQ5KP1SGYBWNPP967M8OH2MO6DP67W4UKNPW4SHH",
       "aws_service": "events",
       "component": "botocore",
       "http.status_code": "200",
       "language": "python",
       "region": "us-east-1",
       "rulename": "a-test-bus",
-      "runtime-id": "45abaca6e35b47d4bbcab4d19d47895a",
+      "runtime-id": "897a5d1713354e8e986e2c995c4c6aa5",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 5659,
-      "retry_attempts": 0
+      "_sampling_priority_v1": 1.0,
+      "process_id": 11175.0,
+      "retry_attempts": 0.0
     },
-    "duration": 7987546,
-    "start": 1730486673830745107
+    "duration": 4845458,
+    "start": 1776109036792212928
   }]]

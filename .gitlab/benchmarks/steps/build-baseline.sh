@@ -17,7 +17,12 @@ else
   else
     echo "Failed to download from S3, building wheel from scratch..."
     ulimit -c unlimited
-    curl -sSf https://sh.rustup.rs | sh -s -- -y;
+    for i in 1 2 3; do
+      curl -sSf https://sh.rustup.rs | sh -s -- -y && break
+      echo "rustup install attempt $i failed, retrying..."
+      sleep 5
+      [ "$i" -eq 3 ] && { echo "Failed to install rustup after 3 attempts"; exit 1; }
+    done
     export PATH="$HOME/.cargo/bin:$PATH"
     echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
     git checkout "${BASELINE_COMMIT_SHA}"

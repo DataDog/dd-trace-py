@@ -46,10 +46,19 @@ done
 # Generate and upload index + helper scripts
 S3_BASE_URL="https://${BUCKET}.s3.amazonaws.com/${S3_PATH}"
 .gitlab/scripts/generate-index-html.sh | aws s3 cp - "s3://${BUCKET}/${S3_PATH}/${INDEX_FILE}" --content-type text/html
-.gitlab/scripts/generate-download-script.sh "${S3_BASE_URL}" | aws s3 cp - "s3://${BUCKET}/${S3_PATH}/${DOWNLOAD_FILE}" --content-type text/x-shellscript
-.gitlab/scripts/generate-install-script.sh "${S3_BASE_URL}" | aws s3 cp - "s3://${BUCKET}/${S3_PATH}/${INSTALL_FILE}" --content-type text/x-shellscript
+.gitlab/scripts/generate-download-script.sh "${S3_BASE_URL}" "${INDEX_FILE}" | aws s3 cp - "s3://${BUCKET}/${S3_PATH}/${DOWNLOAD_FILE}" --content-type text/x-shellscript
+.gitlab/scripts/generate-install-script.sh "${S3_BASE_URL}" "${INDEX_FILE}" | aws s3 cp - "s3://${BUCKET}/${S3_PATH}/${INSTALL_FILE}" --content-type text/x-shellscript
 
 echo "Uploaded to ${S3_PATH}/:"
 echo "  Index:    ${S3_BASE_URL}/${INDEX_FILE}"
 echo "  Download: ${S3_BASE_URL}/${DOWNLOAD_FILE}"
 echo "  Install:  ${S3_BASE_URL}/${INSTALL_FILE}"
+
+# Upload debug symbol packages if present
+DEBUG_SYMBOLS=(debugwheelhouse/*.zip)
+if [ ${#DEBUG_SYMBOLS[@]} -gt 0 ]; then
+  echo "Uploading ${#DEBUG_SYMBOLS[@]} debug symbol package(s) to s3://${BUCKET}/${S3_PATH}/"
+  for symbol_pkg in "${DEBUG_SYMBOLS[@]}"; do
+    aws s3 cp "$symbol_pkg" "s3://${BUCKET}/${S3_PATH}/$(basename "$symbol_pkg")"
+  done
+fi

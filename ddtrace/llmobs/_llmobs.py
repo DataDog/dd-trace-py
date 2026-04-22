@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from dataclasses import field
 import inspect
 import json
-import os
+import math
 import sys
 import time
 from typing import Any
@@ -13,6 +13,7 @@ from typing import Optional
 from typing import Sequence
 from typing import Union
 from typing import cast
+import urllib.parse
 
 import ddtrace
 from ddtrace import config
@@ -35,18 +36,19 @@ from ddtrace.internal.native import rand64bits
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.settings import env as _env
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
-from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
+from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
+from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
 from ddtrace.llmobs._constants import DISPATCH_ON_GUARDRAIL_SPAN_START
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -55,67 +57,85 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
 from ddtrace.llmobs._constants import EXPERIMENT_DATASET_NAME_KEY
-from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
-from ddtrace.llmobs._constants import EXPERIMENTS_INPUT
-from ddtrace.llmobs._constants import EXPERIMENTS_OUTPUT
-from ddtrace.llmobs._constants import INPUT_DOCUMENTS
-from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PROMPT
-from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
-from ddtrace.llmobs._constants import INTEGRATION
-from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
-from ddtrace.llmobs._constants import MCP_TOOL_CALL_INTENT
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ML_APP
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
-from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
-from ddtrace.llmobs._constants import TAGS
-from ddtrace.llmobs._constants import TOOL_DEFINITIONS
+from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
+from ddtrace.llmobs._experiment import AsyncEvaluatorType
+from ddtrace.llmobs._experiment import AsyncSummaryEvaluatorType
+from ddtrace.llmobs._experiment import AsyncTaskType
+from ddtrace.llmobs._experiment import BaseAsyncEvaluator
+from ddtrace.llmobs._experiment import BaseAsyncSummaryEvaluator
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
-from ddtrace.llmobs._experiment import DatasetRecordInputType
-from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._experiment import DatasetRecordNew
+from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import ExperimentResult
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
+from ddtrace.llmobs._experiment import SummaryEvaluatorType
+from ddtrace.llmobs._experiment import SyncExperiment
+from ddtrace.llmobs._experiment import TaskType
+from ddtrace.llmobs._experiment import _deep_eval_async_evaluator_wrapper
+from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
+from ddtrace.llmobs._experiment import _get_base_url
+from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
+from ddtrace.llmobs._experiment import _is_pydantic_evaluator
+from ddtrace.llmobs._experiment import _is_pydantic_report_evaluator
+from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
+from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
+from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
+from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
+from ddtrace.llmobs._prompt_optimization import validate_dataset
+from ddtrace.llmobs._prompt_optimization import validate_dataset_split
+from ddtrace.llmobs._prompt_optimization import validate_evaluators
+from ddtrace.llmobs._prompt_optimization import validate_optimization_task
+from ddtrace.llmobs._prompt_optimization import validate_task
+from ddtrace.llmobs._prompt_optimization import validate_test_dataset
+from ddtrace.llmobs._prompts import ManagedPrompt
+from ddtrace.llmobs._prompts.cache import WarmCache
+from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
-from ddtrace.llmobs._utils import _get_ml_app
-from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
-from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import _batched
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _get_span_name
-from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
+from ddtrace.llmobs._utils import get_asyncio
+from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_session_id
+from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import get_llmobs_span_links
+from ddtrace.llmobs._utils import get_llmobs_tags
+from ddtrace.llmobs._utils import get_llmobs_trace_id
+from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._writer import LLMObsAPIClient
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
@@ -125,6 +145,7 @@ from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
+from ddtrace.llmobs.types import PromptFallback
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
@@ -139,21 +160,8 @@ from ddtrace.version import __version__
 log = get_logger(__name__)
 
 
-SUPPORTED_LLMOBS_INTEGRATIONS = {
-    "anthropic": "anthropic",
-    "bedrock": "botocore",
-    "openai": "openai",
-    "langchain": "langchain",
-    "google_adk": "google_adk",
-    "google_genai": "google_genai",
-    "vertexai": "vertexai",
-    "langgraph": "langgraph",
-    "litellm": "litellm",
-    "crewai": "crewai",
-    "openai_agents": "openai_agents",
-    "mcp": "mcp",
-    "pydantic_ai": "pydantic_ai",
-    # requests/concurrent frameworks for distributed injection/extraction
+# requests/concurrent frameworks for distributed injection/extraction
+_INTEGRATIONS_W_PROPAGATION_SUPPORT: dict[str, str] = {
     "requests": "requests",
     "httpx": "httpx",
     "urllib3": "urllib3",
@@ -165,6 +173,82 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "asyncio": "asyncio",
     "futures": "futures",
 }
+
+# Constants for validation
+_TASK_REQUIRED_PARAMS = {"input_data", "config"}
+_EVALUATOR_REQUIRED_PARAMS = ("input_data", "output_data", "expected_output")
+_SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
+    "inputs",
+    "outputs",
+    "expected_outputs",
+    "evaluators_results",
+)
+
+
+def _validate_task_signature(task: Callable, is_async: bool) -> None:
+    if not callable(task):
+        raise TypeError("task must be a callable function.")
+    if is_async and not get_asyncio().iscoroutinefunction(task):
+        raise TypeError("task must be an async function (coroutine function).")
+    sig = inspect.signature(task)
+    params = sig.parameters
+    if not all(param in params for param in _TASK_REQUIRED_PARAMS):
+        raise TypeError("Task function must have 'input_data' and 'config' parameters.")
+
+
+def _validate_evaluator_signature(evaluator: Any, is_async: bool) -> None:
+    valid_base_classes: tuple[type, ...] = (BaseEvaluator,)
+    if is_async:
+        # async experiment allows both sync and async evaluators
+        valid_base_classes = (BaseEvaluator, BaseAsyncEvaluator)
+
+    if isinstance(evaluator, valid_base_classes):
+        return
+
+    if _is_deep_eval_evaluator(evaluator):
+        return
+
+    if _is_pydantic_evaluator(evaluator):
+        return
+
+    if not callable(evaluator):
+        if is_async:
+            raise TypeError(
+                f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator/BaseAsyncEvaluator."
+            )
+        else:
+            raise TypeError(f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator.")
+
+    sig = inspect.signature(evaluator)
+    params = sig.parameters
+    if not all(param in params for param in _EVALUATOR_REQUIRED_PARAMS):
+        raise TypeError("Evaluator function must have parameters {}.".format(tuple(_EVALUATOR_REQUIRED_PARAMS)))
+
+
+def _validate_summary_evaluator_signature(evaluator: Any, is_async: bool) -> None:
+    valid_base_classes: tuple[type, ...] = (BaseSummaryEvaluator,)
+    if is_async:
+        # async experiment allows both sync and async summary evaluators
+        valid_base_classes = (BaseSummaryEvaluator, BaseAsyncSummaryEvaluator)
+
+    if isinstance(evaluator, valid_base_classes):
+        return
+
+    if not callable(evaluator):
+        if is_async:
+            raise TypeError(
+                f"Summary evaluator {evaluator} must be callable "
+                "or an instance of BaseSummaryEvaluator/BaseAsyncSummaryEvaluator."
+            )
+        else:
+            raise TypeError(f"Summary evaluator {evaluator} must be callable or an instance of BaseSummaryEvaluator.")
+
+    sig = inspect.signature(evaluator)
+    params = sig.parameters
+    if not all(param in params for param in _SUMMARY_EVALUATOR_REQUIRED_PARAMS):
+        raise TypeError(
+            "Summary evaluator function must have parameters {}.".format(tuple(_SUMMARY_EVALUATOR_REQUIRED_PARAMS))
+        )
 
 
 class LLMObsExportSpanError(Exception):
@@ -227,11 +311,125 @@ class LLMObsSpan:
         return self._tags.get(key)
 
 
+def _build_llmobs_span(
+    span_kind: str,
+    llmobs_input: _MetaIO,
+    llmobs_output: _MetaIO,
+) -> tuple[LLMObsSpan, Literal["value", "messages", ""], Literal["value", "messages", ""]]:
+    """Build an LLMObsSpan populated for the user span processor.
+
+    Routes input/output to messages or value depending on span kind.
+    Returns (llmobs_span, input_type, output_type).
+    """
+    # experiment spans can store arbitrary (non-dict) values in output
+    if not isinstance(llmobs_input, dict):
+        llmobs_input = _MetaIO()
+    if not isinstance(llmobs_output, dict):
+        llmobs_output = _MetaIO()
+
+    llmobs_span = LLMObsSpan()
+    input_type: Literal["value", "messages", ""] = ""
+    output_type: Literal["value", "messages", ""] = ""
+
+    input_value = llmobs_input.get(LLMOBS_STRUCT.VALUE)
+    if input_value is not None:
+        input_type = "value"
+        llmobs_span.input = [Message(content=safe_json(input_value, ensure_ascii=False) or "", role="")]
+
+    input_messages = llmobs_input.get(LLMOBS_STRUCT.MESSAGES)
+    if span_kind == "llm" and input_messages is not None:
+        input_type = "messages"
+        llmobs_span.input = enforce_message_role(input_messages)
+
+    output_value = llmobs_output.get(LLMOBS_STRUCT.VALUE)
+    if output_value is not None:
+        output_type = "value"
+        llmobs_span.output = [Message(content=safe_json(output_value, ensure_ascii=False) or "", role="")]
+
+    output_messages = llmobs_output.get(LLMOBS_STRUCT.MESSAGES)
+    if span_kind == "llm" and output_messages is not None:
+        output_type = "messages"
+        llmobs_span.output = enforce_message_role(output_messages)
+
+    return llmobs_span, input_type, output_type
+
+
+def _build_span_meta(
+    span: Span,
+    llmobs_span: LLMObsSpan,
+    llmobs_meta: _Meta,
+    span_kind: str,
+    input_type: Literal["value", "messages", ""],
+    output_type: Literal["value", "messages", ""],
+) -> _Meta:
+    """Build and return the meta dict for a span event, omitting empty/inapplicable fields."""
+    meta = _Meta(
+        span=_SpanField(kind=span_kind),
+        metadata=llmobs_meta.get(LLMOBS_STRUCT.METADATA) or {},
+    )
+    if span_kind in ("llm", "embedding"):
+        meta[LLMOBS_STRUCT.MODEL_NAME] = llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME) or ""
+        meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER) or "custom").lower()
+    tool_definitions = llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS)
+    if tool_definitions:
+        meta[LLMOBS_STRUCT.TOOL_DEFINITIONS] = tool_definitions
+    intent = str(llmobs_meta.get(LLMOBS_STRUCT.INTENT) or "")
+    if intent:
+        meta[LLMOBS_STRUCT.INTENT] = intent
+    if span.error:
+        meta[LLMOBS_STRUCT.ERROR] = _ErrorField(
+            message=span.get_tag(ERROR_MSG) or "",
+            stack=span.get_tag(ERROR_STACK) or "",
+            type=span.get_tag(ERROR_TYPE) or "",
+        )
+
+    if span.context.get_baggage_item(EXPERIMENT_ID_KEY) and span_kind == "experiment":
+        # experiment i/o is stored as raw values — pass through directly
+        input_data = llmobs_meta.get(LLMOBS_STRUCT.INPUT)
+        if input_data:
+            meta[LLMOBS_STRUCT.INPUT] = input_data
+        output_data = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT)
+        if output_data:
+            meta[LLMOBS_STRUCT.OUTPUT] = output_data
+        expected_output = llmobs_meta.get(LLMOBS_STRUCT.EXPECTED_OUTPUT)
+        if expected_output is not None:
+            meta[LLMOBS_STRUCT.EXPECTED_OUTPUT] = expected_output
+        return meta
+
+    meta_input: _MetaIO = cast(_MetaIO, dict(llmobs_meta.get(LLMOBS_STRUCT.INPUT) or {}))
+    meta_output: _MetaIO = cast(_MetaIO, dict(llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or {}))
+
+    input_prompt = meta_input.get(LLMOBS_STRUCT.PROMPT)
+    if input_prompt is not None and span_kind != "llm":
+        log.warning("Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds.")
+        meta_input.pop(LLMOBS_STRUCT.PROMPT, None)
+    elif input_prompt is None and span_kind == "llm":
+        parent_prompt = _get_parent_prompt(span)
+        if parent_prompt is not None:
+            meta_input[LLMOBS_STRUCT.PROMPT] = parent_prompt
+
+    if input_type == "messages":
+        meta_input[LLMOBS_STRUCT.MESSAGES] = llmobs_span.input
+    elif input_type == "value" and llmobs_span.input:
+        meta_input[LLMOBS_STRUCT.VALUE] = llmobs_span.input[0].get("content", "")
+    if meta_input:
+        meta[LLMOBS_STRUCT.INPUT] = meta_input
+
+    if output_type == "messages":
+        meta_output[LLMOBS_STRUCT.MESSAGES] = llmobs_span.output
+    elif output_type == "value" and llmobs_span.output:
+        meta_output[LLMOBS_STRUCT.VALUE] = llmobs_span.output[0].get("content", "")
+    if meta_output:
+        meta[LLMOBS_STRUCT.OUTPUT] = meta_output
+
+    return meta
+
+
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
-    _app_key: str = os.getenv("DD_APP_KEY", "")
-    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
+    _app_key: str = _env.get("DD_APP_KEY", "")
+    _project_name: str = _env.get("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
 
     def __init__(
         self,
@@ -242,28 +440,30 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
+        self._export_llmobs = _env.get("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             is_agentless=agentless_enabled,
         )
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             is_agentless=agentless_enabled,
         )
         self._evaluator_runner = EvaluatorRunner(
-            interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
+            interval=float(_env.get("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
             llmobs_service=self,
         )
         self._dne_client = LLMObsExperimentsClient(
-            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
-            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             _app_key=self._app_key,
             _default_project=Project(name=self._project_name, _id=""),
             is_agentless=True,  # agent proxy doesn't seem to work for experiments
         )
+        self._api_client = LLMObsAPIClient(app_key=self._app_key)
 
         forksafe.register(self._child_after_fork)
 
@@ -281,6 +481,8 @@ class LLMObs(Service):
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._submit_llmobs_span(span)
             telemetry.record_span_created(span)
+            if self._export_llmobs:
+                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
 
     def _submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
@@ -289,6 +491,7 @@ class LLMObs(Service):
             span_event = self._llmobs_span_event(span)
             if span_event is None:
                 return
+            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError, ValueError):
             log.error(
@@ -297,165 +500,76 @@ class LLMObs(Service):
                 exc_info=True,
             )
         finally:
-            if span_event and span._get_ctx_item(SPAN_KIND) == "llm" and not _is_evaluation_span(span):
-                if self._evaluator_runner:
-                    self._evaluator_runner.enqueue(span_event, span)
+            span_kind = get_llmobs_span_kind(span)
+            if span_event and span_kind == "llm" and self._evaluator_runner:
+                self._evaluator_runner.enqueue(span_event, span)
+
+    def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
+        """Run the user span processor.
+
+        Returns the possibly mutated span, or None if the span should be dropped.
+        On error, logs and returns the original span unchanged.
+        """
+        if self._user_span_processor is None:
+            return llmobs_span
+        error = False
+        try:
+            llmobs_span._tags = get_llmobs_tags(span) or {}
+            result = self._user_span_processor(llmobs_span)
+            if result is None:
+                return None
+            if not isinstance(result, LLMObsSpan):
+                raise TypeError("User span processor must return an LLMObsSpan or None, got %r" % type(result))
+            return result
+        except Exception as e:
+            log.error("Error in LLMObs span processor (%r): %r", self._user_span_processor, e)
+            error = True
+            return llmobs_span
+        finally:
+            telemetry.record_llmobs_user_processor_called(error)
 
     def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
-        """Span event object structure."""
-        span_kind = span._get_ctx_item(SPAN_KIND)
+        """Generate LLMObs span event from span's stored meta_struct LLMObsSpanData."""
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        if not llmobs_data:
+            return None
+
+        llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META) or _Meta()
+        llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
+        llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or _MetaIO()
+
+        span_kind = get_llmobs_span_kind(span)
         if not span_kind:
             raise KeyError("Span kind not found in span context")
+
+        raw_parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
+        parent_id = str(raw_parent_id) if raw_parent_id is not None else ROOT_PARENT_ID
+        llmobs_trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
+        if llmobs_trace_id is None:
+            raise ValueError("Failed to extract LLMObs trace ID from span context.")
 
         if span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
-        llmobs_span = LLMObsSpan()
+        llmobs_span, input_type, output_type = _build_llmobs_span(span_kind, llmobs_input, llmobs_output)
+        user_processed_span = self._apply_user_span_processor(span, llmobs_span)
+        if user_processed_span is None:
+            return None
+        llmobs_span = user_processed_span
+
+        # Wait to build meta until after user processors apply and potentially mutate I/O
+        meta = _build_span_meta(span, llmobs_span, llmobs_meta, span_kind, input_type, output_type)
+        metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
+        session_id = get_llmobs_session_id(span)
+        tags = self._llmobs_tags(span)
+        span_links = get_llmobs_span_links(span) or []
         _dd_attrs = {
             "span_id": str(span.span_id),
             "trace_id": format_trace_id(span.trace_id),
             "apm_trace_id": format_trace_id(span.trace_id),
         }
-
-        meta = _Meta(span=_SpanField(kind=span_kind), input=_MetaIO(), output=_MetaIO())
-        if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
-            meta["model_name"] = span._get_ctx_item(MODEL_NAME) or ""
-            meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
-        metadata = span._get_ctx_item(METADATA) or {}
-        if span_kind == "agent" and span._get_ctx_item(AGENT_MANIFEST) is not None:
-            metadata["agent_manifest"] = span._get_ctx_item(AGENT_MANIFEST)
-        meta["metadata"] = metadata
-
-        input_type: Literal["value", "messages", ""] = ""
-        output_type: Literal["value", "messages", ""] = ""
-        if span._get_ctx_item(INPUT_VALUE) is not None:
-            input_type = "value"
-            llmobs_span.input = [
-                Message(
-                    content=safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False) or "",
-                    role="",
-                )
-            ]
-
         if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
             _dd_attrs["scope"] = "experiments"
-            if span_kind == "experiment":
-                expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
-                if expected_output:
-                    meta["expected_output"] = expected_output
-
-                input_data = span._get_ctx_item(EXPERIMENTS_INPUT)
-                if input_data:
-                    meta["input"] = input_data
-
-                output_data = span._get_ctx_item(EXPERIMENTS_OUTPUT)
-                if output_data:
-                    meta["output"] = output_data
-
-        input_messages = span._get_ctx_item(INPUT_MESSAGES)
-        if span_kind == "llm" and input_messages is not None:
-            input_type = "messages"
-            llmobs_span.input = cast(list[Message], enforce_message_role(input_messages))
-
-        if span._get_ctx_item(OUTPUT_VALUE) is not None:
-            output_type = "value"
-            llmobs_span.output = [
-                Message(
-                    content=safe_json(span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False) or "",
-                    role="",
-                )
-            ]
-
-        output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
-        if span_kind == "llm" and output_messages is not None:
-            output_type = "messages"
-            llmobs_span.output = cast(list[Message], enforce_message_role(output_messages))
-
-        if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
-            meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS) or []
-        if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
-            meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS) or []
-
-        if span._get_ctx_item(INPUT_PROMPT) is not None:
-            prompt_json_str = span._get_ctx_item(INPUT_PROMPT)
-            if span_kind != "llm":
-                log.warning(
-                    "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
-                )
-            else:
-                prompt_dict = cast(Prompt, prompt_json_str)
-                meta["input"]["prompt"] = prompt_dict
-        elif span_kind == "llm":
-            parent_span = _get_nearest_llmobs_ancestor(span)
-            if parent_span is not None:
-                parent_prompt = parent_span._get_ctx_item(INPUT_PROMPT)
-                if parent_prompt is not None:
-                    meta["input"]["prompt"] = parent_prompt
-
-        if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
-            meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS) or []
-        intent = span._get_ctx_item(MCP_TOOL_CALL_INTENT)
-        if intent is not None:
-            meta["intent"] = str(intent)
-        if span.error:
-            meta["error"] = _ErrorField(
-                message=span.get_tag(ERROR_MSG) or "",
-                stack=span.get_tag(ERROR_STACK) or "",
-                type=span.get_tag(ERROR_TYPE) or "",
-            )
-
-        if self._user_span_processor:
-            error = False
-            try:
-                llmobs_span._tags = cast(dict[str, str], span._get_ctx_item(TAGS))
-                user_llmobs_span = self._user_span_processor(llmobs_span)
-                if user_llmobs_span is None:
-                    return None
-                if not isinstance(user_llmobs_span, LLMObsSpan):
-                    raise TypeError(
-                        "User span processor must return an LLMObsSpan or None, got %r" % type(user_llmobs_span)
-                    )
-                llmobs_span = user_llmobs_span
-            except Exception as e:
-                log.error(
-                    "Error in LLMObs span processor (%r): %r",
-                    self._user_span_processor,
-                    e,
-                )
-                error = True
-            finally:
-                telemetry.record_llmobs_user_processor_called(error)
-
-        if llmobs_span.input is not None:
-            if input_type == "messages":
-                meta["input"]["messages"] = llmobs_span.input
-            elif input_type == "value":
-                meta["input"]["value"] = llmobs_span.input[0].get("content", "")
-        if llmobs_span.output is not None:
-            if output_type == "messages":
-                meta["output"]["messages"] = llmobs_span.output
-            elif output_type == "value":
-                meta["output"]["value"] = llmobs_span.output[0].get("content", "")
-
-        if not meta["input"]:
-            meta.pop("input")
-        if not meta["output"]:
-            meta.pop("output")
-        metrics = span._get_ctx_item(METRICS) or {}
-        ml_app = _get_ml_app(span)
-
-        if ml_app is None:
-            raise ValueError(
-                "ML app is required for sending LLM Observability data. "
-                "Ensure this configuration is set before running your application."
-            )
-
-        span._set_ctx_item(ML_APP, ml_app)
-        parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
-
-        llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
-        if llmobs_trace_id is None:
-            raise ValueError("Failed to extract LLMObs trace ID from span context.")
 
         llmobs_span_event: LLMObsSpanEvent = {
             "trace_id": format_trace_id(llmobs_trace_id),
@@ -467,24 +581,22 @@ class LLMObs(Service):
             "status": "error" if span.error else "ok",
             "meta": meta,
             "metrics": metrics,
-            "tags": [],
+            "tags": tags,
             "_dd": _dd_attrs,
         }
-        session_id = _get_session_id(span)
-        if session_id is not None:
-            span._set_ctx_item(SESSION_ID, session_id)
+
+        experiment_config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
+        if experiment_config:
+            llmobs_span_event["config"] = experiment_config
+        if session_id:
             llmobs_span_event["session_id"] = session_id
-
-        llmobs_span_event["tags"] = self._llmobs_tags(span, ml_app, session_id)
-
-        span_links = span._get_ctx_item(SPAN_LINKS)
-        if isinstance(span_links, list) and span_links:
+        if span_links:
             llmobs_span_event["span_links"] = span_links
 
         return llmobs_span_event
 
     @staticmethod
-    def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> list[str]:
+    def _llmobs_tags(span: Span) -> list[str]:
         dd_tags = config.tags
         tags = {
             **dd_tags,
@@ -492,7 +604,7 @@ class LLMObs(Service):
             "env": config.env or "",
             "service": span.service or "",
             "source": "integration",
-            "ml_app": ml_app,
+            "ml_app": get_llmobs_ml_app(span),
             "ddtrace.version": __version__,
             "language": "python",
             "error": span.error,
@@ -500,13 +612,12 @@ class LLMObs(Service):
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
             tags["error_type"] = err_type
+        session_id = get_llmobs_session_id(span)
         if session_id:
             tags["session_id"] = session_id
-        if span._get_ctx_item(INTEGRATION):
-            tags["integration"] = span._get_ctx_item(INTEGRATION)
-        if _is_evaluation_span(span):
-            tags[constants.RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
-        existing_tags = span._get_ctx_item(TAGS)
+
+        existing_tags = get_llmobs_tags(span)
+
         if existing_tags is not None:
             tags.update(existing_tags)
 
@@ -559,6 +670,7 @@ class LLMObs(Service):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._evaluator_runner = self._evaluator_runner.recreate()
+        LLMObs._prompt_manager = None
         if self.enabled:
             self._start_service()
 
@@ -657,7 +769,7 @@ class LLMObs(Service):
 
         cls._warn_if_litellm_was_imported()
 
-        if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
+        if _env.get("DD_LLMOBS_ENABLED") and not asbool(_env.get("DD_LLMOBS_ENABLED")):
             log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
         # grab required values for LLMObs
@@ -693,7 +805,7 @@ class LLMObs(Service):
                         "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                         "Ensure this configuration is set before running your application."
                     )
-                if not os.getenv("DD_REMOTE_CONFIGURATION_ENABLED"):
+                if not _env.get("DD_REMOTE_CONFIGURATION_ENABLED"):
                     config._remote_config_enabled = False
                     log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                     remoteconfig_poller.disable()
@@ -804,14 +916,41 @@ class LLMObs(Service):
             self._llmobs_context_provider.activate(llmobs_ctx)
 
     @classmethod
+    def publish_evaluator(
+        cls,
+        evaluator: BaseEvaluator,
+        ml_app: str,
+        eval_name: Optional[str] = None,
+        variable_mapping: Optional[dict[str, str]] = None,
+    ) -> dict[str, str]:
+        if not cls._instance or not cls._instance.enabled:
+            raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`")
+
+        evaluation_payload = evaluator._build_publish_payload(
+            ml_app=ml_app, eval_name=eval_name, variable_mapping=variable_mapping
+        )
+
+        cls._instance._dne_client.publish_custom_evaluator(evaluation_payload)
+
+        base_url = _get_base_url()
+        query = urllib.parse.urlencode({"evalName": evaluation_payload["eval_name"], "applicationName": ml_app.strip()})
+        return {"ui_url": f"{base_url}/llm/evaluations/custom?{query}"}
+
+    @classmethod
     def pull_dataset(
         cls,
         dataset_name: str,
         project_name: Optional[str] = None,
         version: Optional[int] = None,
+        tags: Optional[list[str]] = None,
     ) -> Dataset:
+        if tags is not None and not isinstance(tags, list):
+            raise ValueError(
+                "tags must be a list of strings in the format of tag key value pairs. "
+                'Example: tags=["key1:value1", "key2:value2"]'
+            )
         ds = cls._instance._dne_client.dataset_get_with_records(
-            dataset_name, (project_name or cls._project_name), version
+            dataset_name, (project_name or cls._project_name), version, tags
         )
         return ds
 
@@ -821,15 +960,59 @@ class LLMObs(Service):
         dataset_name: str,
         project_name: Optional[str] = None,
         description: str = "",
-        records: Optional[list[DatasetRecord]] = None,
+        records: Optional[list[DatasetRecordNew]] = None,
+        bulk_upload: bool = False,
+        deduplicate: bool = True,
     ) -> Dataset:
+        """Creates a Dataset to run Experiments on.
+
+        :param dataset_name: The name of the dataset.
+        :param project_name: The name of the project to save the dataset to.
+        :param description: The description of the dataset.
+        :param records: Optional records to initialize the dataset with.
+        :param deduplicate:
+            Whether to deduplicate the records or not. If bulk_upload is True, deduplication occurs
+            within the uploaded data, not existing data already stored on the sever.
+        :param bulk_upload:
+            - True:
+                Uploads all records in a single request. This method does not support deduplication
+                against existing data and is best suited for initial uploads.
+            - False:
+                Splits the data into batches and uploads them individually. This method supports
+                deduplication against existing records but does not provide transactional guarantees
+                when the same dataset is modified concurrently by multiple clients.
+        """
         if records is None:
             records = []
         ds = cls._instance._dne_client.dataset_create(dataset_name, project_name, description)
-        for r in records:
-            ds.append(r)
+
         if len(records) > 0:
-            ds.push()
+            if bulk_upload:
+                for record in records:
+                    ds.append(record)
+                ds.push(deduplicate=deduplicate, bulk_upload=True)
+            else:
+                num_batches = math.ceil(len(safe_json(records)) / ds.BATCH_UPDATE_THRESHOLD)
+                batch_size = math.ceil(len(records) / num_batches)
+                batch_size = min(batch_size, ds.BATCH_UPDATE_MAX_RECORDS)
+                log.debug(
+                    "batched upload num_batches :%d, batch_size: %d",
+                    num_batches,
+                    batch_size,
+                )
+                create_new_version = True  # whether the server should attempt to bump the data version or not
+                for record_batch in _batched(records, batch_size):
+                    for record in record_batch:
+                        ds.append(record)
+                    data_changed = ds._push(
+                        deduplicate=deduplicate,
+                        create_new_version=create_new_version,
+                        bulk_upload=False,
+                    )
+                    if data_changed:
+                        # Since we are batching a single upload, we should only bump the version at most once
+                        create_new_version = False
+
         return ds
 
     @classmethod
@@ -843,6 +1026,8 @@ class LLMObs(Service):
         csv_delimiter: str = ",",
         description: str = "",
         project_name: Optional[str] = None,
+        deduplicate: bool = True,
+        id_column: Optional[str] = None,
     ) -> Dataset:
         if expected_output_columns is None:
             expected_output_columns = []
@@ -879,16 +1064,19 @@ class LLMObs(Service):
                     raise ValueError(f"Expected output columns not found in CSV header: {missing_output_columns}")
                 if any(col not in header_columns for col in metadata_columns):
                     raise ValueError(f"Metadata columns not found in CSV header: {missing_metadata_columns}")
+                if id_column and id_column not in header_columns:
+                    raise ValueError(f"ID column '{id_column}' not found in CSV header")
 
                 for row in rows:
-                    records.append(
-                        DatasetRecord(
-                            input_data={col: row[col] for col in input_data_columns},
-                            expected_output={col: row[col] for col in expected_output_columns},
-                            metadata={col: row[col] for col in metadata_columns},
-                            record_id="",
-                        )
-                    )
+                    record: DatasetRecordNew = {
+                        "input_data": {col: row[col] for col in input_data_columns},
+                        "expected_output": {col: row[col] for col in expected_output_columns},
+                        "metadata": {col: row[col] for col in metadata_columns},
+                        "tags": [],
+                    }
+                    if id_column:
+                        record["id"] = row[id_column]
+                    records.append(record)
 
         finally:
             # Always restore the original field size limit
@@ -898,7 +1086,7 @@ class LLMObs(Service):
         for r in records:
             ds.append(r)
         if len(ds) > 0:
-            cls._instance._dne_client.dataset_bulk_upload(ds._id, ds._records)
+            cls._instance._dne_client.dataset_bulk_upload(ds._id, ds._records, deduplicate=deduplicate)
         return ds
 
     @classmethod
@@ -909,29 +1097,11 @@ class LLMObs(Service):
     def _prompt_optimization(
         cls,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
+        task: Callable[[JSONType, Optional[ConfigType]], JSONType],
         optimization_task: Callable[[str, str, ConfigType], str],
         dataset: Dataset,
-        evaluators: list[
-            Union[
-                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-                BaseEvaluator,
-            ]
-        ],
-        summary_evaluators: list[
-            Union[
-                Callable[
-                    [
-                        list[DatasetRecordInputType],
-                        list[JSONType],
-                        list[JSONType],
-                        dict[str, list[JSONType]],
-                    ],
-                    JSONType,
-                ],
-                BaseSummaryEvaluator,
-            ]
-        ],
+        evaluators: Sequence[EvaluatorType],
+        summary_evaluators: Sequence[SummaryEvaluatorType],
         labelization_function: Optional[Callable[[dict[str, Any]], str]],
         compute_score: Callable[[dict[str, dict[str, Any]]], float],
         config: ConfigType,
@@ -939,6 +1109,8 @@ class LLMObs(Service):
         tags: Optional[dict[str, str]] = None,
         max_iterations: int = 5,
         stopping_condition: Optional[Callable[[dict[str, dict[str, Any]]], bool]] = None,
+        dataset_split: Union[bool, tuple[float, ...]] = False,
+        test_dataset: Optional[str] = None,
     ) -> PromptOptimization:
         """Initialize a PromptOptimization to iteratively improve prompts using experiments.
 
@@ -986,6 +1158,17 @@ class LLMObs(Service):
         :param stopping_condition: Optional function to determine when to stop optimization early.
                                    Takes summary_evaluations dict from the experiment result and returns True if
                                    optimization should stop.
+        :param dataset_split: Controls dataset splitting. Accepts:
+            - ``False`` (default): No splitting, use full dataset for everything.
+            - ``True``: Split with default ratios (60/20/20 without test_dataset, 80/20 with).
+            - ``(train, valid, test)`` tuple: Custom 3-way split ratios. Must sum to 1.0.
+              Cannot be combined with ``test_dataset``.
+            - ``(train, valid)`` tuple: Custom 2-way split ratios. Must sum to 1.0.
+              Requires ``test_dataset`` for the test set.
+        :param test_dataset: Optional name of a separate test dataset. When provided, the dataset is
+                            pulled automatically, the main dataset is split into train/valid (80/20),
+                            and the test dataset is used for the final unbiased score.
+                            Implicitly enables dataset splitting.
         :return: PromptOptimization object. Call ``.run()`` to execute the optimization.
         :raises TypeError: If task, optimization_task, evaluators, or dataset have incorrect types
                           or signatures.
@@ -1047,37 +1230,16 @@ class LLMObs(Service):
             )
             results = opt.run()
         """
-        if not callable(task):
-            raise TypeError("task must be a callable function.")
-        sig = inspect.signature(task)
-        params = sig.parameters
-        if "input_data" not in params or "config" not in params:
-            raise TypeError("Task function must have 'input_data' and 'config' parameters.")
+        validate_task(task)
+        validate_optimization_task(optimization_task)
+        validate_dataset(dataset)
+        validate_test_dataset(test_dataset)
+        validate_dataset_split(dataset_split, test_dataset)
+        validate_evaluators(evaluators)
 
-        if not callable(optimization_task):
-            raise TypeError("optimization_task must be a callable function.")
-        sig = inspect.signature(optimization_task)
-        params = sig.parameters
-        if "system_prompt" not in params or "user_prompt" not in params or "config" not in params:
-            raise TypeError(
-                "optimization_task function must have 'system_prompt' and 'user_prompt' parameters. "
-                "It should call an LLM with these prompts and return an optimized prompt."
-            )
-
-        if not isinstance(dataset, Dataset):
-            raise TypeError("Dataset must be an LLMObs Dataset object.")
-        if not evaluators:
-            raise TypeError("Evaluators must be a non-empty list of BaseEvaluator instances or callable functions.")
-        for evaluator in evaluators:
-            if isinstance(evaluator, BaseEvaluator):
-                continue
-            if not callable(evaluator):
-                raise TypeError("Evaluator must be a BaseEvaluator instance or a callable function.")
-            sig = inspect.signature(evaluator)
-            params = sig.parameters
-            evaluator_required_params = ("input_data", "output_data", "expected_output")
-            if not all(param in params for param in evaluator_required_params):
-                raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
+        pulled_test_dataset = None
+        if test_dataset is not None:
+            pulled_test_dataset = cls.pull_dataset(dataset_name=test_dataset, project_name=project_name)
 
         return PromptOptimization(
             name=name,
@@ -1094,42 +1256,24 @@ class LLMObs(Service):
             tags=tags,
             max_iterations=max_iterations,
             stopping_condition=stopping_condition,
+            dataset_split=dataset_split,
+            test_dataset=pulled_test_dataset,
         )
 
     @classmethod
     def experiment(
         cls,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
+        task: TaskType,
         dataset: Dataset,
-        evaluators: Sequence[
-            Union[
-                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-                BaseEvaluator,
-            ]
-        ],
+        evaluators: Sequence[EvaluatorType],
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
-        summary_evaluators: Optional[
-            list[
-                Union[
-                    Callable[
-                        [
-                            list[DatasetRecordInputType],
-                            list[JSONType],
-                            list[JSONType],
-                            dict[str, list[JSONType]],
-                        ],
-                        JSONType,
-                    ],
-                    BaseSummaryEvaluator,
-                ]
-            ]
-        ] = None,
+        summary_evaluators: Optional[Sequence[SummaryEvaluatorType]] = None,
         runs: Optional[int] = 1,
-    ) -> Experiment:
+    ) -> SyncExperiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
         :param name: The name of the experiment.
@@ -1152,69 +1296,222 @@ class LLMObs(Service):
         :param runs: The number of times to run the experiment, or, run the task for every dataset record the defined
                      number of times.
         """
-        if not callable(task):
-            raise TypeError("task must be a callable function.")
-        sig = inspect.signature(task)
-        params = sig.parameters
-        if "input_data" not in params or "config" not in params:
-            raise TypeError("Task function must have 'input_data' and 'config' parameters.")
+        _validate_task_signature(task, is_async=False)
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
-        if not evaluators or not all(
-            callable(evaluator) or isinstance(evaluator, BaseEvaluator) for evaluator in evaluators
-        ):
+        if not evaluators:
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
-        for evaluator in evaluators:
-            if isinstance(evaluator, BaseEvaluator):
+        evaluators_list = list(evaluators)
+        eval_names: dict[str, int] = {}
+        for idx, evaluator in enumerate(evaluators_list):
+            _validate_evaluator_signature(evaluator, is_async=False)
+            if _is_deep_eval_evaluator(evaluator):
+                evaluators_list[idx] = _deep_eval_evaluator_wrapper(evaluator)
                 continue
-            if not callable(evaluator):
-                raise TypeError(f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator.")
-            sig = inspect.signature(evaluator)
-            params = sig.parameters
-            evaluator_required_params = ("input_data", "output_data", "expected_output")
-            if not all(param in params for param in evaluator_required_params):
-                raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
+            if _is_pydantic_evaluator(evaluator):
+                duration = 0
+                eval_name_count = 1
+                current_span = cls._instance._current_span()
+                if current_span is not None and current_span.duration_ns is not None:
+                    duration = current_span.duration_ns
+                eval_name = cast(Any, evaluator).get_default_evaluation_name()
+                if eval_name in eval_names:
+                    eval_name_count = eval_names[eval_name]
+                evaluators_list[idx] = _pydantic_evaluator_wrapper(evaluator, duration, eval_name_count)
+                eval_names[eval_name] = eval_name_count + 1
+
+                continue
         if summary_evaluators and not all(
-            callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator)
+            callable(summary_evaluator)
+            or isinstance(summary_evaluator, BaseSummaryEvaluator)
+            or _is_pydantic_report_evaluator(summary_evaluator)
             for summary_evaluator in summary_evaluators
         ):
             raise TypeError(
                 "Summary evaluators must be a list of callable functions or BaseSummaryEvaluator instances."
             )
-        if summary_evaluators:
-            for summary_evaluator in summary_evaluators:
-                if isinstance(summary_evaluator, BaseSummaryEvaluator):
+        summary_evaluators_list: Optional[list[SummaryEvaluatorType]] = None
+        if summary_evaluators is not None:
+            summary_evaluators_list = list(summary_evaluators)
+            for idx, summary_evaluator in enumerate(summary_evaluators_list):
+                if _is_pydantic_report_evaluator(summary_evaluator):
+                    summary_evaluators_list[idx] = _pydantic_report_evaluator_wrapper(summary_evaluator)
                     continue
-                if not callable(summary_evaluator):
-                    raise TypeError(
-                        f"Summary evaluator {summary_evaluator} must be callable "
-                        "or an instance of BaseSummaryEvaluator."
-                    )
-                sig = inspect.signature(summary_evaluator)
-                params = sig.parameters
-                summary_evaluator_required_params = (
-                    "inputs",
-                    "outputs",
-                    "expected_outputs",
-                    "evaluators_results",
-                )
-                if not all(param in params for param in summary_evaluator_required_params):
-                    raise TypeError(
-                        "Summary evaluator function must have parameters {}.".format(summary_evaluator_required_params)
-                    )
-        return Experiment(
+                _validate_summary_evaluator_signature(summary_evaluator, is_async=False)
+        return SyncExperiment(
             name,
             task,
             dataset,
-            evaluators,
+            evaluators_list,
             project_name=project_name or cls._project_name,
             tags=tags,
             description=description,
             config=config,
             _llmobs_instance=cls._instance,
-            summary_evaluators=summary_evaluators,
+            summary_evaluators=summary_evaluators_list,
             runs=runs,
         )
+
+    @classmethod
+    def async_experiment(
+        cls,
+        name: str,
+        task: AsyncTaskType,
+        dataset: Dataset,
+        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
+        description: str = "",
+        project_name: Optional[str] = None,
+        tags: Optional[dict[str, str]] = None,
+        config: Optional[ConfigType] = None,
+        summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
+        runs: Optional[int] = 1,
+    ) -> Experiment:
+        """Initializes an Experiment to run an async task on a Dataset with evaluators.
+
+        This is the async version of experiment() that supports async tasks, evaluators, and summary evaluators.
+        Sync evaluators are also supported and will be run via asyncio.to_thread().
+
+        :param name: The name of the experiment.
+        :param task: The async task function to run. Must be an async function accepting parameters
+                     ``input_data`` and ``config``.
+        :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
+        :param evaluators: A list of evaluator functions or BaseEvaluator/BaseAsyncEvaluator instances.
+                           Supports both sync and async evaluators. Sync evaluators will be run in a thread pool.
+                           Function-based evaluators must accept parameters ``input_data``, ``output_data``,
+                           and ``expected_output``.
+                           Class-based evaluators must inherit from BaseEvaluator or BaseAsyncEvaluator
+                           and implement the evaluate method.
+        :param project_name: The name of the project to save the experiment to.
+        :param description: A description of the experiment.
+        :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
+        :param config: A configuration dictionary describing the experiment.
+        :param summary_evaluators: A list of summary evaluator functions or BaseSummaryEvaluator/
+                                   BaseAsyncSummaryEvaluator instances. Supports both sync and async.
+                                   Function-based summary evaluators must accept parameters ``inputs``, ``outputs``,
+                                   ``expected_outputs``, ``evaluators_results``.
+                                   Class-based summary evaluators must inherit from BaseSummaryEvaluator or
+                                   BaseAsyncSummaryEvaluator and implement the evaluate method.
+        :param runs: The number of times to run the experiment.
+        """
+        _validate_task_signature(task, is_async=True)
+        if not isinstance(dataset, Dataset):
+            raise TypeError("Dataset must be an LLMObs Dataset object.")
+        if not evaluators:
+            raise TypeError(
+                "Evaluators must be a list of callable functions, BaseEvaluator, or BaseAsyncEvaluator instances."
+            )
+        evaluators_list = list(evaluators)
+        eval_names: dict[str, int] = {}
+        for idx, evaluator in enumerate(evaluators_list):
+            _validate_evaluator_signature(evaluator, is_async=True)
+            if _is_deep_eval_evaluator(evaluator):
+                evaluators_list[idx] = _deep_eval_async_evaluator_wrapper(evaluator)
+                continue
+            if _is_pydantic_evaluator(evaluator):
+                duration = 0
+                eval_name_count = 1
+                current_span = cls._instance._current_span()
+                if current_span is not None and current_span.duration_ns is not None:
+                    duration = current_span.duration_ns
+                eval_name = cast(Any, evaluator).get_default_evaluation_name()
+                if eval_name in eval_names:
+                    eval_name_count = eval_names[eval_name]
+                evaluators_list[idx] = _pydantic_async_evaluator_wrapper(evaluator, duration, eval_name_count)
+                eval_names[eval_name] = eval_name_count + 1
+                continue
+        if summary_evaluators and not all(
+            callable(summary_evaluator)
+            or isinstance(summary_evaluator, (BaseSummaryEvaluator, BaseAsyncSummaryEvaluator))
+            or _is_pydantic_report_evaluator(summary_evaluator)
+            for summary_evaluator in summary_evaluators
+        ):
+            raise TypeError(
+                "Summary evaluators must be a list of callable functions or BaseSummaryEvaluator instances."
+            )
+        summary_evaluators_list: Optional[list[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None
+        if summary_evaluators is not None:
+            summary_evaluators_list = list(summary_evaluators)
+            for idx, summary_evaluator in enumerate(summary_evaluators_list):
+                if _is_pydantic_report_evaluator(summary_evaluator):
+                    summary_evaluators_list[idx] = _pydantic_async_report_evaluator_wrapper(summary_evaluator)
+                    continue
+                _validate_summary_evaluator_signature(summary_evaluator, is_async=True)
+        return Experiment(
+            name,
+            task,
+            dataset,
+            evaluators_list,
+            project_name=project_name or cls._project_name,
+            tags=tags,
+            description=description,
+            config=config,
+            _llmobs_instance=cls._instance,
+            summary_evaluators=summary_evaluators_list,
+            runs=runs,
+        )
+
+    @classmethod
+    def _distributed_experiment(
+        cls,
+        name: str,
+        dataset: Dataset,
+        description: str = "",
+        project_name: Optional[str] = None,
+        tags: Optional[dict[str, str]] = None,
+        config: Optional[ConfigType] = None,
+        runs: Optional[int] = 1,
+    ) -> Experiment:
+        experiment = Experiment(
+            name,
+            Experiment._NO_OP_TASK,
+            dataset,
+            [],
+            project_name=project_name or cls._project_name,
+            tags=tags,
+            description=description,
+            config=config,
+            _llmobs_instance=cls._instance,
+            runs=runs,
+            is_distributed=True,
+        )
+        experiment._setup_experiment(
+            "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`",
+            ensure_unique=False,
+        )
+        return experiment
+
+    @classmethod
+    def _run_for_experiment(
+        cls,
+        experiment_id: str,
+        task: Callable[[JSONType, Optional[ConfigType]], JSONType],
+        dataset_records: list[DatasetRecord],
+        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
+        jobs: int = 1,
+        raise_errors: bool = False,
+        run_iteration: Optional[int] = 0,
+        tags: Optional[dict[str, str]] = None,
+    ) -> tuple[Experiment, ExperimentResult]:
+        if not cls._instance or not cls._instance.enabled:
+            raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`")
+        experiment = cls._instance._dne_client.experiment_get(experiment_id)
+        experiment._llmobs_instance = cls._instance
+        experiment._dataset._records = dataset_records
+        experiment._task = task
+        experiment._evaluators = evaluators
+
+        coro = experiment._run_task_single_iteration(jobs, raise_errors, run_iteration)
+        asyncio = get_asyncio()
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            results = asyncio.run(coro)
+        else:
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                results = pool.submit(asyncio.run, coro).result()
+        return experiment, results
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None) -> None:
@@ -1232,9 +1529,12 @@ class LLMObs(Service):
 
     @classmethod
     def _integration_is_enabled(cls, integration: str) -> bool:
-        if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
+        module_name = SUPPORTED_LLMOBS_INTEGRATIONS.get(
+            integration, _INTEGRATIONS_W_PROPAGATION_SUPPORT.get(integration)
+        )
+        if module_name is None:
             return False
-        return SUPPORTED_LLMOBS_INTEGRATIONS[integration] in ddtrace._monkey._get_patched_modules()
+        return module_name in ddtrace._monkey._get_patched_modules()
 
     @classmethod
     def disable(cls) -> None:
@@ -1246,23 +1546,10 @@ class LLMObs(Service):
 
         cls._instance.stop()
         cls.enabled = False
+        cls._prompt_manager = None
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
-
-    def _tag_span_links(self, span, span_links):
-        if not span_links:
-            return
-        span_links = [
-            span_link
-            for span_link in span_links
-            if span_link["span_id"] != LLMObs.export_span(span)["span_id"]
-            and span_link["trace_id"] == LLMObs.export_span(span)["trace_id"]
-        ]
-        current_span_links = span._get_ctx_item(SPAN_LINKS)
-        if current_span_links:
-            span_links = current_span_links + span_links
-        span._set_ctx_item(SPAN_LINKS, span_links)
 
     @classmethod
     def annotation_context(
@@ -1287,6 +1574,7 @@ class LLMObs(Service):
                             "tags": {"key1": "value1", "key2": "value2"},
                         }`
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
+                        For managed prompts, use `prompt.to_annotation_dict(**variables)`.
                         - This argument is only applicable to LLM spans.
                         - The dictionary may contain optional keys relevant to Templates and RAG applications:
                             `rag_context_variables` - a list of variable key names that contain ground
@@ -1326,7 +1614,12 @@ class LLMObs(Service):
                     (
                         annotation_id,
                         ctx_id,
-                        {"tags": tags, "prompt": prompt, "_name": name, "_linked_spans": _linked_spans},
+                        {
+                            "tags": tags,
+                            "prompt": prompt,
+                            "_name": name,
+                            "_linked_spans": _linked_spans,
+                        },
                     )
                 )
 
@@ -1350,6 +1643,122 @@ class LLMObs(Service):
                     cls._instance.tracer.context_provider.activate(None)
 
         return AnnotationContext(register_annotation, deregister_annotation)
+
+    _prompt_manager: Optional[PromptManager] = None
+    _prompt_manager_lock = RLock()
+
+    @classmethod
+    def _ensure_prompt_manager(cls) -> PromptManager:
+        """Thread-safe get-or-initialize for the prompt manager."""
+        with cls._prompt_manager_lock:
+            manager = cls._prompt_manager
+            if manager is None:
+                manager = cls._initialize_prompt_manager()
+                cls._prompt_manager = manager
+            return manager
+
+    @classmethod
+    def get_prompt(
+        cls,
+        prompt_id: str,
+        label: Optional[Literal["development", "production"]] = None,
+        fallback: PromptFallback = None,
+    ) -> ManagedPrompt:
+        """
+        Retrieve a prompt template from the Datadog Prompt Registry.
+
+        :param prompt_id: The unique identifier of the prompt in the registry
+        :param label: Deployment label (e.g., "production", "development"). If not provided, returns the latest version.
+        :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
+                         Can be a template string, message list, Prompt dict, or a callable that
+                         returns any of those.
+
+        :returns: A ManagedPrompt object with template and rendering methods
+        :raises ValueError: If the prompt cannot be fetched and no fallback is provided
+
+        Example::
+
+            # Simple usage - returns the latest version
+            prompt = LLMObs.get_prompt("greeting")
+            messages = prompt.format(user="Alice")
+
+            # With explicit label and fallback
+            prompt = LLMObs.get_prompt(
+                "greeting",
+                label="production",
+                fallback="Hello {{user}}, how can I help?"
+            )
+
+            # Use with annotation_context for observability
+            # Pass the same variables to both format() and to_annotation_dict()
+            prompt = LLMObs.get_prompt("greeting")
+            variables = {"user": "Alice"}
+            with LLMObs.annotation_context(prompt=prompt.to_annotation_dict(**variables)):
+                openai.chat.completions.create(
+                    messages=prompt.format(**variables)
+                )
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.get_prompt(prompt_id, label, fallback)
+
+    @classmethod
+    def clear_prompt_cache(cls, hot: bool = True, warm: bool = True) -> None:
+        """Clear the prompt cache.
+
+        Args:
+            hot: If True, clear the hot (in-memory) cache. Defaults to True.
+            warm: If True, clear the warm (file-based) cache. Defaults to True.
+        """
+        if cls._prompt_manager is not None:
+            cls._prompt_manager.clear_cache(hot=hot, warm=warm)
+        elif warm:
+            # Clear file cache even if manager is not initialized
+            cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
+            warm_cache = WarmCache(cache_dir=cache_dir)
+            warm_cache.clear()
+
+    @classmethod
+    def refresh_prompt(
+        cls,
+        prompt_id: str,
+        label: Optional[Literal["development", "production"]] = None,
+    ) -> Optional[ManagedPrompt]:
+        """Force refresh a specific prompt from the registry.
+
+        Fetches the prompt synchronously and updates both caches.
+
+        Args:
+            prompt_id: The prompt identifier.
+            label: The prompt label. If not provided, returns the latest version.
+
+        Returns:
+            The refreshed prompt, or None if fetch failed.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.refresh_prompt(prompt_id, label)
+
+    @classmethod
+    def _initialize_prompt_manager(cls) -> PromptManager:
+        """Initialize the prompt manager with configuration."""
+        api_key = config._dd_api_key
+
+        if not api_key:
+            raise ValueError("DD_API_KEY is required for the Prompt Registry")
+
+        cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
+        file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
+        cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
+        timeout = _get_config("DD_LLMOBS_PROMPTS_TIMEOUT", DEFAULT_PROMPTS_TIMEOUT, float)
+        base_url = _get_config("DD_LLMOBS_OVERRIDE_ORIGIN") or f"https://api.{config._dd_site}"
+
+        return PromptManager(
+            api_key=api_key,
+            base_url=base_url,
+            cache_ttl=cache_ttl,
+            file_cache_enabled=file_cache_enabled,
+            cache_dir=cache_dir,
+            timeout=timeout,
+        )
 
     @classmethod
     def flush(cls) -> None:
@@ -1381,18 +1790,21 @@ class LLMObs(Service):
         """
         Patch LLM integrations. Ensure that we do not ignore DD_TRACE_<MODULE>_ENABLED or DD_PATCH_MODULES settings.
         """
+        llm_integrations: list[str] = list(SUPPORTED_LLMOBS_INTEGRATIONS.values()) + list(
+            _INTEGRATIONS_W_PROPAGATION_SUPPORT.values()
+        )
         integrations_to_patch: dict[str, Union[list[str], bool]] = {
             integration: ["bedrock-runtime", "bedrock-agent-runtime"] if integration == "botocore" else True
-            for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()
+            for integration in llm_integrations
         }
         for module, _ in integrations_to_patch.items():
             env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-            if env_var in os.environ:
-                integrations_to_patch[module] = asbool(os.environ[env_var])
-        dd_patch_modules = os.getenv("DD_PATCH_MODULES")
+            if env_var in _env:
+                integrations_to_patch[module] = asbool(_env[env_var])
+        dd_patch_modules = _env.get("DD_PATCH_MODULES")
         dd_patch_modules_to_str = parse_tags_str(dd_patch_modules)
         integrations_to_patch.update(
-            {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
+            {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in llm_integrations}
         )
         patch(raise_errors=True, **integrations_to_patch)
         llm_patched_modules = [k for k, v in integrations_to_patch.items() if v]
@@ -1422,7 +1834,7 @@ class LLMObs(Service):
                 raise LLMObsExportSpanError("Span must be an LLMObs-generated span.")
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
-                trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID) or span.trace_id),
+                trace_id=format_trace_id(get_llmobs_trace_id(span) or span.trace_id),
             )
         except (TypeError, AttributeError):
             error = "invalid_span"
@@ -1445,29 +1857,45 @@ class LLMObs(Service):
             return active
         elif isinstance(active, Span):
             context = active.context
-            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(active._get_ctx_item(LLMOBS_TRACE_ID)) or str(
-                active.trace_id
-            )
+            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(get_llmobs_trace_id(active) or active.trace_id)
             return context
         return None
 
     def _activate_llmobs_span(self, span: Span) -> None:
-        """Propagate the llmobs parent span's ID as the new span's parent ID and activate the new span."""
+        """Propagate the llmobs parent spanID, traceID, ml_app, and session_id and activate the new span.
+        ml_app precedence: parent span._store > distributed context > global config > service.
+        session_id is optional and only propagated from span._store
+        """
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
-            span._set_ctx_item(PARENT_ID_KEY, str(llmobs_parent.span_id))
+            parent_id = llmobs_parent.span_id
             parent_llmobs_trace_id = (
-                llmobs_parent._get_ctx_item(LLMOBS_TRACE_ID)
+                get_llmobs_trace_id(llmobs_parent)
                 if isinstance(llmobs_parent, Span)
+                # ast-grep-ignore: span-meta-access
                 else llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             )
             llmobs_trace_id = (
                 int(parent_llmobs_trace_id) if parent_llmobs_trace_id is not None else llmobs_parent.trace_id
             )
-            span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_trace_id)
+            if isinstance(llmobs_parent, Span):
+                ml_app = llmobs_parent._get_ctx_item(ML_APP)
+                session_id = llmobs_parent._get_ctx_item(SESSION_ID)
+            else:
+                ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)  # ast-grep-ignore: span-meta-access
+                session_id = None
         else:
-            span._set_ctx_item(PARENT_ID_KEY, ROOT_PARENT_ID)
-            span._set_ctx_item(LLMOBS_TRACE_ID, generate_128bit_trace_id())
+            llmobs_trace_id = generate_128bit_trace_id()
+            parent_id, ml_app, session_id = None, None, None
+        ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
+        _annotate_llmobs_span_data(
+            span, parent_id=parent_id, trace_id=llmobs_trace_id, ml_app=ml_app, session_id=session_id
+        )
+        # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
+        # to this LLMObs trace
+        if span._local_root.get_tag("llmobs_trace_id") is None:
+            span._local_root.set_tag("llmobs_trace_id", format_trace_id(llmobs_trace_id))  # type: ignore[arg-type]
+            span._local_root.set_tag("llmobs_parent_id", str(span.span_id))
         self._llmobs_context_provider.activate(span)
 
     def _start_span(
@@ -1487,23 +1915,16 @@ class LLMObs(Service):
         if not self.enabled:
             return span
 
-        span._set_ctx_item(SPAN_KIND, operation_kind)
-        if model_name is not None:
-            span._set_ctx_item(MODEL_NAME, model_name)
-        if model_provider is not None:
-            span._set_ctx_item(MODEL_PROVIDER, model_provider)
-        session_id = session_id if session_id is not None else _get_session_id(span)
-        if session_id is not None:
-            span._set_ctx_item(SESSION_ID, session_id)
-
-        ml_app = ml_app if ml_app is not None else _get_ml_app(span)
-        if ml_app is None:
-            raise ValueError(
-                "ml_app is required for sending LLM Observability data. "
-                "Ensure the name of your LLM application is set via `DD_LLMOBS_ML_APP` or `LLMObs.enable(ml_app='...')`"
-                "before running your application."
-            )
-        span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
+        _annotate_llmobs_span_data(
+            span,
+            kind=operation_kind,
+            model_name=model_name,
+            model_provider=model_provider,
+            session_id=session_id,
+            ml_app=ml_app,
+        )
+        if _decorator:
+            _annotate_llmobs_span_data(span, tags={"decorator": "1"})
         log.debug(
             "Starting LLMObs span: %s, span_kind: %s, ml_app: %s",
             name,
@@ -1871,13 +2292,13 @@ class LLMObs(Service):
                     error = "invalid_metadata"
                     raise LLMObsAnnotateSpanError("metadata must be a dictionary")
                 else:
-                    cls._set_dict_attribute(span, METADATA, metadata)
+                    _annotate_llmobs_span_data(span, metadata=metadata)
             if metrics is not None:
                 if not isinstance(metrics, dict) or not all(isinstance(v, (int, float)) for v in metrics.values()):
                     error = "invalid_metrics"
                     raise LLMObsAnnotateSpanError("metrics must be a dictionary of string key - numeric value pairs.")
                 else:
-                    cls._set_dict_attribute(span, METRICS, metrics)
+                    _annotate_llmobs_span_data(span, metrics=metrics)
             if tags is not None:
                 if not isinstance(tags, dict):
                     error = "invalid_tags"
@@ -1887,21 +2308,22 @@ class LLMObs(Service):
                 else:
                     session_id = tags.get("session_id")
                     if session_id:
-                        span._set_ctx_item(SESSION_ID, str(session_id))
-                    cls._set_dict_attribute(span, TAGS, tags)
+                        _annotate_llmobs_span_data(span, session_id=str(session_id))
+                    _annotate_llmobs_span_data(span, tags=tags)
             if tool_definitions is not None:
                 validated_tool_definitions = extract_tool_definitions(tool_definitions)
                 if validated_tool_definitions:
-                    span._set_ctx_item(TOOL_DEFINITIONS, validated_tool_definitions)
-            span_kind = span._get_ctx_item(SPAN_KIND)
+                    _annotate_llmobs_span_data(span, tool_definitions=validated_tool_definitions)
+            span_kind = get_llmobs_span_kind(span)
             if _name is not None:
                 span.name = _name
             if prompt is not None:
                 try:
                     validated_prompt = _validate_prompt(prompt, strict_validation=False)
-                    cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
-                    cls._set_dict_attribute(
-                        span, TAGS, {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED}
+                    _annotate_llmobs_span_data(
+                        span,
+                        prompt=cast(Prompt, validated_prompt),
+                        tags={PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED},
                     )
                 except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
@@ -1933,7 +2355,11 @@ class LLMObs(Service):
                 for linked_span in _linked_spans:
                     # for now, assume all span links are output to input as we do not currently use this for anything
                     add_span_link(
-                        span, linked_span.get("span_id", ""), linked_span.get("trace_id", ""), "output", "input"
+                        span,
+                        linked_span.get("span_id", ""),
+                        linked_span.get("trace_id", ""),
+                        "output",
+                        "input",
                     )
             if annotation_error_message:
                 raise LLMObsAnnotateSpanError(annotation_error_message)
@@ -1950,7 +2376,7 @@ class LLMObs(Service):
                 if not isinstance(input_messages, Messages):
                     input_messages = Messages(input_messages)
                 if input_messages.messages:
-                    span._set_ctx_item(INPUT_MESSAGES, input_messages.messages)
+                    _annotate_llmobs_span_data(span, input_messages=input_messages.messages)
             except TypeError:
                 return "Failed to parse input messages.", "invalid_io_messages"
         if output_messages is None:
@@ -1960,7 +2386,7 @@ class LLMObs(Service):
                 output_messages = Messages(output_messages)
             if not output_messages.messages:
                 return None, None
-            span._set_ctx_item(OUTPUT_MESSAGES, output_messages.messages)
+            _annotate_llmobs_span_data(span, output_messages=output_messages.messages)
         except TypeError:
             return "Failed to parse output messages.", "invalid_io_messages"
         return None, None
@@ -1975,12 +2401,12 @@ class LLMObs(Service):
                 if not isinstance(input_documents, Documents):
                     input_documents = Documents(input_documents)
                 if input_documents.documents:
-                    span._set_ctx_item(INPUT_DOCUMENTS, input_documents.documents)
+                    _annotate_llmobs_span_data(span, input_documents=input_documents.documents)
             except TypeError:
                 return "Failed to parse input documents.", "invalid_embedding_io"
         if output_text is None:
             return None, None
-        span._set_ctx_item(OUTPUT_VALUE, str(output_text))
+        _annotate_llmobs_span_data(span, output_value=str(output_text))
         return None, None
 
     @classmethod
@@ -1989,7 +2415,7 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
         if input_text is not None:
-            span._set_ctx_item(INPUT_VALUE, safe_json(input_text))
+            _annotate_llmobs_span_data(span, input_value=safe_json(input_text))
         if output_documents is None:
             return None, None
         try:
@@ -1997,7 +2423,7 @@ class LLMObs(Service):
                 output_documents = Documents(output_documents)
             if not output_documents.documents:
                 return None, None
-            span._set_ctx_item(OUTPUT_DOCUMENTS, output_documents.documents)
+            _annotate_llmobs_span_data(span, output_documents=output_documents.documents)
         except TypeError:
             return "Failed to parse output documents.", "invalid_retrieval_io"
         return None, None
@@ -2008,9 +2434,9 @@ class LLMObs(Service):
         Will be mapped to span's `meta.{input,output}.values` fields.
         """
         if input_value is not None:
-            span._set_ctx_item(INPUT_VALUE, safe_json(input_value))
+            _annotate_llmobs_span_data(span, input_value=safe_json(input_value))
         if output_value is not None:
-            span._set_ctx_item(OUTPUT_VALUE, safe_json(output_value))
+            _annotate_llmobs_span_data(span, output_value=safe_json(output_value))
 
     @classmethod
     def _tag_freeform_io(cls, span, input_value=None, output_value=None):
@@ -2020,19 +2446,9 @@ class LLMObs(Service):
         arbitrary structured or non structured IO values in its spans
         """
         if input_value is not None:
-            span._set_ctx_item(EXPERIMENTS_INPUT, input_value)
+            _annotate_llmobs_span_data(span, experiment_input=input_value)
         if output_value is not None:
-            span._set_ctx_item(EXPERIMENTS_OUTPUT, output_value)
-
-    @staticmethod
-    def _set_dict_attribute(span: Span, key, value: dict[str, Any]) -> None:
-        """Sets a given LLM Obs span attribute with a dictionary key/values.
-        If the attribute is already set on the span, the new dict with be merged with the existing
-        dict.
-        """
-        existing_value = span._get_ctx_item(key) or {}
-        existing_value.update(value)
-        span._set_ctx_item(key, existing_value)
+            _annotate_llmobs_span_data(span, experiment_output=output_value)
 
     @classmethod
     def submit_evaluation(
@@ -2048,9 +2464,10 @@ class LLMObs(Service):
         metadata: Optional[dict[str, object]] = None,
         assessment: Optional[str] = None,
         reasoning: Optional[str] = None,
+        eval_scope: str = "span",
     ) -> None:
         """
-        Submits a custom evaluation metric for a given span.
+        Submits a custom evaluation metric for a given span or trace.
 
         :param str label: The name of the evaluation metric.
         :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
@@ -2068,6 +2485,9 @@ class LLMObs(Service):
                                 evaluation metric.
         :param str assessment: An assessment of this evaluation. Must be either "pass" or "fail".
         :param str reasoning: An explanation of the evaluation result.
+        :param str eval_scope: The scope of the evaluation. One of "span" (default) or "trace".
+                                Use "trace" to associate the evaluation with an entire trace (the span provided
+                                via `span` should be the root span).
         """
         if cls.enabled is False:
             log.debug(
@@ -2077,7 +2497,7 @@ class LLMObs(Service):
             return
 
         error = None
-        join_on = {}
+        join_on: dict[str, Any] = {}
         try:
             has_exactly_one_joining_key = (span is not None) ^ (span_with_tag_value is not None)
 
@@ -2115,6 +2535,10 @@ class LLMObs(Service):
                     "value": span_with_tag_value.get("tag_value"),
                 }
 
+            if eval_scope not in ("span", "trace"):
+                error = "invalid_eval_scope"
+                raise ValueError("eval_scope must be one of 'span' or 'trace'.")
+
             timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
 
             if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
@@ -2150,13 +2574,7 @@ class LLMObs(Service):
             if tags is not None and not isinstance(tags, dict):
                 raise LLMObsSubmitEvaluationError("tags must be a dictionary of string key-value pairs.")
 
-            ml_app = ml_app if ml_app else config._llmobs_ml_app
-            if not ml_app:
-                error = "missing_ml_app"
-                raise LLMObsSubmitEvaluationError(
-                    "ML App name is required for sending evaluation metrics. Evaluation metric data will not be sent. "
-                    "Ensure this configuration is set before running your application."
-                )
+            ml_app = resolve_ml_app(ml_app)
 
             evaluation_tags = {
                 "ddtrace.version": __version__,
@@ -2186,6 +2604,7 @@ class LLMObs(Service):
                 "{}_value".format(metric_type): value,  # type: ignore
                 "ml_app": ml_app,
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
+                "eval_scope": eval_scope,
             }
 
             if assessment:
@@ -2220,6 +2639,75 @@ class LLMObs(Service):
             telemetry.record_llmobs_submit_evaluation(join_on, metric_type, error)
 
     @classmethod
+    def get_spans(
+        cls,
+        trace_id: Optional[str] = None,
+        span_id: Optional[str] = None,
+        query: Optional[str] = None,
+        span_kind: Optional[str] = None,
+        span_name: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        tags: Optional[dict[str, str]] = None,
+        from_date: str = "now-7d",
+        to_date: str = "now",
+        sort: str = "timestamp",
+        include_attachments: bool = True,
+        limit: int = 10,
+    ) -> list[dict]:
+        """
+        Retrieves LLM span events from the Datadog platform API.
+
+        :param str trace_id: Filter spans by trace ID.
+        :param str span_id: Filter to a specific span by ID.
+        :param str query: Filter spans using EVP query syntax.
+        :param str span_kind: Filter by span kind. One of: ``agent``, ``workflow``, ``llm``,
+                               ``tool``, ``task``, ``embedding``, ``retrieval``.
+        :param str span_name: Filter by span name.
+        :param str ml_app: Filter by ML application name. Defaults to ``DD_LLMOBS_ML_APP``
+                            if set; otherwise the query is not scoped to an ml_app.
+        :param dict tags: Filter by tag key-value pairs, e.g. ``{"utterance_id": "123"}``.
+        :param str from_date: Start of the time range. Accepts ISO 8601, date math
+                               (e.g. ``"now-7d"``), or millisecond timestamps. Default: ``"now-7d"``.
+        :param str to_date: End of the time range. Same formats as ``from_date``. Default: ``"now"``.
+        :param str sort: Sort order. ``"timestamp"`` for earliest-first (default),
+                          ``"-timestamp"`` for latest-first.
+        :param bool include_attachments: If ``True`` (default), span input/output content larger
+                                          than 25KB is fetched from blob storage and inlined into
+                                          the response. If ``False``, truncated values are returned.
+        :param int limit: Maximum number of spans to fetch per page (1–5000). Default: 10.
+        :returns: A flat list of span attribute dicts. Each dict contains fields such as
+                  ``span_id``, ``trace_id``, ``name``, ``span_kind``, ``start_ns``, ``duration``,
+                  ``input``, ``output``, ``metrics``, and ``tags``.
+        :rtype: list[dict]
+        """
+        ml_app = resolve_ml_app(ml_app)
+
+        optional_filters = (
+            ("trace_id", trace_id),
+            ("span_id", span_id),
+            ("query", query),
+            ("span_kind", span_kind),
+            ("span_name", span_name),
+            ("ml_app", ml_app),
+        )
+
+        base_params: dict[str, Any] = {
+            "filter[from]": from_date,
+            "filter[to]": to_date,
+            "sort": sort,
+            "include_attachments": str(include_attachments).lower(),
+            "page[limit]": limit,
+        }
+        for key, val in optional_filters:
+            if val is not None:
+                base_params["filter[{}]".format(key)] = val
+
+        for k, v in (tags or {}).items():
+            base_params["filter[tag][{}]".format(k)] = v
+
+        return cls._instance._api_client.get_spans(base_params)
+
+    @classmethod
     def _inject_llmobs_context(cls, span_context: Context, request_headers: dict[str, str]) -> None:
         if cls.enabled is False:
             return
@@ -2231,13 +2719,16 @@ class LLMObs(Service):
 
         ml_app = None
         if isinstance(active_span, Span):
-            ml_app = active_span._get_ctx_item(ML_APP)
-            llmobs_trace_id = active_span._get_ctx_item(LLMOBS_TRACE_ID)
+            ml_app = get_llmobs_ml_app(active_span)
+            llmobs_trace_id = get_llmobs_trace_id(active_span)
         elif active_context is not None:
-            ml_app = active_context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
-            llmobs_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or generate_128bit_trace_id()
+            ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))
+            _propagated_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or None
+            llmobs_trace_id = (
+                int(_propagated_trace_id) if _propagated_trace_id is not None else generate_128bit_trace_id()
+            )
         else:
-            ml_app = config._llmobs_ml_app
+            ml_app = resolve_ml_app()
             llmobs_trace_id = generate_128bit_trace_id()
 
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id

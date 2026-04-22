@@ -5,24 +5,19 @@ from typing import Union
 from typing import cast
 from weakref import WeakKeyDictionary
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import AGENT_MANIFEST
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import NAME
-from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
 
@@ -56,13 +51,12 @@ class LangGraphIntegration(BaseLLMIntegration):
 
     def trace(
         self,
-        pin: Pin,
         operation_id: str,
         submit_to_llmobs: bool = False,
         instance=None,
         **kwargs,
     ) -> Span:
-        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
 
         if instance:
             self._graph_spans_to_graph_instances[span] = instance
@@ -94,28 +88,30 @@ class LangGraphIntegration(BaseLLMIntegration):
         invoked_node_span_links: list[_SpanLink] = invoked_node.get("span_links") or []
         if invoked_node_span_links:
             span_links = invoked_node_span_links
-        current_span_links: list[_SpanLink] = span._get_ctx_item(SPAN_LINKS) or []
+        current_span_links: list[_SpanLink] = get_llmobs_span_links(span) or []
 
         def maybe_format_langchain_io(messages):
             if messages is None:
                 return None
             return format_langchain_io(messages)
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "agent" if operation == "graph" else "task",
-                INPUT_VALUE: format_langchain_io(inputs),
-                OUTPUT_VALUE: maybe_format_langchain_io(response)
-                or maybe_format_langchain_io(span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)),
-                NAME: invoked_node.get("name") or kwargs.get("name", span.name),
-                SPAN_LINKS: current_span_links + span_links,
-            }
-        )
-
+        agent_manifest = None
+        span_kind = "task"
         if operation == "graph":
+            span_kind = "agent"
             agent = self._graph_spans_to_graph_instances[span]
             agent_manifest = self._get_agent_manifest(agent, args, config)
-            span._set_ctx_item(AGENT_MANIFEST, agent_manifest)
+
+        _annotate_llmobs_span_data(
+            span,
+            kind=span_kind,
+            input_value=format_langchain_io(inputs),
+            output_value=maybe_format_langchain_io(response)
+            or maybe_format_langchain_io(span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)),
+            name=invoked_node.get("name") or kwargs.get("name", span.name),
+            span_links=current_span_links + span_links,
+            agent_manifest=agent_manifest,
+        )
 
     def _get_agent_manifest(self, agent, args, config: dict[str, Any]) -> Optional[dict[str, Any]]:
         """Gets the agent manifest for a given agent at the end of its execution."""
@@ -235,10 +231,10 @@ class LangGraphIntegration(BaseLLMIntegration):
             )
             for task_id in finished_tasks.keys()
         ]
-        graph_span_span_links: list[_SpanLink] = graph_span._get_ctx_item(SPAN_LINKS) or []
-        graph_span._set_ctx_item(SPAN_LINKS, graph_span_span_links + output_span_links)
+        graph_span_span_links: list[_SpanLink] = get_llmobs_span_links(graph_span) or []
+        _annotate_llmobs_span_data(graph_span, span_links=graph_span_span_links + output_span_links)
         if graph_caller_span is not None and not is_subgraph_node:
-            graph_caller_span_links: list[_SpanLink] = graph_caller_span._get_ctx_item(SPAN_LINKS) or []
+            graph_caller_span_links: list[_SpanLink] = get_llmobs_span_links(graph_caller_span) or []
             span_links: list[_SpanLink] = [
                 _SpanLink(
                     span_id=str(graph_span.span_id) or "undefined",
@@ -246,7 +242,7 @@ class LangGraphIntegration(BaseLLMIntegration):
                     attributes={"from": "output", "to": "output"},
                 )
             ]
-            graph_caller_span._set_ctx_item(SPAN_LINKS, graph_caller_span_links + span_links)
+            _annotate_llmobs_span_data(graph_caller_span, span_links=graph_caller_span_links + span_links)
 
         return
 
@@ -309,7 +305,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         Default handler that links any finished tasks not used as triggers for queued tasks to the outer graph span.
         """
         standalone_terminal_task_ids = set(finished_tasks.keys()) - used_finished_tasks_ids
-        graph_span_links: list[_SpanLink] = graph_span._get_ctx_item(SPAN_LINKS) or []
+        graph_span_links: list[_SpanLink] = get_llmobs_span_links(graph_span) or []
         for finished_task_id in standalone_terminal_task_ids:
             node = self._graph_nodes_for_graph_by_task_id.get(graph_span, {}).get(finished_task_id)
             if node is None:
@@ -326,7 +322,7 @@ class LangGraphIntegration(BaseLLMIntegration):
                     attributes={"from": "output", "to": "output"},
                 )
             )
-        graph_span._set_ctx_item(SPAN_LINKS, graph_span_links)
+        _annotate_llmobs_span_data(graph_span, span_links=graph_span_links)
 
 
 def _get_model_info(model) -> tuple[Optional[str], Optional[str], dict[str, Any]]:
@@ -382,7 +378,7 @@ def _get_system_prompt_from_react_agent(system_prompt) -> Optional[str]:
     return _get_attr(system_prompt, "content", None)
 
 
-def _get_tools_from_react_agent(tools):
+def _get_tools_from_react_agent(tools: Any) -> Optional[list[dict[str, Any]]]:
     """
     Get the tools for the agent manifest passed into the react agent.
 
@@ -541,8 +537,9 @@ def _default_span_link(span: Span) -> _SpanLink:
     referenced spans that represent the causal link. In this case, we assume
     the span is linked to its parent's input.
     """
+    parent_id = get_llmobs_parent_id(span)
     return _SpanLink(
-        span_id=span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID,
+        span_id=str(parent_id) if parent_id is not None else ROOT_PARENT_ID,
         trace_id=format_trace_id(span.trace_id),
         attributes={"from": "input", "to": "input"},
     )

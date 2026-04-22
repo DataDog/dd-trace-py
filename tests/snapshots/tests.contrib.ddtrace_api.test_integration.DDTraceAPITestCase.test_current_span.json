@@ -10,17 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68780e3b00000000",
+      "_dd.p.tid": "69de8ea300000000",
+      "_dd.svc_src": "tests.contrib.ddtrace_api",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ddtrace_api",
       "foobar": "banana",
       "language": "python",
-      "runtime-id": "15b7678d00e4466dabeb0ecadfdb38c0"
+      "runtime-id": "b7b4ee4841414860848ed1877ed3798c"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 45031
+      "_sampling_priority_v1": 1.0,
+      "process_id": 55850.0
     },
-    "duration": 311500,
-    "start": 1752698427998559720
+    "duration": 305875,
+    "start": 1776193187134855917
   }]]

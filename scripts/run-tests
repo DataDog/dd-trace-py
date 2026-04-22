@@ -17,7 +17,9 @@ Note: This runs entire test suites, not individual test files.
 """
 
 import argparse
+import fcntl
 import fnmatch
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -28,9 +30,23 @@ from typing import NamedTuple
 
 
 # Add project root and tests to Python path to import suitespec and riotfile
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
+
+
+def _ensure_compose_project_name():
+    """Set COMPOSE_PROJECT_NAME if not already set, using a hash of the project root.
+
+    This ensures concurrent runs from different worktrees get isolated compose
+    projects and don't interfere with each other's containers.
+    """
+    if "COMPOSE_PROJECT_NAME" not in os.environ:
+        path_hash = hashlib.sha1(str(ROOT).encode()).hexdigest()[:8]
+        os.environ["COMPOSE_PROJECT_NAME"] = f"ddtracepy-{path_hash}"
+
+
+_ensure_compose_project_name()
 
 import riotfile  # noqa: E402
 from tests.suitespec import get_patterns  # noqa: E402
@@ -38,7 +54,7 @@ from tests.suitespec import get_suites  # noqa: E402
 
 
 # Constants
-TESTAGENT_URL = "http://localhost:9126"
+TESTAGENT_PORT_DEFAULT = 9126
 
 
 class RiotVenv(NamedTuple):
@@ -270,7 +286,12 @@ class TestRunner:
             return []
 
     def start_services(self, services: set[str]) -> bool:
-        """Start required Docker services."""
+        """Start required Docker services.
+
+        For testagent, first tries the default port (9126). If that fails
+        (e.g., another worktree already claimed it), retries with a random
+        port by setting TESTAGENT_HOST_PORT=0.
+        """
         if not services:
             return True
 
@@ -279,9 +300,47 @@ class TestRunner:
             cmd = ["docker", "compose", "up", "-d"] + list(services)
             subprocess.run(cmd, cwd=self.root, check=True)
             return True
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to start services: {e}")
-            return False
+        except subprocess.CalledProcessError:
+            if "testagent" in services:
+                # NOTE: When falling back to a random port, snapshot tests that
+                # hardcode localhost:9126 in their URLs (e.g., in test code or
+                # snapshot files) may fail. This only happens for the second+
+                # concurrent worktree; the first always gets port 9126.
+                print("⚠️  Port conflict detected, retrying testagent with a random port...")
+                os.environ["TESTAGENT_HOST_PORT"] = "0"
+                try:
+                    cmd = ["docker", "compose", "up", "-d"] + list(services)
+                    subprocess.run(cmd, cwd=self.root, check=True)
+                    return True
+                except subprocess.CalledProcessError as e:
+                    print(f"❌ Failed to start services: {e}")
+                    return False
+            else:
+                print("❌ Failed to start services")
+                return False
+
+    def get_testagent_url(self) -> str:
+        """Discover the testagent URL by querying its dynamically assigned host port."""
+        try:
+            result = subprocess.run(
+                ["docker", "compose", "port", "testagent", "8126"],
+                capture_output=True,
+                text=True,
+                cwd=self.root,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                # Output is like "0.0.0.0:32768" or "127.0.0.1:32768"
+                host_port = result.stdout.strip().rsplit(":", 1)[-1]
+                url = f"http://localhost:{host_port}"
+                print(f"🔍 Discovered testagent at {url}")
+                return url
+        except Exception as e:
+            print(f"⚠️  Failed to discover testagent port: {e}")
+
+        # Fall back to the conventional fixed port
+        url = f"http://localhost:{TESTAGENT_PORT_DEFAULT}"
+        print(f"⚠️  Falling back to {url}")
+        return url
 
     def stop_services(self, services: set[str]) -> bool:
         """Stop and remove Docker services."""
@@ -361,19 +420,17 @@ class TestRunner:
 
     def select_riot_suites(self, matching_suites: dict[str, dict]) -> dict[str, dict]:
         """Let user select which riot suites to run."""
-        riot_suites = {name: config for name, config in matching_suites.items() if config.get("runner") == "riot"}
-
-        if not riot_suites:
+        if not matching_suites:
             print("❌ No riot suites found in matching suites")
             return {}
 
-        print(f"\n📋 Found {len(riot_suites)} matching riot suite(s):")
-        suite_list = list(riot_suites.keys())
+        print(f"\n📋 Found {len(matching_suites)} matching riot suite(s):")
+        suite_list = list(matching_suites.keys())
 
         selected = self._interactive_select(suite_list, "suites")
         if selected:
             print(f"   Selected suites: {', '.join(selected)}")
-            return {name: riot_suites[name] for name in selected}
+            return {name: matching_suites[name] for name in selected}
         return {}
 
     def select_venvs_for_suites(self, selected_suites: dict[str, dict]) -> list[RiotVenv]:
@@ -503,23 +560,90 @@ class TestRunner:
 
             # Override with testagent URL if needed
             if needs_testagent:
-                env["DD_TRACE_AGENT_URL"] = TESTAGENT_URL
-                print(f"🔧 Setting DD_TRACE_AGENT_URL={TESTAGENT_URL} for snapshot tests")
+                testagent_url = self.get_testagent_url()
+                env["DD_TRACE_AGENT_URL"] = testagent_url
+                print(f"🔧 Setting DD_TRACE_AGENT_URL={testagent_url} for snapshot tests")
 
             # Execute each unique venv hash in this suite
             # Note: riot will run all instances for each hash (different commands, env vars, etc.)
             suite_success = True
+
+            # Phase 1: Build/verify venvs sequentially under a file lock.
+            # This prevents concurrent builds from fighting over shared resources
+            # (sccache, cargo installs, pip). The first build compiles Rust/C/Cython;
+            # subsequent builds are fast cache hits. If venvs are already built,
+            # riot detects this and the build phase completes near-instantly.
+            lock_path = self.root / ".riot" / ".build.lock"
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+
+            for venv in venvs:
+                build_cmd = [
+                    str(self.root / "scripts" / "ddtest"),
+                    "riot",
+                    "-v",
+                    "run",
+                    "--pass-env",
+                    venv.hash,
+                    "--",
+                    "--collect-only",
+                    "-q",
+                ]
+
+                if dry_run:
+                    print(f"[DRY RUN] Would build venv (under lock): {' '.join(build_cmd)}")
+                else:
+                    print(f"\n🔨 Building venv ({venv.display_name}): {venv.hash}")
+                    lock_file = open(lock_path, "w")
+                    try:
+                        fcntl.flock(lock_file, fcntl.LOCK_EX)
+                        print("   🔒 Acquired build lock")
+                        result = subprocess.run(build_cmd, env=env, cwd=self.root)
+                        if result.returncode != 0:
+                            print(f"❌ Build failed for {venv.display_name} (exit code {result.returncode})")
+                            suite_success = False
+                            break
+                        print("   ✅ Venv built successfully")
+                    finally:
+                        fcntl.flock(lock_file, fcntl.LOCK_UN)
+                        lock_file.close()
+                        print("   🔓 Released build lock")
+
+            if not suite_success:
+                # Stop services and bail out
+                if suite_services:
+                    self.stop_services(suite_services)
+                print(f"\n❌ Suite '{suite_name}' failed during build phase. Stopping execution.")
+                return False
+
+            # Phase 2: Run tests with --skip-base-install (venvs are already built).
             for venv in venvs:
                 # Count how many instances share this hash in this suite
                 instances_with_same_hash = [v for v in all_venvs_by_suite[suite_name] if v.hash == venv.hash]
                 num_instances = len(instances_with_same_hash)
 
                 # Execute using ddtest with the specific venv hash
-                cmd = [str(self.root / "scripts" / "ddtest"), "riot", "-v", "run", "--pass-env", venv.hash]
+                cmd = [
+                    str(self.root / "scripts" / "ddtest"),
+                    "riot",
+                    "-v",
+                    "run",
+                    "--pass-env",
+                    "-s",
+                    venv.hash,
+                ]
 
-                # Add riot args if provided
+                # Add riot args if provided, filtering out riot's -s/--skip-base-install
+                # (since we already add it) but only before the pytest separator "--".
+                # After "--", args belong to pytest where -s means something different
+                # (disable output capture).
                 if riot_args:
-                    cmd.extend(riot_args)
+                    past_pytest_separator = False
+                    for arg in riot_args:
+                        if arg == "--":
+                            past_pytest_separator = True
+                            cmd.append(arg)
+                        elif past_pytest_separator or arg not in ("-s", "--skip-base-install"):
+                            cmd.append(arg)
 
                 if dry_run:
                     print(f"[DRY RUN] Would execute: {' '.join(cmd)}")
@@ -571,9 +695,6 @@ class TestRunner:
         suites_data = []
 
         for suite_name, suite_config in matching_suites.items():
-            if suite_config.get("runner") != "riot":
-                continue
-
             pattern = suite_config.get("pattern", suite_name)
             venvs = self.get_riot_venvs(pattern, suite_name=suite_name)
 
@@ -607,9 +728,6 @@ class TestRunner:
         venv_hashes_set = set(venv_hashes)
 
         for suite_name, suite_config in matching_suites.items():
-            if suite_config.get("runner") != "riot":
-                continue
-
             pattern = suite_config.get("pattern", suite_name)
             venvs = self.get_riot_venvs(pattern, suite_name=suite_name)
 
@@ -744,9 +862,6 @@ Examples:
         for venv in selected_venvs:
             # Try to find which suite this venv belongs to by pattern matching
             for suite_name, suite_config in all_suites.items():
-                if suite_config.get("runner") != "riot":
-                    continue
-
                 pattern = suite_config.get("pattern", suite_name)
 
                 try:

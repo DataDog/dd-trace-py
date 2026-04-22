@@ -60,7 +60,9 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
         global disable_header_injection
         if err is None:
             reported_offset = msg.offset() if isinstance(msg.offset(), INT_TYPES) else -1
-            processor().track_kafka_produce(msg.topic(), msg.partition(), reported_offset, time.time())
+            processor().track_kafka_produce(
+                msg.topic(), msg.partition(), reported_offset, time.time(), cluster_id=cluster_id
+            )
         elif err.code() == -1 and not disable_header_injection:
             disable_header_injection = True
             log.error(
@@ -112,13 +114,19 @@ def dsm_kafka_message_consume(instance, message, span):
         # when it's read. We add one because the commit offset is the next message to read.
         reported_offset = (message.offset() + 1) if isinstance(message.offset(), INT_TYPES) else -1
         processor().track_kafka_commit(
-            instance._group_id, message.topic(), message.partition(), reported_offset, time.time()
+            instance._group_id,
+            message.topic(),
+            message.partition(),
+            reported_offset,
+            time.time(),
+            cluster_id=cluster_id,
         )
 
 
 def dsm_kafka_message_commit(instance, args, kwargs):
     from . import data_streams_processor as processor
 
+    cluster_id = core.find_item("kafka_cluster_id") or ""
     message = get_argument_value(args, kwargs, 0, "message", optional=True)
 
     offsets = []
@@ -131,7 +139,14 @@ def dsm_kafka_message_commit(instance, args, kwargs):
 
     for offset in offsets:
         reported_offset = offset.offset if isinstance(offset.offset, INT_TYPES) else -1
-        processor().track_kafka_commit(instance._group_id, offset.topic, offset.partition, reported_offset, time.time())
+        processor().track_kafka_commit(
+            instance._group_id,
+            offset.topic,
+            offset.partition,
+            reported_offset,
+            time.time(),
+            cluster_id=cluster_id,
+        )
 
 
 if config._data_streams_enabled:

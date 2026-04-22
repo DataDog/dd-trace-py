@@ -1,6 +1,10 @@
 """Public API for User events"""
 
 from functools import wraps
+from typing import Any
+from typing import Callable
+from typing import TypeVar
+from typing import cast
 
 from ddtrace.appsec import _metrics
 from ddtrace.appsec._trace_utils import block_request  # noqa: F401
@@ -15,20 +19,22 @@ import ddtrace.internal.core
 
 ddtrace.internal.core.on("set_user_for_asm", block_request_if_user_blocked, "block_user")
 
+F = TypeVar("F", bound=Callable[..., Any])
 
-def _telemetry_report_factory(event_name: str):
+
+def _telemetry_report_factory(event_name: str) -> Callable[[F], F]:
     """
     Factory function to create a telemetry report decorator.
     This decorator will report the event name when the decorated function is called.
     """
 
-    def decorator(func):
+    def decorator(func: F) -> F:
         @wraps(func)
-        def wrapper(*args, **kwargs):
-            _metrics._report_ato_sdk_usage(event_name, False)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            _metrics.report_ato_sdk_usage(event_name, False)
             return func(*args, **kwargs)
 
-        return wrapper
+        return cast(F, wrapper)
 
     return decorator
 
