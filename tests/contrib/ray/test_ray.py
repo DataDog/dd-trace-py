@@ -40,6 +40,13 @@ RAY_SNAPSHOT_IGNORES = [
 ]
 
 
+def test_parse_ignored_actors_returns_frozenset():
+    from ddtrace.contrib.internal.ray.patch import _parse_ignored_actors
+
+    assert _parse_ignored_actors("") == frozenset()
+    assert _parse_ignored_actors("IgnoredCounter, AnotherActor") == frozenset({"IgnoredCounter", "AnotherActor"})
+
+
 class TestRayIntegration(TracerTestCase):
     """Test Ray integration with actual cluster setup and job submission"""
 
@@ -131,7 +138,7 @@ class TestRayIntegration(TracerTestCase):
         assert value == 42, f"Unexpected result: {value}"
 
     def test_configurable_ignored_actors(self):
-        with override_config("ray", dict(ignored_actors={"IgnoredCounter"})):
+        with override_config("ray", dict(ignored_actors=frozenset({"IgnoredCounter"}))):
 
             @ray.remote
             class IgnoredCounter:
