@@ -68,64 +68,36 @@ def _check_commit_sha_consistency(
     ci_provider_tags: _TagDict,
     git_client_tags: _TagDict,
 ) -> None:
-    """Compare git.commit.sha and git.repository_url values across providers and emit telemetry.
+    """Compare git.commit.sha and git.repository_url across all provider pairs and emit telemetry.
 
-    Checks all provider pairs explicitly, matching the cross-language reference implementation:
-    - Commit SHA: (ci_provider, git_client), (user_supplied, git_client), (user_supplied, ci_provider)
-    - Repository URL: same three pairs
-
-    Each check emits git.commit_sha_discrepancy when both sides are non-empty and differ.
+    Emits git.commit_sha_discrepancy for each pair where both sides have a value and they differ.
     Always emits exactly one git.commit_sha_match metric.
     """
     if TelemetryAPI._instance is None:
         return
 
-    u = user_supplied_tags.get
-    c = ci_provider_tags.get
-    g = git_client_tags.get
+    telemetry = TelemetryAPI.get()
 
-    checks = [
-        # Commit SHA checks
-        (c(GitTag.COMMIT_SHA), g(GitTag.COMMIT_SHA), "commit_discrepancy", _PROVIDER_CI, _PROVIDER_GIT_CLIENT),
-        (
-            u(GitTag.COMMIT_SHA),
-            g(GitTag.COMMIT_SHA),
-            "commit_discrepancy",
-            _PROVIDER_USER_SUPPLIED,
-            _PROVIDER_GIT_CLIENT,
-        ),
-        (u(GitTag.COMMIT_SHA), c(GitTag.COMMIT_SHA), "commit_discrepancy", _PROVIDER_USER_SUPPLIED, _PROVIDER_CI),
-        # Repository URL checks
-        (
-            c(GitTag.REPOSITORY_URL),
-            g(GitTag.REPOSITORY_URL),
-            "repository_discrepancy",
-            _PROVIDER_CI,
-            _PROVIDER_GIT_CLIENT,
-        ),
-        (
-            u(GitTag.REPOSITORY_URL),
-            g(GitTag.REPOSITORY_URL),
-            "repository_discrepancy",
-            _PROVIDER_USER_SUPPLIED,
-            _PROVIDER_GIT_CLIENT,
-        ),
-        (
-            u(GitTag.REPOSITORY_URL),
-            c(GitTag.REPOSITORY_URL),
-            "repository_discrepancy",
-            _PROVIDER_USER_SUPPLIED,
-            _PROVIDER_CI,
-        ),
+    provider_pairs = [
+        (_PROVIDER_CI, ci_provider_tags, _PROVIDER_GIT_CLIENT, git_client_tags),
+        (_PROVIDER_USER_SUPPLIED, user_supplied_tags, _PROVIDER_GIT_CLIENT, git_client_tags),
+        (_PROVIDER_USER_SUPPLIED, user_supplied_tags, _PROVIDER_CI, ci_provider_tags),
+    ]
+    fields = [
+        (GitTag.COMMIT_SHA, "commit_discrepancy"),
+        (GitTag.REPOSITORY_URL, "repository_discrepancy"),
     ]
 
     has_mismatch = False
-    for left, right, discrepancy_type, expected_provider, discrepant_provider in checks:
-        if left and right and left != right:
-            has_mismatch = True
-            TelemetryAPI.get().record_commit_sha_discrepancy(expected_provider, discrepant_provider, discrepancy_type)
+    for expected_name, expected_tags, discrepant_name, discrepant_tags in provider_pairs:
+        for tag_key, discrepancy_type in fields:
+            left = expected_tags.get(tag_key)
+            right = discrepant_tags.get(tag_key)
+            if left and right and left != right:
+                has_mismatch = True
+                telemetry.record_commit_sha_discrepancy(expected_name, discrepant_name, discrepancy_type)
 
-    TelemetryAPI.get().record_commit_sha_match(not has_mismatch)
+    telemetry.record_commit_sha_match(not has_mismatch)
 
 
 def get_env_tags() -> dict[str, str]:
