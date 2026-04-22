@@ -29,8 +29,9 @@ GenInfo::create_impl(PyObject* gen_addr)
         int gi_running;
 #endif
     };
-
-    std::vector<Node> chain;
+    static_assert(sizeof(Node) * MAX_RECURSION_DEPTH <= static_cast<size_t>(10) * 1024,
+                  "Node array too large (max 10KB)");
+    std::array<Node, MAX_RECURSION_DEPTH> chain;
 
     PyObject* cur = gen_addr;
     for (size_t depth = 0; depth <= MAX_RECURSION_DEPTH; ++depth) {
@@ -80,7 +81,7 @@ GenInfo::create_impl(PyObject* gen_addr)
 #else
         node.gi_running = gen.gi_running;
 #endif
-        chain.push_back(node);
+        chain[depth] = node;
 
         if (yf == NULL || yf == cur) {
             break;
