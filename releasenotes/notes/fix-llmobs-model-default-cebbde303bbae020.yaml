@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    LLM Observability: Changes the default ``model_name`` and ``model_provider`` of LLM spans to ``unknown`` if not provided or empty.
+    LLM Observability: Changes the default ``model_name`` and ``model_provider`` of LLM and embedding spans to ``unknown`` if not provided or empty.
