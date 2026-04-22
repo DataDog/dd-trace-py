@@ -150,6 +150,11 @@ class _ProfiledLock:
         """Return True if lock is currently held."""
         return bool(self.__wrapped__.locked())
 
+    # The sampler.capture() check is intentionally duplicated across acquire, __enter__, and
+    # __aenter__ rather than extracted into a shared helper. This eliminates one function-call
+    # frame on the unsampled hot path, which fires on every lock operation. A helper would
+    # reintroduce that overhead. Do NOT refactor. See:
+    # test_unsampled_acquire_bypasses_inner_acquire / test_sampled_acquire_calls_inner_acquire.
     def acquire(self, *args: Any, **kwargs: Any) -> Any:
         cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
         if not sampler.capture():
