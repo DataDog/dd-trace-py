@@ -27,6 +27,10 @@ log = get_logger(__name__)
 
 _original_exec = exec
 
+# Bytecode for an empty module — used to detect empty __init__.py files.
+# Compiled at import time so it matches the running Python version.
+_EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
+
 ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
@@ -348,6 +352,14 @@ class ModuleCodeCollector(ModuleWatchdog):
             module_context = self.CollectInContext(is_import_coverage=True)
             module_context.__enter__()
             self._import_time_contexts[code.co_filename] = module_context
+
+        # Python 3.13+ doesn't fire sys.monitoring LINE events for empty modules.
+        # Call hook directly after the import-time context is set up so coverage is
+        # recorded in the correct context.
+        if sys.version_info >= (3, 13) and code.co_code == _EMPTY_MODULE_BYTES:
+            package = _module.__package__ if _module is not None else ""
+            import_info = (package, ("",)) if package else None
+            self.hook((0, code.co_filename, import_info))
 
         return retval
 

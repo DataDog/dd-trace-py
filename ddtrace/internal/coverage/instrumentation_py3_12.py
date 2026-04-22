@@ -153,10 +153,6 @@ def _instrument_with_monitoring(
             lines.add(0)
             if package is not None:
                 import_names[0] = (package, ("",))
-            # Python 3.13+ doesn't fire sys.monitoring LINE events for empty modules,
-            # so we call the hook directly to ensure empty __init__.py files are covered
-            if sys.version_info >= (3, 13):
-                hook((0, path, import_names.get(0)))
 
     return code, lines
 
@@ -202,9 +198,13 @@ def _extract_lines_and_imports(
         if instr.opname == "RESUME" or instr.opname == "CACHE":
             continue
 
-        # Track line numbers. line_number is available on 3.13+, starts_line is an int on 3.12 (None if same line).
-        # On 3.13+, line_number is set for every instruction, so we detect new lines by comparing with prev_line.
-        instr_line = getattr(instr, "line_number", None) or getattr(instr, "starts_line", None)
+        # Track line numbers.
+        # Python 3.13+: line_number is an int or None for every instruction.
+        # Python 3.12: line_number doesn't exist; starts_line is an int (first instruction on a line) or None.
+        # Note: on 3.13+, starts_line became a boolean — do NOT use it as a line number.
+        instr_line = getattr(instr, "line_number", None)
+        if instr_line is None and not hasattr(instr, "line_number"):
+            instr_line = instr.starts_line
         if instr_line is not None and instr_line != prev_line:
             line = instr_line
             prev_line = line
