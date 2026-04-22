@@ -217,8 +217,7 @@ def record_cost_tags_dropped(span: Optional[Span], reason: str, count: int = 1) 
     span_kind = "N/A"
     if span and isinstance(span, Span):
         span_kind = get_llmobs_span_kind(span) or "N/A"
-    tags = [("span_kind", span_kind)]
-    tags.append(("reason", reason))
+    tags = [("span_kind", span_kind)], ("reason", reason)
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.COST_TAGS_DROPPED, value=count, tags=tuple(tags)
     )
