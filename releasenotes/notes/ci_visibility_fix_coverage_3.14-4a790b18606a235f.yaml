@@ -1,7 +1,7 @@
 ---
 fixes:
   - |
-    ci_visibility: Fixes code coverage instrumentation on Python 3.13 and 3.14.
+    CI Visibility: Fixes code coverage instrumentation on Python 3.13 and 3.14.
     Resolves lost per-test line data caused by ``sys.monitoring`` callbacks running in
     a snapshot context where ``ContextVar`` changes are not visible, empty modules
     emitting no ``LINE`` events on Python 3.13+, and ``ProcessPoolExecutor`` child
