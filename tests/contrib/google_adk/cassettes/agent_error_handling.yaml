@@ -1,17 +1,6 @@
 interactions:
 - request:
-    body: '{"contents": [{"parts": [{"text": "Can you use the failing_tool to test
-      error handling?"}], "role": "user"}], "systemInstruction": {"parts": [{"text":
-      "You are a test agent. When needed: (1) plan, (2) search, (3) write short Python
-      to compute or transform results. Be concise.\n\nYou are an agent. Your internal
-      name is \"test_agent\".\n\n The description about you is \"Test agent for ADK
-      integration testing\""}], "role": "user"}, "tools": [{"functionDeclarations":
-      [{"description": "A tiny search tool stub.", "name": "search_docs", "parameters":
-      {"properties": {"query": {"type": "STRING"}}, "type": "OBJECT"}}, {"description":
-      "Simple arithmetic tool.", "name": "multiply", "parameters": {"properties":
-      {"a": {"type": "INTEGER"}, "b": {"type": "INTEGER"}}, "type": "OBJECT"}}, {"name":
-      "failing_tool", "parameters": {"properties": {"query": {"type": "STRING"}},
-      "type": "OBJECT"}}]}], "generationConfig": {}}'
+    body: '{"contents": [{"parts": [{"text": "Can you use the failing_tool to test error handling?"}], "role": "user"}], "systemInstruction": {"parts": [{"text": "You are a test agent. When needed: (1) plan, (2) search, (3) write short Python to compute or transform results. Be concise.\n\nYou are an agent. Your internal name is \"test_agent\".\n\n The description about you is \"Test agent for ADK integration testing\""}], "role": "user"}, "tools": [{"functionDeclarations": [{"description": "A tiny search tool stub.", "name": "search_docs", "parameters": {"properties": {"query": {"type": "STRING"}}, "type": "OBJECT"}}, {"description": "Simple arithmetic tool.", "name": "multiply", "parameters": {"properties": {"a": {"type": "INTEGER"}, "b": {"type": "INTEGER"}}, "type": "OBJECT"}}, {"name": "failing_tool", "parameters": {"properties": {"query": {"type": "STRING"}}, "type": "OBJECT"}}]}], "generationConfig": {}}'
     headers:
       accept:
       - '*/*'
@@ -33,31 +22,10 @@ interactions:
     uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent
   response:
     body:
-      string: !!binary |
-        H4sIAAAAAAAC/21UyY6jSBC911eUfGV6vGAWjzQHNhsDZscGRqNRAgkGs++41f/elKur29UaDiky
-        3suIyAfxvr68vi58kAdxAFrYLP56/WeOvL5+faxvWJG3MG9n4CM0B0tQt7+478/Xp/eZEna538ZF
-        zoA0/XT4B56DDM7xRQjiNM6j/9qiSBd//M4CddT8z+kZqTpYT28J5q7bxW/4t0/7b5/TLtpr0UXX
-        1oijHLRd/WiDKSOOCvg2zkixCVSioPs16pw7NlhtHMTpV4RAS8eK03g+MRuFA8jlOCbFfej6QFjl
-        B2mMJjZTLKxQBIltVa2+mojKrVogxYDq1BVvWXI5jVkz1tPZV+M23A6Txpu+JAZGqdwkVjqyrJsQ
-        qoH7WF0BXLbXeUaDVCJtCUlIhdKtM5uitcCf8QE5HMzR39Webp9P+2ztqMiJvpimkdADAqWkQzwD
-        udgmETiuTVxwErPPJnWMp7HQDmfdsaaLm/g66fU5OQ1Mu7zKAtybWL7WTsh+Z9lu0okbhbheKx8L
-        Nb6c9kLQtZTXgk7SCMz23Ksdy2FSQbS8YWUSZamHGWofZ9LOtrbl1fCO3b067ESGXJ6Ng11HwSQ2
-        bu6vmYgZIL7Tm1gQzHwz9lCGOH82AMunwx2KXkxXQ7lRaHzYycqyFBNFuTmkf9hal/Ci1AxaBQFJ
-        rFaaGJIma7pZvsUNMjiXS/ni80trPDGrerPzJt+4KjlEdbDJXe92x3zMzasM3vXpajMWLBR05LRt
-        Ty1TMViv10YPekEyYMrv1+L27St5FOegjiXuFJdh2JuuM+FRv2OcvAmHYFATtNPA9rZ39caTYexb
-        +5sLPYoGI+2ihV+yGirtskpga5RdV8ews1yJX+oBubINOh10woSE0+OrEqFVieM7ijzjjeOM3TbG
-        q+mAkKLSh3ujUUhUnn9YNrAv0G2WEVVlQB04Q6xaStoeWrJrA9tAIssfjyzVQUe8DLxOOGVPe7ct
-        eeJD8+T7QjwFtgIY+RKUzI7ncoG7NCbfOIaMBoazMe5uZCHyhGRJTeOJCYhEvPFQwJT4PDSblo0y
-        2STpi0bdY48tDkLpdC4G9vYoj42CcMH9fqdSXzxG77VvIxke8l6NJDu59iuJFXjevhdkLmVTSoCd
-        QFUcxTd/P0/vr8n999fULuoifUxpVgQw/aD/HOtFGOdxc9UhaIr8jWaYivrTSxZxHsBxDq9ePgo8
-        Ui+6BkTwBFswOx/4aTKLsi6ysjWLG8yZons432a1e8/25JSfCGv8B94WLUg/QSj5gT0lbti5bJw+
-        W+iTu863BGncPtzN5GzzyRbnAp/7+tDi5UmyD4P7vcf1yw/R3nU8w7qJ3wWLYDZL+GXzJ/Zl7vJR
-        b1HDpizyBh6DN8bOIQQgG8Whwun16aamUt822m3x8u3lO5sU4QhDBgAA
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\": [\n          {\n            \"functionCall\": {\n              \"name\": \"failing_tool\",\n              \"args\": {\n                \"query\": \"test\"\n              }\n            },\n            \"thoughtSignature\": \"CpgEAdHtim8KsdP7oBv13YVuDd02Y+Yv07JBLIqEQHHjTsOEa+WIxjozwuvdJ0nGLxgyDmOU5oOJLDtPQrhT+PE0taLiaAuP0HUUNpyxmsxryVcPitf4wyQHTcLKdSpOkLDLIDDZj7PS6c5rqa6NX1nmBalL8XL+j8OARUVDl3rJHV6w+GGTxc9rbRXVMFm1YP+MBWTTSjBw+eLju+bS+WXT7dYZX7W685XVTAIiyxoQGVRYUyWZjcR8bvn8ywCt/hNJeFT5n1QM+F9UXZjuK2O7hhqc5fQHpyFJdutAbtauLQ75XbZhXiNfjqe3pk5pjgmlb5SPvimL9XU4phSbIuzqG9KC8/VSGXrgdyKsZnc1CgCwe69RsiJJTn2xveNe6HVSaDHlwzeKbiBqwp2OB6w9NO/pKjOOkY8cG4UWfWOrC3qdd8700QKf8TDTZmn46S8dVp/NWcH/UxMC0r29bycShOne3Ra2nZbkz5c5ZnqmezRyhXCUeoO3xEQ4vA/lKd111SvavJLSelHF1K4VcPibAEY3YUK9OZCCDkRRCfIRz5EN2fwdwPj3uQa4kFZRsbNeicUFkZebABaxBZ3ocpDQ3L9mqJDr3D1qIfuUZLH/Rd80XSBlwR7Te7Yv60p+BPLEHuA8V6sYYxu4i6qyG+8KOvfFSsO83NhtSDdXWeZs/gAqmaPwESKqtAL4Gt8utdXS+gUcxIDAueYKWwHR7YpvBbk48MHfTMccJiydXOaCNWdpC9HEnJEWsTHsYSN3dSY2SzZgU+Ny+mjrB6jTa7jKkHeJ5OiVws2tDgmNT8BWQAzibDoGJpYuZ5aFXxNxsO+EdzzzAlcKIgHR7Ypvkx8fGnvPgLXjhv0LDJHHXzo8nLmyl7a9JAqEAHs=\"\n          }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\": \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\": 209,\n    \"candidatesTokenCount\": 16,\n    \"totalTokenCount\": 386,\n    \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n        \"tokenCount\": 209\n      }\n    ],\n    \"thoughtsTokenCount\": 161\n  },\n  \"modelVersion\": \"gemini-2.5-pro\",\n  \"responseId\": \"9Y7JaNSoGq6B1MkPlLvtsQk\"\n}\n"
     headers:
       Alt-Svc:
       - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
-      Content-Encoding:
-      - gzip
       Content-Type:
       - application/json; charset=UTF-8
       Date:

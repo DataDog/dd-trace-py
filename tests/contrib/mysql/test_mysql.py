@@ -1,5 +1,8 @@
+import asyncio
+
 import mock
 import mysql
+import pytest
 
 from ddtrace.contrib.internal.mysql.patch import patch
 from ddtrace.contrib.internal.mysql.patch import unpatch
@@ -11,6 +14,15 @@ from tests.utils import assert_is_measured
 
 
 MYSQL_CONFIG["db"] = MYSQL_CONFIG["database"]
+
+
+def _has_mysql_aio():
+    try:
+        import mysql.connector.aio  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
 
 
 class MySQLCore(object):
@@ -373,6 +385,52 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
         patch()
 
+    @pytest.mark.skipif(not _has_mysql_aio(), reason="mysql.connector.aio.connect is not available")
+    @TracerTestCase.run_in_subprocess()
+    def test_async_simple_query(self):
+        from mysql.connector.aio import connect
+
+        MYSQL_AIO_CONFIG = dict(MYSQL_CONFIG)
+        # mysql.connector.aio.connect expects `database`, not `db`.
+        MYSQL_AIO_CONFIG.pop("db")
+
+        async def _run_query():
+            conn = await connect(**MYSQL_AIO_CONFIG)
+            try:
+                cursor = await conn.cursor()
+                try:
+                    await cursor.execute("SELECT 1")
+                    return await cursor.fetchall()
+                finally:
+                    await cursor.close()
+            finally:
+                await conn.close()
+
+        rows = asyncio.run(_run_query())
+        assert len(rows) == 1
+
+        spans = self.pop_spans()
+        assert len(spans) == 1
+
+        span = spans[0]
+        assert_is_measured(span)
+        assert span.service == "mysql"
+        assert span.name == "mysql.query"
+        assert span.span_type == "sql"
+        assert span.error == 0
+        assert span.get_metric("network.destination.port") == 3306
+        assert_dict_issuperset(
+            span.get_tags(),
+            {
+                "out.host": "127.0.0.1",
+                "db.name": "test",
+                "db.system": "mysql",
+                "db.user": "test",
+                "component": "mysql",
+                "span.kind": "client",
+            },
+        )
+
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_MYSQL_SERVICE="mysvc", DD_TRANCE_SPAN_ATTRIBUTE_SCHEMA="v0")
     )
@@ -452,7 +510,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
-            DD_AIOMYSQL_SERVICE="service-name-override",
+            DD_MYSQL_SERVICE="service-name-override",
         )
     )
     def test_mysql_dbm_propagation_comment_integration_service_name_override(self):

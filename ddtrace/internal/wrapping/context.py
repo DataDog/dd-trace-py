@@ -294,26 +294,30 @@ class BaseWrappingContext(ABC):
 
     def __init__(self, f: FunctionType):
         self.__wrapped__ = f
-        self._storage_stack: ContextVar[list[dict]] = ContextVar(f"{type(self).__name__}__storage_stack", default=[])
+        self._storage: ContextVar[t.Optional[dict]] = ContextVar(f"{type(self).__name__}__storage", default=None)
 
     def __getstate__(self) -> dict[str, t.Any]:
         state = self.__dict__.copy()
-        state.pop("_storage_stack", None)  # remove unpicklable field
+        state.pop("_storage", None)  # remove unpicklable field
         return state
 
     def __setstate__(self, state: dict[str, t.Any]) -> None:
         self.__dict__.update(state)
-        self._storage_stack = ContextVar(
-            f"{type(self).__name__}__storage_stack",
-            default=[],
+        self._storage = ContextVar(
+            f"{type(self).__name__}__storage",
+            default=None,
         )
 
     def __enter__(self) -> "BaseWrappingContext":
-        self._storage_stack.get().append({})
+        prev = self._storage.get()
+        self._storage.set({"__dd_wrapping_context_prev__": prev})
+
         return self
 
     def _pop_storage(self) -> dict[str, t.Any]:
-        return self._storage_stack.get().pop()
+        storage = t.cast(dict, self._storage.get())
+        self._storage.set(storage.pop("__dd_wrapping_context_prev__"))
+        return storage
 
     def __return__(self, value: T) -> T:
         self._pop_storage()
@@ -328,10 +332,10 @@ class BaseWrappingContext(ABC):
         self._pop_storage()
 
     def get(self, key: str) -> t.Any:
-        return self._storage_stack.get()[-1][key]
+        return t.cast(dict, self._storage.get())[key]
 
     def set(self, key: str, value: T) -> T:
-        self._storage_stack.get()[-1][key] = value
+        t.cast(dict, self._storage.get())[key] = value
         return value
 
     @classmethod

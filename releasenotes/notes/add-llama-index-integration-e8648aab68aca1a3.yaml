@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    llama_index: Adds APM tracing and LLM Observability support for ``llama-index-core>=0.11.0``.
+    Traces LLM calls, query engines, retrievers, embeddings, and agents. See the
+    `llama_index <https://ddtrace.readthedocs.io/en/stable/integrations.html#llama-index>`_
+    documentation for more information.

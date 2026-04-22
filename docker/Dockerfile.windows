@@ -1,0 +1,97 @@
+# escape=`
+# Windows build image for dd-trace-py wheel builds.
+#
+# Contains all system dependencies needed to compile native extensions:
+#   - Git for Windows (Git Bash, required to run build scripts)
+#   - VS 2022 Build Tools + VCTools workload (MSVC, Windows SDK, CMake)
+#   - 32-bit VC++ redistributable (required for x86 wheel builds)
+#   - uv (Python package manager)
+#   - Rust stable + i686-pc-windows-msvc cross-compile target
+#   - Python 3.9-3.14 for windows-x86_64 and windows-x86
+
+# ltsc2022
+FROM mcr.microsoft.com/windows/servercore@sha256:ba95f404a7f05eb4a827d2175e225e6d77200b4431dd24668255bdb954973810
+
+SHELL ["powershell", "-Command", "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue';"]
+
+# Install Git for Windows (provides bash.exe and standard POSIX tools)
+RUN $GIT_VERSION = '2.50.1'; `
+    $GIT_RELEASE = 'v2.50.1.windows.1'; `
+    Invoke-WebRequest `
+        -Uri "https://github.com/git-for-windows/git/releases/download/$GIT_RELEASE/Git-$GIT_VERSION-64-bit.exe" `
+        -OutFile C:\git-installer.exe; `
+    Start-Process C:\git-installer.exe `
+        -ArgumentList '/SILENT', '/NORESTART', '/DIR=C:\Git' `
+        -Wait -NoNewWindow; `
+    Remove-Item C:\git-installer.exe -Force; `
+    [Environment]::SetEnvironmentVariable( `
+        'PATH', `
+        'C:\Git\cmd;C:\Git\bin;C:\Git\usr\bin;' + [Environment]::GetEnvironmentVariable('PATH', 'Machine'), `
+        'Machine')
+
+# Install VS 2022 Build Tools + VCTools workload
+# (MSVC compiler, Windows SDK, CMake, ATL — the largest step, ~10-20 min)
+RUN Invoke-WebRequest `
+        -Uri 'https://aka.ms/vs/17/release/vs_BuildTools.exe' `
+        -OutFile C:\vs_buildtools.exe; `
+    $p = Start-Process C:\vs_buildtools.exe `
+        -ArgumentList '--quiet', '--wait', '--norestart', '--nocache', `
+                      '--add', 'Microsoft.VisualStudio.Workload.VCTools', `
+                      '--includeRecommended' `
+        -Wait -PassThru -NoNewWindow; `
+    Remove-Item C:\vs_buildtools.exe -Force; `
+    if (($p.ExitCode -ne 0) -and ($p.ExitCode -ne 3010)) { `
+        throw "VS Build Tools installer failed with exit code $($p.ExitCode)" `
+    }
+
+# Install 32-bit VC++ redistributable (needed for x86 wheel builds)
+RUN Invoke-WebRequest `
+        -Uri 'https://aka.ms/vs/17/release/vc_redist.x86.exe' `
+        -OutFile C:\vc_redist.x86.exe; `
+    Start-Process C:\vc_redist.x86.exe `
+        -ArgumentList '/install', '/quiet', '/norestart' `
+        -Wait -NoNewWindow; `
+    Remove-Item C:\vc_redist.x86.exe -Force
+
+# Install uv
+# UV_LINK_MODE=copy is required when uv operates on volume-mounted paths (e.g. C:\workspace)
+# because Windows containers do not support hardlinks across mount boundaries.
+ENV UV_INSTALL_DIR="C:\tools\uv"
+ENV UV_LINK_MODE="copy"
+RUN New-Item -ItemType Directory -Force -Path C:\tools\uv | Out-Null; `
+    $env:INSTALLER_NO_MODIFY_PATH = '1'; `
+    Invoke-Expression (Invoke-RestMethod -Uri 'https://astral.sh/uv/install.ps1'); `
+    [Environment]::SetEnvironmentVariable( `
+        'PATH', `
+        'C:\tools\uv;' + [Environment]::GetEnvironmentVariable('PATH', 'Machine'), `
+        'Machine')
+
+# Install Rust stable toolchain + i686-pc-windows-msvc cross-compile target
+ENV CARGO_HOME="C:\tools\rust\cargo"
+ENV RUSTUP_HOME="C:\tools\rust\rustup"
+RUN $env:CARGO_HOME = 'C:\tools\rust\cargo'; `
+    $env:RUSTUP_HOME = 'C:\tools\rust\rustup'; `
+    New-Item -ItemType Directory -Force -Path C:\tools\rust | Out-Null; `
+    Invoke-WebRequest -Uri 'https://win.rustup.rs/x86_64' -OutFile C:\rustup-init.exe; `
+    Start-Process C:\rustup-init.exe `
+        -ArgumentList '-y', '--no-modify-path', '--default-toolchain', 'stable' `
+        -Wait -NoNewWindow; `
+    Remove-Item C:\rustup-init.exe -Force; `
+    & C:\tools\rust\cargo\bin\rustup.exe target add i686-pc-windows-msvc; `
+    [Environment]::SetEnvironmentVariable( `
+        'PATH', `
+        'C:\tools\rust\cargo\bin;' + [Environment]::GetEnvironmentVariable('PATH', 'Machine'), `
+        'Machine')
+
+# Install Python 3.9-3.14 for both windows-x86_64 and windows-x86 via uv
+ENV UV_PYTHON_INSTALL_DIR="C:\tools\uv-python"
+RUN $env:PATH = 'C:\tools\uv;' + $env:PATH; `
+    $versions = @('3.9', '3.10', '3.11', '3.12', '3.13', '3.14'); `
+    $platforms = @('windows-x86_64', 'windows-x86'); `
+    foreach ($v in $versions) { `
+        foreach ($p in $platforms) { `
+            Write-Host "Installing Python cpython-$v-$p..."; `
+            & C:\tools\uv\uv.exe python install "cpython-$v-$p"; `
+            if ($LASTEXITCODE -ne 0) { throw "Failed to install Python $v ($p)" } `
+        } `
+    }

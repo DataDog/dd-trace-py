@@ -39,8 +39,10 @@ from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordNew
 from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._experiment import ExperimentRun
 from ddtrace.llmobs._experiment import RemoteEvaluator
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
+from ddtrace.llmobs._experiment import SyncExperiment
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
 from tests.utils import override_global_config
 
@@ -4375,6 +4377,277 @@ def test_ds_push_new_with_tags(llmobs, test_dataset):
     ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
     assert len(ds) == 1
     assert set(ds[0]["tags"]) == {"env:prod"}
+
+
+# ===========================================================================
+# SyncExperiment.as_dataframe() — multi-run tests
+# ===========================================================================
+
+
+def _make_row(idx=0, question="Q?", output="A", expected="A", eval_value=True):
+    return {
+        "idx": idx,
+        "record_id": None,
+        "span_id": f"span{idx}",
+        "trace_id": f"trace{idx}",
+        "timestamp": 0,
+        "input": {"question": question},
+        "output": output,
+        "expected_output": expected,
+        "evaluations": {"exact_match": {"value": eval_value, "error": None}},
+        "metadata": {},
+        "error": {"message": None, "type": None, "stack": None},
+    }
+
+
+def _make_sync_experiment_with_result(runs_rows: list) -> SyncExperiment:
+    """Build a SyncExperiment with a pre-populated result — no backend calls needed."""
+    exp = mock.MagicMock(spec=SyncExperiment)
+    exp.result = None
+
+    # Bind the real as_dataframe method to the mock instance
+    exp.as_dataframe = SyncExperiment.as_dataframe.__get__(exp, SyncExperiment)
+
+    run_objects = []
+    for i, rows in enumerate(runs_rows):
+        run_info = _ExperimentRunInfo(i)
+        run_objects.append(ExperimentRun(run_info, {}, rows))
+
+    exp.result = {
+        "runs": run_objects,
+        "rows": run_objects[0].rows if run_objects else [],
+        "summary_evaluations": {},
+    }
+    return exp
+
+
+def test_experiment_as_dataframe_single_run():
+    """as_dataframe() with one run returns rows labelled with run_id and run_iteration=1."""
+    pytest.importorskip("pandas")
+    rows = [_make_row(0, "What is 2+2?", "4", "4"), _make_row(1, "Capital of France?", "Paris", "Paris")]
+    exp = _make_sync_experiment_with_result([rows])
+
+    df = exp.as_dataframe()
+
+    assert len(df) == 2
+    assert ("run_id", "") in df.columns
+    assert ("run_iteration", "") in df.columns
+    assert list(df[("run_iteration", "")]) == [1, 1]
+    assert all(df[("run_id", "")].str.len() > 0)
+
+
+def test_experiment_as_dataframe_multi_run():
+    """as_dataframe() with N runs stacks all rows and labels them by run_iteration."""
+    pytest.importorskip("pandas")
+    rows_run1 = [_make_row(0, "Q1?", "A1", "A1", True), _make_row(1, "Q2?", "A2", "A2", True)]
+    rows_run2 = [_make_row(0, "Q1?", "A1", "A1", True), _make_row(1, "Q2?", "A3", "A2", False)]
+    rows_run3 = [_make_row(0, "Q1?", "A1", "A1", True), _make_row(1, "Q2?", "A2", "A2", True)]
+    exp = _make_sync_experiment_with_result([rows_run1, rows_run2, rows_run3])
+
+    df = exp.as_dataframe()
+
+    assert len(df) == 6
+    assert list(df[("run_iteration", "")]) == [1, 1, 2, 2, 3, 3]
+    run_ids = df[("run_id", "")].tolist()
+    assert run_ids[0] == run_ids[1]  # same run
+    assert run_ids[2] == run_ids[3]  # same run
+    assert run_ids[0] != run_ids[2]  # different runs
+
+
+def test_experiment_as_dataframe_raises_without_result():
+    """as_dataframe() raises ValueError if self.result is None."""
+    pytest.importorskip("pandas")
+    exp = mock.MagicMock(spec=SyncExperiment)
+    exp.result = None
+    exp.as_dataframe = SyncExperiment.as_dataframe.__get__(exp, SyncExperiment)
+
+    with pytest.raises(ValueError, match="No result found"):
+        exp.as_dataframe()
+
+
+def test_experiment_as_dataframe_preserves_per_run_columns():
+    """as_dataframe() preserves all columns produced by ExperimentRun.as_dataframe()."""
+    pytest.importorskip("pandas")
+    rows = [_make_row(0, "Capital of France?", "Paris", "Paris", True)]
+    exp = _make_sync_experiment_with_result([rows])
+
+    df = exp.as_dataframe()
+
+    assert ("input", "question") in df.columns
+    assert ("output", "") in df.columns
+    assert ("expected_output", "") in df.columns
+    assert ("evaluations", "exact_match") in df.columns
+    assert ("span_id", "") in df.columns
+    assert ("trace_id", "") in df.columns
+    assert ("error", "") in df.columns
+    assert df[("input", "question")].iloc[0] == "Capital of France?"
+    assert df[("output", "")].iloc[0] == "Paris"
+
+
+def test_experiment_as_dataframe_no_pandas(monkeypatch):
+    """as_dataframe() raises ImportError when pandas is not available."""
+    import sys
+
+    rows = [_make_row()]
+    exp = _make_sync_experiment_with_result([rows])
+
+    monkeypatch.setitem(sys.modules, "pandas", None)
+    with pytest.raises(ImportError, match="pandas is required"):
+        exp.as_dataframe()
+
+
+# ===========================================================================
+# ExperimentRun.as_dataframe() tests
+# ===========================================================================
+
+
+def _make_experiment_run(rows):
+    """Build a minimal ExperimentRun for dataframe tests without hitting the backend."""
+    run_info = _ExperimentRunInfo(0)
+    return ExperimentRun(run_info, {}, rows)
+
+
+def test_experiment_run_as_dataframe_basic():
+    rows = [
+        {
+            "idx": 0,
+            "record_id": None,
+            "span_id": "span1",
+            "trace_id": "trace1",
+            "timestamp": 0,
+            "input": {"question": "What is 2+2?"},
+            "output": "4",
+            "expected_output": "4",
+            "evaluations": {},
+            "metadata": {"difficulty": "easy"},
+            "error": {"message": None, "type": None, "stack": None},
+        }
+    ]
+    run = _make_experiment_run(rows)
+    pytest.importorskip("pandas")
+    df = run.as_dataframe()
+
+    assert ("input", "question") in df.columns
+    assert ("output", "") in df.columns
+    assert ("expected_output", "") in df.columns
+    assert ("metadata", "difficulty") in df.columns
+    assert ("span_id", "") in df.columns
+    assert ("trace_id", "") in df.columns
+    assert ("error", "") in df.columns
+    assert df[("input", "question")].iloc[0] == "What is 2+2?"
+    assert df[("output", "")].iloc[0] == "4"
+    assert df[("metadata", "difficulty")].iloc[0] == "easy"
+
+
+def test_experiment_run_as_dataframe_with_evaluations():
+    rows = [
+        {
+            "idx": 0,
+            "record_id": None,
+            "span_id": "span1",
+            "trace_id": "trace1",
+            "timestamp": 0,
+            "input": {"question": "Capital of France?"},
+            "output": "Paris",
+            "expected_output": {"answer": "Paris"},
+            "evaluations": {
+                "exact_match": {"value": True, "error": None},
+                "score": {"value": 0.9, "type": "score", "reasoning": "close", "assessment": "pass"},
+            },
+            "metadata": {},
+            "error": {"message": None, "type": None, "stack": None},
+        }
+    ]
+    run = _make_experiment_run(rows)
+    pytest.importorskip("pandas")
+    df = run.as_dataframe()
+
+    assert ("evaluations", "exact_match") in df.columns
+    assert ("evaluations", "score") in df.columns
+    assert ("expected_output", "answer") in df.columns
+    assert df[("evaluations", "exact_match")].iloc[0] == {"value": True, "error": None}
+    assert df[("evaluations", "score")].iloc[0]["value"] == 0.9
+    assert df[("expected_output", "answer")].iloc[0] == "Paris"
+
+
+def test_experiment_run_as_dataframe_scalar_expected_output():
+    rows = [
+        {
+            "idx": 0,
+            "record_id": None,
+            "span_id": "s",
+            "trace_id": "t",
+            "timestamp": 0,
+            "input": "hello",
+            "output": "world",
+            "expected_output": "world",
+            "evaluations": {},
+            "metadata": {},
+            "error": None,
+        }
+    ]
+    run = _make_experiment_run(rows)
+    pytest.importorskip("pandas")
+    df = run.as_dataframe()
+
+    assert ("input", "") in df.columns
+    assert ("expected_output", "") in df.columns
+    assert df[("input", "")].iloc[0] == "hello"
+    assert df[("expected_output", "")].iloc[0] == "world"
+
+
+def test_experiment_run_as_dataframe_dict_output():
+    """output dict is flattened into sub-columns just like input/expected_output."""
+    rows = [
+        {
+            "idx": 0,
+            "record_id": None,
+            "span_id": "s",
+            "trace_id": "t",
+            "timestamp": 0,
+            "input": {"question": "What is 2+2?"},
+            "output": {"answer": "4", "confidence": 0.99},
+            "expected_output": {"answer": "4"},
+            "evaluations": {},
+            "metadata": {},
+            "error": None,
+        }
+    ]
+    run = _make_experiment_run(rows)
+    pytest.importorskip("pandas")
+    df = run.as_dataframe()
+
+    assert ("output", "answer") in df.columns
+    assert ("output", "confidence") in df.columns
+    assert ("output", "") not in df.columns
+    assert df[("output", "answer")].iloc[0] == "4"
+    assert df[("output", "confidence")].iloc[0] == 0.99
+
+
+def test_experiment_run_as_dataframe_no_pandas(monkeypatch):
+    import sys
+
+    rows = [
+        {
+            "idx": 0,
+            "record_id": None,
+            "span_id": "s",
+            "trace_id": "t",
+            "timestamp": 0,
+            "input": {},
+            "output": None,
+            "expected_output": None,
+            "evaluations": {},
+            "metadata": {},
+            "error": None,
+        }
+    ]
+    run = _make_experiment_run(rows)
+
+    # Simulate pandas not being installed
+    monkeypatch.setitem(sys.modules, "pandas", None)
+    with pytest.raises(ImportError, match="pandas is required"):
+        run.as_dataframe()
 
 
 # --- User-defined record ID unit tests ---

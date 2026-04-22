@@ -362,6 +362,34 @@ class ProfilingConfigLock(DDConfig):
         ),
     )
 
+    exclude_modules = DDConfig.v(
+        frozenset,
+        "exclude_modules",
+        parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
+        default=frozenset(),
+        help_type="String",
+        help=(
+            "Comma-separated list of module or package names to exclude from lock profiling. "
+            "Locks created from these modules are not profiled."
+            "Examples: ``ddtrace`` (excludes profiler overhead), ``django.db,sqlalchemy.pool,urllib3``"
+        ),
+    )
+
+    primitives = DDConfig.v(
+        set,
+        "primitives",
+        parser=lambda raw: set(p.strip() for p in raw.split(",") if p.strip()),
+        default=set({"threading.Lock", "threading.RLock", "asyncio.Lock"}),
+        help_type="String",
+        help=(
+            "Comma-separated list of lock primitive types to profile. "
+            "Default: ``threading.Lock,threading.RLock,asyncio.Lock``. "
+            "Available primitives: ``threading.Lock``, ``threading.RLock``, ``threading.Semaphore``, "
+            "``threading.BoundedSemaphore``, ``threading.Condition``, ``asyncio.Lock``, "
+            "``asyncio.Semaphore``, ``asyncio.BoundedSemaphore``, ``asyncio.Condition``."
+        ),
+    )
+
 
 class ProfilingConfigMemory(DDConfig):
     __item__ = __prefix__ = "memory"
@@ -485,7 +513,8 @@ ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 # We need to check if ddup is available, and turn off profiling if it is not.
 if not ddup_is_available:
     msg = ddup_failure_msg or "libdd not available"
-    logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
+    if config.enabled:
+        logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
     telemetry_writer.add_log(
         TELEMETRY_LOG_LEVEL.ERROR,
         f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
@@ -495,13 +524,15 @@ if not ddup_is_available:
 # We also need to check if stack module is available, and turn if off
 # if it s not.
 stack_failure_msg, stack_is_available = _check_for_stack_available()
-if config.stack.enabled and not stack_is_available:  # pyright: ignore[reportAttributeAccessIssue]
+if not stack_is_available:
     msg = stack_failure_msg or "stack not available"
-    logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
-    telemetry_writer.add_log(
-        TELEMETRY_LOG_LEVEL.ERROR,
-        "Failed to load stack module (%s), disabling stack profiling" % msg,
-    )
+    if config.stack.enabled:
+        if config.enabled:
+            logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
+        telemetry_writer.add_log(
+            TELEMETRY_LOG_LEVEL.ERROR,
+            "Failed to load stack module (%s), disabling stack profiling" % msg,
+        )
     config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # Enrich tags with git metadata and DD_TAGS

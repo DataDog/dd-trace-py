@@ -6,6 +6,7 @@ from ddtrace import config
 from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
@@ -61,11 +62,12 @@ class BaseLLMIntegration:
         span = tracer.start_span(
             span_name,
             child_of=parent_context,
-            service=int_service(None, self.integration_config),
             resource=operation_id,
             span_type=span_type,
             activate=True,
         )
+        service = int_service(None, self.integration_config) or ""
+        set_service_and_source(span, service, self.integration_config)
 
         log.debug("Creating LLM span with type %s", span.span_type)
         # determine if the span represents a proxy request

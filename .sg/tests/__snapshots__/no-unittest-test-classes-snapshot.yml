@@ -1,0 +1,82 @@
+id: no-unittest-test-classes
+snapshots:
+  ? |
+    class MyTest(BaseTestCase):
+        def test_something(self):
+            pass
+  : labels:
+    - source: |-
+        class MyTest(BaseTestCase):
+            def test_something(self):
+                pass
+      style: primary
+      start: 0
+      end: 70
+    - source: (BaseTestCase)
+      style: secondary
+      start: 12
+      end: 26
+  ? |
+    class MyTest(SubprocessTestCase):
+        def test_something(self):
+            pass
+  : labels:
+    - source: |-
+        class MyTest(SubprocessTestCase):
+            def test_something(self):
+                pass
+      style: primary
+      start: 0
+      end: 76
+    - source: (SubprocessTestCase)
+      style: secondary
+      start: 12
+      end: 32
+  ? |
+    class MyTest(TestCase):
+        def test_something(self):
+            pass
+  : labels:
+    - source: |-
+        class MyTest(TestCase):
+            def test_something(self):
+                pass
+      style: primary
+      start: 0
+      end: 66
+    - source: (TestCase)
+      style: secondary
+      start: 12
+      end: 22
+  ? |
+    class MyTest(TracerTestCase):
+        def test_something(self):
+            pass
+  : labels:
+    - source: |-
+        class MyTest(TracerTestCase):
+            def test_something(self):
+                pass
+      style: primary
+      start: 0
+      end: 72
+    - source: (TracerTestCase)
+      style: secondary
+      start: 12
+      end: 28
+  ? |
+    class MyTest(unittest.TestCase):
+        def test_something(self):
+            pass
+  : labels:
+    - source: |-
+        class MyTest(unittest.TestCase):
+            def test_something(self):
+                pass
+      style: primary
+      start: 0
+      end: 75
+    - source: (unittest.TestCase)
+      style: secondary
+      start: 12
+      end: 31

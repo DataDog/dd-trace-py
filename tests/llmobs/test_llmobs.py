@@ -9,6 +9,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
 from ddtrace.llmobs import _constants as const
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_trace_id
@@ -648,7 +649,7 @@ def test_llmobs_trace_id_on_local_root_with_non_llm_child_spans(llmobs, llmobs_e
             wf_trace_id = get_llmobs_trace_id(wf)
             # Simulate OTel-bridged span (non-LLM, child of root)
             child = llmobs._instance.tracer.start_span("gen_ai.chat", child_of=root, activate=False)
-            child._meta["gen_ai.system"] = "aws.bedrock"
+            child._set_attribute("gen_ai.system", "aws.bedrock")
             child.finish()
 
     # Root should have llmobs_trace_id
@@ -674,13 +675,29 @@ def test_llmobs_trace_id_not_overwritten_by_sibling_workflows(llmobs, llmobs_eve
     assert first_trace_id != second_trace_id
 
 
+def test_llmobs_submitted_tag_set_on_apm_span(llmobs, llmobs_events):
+    """Test that _dd.llmobs.submitted is set on the APM span when SDK submits an LLMObs event."""
+    with llmobs.workflow("my-workflow") as span:
+        pass
+
+    assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
+
+
+def test_llmobs_submitted_tag_not_set_without_llmobs(llmobs, llmobs_events):
+    """Test that _dd.llmobs.submitted is NOT set on regular APM spans."""
+    with llmobs._instance.tracer.trace("regular_span") as span:
+        pass
+
+    assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
+
+
 def test_no_llmobs_trace_id_without_llmobs_context(llmobs, llmobs_events):
     """Test that llmobs_trace_id is NOT written when there are no LLMObs spans."""
     with llmobs._instance.tracer.trace("regular_span") as span:
         with llmobs._instance.tracer.trace("child_span"):
             pass
 
-    assert "llmobs_trace_id" not in span._meta
+    assert not span._has_attribute("llmobs_trace_id")
 
 
 @pytest.mark.parametrize("llmobs_env", [{"DD_APM_TRACING_ENABLED": "false"}])

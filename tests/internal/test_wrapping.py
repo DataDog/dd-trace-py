@@ -4,6 +4,8 @@ import copy
 import inspect
 import sys
 from types import CoroutineType
+from types import FunctionType
+from typing import cast
 
 import pytest
 
@@ -654,11 +656,11 @@ def test_wrapping_context_deepcopy():
     route_copy = copy.deepcopy(route)
 
     assert route_copy.ctx is not wc
-    assert hasattr(route_copy.ctx, "_storage_stack")
+    assert hasattr(route_copy.ctx, "_storage")
     assert hasattr(route_copy.ctx, "_trampoline_lock")
     # Use base __enter__/__exit__ so we don't trigger __frame__ (which expects
     # to run inside a wrapped call). This verifies the copied context's
-    # _storage_stack is a new, working ContextVar.
+    # _storage is a new, working ContextVar.
     BaseWrappingContext.__enter__(route_copy.ctx)
     try:
         route_copy.ctx.set("k", 99)
@@ -795,6 +797,38 @@ def test_wrapping_context_recursive():
     assert values == [5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5]
 
 
+@pytest.mark.asyncio
+async def test_wrapping_context_async_storage_isolation():
+    """Storage set in one coroutine must not bleed into a concurrent sibling."""
+    barrier = asyncio.Event()
+
+    class StorageIsolationContext(WrappingContext):
+        pass
+
+    async def coro(value, *, first: bool):
+        ctx = StorageIsolationContext.extract(cast(FunctionType, coro))
+        ctx.set("value", value)
+        if first:
+            # Yield control so the second task runs and sets its own value.
+            await barrier.wait()
+        return ctx.get("value")
+
+    wc = StorageIsolationContext(coro)
+    wc.wrap()
+
+    task1 = asyncio.create_task(coro(1, first=True))
+    # Let task1 reach the barrier before starting task2.
+    await asyncio.sleep(0)
+    task2 = asyncio.create_task(coro(2, first=False))
+    await task2
+    barrier.set()
+    result1 = await task1
+
+    # task1 set "value" to 1; even though task2 ran in between and set its own
+    # "value" to 2, task1 should still read back 1.
+    assert result1 == 1
+
+
 def test_wrapping_context_generator():
     def foo():
         yield from range(10)
@@ -910,6 +944,7 @@ def test_wrapping_context_method_leaks():
     import gc
 
     from ddtrace.internal.wrapping.context import WrappingContext
+    from ddtrace.internal.wrapping.context import _UniversalWrappingContext
 
     NOTSET = object()
 
@@ -946,15 +981,35 @@ def test_wrapping_context_method_leaks():
     wc = DummyWrappingContext(foo)
     wc.wrap()
 
-    method_count = len([_ for _ in gc.get_objects() if type(_).__name__ == "method"])
+    # Disable auto-GC to prevent non-deterministic collection between measurements,
+    # and narrow to bound methods of _UniversalWrappingContext (the __enter__,
+    # __return__, and _exit bound methods injected into the wrapped bytecode) to
+    # avoid counting unrelated method objects from background threads or imports.
+    def is_wrapping_method(obj):
+        return type(obj).__name__ == "method" and isinstance(getattr(obj, "__self__", None), _UniversalWrappingContext)
+
+    gc.disable()
+    gc.collect()
+    # Store only IDs before the run — no object references held, so nothing is kept alive artificially.
+    before_ids = {id(obj) for obj in gc.get_objects() if is_wrapping_method(obj)}
 
     for _ in range(10000):
         foo()
 
     gc.collect()
 
-    new_method_count = len([_ for _ in gc.get_objects() if type(_).__name__ == "method"])
-    assert new_method_count <= method_count + 1
+    # After measurement is complete it is safe to hold references for inspection.
+    after_objects = [obj for obj in gc.get_objects() if is_wrapping_method(obj)]
+    gc.enable()
+
+    new_objects = [obj for obj in after_objects if id(obj) not in before_ids]
+    assert len(after_objects) <= len(before_ids) + 1, (
+        f"Expected at most {len(before_ids) + 1} wrapping methods, got {len(after_objects)}.\n"
+        + "\n".join(
+            f"  NEW {obj!r} __func__={getattr(obj, '__func__', None)!r} referrers={gc.get_referrers(obj)!r}"
+            for obj in new_objects
+        )
+    )
 
 
 class DummyLazyWrappingContext(LazyWrappingContext):

@@ -27,7 +27,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: HttpClientRequestEvent = ctx.event
 
-        if trace_utils.distributed_tracing_enabled(event.config) and event.request_headers is not None:
+        if trace_utils.distributed_tracing_enabled(event.integration_config) and event.request_headers is not None:
             HTTPPropagator.inject(ctx.span.context, cast(dict[str, str], event.request_headers))
 
     @classmethod
@@ -41,14 +41,16 @@ class HttpClientTracingSubscriber(TracingSubscriber):
         try:
             trace_utils.set_http_meta(
                 ctx.span,
-                event.config,
+                event.integration_config,
                 method=event.request_method,
-                url=event.url,
+                url=event.request_url,
                 target_host=event.target_host,
                 status_code=event.response_status_code,
                 query=event.query,
                 request_headers=event.request_headers,
                 response_headers=event.response_headers,
+                server_address=event.server_address,
+                retries_remain=event.retries_remain,
             )
         except Exception:
-            log.debug("%s: error adding tags", event.config.integration_name, exc_info=True)
+            log.debug("%s: error adding tags", event.integration_config.integration_name, exc_info=True)

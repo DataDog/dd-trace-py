@@ -30,7 +30,7 @@ def test_cosmos_sync(tracer, test_spans):
     test_spans.assert_has_spans()
     query_spans = list(test_spans.filter_spans(name="cosmosdb.query"))
     for span in query_spans:
-        assert "sdk-python-cosmos" in span._meta["http.useragent"]
+        assert "sdk-python-cosmos" in span._get_str_attribute("http.useragent")
 
 
 @pytest.mark.asyncio
@@ -41,7 +41,7 @@ async def test_cosmos_async(tracer, test_spans):
     test_spans.assert_has_spans()
     query_spans = list(test_spans.filter_spans(name="cosmosdb.query"))
     for span in query_spans:
-        assert "sdk-python-cosmos-async" in span._meta["http.useragent"]
+        assert "sdk-python-cosmos-async" in span._get_str_attribute("http.useragent")
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)

@@ -23,7 +23,6 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
-from ddtrace.llmobs._constants import IS_EVALUATION_TRACE
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
@@ -59,6 +58,15 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
     LITELLM_APM_SPAN_NAME,
     VERTEXAI_APM_SPAN_NAME,
 )
+
+
+def get_asyncio():
+    # asyncio must NOT be imported at module level — this module is
+    # loaded at ddtrace.auto startup and an early asyncio import corrupts the
+    # event loop on some platforms.  See test_lazyimport.py.
+    import asyncio
+
+    return asyncio
 
 
 def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
@@ -221,16 +229,6 @@ def _get_span_name(span: Span) -> str:
     return llmobs_data.get(LLMOBS_STRUCT.NAME) or span.name
 
 
-def mark_as_evaluation_span(span: Span) -> None:
-    """Mark this span's trace as an evaluation trace via context._meta."""
-    span.context._meta[IS_EVALUATION_TRACE] = "1"
-
-
-def _is_evaluation_span(span: Span) -> bool:
-    """Return whether this span belongs to an evaluation trace (e.g. a ragas evaluator run)."""
-    return bool(span.context._meta.get(IS_EVALUATION_TRACE))
-
-
 def _unserializable_default_repr(obj):
     try:
         # Pydantic v2
@@ -330,7 +328,7 @@ def _get_parent_prompt(span: Span) -> Optional[Prompt]:
 
 def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     """Get the llmobs data from span._meta_struct or return empty dict."""
-    return cast("LLMObsSpanData", span._meta_struct.get(LLMOBS_STRUCT.KEY, {}))
+    return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
 
 
 def resolve_ml_app(ml_app: Optional[str] = None) -> str:

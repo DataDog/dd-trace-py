@@ -1,6 +1,6 @@
-import os
 import typing as t
 
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import get_agent_hostname
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import get_config
@@ -74,10 +74,10 @@ def _derive_traces_timeout(config: "ExporterConfig"):
 
 def _derive_traces_endpoint(config: "ExporterConfig"):
     # Signal-specific endpoint takes precedence (full URL, no path appended).
-    if traces_endpoint := os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
+    if traces_endpoint := env.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
         return traces_endpoint
     # Global endpoint is a base URL; append the traces signal path.
-    global_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+    global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if global_endpoint:
         return global_endpoint.rstrip("/") + ExporterConfig.TRACES_PATH
     # Default to HTTP/JSON endpoint since libdatadog currently only supports http/json for OTLP traces.
@@ -85,9 +85,9 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
 
 
 def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
-    if os.environ.get("DD_TRACE_AGENT_PROTOCOL_VERSION"):
+    if env.get("DD_TRACE_AGENT_PROTOCOL_VERSION"):
         return False
-    return os.environ.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
+    return env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
 
 
 class OpenTelemetryConfig(DDConfig):

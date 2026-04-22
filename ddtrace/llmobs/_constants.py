@@ -5,13 +5,13 @@ SESSION_ID = "_ml_obs.session_id"
 ML_APP = "_ml_obs.meta.ml_app"
 ML_APP_DEFAULT = "unnamed-ml-app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
+LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
-# All ragas traces have this context item set so we can differentiate
-# spans generated from the ragas integration vs user application spans.
-IS_EVALUATION_TRACE = "_ml_obs.is_evaluation_trace"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
+LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
+UNKNOWN_MODEL_NAME = "unknown"
 
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
 
@@ -66,17 +66,9 @@ DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exce
 
 ROOT_PARENT_ID = "undefined"
 
-# Set for traces of evaluator integrations e.g. `runner.integration:ragas`.
-# Used to differentiate traces of Datadog-run operations vs user-application operations.
-RUNNER_IS_INTEGRATION_SPAN_TAG = "runner.integration"
-
 ANNOTATIONS_CONTEXT_ID = "annotations_context_id"
 INTERNAL_CONTEXT_VARIABLE_KEYS = "_dd_context_variable_keys"
 INTERNAL_QUERY_VARIABLE_KEYS = "_dd_query_variable_keys"
-
-FAITHFULNESS_DISAGREEMENTS_METADATA = "_dd.faithfulness_disagreements"
-EVALUATION_KIND_METADATA = "_dd.evaluation_kind"
-EVALUATION_SPAN_METADATA = "_dd.evaluation_span"
 
 # Prompt constants
 DEFAULT_PROMPT_NAME = "unnamed-prompt"
@@ -164,3 +156,26 @@ class LLMOBS_STRUCT:
     MODEL_PROVIDER: Final = "model_provider"
     INTENT: Final = "intent"
     CONFIG: Final = "config"
+
+
+SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
+    "anthropic": "anthropic",
+    "bedrock": "botocore",
+    "openai": "openai",
+    "langchain": "langchain",
+    "google_adk": "google_adk",
+    "google_genai": "google_genai",
+    "vertexai": "vertexai",
+    "langgraph": "langgraph",
+    "litellm": "litellm",
+    "crewai": "crewai",
+    "openai_agents": "openai_agents",
+    "mcp": "mcp",
+    "pydantic_ai": "pydantic_ai",
+    "claude_agent_sdk": "claude_agent_sdk",
+}
+
+# Deprecated constants kept for backwards compatibility with downstream consumers of ddtrace internals.
+# These were removed in the span._store -> span._meta_struct migration (PR #16774).
+EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
+EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"

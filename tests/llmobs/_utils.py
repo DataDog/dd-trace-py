@@ -1,6 +1,6 @@
 import os
 
-import mock
+import mock  # type: ignore[import-untyped]
 
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
@@ -20,6 +20,32 @@ from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
+
+
+DEEP_TOOL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "l1": {
+            "type": "object",
+            "properties": {
+                "l2": {
+                    "type": "object",
+                    "properties": {
+                        "l3": {
+                            "type": "object",
+                            "properties": {
+                                "l4": {
+                                    "type": "object",
+                                    "properties": {"l5": {"type": "string"}},
+                                }
+                            },
+                        }
+                    },
+                }
+            },
+        }
+    },
+}
 
 
 if vcr:
@@ -352,6 +378,7 @@ def _expected_llmobs_eval_metric_event(
     metadata=None,
     assessment=None,
     reasoning=None,
+    eval_scope="span",
 ):
     eval_metric_event = {
         "join_on": {},
@@ -361,6 +388,7 @@ def _expected_llmobs_eval_metric_event(
             "ddtrace.version:{}".format(ddtrace.__version__),
             "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
         ],
+        "eval_scope": eval_scope,
     }
     if tag_key is not None and tag_value is not None:
         eval_metric_event["join_on"]["tag"] = {"key": tag_key, "value": tag_value}
@@ -702,6 +730,7 @@ def _dummy_evaluator_eval_metric_event(span_id, trace_id, label=None):
         metric_type="score",
         label=label or "dummy",
         tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
+        eval_scope="span",
     )
 
 

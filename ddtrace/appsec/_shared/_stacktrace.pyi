@@ -1,0 +1,3 @@
+from typing import Optional
+
+def get_info_frame() -> tuple[Optional[str], Optional[int], Optional[str], Optional[str]]: ...

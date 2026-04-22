@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    mysql: This introduces tracing support for ``mysql.connector.aio.connect`` in the MySQL integration.

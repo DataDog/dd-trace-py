@@ -148,9 +148,9 @@ def test_default_collectors():
         pass
     else:
         assert any(isinstance(c, asyncio.AsyncioLockCollector) for c in p._profiler._collectors)
-        assert any(isinstance(c, asyncio.AsyncioSemaphoreCollector) for c in p._profiler._collectors)
-        assert any(isinstance(c, asyncio.AsyncioBoundedSemaphoreCollector) for c in p._profiler._collectors)
-        assert any(isinstance(c, asyncio.AsyncioConditionCollector) for c in p._profiler._collectors)
+        assert not any(isinstance(c, asyncio.AsyncioSemaphoreCollector) for c in p._profiler._collectors)
+        assert not any(isinstance(c, asyncio.AsyncioBoundedSemaphoreCollector) for c in p._profiler._collectors)
+        assert not any(isinstance(c, asyncio.AsyncioConditionCollector) for c in p._profiler._collectors)
     p.stop(flush=False)
 
 
@@ -206,6 +206,23 @@ def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monke
             return None
 
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
+    monkeypatch.setattr(
+        profiler.profiling_config.lock,
+        "primitives",
+        set(
+            {
+                "threading.Lock",
+                "threading.RLock",
+                "threading.Semaphore",
+                "threading.BoundedSemaphore",
+                "threading.Condition",
+                "asyncio.Lock",
+                "asyncio.Semaphore",
+                "asyncio.BoundedSemaphore",
+                "asyncio.Condition",
+            }
+        ),
+    )
 
     p = TestProfiler(
         _memory_collector_enabled=False,

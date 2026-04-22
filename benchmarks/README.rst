@@ -3,6 +3,87 @@ Benchmarks
 
 These benchmarks are intended to provide stable and reproducible measurements of the performance characteristics of the ``ddtrace`` library. A scenario is defined using a simple Python framework. Docker is used to build images for the execution of scenarios against different versions of ``ddtrace``.
 
+.. _developer_workflow:
+
+Developer Workflow
+^^^^^^^^^^^^^^^^^^
+
+Use ``scripts/run-benchmarks`` and ``scripts/perf-analyze`` for day-to-day benchmark work. These wrap the lower-level ``scripts/perf-run-scenario`` with scenario discovery, a consistent run ID, and result analysis.
+
+**Step 1 — Discover relevant scenarios**
+
+Find which benchmark suites are affected by your changes::
+
+  # Based on your git changes
+  scripts/run-benchmarks --list
+
+  # For specific files
+  scripts/run-benchmarks --list ddtrace/_trace/span.py
+
+  # All available suites
+  scripts/run-benchmarks --list --all-suites
+
+Output is JSON with scenario names, matched files, and available config variants.
+
+**Step 2 — Run scenarios**
+
+::
+
+  # Run a single scenario (latest PyPI vs local)
+  scripts/run-benchmarks --scenario span --artifacts ./benchmark-artifacts/
+
+  # Run multiple scenarios under the same run ID
+  scripts/run-benchmarks --scenario span --scenario tracer --artifacts ./benchmark-artifacts/
+
+  # Faster iteration: run only specific config variants
+  scripts/run-benchmarks --scenario span --configs start,start-finish --artifacts ./benchmark-artifacts/
+
+  # Compare two specific PyPI versions
+  scripts/run-benchmarks --scenario span --baseline ddtrace==4.5.0 --candidate ddtrace==4.6.0 --artifacts ./benchmark-artifacts/
+
+  # Add another scenario to an existing run (reuse the run ID printed above)
+  scripts/run-benchmarks --scenario http_propagation_extract --run-id <run-id> --artifacts ./benchmark-artifacts/
+
+  # Dry-run to preview what would execute
+  scripts/run-benchmarks --dry-run --scenario span
+
+A run ID is printed at the start of each invocation. Multiple ``--scenario`` flags share the same run ID, so all results land in one artifact directory. Use ``--run-id`` to append scenarios to a previous run.
+
+Note: ``--configs`` applies the same filter to every scenario. When running scenarios with different config naming, run them in separate invocations.
+
+**Step 3 — Analyze results**
+
+::
+
+  # Human-readable summary (auto-finds latest run)
+  scripts/perf-analyze benchmark-artifacts/
+
+  # Analyze a specific run
+  scripts/perf-analyze benchmark-artifacts/<run-id>/
+
+  # Markdown table for PR comments
+  scripts/perf-analyze benchmark-artifacts/ --markdown
+
+  # JSON for programmatic use
+  scripts/perf-analyze benchmark-artifacts/ --json
+
+The summary shows mean ± ``stddev``, change %, ratio, and a significance label for each config. Changes under 2% are reported as not significant. The ``--markdown`` output is suitable for pasting directly into a pull request description.
+
+**Step 4 — Profiling (optional)**
+
+When the summary shows a regression and you need to know *why*::
+
+  # Collect viztracer profiling data (generates ~700MB per config)
+  scripts/run-benchmarks --scenario span --configs start-finish --profile --artifacts ./benchmark-artifacts/
+
+  # Show top functions by exclusive time (ddtrace paths only)
+  scripts/perf-analyze benchmark-artifacts/ --profile-top 20 --filter ddtrace --min-calls 1000
+
+  # Compare baseline vs candidate function-by-function
+  scripts/perf-analyze benchmark-artifacts/ --profile-compare --filter ddtrace --min-calls 1000
+
+Use ``--configs`` to limit profiling to one config variant — ``viztracer`` files are large and slow to process.
+
 .. _framework:
 
 Framework
@@ -57,8 +138,10 @@ Example
 
 .. _run:
 
-Run scenario
-^^^^^^^^^^^^
+Advanced: direct invocation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For direct control over the Docker execution, ``scripts/perf-run-scenario`` can be used without the ``run-benchmarks`` wrapper. This is useful for scripting or CI.
 
 The scenario can be run using the built image to compare two versions of the library and save the results in a local artifacts folder::
 
@@ -88,16 +171,25 @@ Example::
 Profiling
 ~~~~~~~~~
 
-You may also generate profiling data from each scenario using `viztracer`_ by providing the ``PROFILE_BENCHMARKS=1`` environment variable.
+Profiling data can be collected from each scenario using `viztracer`_. With ``scripts/run-benchmarks``, pass ``--profile``::
 
-Example::
+  scripts/run-benchmarks --scenario span --configs start-finish --profile --artifacts ./benchmark-artifacts/
 
-  # Compare and profile PyPI version 2.8.4 against your local changes, and store the results in ./artifacts/
+When using ``scripts/perf-run-scenario`` directly, set ``PROFILE_BENCHMARKS=1``::
+
   PROFILE_BENCHMARKS=1 scripts/perf-run-scenario span ddtrace==2.8.4 . --artifacts ./artifacts/
 
 One ``viztracer`` output will be created for every scenario run in the artifacts directory.
 
-You can use the ``viztracer`` tooling to combine or inspect the resulting files locally
+Use ``scripts/perf-analyze`` to inspect profiling results without needing to open a browser::
+
+  # Top functions by exclusive time
+  scripts/perf-analyze artifacts/ --profile-top 20 --filter ddtrace --min-calls 1000
+
+  # Side-by-side baseline vs candidate diff
+  scripts/perf-analyze artifacts/ --profile-compare --filter ddtrace --min-calls 1000
+
+Alternatively, you can use the ``viztracer`` tooling directly to view a timeline or flamegraph:
 
 Some examples::
 

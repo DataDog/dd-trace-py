@@ -11,15 +11,16 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 from typing import cast
+from unittest import mock
 import uuid
 
-import mock  # type: ignore[import-untyped]
 import pytest
 
 from ddtrace import ext
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.profiling.collector import CaptureSampler
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
 from ddtrace.profiling.collector._lock import _ProfiledLock
 from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
@@ -414,8 +415,8 @@ def test_rlock_gevent_tasks() -> None:
 def test_assertion_error_raised_with_enable_asserts():
     """Ensure that AssertionError is propagated when config.enable_asserts=True."""
     import threading
+    from unittest import mock
 
-    import mock
     import pytest
 
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -581,7 +582,7 @@ def test_all_exceptions_suppressed_by_default() -> None:
     """
     import threading
 
-    import mock
+    import mock  # type: ignore[import-untyped]
 
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector.test_utils import init_ddup
@@ -1263,6 +1264,61 @@ class TestGenericLockProfiling(LockCollectorTestBase):
                 ],
             )
 
+    def test_find_name_slots_object(self) -> None:
+        """Regression: _find_name resolves lock names on __slots__-based objects.
+
+        Objects with __slots__ have no __dict__, so the slots inspection path
+        in _find_name must be used. Previously, the TypeError from vars() was
+        caught and the name resolution was skipped entirely.
+        """
+
+        class SlottedHolder:
+            __slots__ = ("my_lock",)
+
+            def __init__(self, lock_class: LockTypeClass) -> None:
+                self.my_lock: LockTypeInst = lock_class()
+
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                holder = SlottedHolder(self.lock_class)
+                assert isinstance(holder.my_lock, _ProfiledLock)
+                found_name: Optional[str] = holder.my_lock._find_name({"holder": holder})
+                assert found_name == "my_lock", (
+                    f"Expected 'my_lock' but got {found_name!r}. Lock name resolution through __slots__ is broken."
+                )
+
+    def test_crashing_descriptor_does_not_crash(self) -> None:
+        """Regression: _find_name must not crash when an object has a descriptor that raises.
+
+        Ray's get_actor_name descriptor crashes when accessed from a non-actor
+        worker context. The old dir()+getattr() approach would invoke it and
+        crash. The fix uses __dict__ to avoid invoking class-level descriptors.
+        """
+
+        class CrashingDescriptor:
+            def __get__(self, obj: object, objtype: Optional[type] = None) -> object:
+                raise RuntimeError("Simulated Ray descriptor crash")
+
+        class HolderWithCrashingDescriptor:
+            dangerous_attr = CrashingDescriptor()
+
+            def __init__(self, lock_class: LockTypeClass) -> None:
+                self.my_lock: LockTypeInst = lock_class()
+
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                holder = HolderWithCrashingDescriptor(self.lock_class)
+                assert isinstance(holder.my_lock, _ProfiledLock)
+                # Must not raise, even though accessing dangerous_attr crashes
+                found_name = holder.my_lock._find_name({"holder": holder})
+                assert found_name == "my_lock", f"Expected 'my_lock' but got {found_name!r}."
+
     def test_private_lock(self) -> None:
         # Store reference to class for later qualname access
         foo_class: Optional[type] = None
@@ -1278,9 +1334,13 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         # Capture reference before context manager
         foo_class = Foo
 
-        with self.collector_class(capture_pct=100):
-            foo: Foo = Foo(self.lock_class)
-            foo.foo()
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                foo: Foo = Foo(self.lock_class)
+                foo.foo()
 
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
@@ -1392,33 +1452,37 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         foo_func: Optional[Callable[[], None]] = None
         test_bar_class: Optional[type] = None
 
-        with self.collector_class(capture_pct=100):
-            # Create true module-level globals
-            _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                # Create true module-level globals
+                _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
 
-            class TestBar:
-                def __init__(self, lock_class: LockTypeClass) -> None:
-                    self.bar_lock: LockTypeInst = lock_class()  # !CREATE! bar_lock
+                class TestBar:
+                    def __init__(self, lock_class: LockTypeClass) -> None:
+                        self.bar_lock: LockTypeInst = lock_class()  # !CREATE! bar_lock
 
-                def bar(self) -> None:
-                    with self.bar_lock:  # !ACQUIRE! !RELEASE! bar_lock
+                    def bar(self) -> None:
+                        with self.bar_lock:  # !ACQUIRE! !RELEASE! bar_lock
+                            pass
+
+                def foo() -> None:
+                    global _test_global_lock
+                    assert _test_global_lock is not None
+                    with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
                         pass
 
-            def foo() -> None:
-                global _test_global_lock
-                assert _test_global_lock is not None
-                with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
-                    pass
+                # Capture references before context manager exits
+                foo_func = foo
+                test_bar_class = TestBar
 
-            # Capture references before context manager exits
-            foo_func = foo
-            test_bar_class = TestBar
+                _test_global_bar_instance = TestBar(self.lock_class)  # type: ignore[assignment]
 
-            _test_global_bar_instance = TestBar(self.lock_class)  # type: ignore[assignment]
-
-            # Use the locks
-            foo()
-            _test_global_bar_instance.bar()  # type: ignore[attr-defined]
+                # Use the locks
+                foo()
+                _test_global_bar_instance.bar()  # type: ignore[attr-defined]
 
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
@@ -1905,6 +1969,141 @@ class BaseSemaphoreTest(LockCollectorTestBase):
                 "Lock created by threading.py (inside Condition) SHOULD be marked as internal."
             )
 
+    def test_internal_module_file_realpath_called_once_at_patch_time(self) -> None:
+        """Verify that os.path.realpath() for the internal module file is computed once at patch() time,
+        not on every lock allocation.
+
+        Regression test for a bug where the constant internal module path was being resolved via
+        os.path.realpath() on every single lock instantiation, causing unnecessary filesystem syscalls
+        in hot paths (e.g. asyncio Semaphore/Condition allocations per request).
+        """
+        import os.path
+
+        realpath_call_counts: dict[str, int] = {"patch_time": 0, "alloc_time": 0}
+        in_patch: list[bool] = [False]
+        original_realpath = os.path.realpath
+
+        def counting_realpath(path: str, **kwargs: object) -> str:
+            if in_patch[0]:
+                realpath_call_counts["patch_time"] += 1
+            else:
+                realpath_call_counts["alloc_time"] += 1
+            return original_realpath(path, **kwargs)  # type: ignore[call-overload]
+
+        with mock.patch("os.path.realpath", side_effect=counting_realpath):
+            in_patch[0] = True
+            collector = self.collector_class(capture_pct=100)
+            collector._start_service()
+            in_patch[0] = False
+
+            try:
+                # Allocate several locks — realpath for the internal module file must NOT be called again
+                for _ in range(5):
+                    lock: LockTypeInst = self.lock_class()
+                    lock.acquire()
+                    lock.release()
+            finally:
+                collector._stop_service()
+
+        # realpath should have been called at least once at patch time (to resolve the internal module file)
+        assert realpath_call_counts["patch_time"] >= 1, (
+            "Expected os.path.realpath to be called at patch() time to precompute the internal module path"
+        )
+        # realpath may still be called at alloc time for the *caller* filename, but NOT for the constant
+        # internal module file. The alloc-time count should be exactly N allocations (one caller realpath each),
+        # not 2*N (which would indicate the internal file is still being resolved per allocation).
+        assert realpath_call_counts["alloc_time"] <= 5, (
+            f"os.path.realpath called {realpath_call_counts['alloc_time']} times during 5 allocations — "
+            "expected at most 5 (one per caller filename). The internal module file path may be recomputed per-call."
+        )
+
+    def test_unsampled_acquire_bypasses_inner_acquire(self) -> None:
+        """Regression: on the unsampled path, acquire/enter entry points must NOT call _acquire.
+
+        The inline-dispatch optimization eliminates one function call per lock operation on the
+        hot (unsampled) path by checking capture_sampler.capture() directly in each entry point
+        and falling through to the wrapped lock without going through _acquire.
+
+        If someone refactors acquire/__enter__/__aenter__ back into a shared helper that calls
+        _acquire unconditionally, this test will catch it.
+        """
+        real_lock = self.lock_class()
+        capture_sampler = CaptureSampler(capture_pct=0)
+        profiled_lock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
+
+        with mock.patch.object(type(profiled_lock), "_acquire", wraps=profiled_lock._acquire) as spy:
+            for _ in range(5):
+                profiled_lock.acquire()
+                profiled_lock.release()
+
+        assert spy.call_count == 0, (
+            f"_acquire was called {spy.call_count} times on the unsampled path (capture_pct=0). "
+            "The inline-dispatch optimization requires that unsampled acquires bypass _acquire entirely. "
+            "Do NOT refactor acquire/__enter__/__aenter__ to call _acquire unconditionally."
+        )
+
+    def test_sampled_acquire_calls_inner_acquire(self) -> None:
+        """Regression: on the sampled path, each entry point must delegate to _acquire exactly once.
+
+        Counterpart to test_unsampled_acquire_bypasses_inner_acquire — ensures we don't accidentally
+        drop the _acquire delegation on the sampled path either.
+        """
+        real_lock = self.lock_class()
+        capture_sampler = CaptureSampler(capture_pct=100)
+        profiled_lock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
+
+        with mock.patch.object(type(profiled_lock), "_acquire", wraps=profiled_lock._acquire) as spy:
+            for _ in range(3):
+                profiled_lock.acquire()
+                profiled_lock.release()
+
+        assert spy.call_count == 3, (
+            f"_acquire was called {spy.call_count} times instead of 3 on the sampled path (capture_pct=100)."
+        )
+
+    def test_unsampled_release_bypasses_inner_release(self) -> None:
+        """Regression: when acquired_time is None (unsampled acquire), release entry points must NOT call _release.
+
+        On the unsampled path, acquired_time is left as None. The inline-dispatch optimization
+        checks this directly in each release entry point and falls through to the wrapped lock
+        without going through _release.
+
+        If someone refactors release/__exit__/__aexit__ back into a shared helper that calls
+        _release unconditionally, this test will catch it.
+        """
+        real_lock = self.lock_class()
+        capture_sampler = CaptureSampler(capture_pct=0)
+        profiled_lock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
+
+        # Acquire (unsampled — acquired_time stays None)
+        profiled_lock.acquire()
+        assert profiled_lock.acquired_time is None, "precondition: acquired_time must be None after unsampled acquire"
+
+        with mock.patch.object(type(profiled_lock), "_release", wraps=profiled_lock._release) as spy:
+            profiled_lock.release()
+
+        assert spy.call_count == 0, (
+            f"_release was called {spy.call_count} times when acquired_time was None (unsampled path). "
+            "The inline-dispatch optimization requires that unsampled releases bypass _release entirely. "
+            "Do NOT refactor release/__exit__/__aexit__ to call _release unconditionally."
+        )
+
+    def test_sampled_release_calls_inner_release(self) -> None:
+        """Regression: on the sampled path, each release entry point must delegate to _release exactly once."""
+        real_lock = self.lock_class()
+        capture_sampler = CaptureSampler(capture_pct=100)
+        profiled_lock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
+
+        profiled_lock.acquire()
+        assert profiled_lock.acquired_time is not None, "precondition: acquired_time must be set after sampled acquire"
+
+        with mock.patch.object(type(profiled_lock), "_release", wraps=profiled_lock._release) as spy:
+            profiled_lock.release()
+
+        assert spy.call_count == 1, (
+            f"_release was called {spy.call_count} times instead of 1 on the sampled path (capture_pct=100)."
+        )
+
     def test_acquire_return_values_preserved(self) -> None:
         """Test that profiling wrapper preserves acquire() return values (transparency test).
 
@@ -2051,3 +2250,90 @@ class TestThreadingConditionCollector(LockCollectorTestBase):
     @property
     def lock_class(self) -> type[threading.Condition]:
         return threading.Condition
+
+
+# -- Per-module lock filtering (DD_PROFILING_LOCK_EXCLUDE_MODULES) -----------
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="__main__"))
+def test_exclude_modules_skips_wrapping() -> None:
+    """Locks created from an excluded module are native (not _ProfiledLock)."""
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_exclude_modules")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert not isinstance(lock, _ProfiledLock), "Lock from excluded module should be native, got _ProfiledLock"
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="some.nonexistent.module"))
+def test_exclude_modules_wraps_non_excluded() -> None:
+    """Locks from non-excluded modules are still profiled."""
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_exclude_modules_wraps")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert isinstance(lock, _ProfiledLock), f"Lock should be profiled, got {type(lock)}"
+
+
+@pytest.mark.subprocess()
+def test_exclude_modules_empty_is_backward_compatible() -> None:
+    """Empty exclude list wraps all locks (backward compatible)."""
+    import os
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+    assert not os.environ.get("DD_PROFILING_LOCK_EXCLUDE_MODULES")
+
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_exclude_modules_empty")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert isinstance(lock, _ProfiledLock)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="__main"))
+def test_exclude_modules_prefix_requires_dot_boundary() -> None:
+    """'__main' must NOT match '__main__' — prefix matching requires a dot boundary."""
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_exclude_prefix")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert isinstance(lock, _ProfiledLock), "Prefix without dot boundary should not exclude"
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="__main__,some.other.module"))
+def test_exclude_modules_multiple() -> None:
+    """Multiple comma-separated modules are all excluded."""
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_exclude_multiple")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert not isinstance(lock, _ProfiledLock), "Lock from excluded module should be native"

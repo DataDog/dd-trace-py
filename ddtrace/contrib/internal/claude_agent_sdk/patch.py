@@ -35,6 +35,7 @@ def traced_query_async_generator(func, _instance, args, kwargs):
     span = integration.trace(
         "claude_agent_sdk.query",
         submit_to_llmobs=True,
+        span_name="claude_agent_sdk.query",
     )
 
     if prompt_wrapper:
@@ -63,6 +64,7 @@ async def traced_client_query(func, instance, args, kwargs):
     span = integration.trace(
         "claude_agent_sdk.ClaudeSDKClient.query",
         submit_to_llmobs=True,
+        span_name="claude_agent_sdk.ClaudeSDKClient.query",
         instance=instance,
     )
 

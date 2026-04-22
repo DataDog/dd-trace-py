@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    CI Visibility: adds automatic log correlation and submission so that test logs appear alongside
+    their corresponding test run in Datadog. Set ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED=true`` for 
+    agentless setups, or ``DD_LOGS_INJECTION=true`` when using the Datadog Agent.

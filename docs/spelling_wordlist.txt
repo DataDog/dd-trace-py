@@ -45,6 +45,7 @@ backoff
 backport
 backported
 backporting
+Bazel
 bdd
 bikeshedding
 Blowfish
@@ -122,6 +123,7 @@ eventbridge
 exec
 Fargate
 fastapi
+frozenset
 Firehose
 flamegraph
 fnmatch
@@ -187,6 +189,7 @@ libFuzzer
 lifecycle
 linters
 litellm
+LlamaIndex
 LLM
 lockfiles
 logbook
@@ -282,6 +285,7 @@ repo
 resolvers
 respawn
 riotfile
+rlocation
 RLock
 rowcount
 rq
@@ -380,3 +384,6 @@ jitter
 durations
 numer
 denom
+mtime
+mtimes
+txt

@@ -28,6 +28,18 @@ GitNotFoundError = FileNotFoundError
 # Git Branch
 BRANCH = "git.branch"
 
+# Git Pull Request Base Branch
+PULL_REQUEST_BASE_BRANCH = "git.pull_request.base_branch"
+
+# Git Pull Request Base Branch SHA
+PULL_REQUEST_BASE_BRANCH_SHA = "git.pull_request.base_branch_sha"
+
+# Git Pull Request Base Branch Head SHA
+PULL_REQUEST_BASE_BRANCH_HEAD_SHA = "git.pull_request.base_branch_head_sha"
+
+# Pull Request Number
+PULL_REQUEST_NUMBER = "pr.number"
+
 # Git Commit SHA
 COMMIT_SHA = "git.commit.sha"
 
@@ -437,6 +449,7 @@ def extract_user_git_metadata(environ: Optional[MutableMapping[str, str]] = None
     environ = env if environ is None else environ
 
     branch = normalize_ref(environ.get("DD_GIT_BRANCH"))
+    pull_request_base_branch = normalize_ref(environ.get("DD_GIT_PULL_REQUEST_BASE_BRANCH"))
     tag = normalize_ref(environ.get("DD_GIT_TAG"))
 
     # if DD_GIT_BRANCH is a tag, we associate its value to TAG instead of BRANCH
@@ -448,6 +461,8 @@ def extract_user_git_metadata(environ: Optional[MutableMapping[str, str]] = None
     tags[REPOSITORY_URL] = environ.get("DD_GIT_REPOSITORY_URL")
     tags[COMMIT_SHA] = environ.get("DD_GIT_COMMIT_SHA")
     tags[BRANCH] = branch
+    tags[PULL_REQUEST_BASE_BRANCH] = pull_request_base_branch
+    tags[PULL_REQUEST_BASE_BRANCH_SHA] = environ.get("DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA")
     tags[TAG] = tag
     tags[COMMIT_MESSAGE] = environ.get("DD_GIT_COMMIT_MESSAGE")
     tags[COMMIT_AUTHOR_DATE] = environ.get("DD_GIT_COMMIT_AUTHOR_DATE")

@@ -1,6 +1,5 @@
 # -*- encoding: utf-8 -*-
 import logging
-import os
 from typing import Any
 from typing import Callable
 from typing import Mapping
@@ -17,6 +16,7 @@ from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.settings import env as _env
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.internal.settings.profiling import config_str
 from ddtrace.internal.telemetry import telemetry_writer
@@ -32,6 +32,19 @@ from ddtrace.profiling.collector import threading
 
 
 LOG = logging.getLogger(__name__)
+
+
+_LOCK_PRIMITIVE_COLLECTORS: dict[str, tuple[str, type[collector.Collector]]] = {
+    "threading.Lock": ("threading", threading.ThreadingLockCollector),
+    "threading.RLock": ("threading", threading.ThreadingRLockCollector),
+    "threading.Semaphore": ("threading", threading.ThreadingSemaphoreCollector),
+    "threading.BoundedSemaphore": ("threading", threading.ThreadingBoundedSemaphoreCollector),
+    "threading.Condition": ("threading", threading.ThreadingConditionCollector),
+    "asyncio.Lock": ("asyncio", asyncio.AsyncioLockCollector),
+    "asyncio.Semaphore": ("asyncio", asyncio.AsyncioSemaphoreCollector),
+    "asyncio.BoundedSemaphore": ("asyncio", asyncio.AsyncioBoundedSemaphoreCollector),
+    "asyncio.Condition": ("asyncio", asyncio.AsyncioConditionCollector),
+}
 
 
 class Profiler(object):
@@ -160,7 +173,7 @@ class _ProfilerInstance(service.Service):
         self._collectors: list[collector.Collector | memalloc.MemoryCollector] = []
         self._collectors_on_import: Optional[list[tuple[str, Callable[[Any], None]]]] = None
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
-        self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        self._lambda_function_name: Optional[str] = _env.get("AWS_LAMBDA_FUNCTION_NAME")
 
         self.process_tags: Optional[str] = process_tags.process_tags or None
 
@@ -238,17 +251,19 @@ class _ProfilerInstance(service.Service):
 
                     self._collectors.append(col)
 
-            self._collectors_on_import = [
-                ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingConditionCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioConditionCollector)),
-            ]
+            def _make_hook(cls: type[collector.Collector]) -> Callable[[Any], None]:
+                def _hook(_: Any) -> None:
+                    start_collector(cls)
+
+                return _hook
+
+            self._collectors_on_import = []
+            for primitive in profiling_config.lock.primitives:
+                if primitive not in _LOCK_PRIMITIVE_COLLECTORS:
+                    LOG.warning("Unknown lock primitive %r in DD_PROFILING_LOCK_PRIMITIVES, skipping", primitive)
+                    continue
+                module, collector_class = _LOCK_PRIMITIVE_COLLECTORS[primitive]
+                self._collectors_on_import.append((module, _make_hook(collector_class)))
 
             for module, hook in self._collectors_on_import:
                 ModuleWatchdog.register_module_hook(module, hook)
