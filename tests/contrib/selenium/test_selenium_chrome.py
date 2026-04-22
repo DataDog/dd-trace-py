@@ -273,7 +273,7 @@ def test_selenium_browser_tags():
     )
 
     subprocess.run(
-        ["pytest", "--ddtrace", "--ddtrace-patch-all", "-v", "-s"],
+        ["pytest", "--ddtrace", "-v", "-s"],
         cwd=str(pytester.path),
         env=_get_default_ci_env_vars(
             dict(
