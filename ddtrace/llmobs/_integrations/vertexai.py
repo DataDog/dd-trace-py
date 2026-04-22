@@ -78,7 +78,6 @@ class VertexAIIntegration(BaseLLMIntegration):
             "llm",
             model_name=model_name,
             model_provider=model_provider,
-            llmobs_enabled=self.llmobs_enabled,
         )
 
     def _extract_metrics_from_response(self, response):

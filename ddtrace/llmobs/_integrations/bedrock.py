@@ -154,8 +154,7 @@ class BedrockIntegration(BaseLLMIntegration):
             usage_metrics,
             span_kind,
             model_name=model_id,
-            model_provider="amazon_bedrock",
-            llmobs_enabled=self.llmobs_enabled,
+            model_provider="bedrock",
         )
 
     def _llmobs_set_tags_agent(self, span, args, kwargs, response):

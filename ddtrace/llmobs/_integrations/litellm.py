@@ -175,7 +175,6 @@ class LiteLLMIntegration(BaseLLMIntegration):
             span_kind,
             model_name=model_name,
             model_provider=model_provider,
-            llmobs_enabled=self.llmobs_enabled,
         )
 
     def _get_span_kind(

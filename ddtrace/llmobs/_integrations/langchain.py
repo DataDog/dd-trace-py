@@ -222,7 +222,6 @@ class LangChainIntegration(BaseLLMIntegration):
             span_kind,
             model_name=span.get_tag(MODEL),
             model_provider=span.get_tag(PROVIDER),
-            llmobs_enabled=self.llmobs_enabled,
         )
 
     def _set_links(self, span: Span) -> None:

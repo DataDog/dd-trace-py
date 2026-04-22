@@ -11,7 +11,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.llmobs.model_name": "meta.llama2-13b-chat-v1",
-      "_dd.llmobs.model_provider": "amazon_bedrock",
+      "_dd.llmobs.model_provider": "bedrock",
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69e91de500000000",

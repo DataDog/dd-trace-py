@@ -101,7 +101,6 @@ class AnthropicIntegration(BaseLLMIntegration):
             span_kind,
             model_name=model_name,
             model_provider=self._get_model_provider(),
-            llmobs_enabled=self.llmobs_enabled,
         )
 
     def _extract_input_message(

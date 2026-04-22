@@ -184,7 +184,6 @@ class OpenAIIntegration(BaseLLMIntegration):
             span_kind,
             model_name=model_name,
             model_provider=model_provider,
-            llmobs_enabled=self.llmobs_enabled,
         )
 
     @staticmethod

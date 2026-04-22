@@ -144,7 +144,6 @@ class VLLMIntegration(BaseLLMIntegration):
             span_kind,
             model_name=span.get_tag(TAG_MODEL),
             model_provider=span.get_tag(TAG_PROVIDER),
-            llmobs_enabled=self.llmobs_enabled,
         )
 
     def _llmobs_set_tags(

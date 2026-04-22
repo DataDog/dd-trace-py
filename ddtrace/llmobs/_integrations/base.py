@@ -136,18 +136,17 @@ class BaseLLMIntegration:
         """
         pass
 
-    @staticmethod
     def _apply_shadow_metrics(
+        self,
         span: Span,
         metrics: Optional[dict],
         span_kind: str,
         model_name: Optional[str] = None,
         model_provider: Optional[str] = None,
-        llmobs_enabled: bool = False,
     ) -> None:
         """Set shadow metric/tag values on the APM span from extracted metrics."""
         span.set_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY, span_kind)
-        span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if llmobs_enabled else 0)
+        span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if self.llmobs_enabled else 0)
         if model_name:
             span.set_tag(LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY, model_name)
         if model_provider:

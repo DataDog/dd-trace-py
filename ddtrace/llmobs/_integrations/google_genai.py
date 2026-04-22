@@ -92,7 +92,6 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             operation,
             model_name=model_name,
             model_provider=provider_name,
-            llmobs_enabled=self.llmobs_enabled,
         )
 
     def _llmobs_set_tags_from_llm(self, span, args, kwargs, response):

@@ -254,7 +254,6 @@ class LlamaIndexIntegration(BaseLLMIntegration):
             span_kind,
             model_name=span.get_tag(MODEL),
             model_provider=span.get_tag(PROVIDER),
-            llmobs_enabled=self.llmobs_enabled,
         )
 
     def _extract_input_messages(self, kwargs: dict[str, Any], is_chat: bool) -> list[Message]:
