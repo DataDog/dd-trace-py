@@ -937,6 +937,6 @@ class Tracer(object):
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
-            self._native_runtime.shutdown(int(timeout * 1000) if timeout else None)
+            self._native_runtime.shutdown(int(timeout * 1000) if timeout is not None else None)
         finally:
             self._shutdown_lock.release()
