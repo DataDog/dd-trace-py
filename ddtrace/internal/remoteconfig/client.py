@@ -574,27 +574,28 @@ class RemoteConfigClient:
         payload_list: list[Payload],
         applied_configs: AppliedConfigType,
         client_configs: TargetsType,
-        targets: TargetsType,
     ) -> None:
-        witness = object()
         for target, config in self._applied_configs.items():
-            if client_configs.get(target, witness) == config:
-                # The configuration has not changed.
-                applied_configs[target] = config
-                continue
-            elif target not in targets:
-                callback_action = None
-            else:
-                continue
+            if target not in client_configs:
+                # The target is no longer assigned to this client — either
+                # removed from signed targets entirely, or unassigned from this
+                # client's client_configs. In both cases the product must be
+                # notified by publishing a disable payload (content=None),
+                # otherwise it would keep the removed config active
+                # indefinitely.
+                if config.product_name in self._product_callbacks:
+                    try:
+                        log.debug("[%s][P: %s] Disabling configuration: %s", os.getpid(), os.getppid(), target)
+                        self._accumulate_payload(payload_list, None, target, config)
+                    except Exception:
+                        log.debug("error while removing product %s config %r", config.product_name, config)
 
-            # Check if product is registered
-            if config.product_name in self._product_callbacks:
-                try:
-                    log.debug("[%s][P: %s] Disabling configuration: %s", os.getpid(), os.getppid(), target)
-                    self._accumulate_payload(payload_list, callback_action, target, config)
-                except Exception:
-                    log.debug("error while removing product %s config %r", config.product_name, config)
-                    continue
+            elif client_configs[target] == config:
+                # The configuration has not changed — carry it into the next
+                # snapshot.
+                applied_configs[target] = config
+            # else: the configuration has changed; _load_new_configurations
+            # will publish the updated payload and populate applied_configs.
 
     def _load_new_configurations(
         self,
@@ -726,7 +727,7 @@ class RemoteConfigClient:
         # 2. Remove previously applied configurations
         applied_configs: AppliedConfigType = dict()
         payload_list: list[Payload] = []
-        self._remove_previously_applied_configurations(payload_list, applied_configs, client_configs, targets)
+        self._remove_previously_applied_configurations(payload_list, applied_configs, client_configs)
 
         # 3. Load new configurations
         self._load_new_configurations(payload_list, applied_configs, client_configs, payload)

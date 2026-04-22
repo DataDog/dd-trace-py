@@ -264,4 +264,80 @@ def test_remote_config_client_tags_override():
     assert tags["version"] == "bar"
 
 
-# test_apply_default_callback removed - _apply_callback method no longer exists in new architecture
+def test_remove_previously_applied_emits_disable_when_unassigned_from_client():
+    """A target previously applied, still present in signed targets but no longer in
+    client_configs, must generate a disable payload (content=None) so the product
+    callback learns it was removed.
+    """
+    with override_global_config(dict(_remote_config_enabled=True)):
+        mock_callback = MagicMock()
+        applied_config = ConfigMetadata(id="cfg", product_name="ASM_FEATURES", sha256_hash="h", length=1, tuf_version=1)
+
+        rc_client = RemoteConfigClient()
+        rc_client.register_callback("ASM_FEATURES", mock_callback)
+        rc_client._applied_configs = {"datadog/2/ASM_FEATURES/cfg/config": applied_config}
+
+        # client_configs is empty: the config is no longer assigned to this client.
+        applied_configs: dict = {}
+        payload_list: list = []
+        rc_client._remove_previously_applied_configurations(payload_list, applied_configs, client_configs={})
+
+        assert len(payload_list) == 1
+        assert payload_list[0].path == "datadog/2/ASM_FEATURES/cfg/config"
+        assert payload_list[0].content is None
+        assert payload_list[0].metadata is applied_config
+        assert applied_configs == {}
+
+
+def test_remove_previously_applied_emits_disable_when_target_deleted():
+    """A target fully removed from signed targets (not in client_configs either) must
+    still generate a disable payload.
+    """
+    with override_global_config(dict(_remote_config_enabled=True)):
+        mock_callback = MagicMock()
+        applied_config = ConfigMetadata(id="cfg", product_name="ASM_FEATURES", sha256_hash="h", length=1, tuf_version=1)
+
+        rc_client = RemoteConfigClient()
+        rc_client.register_callback("ASM_FEATURES", mock_callback)
+        rc_client._applied_configs = {"datadog/2/ASM_FEATURES/cfg/config": applied_config}
+
+        applied_configs: dict = {}
+        payload_list: list = []
+        rc_client._remove_previously_applied_configurations(payload_list, applied_configs, client_configs={})
+
+        assert len(payload_list) == 1
+        assert payload_list[0].content is None
+
+
+def test_remove_previously_applied_skips_unchanged_and_updated():
+    """Unchanged configs are carried over; updated configs are skipped (to be
+    handled by _load_new_configurations). No disable payloads in either case.
+    """
+    with override_global_config(dict(_remote_config_enabled=True)):
+        mock_callback = MagicMock()
+        unchanged = ConfigMetadata(id="a", product_name="ASM_FEATURES", sha256_hash="h1", length=1, tuf_version=1)
+        old_version = ConfigMetadata(id="b", product_name="ASM_FEATURES", sha256_hash="h2", length=1, tuf_version=1)
+        new_version = ConfigMetadata(id="b", product_name="ASM_FEATURES", sha256_hash="h2-new", length=1, tuf_version=2)
+
+        rc_client = RemoteConfigClient()
+        rc_client.register_callback("ASM_FEATURES", mock_callback)
+        rc_client._applied_configs = {
+            "datadog/2/ASM_FEATURES/a/config": unchanged,
+            "datadog/2/ASM_FEATURES/b/config": old_version,
+        }
+
+        applied_configs: dict = {}
+        payload_list: list = []
+        rc_client._remove_previously_applied_configurations(
+            payload_list,
+            applied_configs,
+            client_configs={
+                "datadog/2/ASM_FEATURES/a/config": unchanged,
+                "datadog/2/ASM_FEATURES/b/config": new_version,
+            },
+        )
+
+        # No disables should have been emitted.
+        assert payload_list == []
+        # Only the unchanged one is carried over to applied_configs.
+        assert applied_configs == {"datadog/2/ASM_FEATURES/a/config": unchanged}
