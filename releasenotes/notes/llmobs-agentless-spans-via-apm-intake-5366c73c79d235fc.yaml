@@ -1,0 +1,18 @@
+---
+upgrade:
+  - |
+    LLM Observability: when LLM Observability (LLMObs) runs in agentless mode — that is,
+    with ``DD_LLMOBS_AGENTLESS_ENABLED=1``, with no Datadog agent reachable, or with
+    ``_DD_APM_TRACING_AGENTLESS_ENABLED=1`` — and ``DD_API_KEY`` is set, LLM spans are
+    now submitted through the APM agentless JSON span intake
+    (``https://public-trace-http-intake.logs.{DD_SITE}/v1/input``) with their payload
+    carried in the APM span's ``meta_struct["_llmobs"]`` field, instead of being posted
+    directly to the dedicated LLMObs intake (``https://llmobs-intake.{DD_SITE}/api/v2/llmobs``).
+    This consolidates agentless LLMObs egress onto the APM agentless transport as part
+    of APM/LLM Observability convergence.
+    To temporarily restore the previous direct-to-LLMObs-intake behavior, set
+    ``_DD_LLMOBS_EXPORT=llmobs``. This override is ignored when
+    ``_DD_APM_TRACING_AGENTLESS_ENABLED=1`` is set, since that flag is an explicit
+    opt-in to APM agentless submission.
+    Agent-mode users (spans routed through the Datadog agent via the EVP proxy) are
+    not affected by this change.
