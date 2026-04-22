@@ -10,6 +10,7 @@ The variable is task-local (``contextvars``), so it works correctly
 with both ``asyncio`` and threading.
 """
 
+import contextlib
 import contextvars
 
 
@@ -40,3 +41,42 @@ def reset_aiguard_context_active(token: contextvars.Token) -> None:
         _ai_guard_active.reset(token)
     except ValueError:
         _ai_guard_active.set(False)
+
+
+@contextlib.contextmanager
+def aiguard_context():
+    """Mark the current task as under AI Guard evaluation for the block's duration.
+
+    Framework integrations (LangChain, Strands) wrap their dispatch + LLM
+    call block with this so nested provider-level integrations (e.g. OpenAI)
+    skip their own evaluation.
+    """
+    token = set_aiguard_context_active()
+    try:
+        yield
+    finally:
+        reset_aiguard_context_active(token)
+
+
+class AIGuardStreamGuard:
+    """One-shot AI Guard context guard for streaming flows.
+
+    Stream finalization can fire from multiple terminal events — exhaustion,
+    error, early break (generator ``finally`` on close), and weakref GC
+    (never-consumed abandonment). ``reset()`` is idempotent: only the first
+    call takes effect. Without this, the second reset either raises
+    ``ValueError`` on the already-consumed token or degrades to ``set(False)``,
+    which leaves an unreferenced token in the current Context.
+    """
+
+    __slots__ = ("_token", "_done")
+
+    def __init__(self) -> None:
+        self._token = set_aiguard_context_active()
+        self._done = False
+
+    def reset(self) -> None:
+        if self._done:
+            return
+        self._done = True
+        reset_aiguard_context_active(self._token)

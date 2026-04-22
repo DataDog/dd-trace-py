@@ -6,8 +6,8 @@ import weakref
 import langchain_core
 
 from ddtrace import config
-from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active
-from ddtrace.appsec._ai_guard._context import set_aiguard_context_active
+from ddtrace.appsec._ai_guard._context import AIGuardStreamGuard
+from ddtrace.appsec._ai_guard._context import aiguard_context
 from ddtrace.contrib.internal.langchain.utils import shared_stream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -70,16 +70,15 @@ def traced_llm_generate(func, instance, args, kwargs):
     integration.record_instance(instance, span)
     integration.llmobs_set_prompt_tag(instance, span)
 
-    ai_guard_token = set_aiguard_context_active()
     try:
-        _raising_dispatch("langchain.llm.generate.before", (prompts,))
-        completions = func(*args, **kwargs)
-        core.dispatch("langchain.llm.generate.after", (prompts, completions))
+        with aiguard_context():
+            _raising_dispatch("langchain.llm.generate.before", (prompts,))
+            completions = func(*args, **kwargs)
+            core.dispatch("langchain.llm.generate.after", (prompts, completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        reset_aiguard_context_active(ai_guard_token)
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
@@ -104,16 +103,15 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
     integration.llmobs_set_prompt_tag(instance, span)
 
     completions = None
-    ai_guard_token = set_aiguard_context_active()
     try:
-        _raising_dispatch("langchain.llm.agenerate.before", (prompts,))
-        completions = await func(*args, **kwargs)
-        core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
+        with aiguard_context():
+            _raising_dispatch("langchain.llm.agenerate.before", (prompts,))
+            completions = await func(*args, **kwargs)
+            core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        reset_aiguard_context_active(ai_guard_token)
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
@@ -137,16 +135,15 @@ def traced_chat_model_generate(func, instance, args, kwargs):
     integration.llmobs_set_prompt_tag(instance, span)
 
     chat_completions = None
-    ai_guard_token = set_aiguard_context_active()
     try:
-        _raising_dispatch("langchain.chatmodel.generate.before", (chat_messages,))
-        chat_completions = func(*args, **kwargs)
-        core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
+        with aiguard_context():
+            _raising_dispatch("langchain.chatmodel.generate.before", (chat_messages,))
+            chat_completions = func(*args, **kwargs)
+            core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        reset_aiguard_context_active(ai_guard_token)
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()
@@ -170,16 +167,15 @@ async def traced_chat_model_agenerate(func, instance, args, kwargs):
     integration.llmobs_set_prompt_tag(instance, span)
 
     chat_completions = None
-    ai_guard_token = set_aiguard_context_active()
     try:
-        _raising_dispatch("langchain.chatmodel.agenerate.before", (chat_messages,))
-        chat_completions = await func(*args, **kwargs)
-        core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
+        with aiguard_context():
+            _raising_dispatch("langchain.chatmodel.agenerate.before", (chat_messages,))
+            chat_completions = await func(*args, **kwargs)
+            core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        reset_aiguard_context_active(ai_guard_token)
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()
@@ -301,48 +297,29 @@ def traced_chain_stream(func, instance, args, kwargs):
     )
 
 
-def _one_shot_reset(token):
-    """Wrap an AI Guard reset token so it is applied at most once.
-
-    The stream-finalize callback and the weakref finalizer below both try to
-    reset. Without this guard, the second reset attempt either raises
-    ``ValueError`` on the already-consumed token or degrades to ``set(False)``,
-    which leaves an unreferenced token in the current Context.
-    """
-    done = [False]
-
-    def _reset():
-        if done[0]:
-            return
-        done[0] = True
-        reset_aiguard_context_active(token)
-
-    return _reset
-
-
 def traced_chat_stream(func, instance, args, kwargs):
     integration: LangChainIntegration = langchain_core._datadog_integration
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
-    # AIDEV-NOTE: token reset MUST happen on the stream's terminal event —
+    # AIDEV-NOTE: guard.reset() MUST fire on the stream's terminal event —
     # exhaustion, error, early break (generator ``finally`` runs on close),
     # AND never-consumed abandonment (weakref.finalize runs on GC). Otherwise
     # ``_ai_guard_active`` leaks into the Context and silently disables
     # provider-level evaluation (e.g. direct OpenAI calls) for its remainder.
-    ai_guard_reset = _one_shot_reset(set_aiguard_context_active())
+    guard = AIGuardStreamGuard()
 
     try:
         _raising_dispatch("langchain.chatmodel.stream.before", (instance, args, kwargs))
     except Exception:
-        ai_guard_reset()
+        guard.reset()
         raise
 
     def _on_span_started(span: Span):
         integration.record_instance(instance, span)
 
     def _on_span_finished(span: Span, streamed_chunks):
-        ai_guard_reset()
+        guard.reset()
         kwargs["_dd.identifying_params"] = instance._identifying_params
         if len(streamed_chunks):
             joined_chunks = streamed_chunks[0]
@@ -366,9 +343,9 @@ def traced_chat_stream(func, instance, args, kwargs):
             model=model,
         )
     except Exception:
-        ai_guard_reset()
+        guard.reset()
         raise
-    weakref.finalize(stream, ai_guard_reset)
+    weakref.finalize(stream, guard.reset)
     return stream
 
 
@@ -378,7 +355,7 @@ def traced_llm_stream(func, instance, args, kwargs):
     model = _extract_model_name(instance)
 
     # AIDEV-NOTE: see traced_chat_stream — same abandonment-safety contract.
-    ai_guard_reset = _one_shot_reset(set_aiguard_context_active())
+    guard = AIGuardStreamGuard()
 
     try:
         _raising_dispatch(
@@ -390,14 +367,14 @@ def traced_llm_stream(func, instance, args, kwargs):
             ),
         )
     except Exception:
-        ai_guard_reset()
+        guard.reset()
         raise
 
     def _on_span_start(span: Span):
         integration.record_instance(instance, span)
 
     def _on_span_finished(span: Span, streamed_chunks):
-        ai_guard_reset()
+        guard.reset()
         content = "".join([str(chunk) for chunk in streamed_chunks])
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="llm")
@@ -416,9 +393,9 @@ def traced_llm_stream(func, instance, args, kwargs):
             model=model,
         )
     except Exception:
-        ai_guard_reset()
+        guard.reset()
         raise
-    weakref.finalize(stream, ai_guard_reset)
+    weakref.finalize(stream, guard.reset)
     return stream
 
 
