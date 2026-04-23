@@ -94,6 +94,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=None,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             )
         ]
 
@@ -141,6 +142,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=500,
             ),
             call(
                 seconds=0.0,
@@ -148,6 +150,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=None,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
         ]
 
@@ -195,6 +198,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=500,
             ),
             call(
                 seconds=0.0,
@@ -202,6 +206,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=500,
             ),
             call(
                 seconds=0.0,
@@ -209,6 +214,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=500,
             ),
             call(
                 seconds=0.0,
@@ -216,6 +222,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=500,
             ),
             call(
                 seconds=0.0,
@@ -223,6 +230,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=500,
             ),
         ]
 
@@ -266,6 +274,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.BAD_JSON,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
             call(
                 seconds=0.0,
@@ -273,6 +282,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.BAD_JSON,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
             call(
                 seconds=0.0,
@@ -280,6 +290,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.BAD_JSON,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
             call(
                 seconds=0.0,
@@ -287,6 +298,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.BAD_JSON,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
             call(
                 seconds=0.0,
@@ -294,6 +306,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.BAD_JSON,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
         ]
 
@@ -336,6 +349,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.CODE_4XX,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=400,
             ),
         ]
 
@@ -393,6 +407,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.NETWORK,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
             call(
                 seconds=0.0,
@@ -400,6 +415,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.NETWORK,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
             call(
                 seconds=0.0,
@@ -407,6 +423,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.NETWORK,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
             call(
                 seconds=0.0,
@@ -414,6 +431,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.NETWORK,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
             call(
                 seconds=0.0,
@@ -421,6 +439,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.NETWORK,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
         ]
 
@@ -461,6 +480,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.TIMEOUT,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
             call(
                 seconds=0.0,
@@ -468,6 +488,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.TIMEOUT,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
             call(
                 seconds=0.0,
@@ -475,6 +496,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.TIMEOUT,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
             call(
                 seconds=0.0,
@@ -482,6 +504,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.TIMEOUT,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
             call(
                 seconds=0.0,
@@ -489,6 +512,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.TIMEOUT,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
         ]
 
@@ -525,6 +549,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.UNKNOWN,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
         ]
 
@@ -570,6 +595,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=429,
             ),
             call(
                 seconds=0.0,
@@ -577,6 +603,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=None,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=None,
             ),
         ]
 
@@ -620,6 +647,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=429,
             ),
             call(
                 seconds=0.0,
@@ -627,6 +655,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=429,
             ),
             call(
                 seconds=0.0,
@@ -634,6 +663,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=429,
             ),
             call(
                 seconds=0.0,
@@ -641,6 +671,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=429,
             ),
             call(
                 seconds=0.0,
@@ -648,6 +679,7 @@ class TestBackendConnector:
                 compressed_response=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
+                status_code=429,
             ),
         ]
 
@@ -838,6 +870,98 @@ class TestBackendConnector:
         assert b"content1" in body
         assert b"content2" in body
         assert body.count(b"--boundary123") == 3  # 2 file separators + 1 end
+
+
+class TestBackendResultStatusCode:
+    """Tests for BackendResult.status_code population on non-2xx responses."""
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_status_code_set_on_4xx(self, mock_time: Mock, mock_https_connection: Mock) -> None:
+        mock_response = Mock()
+        mock_response.headers = {"Content-Length": "0"}
+        mock_response.read.return_value = b""
+        mock_response.status = 403
+        mock_response.reason = "Forbidden"
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+        result = connector.request("GET", "/test", max_attempts=1)
+
+        assert result.status_code == 403
+        assert result.error_type == ErrorType.CODE_4XX
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_status_code_set_on_5xx(self, mock_time: Mock, mock_https_connection: Mock) -> None:
+        mock_response = Mock()
+        mock_response.headers = {"Content-Length": "0"}
+        mock_response.read.return_value = b""
+        mock_response.status = 502
+        mock_response.reason = "Bad Gateway"
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+        result = connector.request("GET", "/test", max_attempts=1)
+
+        assert result.status_code == 502
+        assert result.error_type == ErrorType.CODE_5XX
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_status_code_set_on_429(self, mock_time: Mock, mock_https_connection: Mock) -> None:
+        mock_response = Mock()
+        mock_response.headers = {}
+        mock_response.read.return_value = b""
+        mock_response.status = 429
+        mock_response.reason = "Too Many Requests"
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+        result = connector.request("GET", "/test", max_attempts=1)
+
+        assert result.status_code == 429
+        assert result.error_type == ErrorType.RATE_LIMITED
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_status_code_none_on_2xx(self, mock_time: Mock, mock_https_connection: Mock) -> None:
+        mock_response = Mock()
+        mock_response.headers = {"Content-Length": "2"}
+        mock_response.read.return_value = b"ok"
+        mock_response.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+        result = connector.request("GET", "/test", max_attempts=1)
+
+        assert result.status_code is None
+        assert result.error_type is None
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_status_code_none_on_connection_error(self, mock_time: Mock, mock_https_connection: Mock) -> None:
+        mock_conn = Mock()
+        mock_conn.getresponse.side_effect = ConnectionRefusedError("refused")
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com")
+        result = connector.request("GET", "/test", max_attempts=1)
+
+        assert result.status_code is None
+        assert result.error_type == ErrorType.NETWORK
 
 
 class TestBackendConnectorSetup:

@@ -192,6 +192,115 @@ class TestTelemetry:
             call(CIVISIBILITY, "known_tests.response_bytes", 42, ()),
         ]
 
+    def test_record_request_with_tracked_status_code(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        request_telemetry = telemetry_api.with_request_metric_names(
+            count="known_tests.request",
+            duration="known_tests.request_ms",
+            response_bytes="known_tests.response_bytes",
+            error="known_tests.request_errors",
+        )
+
+        request_telemetry.record_request(
+            seconds=1.41,
+            response_bytes=42,
+            compressed_response=False,
+            error=ErrorType.CODE_4XX,
+            status_code=403,
+        )
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "known_tests.request", 1, ()),
+            call(
+                CIVISIBILITY,
+                "known_tests.request_errors",
+                1,
+                (("error_type", ErrorType.CODE_4XX.value), ("status_code", "403")),
+            ),
+        ]
+
+    def test_record_request_with_untracked_status_code(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        """Status codes not in the tracked set should not be emitted."""
+        request_telemetry = telemetry_api.with_request_metric_names(
+            count="known_tests.request",
+            duration="known_tests.request_ms",
+            response_bytes="known_tests.response_bytes",
+            error="known_tests.request_errors",
+        )
+
+        request_telemetry.record_request(
+            seconds=1.41,
+            response_bytes=42,
+            compressed_response=False,
+            error=ErrorType.CODE_4XX,
+            status_code=418,
+        )
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "known_tests.request", 1, ()),
+            call(
+                CIVISIBILITY,
+                "known_tests.request_errors",
+                1,
+                (("error_type", ErrorType.CODE_4XX.value),),
+            ),
+        ]
+
+    def test_record_request_rate_limited_includes_status_code(
+        self, telemetry_api: TelemetryAPI, mock_writer: Mock
+    ) -> None:
+        """RATE_LIMITED (429) is mapped to CODE_4XX error_type, and 429 is in tracked set."""
+        request_telemetry = telemetry_api.with_request_metric_names(
+            count="known_tests.request",
+            duration="known_tests.request_ms",
+            response_bytes="known_tests.response_bytes",
+            error="known_tests.request_errors",
+        )
+
+        request_telemetry.record_request(
+            seconds=1.41,
+            response_bytes=42,
+            compressed_response=False,
+            error=ErrorType.RATE_LIMITED,
+            status_code=429,
+        )
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "known_tests.request", 1, ()),
+            call(
+                CIVISIBILITY,
+                "known_tests.request_errors",
+                1,
+                (("error_type", ErrorType.CODE_4XX.value), ("status_code", "429")),
+            ),
+        ]
+
+    def test_record_request_5xx_with_status_code(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        """5xx errors should not include a status_code tag (only 4xx codes are tracked)."""
+        request_telemetry = telemetry_api.with_request_metric_names(
+            count="known_tests.request",
+            duration="known_tests.request_ms",
+            response_bytes="known_tests.response_bytes",
+            error="known_tests.request_errors",
+        )
+
+        request_telemetry.record_request(
+            seconds=1.41,
+            response_bytes=42,
+            compressed_response=False,
+            error=ErrorType.CODE_5XX,
+            status_code=500,
+        )
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "known_tests.request", 1, ()),
+            call(
+                CIVISIBILITY,
+                "known_tests.request_errors",
+                1,
+                (("error_type", ErrorType.CODE_5XX.value),),
+            ),
+        ]
+
     def test_record_coverage_started(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_coverage_started(test_framework="pytest", coverage_library="ddtrace")
 
