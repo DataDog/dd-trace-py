@@ -501,7 +501,10 @@ class Tracer(object):
         # 3. Globally configured service name
         #     a. `config.service`/`DD_SERVICE`/`DD_TAGS`
         service_source: str = ""
-        if service is None:
+        default_services = [conf._default_service for conf in config._integration_configs.values()]
+        if service in default_services:
+            service_source = service  # type: ignore
+        elif service is None:
             if parent:
                 service = parent.service
                 service_source = parent.get_tag(_SERVICE_SOURCE) or ""
