@@ -313,6 +313,11 @@ import opentelemetry
         {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_LOCK_EXCLUDE_MODULES", "origin": "default", "value": "frozenset()"},
         {"name": "DD_PROFILING_LOCK_NAME_INSPECT_DIR", "origin": "default", "value": True},
+        {
+            "name": "DD_PROFILING_LOCK_PRIMITIVES",
+            "origin": "default",
+            "value": "frozenset({'asyncio.Lock', 'threading.Lock', 'threading.RLock'})",
+        },
         {"name": "DD_PROFILING_MAX_FRAMES", "origin": "env_var", "value": 512},
         {"name": "DD_PROFILING_MAX_TIME_USAGE_PCT", "origin": "default", "value": 1.0},
         {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "env_var", "value": False},

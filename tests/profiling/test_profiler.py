@@ -11,9 +11,11 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.profiling import collector
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
+from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+from ddtrace.profiling.profiler import _LOCK_PRIMITIVE_COLLECTORS
 
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT") or False
@@ -148,9 +150,9 @@ def test_default_collectors():
         pass
     else:
         assert any(isinstance(c, asyncio.AsyncioLockCollector) for c in p._profiler._collectors)
-        assert any(isinstance(c, asyncio.AsyncioSemaphoreCollector) for c in p._profiler._collectors)
-        assert any(isinstance(c, asyncio.AsyncioBoundedSemaphoreCollector) for c in p._profiler._collectors)
-        assert any(isinstance(c, asyncio.AsyncioConditionCollector) for c in p._profiler._collectors)
+        assert not any(isinstance(c, asyncio.AsyncioSemaphoreCollector) for c in p._profiler._collectors)
+        assert not any(isinstance(c, asyncio.AsyncioBoundedSemaphoreCollector) for c in p._profiler._collectors)
+        assert not any(isinstance(c, asyncio.AsyncioConditionCollector) for c in p._profiler._collectors)
     p.stop(flush=False)
 
 
@@ -206,6 +208,21 @@ def test_stop_unregisters_all_import_hooks_for_lock_and_pytorch_collectors(monke
             return None
 
     monkeypatch.setattr(profiler, "ModuleWatchdog", WatchdogMock)
+    monkeypatch.setattr(
+        profiler.profiling_config.lock,
+        "primitives",
+        {
+            "threading.Lock",
+            "threading.RLock",
+            "threading.Semaphore",
+            "threading.BoundedSemaphore",
+            "threading.Condition",
+            "asyncio.Lock",
+            "asyncio.Semaphore",
+            "asyncio.BoundedSemaphore",
+            "asyncio.Condition",
+        },
+    )
 
     p = TestProfiler(
         _memory_collector_enabled=False,
@@ -614,3 +631,28 @@ def test_profiler_singleton_after_fork():
         _, status = os.waitpid(pid, 0)
         assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"Child exited with status {status}"
         p.stop(flush=False)
+
+
+def test_lock_primitive_collectors_complete():
+    """Every LockCollector subclass in the collector modules must be registered in
+    _LOCK_PRIMITIVE_COLLECTORS, and vice versa.  This catches adding a new collector
+    class without wiring it up, or registering a name that has no implementation.
+    """
+    import inspect
+
+    implemented = set()
+    for module in (asyncio, threading):
+        for _, cls in inspect.getmembers(module, inspect.isclass):
+            if (
+                issubclass(cls, _lock.LockCollector)
+                and cls is not _lock.LockCollector
+                and hasattr(cls, "MODULE")
+                and hasattr(cls, "PATCHED_LOCK_NAME")
+            ):
+                implemented.add(f"{cls.MODULE.__name__}.{cls.PATCHED_LOCK_NAME}")
+
+    registered = frozenset(_LOCK_PRIMITIVE_COLLECTORS)
+    assert implemented == registered, (
+        f"Implemented but not registered: {implemented - registered}\n"
+        f"Registered but not implemented: {registered - implemented}"
+    )
