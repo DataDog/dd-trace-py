@@ -372,27 +372,39 @@ _HEX_TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 def _normalize_trace_id_to_hex(value: Optional[str]) -> Optional[str]:
     """Normalize a trace_id into the canonical 32-char lowercase hex storage format.
 
-    - Canonical 32-char lowercase hex → return as-is.
-    - Decimal integer string → convert via ``format_trace_id`` (hex for 128-bit IDs,
-      pass-through for smaller ints).
-    - Empty string or ``None`` → return ``None``.
+    The wire format for distributed headers is decimal (``str(int_id)``). A 32-char
+    string matching ``[0-9a-f]`` could be either canonical hex or a 32-digit decimal
+    wire value from a sender that serialized a 128-bit trace_id with ``str(int)``.
+    We disambiguate via two unambiguous hex markers:
+
+    - A leading ``"0"`` in a 32-char hit: ``str(int)`` never emits leading zeros,
+      so this must be zero-padded canonical hex.
+    - At least one ``a-f`` character: can't be decimal.
+
+    Otherwise we prefer decimal interpretation, matching the wire contract.
+
+    - Empty string or ``None`` → ``None``.
+    - Unambiguous canonical hex → return as-is.
+    - Decimal integer string → convert via ``format_trace_id``.
     - Anything else (non-numeric custom ID from another SDK or manual user input) →
       return as-is and log at debug. Cross-SDK trace joining may be affected but we
       must not raise or corrupt the span.
     """
     if value is None or value == "":
         return None
-    if _HEX_TRACE_ID_RE.match(value):
+    if _HEX_TRACE_ID_RE.match(value) and (value[0] == "0" or not value.isdigit()):
         return value
-    try:
-        return format_trace_id(int(value))
-    except (ValueError, TypeError):
-        log.debug(
-            "LLMObs trace_id %r is neither 32-char hex nor a valid decimal integer; "
-            "storing as-is. Cross-SDK trace joining may be affected.",
-            value,
-        )
-        return value
+    if value.isdigit():
+        try:
+            return format_trace_id(int(value))
+        except (ValueError, TypeError):
+            pass
+    log.debug(
+        "LLMObs trace_id %r is not recognized as canonical hex or a decimal integer; "
+        "storing as-is. Cross-SDK trace joining may be affected.",
+        value,
+    )
+    return value
 
 
 def _trace_id_to_wire(value: Optional[str]) -> Optional[str]:
