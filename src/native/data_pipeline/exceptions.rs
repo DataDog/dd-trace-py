@@ -50,6 +50,7 @@ create_exception!(
     PyException,
     "Serialization error"
 );
+
 pub struct TraceExporterErrorPy(pub TraceExporterError);
 
 impl From<TraceExporterErrorPy> for PyErr {
