@@ -1870,15 +1870,21 @@ class LLMObs(Service):
         return active if isinstance(active, Span) else None
 
     def _current_trace_context(self) -> Optional[Context]:
-        """Returns the context for the current LLMObs trace."""
+        """Returns the context for the current LLMObs trace.
+
+        The returned Context is re-activated as a parent for spans created in another
+        thread/task, so `PROPAGATED_LLMOBS_TRACE_ID_KEY` is written in canonical hex
+        (storage format). Wire-format conversion happens in `_inject_llmobs_context`
+        for outbound HTTP injection only.
+        """
         active = self._llmobs_context_provider.active()
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
             context = active.context
-            wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active) or format_trace_id(active.trace_id))
-            if wire_trace_id:
-                context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
+            trace_id = get_llmobs_trace_id(active) or format_trace_id(active.trace_id)
+            if trace_id:
+                context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = trace_id
             return context
         return None
 
@@ -1894,10 +1900,11 @@ class LLMObs(Service):
                 parent_llmobs_trace_id = get_llmobs_trace_id(llmobs_parent)
                 fallback_trace_id = format_trace_id(llmobs_parent.trace_id)
             else:
-                parent_llmobs_trace_id = _normalize_trace_id_to_hex(
-                    # ast-grep-ignore: span-meta-access
-                    llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
-                )
+                # Invariant: writers of PROPAGATED_LLMOBS_TRACE_ID_KEY on a Context used as
+                # an LLMObs parent (`_activate_llmobs_distributed_context`, `_current_trace_context`)
+                # always store canonical hex, so we can read it directly.
+                # ast-grep-ignore: span-meta-access
+                parent_llmobs_trace_id = llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
                 # Context.trace_id is Optional[int]; fall back to a fresh ID rather than an all-zeros placeholder.
                 fallback_trace_id = format_trace_id(llmobs_parent.trace_id or generate_128bit_trace_id())
             llmobs_trace_id = parent_llmobs_trace_id or fallback_trace_id

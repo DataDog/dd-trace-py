@@ -507,4 +507,4 @@ def test_inject_skips_header_when_trace_id_is_empty(llmobs, monkeypatch):
     monkeypatch.setattr("ddtrace.llmobs._llmobs._trace_id_to_wire", lambda _v: None)
     with llmobs.workflow("w") as span:
         llmobs._inject_llmobs_context(span.context, {})
-    assert span.context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) != ""
+        assert PROPAGATED_LLMOBS_TRACE_ID_KEY not in span.context._meta
