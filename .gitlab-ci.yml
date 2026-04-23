@@ -296,10 +296,13 @@ check_requirements_lockfiles:
   needs: []
   extends: .testrunner
   variables:
-    # Explicit request/limit prevents VPA from clamping below what
-    # scripts/compile-and-prune-test-requirements needs to resolve the full
-    # riot venv matrix. Historical peak was ~6 GiB; 8 GiB gives headroom
-    # for new 3.15 venvs.
+    # DD_DISABLE_VPA is required: without it VPA overrides KUBERNETES_MEMORY_*
+    # (see "overridden by VPA" in runner logs) and clamps the build container
+    # down to ~4 GiB based on its learned model. compile-and-prune-test-
+    # requirements pip-compiles every riot lockfile sequentially and peaks
+    # above that when resolving the full venv matrix (including 3.15 venvs),
+    # causing OOMKilled (exit 137).
+    DD_DISABLE_VPA: "true"
     KUBERNETES_MEMORY_REQUEST: "8Gi"
     KUBERNETES_MEMORY_LIMIT: "8Gi"
   script:
