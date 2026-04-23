@@ -498,6 +498,7 @@ def _annotate_llmobs_span_data(
     intent: Optional[str] = None,
     parent_id: Optional[str] = None,
     trace_id: Optional[str] = None,
+    dd_scope: Optional[str] = None,
 ) -> None:
     """Annotate llmobs data on span meta_struct field.
 
@@ -582,6 +583,8 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.OUTPUT] = experiment_output  # type: ignore[typeddict-item]
         if intent is not None:
             meta[LLMOBS_STRUCT.INTENT] = intent
+        if dd_scope is not None:
+            llmobs_span_data.setdefault("_dd", {})["scope"] = dd_scope
     except Exception as e:
         log.warning("Error auto-annotating llmobs data: %s", e)
     finally:

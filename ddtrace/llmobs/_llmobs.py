@@ -574,8 +574,9 @@ class LLMObs(Service):
             "span_id": str(span.span_id),
             "trace_id": format_trace_id(span.trace_id),
             "apm_trace_id": format_trace_id(span.trace_id),
+            **(llmobs_data.get("_dd") or {}),
         }
-        if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
+        if "scope" not in _dd_attrs and span.context.get_baggage_item(EXPERIMENT_ID_KEY):
             _dd_attrs["scope"] = "experiments"
 
         submitted_trace_id = _normalize_trace_id_to_hex(llmobs_trace_id) or llmobs_trace_id
@@ -1912,8 +1913,17 @@ class LLMObs(Service):
             parent_id = ROOT_PARENT_ID
             ml_app, session_id = None, None
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
+        # Inherited experiment scope: child spans created under an `LLMObs._experiment` root
+        # see EXPERIMENT_ID_KEY in their baggage at activation time. The experiment span itself
+        # sets its own _dd.scope in `LLMObs._experiment` after setting the baggage.
+        dd_scope = "experiments" if span.context.get_baggage_item(EXPERIMENT_ID_KEY) else None
         _annotate_llmobs_span_data(
-            span, parent_id=parent_id, trace_id=llmobs_trace_id, ml_app=ml_app, session_id=session_id
+            span,
+            parent_id=parent_id,
+            trace_id=llmobs_trace_id,
+            ml_app=ml_app,
+            session_id=session_id,
+            dd_scope=dd_scope,
         )
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
         # to this LLMObs trace
@@ -2224,6 +2234,11 @@ class LLMObs(Service):
 
         if experiment_name:
             span.context.set_baggage_item(EXPERIMENT_NAME_KEY, experiment_name)
+
+        # Tag the experiment span itself: `_activate_llmobs_span` ran before the baggage
+        # above was set, so it couldn't infer the scope.
+        if experiment_id:
+            _annotate_llmobs_span_data(span, dd_scope="experiments")
 
         return span
 

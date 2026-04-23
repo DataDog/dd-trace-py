@@ -10,6 +10,8 @@ import pytest
 import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
@@ -2408,3 +2410,33 @@ class TestBuildSpanEventFromMetaStructE2E:
         assert event["status"] == "error"
         assert event["meta"]["error"]["type"] == "builtins.ValueError"
         assert event["meta"]["error"]["message"] == "something went wrong"
+
+
+class TestExperimentScope:
+    """`_dd.scope = "experiments"` must be set in meta_struct at activation time
+    (not only at submit time) so downstream consumers that read meta_struct
+    directly can see the scope before the span finishes.
+    """
+
+    def test_experiment_span_dd_scope_set_on_start(self, llmobs):
+        span = llmobs._experiment(name="root_exp", experiment_id="exp-1")
+        try:
+            data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+            assert data["_dd"]["scope"] == "experiments"
+        finally:
+            span.finish()
+
+    def test_child_span_inherits_experiment_scope_on_start(self, llmobs):
+        exp_span = llmobs._experiment(name="root_exp", experiment_id="exp-1")
+        try:
+            with llmobs.task(name="child_task") as child:
+                assert child.context.get_baggage_item(EXPERIMENT_ID_KEY) == "exp-1"
+                data = child._get_struct_tag(LLMOBS_STRUCT.KEY)
+                assert data["_dd"]["scope"] == "experiments"
+        finally:
+            exp_span.finish()
+
+    def test_non_experiment_span_has_no_scope_on_start(self, llmobs):
+        with llmobs.task(name="standalone_task") as span:
+            data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+            assert "_dd" not in data or "scope" not in data.get("_dd", {})
