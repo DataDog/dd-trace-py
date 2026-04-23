@@ -53,6 +53,7 @@ class BackendResult:
     response_body: t.Optional[bytes] = None
     parsed_response: t.Any = None
     is_gzip_response: bool = False
+    is_gzip_request: bool = False
     elapsed_seconds: float = 0.0
     retry_after_seconds: t.Optional[float] = None
 
@@ -276,11 +277,14 @@ class BackendConnector(threading.local):
     ) -> BackendResult:
         full_headers = self.default_headers | (headers or {})
 
+        request_compressed = False
         if send_gzip and self.use_gzip and data is not None:
             data = gzip.compress(data, compresslevel=6)
             full_headers["Content-Encoding"] = "gzip"
+            request_compressed = True
 
         result = BackendResult()
+        result.is_gzip_request = request_compressed
         result.request_length = len(data) if data is not None else 0
         start_time = time.perf_counter()
 
@@ -377,6 +381,7 @@ class BackendConnector(threading.local):
                     seconds=result.elapsed_seconds,
                     response_bytes=result.response_length,
                     compressed_response=result.is_gzip_response,
+                    compressed_request=result.is_gzip_request,
                     error=result.error_type,
                     request_bytes=result.request_length,
                 )
