@@ -191,7 +191,10 @@ class ProductManager:
                 product.stop(join=join)
                 log.debug("Stopped product '%s' on exit", name)
             except Exception:
-                log.exception("Failed to stop product '%s' on exit", name)
+                try:
+                    log.exception("Failed to exit product '%s' on exit", name)
+                except Exception:
+                    pass
 
     def post_preload_products(self) -> None:
         for name, product in self.products:

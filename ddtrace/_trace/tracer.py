@@ -218,11 +218,14 @@ class Tracer(object):
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
-        log.debug(
-            "Waiting %d seconds for tracer to finish. Hit %s to quit.",
-            self.SHUTDOWN_TIMEOUT,
-            key,
-        )
+        try:
+            log.debug(
+                "Waiting %d seconds for tracer to finish. Hit %s to quit.",
+                self.SHUTDOWN_TIMEOUT,
+                key,
+            )
+        except Exception:
+            pass
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
     def sample(self, span):
