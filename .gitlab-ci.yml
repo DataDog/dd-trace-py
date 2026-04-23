@@ -629,5 +629,5 @@ test-dd-sts:
       aud: rapid-seceng-sit
   script:
     - apt-get update && apt-get install -y curl
-    - 'curl -s -o /dev/null -w "API key request http status code: %{http_code}\n" -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab"'
-    - 'curl -s -o /dev/null -w "APP key request http status code: %{http_code}\n" -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab-app-key"'
+    - 'echo "API key policy response code: $(curl -s -o /dev/null -w %{http_code} -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab)"'
+    - 'echo "APP key policy response code: $(curl -s -o /dev/null -w %{http_code} -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab-app-key)"'

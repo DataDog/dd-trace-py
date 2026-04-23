@@ -55,15 +55,11 @@ notify_datadog_release:
   before_script:
     - apt-get update && apt-get install --no-install-recommends -y curl jq
     - >-
-      DD_STS_API_KEY=$(curl -sS
-      -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}"
-      "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab")
-    - >-
-      DD_STS_APP_KEY=$(curl -sS
+      DD_STS_RESPONSE=$(curl -sS
       -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}"
       "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab-app-key")
-    - export DD_API_KEY=$(echo "$DD_STS_API_KEY" | jq -re '.api_key')
-    - export DD_APP_KEY=$(echo "$DD_STS_APP_KEY" | jq -re '.application_key')
+    - export DD_API_KEY=$(echo "$DD_STS_RESPONSE" | jq -re '.api_key')
+    - export DD_APP_KEY=$(echo "$DD_STS_RESPONSE" | jq -re '.application_key')
   script:
     - |
       echo "Tag: ${CI_COMMIT_TAG} -> Commit SHA: ${CI_COMMIT_SHA}"
