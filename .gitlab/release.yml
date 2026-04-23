@@ -45,6 +45,7 @@ release_pypi_prod:
 
 notify_datadog_release:
   extends: .release_base
+  allow_failure: true
   needs: [ "ddtrace package", "release_pypi_prod" ]
   image: ${PYPI_PUBLISH_IMAGE}
   id_tokens:

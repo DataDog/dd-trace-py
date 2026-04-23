@@ -30,10 +30,12 @@ if [ -n "$SUFFIX" ]; then
   INDEX_FILE="index-${SUFFIX}.html"
   DOWNLOAD_FILE="download-${SUFFIX}.sh"
   INSTALL_FILE="install-${SUFFIX}.sh"
+  METADATA_FILE="metadata-${SUFFIX}.txt"
 else
   INDEX_FILE="index.html"
   DOWNLOAD_FILE="download.sh"
   INSTALL_FILE="install.sh"
+  METADATA_FILE="metadata.txt"
 fi
 
 echo "Uploading ${#WHEELS[@]} package(s) to s3://${BUCKET}/${S3_PATH}/"
@@ -43,16 +45,18 @@ for wheel in "${WHEELS[@]}"; do
   aws s3 cp "$wheel" "s3://${BUCKET}/${S3_PATH}/$(basename "$wheel")"
 done
 
-# Generate and upload index + helper scripts
+# Generate and upload index + helper scripts + metadata
 S3_BASE_URL="https://${BUCKET}.s3.amazonaws.com/${S3_PATH}"
 .gitlab/scripts/generate-index-html.sh | aws s3 cp - "s3://${BUCKET}/${S3_PATH}/${INDEX_FILE}" --content-type text/html
 .gitlab/scripts/generate-download-script.sh "${S3_BASE_URL}" "${INDEX_FILE}" | aws s3 cp - "s3://${BUCKET}/${S3_PATH}/${DOWNLOAD_FILE}" --content-type text/x-shellscript
 .gitlab/scripts/generate-install-script.sh "${S3_BASE_URL}" "${INDEX_FILE}" | aws s3 cp - "s3://${BUCKET}/${S3_PATH}/${INSTALL_FILE}" --content-type text/x-shellscript
+.gitlab/scripts/generate-metadata-txt.sh | aws s3 cp - "s3://${BUCKET}/${S3_PATH}/${METADATA_FILE}" --content-type text/plain
 
 echo "Uploaded to ${S3_PATH}/:"
 echo "  Index:    ${S3_BASE_URL}/${INDEX_FILE}"
 echo "  Download: ${S3_BASE_URL}/${DOWNLOAD_FILE}"
 echo "  Install:  ${S3_BASE_URL}/${INSTALL_FILE}"
+echo "  Metadata: ${S3_BASE_URL}/${METADATA_FILE}"
 
 # Upload debug symbol packages if present
 DEBUG_SYMBOLS=(debugwheelhouse/*.zip)
