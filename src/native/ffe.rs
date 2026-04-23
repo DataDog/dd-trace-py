@@ -71,7 +71,7 @@ pub mod ffe {
     enum ErrorCode {
         /// The type of the flag value does not match the expected type.
         TypeMismatch,
-        /// An error occured during parsing configuration.
+        /// An error occurred during parsing configuration.
         ParseError,
         /// Flog is disabled or not found.
         FlagNotFound,
