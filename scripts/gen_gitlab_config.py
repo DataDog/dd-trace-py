@@ -199,10 +199,10 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
     for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
         if not inst.name:
             continue
-        hint = inst.py._hint  # type: ignore[attr-defined]
+        hint = inst.py._hint
         for suite, regex in compiled.items():
-            if inst.matches_pattern(regex):  # type: ignore[attr-defined]
-                venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
+            if inst.matches_pattern(regex):
+                venv_hashes[suite].add(inst.short_hash)
                 # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
                 if re.match(r"^3\.\d+$", hint):
                     python_versions[suite].add(hint)
@@ -301,6 +301,37 @@ def _scale_suites(
     return final_jobs
 
 
+def _resolve_explicit_suites(
+    requested_suites: list[str], all_suites: dict[str, dict]
+) -> tuple[list[str], list[str], dict[str, list[str]]]:
+    """Resolve user-provided suite names to canonical suitespec keys.
+
+    The GitLab integration-only pipeline accepts short contrib names like ``flask``
+    while suitespec stores them under namespaced keys such as ``contrib::flask``.
+    If a short name is ambiguous across namespaces, the caller must provide the
+    fully-qualified suite name.
+    """
+
+    resolved: list[str] = []
+    unknown: list[str] = []
+    ambiguous: dict[str, list[str]] = {}
+
+    for requested_suite in requested_suites:
+        if requested_suite in all_suites:
+            resolved.append(requested_suite)
+            continue
+
+        candidates = sorted(name for name in all_suites if name.endswith(f"::{requested_suite}"))
+        if len(candidates) == 1:
+            resolved.append(candidates[0])
+        elif len(candidates) > 1:
+            ambiguous[requested_suite] = candidates
+        else:
+            unknown.append(requested_suite)
+
+    return list(dict.fromkeys(resolved)), unknown, ambiguous
+
+
 def gen_required_suites() -> None:
     """Generate the list of test and benchmark suites that need to be run."""
     import suitespec
@@ -311,10 +342,17 @@ def gen_required_suites() -> None:
 
     if args.suites:
         # --suite: explicit suite selection, bypass PR/file detection entirely
-        unknown = [s for s in args.suites if s not in suites]
+        required_suites, unknown, ambiguous = _resolve_explicit_suites(args.suites, suites)
         if unknown:
+            global has_error
             LOGGER.warning("Unknown suite(s) specified via --suite: %s", unknown)
-        required_suites = [s for s in args.suites if s in suites]
+            has_error = True
+        for suite, candidates in ambiguous.items():
+            LOGGER.warning("Suite %s is ambiguous, use one of: %s", suite, ", ".join(candidates))
+            has_error = True
+        if not required_suites:
+            LOGGER.error("Explicit suite selection did not resolve to any suites")
+            has_error = True
         LOGGER.info("Using explicit suite selection: %s", required_suites)
     elif args.files:
         # --file: match supplied files against suite patterns (same logic as needs_testrun
@@ -409,6 +447,7 @@ def _get_benchmark_class_name(suite_name: str) -> str:
         match = re.match(BENCHMARK_CLASS_REGEX, line)
         if match:
             return match.group(1).lower()
+    raise ValueError(f"Could not determine benchmark class name for suite {suite_name}")
 
 
 def _filter_benchmarks_slos_file(classnames: list) -> None:
@@ -507,7 +546,9 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
     # Scale up suites if total job count is below the target
     total_baseline = sum(baseline_jobs.values())
-    if total_baseline < TARGET_JOBS and scalable_suites:
+    if args.suites or not (total_baseline < TARGET_JOBS and scalable_suites):
+        final_jobs = baseline_jobs
+    else:
         LOGGER.info(
             "Total baseline jobs (%d) below target (%d), scaling up %d suite(s)",
             total_baseline,
@@ -516,8 +557,6 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
         )
         final_jobs = _scale_suites(suite_venv_info, baseline_jobs, scalable_suites, venvs_per_job_map, TARGET_JOBS)
         LOGGER.info("Scaled total jobs: %d", sum(final_jobs.values()))
-    else:
-        final_jobs = baseline_jobs
 
     # === PASS 2: Emit YAML ===
     with TESTS_GEN.open("a") as f:
@@ -546,6 +585,10 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
 def gen_build_docs() -> None:
     """Include the docs build step if the docs have changed."""
+    if args.suites:
+        LOGGER.info("Skipping docs build generation for explicit suite selection")
+        return
+
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
@@ -584,80 +627,89 @@ def gen_build_docs() -> None:
 
 def gen_pre_checks() -> None:
     """Generate the list of pre-checks that need to be run."""
-    from needs_testrun import pr_matches_patterns
+    if args.suites:
+        checks: list[tuple[str, str]] = []
+    else:
+        from needs_testrun import pr_matches_patterns
 
-    checks: list[tuple[str, str]] = []
+        checks = []
 
-    def check(name: str, command: str, paths: set[str]) -> None:
-        if pr_matches_patterns(paths):
-            checks.append((name, command))
+        def check(name: str, command: str, paths: set[str]) -> None:
+            if pr_matches_patterns(paths):
+                checks.append((name, command))
 
-    check(
-        name="Style",
-        command="hatch run lint:style",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h"},
-    )
-    check(
-        name="Typing",
-        command="hatch run lint:typing",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
-    )
-    check(
-        name="Spelling",
-        command="hatch run lint:spelling",
-        paths={"*"},
-    )
-    check(
-        name="Security",
-        command="hatch run lint:security",
-        paths={"docker*", "ddtrace/*", "hatch.toml"},
-    )
-    check(
-        name="Run riotfile.py tests",
-        command="hatch run lint:riot",
-        paths={"docker*", "riotfile.py", "hatch.toml"},
-    )
-    check(
-        name="Style: Test snapshots",
-        command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
-        paths={"docker*", "tests/snapshots/*", "hatch.toml"},
-    )
-    check(
-        name="Run scripts/*.py tests",
-        command="scripts/run-script-doctests.py",
-        paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
-    )
-    check(
-        name="Check suitespec coverage",
-        command="hatch run lint:suitespec-check",
-        paths={"*"},
-    )
-    check(
-        name="Check ddtrace error logs",
-        command="hatch run lint:error-log-check",
-        paths={"ddtrace/*", "scripts/check_constant_log_message.py"},
-    )
-    check(
-        name="Check project dependencies",
-        command="scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py",
-        paths={"pyproject.toml", "riotfile.py", ".gitlab-ci.yml", ".gitlab/**/*.yml", ".github/workflows/*.yml"},
-    )
-    check(
-        name="Check package version",
-        command="scripts/verify-package-version",
-        paths={"pyproject.toml"},
-    )
-    check(
-        name="Check for namespace packages",
-        command="scripts/check-for-namespace-packages.sh",
-        paths={"*"},
-    )
-    check(
-        name="Hook tests",
-        command="scripts/run-hook-tests",
-        paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*"},
-    )
-    if not checks:
+        check(
+            name="Style",
+            command="hatch run lint:style",
+            paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h"},
+        )
+        check(
+            name="Typing",
+            command="hatch run lint:typing",
+            paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
+        )
+        check(
+            name="Spelling",
+            command="hatch run lint:spelling",
+            paths={"*"},
+        )
+        check(
+            name="Security",
+            command="hatch run lint:security",
+            paths={"docker*", "ddtrace/*", "hatch.toml"},
+        )
+        check(
+            name="Run riotfile.py tests",
+            command="hatch run lint:riot",
+            paths={"docker*", "riotfile.py", "hatch.toml"},
+        )
+        check(
+            name="Style: Test snapshots",
+            command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
+            paths={"docker*", "tests/snapshots/*", "hatch.toml"},
+        )
+        check(
+            name="Run scripts/*.py tests",
+            command="scripts/run-script-doctests.py",
+            paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
+        )
+        check(
+            name="Check suitespec coverage",
+            command="hatch run lint:suitespec-check",
+            paths={"*"},
+        )
+        check(
+            name="Check ddtrace error logs",
+            command="hatch run lint:error-log-check",
+            paths={"ddtrace/*", "scripts/check_constant_log_message.py"},
+        )
+        check(
+            name="Check project dependencies",
+            command="scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py",
+            paths={"pyproject.toml", "riotfile.py", ".gitlab-ci.yml", ".gitlab/**/*.yml", ".github/workflows/*.yml"},
+        )
+        check(
+            name="Check package version",
+            command="scripts/verify-package-version",
+            paths={"pyproject.toml"},
+        )
+        check(
+            name="Check for namespace packages",
+            command="scripts/check-for-namespace-packages.sh",
+            paths={"*"},
+        )
+        check(
+            name="Hook tests",
+            command="scripts/run-hook-tests",
+            paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*"},
+        )
+
+    _write_pre_checks(checks)
+
+
+def _write_pre_checks(checks: list[tuple[str, str]]) -> None:
+    """Write the prechecks job used by the generated child pipeline."""
+    if not checks and not args.suites:
         return
 
     with TESTS_GEN.open("a") as f:
@@ -808,7 +860,7 @@ def template(name: str, **params):
     """Render a template file with the given parameters."""
     if not (template_path := (GITLAB / "templates" / name).with_suffix(".yml")).exists():
         raise FileNotFoundError(f"Template file {template_path} does not exist")
-    return "\n" + template_path.read_text().format(**params).strip() + "\n"
+    return f"\n{template_path.read_text().format(**params).strip()}\n"
 
 
 has_error = False

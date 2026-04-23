@@ -1,0 +1,56 @@
+variables:
+  REPO_LANG: python # "python" is used everywhere rather than "py"
+  RELEASE_ALLOW_TEST_FAILURES: false
+
+default:
+  interruptible: true
+
+stages:
+  - tests
+
+include:
+  - local: ".gitlab/ci-templates.yml"
+  - local: ".gitlab/services.yml"
+  - local: ".gitlab/testrunner.yml"
+
+tests-gen:
+  stage: tests
+  extends: .testrunner
+  variables:
+    TARGET_SUITE: "${TARGET_SUITE:-}"
+    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      set -euo pipefail
+      if [ -z "${TARGET_SUITE}" ]; then
+        echo "TARGET_SUITE must be set to an integration suite such as 'flask' or 'contrib::flask'."
+        exit 1
+      fi
+      echo "TARGET_SUITE: ${TARGET_SUITE}"
+      echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
+      echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD:-}"
+    - scripts/gen_gitlab_config.py --verbose --suite "${TARGET_SUITE}"
+  needs: []
+  artifacts:
+    paths:
+      - .gitlab/tests-gen.yml
+
+run-tests-trigger:
+  stage: tests
+  needs: [tests-gen]
+  variables:
+    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
+  rules:
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
+  trigger:
+    include:
+      - artifact: .gitlab/tests-gen.yml
+        job: tests-gen
+    strategy: depend
