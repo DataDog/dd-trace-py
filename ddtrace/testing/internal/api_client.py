@@ -4,6 +4,7 @@ import gzip
 import json
 import logging
 from pathlib import Path
+import sys
 import typing as t
 import uuid
 
@@ -102,6 +103,7 @@ class APIClient:
         except KeyError as e:
             log.warning("Git info not available, cannot fetch settings (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
+            self.telemetry_api.record_error_log("Git info not available, cannot fetch settings", sys.exc_info())
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SETTINGS] = "true"
             return Settings()
 
@@ -123,6 +125,7 @@ class APIClient:
         except Exception as e:
             log.warning("Error getting settings from API: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
+            self.telemetry_api.record_error_log("Error getting settings from API", sys.exc_info())
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SETTINGS] = "true"
             return Settings()
 
@@ -164,6 +167,7 @@ class APIClient:
             except KeyError as e:
                 log.warning("Git info not available, cannot fetch known tests (missing key: %s)", e)
                 telemetry.record_error(ErrorType.UNKNOWN)
+                self.telemetry_api.record_error_log("Git info not available, cannot fetch known tests", sys.exc_info())
                 self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
                 return set()
 
@@ -193,6 +197,7 @@ class APIClient:
                 if not isinstance(page_info, dict):
                     log.warning("Known tests response page_info is not a dict")
                     telemetry.record_error(ErrorType.BAD_JSON)
+                    self.telemetry_api.record_error_log("Known tests response page_info is not a dict")
                     self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
                     return set()
 
@@ -204,17 +209,20 @@ class APIClient:
                 if not page_state:
                     log.warning("Known tests response missing pagination cursor on page %d", page_number + 1)
                     telemetry.record_error(ErrorType.BAD_JSON)
+                    self.telemetry_api.record_error_log("Known tests response missing pagination cursor")
                     self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
                     return set()
 
             except Exception:
                 log.warning("Error getting known tests from API")
                 telemetry.record_error(ErrorType.BAD_JSON)
+                self.telemetry_api.record_error_log("Error getting known tests from API", sys.exc_info())
                 self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
                 return set()
         else:
             log.warning("Known tests pagination exceeded max pages: %d", max_pages)
             telemetry.record_error(ErrorType.BAD_JSON)
+            self.telemetry_api.record_error_log("Known tests pagination exceeded max pages")
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
             return set()
 
@@ -248,6 +256,9 @@ class APIClient:
         except KeyError as e:
             log.warning("Git info not available, cannot fetch Test Management properties (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
+            self.telemetry_api.record_error_log(
+                "Git info not available, cannot fetch Test Management properties", sys.exc_info()
+            )
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
             return {}
 
@@ -284,6 +295,7 @@ class APIClient:
         except Exception as e:
             log.warning("Failed to parse Test Management tests data from API: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
+            self.telemetry_api.record_error_log("Failed to parse Test Management tests data from API", sys.exc_info())
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
             return {}
 
@@ -309,6 +321,7 @@ class APIClient:
         except KeyError as e:
             log.warning("Git info not available, cannot fetch known commits (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
+            self.telemetry_api.record_error_log("Git info not available, cannot fetch known commits", sys.exc_info())
             return None
 
         try:
@@ -327,6 +340,7 @@ class APIClient:
         except Exception as e:
             log.warning("Failed to parse search_commits data: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
+            self.telemetry_api.record_error_log("Failed to parse search_commits data", sys.exc_info())
             return None
 
         return known_commits
@@ -348,6 +362,7 @@ class APIClient:
         except KeyError as e:
             log.warning("Git info not available, cannot send git packfile (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
+            self.telemetry_api.record_error_log("Git info not available, cannot send git packfile", sys.exc_info())
             return None
 
         try:
@@ -368,6 +383,7 @@ class APIClient:
         except Exception as e:
             log.warning("Error sending Git pack data: %s", e)
             telemetry.record_error(ErrorType.UNKNOWN)
+            self.telemetry_api.record_error_log("Error sending Git pack data", sys.exc_info())
             return None
 
         try:
@@ -409,6 +425,7 @@ class APIClient:
         except KeyError as e:
             log.warning("Git info not available, cannot get skippable items (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
+            self.telemetry_api.record_error_log("Git info not available, cannot get skippable items", sys.exc_info())
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
             return set(), None
 
@@ -439,6 +456,7 @@ class APIClient:
         except Exception as e:
             log.warning("Failed to parse skippable tests data from API: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
+            self.telemetry_api.record_error_log("Failed to parse skippable tests data from API", sys.exc_info())
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
             return set(), None
 

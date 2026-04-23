@@ -93,6 +93,10 @@ class TelemetryAPI:
     def finish(self) -> None:
         self.writer.periodic(force_flush=True)
 
+    def record_error_log(self, message: str, exc_info: t.Optional[tuple] = None) -> None:
+        if hasattr(self.writer, "add_error_log"):
+            self.writer.add_error_log(message, exc_info)
+
     def add_count_metric(self, metric_name: str, value: int, tags: t.Optional[dict[str, t.Any]] = None) -> None:
         log.debug("Recording Test Optimization telemetry count: %r %r %r", metric_name, value, tags)
         self.writer.add_count_metric(self.namespace, metric_name, value, self._make_tags(tags))
