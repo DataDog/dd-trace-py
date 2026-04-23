@@ -571,13 +571,11 @@ class LLMObs(Service):
         tags = self._llmobs_tags(span)
         span_links = get_llmobs_span_links(span) or []
         _dd_attrs = {
+            **(llmobs_data.get("_dd") or {}),
             "span_id": str(span.span_id),
             "trace_id": format_trace_id(span.trace_id),
             "apm_trace_id": format_trace_id(span.trace_id),
-            **(llmobs_data.get("_dd") or {}),
         }
-        if "scope" not in _dd_attrs and span.context.get_baggage_item(EXPERIMENT_ID_KEY):
-            _dd_attrs["scope"] = "experiments"
 
         submitted_trace_id = _normalize_trace_id_to_hex(llmobs_trace_id) or llmobs_trace_id
 
@@ -2213,9 +2211,11 @@ class LLMObs(Service):
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         span = cls._instance._start_span("experiment", name=name, session_id=session_id, ml_app=ml_app)
 
-        # set experiment_id in baggage if provided
+        # set experiment_id in baggage if provided. `_activate_llmobs_span` already ran
+        # at _start_span time (before baggage was set), so tag the scope here too.
         if experiment_id:
             span.context.set_baggage_item(EXPERIMENT_ID_KEY, experiment_id)
+            _annotate_llmobs_span_data(span, dd_scope="experiments")
 
         if run_id:
             span.context.set_baggage_item(EXPERIMENT_RUN_ID_KEY, run_id)
@@ -2234,11 +2234,6 @@ class LLMObs(Service):
 
         if experiment_name:
             span.context.set_baggage_item(EXPERIMENT_NAME_KEY, experiment_name)
-
-        # Tag the experiment span itself: `_activate_llmobs_span` ran before the baggage
-        # above was set, so it couldn't infer the scope.
-        if experiment_id:
-            _annotate_llmobs_span_data(span, dd_scope="experiments")
 
         return span
 

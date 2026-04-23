@@ -2419,24 +2419,18 @@ class TestExperimentScope:
     """
 
     def test_experiment_span_dd_scope_set_on_start(self, llmobs):
-        span = llmobs._experiment(name="root_exp", experiment_id="exp-1")
-        try:
+        with llmobs._experiment(name="root_exp", experiment_id="exp-1") as span:
             data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
             assert data["_dd"]["scope"] == "experiments"
-        finally:
-            span.finish()
 
     def test_child_span_inherits_experiment_scope_on_start(self, llmobs):
-        exp_span = llmobs._experiment(name="root_exp", experiment_id="exp-1")
-        try:
+        with llmobs._experiment(name="root_exp", experiment_id="exp-1"):
             with llmobs.task(name="child_task") as child:
                 assert child.context.get_baggage_item(EXPERIMENT_ID_KEY) == "exp-1"
                 data = child._get_struct_tag(LLMOBS_STRUCT.KEY)
                 assert data["_dd"]["scope"] == "experiments"
-        finally:
-            exp_span.finish()
 
     def test_non_experiment_span_has_no_scope_on_start(self, llmobs):
         with llmobs.task(name="standalone_task") as span:
             data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
-            assert "_dd" not in data or "scope" not in data.get("_dd", {})
+            assert "scope" not in data.get("_dd", {})
