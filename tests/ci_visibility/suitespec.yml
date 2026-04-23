@@ -170,6 +170,8 @@ suites:
       - tests/contrib/selenium/*
       - tests/snapshots/test_selenium*
     snapshot: true
+    services:
+      - selenium-chrome
   unittest:
     parallelism: 2
     paths:

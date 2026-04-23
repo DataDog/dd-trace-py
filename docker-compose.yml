@@ -190,6 +190,15 @@ services:
             - "127.0.0.1:10002:10002"
 
 
+    selenium-chrome:
+        image: selenium/standalone-chrome:latest
+        platform: linux/amd64
+        network_mode: host
+        environment:
+            - SE_NODE_MAX_SESSIONS=2
+            - SE_VNC_NO_PASSWORD=1
+        shm_size: 2g
+
     testrunner:
         # DEV uncomment to test local changes to the Dockerfile
         # build:

@@ -1,8 +1,8 @@
 """Tests for selenium + RUM integration
 
-IMPORTANT NOTE: these tests only reliably work on Linux/x86_64 due to some annoyingly picky issues with installing
-Selenium and a working browser/webdriver combination on non-x86_64 architectures (at time of writing, at least,
-Selenium's webdriver-manager doesn't support Linux on non-x86_64).
+Uses a Selenium Grid (selenium/standalone-chrome, linux/amd64) via webdriver.Remote so that
+tests work on any host architecture including arm64. The grid is started as a Docker service
+and listens on localhost:4444 (via network_mode: host).
 """
 
 import http.server
@@ -10,7 +10,6 @@ import json
 import multiprocessing
 import os
 from pathlib import Path
-import platform
 import socketserver
 import subprocess
 import textwrap
@@ -45,6 +44,23 @@ SELENIUM_SNAPSHOT_IGNORES = [
     "start",
 ]
 
+# Selenium Grid endpoint — standalone-chrome runs with network_mode: host so it binds on localhost
+SELENIUM_GRID_URL = "http://localhost:4444"
+
+_SELENIUM_DRIVER_SETUP = f"""\
+    from selenium import webdriver
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.chrome.options import Options
+
+    SELENIUM_GRID_URL = "{SELENIUM_GRID_URL}"
+
+    def _make_driver():
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--no-sandbox")
+        return webdriver.Remote(command_executor=SELENIUM_GRID_URL, options=options)
+"""
+
 
 @pytest.fixture
 def _http_server(scope="function"):
@@ -74,39 +90,29 @@ def _http_server(scope="function"):
 
 
 @snapshot(ignores=SELENIUM_SNAPSHOT_IGNORES)
-@pytest.mark.skipif(platform.machine() != "x86_64", reason="Selenium Chrome tests only run on x86_64")
 def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
     selenium_test_script = textwrap.dedent(
-        """
-            from pathlib import Path
+        _SELENIUM_DRIVER_SETUP
+        + """
+    def test_selenium_local_pass():
+        with _make_driver() as driver:
+            url = "http://localhost:8079/rum_enabled/page_1.html"
 
-            from selenium import webdriver
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.chrome.options import Options
+            driver.get(url)
 
-            def test_selenium_local_pass():
-                options = Options()
-                options.add_argument("--headless")
-                options.add_argument("--no-sandbox")
+            assert driver.title == "Page 1"
 
-                with webdriver.Chrome(options=options) as driver:
-                    url = "http://localhost:8079/rum_enabled/page_1.html"
+            link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
 
-                    driver.get(url)
+            link_2.click()
 
-                    assert driver.title == "Page 1"
+            assert driver.title == "Page 2"
 
-                    link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
+            link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
+            link_1.click()
 
-                    link_2.click()
-
-                    assert driver.title == "Page 2"
-
-                    link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
-                    link_1.click()
-
-                    assert driver.title == "Page 1"
-        """
+            assert driver.title == "Page 1"
+    """
     )
     testdir.makepyfile(test_selenium=selenium_test_script)
     subprocess.run(
@@ -127,39 +133,29 @@ def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
 
 
 @snapshot(ignores=SELENIUM_SNAPSHOT_IGNORES)
-@pytest.mark.skipif(platform.machine() != "x86_64", reason="Selenium Chrome tests only run on x86_64")
 def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
     selenium_test_script = textwrap.dedent(
-        """
-            from pathlib import Path
+        _SELENIUM_DRIVER_SETUP
+        + """
+    def test_selenium_local_pass():
+        with _make_driver() as driver:
+            url = "http://localhost:8079/rum_disabled/page_1.html"
 
-            from selenium import webdriver
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.chrome.options import Options
+            driver.get(url)
 
-            def test_selenium_local_pass():
-                options = Options()
-                options.add_argument("--headless")
-                options.add_argument("--no-sandbox")
+            assert driver.title == "Page 1"
 
-                with webdriver.Chrome(options=options) as driver:
-                    url = "http://localhost:8079/rum_disabled/page_1.html"
+            link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
 
-                    driver.get(url)
+            link_2.click()
 
-                    assert driver.title == "Page 1"
+            assert driver.title == "Page 2"
 
-                    link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
+            link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
+            link_1.click()
 
-                    link_2.click()
-
-                    assert driver.title == "Page 2"
-
-                    link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
-                    link_1.click()
-
-                    assert driver.title == "Page 1"
-        """
+            assert driver.title == "Page 1"
+    """
     )
     testdir.makepyfile(test_selenium=selenium_test_script)
     subprocess.run(
@@ -180,42 +176,32 @@ def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
 
 
 @snapshot(ignores=SELENIUM_SNAPSHOT_IGNORES)
-@pytest.mark.skipif(platform.machine() != "x86_64", reason="Selenium Chrome tests only run on x86_64")
 def test_selenium_chrome_pytest_unpatch_does_not_record_selenium_tags(_http_server, testdir, git_repo):
     selenium_test_script = textwrap.dedent(
-        """
-            from pathlib import Path
+        _SELENIUM_DRIVER_SETUP
+        + """
+    from ddtrace.contrib.internal.selenium.patch import unpatch
 
-            from selenium import webdriver
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.chrome.options import Options
+    def test_selenium_local_unpatch():
+        unpatch()
+        with _make_driver() as driver:
+            url = "http://localhost:8079/rum_disabled/page_1.html"
 
-            from ddtrace.contrib.internal.selenium.patch import unpatch
+            driver.get(url)
 
-            def test_selenium_local_unpatch():
-                unpatch()
-                options = Options()
-                options.add_argument("--headless")
-                options.add_argument("--no-sandbox")
+            assert driver.title == "Page 1"
 
-                with webdriver.Chrome(options=options) as driver:
-                    url = "http://localhost:8079/rum_disabled/page_1.html"
+            link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
 
-                    driver.get(url)
+            link_2.click()
 
-                    assert driver.title == "Page 1"
+            assert driver.title == "Page 2"
 
-                    link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
+            link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
+            link_1.click()
 
-                    link_2.click()
-
-                    assert driver.title == "Page 2"
-
-                    link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
-                    link_1.click()
-
-                    assert driver.title == "Page 1"
-        """
+            assert driver.title == "Page 1"
+    """
     )
     testdir.makepyfile(test_selenium=selenium_test_script)
     subprocess.run(
