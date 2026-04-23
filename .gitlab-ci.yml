@@ -1,5 +1,8 @@
 stages:
   - package
+  # These benchmarks are planned to replace the legacy macrobenchmarks in the future
+  - python-flask-realworld-parallel
+  - python-flask-realworld-parallel-slo
   - tests
   - system-tests
   - fuzz
@@ -64,6 +67,9 @@ include:
   - local: ".gitlab/native.yml"
   - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
+  - project: 'DataDog/apm-reliability/apm-sdks-benchmarks'
+    file: '.gitlab/ci-python-flask-realworld-parallel.yml'
+    ref: 'main'
 
 "pipeline variables":
   stage: .pre
