@@ -6,6 +6,7 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.cache import callonce
 from ddtrace.version import __version__
 
 from ..hostname import get_hostname
@@ -77,9 +78,9 @@ def get_application(service: str, version: str, env: str) -> dict:
     return _get_application((service, version, env))
 
 
-@cached()
-def _get_host_info(_: tuple = ()) -> dict:
-    """Build the host-info dict once. Cached() provides thread-safe memoization."""
+@callonce
+def get_host_info() -> dict:
+    """Creates a dictionary to store host data using the platform module."""
     return {
         "os": platform.system(),
         "hostname": get_hostname(),
@@ -89,11 +90,6 @@ def _get_host_info(_: tuple = ()) -> dict:
         "kernel_version": platform.version(),
         "container_id": _get_container_id(),
     }
-
-
-def get_host_info() -> dict:
-    """Creates a dictionary to store host data using the platform module"""
-    return _get_host_info(())
 
 
 def _get_sysconfig_var(key: str) -> str:
