@@ -12,43 +12,11 @@ include:
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
 
-prepare_version_support_riot:
-  extends: .testrunner
-  stage: setup
-  needs: []
-  script:
-    - |
-      set -e -u -o pipefail
-      mkdir -p .gitlab/version-support
-      spec_path=".gitlab/version-support/specs.json"
-      version_support_active="false"
-      if [[ -n "${VERSION_SUPPORT_SPEC_JSON:-}" ]]; then
-        printf '%s' "${VERSION_SUPPORT_SPEC_JSON}" > "${spec_path}"
-        version_support_active="true"
-      elif [[ -n "${VERSION_SUPPORT_SPEC_FILE:-}" ]]; then
-        cp "${VERSION_SUPPORT_SPEC_FILE}" "${spec_path}"
-        version_support_active="true"
-      fi
-      if [[ "${version_support_active}" == "true" ]]; then
-        PYTHONPATH=scripts python -m version_support.run_specific_integrations_versions --spec-file "${spec_path}"
-        scripts/compile-and-prune-test-requirements
-      fi
-      printf "VERSION_SUPPORT_SPEC_ACTIVE=%s\n" "${version_support_active}" > .gitlab/version-support/version_support.env
-  artifacts:
-    reports:
-      dotenv: .gitlab/version-support/version_support.env
-    paths:
-      - riotfile.py
-      - .riot/requirements/
-      - .gitlab/version-support/specs.json
-
 # Do not define a `needs:` in order to depend on the whole `precheck` stage
 .test_base_riot:
   extends: .testrunner
   stage: riot
   needs:
-    - job: prepare_version_support_riot
-      artifacts: true
     - job: build_base_venvs
       artifacts: true
     - prechecks
@@ -77,10 +45,8 @@ prepare_version_support_riot:
         export _CI_DD_TAGS="test.configuration.riot_hash:${hash}"
         ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
       done
-      if [[ "${VERSION_SUPPORT_SPEC_ACTIVE:-false}" != "true" ]]; then
-        ./scripts/check-diff ".riot/requirements/" \
-          "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
-      fi
+      ./scripts/check-diff ".riot/requirements/" \
+        "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
       ./scripts/check-diff "scripts/integration_registry/registry.yaml" \
         "Registry YAML file (scripts/integration_registry/registry.yaml) was modified. Please run: scripts/integration_registry/update_and_format_registry.py and commit the changes."
 

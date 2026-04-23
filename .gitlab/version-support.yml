@@ -1,0 +1,39 @@
+# Version-support child pipeline.
+#
+# Triggered automatically when VERSION_SUPPORT_SPEC_JSON or VERSION_SUPPORT_SPEC_FILE is set.
+# All logic lives in scripts/version_support/ — the main pipeline files (tests.yml,
+# gen_gitlab_config.py, build-base-venvs.yml) are not touched.
+#
+# Pipeline flow when the env var is set:
+#   version_support_generate  →  generates version-support-pipeline.yml
+#   version_support (trigger) →  runs the generated child pipeline
+#
+# The child pipeline is fully self-contained:
+#   prepare stage: rewrites riotfile.py for the requested integration versions
+#   build stage:   builds venvs (only Python versions needed by the integrations)
+#   test stage:    runs one job per requested integration suite
+
+version_support_generate:
+  extends: .testrunner
+  stage: tests
+  needs: []
+  rules:
+    - if: $VERSION_SUPPORT_SPEC_JSON || $VERSION_SUPPORT_SPEC_FILE
+  script:
+    - PYTHONPATH=scripts python -m version_support.gen_child_pipeline
+  artifacts:
+    paths:
+      - version-support-pipeline.yml
+
+version_support:
+  stage: tests
+  needs:
+    - job: version_support_generate
+      artifacts: true
+  rules:
+    - if: $VERSION_SUPPORT_SPEC_JSON || $VERSION_SUPPORT_SPEC_FILE
+  trigger:
+    include:
+      - artifact: version-support-pipeline.yml
+        job: version_support_generate
+    strategy: depend

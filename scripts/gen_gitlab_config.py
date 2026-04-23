@@ -77,10 +77,8 @@ class JobSpec:
         # Set stage
         lines.append(f"  stage: {self.stage}")
 
-        # Jobs need version support rewrite artifacts and build_base_venvs artifacts.
+        # Jobs need build_base_venvs artifacts
         lines.append("  needs:")
-        lines.append("    - job: prepare_version_support_riot")
-        lines.append("      artifacts: true")
         lines.append("    - prechecks")
         if self.python_versions:
             lines.append("    - job: build_base_venvs")
@@ -173,57 +171,6 @@ TARGET_JOBS = 200
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 
-def _build_effective_riotfile_source() -> str:
-    riotfile_path = ROOT / "riotfile.py"
-    riotfile_source = riotfile_path.read_text()
-    if not (args.version_support_spec_file or args.version_support_spec_json):
-        return riotfile_source
-
-    from version_support import collect_venvs
-    from version_support import regenerate_suite
-    from version_support.json_specs import load_specs_from_json
-    from version_support.json_specs import load_specs_from_json_text
-    from version_support.models import FallbackSpec
-    from version_support.models import IntegrationSpec
-
-    suites = collect_venvs(riotfile_source, str(riotfile_path))
-    if args.version_support_spec_json:
-        specs = load_specs_from_json_text(args.version_support_spec_json, suites=suites)
-    else:
-        specs = load_specs_from_json(Path(args.version_support_spec_file), suites=suites)
-
-    rewritten_source = riotfile_source
-    for suite_name, spec in specs.items():
-        suite = suites.get(suite_name)
-        if suite is None:
-            raise RuntimeError(f"Unable to find suite {suite_name!r} in riotfile.py")
-
-        if isinstance(spec, FallbackSpec):
-            continue
-        if not isinstance(spec, IntegrationSpec):
-            raise RuntimeError(f"Unsupported spec type for {suite_name!r}: {type(spec)!r}")
-
-        rewritten_source = regenerate_suite(
-            rewritten_source,
-            suite=suite,
-            integration_spec=spec,
-        )
-        suites = collect_venvs(rewritten_source, str(riotfile_path))
-
-    return rewritten_source
-
-
-def _load_effective_riot_venv():
-    namespace: dict[str, t.Any] = {
-        "__file__": str(ROOT / "riotfile.py"),
-        "__name__": "generated_riotfile",
-    }
-    exec(compile(_build_effective_riotfile_source(), str(ROOT / "riotfile.py"), "exec"), namespace)
-    if "venv" not in namespace:
-        raise RuntimeError("Unable to find root `venv = Venv(...)` in riotfile.py")
-    return namespace["venv"]
-
-
 def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, SuiteVenvInfo]:
     """Collect venv count and Python versions for multiple suites in a single pass.
 
@@ -236,7 +183,8 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
     Returns:
         mapping of suite name -> SuiteVenvInfo for suites that have matching venvs
     """
-    riot_venv = _load_effective_riot_venv()
+    # Importing will load/evaluate the whole riotfile.py
+    import riotfile
 
     compiled: dict[str, re.Pattern] = {}
     for suite, pattern in suite_patterns.items():
@@ -248,7 +196,7 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
     venv_hashes: dict[str, set] = {s: set() for s in compiled}
     python_versions: dict[str, set] = {s: set() for s in compiled}
 
-    for inst in riot_venv.instances():  # type: ignore[attr-defined]
+    for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
         if not inst.name:
             continue
         hint = inst.py._hint  # type: ignore[attr-defined]
@@ -356,21 +304,12 @@ def _scale_suites(
 def gen_required_suites() -> None:
     """Generate the list of test and benchmark suites that need to be run."""
     import suitespec
-    from version_support.ci_specs import load_integration_names_from_spec_inputs
-    from version_support.ci_specs import resolve_suite_names_for_integrations
 
     suites = suitespec.get_suites()
 
     required_suites: list[str] = []
 
-    if args.version_support_spec_file or args.version_support_spec_json:
-        integration_names = load_integration_names_from_spec_inputs(
-            spec_file=args.version_support_spec_file,
-            spec_json=args.version_support_spec_json,
-        )
-        required_suites = resolve_suite_names_for_integrations(integration_names, suites=suites)
-        LOGGER.info("Using version support spec suite selection: %s", required_suites)
-    elif args.suites:
+    if args.suites:
         # --suite: explicit suite selection, bypass PR/file detection entirely
         unknown = [s for s in args.suites if s not in suites]
         if unknown:
@@ -627,8 +566,6 @@ def gen_build_docs() -> None:
             print("  extends: .testrunner", file=f)
             print("  stage: core", file=f)
             print("  needs:", file=f)
-            print("    - job: prepare_version_support_riot", file=f)
-            print("      artifacts: true", file=f)
             print("    - prechecks", file=f)
             print("    - job: build_base_venvs", file=f)
             print("      artifacts: true", file=f)
@@ -832,20 +769,6 @@ argp.add_argument(
     default=[],
     metavar="FILE",
     help="Treat this file as changed for suite/precheck detection (can be repeated). Bypasses PR detection.",
-)
-argp.add_argument(
-    "--version-support-spec-file",
-    dest="version_support_spec_file",
-    default=os.getenv("VERSION_SUPPORT_SPEC_FILE"),
-    metavar="SPEC_FILE",
-    help="Path to a version support JSON spec used for explicit suite selection.",
-)
-argp.add_argument(
-    "--version-support-spec-json",
-    dest="version_support_spec_json",
-    default=os.getenv("VERSION_SUPPORT_SPEC_JSON"),
-    metavar="SPEC_JSON",
-    help="Raw version support JSON spec used for explicit suite selection.",
 )
 args = argp.parse_args()
 if args.debug:

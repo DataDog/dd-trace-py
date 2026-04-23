@@ -64,6 +64,7 @@ include:
   - local: ".gitlab/native.yml"
   - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
+  - local: ".gitlab/version-support.yml"
 
 "pipeline variables":
   stage: .pre
