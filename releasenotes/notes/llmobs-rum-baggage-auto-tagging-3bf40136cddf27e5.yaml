@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    LLM Observability: LLMObs spans are now automatically tagged with
+    ``session_id``, ``usr.id``, and ``usr.account_id`` when OTel baggage is
+    present on the active trace context. This enables automatic correlation
+    between RUM sessions (propagated via the RUM browser SDK's
+    ``propagateTraceBaggage`` option) and LLMObs traces without requiring
+    manual ``LLMObs.annotate`` calls. Values explicitly set via
+    ``LLMObs.annotate`` take precedence over baggage.

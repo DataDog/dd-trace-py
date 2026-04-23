@@ -104,6 +104,18 @@ EXPERIMENT_PROJECT_ID_KEY = "_ml_obs.experiment_project_id"
 EXPERIMENT_DATASET_NAME_KEY = "_ml_obs.experiment_dataset_name"
 EXPERIMENT_NAME_KEY = "_ml_obs.experiment_name"
 
+# OTel baggage keys propagated by the RUM browser SDK's `propagateTraceBaggage`
+# option. When present on the active trace context (typically extracted from an
+# incoming HTTP request), these values are auto-applied to LLMObs spans so that
+# RUM sessions and users correlate to LLM traces without any manual tagging.
+RUM_BAGGAGE_SESSION_ID_KEY = "session.id"
+RUM_BAGGAGE_USER_ID_KEY = "user.id"
+RUM_BAGGAGE_ACCOUNT_ID_KEY = "account.id"
+
+# LLMObs tag keys aligned with Datadog standard attributes for user identity.
+USER_ID_TAG_KEY = "usr.id"
+USER_ACCOUNT_ID_TAG_KEY = "usr.account_id"
+
 # experiment context keys
 DEFAULT_PROJECT_NAME = "default-project"
 
