@@ -230,7 +230,10 @@ class Span(SpanData):
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
     get_tag = SpanData._get_str_attribute
-    get_tags = SpanData._get_str_attributes
+
+    def get_tags(self) -> dict[str, str]:
+        """Return all string tags."""
+        return dict(self._get_str_attributes())
 
     def set_tags(self, tags: dict[str, str]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
