@@ -610,7 +610,6 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
         kwargs["stats_opt_out"] = asm_config._apm_opt_out
         self._inner_writer = NativeWriter(*args, **kwargs)
-
         DummyWriterMixin.__init__(self, *args, **kwargs)
 
     def write(self, spans=None):
