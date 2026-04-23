@@ -322,7 +322,7 @@ def test_set_attribute_float():
 def test_set_attribute_zero():
     s = Span(name="test.span")
     s._set_attribute("key", 0)
-    assert s._get_attribute("key") == 0
+    assert s._get_attribute("key") == 0.0
 
 
 def test_set_attribute_empty_string():
@@ -387,10 +387,10 @@ def test_set_attribute_bool():
     s._set_attribute("t", True)
     s._set_attribute("f", False)
     # bool is a subclass of int, so stored as numeric (1.0 / 0.0 in Rust f64 storage)
-    assert s._get_attribute("t") == 1
-    assert s._get_attribute("f") == 0
-    assert s._get_numeric_attribute("t") == 1
-    assert s._get_numeric_attribute("f") == 0
+    assert s._get_attribute("t") == 1.0
+    assert s._get_attribute("f") == 0.0
+    assert s._get_numeric_attribute("t") == 1.0
+    assert s._get_numeric_attribute("f") == 0.0
 
 
 def test_set_attribute_bytes():

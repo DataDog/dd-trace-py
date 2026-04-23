@@ -58,8 +58,6 @@ impl SpanData {
     }
 }
 
-/// `http.status_code` must always be stored in meta (not metrics) because
-/// the trace agent calculates HTTP metrics from it.
 const HTTP_STATUS_CODE_KEY: &str = "http.status_code";
 
 #[pyo3::pymethods]
@@ -435,8 +433,9 @@ impl SpanData {
     /// Special case: `http.status_code` is always stored as a string in meta,
     /// regardless of the value type.
     ///
-    /// Supported value types: str, int, float, bool (stored as 0/1 metric), bytes
-    /// (decoded as UTF-8 string). Any other type is coerced via str(value).
+    /// Supported value types: str, int, float. Other types are handled as a
+    /// best-effort fallback: bool is stored as a 0/1 metric, bytes are UTF-8
+    /// decoded, and any remaining type is coerced via str().
     #[pyo3(name = "_set_attribute")]
     fn set_attribute(
         &mut self,
@@ -454,7 +453,7 @@ impl SpanData {
             self.data.metrics.remove(&*key_pbs);
             self.data.meta.insert(key_pbs, v);
         } else if &*key_pbs == HTTP_STATUS_CODE_KEY {
-            // Force http.status_code to string regardless of value type
+            // Must be stored in meta (not metrics): the trace agent calculates HTTP metrics from it
             let Ok(s) = value.str() else {
                 return Ok(());
             };
@@ -556,7 +555,7 @@ impl SpanData {
     }
 
     /// Return the attribute value for the given key, or None if not found.
-    /// Meta (string) attributes take priority over metrics with the same key.
+    /// Meta and metrics are mutually exclusive per key; meta is checked first as the more common case.
     #[pyo3(name = "_get_attribute")]
     fn get_attribute<'py>(
         &self,
