@@ -10,6 +10,7 @@ variables:
   tags: [ "arch:amd64" ]
   timeout: 20m
   before_script:
+    - apt-get update -qq && apt-get install -y -qq autoconf automake libtool
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
     - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14
