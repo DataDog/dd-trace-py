@@ -497,6 +497,15 @@ class LockCollector(collector.CaptureSamplerCollector):
 
             internal_module_file = threading_module.__file__
 
+        # Precompute the resolved internal module path once — avoids repeated filesystem syscalls
+        # on every lock allocation.
+        precomputed_internal_file: Optional[str] = None
+        if internal_module_file:
+            try:
+                precomputed_internal_file = os.path.normpath(os.path.realpath(internal_module_file))
+            except OSError:
+                pass
+
         # Precompute module exclusion structures once at patch time (not per lock creation).
         # Two structures for fast matching:
         #   exclude_exact  — frozenset for O(1) exact module name lookup
@@ -513,7 +522,6 @@ class LockCollector(collector.CaptureSamplerCollector):
             """
             cdef bint is_internal = False
             cdef str caller_filename
-            cdef str internal_file
             cdef str caller_module
             try:
                 # In Cython, intermediate frames are invisible; caller is at index 0
@@ -527,10 +535,9 @@ class LockCollector(collector.CaptureSamplerCollector):
                         return original_lock(*args, **kwargs)
 
                 # Internal lock detection (e.g., threading.Semaphore creating a Lock internally)
-                if internal_module_file and caller_filename:
+                if precomputed_internal_file and caller_filename:
                     caller_filename = os.path.normpath(os.path.realpath(caller_filename))
-                    internal_file = os.path.normpath(os.path.realpath(internal_module_file))
-                    is_internal = caller_filename == internal_file
+                    is_internal = caller_filename == precomputed_internal_file
             except (ValueError, AttributeError, OSError):
                 pass
 
