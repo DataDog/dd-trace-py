@@ -2,7 +2,7 @@
   {
     "name": "openai.request",
     "service": "tests.contrib.openai",
-    "resource": "createCompletion",
+    "resource": "retrieveModel",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -13,11 +13,15 @@
       "_dd.p.tid": "68757a3200000000",
       "component": "openai",
       "language": "python",
-      "openai.request.endpoint": "/v1/completions",
-      "openai.request.method": "POST",
-      "openai.request.model": "gpt-35-turbo",
-      "openai.request.provider": "AzureOpenAI",
-      "openai.response.model": "gpt-35-turbo",
+      "openai.request.endpoint": "/v1/models/*",
+      "openai.request.method": "GET",
+      "openai.request.model": "curie",
+      "openai.request.provider": "OpenAI",
+      "openai.response.created": "1649359874",
+      "openai.response.id": "curie",
+      "openai.response.owned_by": "openai",
+      "openai.response.parent": "None",
+      "openai.response.root": "curie",
       "runtime-id": "cbc863d986aa4ec2b8a3437b7398c196"
     },
     "metrics": {
@@ -27,6 +31,6 @@
       "_sampling_priority_v1": 1,
       "process_id": 88640
     },
-    "duration": 8631000,
-    "start": 1752529458063286000
+    "duration": 8142000,
+    "start": 1752529458347918000
   }]]

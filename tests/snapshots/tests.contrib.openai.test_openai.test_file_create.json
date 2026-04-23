@@ -1,0 +1,39 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "tests.contrib.openai",
+    "resource": "createFile",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68757a3800000000",
+      "component": "openai",
+      "language": "python",
+      "openai.organization.name": "datadog-4",
+      "openai.request.endpoint": "/v1/files",
+      "openai.request.filename": "training_data.jsonl",
+      "openai.request.method": "POST",
+      "openai.request.provider": "OpenAI",
+      "openai.response.bytes": "1431",
+      "openai.response.created_at": "1685649224",
+      "openai.response.filename": "training_data.jsonl",
+      "openai.response.id": "file-l48KgWVF75Tz2HLqLrcUdBPi",
+      "openai.response.purpose": "fine-tune",
+      "openai.response.status": "uploaded",
+      "openai.response.status_details": "None",
+      "runtime-id": "cbc863d986aa4ec2b8a3437b7398c196"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 88640
+    },
+    "duration": 12014000,
+    "start": 1752529464671002000
+  }]]

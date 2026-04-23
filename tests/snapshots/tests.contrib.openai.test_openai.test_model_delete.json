@@ -1,0 +1,34 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "tests.contrib.openai",
+    "resource": "deleteModel",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68757a3100000000",
+      "component": "openai",
+      "language": "python",
+      "openai.organization.name": "datadog-4",
+      "openai.request.endpoint": "/v1/models/*",
+      "openai.request.method": "DELETE",
+      "openai.request.model": "babbage:ft-datadog:dummy-fine-tune-model-2023-06-01-23-15-52",
+      "openai.request.provider": "OpenAI",
+      "openai.response.deleted": "True",
+      "openai.response.id": "babbage:ft-datadog:dummy-fine-tune-model-2023-06-01-23-15-52",
+      "runtime-id": "cbc863d986aa4ec2b8a3437b7398c196"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 88640
+    },
+    "duration": 7189000,
+    "start": 1752529457796906000
+  }]]

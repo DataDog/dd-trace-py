@@ -1,0 +1,39 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "tests.contrib.openai",
+    "resource": "retrieveFile",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68757a3100000000",
+      "component": "openai",
+      "language": "python",
+      "openai.organization.name": "datadog-4",
+      "openai.request.endpoint": "/v1/files/*",
+      "openai.request.file_id": "file-Aeh42OWPtbWgt7gfUjXBVFAF",
+      "openai.request.method": "GET",
+      "openai.request.provider": "OpenAI",
+      "openai.response.bytes": "91400",
+      "openai.response.created_at": "1683906271",
+      "openai.response.filename": "compiled_results.csv",
+      "openai.response.id": "file-Aeh42OWPtbWgt7gfUjXBVFAF",
+      "openai.response.purpose": "fine-tune-results",
+      "openai.response.status": "processed",
+      "openai.response.status_details": "None",
+      "runtime-id": "cbc863d986aa4ec2b8a3437b7398c196"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 88640
+    },
+    "duration": 7444000,
+    "start": 1752529457498880000
+  }]]
