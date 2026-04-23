@@ -52,8 +52,7 @@ def test_set_correct_parent_id(llmobs, tracer):
     """Test that the parent_id is set as the span_id of the nearest LLMObs span in the span's ancestor tree."""
     with tracer.trace("root"):
         with llmobs.workflow("llm_span") as llm_span:
-            pass
-    assert get_llmobs_parent_id(llm_span) == ROOT_PARENT_ID
+            assert get_llmobs_parent_id(llm_span) == ROOT_PARENT_ID
     with llmobs.workflow("root_llm_span") as root_span:
         assert get_llmobs_parent_id(root_span) == ROOT_PARENT_ID
         with tracer.trace("child_span") as child_span:
