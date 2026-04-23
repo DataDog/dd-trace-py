@@ -1,10 +1,10 @@
-import os
 from uuid import uuid4
 
 import azure.eventhub as azure_eventhub
 import azure.functions as func
 
 import ddtrace.auto  # noqa: F401
+from ddtrace.internal.settings import env
 
 
 app = func.FunctionApp()
@@ -13,7 +13,7 @@ app = func.FunctionApp()
 @app.route(route="sendeventsingle", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
 def send_event(req: func.HttpRequest) -> func.HttpResponse:
     with azure_eventhub.EventHubProducerClient.from_connection_string(
-        conn_str=os.getenv("CONNECTION_STRING", ""),
+        conn_str=env.get("CONNECTION_STRING", ""),
         eventhub_name="eh1",
     ) as eventhub_producer_client:
         event = azure_eventhub.EventData('{"body":"test message"}')
@@ -25,7 +25,7 @@ def send_event(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="sendeventbatch", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
 def send_batch(req: func.HttpRequest) -> func.HttpResponse:
     with azure_eventhub.EventHubProducerClient.from_connection_string(
-        conn_str=os.getenv("CONNECTION_STRING", ""),
+        conn_str=env.get("CONNECTION_STRING", ""),
         eventhub_name="eh1",
     ) as eventhub_producer_client:
         batch = eventhub_producer_client.create_batch()
@@ -35,7 +35,7 @@ def send_batch(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse("Hello Datadog!")
 
 
-if os.getenv("IS_ASYNC") == "True":
+if env.get("IS_ASYNC") == "True":
 
     @app.function_name(name="eventhub")
     @app.event_hub_message_trigger(
@@ -43,7 +43,7 @@ if os.getenv("IS_ASYNC") == "True":
         event_hub_name="eh1",
         consumer_group="cg1",
         connection="CONNECTION_STRING",
-        cardinality=os.getenv("CARDINALITY", "one"),
+        cardinality=env.get("CARDINALITY", "one"),
     )
     async def event_hub_trigger(event: func.EventHubEvent):
         pass
@@ -56,7 +56,7 @@ else:
         event_hub_name="eh1",
         consumer_group="cg1",
         connection="CONNECTION_STRING",
-        cardinality=os.getenv("CARDINALITY", "one"),
+        cardinality=env.get("CARDINALITY", "one"),
     )
     def event_hub_trigger(event: func.EventHubEvent):
         pass
