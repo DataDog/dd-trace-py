@@ -21,6 +21,8 @@ It must NOT mark spans as errored. All wrappers explicitly handle it.
 """
 import contextvars
 import functools
+import hashlib
+import json
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -38,6 +40,9 @@ from ddtrace.propagation.http import HTTPPropagator as Propagator
 
 
 log = get_logger(__name__)
+
+_CHECKPOINT_NAME_PREFIX = "_dd_trace_context_"
+_TERMINAL_STATUSES = ("SUCCEEDED", "FAILED")
 
 
 config._add(
@@ -113,6 +118,205 @@ class TracedThreadPoolExecutor(ThreadPoolExecutor):
 
 
 # ---------------------------------------------------------------------------
+# Trace-context checkpoint helpers
+# ---------------------------------------------------------------------------
+# AIDEV-NOTE: Trace context is persisted across Lambda invocations by writing
+# it into the durable execution state as a STEP operation named
+# ``_dd_trace_context_{N}``.  The datadog-lambda-python wrapper reads it back
+# on the next invocation and activates the context before creating aws.lambda.
+#
+# parent_id semantics: the checkpoint's parent_id should point to the root
+# ``aws.durable-execution`` span (the grandparent of the
+# ``aws.durable_execution.execute`` span being closed).  This keeps each
+# invocation's ``aws.lambda`` span as a sibling of previous invocations,
+# not a descendant.
+# ---------------------------------------------------------------------------
+
+
+def _find_trace_context_checkpoints(state):
+    """Return sorted list of (number, operation) for existing checkpoints."""
+    found = []
+    operations = getattr(state, "operations", None) or {}
+    for op in operations.values():
+        name = getattr(op, "name", None)
+        if not name or not name.startswith(_CHECKPOINT_NAME_PREFIX):
+            continue
+        suffix = name[len(_CHECKPOINT_NAME_PREFIX):]
+        try:
+            number = int(suffix)
+        except ValueError:
+            continue
+        found.append((number, op))
+    found.sort(key=lambda t: t[0])
+    return found
+
+
+def _parse_checkpoint_payload(op):
+    """Extract the headers dict from a checkpoint STEP operation's result."""
+    try:
+        step_details = getattr(op, "step_details", None)
+        if step_details is None:
+            return None
+        result = getattr(step_details, "result", None)
+        if not result:
+            return None
+        parsed = json.loads(result)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        return None
+
+
+def _headers_trace_id(headers):
+    """Extract trace_id from headers (Datadog or W3C format)."""
+    tid = headers.get("x-datadog-trace-id")
+    if tid is not None:
+        return str(tid)
+    tp = headers.get("traceparent")
+    if isinstance(tp, str):
+        parts = tp.split("-")
+        if len(parts) == 4:
+            return parts[1]
+    return None
+
+
+def _headers_parent_id(headers):
+    """Extract parent_id (as string) from headers (Datadog or W3C format)."""
+    pid = headers.get("x-datadog-parent-id")
+    if pid is not None:
+        return str(pid)
+    tp = headers.get("traceparent")
+    if isinstance(tp, str):
+        parts = tp.split("-")
+        if len(parts) == 4:
+            return parts[2]
+    return None
+
+
+def _normalize_headers_ignoring_parent_id(headers):
+    """Return a copy of headers with the parent_id fields zeroed/removed."""
+    result = dict(headers)
+    result.pop("x-datadog-parent-id", None)
+    tp = result.get("traceparent")
+    if isinstance(tp, str):
+        parts = tp.split("-")
+        if len(parts) == 4:
+            parts[2] = "0" * 16
+            result["traceparent"] = "-".join(parts)
+    return result
+
+
+def _override_parent_id(headers, parent_id):
+    """Set parent_id on headers in-place (both Datadog and W3C formats)."""
+    if parent_id is None:
+        return
+    if "x-datadog-trace-id" in headers:
+        headers["x-datadog-parent-id"] = str(parent_id)
+    tp = headers.get("traceparent")
+    if isinstance(tp, str):
+        parts = tp.split("-")
+        if len(parts) == 4:
+            try:
+                as_int = int(parent_id)
+                parts[2] = format(as_int, "016x")
+            except (TypeError, ValueError):
+                # If parent_id is already hex, use as-is (padded/truncated)
+                parts[2] = str(parent_id).rjust(16, "0")[:16]
+            headers["traceparent"] = "-".join(parts)
+
+
+def _save_trace_context_checkpoint(state, number, headers):
+    """Create a ``_dd_trace_context_{number}`` STEP operation with the payload."""
+    from aws_durable_execution_sdk_python.identifier import OperationIdentifier
+    from aws_durable_execution_sdk_python.lambda_service import OperationUpdate
+
+    name = "{}{}".format(_CHECKPOINT_NAME_PREFIX, number)
+    arn = getattr(state, "durable_execution_arn", "") or ""
+    op_id = hashlib.blake2b("{}:{}".format(name, arn).encode()).hexdigest()[:64]
+    payload = json.dumps(headers)
+
+    identifier = OperationIdentifier(operation_id=op_id, name=name)
+
+    state.create_checkpoint(
+        operation_update=OperationUpdate.create_step_start(identifier),
+        is_sync=True,
+    )
+    state.create_checkpoint(
+        operation_update=OperationUpdate.create_step_succeed(identifier, payload),
+        is_sync=True,
+    )
+    log.debug("Saved trace context checkpoint %s", name)
+
+
+def _maybe_save_trace_context_checkpoint(span, durable_context, grandparent_span_id, result):
+    """Save a trace-context checkpoint if the execution will continue and context changed.
+
+    Called right before the ``aws.durable_execution.execute`` span closes.
+    Skips saving when:
+      - There's no DurableContext / ExecutionState
+      - The response ``Status`` is ``SUCCEEDED`` or ``FAILED`` (terminal)
+      - The current trace context matches the latest existing checkpoint
+        (ignoring parent_id)
+    """
+    if span is None or durable_context is None:
+        return
+    state = getattr(durable_context, "state", None)
+    if state is None:
+        return
+
+    # Skip for terminal statuses — no next invocation
+    if isinstance(result, dict):
+        status = result.get("Status")
+        if status in _TERMINAL_STATUSES:
+            return
+
+    # Inject current trace context into headers
+    try:
+        current_headers = {}
+        Propagator.inject(span.context, current_headers)
+    except Exception:
+        return
+    if not current_headers:
+        return
+
+    existing = _find_trace_context_checkpoints(state)
+
+    if not existing:
+        # First checkpoint: _dd_trace_context_0, parent_id = grandparent (root)
+        new_number = 0
+        if grandparent_span_id is not None:
+            _override_parent_id(current_headers, grandparent_span_id)
+    else:
+        latest_number, latest_op = existing[-1]
+        latest_headers = _parse_checkpoint_payload(latest_op)
+        if latest_headers is None:
+            return
+
+        # Warn if trace_id differs — should never happen in a single execution
+        cur_tid = _headers_trace_id(current_headers)
+        prev_tid = _headers_trace_id(latest_headers)
+        if cur_tid and prev_tid and cur_tid != prev_tid:
+            log.warning(
+                "Trace ID mismatch between checkpoints: current=%s previous=%s",
+                cur_tid,
+                prev_tid,
+            )
+
+        # Skip save if trace context is unchanged (ignoring parent_id)
+        if _normalize_headers_ignoring_parent_id(current_headers) == \
+                _normalize_headers_ignoring_parent_id(latest_headers):
+            return
+
+        new_number = latest_number + 1
+        # Reuse previous checkpoint's parent_id (same grandparent)
+        _override_parent_id(current_headers, _headers_parent_id(latest_headers))
+
+    try:
+        _save_trace_context_checkpoint(state, new_number, current_headers)
+    except Exception as e:
+        log.debug("Failed to save trace context checkpoint: %s", e)
+
+
+# ---------------------------------------------------------------------------
 # Wrapper: durable_execution decorator
 # ---------------------------------------------------------------------------
 # AIDEV-NOTE: durable_execution is a decorator. Wrapping it intercepts the
@@ -174,6 +378,20 @@ def _traced_durable_execution(func, instance, args, kwargs):
                 except Exception:
                     pass
 
+        # --- Snapshot grandparent span_id BEFORE creating the execution span ---
+        # The active span at this point is aws.lambda (created by datadog-lambda-python).
+        # Its parent_id is the root aws.durable-execution span's span_id, which we
+        # want to use as the parent_id in trace-context checkpoints so that next
+        # invocations' aws.lambda spans parent to the root rather than nesting.
+        grandparent_span_id = None
+        try:
+            from ddtrace import tracer as _tracer
+            lambda_span = _tracer.current_span()
+            if lambda_span is not None:
+                grandparent_span_id = lambda_span.parent_id
+        except Exception:
+            pass
+
         # --- Create the execution span via event ---
         event = TracingEvent.create(
             component=config.aws_durable_execution_sdk_python.integration_name,
@@ -193,11 +411,23 @@ def _traced_durable_execution(func, instance, args, kwargs):
                 result = user_func(*inner_args, **inner_kwargs)
             except SuspendExecution:
                 # AIDEV-NOTE: SuspendExecution is control flow, not an error.
+                # Save checkpoint before closing the span so the span is still
+                # active (propagator.inject reads from ctx.span.context).
+                _maybe_save_trace_context_checkpoint(
+                    ctx.span, durable_context, grandparent_span_id, None
+                )
                 ctx.dispatch_ended_event()
                 raise
             except BaseException:
-                ctx.dispatch_ended_event(*sys.exc_info())
+                exc_info = sys.exc_info()
+                _maybe_save_trace_context_checkpoint(
+                    ctx.span, durable_context, grandparent_span_id, None
+                )
+                ctx.dispatch_ended_event(*exc_info)
                 raise
+            _maybe_save_trace_context_checkpoint(
+                ctx.span, durable_context, grandparent_span_id, result
+            )
             ctx.dispatch_ended_event()
             return result
 
