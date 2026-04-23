@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    langchain: This fix resolves an issue where Google Gemini models used through LangChain's ``ChatGoogleGenerativeAI`` reported incorrect ``model_provider`` and ``model_name`` values, causing estimated cost tracking to fail. The provider is now correctly extracted as ``google-generative-ai`` instead of ``chat``, and the model name is stripped of path prefixes (e.g. ``models/gemini-2.5-flash`` becomes ``gemini-2.5-flash``).
+    langchain: Strips interface identifiers (e.g. ``chat``, ``llm``) and path prefixes (e.g. ``models/``) when extracting the ``model_provider`` and ``model_name``, so reported values identify the actual provider and model name rather than the LangChain interface or API resource path.
