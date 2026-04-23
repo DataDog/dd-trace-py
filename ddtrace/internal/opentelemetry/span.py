@@ -207,7 +207,6 @@ class Span(OtelSpan):
         if key == "http.status_code":
             if isinstance(value, (int, float)):
                 value = str(value)
-        # TODO: remove bool→str coercion once set_tag callers are migrated
         if isinstance(value, bool):
             value = str(value)
         if isinstance(value, (str, bytes)):
