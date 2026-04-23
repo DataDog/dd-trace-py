@@ -621,7 +621,7 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer,
     kwargs = dict(
         temperature=0,
         max_tokens=15,
-        model_name="claude-3-opus-20240229",
+        model_name="claude-sonnet-4-5-20250929",
     )
 
     if "anthropic_api_url" in langchain_anthropic.ChatAnthropic.__fields__:
@@ -1143,7 +1143,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     @staticmethod
     def _call_anthropic_chat(Anthropic):
         kwargs = dict(
-            model="claude-3-opus-20240229",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=15,
         )
 
