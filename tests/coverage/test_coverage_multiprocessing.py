@@ -118,8 +118,9 @@ def test_coverage_multiprocessing_no_lines_after_stop():
 
         # After stop_coverage(), child data should not be absorbed.
         # Check that no extra lines were injected from the child process.
+        # Use an absolute path — instance.lines keys come from code.co_filename.
         instance = ModuleCodeCollector._instance
-        child_only_file = "tests/coverage/included_path/lib.py"
+        child_only_file = str(Path(cwd) / "tests/coverage/included_path/lib.py")
         assert child_only_file not in instance.lines, (
             f"Child lines leaked into parent after stop_coverage(): {dict(instance.lines)}"
         )

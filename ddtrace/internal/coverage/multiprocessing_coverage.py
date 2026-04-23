@@ -10,6 +10,7 @@ Inspired by the coverage.py multiprocessing support at
 https://github.com/nedbat/coveragepy/blob/401a63bf08bdfd780b662f64d2dfe3603f2584dd/coverage/multiproc.py
 """
 
+from collections import defaultdict
 import json
 import multiprocessing
 from multiprocessing.connection import Connection
@@ -43,6 +44,8 @@ def _is_patched():
 
 
 class CoverageCollectingMultiprocess(BaseProcess):
+    _parent_ctx_covered: t.Optional[defaultdict[str, CoverageLines]]
+
     def _absorb_child_coverage(self) -> None:
         if not self._dd_coverage_enabled or ModuleCodeCollector._instance is None:
             return
@@ -70,14 +73,21 @@ class CoverageCollectingMultiprocess(BaseProcess):
                     lines: dict[str, CoverageLines] = data.get("lines", {})
                     covered: dict[str, CoverageLines] = data.get("covered", {})
 
-                    ModuleCodeCollector.inject_coverage(lines, covered)
+                    # Always register executable lines; only pass covered when global
+                    # coverage is active — inject_coverage() drops covered when
+                    # _coverage_enabled is False, inflating the denominator.
+                    ModuleCodeCollector.inject_coverage(
+                        lines, covered if ModuleCodeCollector.coverage_enabled() else None
+                    )
 
-                    # Also write to the captured parent context if available.
-                    # inject_coverage() may miss context-level coverage when called from
-                    # a management thread that doesn't share the parent's ContextVars.
+                    # Write covered lines directly into the parent context dict.
+                    # inject_coverage() can't reach context coverage from a management
+                    # thread (no shared ContextVars). Clear after use so subsequent
+                    # calls (e.g. close() after join()) don't write into a stale dict.
                     if covered and self._parent_ctx_covered is not None:
                         for path, path_covered in covered.items():
                             self._parent_ctx_covered[path].update(path_covered)
+                        self._parent_ctx_covered = None
                 else:
                     log.debug("Child process sent empty coverage data")
             else:
