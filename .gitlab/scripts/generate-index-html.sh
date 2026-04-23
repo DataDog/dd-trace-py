@@ -14,12 +14,23 @@ if [ ${#WHEELS[@]} -eq 0 ]; then
   exit 1
 fi
 
+# HTML-escape a string so it is safe to embed in tag content or attribute values.
+# Uses sed because bash pattern replacement treats & as a backreference on some versions.
+html_escape() {
+  printf '%s' "$1" | sed \
+    -e 's/&/\&amp;/g' \
+    -e 's/</\&lt;/g' \
+    -e 's/>/\&gt;/g' \
+    -e 's/"/\&quot;/g' \
+    -e "s/'/\&#39;/g"
+}
+
 # Collect build metadata (fall back gracefully when run outside CI)
-COMMIT_SHA="${CI_COMMIT_SHA:-unknown}"
-COMMIT_SHORT="${CI_COMMIT_SHORT_SHA:-${COMMIT_SHA:0:8}}"
-REF_NAME="${CI_COMMIT_REF_NAME:-unknown}"
-PIPELINE_ID="${CI_PIPELINE_ID:-unknown}"
-PKG_VERSION="${PACKAGE_VERSION:-unknown}"
+COMMIT_SHA="$(html_escape "${CI_COMMIT_SHA:-unknown}")"
+COMMIT_SHORT="$(html_escape "${CI_COMMIT_SHORT_SHA:-${CI_COMMIT_SHA:0:8}}")"
+REF_NAME="$(html_escape "${CI_COMMIT_REF_NAME:-unknown}")"
+PIPELINE_ID="$(html_escape "${CI_PIPELINE_ID:-unknown}")"
+PKG_VERSION="$(html_escape "${PACKAGE_VERSION:-unknown}")"
 CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 cat << HTML
@@ -57,7 +68,8 @@ HTML
 for w in "${WHEELS[@]}"; do
   fname="$(basename "$w")"
   enc_fname="${fname//+/%2B}"
-  echo "  <a href=\"${enc_fname}\">${fname}</a>"
+  esc_fname="$(html_escape "$fname")"
+  echo "  <a href=\"${enc_fname}\">${esc_fname}</a>"
 done
 
 echo "</body></html>"
