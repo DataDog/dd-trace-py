@@ -2429,11 +2429,10 @@ class LLMObs(Service):
         if not isinstance(cost_tags, list):
             log.warning("cost_tags must be a list of strings. Ignoring value.")
             if emit_telemetry:
-                telemetry.record_cost_tags_annotated(span, source=source)
-                telemetry.record_cost_tags_accepted(span, accepted_count=0, source=source)
+                telemetry.record_cost_tags_annotated(span, source=source, num_keys=None)
                 # We cannot infer how many entries the caller intended for a non-list payload, so this reports one
                 # invalid occurrence rather than a per-entry dropped count like the list-validation reasons below.
-                telemetry.record_cost_tags_dropped(span, reason="non_list")
+                telemetry.record_cost_tags_submitted(span, count=1, source=source, state="error", reason="non_list")
             return None
 
         span_tags = get_llmobs_tags(span) or {}
@@ -2454,12 +2453,19 @@ class LLMObs(Service):
                 validated_cost_tags.append(cost_tag)
 
         if emit_telemetry:
-            telemetry.record_cost_tags_annotated(span, source=source)
-            telemetry.record_cost_tags_accepted(span, accepted_count=len(validated_cost_tags), source=source)
+            telemetry.record_cost_tags_annotated(span, source=source, num_keys=len(cost_tags))
+            if validated_cost_tags:
+                telemetry.record_cost_tags_submitted(
+                    span, count=len(validated_cost_tags), source=source, state="success"
+                )
             if non_string_entries:
-                telemetry.record_cost_tags_dropped(span, reason="non_string_entry", count=non_string_entries)
+                telemetry.record_cost_tags_submitted(
+                    span, count=non_string_entries, source=source, state="error", reason="non_string_entry"
+                )
             if missing_span_tags:
-                telemetry.record_cost_tags_dropped(span, reason="missing_span_tag", count=missing_span_tags)
+                telemetry.record_cost_tags_submitted(
+                    span, count=missing_span_tags, source=source, state="error", reason="missing_span_tag"
+                )
 
         return validated_cost_tags or None
 

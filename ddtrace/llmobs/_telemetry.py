@@ -35,8 +35,7 @@ class LLMObsTelemetryMetrics:
     PROMPT_SOURCE = "prompt.source"
     PROMPT_FETCH_ERROR = "prompt.fetch.error"
     COST_TAGS_ANNOTATED = "cost_tags.annotated"
-    COST_TAGS_ACCEPTED = "cost_tags.accepted"
-    COST_TAGS_DROPPED = "cost_tags.dropped"
+    COST_TAGS_SUBMITTED = "cost_tags.submitted"
 
 
 def _find_tag_value_from_tags(tags, tag_key):
@@ -190,11 +189,33 @@ def record_llmobs_annotate(span: Optional[Span], error: Optional[str]):
     )
 
 
-def record_cost_tags_annotated(span: Optional[Span], source: str) -> None:
+def _cost_tags_num_keys_bucket(num_keys: Optional[int]) -> str:
+    if num_keys is None:
+        return "unknown"
+    if num_keys == 1:
+        return "1"
+    if num_keys < 5:
+        return "2-4"
+    if num_keys <= 10:
+        return "5-10"
+    return "10+"
+
+
+def record_cost_tags_annotated(span: Optional[Span], source: str, num_keys: Optional[int]) -> None:
     span_kind = "N/A"
+    ml_app = "N/A"
+    model_provider = "N/A"
     if span and isinstance(span, Span):
         span_kind = get_llmobs_span_kind(span) or "N/A"
-    tags = [("span_kind", span_kind), ("source", source)]
+        ml_app = get_llmobs_ml_app(span) or "N/A"
+        model_provider = get_llmobs_model_provider(span) or "N/A"
+    tags = [
+        ("span_kind", span_kind),
+        ("source", source),
+        ("ml_app", ml_app),
+        ("model_provider", model_provider),
+        ("num_keys", _cost_tags_num_keys_bucket(num_keys)),
+    ]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.COST_TAGS_ANNOTATED,
@@ -203,27 +224,25 @@ def record_cost_tags_annotated(span: Optional[Span], source: str) -> None:
     )
 
 
-def record_cost_tags_accepted(span: Optional[Span], accepted_count: int, source: str) -> None:
+def record_cost_tags_submitted(span: Optional[Span], count: int, source: str, state: str, reason: str = "none") -> None:
     span_kind = "N/A"
+    ml_app = "N/A"
+    model_provider = "N/A"
     if span and isinstance(span, Span):
         span_kind = get_llmobs_span_kind(span) or "N/A"
-    tags = [("span_kind", span_kind), ("source", source)]
-    telemetry_writer.add_distribution_metric(
-        namespace=TELEMETRY_NAMESPACE.MLOBS,
-        name=LLMObsTelemetryMetrics.COST_TAGS_ACCEPTED,
-        value=accepted_count,
-        tags=tuple(tags),
-    )
-
-
-def record_cost_tags_dropped(span: Optional[Span], reason: str, count: int = 1) -> None:
-    span_kind = "N/A"
-    if span and isinstance(span, Span):
-        span_kind = get_llmobs_span_kind(span) or "N/A"
-    tags = [("span_kind", span_kind), ("reason", reason)]
+        ml_app = get_llmobs_ml_app(span) or "N/A"
+        model_provider = get_llmobs_model_provider(span) or "N/A"
+    tags = [
+        ("span_kind", span_kind),
+        ("source", source),
+        ("ml_app", ml_app),
+        ("model_provider", model_provider),
+        ("state", state),
+        ("reason", reason),
+    ]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
-        name=LLMObsTelemetryMetrics.COST_TAGS_DROPPED,
+        name=LLMObsTelemetryMetrics.COST_TAGS_SUBMITTED,
         value=count,
         tags=tuple(tags),
     )
