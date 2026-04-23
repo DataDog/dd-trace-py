@@ -737,9 +737,6 @@ venv = Venv(
         Venv(
             name="debugger",
             command="pytest {cmdargs} tests/debugging/",
-            env={
-                "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": None,
-            },
             pkgs={
                 "msgpack": latest,
                 "httpretty": latest,
