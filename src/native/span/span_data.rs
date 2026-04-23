@@ -433,9 +433,8 @@ impl SpanData {
     /// Special case: `http.status_code` is always stored as a string in meta,
     /// regardless of the value type.
     ///
-    /// Supported value types: str, int, float. Other types are handled as a
-    /// best-effort fallback: bool is stored as a 0/1 metric, bytes are UTF-8
-    /// decoded, and any remaining type is coerced via str().
+    /// Supported value types: str, int, float. Unsupported types are coerced
+    /// on a best-effort basis and should not be relied upon.
     #[pyo3(name = "_set_attribute")]
     fn set_attribute(
         &mut self,
