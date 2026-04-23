@@ -16,6 +16,7 @@ from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_trace_id
@@ -362,13 +363,13 @@ def test_error_is_set(tracer, llmobs_events):
     assert 'raise ValueError("error")' in span_event["meta"]["error"]["stack"]
 
 
-def test_model_provider_defaults_to_custom(tracer, llmobs_events):
-    """Test that model provider defaults to "custom" if not provided."""
+def test_model_provider_defaults_to_unknown(tracer, llmobs_events):
+    """Test that model provider defaults to "unknown" if not provided."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm", model_name="model_name")
     span_event = llmobs_events[0]
     assert span_event["meta"]["model_name"] == "model_name"
-    assert span_event["meta"]["model_provider"] == "custom"
+    assert span_event["meta"]["model_provider"] == UNKNOWN_MODEL_PROVIDER
 
 
 def test_model_not_set_if_not_llm_kind_span(tracer, llmobs_events):

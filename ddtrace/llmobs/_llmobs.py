@@ -75,6 +75,8 @@ from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
@@ -368,8 +370,10 @@ def _build_span_meta(
         metadata=llmobs_meta.get(LLMOBS_STRUCT.METADATA) or {},
     )
     if span_kind in ("llm", "embedding"):
-        meta[LLMOBS_STRUCT.MODEL_NAME] = llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME) or ""
-        meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER) or "custom").lower()
+        meta[LLMOBS_STRUCT.MODEL_NAME] = llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME) or UNKNOWN_MODEL_NAME
+        meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (
+            llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER) or UNKNOWN_MODEL_PROVIDER
+        ).lower()
     tool_definitions = llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS)
     if tool_definitions:
         meta[LLMOBS_STRUCT.TOOL_DEFINITIONS] = tool_definitions
@@ -825,6 +829,11 @@ class LLMObs(Service):
             cls._instance.tracer._span_aggregator.dd_processors.append(apm_filter)
 
             cls.enabled = True
+            # Align config._llmobs_enabled with effective state for user-initiated calls.
+            # When _auto=True, the caller (RC handler, env-var auto-start) has already
+            # written the appropriate source; stamping "code" would mask it on precedence.
+            if not _auto:
+                config._llmobs_enabled = True
             cls._instance.start()
 
             # Register hooks for span events
@@ -1537,7 +1546,7 @@ class LLMObs(Service):
         return module_name in ddtrace._monkey._get_patched_modules()
 
     @classmethod
-    def disable(cls) -> None:
+    def disable(cls, _auto: bool = False) -> None:
         if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)
             return
@@ -1546,6 +1555,11 @@ class LLMObs(Service):
 
         cls._instance.stop()
         cls.enabled = False
+        # Align config._llmobs_enabled with effective state for user-initiated calls.
+        # When _auto=True, the caller (RC handler) has already written _rc_value;
+        # stamping "code" here would mask env/code state when _rc_value later clears.
+        if not _auto:
+            config._llmobs_enabled = False
         cls._prompt_manager = None
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
@@ -1946,10 +1960,10 @@ class LLMObs(Service):
         """
         Trace an invocation call to an LLM where inputs and outputs are represented as text.
 
-        :param str model_name: The name of the invoked LLM. If not provided, a default value of "custom" will be set.
+        :param str model_name: The name of the invoked LLM. If not provided, a default value of "unknown" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "llm" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
-                                   If not provided, a default value of "custom" will be set.
+                                   If not provided, a default value of "unknown" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
                            value will be set to the value of `DD_LLMOBS_ML_APP`.
@@ -1959,9 +1973,9 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         if model_name is None:
-            model_name = "custom"
+            model_name = UNKNOWN_MODEL_NAME
         if model_provider is None:
-            model_provider = "custom"
+            model_provider = UNKNOWN_MODEL_PROVIDER
         return cls._instance._start_span(
             "llm",
             name,
@@ -2098,10 +2112,10 @@ class LLMObs(Service):
         Trace a call to an embedding model or function to create an embedding.
 
         :param str model_name: The name of the invoked embedding model.
-                               If not provided, a default value of "custom" will be set.
+                               If not provided, a default value of "unknown" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "embedding" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
-                                   If not provided, a default value of "custom" will be set.
+                                   If not provided, a default value of "unknown" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
                            value will be set to the value of `DD_LLMOBS_ML_APP`.
@@ -2111,9 +2125,9 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         if model_name is None:
-            model_name = "custom"
+            model_name = UNKNOWN_MODEL_NAME
         if model_provider is None:
-            model_provider = "custom"
+            model_provider = UNKNOWN_MODEL_PROVIDER
         return cls._instance._start_span(
             "embedding",
             name,
