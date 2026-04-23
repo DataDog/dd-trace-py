@@ -15,6 +15,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.contrib.internal.django.compat import get_resolver
+from ddtrace.contrib.internal.django.patch import _collect_routes_once
 from ddtrace.contrib.internal.django.utils import REQUEST_DEFAULT_RESOURCE
 from ddtrace.contrib.internal.django.utils import _after_request_tags
 from ddtrace.contrib.internal.django.utils import _before_request_tags
@@ -141,6 +142,9 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
                 if uri is not None and query:
                     uri += "?" + query
                 resolver = get_resolver(getattr(request, "urlconf", None))
+                # Walk the resolver tree once per unique resolver to populate
+                # the endpoint collection with full include()-joined paths.
+                _collect_routes_once(resolver)
                 if resolver:
                     try:
                         path = resolver.resolve(request.path_info).kwargs
@@ -202,6 +206,9 @@ async def traced_get_response_async(
     # Reset the span resource so we can know if it was modified during the request or not
     span.resource = REQUEST_DEFAULT_RESOURCE
     _before_request_tags(pin, span, request)
+    # Walk the resolver tree once per unique resolver to populate the endpoint
+    # collection with full include()-joined paths (mirrors the sync path).
+    _collect_routes_once(get_resolver(getattr(request, "urlconf", None)))
     response = None
     try:
         response = await func(*args, **kwargs)
