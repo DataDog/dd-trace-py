@@ -1,10 +1,9 @@
 import sqlite3
 import sqlite3.dbapi2
 
-import wrapt
+from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
@@ -14,10 +13,8 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.wrappers import unwrap as _u
 
-
-# Original connect method
-_connect = sqlite3.connect
 
 config._add(
     "sqlite",
@@ -42,10 +39,9 @@ def patch():
     if getattr(sqlite3, "_datadog_patch", False):
         return
     sqlite3._datadog_patch = True
-    wrapped = wrapt.FunctionWrapper(_connect, traced_connect)
 
-    sqlite3.connect = wrapped
-    sqlite3.dbapi2.connect = wrapped
+    _w(sqlite3, "connect", traced_connect)
+    _w(sqlite3.dbapi2, "connect", traced_connect)
 
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
@@ -57,19 +53,14 @@ def patch():
 def unpatch():
     if getattr(sqlite3, "_datadog_patch", False):
         sqlite3._datadog_patch = False
-    sqlite3.connect = _connect
-    sqlite3.dbapi2.connect = _connect
+
+        _u(sqlite3, "connect")
+        _u(sqlite3.dbapi2, "connect")
 
 
 def traced_connect(func, _, args, kwargs):
     conn = func(*args, **kwargs)
-    return patch_conn(conn)
-
-
-def patch_conn(conn):
-    wrapped = TracedSQLite(conn)
-    Pin(tags={db.SYSTEM: "sqlite"}).onto(wrapped)
-    return wrapped
+    return TracedSQLite(conn)
 
 
 class TracedSQLiteCursor(TracedCursor):
@@ -89,12 +80,13 @@ class TracedSQLiteFetchCursor(TracedSQLiteCursor, FetchTracedCursor):
 
 
 class TracedSQLite(TracedConnection):
-    def __init__(self, conn, pin=None, cursor_cls=None):
+    def __init__(self, conn, cursor_cls=None):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = TracedSQLiteFetchCursor if config.sqlite.trace_fetch_methods else TracedSQLiteCursor
-
-            super(TracedSQLite, self).__init__(conn, pin=pin, cfg=config.sqlite, cursor_cls=cursor_cls)
+            super(TracedSQLite, self).__init__(
+                conn, cfg=config.sqlite, cursor_cls=cursor_cls, db_tags={db.SYSTEM: "sqlite"}
+            )
 
     def execute(self, *args, **kwargs):
         # sqlite has a few extra sugar functions

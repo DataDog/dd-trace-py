@@ -57,3 +57,11 @@ class TestCodeowners:
 
         team_b_span = event_capture.event_by_test_name("test_team_b")
         assert json.loads(team_b_span["content"]["meta"]["test.codeowners"]) == ["@team-b", "@backup-b"]
+
+        # Suite-level codeowners should match the suite's source file ownership.
+        suite_events = {e["content"]["meta"]["test.suite"]: e for e in event_capture.events_by_type("test_suite_end")}
+        assert json.loads(suite_events["test_team_a.py"]["content"]["meta"]["test.codeowners"]) == ["@default-team"]
+        assert json.loads(suite_events["test_team_b.py"]["content"]["meta"]["test.codeowners"]) == [
+            "@team-b",
+            "@backup-b",
+        ]

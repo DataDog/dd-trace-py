@@ -41,6 +41,7 @@
        "type": "http",
        "meta": {
          "_dd.base_service": "test-func",
+         "_dd.svc_src": "requests",
          "component": "requests",
          "http.method": "GET",
          "http.status_code": "200",

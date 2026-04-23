@@ -19,7 +19,10 @@
 class EchionSampler;
 
 // ----------------------------------------------------------------------------
-class FrameStack : public std::deque<Frame::Ref>
+// FrameStack owns the Frames so that they stay valid across cache evictions
+// (asyncio unwind_tasks precomputes per-task stacks via Frame::get, which can
+// evict entries still referenced from an earlier thread-stack capture).
+class FrameStack : public std::deque<Frame>
 {
   public:
     using Key = Frame::Key;

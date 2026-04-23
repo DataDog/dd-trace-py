@@ -942,3 +942,45 @@ def test_apm_tracing_start_collects_product_apm_capabilities():
             mock_poller.register_callback.assert_called_once()
             _, kwargs = mock_poller.register_callback.call_args
             assert FakeCapabilities.MY_CAP in kwargs["capabilities"]
+
+
+def test_send_request_retries_once_on_oserror():
+    """First attempt raises OSError; the retry decorator should produce a successful second call."""
+    client = RemoteConfigClient()
+    attempts = []
+
+    def fake_get_connection(*args, **kwargs):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise OSError("timed out")
+        mock_conn = mock.MagicMock()
+        mock_conn.getresponse.return_value.status = 200
+        mock_conn.getresponse.return_value.headers.get.return_value = None
+        mock_conn.getresponse.return_value.read.return_value = b'{"ok": true}'
+        return mock_conn
+
+    with mock.patch("ddtrace.internal.agent.get_connection", side_effect=fake_get_connection):
+        result = client._send_request("{}")
+
+    assert len(attempts) == 2
+    assert result == {"ok": True}
+
+
+def test_online_tolerates_transient_failures_before_bouncing(remote_config_worker):
+    """_online should stay in _online for N-1 consecutive failures, and bounce on the Nth."""
+    worker = RemoteConfigPoller()
+    worker._state = worker._online
+    threshold = worker._MAX_CONSECUTIVE_FAILURES
+
+    with mock.patch.object(worker._client, "request", return_value=False):
+        for i in range(threshold - 1):
+            worker._online()
+            assert worker._state == worker._online, f"bounced too early at failure {i + 1}"
+            assert worker._consecutive_failures == i + 1
+
+        worker._online()
+        assert worker._state == worker._agent_check
+        assert worker._consecutive_failures == 0
+
+    worker.stop_subscriber(True)
+    worker.disable()

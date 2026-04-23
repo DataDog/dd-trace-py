@@ -1,4 +1,3 @@
-import asyncio
 import csv
 from dataclasses import dataclass
 from dataclasses import field
@@ -75,6 +74,7 @@ from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
+from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
@@ -126,6 +126,7 @@ from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
+from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -134,6 +135,7 @@ from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._writer import LLMObsAPIClient
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
@@ -158,22 +160,8 @@ from ddtrace.version import __version__
 log = get_logger(__name__)
 
 
-SUPPORTED_LLMOBS_INTEGRATIONS = {
-    "anthropic": "anthropic",
-    "bedrock": "botocore",
-    "openai": "openai",
-    "langchain": "langchain",
-    "google_adk": "google_adk",
-    "google_genai": "google_genai",
-    "vertexai": "vertexai",
-    "langgraph": "langgraph",
-    "litellm": "litellm",
-    "crewai": "crewai",
-    "openai_agents": "openai_agents",
-    "mcp": "mcp",
-    "pydantic_ai": "pydantic_ai",
-    "claude_agent_sdk": "claude_agent_sdk",
-    # requests/concurrent frameworks for distributed injection/extraction
+# requests/concurrent frameworks for distributed injection/extraction
+_INTEGRATIONS_W_PROPAGATION_SUPPORT: dict[str, str] = {
     "requests": "requests",
     "httpx": "httpx",
     "urllib3": "urllib3",
@@ -200,7 +188,7 @@ _SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
 def _validate_task_signature(task: Callable, is_async: bool) -> None:
     if not callable(task):
         raise TypeError("task must be a callable function.")
-    if is_async and not asyncio.iscoroutinefunction(task):
+    if is_async and not get_asyncio().iscoroutinefunction(task):
         raise TypeError("task must be an async function (coroutine function).")
     sig = inspect.signature(task)
     params = sig.parameters
@@ -475,6 +463,7 @@ class LLMObs(Service):
             _default_project=Project(name=self._project_name, _id=""),
             is_agentless=True,  # agent proxy doesn't seem to work for experiments
         )
+        self._api_client = LLMObsAPIClient(app_key=self._app_key)
 
         forksafe.register(self._child_after_fork)
 
@@ -493,7 +482,7 @@ class LLMObs(Service):
             self._submit_llmobs_span(span)
             telemetry.record_span_created(span)
             if self._export_llmobs:
-                span._meta_struct.pop(LLMOBS_STRUCT.KEY, None)
+                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
 
     def _submit_llmobs_span(self, span: Span) -> None:
         """Generate and submit an LLMObs span event to be sent to LLMObs."""
@@ -836,6 +825,11 @@ class LLMObs(Service):
             cls._instance.tracer._span_aggregator.dd_processors.append(apm_filter)
 
             cls.enabled = True
+            # Align config._llmobs_enabled with effective state for user-initiated calls.
+            # When _auto=True, the caller (RC handler, env-var auto-start) has already
+            # written the appropriate source; stamping "code" would mask it on precedence.
+            if not _auto:
+                config._llmobs_enabled = True
             cls._instance.start()
 
             # Register hooks for span events
@@ -1512,6 +1506,7 @@ class LLMObs(Service):
         experiment._evaluators = evaluators
 
         coro = experiment._run_task_single_iteration(jobs, raise_errors, run_iteration)
+        asyncio = get_asyncio()
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -1539,12 +1534,15 @@ class LLMObs(Service):
 
     @classmethod
     def _integration_is_enabled(cls, integration: str) -> bool:
-        if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
+        module_name = SUPPORTED_LLMOBS_INTEGRATIONS.get(
+            integration, _INTEGRATIONS_W_PROPAGATION_SUPPORT.get(integration)
+        )
+        if module_name is None:
             return False
-        return SUPPORTED_LLMOBS_INTEGRATIONS[integration] in ddtrace._monkey._get_patched_modules()
+        return module_name in ddtrace._monkey._get_patched_modules()
 
     @classmethod
-    def disable(cls) -> None:
+    def disable(cls, _auto: bool = False) -> None:
         if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)
             return
@@ -1553,6 +1551,11 @@ class LLMObs(Service):
 
         cls._instance.stop()
         cls.enabled = False
+        # Align config._llmobs_enabled with effective state for user-initiated calls.
+        # When _auto=True, the caller (RC handler) has already written _rc_value;
+        # stamping "code" here would mask env/code state when _rc_value later clears.
+        if not _auto:
+            config._llmobs_enabled = False
         cls._prompt_manager = None
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
@@ -1797,9 +1800,12 @@ class LLMObs(Service):
         """
         Patch LLM integrations. Ensure that we do not ignore DD_TRACE_<MODULE>_ENABLED or DD_PATCH_MODULES settings.
         """
+        llm_integrations: list[str] = list(SUPPORTED_LLMOBS_INTEGRATIONS.values()) + list(
+            _INTEGRATIONS_W_PROPAGATION_SUPPORT.values()
+        )
         integrations_to_patch: dict[str, Union[list[str], bool]] = {
             integration: ["bedrock-runtime", "bedrock-agent-runtime"] if integration == "botocore" else True
-            for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()
+            for integration in llm_integrations
         }
         for module, _ in integrations_to_patch.items():
             env_var = "DD_TRACE_%s_ENABLED" % module.upper()
@@ -1808,7 +1814,7 @@ class LLMObs(Service):
         dd_patch_modules = _env.get("DD_PATCH_MODULES")
         dd_patch_modules_to_str = parse_tags_str(dd_patch_modules)
         integrations_to_patch.update(
-            {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
+            {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in llm_integrations}
         )
         patch(raise_errors=True, **integrations_to_patch)
         llm_patched_modules = [k for k, v in integrations_to_patch.items() if v]
@@ -2468,9 +2474,10 @@ class LLMObs(Service):
         metadata: Optional[dict[str, object]] = None,
         assessment: Optional[str] = None,
         reasoning: Optional[str] = None,
+        eval_scope: str = "span",
     ) -> None:
         """
-        Submits a custom evaluation metric for a given span.
+        Submits a custom evaluation metric for a given span or trace.
 
         :param str label: The name of the evaluation metric.
         :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
@@ -2488,6 +2495,9 @@ class LLMObs(Service):
                                 evaluation metric.
         :param str assessment: An assessment of this evaluation. Must be either "pass" or "fail".
         :param str reasoning: An explanation of the evaluation result.
+        :param str eval_scope: The scope of the evaluation. One of "span" (default) or "trace".
+                                Use "trace" to associate the evaluation with an entire trace (the span provided
+                                via `span` should be the root span).
         """
         if cls.enabled is False:
             log.debug(
@@ -2497,7 +2507,7 @@ class LLMObs(Service):
             return
 
         error = None
-        join_on = {}
+        join_on: dict[str, Any] = {}
         try:
             has_exactly_one_joining_key = (span is not None) ^ (span_with_tag_value is not None)
 
@@ -2534,6 +2544,10 @@ class LLMObs(Service):
                     "key": span_with_tag_value.get("tag_key"),
                     "value": span_with_tag_value.get("tag_value"),
                 }
+
+            if eval_scope not in ("span", "trace"):
+                error = "invalid_eval_scope"
+                raise ValueError("eval_scope must be one of 'span' or 'trace'.")
 
             timestamp_ms = timestamp_ms if timestamp_ms else int(time.time() * 1000)
 
@@ -2600,6 +2614,7 @@ class LLMObs(Service):
                 "{}_value".format(metric_type): value,  # type: ignore
                 "ml_app": ml_app,
                 "tags": ["{}:{}".format(k, v) for k, v in evaluation_tags.items()],
+                "eval_scope": eval_scope,
             }
 
             if assessment:
@@ -2632,6 +2647,75 @@ class LLMObs(Service):
             cls._instance._llmobs_eval_metric_writer.enqueue(evaluation_metric)
         finally:
             telemetry.record_llmobs_submit_evaluation(join_on, metric_type, error)
+
+    @classmethod
+    def get_spans(
+        cls,
+        trace_id: Optional[str] = None,
+        span_id: Optional[str] = None,
+        query: Optional[str] = None,
+        span_kind: Optional[str] = None,
+        span_name: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        tags: Optional[dict[str, str]] = None,
+        from_date: str = "now-7d",
+        to_date: str = "now",
+        sort: str = "timestamp",
+        include_attachments: bool = True,
+        limit: int = 10,
+    ) -> list[dict]:
+        """
+        Retrieves LLM span events from the Datadog platform API.
+
+        :param str trace_id: Filter spans by trace ID.
+        :param str span_id: Filter to a specific span by ID.
+        :param str query: Filter spans using EVP query syntax.
+        :param str span_kind: Filter by span kind. One of: ``agent``, ``workflow``, ``llm``,
+                               ``tool``, ``task``, ``embedding``, ``retrieval``.
+        :param str span_name: Filter by span name.
+        :param str ml_app: Filter by ML application name. Defaults to ``DD_LLMOBS_ML_APP``
+                            if set; otherwise the query is not scoped to an ml_app.
+        :param dict tags: Filter by tag key-value pairs, e.g. ``{"utterance_id": "123"}``.
+        :param str from_date: Start of the time range. Accepts ISO 8601, date math
+                               (e.g. ``"now-7d"``), or millisecond timestamps. Default: ``"now-7d"``.
+        :param str to_date: End of the time range. Same formats as ``from_date``. Default: ``"now"``.
+        :param str sort: Sort order. ``"timestamp"`` for earliest-first (default),
+                          ``"-timestamp"`` for latest-first.
+        :param bool include_attachments: If ``True`` (default), span input/output content larger
+                                          than 25KB is fetched from blob storage and inlined into
+                                          the response. If ``False``, truncated values are returned.
+        :param int limit: Maximum number of spans to fetch per page (1–5000). Default: 10.
+        :returns: A flat list of span attribute dicts. Each dict contains fields such as
+                  ``span_id``, ``trace_id``, ``name``, ``span_kind``, ``start_ns``, ``duration``,
+                  ``input``, ``output``, ``metrics``, and ``tags``.
+        :rtype: list[dict]
+        """
+        ml_app = resolve_ml_app(ml_app)
+
+        optional_filters = (
+            ("trace_id", trace_id),
+            ("span_id", span_id),
+            ("query", query),
+            ("span_kind", span_kind),
+            ("span_name", span_name),
+            ("ml_app", ml_app),
+        )
+
+        base_params: dict[str, Any] = {
+            "filter[from]": from_date,
+            "filter[to]": to_date,
+            "sort": sort,
+            "include_attachments": str(include_attachments).lower(),
+            "page[limit]": limit,
+        }
+        for key, val in optional_filters:
+            if val is not None:
+                base_params["filter[{}]".format(key)] = val
+
+        for k, v in (tags or {}).items():
+            base_params["filter[tag][{}]".format(k)] = v
+
+        return cls._instance._api_client.get_spans(base_params)
 
     @classmethod
     def _inject_llmobs_context(cls, span_context: Context, request_headers: dict[str, str]) -> None:

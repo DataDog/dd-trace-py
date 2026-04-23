@@ -5,6 +5,7 @@ import starlette
 
 from tests.appsec.contrib_appsec import utils
 from tests.appsec.contrib_appsec.fastapi_app.app import get_app
+from tests.appsec.contrib_appsec.fastapi_app.app_subapps import get_app_with_subapps
 from tests.utils import scoped_tracer
 
 
@@ -17,14 +18,19 @@ HTTPX_VERSION = tuple(int(v) for v in httpx.__version__.split("."))
 class _Test_FastAPI_Base:
     """FastAPI-specific interface, response accessors, and argument parsing."""
 
-    @pytest.fixture
-    def interface(self, printer):
+    @pytest.fixture(params=[get_app, get_app_with_subapps], ids=["flat", "subapp"])
+    def interface(self, printer, request):
         from fastapi.testclient import TestClient
+
+        from ddtrace.internal.endpoints import endpoint_collection
+
+        # Reset the singleton endpoint collection so each app variant starts clean
+        endpoint_collection.reset()
 
         # for fastapi, test tracer needs to be set before the app is created
         # contrary to other frameworks
         with scoped_tracer() as tracer:
-            application = get_app()
+            application = request.param()
 
             client = TestClient(application, base_url="http://localhost:%d" % self.SERVER_PORT)
 
@@ -120,7 +126,23 @@ class _Test_FastAPI_Base:
 
 
 class Test_FastAPI(_Test_FastAPI_Base, utils.Contrib_TestClass_For_Threats):
-    pass
+    ENDPOINT_DISCOVERY_EXPECTED_PATHS = {
+        "/",
+        "/asm/{param_int:int}/{param_str:str}",
+        "/asm/",
+        "/new_service/{service_name:str}",
+        "/login/",
+        "/login_sdk/",
+        "/rasp/{endpoint:str}/",
+    }
+
+    @staticmethod
+    def endpoint_path_to_uri(path: str) -> str:
+        import re
+
+        path = re.sub(r"\{[a-z_]+:int\}", "123", path)
+        path = re.sub(r"\{[a-z_]+:str\}", "abczx", path)
+        return path
 
 
 class Test_FastAPI_RC(_Test_FastAPI_Base, utils.Contrib_TestClass_For_Threats_RC):

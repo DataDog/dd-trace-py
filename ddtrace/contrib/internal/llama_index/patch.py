@@ -87,6 +87,7 @@ def _create_event(
     provider = get_model_provider(instance)
     return LlmRequestEvent(
         component="llama_index",
+        integration_config=integration.integration_config,
         service=int_service(None, integration.integration_config),
         resource=resource,
         provider=provider,

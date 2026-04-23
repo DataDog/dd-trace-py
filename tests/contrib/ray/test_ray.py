@@ -44,19 +44,20 @@ class TestRayIntegration(TracerTestCase):
 
     @pytest.fixture(autouse=True, scope="class")
     def ray_cluster(self):
-        # Configure Ray with minimal resource usage for CI
-        ray.init(
-            _tracing_startup_hook="ddtrace.contrib.ray:setup_tracing",
-            local_mode=True,
-            num_cpus=1,
-            num_gpus=0,
-            object_store_memory=78643200,
-            include_dashboard=False,
-            log_to_driver=False,
-        )
-        tracing_helper._global_is_tracing_enabled = False
-        yield
-        ray.shutdown()
+        with override_config("ray", dict(submission_spans=True)):
+            # Configure Ray with minimal resource usage for CI
+            ray.init(
+                _tracing_startup_hook="ddtrace.contrib.ray:setup_tracing",
+                local_mode=True,
+                num_cpus=1,
+                num_gpus=0,
+                object_store_memory=78643200,
+                include_dashboard=False,
+                log_to_driver=False,
+            )
+            tracing_helper._global_is_tracing_enabled = False
+            yield
+            ray.shutdown()
 
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_task", ignores=RAY_SNAPSHOT_IGNORES)
     def test_simple_task(self):

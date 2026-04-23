@@ -159,6 +159,9 @@ CLAUDE.local.md
 .claude/settings.local.json
 .claude/worktrees/
 
+# oh-my-claudecode
+.omc/
+
 # Riot
 .riot/venv*
 .riot/envs/
@@ -191,14 +194,15 @@ cloned_venvs/
 # CircleCI generated config
 .circleci/config.gen.yml
 # GitLab CI generated config
-.gitlab/*-gen.yml
+.gitlab/**/*-gen.yml
+.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
 .gitlab-ci-local/
 
 # Automatically generated fixtures
-tests/appsec/iast/fixtures/aspects/obj_callers.py
-tests/appsec/iast/fixtures/aspects/unpatched_obj_callers.py
-tests/appsec/iast/fixtures/aspects/callers.py
-tests/appsec/iast/fixtures/aspects/unpatched_callers.py
+tests/appsec/iast/fixtures/aspects/obj_callers*.py
+tests/appsec/iast/fixtures/aspects/unpatched_obj_callers*.py
+tests/appsec/iast/fixtures/aspects/callers*.py
+tests/appsec/iast/fixtures/aspects/unpatched_callers*.py
 tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 
 #MacOS files

@@ -20,7 +20,7 @@ from ddtrace.trace import tracer
 class BenchmarkTracingEvent(TracingEvent):
     event_name = "events.api.event"
 
-    span_name = "benchmarking"
+    operation_name = "benchmarking"
     span_type = "base"
     span_kind = "client"
     component = "test"
@@ -94,6 +94,7 @@ class EventsAPIScenario(bm.Scenario):
                         service="base",
                         url="myurl.com",
                         component="test",
+                        integration_config={},
                         method="GET",
                         status_code=200,
                         resource="test",

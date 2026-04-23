@@ -91,7 +91,12 @@ def test_sync_worker_ttl(queue):
     job = queue.enqueue(job_add1, 1, result_ttl=0)
     worker = rq.SimpleWorker([queue], connection=queue.connection)
     worker.work(burst=True)
-    assert job.get_status() is None
+    if rq_version >= (2, 0, 0):
+        # RQ 2.x raises InvalidJobOperation when the job key is gone from Redis
+        with pytest.raises(Exception, match="Failed to retrieve status"):
+            job.get_status()
+    else:
+        assert job.get_status() is None
     assert job.result is None
 
 
@@ -127,6 +132,12 @@ def test_worker_class_job(queue):
     queue.enqueue(JobClass(), 4)
     worker = rq.SimpleWorker([queue], connection=queue.connection)
     worker.work(burst=True)
+
+
+@snapshot(ignores=[i for i in snapshot_ignores if i != "meta.job.id"])
+def test_custom_job_id_in_span_tags(sync_queue):
+    """Verify a user-supplied job ID is propagated correctly to all span tags."""
+    sync_queue.enqueue(job_add1, 1, job_id="my-custom-job-id")
 
 
 @pytest.mark.parametrize("distributed_tracing_enabled", [False, None])

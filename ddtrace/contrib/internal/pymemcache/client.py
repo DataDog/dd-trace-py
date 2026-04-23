@@ -19,6 +19,7 @@ from ddtrace._trace.pin import Pin
 # project
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -307,10 +308,10 @@ def _trace(func, p, method_name, *args, **kwargs):
     """
     with tracer.trace(
         schematize_cache_operation(memcachedx.CMD, cache_provider="memcached"),
-        service=p.service,
         resource=method_name,
         span_type=SpanTypes.CACHE,
     ) as span:
+        set_service_and_source(span, p.service, config.pymemcache)
         span._set_attribute(COMPONENT, config.pymemcache.integration_name)
         span._set_attribute(db.SYSTEM, memcachedx.DBMS_NAME)
 
