@@ -326,10 +326,7 @@ def test_aggregator_partial_flush_0_spans():
 
 def test_aggregator_partial_flush_2_spans():
     writer = DummyWriter()
-    aggr = SpanAggregator(
-        partial_flush_enabled=True,
-        partial_flush_min_spans=2,
-    )
+    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=2)
     aggr.writer = writer
 
     # Normal usage

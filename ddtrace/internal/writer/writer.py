@@ -1060,9 +1060,7 @@ def _use_sync_mode() -> bool:
     )
 
 
-def create_trace_writer(
-    response_callback: Optional[Callable[[AgentResponse], None]] = None,
-) -> TraceWriter:
+def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], None]] = None) -> TraceWriter:
     if _use_log_writer():
         return LogWriter()
 
