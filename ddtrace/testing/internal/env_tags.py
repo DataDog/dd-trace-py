@@ -13,6 +13,7 @@ from ddtrace.testing.internal.git import get_pr_base_commit_sha
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.offline_mode import resolve_rlocation
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.utils import _filter_sensitive_info
 
 
@@ -20,6 +21,11 @@ log = logging.getLogger(__name__)
 
 
 _TagDict = dict[str, t.Optional[str]]
+
+# Provider name constants used in commit SHA consistency telemetry
+_PROVIDER_USER_SUPPLIED = "user_supplied"
+_PROVIDER_CI = "ci_provider"
+_PROVIDER_GIT_CLIENT = "git_client"
 
 
 def merge_tags(target: _TagDict, *tag_dicts: _TagDict) -> None:
@@ -57,6 +63,43 @@ def _read_env_data_file() -> dict[str, str]:
     return {}
 
 
+def _check_commit_sha_consistency(
+    user_supplied_tags: _TagDict,
+    ci_provider_tags: _TagDict,
+    git_client_tags: _TagDict,
+) -> None:
+    """Compare git.commit.sha and git.repository_url across all provider pairs and emit telemetry.
+
+    Emits git.commit_sha_discrepancy for each pair where both sides have a value and they differ.
+    Always emits exactly one git.commit_sha_match metric.
+    """
+    if TelemetryAPI._instance is None:
+        return
+
+    telemetry = TelemetryAPI.get()
+
+    provider_pairs = [
+        (_PROVIDER_CI, ci_provider_tags, _PROVIDER_GIT_CLIENT, git_client_tags),
+        (_PROVIDER_USER_SUPPLIED, user_supplied_tags, _PROVIDER_GIT_CLIENT, git_client_tags),
+        (_PROVIDER_USER_SUPPLIED, user_supplied_tags, _PROVIDER_CI, ci_provider_tags),
+    ]
+    fields = [
+        (GitTag.COMMIT_SHA, "commit_discrepancy"),
+        (GitTag.REPOSITORY_URL, "repository_discrepancy"),
+    ]
+
+    has_mismatch = False
+    for expected_name, expected_tags, discrepant_name, discrepant_tags in provider_pairs:
+        for tag_key, discrepancy_type in fields:
+            left = expected_tags.get(tag_key)
+            right = discrepant_tags.get(tag_key)
+            if left and right and left != right:
+                has_mismatch = True
+                telemetry.record_commit_sha_discrepancy(expected_name, discrepant_name, discrepancy_type)
+
+    telemetry.record_commit_sha_match(not has_mismatch)
+
+
 def get_env_tags() -> dict[str, str]:
     # NOTE: In payload-files mode (Bazel sandbox output), CI/Git/OS/runtime tags
     # must NOT be populated from the local environment or git CLI. Instead, the
@@ -73,13 +116,13 @@ def get_env_tags() -> dict[str, str]:
 
     tags: _TagDict = {}
 
-    merge_tags(
-        tags,
-        git.get_git_tags_from_git_command(),
-        ci.get_ci_tags(os.environ),
-        git.get_git_tags_from_dd_variables(os.environ),
-        get_custom_dd_tags(os.environ),
-    )
+    local_git_tags = git.get_git_tags_from_git_command()
+    ci_provider_tags = ci.get_ci_tags(os.environ)
+    user_supplied_tags = git.get_git_tags_from_dd_variables(os.environ)
+
+    merge_tags(tags, local_git_tags, ci_provider_tags, user_supplied_tags, get_custom_dd_tags(os.environ))
+
+    _check_commit_sha_consistency(user_supplied_tags, ci_provider_tags, local_git_tags)
 
     if head_sha := tags.get(GitTag.COMMIT_HEAD_SHA):
         merge_tags(tags, git.get_git_head_tags_from_git_command(head_sha))

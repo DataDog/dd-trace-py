@@ -38,7 +38,7 @@
         "dependency": "aiomysql",
         "integration": "aiomysql",
         "minimum_tracer_supported": "0.1.1",
-        "max_tracer_supported": "0.2.0",
+        "max_tracer_supported": "0.3.2",
         "auto-instrumented": true
     },
     {
@@ -682,7 +682,7 @@
         "dependency": "rq",
         "integration": "rq",
         "minimum_tracer_supported": "1.8.1",
-        "max_tracer_supported": "1.16.2",
+        "max_tracer_supported": "2.0.0",
         "auto-instrumented": true
     },
     {

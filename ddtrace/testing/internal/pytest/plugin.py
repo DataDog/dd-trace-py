@@ -320,6 +320,15 @@ class TestOptPlugin:
 
         if self.enable_all_ddtrace_integrations:
             enable_all_ddtrace_integrations()
+        elif self.enable_ddtrace_trace_filter:
+            # Patch Selenium so browser tests get test visibility tags (test.is_browser, test.browser.*).
+            # We create a root span with type=test in trace_context(); Selenium integration checks for that span.
+            try:
+                from ddtrace.contrib.internal.selenium.patch import patch as patch_selenium
+
+                patch_selenium()
+            except Exception:
+                log.debug("Could not patch Selenium for test visibility", exc_info=True)
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
@@ -520,6 +529,7 @@ class TestOptPlugin:
         )
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
+            self.manager._set_suite_source_location(test_suite)
             if codeowners := test.tags.get(TestTag.CODEOWNERS):
                 test_suite.tags[TestTag.CODEOWNERS] = codeowners
             test_suite.finish()
