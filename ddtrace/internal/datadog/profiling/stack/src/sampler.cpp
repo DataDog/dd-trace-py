@@ -631,12 +631,18 @@ Sampler::link_greenlets(uintptr_t parent, uintptr_t child)
 void
 Sampler::update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame)
 {
-    std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
+    // Use try_lock to avoid blocking greenlet switches when the sampler
+    // thread holds the lock during unwind_greenlets() Phase 1.  If we
+    // cannot acquire the lock we simply skip the update; the sampler will
+    // see a slightly stale frame pointer, which is acceptable for
+    // statistical profiling.
+    std::unique_lock<std::mutex> guard(echion->greenlet_info_map_lock(), std::try_to_lock);
+    if (!guard.owns_lock())
+        return;
 
     auto& greenlet_info_map = echion->greenlet_info_map();
     auto entry = greenlet_info_map.find(greenlet_id);
     if (entry != greenlet_info_map.end()) {
-        // Update the frame of the greenlet
         entry->second->frame = frame;
     }
 }
