@@ -29,6 +29,7 @@ from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_a
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.contrib.internal.trace_utils_base import set_user  # noqa:F401
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
@@ -512,9 +513,11 @@ def set_http_meta(
         if request_ip:
             span._set_attribute(http.CLIENT_IP, request_ip)
             span._set_attribute("network.client.ip", request_ip)
-    elif ai_guard_config._ai_guard_enabled:
+    elif ai_guard_config._ai_guard_enabled and span.span_type == SpanTypes.WEB:
         # AI Guard: stash the candidate IP so it can be applied to the service-entry span
-        # only if an ai_guard span is actually created during the request.
+        # only if an ai_guard span is actually created during the request. Restricted to
+        # inbound server (WEB) spans so outbound HTTP client spans can't overwrite the key
+        # with forwarded-IP headers from downstream calls.
         # https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6523551943
         candidate_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
         if candidate_ip:

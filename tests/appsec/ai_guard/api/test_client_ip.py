@@ -17,6 +17,7 @@ from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import new_ai_guard_client
 from ddtrace.contrib.internal.trace_utils import set_http_meta
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.settings._config import Config
@@ -56,7 +57,7 @@ def integration_config():
 
 @pytest.fixture
 def span():
-    yield Span("test.http.request")
+    yield Span("test.http.request", span_type=SpanTypes.WEB)
 
 
 def _run_request_with_evaluate(tracer, request_headers=None, peer_ip=None, extra_global_config=None):
@@ -65,7 +66,7 @@ def _run_request_with_evaluate(tracer, request_headers=None, peer_ip=None, extra
         client = new_ai_guard_client()
         ctx = override_global_config(extra_global_config) if extra_global_config else nullcontext()
         with ctx, tracer.trace("web.request") as root_span:
-            dummy = Span("http.integration")
+            dummy = Span("http.integration", span_type=SpanTypes.WEB)
             cfg = Config()
             cfg.myint = IntegrationConfig(cfg, "myint")
             set_http_meta(
@@ -130,7 +131,7 @@ class TestAIGuardPopulatesRootSpan:
     def test_ip_not_set_when_evaluate_is_never_called(self, mock_execute_request, tracer, test_spans):
         # No call to evaluate() -> root span MUST NOT get client IP tags.
         with override_ai_guard_config(AI_GUARD_CONFIG), tracer.trace("web.request") as root_span:
-            dummy = Span("http.integration")
+            dummy = Span("http.integration", span_type=SpanTypes.WEB)
             cfg = Config()
             cfg.myint = IntegrationConfig(cfg, "myint")
             set_http_meta(
@@ -191,3 +192,47 @@ class TestAIGuardPopulatesRootSpan:
 
         assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
         assert root_span.get_tag(NETWORK_CLIENT_IP) == "4.4.4.4"
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_core_key_cleared_after_evaluate(self, mock_execute_request, tracer, test_spans):
+        # A stashed IP MUST be discarded once evaluate() applies it, so a subsequent
+        # evaluate() without a fresh request can't inherit the previous request's IP.
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        _run_request_with_evaluate(tracer, request_headers={"x-forwarded-for": "8.8.8.8"})
+        assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) is None
+
+
+class TestOutboundClientSpansDoNotStash:
+    """Only inbound (WEB) spans may stash the candidate IP; client spans must be ignored."""
+
+    def test_outbound_http_client_span_does_not_stash(self, integration_config):
+        # Simulate an aiohttp-style outbound client span: span_type=HTTP, forwarded headers
+        # from a downstream hop must NOT overwrite the AI Guard core key.
+        client_span = Span("http.client.request", span_type=SpanTypes.HTTP)
+        with override_ai_guard_config(AI_GUARD_CONFIG):
+            set_http_meta(
+                client_span,
+                integration_config,
+                request_headers={"x-forwarded-for": "8.8.8.8"},
+            )
+
+        assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) is None
+
+    def test_outbound_client_does_not_overwrite_inbound_stash(self, integration_config):
+        # An inbound WEB span stashes the real client IP. A later outbound client span
+        # in the same trace MUST NOT overwrite it with a downstream header value.
+        web_span = Span("web.request", span_type=SpanTypes.WEB)
+        client_span = Span("http.client.request", span_type=SpanTypes.HTTP)
+        with override_ai_guard_config(AI_GUARD_CONFIG):
+            set_http_meta(
+                web_span,
+                integration_config,
+                request_headers={"x-forwarded-for": "8.8.8.8"},
+            )
+            set_http_meta(
+                client_span,
+                integration_config,
+                request_headers={"x-forwarded-for": "1.2.3.4"},
+            )
+
+        assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) == "8.8.8.8"
