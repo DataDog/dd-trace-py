@@ -1949,15 +1949,13 @@ class BaseSemaphoreTest(LockCollectorTestBase):
             )
 
     def test_internal_module_file_realpath_called_once_at_patch_time(self) -> None:
-        """Verify that os.path.realpath() for the internal module file is computed once at patch() time,
+        """Verify that os.path.realpath for the internal module file is computed once at patch time,
         not on every lock allocation.
 
         Regression test for a bug where the constant internal module path was being resolved via
-        os.path.realpath() on every single lock instantiation, causing unnecessary filesystem syscalls
+        os.path.realpath on every single lock instantiation, causing unnecessary filesystem syscalls
         in hot paths (e.g. asyncio Semaphore/Condition allocations per request).
         """
-        import os.path
-
         realpath_call_counts: dict[str, int] = {"patch_time": 0, "alloc_time": 0}
         in_patch: list[bool] = [False]
         original_realpath = os.path.realpath
