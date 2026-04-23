@@ -34,6 +34,11 @@ IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 # LOAD_SMALL_INT was added in 3.14, replacing LOAD_CONST for small integer literals
 LOAD_SMALL_INT = dis.opmap.get("LOAD_SMALL_INT")
 
+# In Python 3.15 (PEP 810 lazy imports), IMPORT_NAME's arg is bit-packed:
+# bits 2+ = name index into co_names, bits 0-1 = lazy/eager flags.
+# So the index is arg >> 2. On 3.12-3.14, arg is a plain index (shift by 0).
+_IMPORT_NAME_ARG_SHIFT = 2 if sys.version_info >= (3, 15) else 0
+
 # Detect empty modules: the bytecode pattern varies across Python versions.
 # Python 3.12-3.13: RESUME + RETURN_CONST
 # Python 3.14: RESUME + LOAD_CONST + RETURN_VALUE (RETURN_CONST was removed)
@@ -163,22 +168,23 @@ def _instrument_with_monitoring(
     return code, lines
 
 
-def _extract_lines_and_imports_raw(
+def _extract_lines_and_imports(
     code: CodeType, package: str, track_lines: bool = True
 ) -> tuple[CoverageLines, dict[int, tuple[str, tuple[str, ...]]]]:
     """Extract line numbers and import information via raw bytecode iteration.
 
-    Fast path for Python 3.12-3.14. Iterates the 2-byte wordcode directly to avoid the
-    overhead of creating Instruction namedtuples via dis.get_instructions().
+    Iterates the 2-byte wordcode directly to avoid the overhead of creating
+    Instruction namedtuples via dis.get_instructions().
 
-    Handles version differences by:
-    - Skipping CACHE entries (opcode 0) so they don't corrupt argument history
-    - Tracking decoded values (not raw args) for import depth, which handles both
+    Handles all Python 3.12+ version differences:
+    - Skips CACHE entries (opcode 0) so they don't corrupt argument history
+    - Tracks decoded values (not raw args) for import depth, which handles both
       LOAD_CONST (indexes co_consts) and LOAD_SMALL_INT (3.14+, arg IS value)
-    - Using dis.findlinestarts() for version-agnostic line number mapping
-
-    Not usable on Python 3.15+ where arg encoding changed (some opcodes use byte offsets
-    into name tables instead of indices, making raw arg decoding unreliable).
+    - Uses dis.findlinestarts() for version-agnostic line number mapping
+    - On 3.15+ (PEP 810 lazy imports), IMPORT_NAME's arg is bit-packed:
+      bits 2+ = name index into co_names, bits 0-1 = lazy/eager flags.
+      _IMPORT_NAME_ARG_SHIFT (=2 on 3.15+, =0 otherwise) extracts the name index.
+    - IMPORT_FROM is unaffected by PEP 810 — still uses plain co_names index.
     """
     lines = CoverageLines()
     import_names: dict[int, tuple[str, tuple[str, ...]]] = {}
@@ -231,7 +237,7 @@ def _extract_lines_and_imports_raw(
             if opcode == IMPORT_NAME and line is not None:
                 # _prev_prev_val is the decoded import depth (from LOAD_CONST or LOAD_SMALL_INT)
                 import_depth: int = _prev_prev_val
-                current_import_name = code.co_names[current_arg]
+                current_import_name = code.co_names[current_arg >> _IMPORT_NAME_ARG_SHIFT]
                 # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
                 current_import_package = (
                     ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
@@ -274,74 +280,3 @@ def _extract_lines_and_imports_raw(
         pass
 
     return lines, import_names
-
-
-def _extract_lines_and_imports_dis(
-    code: CodeType, package: str, track_lines: bool = True
-) -> tuple[CoverageLines, dict[int, tuple[str, tuple[str, ...]]]]:
-    """Extract line numbers and import information via dis.get_instructions().
-
-    Fallback for Python 3.15+ where arg encoding changed (some opcodes use byte offsets
-    into name tables instead of indices). dis.get_instructions() handles this via argval.
-    """
-    lines = CoverageLines()
-    import_names: dict[int, tuple[str, tuple[str, ...]]] = {}
-
-    current_import_name: t.Optional[str] = None
-    current_import_package: t.Optional[str] = None
-    line: t.Optional[int] = None
-    prev_line: t.Optional[int] = None
-
-    prev_argval: t.Any = 0
-    prev_prev_argval: t.Any = 0
-
-    for instr in dis.get_instructions(code):
-        if instr.opname == "RESUME" or instr.opname == "CACHE":
-            continue
-
-        # Python 3.13+: line_number is an int or None.
-        # On 3.13+, starts_line became a boolean — do NOT use it as a line number.
-        instr_line = getattr(instr, "line_number", None)
-        if instr_line is not None and instr_line != prev_line:
-            line = instr_line
-            prev_line = line
-            if track_lines:
-                lines.add(line)
-
-                if code.co_name == "<module>" and len(lines) == 1 and package is not None:
-                    import_names[line] = (package, ("",))
-
-        if instr.opcode == IMPORT_NAME and line is not None:
-            import_depth: int = prev_prev_argval
-            current_import_name = instr.argval
-            current_import_package = ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
-
-            if line in import_names:
-                import_names[line] = (
-                    current_import_package,
-                    tuple(list(import_names[line][1]) + [current_import_name]),
-                )
-            else:
-                import_names[line] = (current_import_package, (current_import_name,))
-
-        elif instr.opcode == IMPORT_FROM and line is not None:
-            import_from_name = f"{current_import_name}.{instr.argval}"
-            if line in import_names:
-                import_names[line] = (
-                    current_import_package,
-                    tuple(list(import_names[line][1]) + [import_from_name]),
-                )
-            else:
-                import_names[line] = (current_import_package, (import_from_name,))
-
-        prev_prev_argval = prev_argval
-        prev_argval = instr.argval
-
-    return lines, import_names
-
-
-# Use fast raw bytecode path on 3.12-3.14, fall back to dis.get_instructions() on 3.15+
-# where arg encoding changed (some opcodes use byte offsets instead of indices).
-_extract_lines_and_imports = (
-    _extract_lines_and_imports_dis if sys.version_info >= (3, 15) else _extract_lines_and_imports_raw
-)
