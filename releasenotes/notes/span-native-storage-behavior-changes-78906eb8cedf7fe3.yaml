@@ -1,0 +1,14 @@
+---
+upgrade:
+  - |
+    ``Span.get_metric()`` now always returns ``float``. Callers using identity
+    comparisons (``is``) against integer constants should switch to ``==`` or
+    cast explicitly with ``int()``. The return type annotation will be updated
+    to ``float`` in a future 5.0.0 release.
+  - |
+    ``Span.set_tag()`` with ``bool`` values now stores them as numeric metrics
+    (``1.0`` / ``0.0``) instead of the string ``"True"`` / ``"False"``.
+    ``Span.set_tag()`` with ``bytes`` values now UTF-8 decodes them instead of
+    storing their ``repr()``. The typed signature of ``set_tag()`` accepts
+    ``str`` values only; any existing callers passing non-``str`` values should
+    convert to ``str`` explicitly to avoid unexpected behavior.

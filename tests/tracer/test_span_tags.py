@@ -123,6 +123,18 @@ def test_set_numpy_metric():
     assert type(s.get_metric("a")) == float
 
 
+def test_set_attribute_numpy():
+    np = pytest.importorskip("numpy")
+    s = Span(name="test.span")
+    s._set_attribute("int64", np.int64(42))
+    s._set_attribute("float64", np.float64(3.14))
+    s._set_attribute("int32", np.int32(-7))
+    assert s.get_metric("int64") == 42.0
+    assert s.get_metric("float64") == pytest.approx(3.14)
+    assert s.get_metric("int32") == -7.0
+    assert s.get_tags() == {}
+
+
 def test_tags_not_string():
     # ensure we can cast as strings
     class Foo(object):
