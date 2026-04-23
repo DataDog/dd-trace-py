@@ -739,7 +739,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             .set_client_computed_top_level()
             .set_input_format(self._api_version)
             .set_output_format(self._api_version)
-            .set_shared_runtime(get_native_runtime().inner)
         )
         if config.service:
             builder.set_service(config.service)
@@ -773,7 +772,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
 
-        return builder.build()
+        return builder.build(get_native_runtime().inner)
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """

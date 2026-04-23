@@ -383,18 +383,11 @@ class TraceExporterBuilder:
         :param timeout_ms: Timeout in milliseconds.
         """
         ...
-    def set_shared_runtime(self, shared_runtime: SharedRuntime) -> TraceExporterBuilder:
-        """
-        Set the shared Tokio runtime for the TraceExporter.
-        When set, the exporter reuses this runtime instead of creating its own,
-        reducing thread and resource overhead across multiple exporters.
-        :param shared_runtime: A SharedRuntime instance to share with this exporter.
-        """
-        ...
-    def build(self) -> TraceExporter:
+    def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
         This method consumes the builder, so it cannot be used again after calling build.
+        :param shared_runtime: A SharedRuntime instance to share with this exporter.
         :return: A configured TraceExporter instance.
         :raises ValueError: If the builder has already been consumed or if required settings are missing.
         """

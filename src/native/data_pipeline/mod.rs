@@ -186,19 +186,15 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
-    fn set_shared_runtime(
-        mut slf: PyRefMut<'_, Self>,
-        shared_runtime: PyRef<'_, SharedRuntimePy>,
-    ) -> PyResult<Py<Self>> {
-        let shared_runtime = shared_runtime.as_arc().clone();
-        slf.try_as_mut()?.set_shared_runtime(shared_runtime);
-        Ok(slf.into())
-    }
-
-    /// Consumes the wrapped builder.
+    /// Consumes the wrapped builder, requires a shared runtime to be passed to spawn async tasks.
     ///
-    /// The builder shouldn't be reused
-    fn build(&mut self) -> PyResult<TraceExporterPy> {
+    /// The builder shouldn't be reused.
+    ///
+    /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
+    /// one without registering the fork hooks.
+    fn build(&mut self, shared_runtime: PyRef<'_, SharedRuntimePy>) -> PyResult<TraceExporterPy> {
+        let shared_runtime = shared_runtime.as_arc().clone();
+        self.try_as_mut()?.set_shared_runtime(shared_runtime);
         let exporter = TraceExporterPy {
             inner: Some(
                 self.builder
