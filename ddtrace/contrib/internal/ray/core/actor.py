@@ -208,6 +208,7 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
     cls = wrapped(*args, **kwargs)
     module_name = str(cls.__module__)
     class_name = str(cls.__name__)
+    ignored_actors = _get_ray_integration_config().ignored_actors
 
     # Skip tracing for certain ray modules
     if any(module_name.startswith(denied_module) for denied_module in RAY_ACTOR_MODULE_DENYLIST):
@@ -215,6 +216,10 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
 
     # Actor beginning with _ are considered internal and will not be traced
     if class_name.startswith("_"):
+        return cls
+
+    # Allow users to skip instrumentation for specific actor class names.
+    if class_name in ignored_actors:
         return cls
 
     # Determine if the class is a JobSupervisor

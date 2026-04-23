@@ -7,6 +7,7 @@ import pytest
 import ray
 from ray.util.tracing import tracing_helper
 
+from ddtrace.contrib.internal.ray.constants import DD_RAY_TRACE_CTX
 from tests.utils import TracerTestCase
 from tests.utils import override_config
 
@@ -37,6 +38,13 @@ RAY_SNAPSHOT_IGNORES = [
     "metrics._dd.partial_version",
     "metrics._dd.was_long_running",
 ]
+
+
+def test_parse_ignored_actors_returns_frozenset():
+    from ddtrace.contrib.internal.ray.patch import _parse_ignored_actors
+
+    assert _parse_ignored_actors("") == frozenset()
+    assert _parse_ignored_actors("IgnoredCounter, AnotherActor") == frozenset({"IgnoredCounter", "AnotherActor"})
 
 
 class TestRayIntegration(TracerTestCase):
@@ -128,6 +136,34 @@ class TestRayIntegration(TracerTestCase):
         denied_actor = MockDeniedActor.remote()
         value = ray.get(denied_actor.get_value.remote())
         assert value == 42, f"Unexpected result: {value}"
+
+    def test_configurable_ignored_actors(self):
+        with override_config("ray", dict(ignored_actors=frozenset({"IgnoredCounter"}))):
+
+            @ray.remote
+            class IgnoredCounter:
+                def increment(self):
+                    return 1
+
+            @ray.remote
+            class TracedCounter:
+                def increment(self):
+                    return 1
+
+            ignored_actor = IgnoredCounter.remote()
+            traced_actor = TracedCounter.remote()
+
+            ignored_result = ray.get(ignored_actor.increment.remote())
+            traced_result = ray.get(traced_actor.increment.remote())
+
+            assert ignored_result == 1
+            assert traced_result == 1
+
+            ignored_params = [p.name for p in ignored_actor._ray_method_signatures["increment"]]
+            traced_params = [p.name for p in traced_actor._ray_method_signatures["increment"]]
+
+            assert DD_RAY_TRACE_CTX not in ignored_params
+            assert DD_RAY_TRACE_CTX in traced_params
 
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_ignored_tasks", ignores=RAY_SNAPSHOT_IGNORES)
     def test_ignored_tasks(self):

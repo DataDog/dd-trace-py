@@ -1,3 +1,5 @@
+from typing import Optional
+
 import ray
 from wrapt import wrap_function_wrapper as _w
 
@@ -31,6 +33,12 @@ _job_context_lock = Lock()
 _job_contexts = {}
 
 
+def _parse_ignored_actors(value: Optional[str]) -> frozenset[str]:
+    if not value:
+        return frozenset()
+    return frozenset(actor.strip() for actor in value.split(",") if actor.strip())
+
+
 config._add(
     "ray",
     dict(
@@ -39,6 +47,7 @@ config._add(
         trace_core_api=_get_config("DD_TRACE_RAY_CORE_API", default=False, modifier=asbool),
         trace_args_kwargs=_get_config("DD_TRACE_RAY_ARGS_KWARGS", default=False, modifier=asbool),
         submission_spans=_get_config("DD_TRACE_RAY_SUBMISSION_SPANS_ENABLED", default=False, modifier=asbool),
+        ignored_actors=_get_config("DD_TRACE_RAY_IGNORED_ACTORS", default=frozenset(), modifier=_parse_ignored_actors),
     ),
 )
 

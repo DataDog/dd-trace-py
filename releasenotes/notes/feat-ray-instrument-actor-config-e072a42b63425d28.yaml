@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    ray: Adds ``DD_TRACE_RAY_IGNORED_ACTORS`` configuration to exclude specific Ray actor classes from instrumentation.
+    Set ``DD_TRACE_RAY_IGNORED_ACTORS=ActorA,ActorB`` to leave matching actors uninstrumented while continuing to trace other Ray actors.
+    Matching is based on actor class name only.
