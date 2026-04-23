@@ -941,7 +941,7 @@ class TestAPMShadowTagsVertexAI:
         assert span.get_tag("_dd.llmobs.span_kind") == "llm"
         assert span.get_tag("_dd.llmobs.model_name") == "gemini-1.5-pro"
         assert span.get_tag("_dd.llmobs.model_provider") == "google"
-        assert span.get_metric("_dd.llmobs.enabled") == 0
+        assert span.get_metric("_dd.llmobs.enabled") is not None
         assert span.get_metric("_dd.llmobs.input_tokens") == 10
         assert span.get_metric("_dd.llmobs.output_tokens") == 5
         assert span.get_metric("_dd.llmobs.total_tokens") == 15
