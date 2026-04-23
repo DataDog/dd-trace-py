@@ -1,8 +1,9 @@
 """Tests for selenium + RUM integration
 
 Uses a Selenium Grid (selenium/standalone-chrome, linux/amd64) via webdriver.Remote so that
-tests work on any host architecture including arm64. The grid is started as a Docker service
-and listens on localhost:4444 (via network_mode: host).
+tests work on any host architecture including arm64. The grid URL is controlled by the
+SELENIUM_GRID_URL environment variable (default: http://localhost:4444 for local runs via
+docker-compose network_mode: host; set to http://selenium-chrome:4444 in CI).
 """
 
 import http.server
@@ -45,7 +46,7 @@ SELENIUM_SNAPSHOT_IGNORES = [
 ]
 
 # Selenium Grid endpoint — standalone-chrome runs with network_mode: host so it binds on localhost
-SELENIUM_GRID_URL = "http://localhost:4444"
+SELENIUM_GRID_URL = os.environ.get("SELENIUM_GRID_URL", "http://localhost:4444")
 
 _SELENIUM_DRIVER_SETUP = f"""\
     from selenium import webdriver

@@ -157,6 +157,8 @@ suites:
     snapshot: true
   selenium:
     parallelism: 2
+    env:
+      SELENIUM_GRID_URL: http://selenium-chrome:4444
     paths:
       - '@bootstrap'
       - '@core'

@@ -160,3 +160,6 @@
   azurite:
     name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
     alias: azurite
+  selenium-chrome:
+    name: registry.ddbuild.io/images/mirror/selenium/standalone-chrome:4.34.2
+    alias: selenium-chrome
