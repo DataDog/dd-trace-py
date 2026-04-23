@@ -370,25 +370,12 @@ _HEX_TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
 
 def _normalize_trace_id_to_hex(value: Optional[str]) -> Optional[str]:
-    """Normalize a trace_id into the canonical 32-char lowercase hex storage format.
+    """Normalize an incoming wire trace_id to canonical 32-char hex storage.
 
-    The wire format for distributed headers is decimal (``str(int_id)``). A 32-char
-    string matching ``[0-9a-f]`` could be either canonical hex or a 32-digit decimal
-    wire value from a sender that serialized a 128-bit trace_id with ``str(int)``.
-    We disambiguate via two unambiguous hex markers:
-
-    - A leading ``"0"`` in a 32-char hit: ``str(int)`` never emits leading zeros,
-      so this must be zero-padded canonical hex.
-    - At least one ``a-f`` character: can't be decimal.
-
-    Otherwise we prefer decimal interpretation, matching the wire contract.
-
-    - Empty string or ``None`` → ``None``.
-    - Unambiguous canonical hex → return as-is.
-    - Decimal integer string → convert via ``format_trace_id``.
-    - Anything else (non-numeric custom ID from another SDK or manual user input) →
-      return as-is and log at debug. Cross-SDK trace joining may be affected but we
-      must not raise or corrupt the span.
+    A 32-char all-digit value is ambiguous between hex and a decimal serialization
+    of a 128-bit int. Leading ``"0"`` or any ``a-f`` marks it as unambiguous hex;
+    otherwise interpret as decimal (the wire contract). Non-numeric custom IDs
+    pass through.
     """
     if value is None or value == "":
         return None
@@ -399,25 +386,15 @@ def _normalize_trace_id_to_hex(value: Optional[str]) -> Optional[str]:
             return format_trace_id(int(value))
         except (ValueError, TypeError):
             pass
-    log.debug(
-        "LLMObs trace_id %r is not recognized as canonical hex or a decimal integer; "
-        "storing as-is. Cross-SDK trace joining may be affected.",
-        value,
-    )
+    log.debug("LLMObs trace_id %r is not canonical hex or a decimal integer; storing as-is.", value)
     return value
 
 
 def _trace_id_to_wire(value: Optional[str]) -> Optional[str]:
-    """Convert a stored trace_id to the decimal wire format for cross-version compat.
+    """Convert stored hex trace_id to decimal for the distributed header.
 
-    Older dd-trace-py versions parse the ``_DD_LLMOBS_TRACE_ID`` header via ``int(x)``
-    without a base argument, which fails on any hex string with a-f characters. We
-    therefore keep the wire format as decimal and let each SDK normalize back to hex
-    internally on receive.
-
-    - Canonical 32-char lowercase hex → ``str(int(value, 16))`` → decimal.
-    - Already-decimal or non-hex → return as-is.
-    - Empty / ``None`` → return ``None``.
+    Older dd-trace-py versions parse this header with ``int(x)`` (no base arg),
+    which rejects ``a-f``, so the wire must stay decimal.
     """
     if not value:
         return None

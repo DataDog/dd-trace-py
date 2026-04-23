@@ -1892,16 +1892,13 @@ class LLMObs(Service):
             parent_id = str(llmobs_parent.span_id)
             if isinstance(llmobs_parent, Span):
                 parent_llmobs_trace_id = get_llmobs_trace_id(llmobs_parent)
-                # Span.trace_id is always an int.
                 fallback_trace_id = format_trace_id(llmobs_parent.trace_id)
             else:
-                # Upstream wire value may be decimal (older SDKs) or hex; normalize to hex.
                 parent_llmobs_trace_id = _normalize_trace_id_to_hex(
                     # ast-grep-ignore: span-meta-access
                     llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
                 )
-                # Context.trace_id can be None if the Context was constructed without one;
-                # mint a fresh trace_id rather than emit an all-zeros placeholder.
+                # Context.trace_id is Optional[int]; fall back to a fresh ID rather than an all-zeros placeholder.
                 fallback_trace_id = format_trace_id(llmobs_parent.trace_id or generate_128bit_trace_id())
             llmobs_trace_id = parent_llmobs_trace_id or fallback_trace_id
             if isinstance(llmobs_parent, Span):

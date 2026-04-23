@@ -410,7 +410,7 @@ class TestTraceIdNormalization:
 
         caplog.set_level(logging.DEBUG, logger="ddtrace.llmobs._utils")
         assert _normalize_trace_id_to_hex("custom-trace-id-abc") == "custom-trace-id-abc"
-        assert any("not recognized as canonical hex or a decimal integer" in r.message for r in caplog.records)
+        assert any("not canonical hex or a decimal integer" in r.message for r in caplog.records)
 
     def test_normalize_uppercase_hex_passthrough(self):
         up = self.HEX_TRACE_ID.upper()
@@ -421,27 +421,17 @@ class TestTraceIdNormalization:
         assert _normalize_trace_id_to_hex("") is None
 
     def test_normalize_32_digit_decimal_wire_value_not_misclassified_as_hex(self):
-        # Older SDKs may emit `str(int_128bit)` on the wire; for int values in
-        # [10**31, 10**32 - 1] the result is 32 decimal digits and would match
-        # the hex regex. The refined normalizer must interpret these as decimal
-        # (wire contract) rather than pass through as hex, or the next hop's
-        # `_trace_id_to_wire` would re-parse the string as base-16 and corrupt
-        # the trace_id.
-        decimal_wire = "50000000000000000000000000000000"  # 5 * 10^31, 32 digits, no leading zero
-        assert not decimal_wire[0] == "0"
-        assert decimal_wire.isdigit()
+        # 32-digit decimals (older-SDK str(int128) output) must round-trip as decimal,
+        # otherwise _trace_id_to_wire would re-parse as base-16 on the next hop.
+        decimal_wire = "50000000000000000000000000000000"
         normalized = _normalize_trace_id_to_hex(decimal_wire)
         assert normalized == format_trace_id(int(decimal_wire))
-        # Round-trip: storage -> wire -> same original decimal
         assert _trace_id_to_wire(normalized) == decimal_wire
 
     def test_normalize_zero_padded_hex_passthrough_even_if_all_digits(self):
-        # A 32-char hit starting with "0" cannot be a decimal integer (str(int)
-        # never has leading zeros), so even if every character is 0-9 we must
-        # treat it as canonical hex.
+        # Leading "0" disambiguates as hex: str(int) can't emit leading zeros.
         padded_hex_all_digits = "00000000000000001234567890123456"
-        normalized = _normalize_trace_id_to_hex(padded_hex_all_digits)
-        assert normalized == padded_hex_all_digits
+        assert _normalize_trace_id_to_hex(padded_hex_all_digits) == padded_hex_all_digits
 
     def test_wire_hex_to_decimal(self):
         assert _trace_id_to_wire(self.HEX_TRACE_ID) == self.DECIMAL_TRACE_ID
