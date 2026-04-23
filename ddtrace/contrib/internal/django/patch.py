@@ -354,10 +354,9 @@ def _collect_django_routes(patterns, prefix=""):
     from django.urls.resolvers import URLResolver
 
     for pattern in patterns:
-        try:
-            segment = str(pattern.pattern)
-        except Exception:
+        if not isinstance(pattern, (URLPattern, URLResolver)):
             continue
+        segment = str(pattern.pattern)
         if prefix:
             segment = segment.removeprefix("^")
         full_path = prefix + segment
@@ -366,7 +365,7 @@ def _collect_django_routes(patterns, prefix=""):
             if sub_patterns is None:
                 continue
             _collect_django_routes(sub_patterns, prefix=full_path)
-        elif isinstance(pattern, URLPattern):
+        else:
             for method in _collect_pattern_methods(getattr(pattern, "callback", None)):
                 endpoint_collection.add_endpoint(method, full_path, operation_name="django.request")
 
