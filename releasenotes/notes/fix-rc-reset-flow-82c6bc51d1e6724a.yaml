@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    RemoteConfig: Fixed an issue where deleted remote configurations were not applied, causing stale settings to persist.
