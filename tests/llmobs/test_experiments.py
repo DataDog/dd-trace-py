@@ -2232,6 +2232,51 @@ def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_
         assert event["config"] == {"temperature": 0.7}
 
 
+def test_experiment_evaluator_spans_not_in_experiments_scope(llmobs, llmobs_events, test_dataset_one_record):
+    """Evaluator LLM spans must not inherit the experiment scope."""
+    from ddtrace.ext import SpanTypes
+
+    def task_that_creates_llm_span(input_data, config):
+        span = llmobs._instance.tracer.trace("task_llm_call", span_type=SpanTypes.LLM)
+        llmobs._instance._activate_llmobs_span(span)
+        llmobs.annotate(span, input_data="test input", output_data="test output")
+        span.finish()
+        return "task output"
+
+    def evaluator_that_creates_llm_span(input_data, output_data, expected_output):
+        span = llmobs._instance.tracer.trace("evaluator_llm_call", span_type=SpanTypes.LLM)
+        llmobs._instance._activate_llmobs_span(span)
+        llmobs.annotate(span, input_data="judge prompt", output_data="judge verdict")
+        span.finish()
+        return 1
+
+    exp = llmobs.experiment(
+        "test_experiment",
+        task_that_creates_llm_span,
+        test_dataset_one_record,
+        [evaluator_that_creates_llm_span],
+    )
+    exp._experiment._id = "1234567890"
+    task_results, eval_results = asyncio.run(
+        exp._experiment._run_tasks_with_evaluators(1, run=run_info_with_stable_id(0), raise_errors=True)
+    )
+    assert len(task_results) == 1
+    assert len(eval_results) == 1
+
+    task_experiment_spans = [e for e in llmobs_events if e["name"] == "task_that_creates_llm_span"]
+    task_llm_spans = [e for e in llmobs_events if e["name"] == "task_llm_call"]
+    evaluator_llm_spans = [e for e in llmobs_events if e["name"] == "evaluator_llm_call"]
+
+    assert len(task_experiment_spans) == 1
+    assert task_experiment_spans[0]["_dd"]["scope"] == "experiments"
+
+    assert len(task_llm_spans) == 1
+    assert task_llm_spans[0]["_dd"].get("scope") == "experiments"
+
+    assert len(evaluator_llm_spans) == 1
+    assert "scope" not in evaluator_llm_spans[0]["_dd"]
+
+
 def test_experiment_span_no_config_omits_field(llmobs, llmobs_events, test_dataset_one_record_w_metadata):
     """Assert that the config field is omitted from the span event when no config is provided."""
     exp = llmobs.experiment(

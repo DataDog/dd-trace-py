@@ -2186,6 +2186,12 @@ class Experiment:
         log_fn = logger.warning if self._interrupted else logger.info
         log_fn(msg, extra={"product": "llmobs"})
 
+    def _clear_trace_context(self) -> None:
+        """Clear default and LLMObs trace contexts so evaluator spans don't inherit experiment baggage."""
+        if self._llmobs_instance:
+            self._llmobs_instance.tracer.context_provider.activate(None)
+            self._llmobs_instance._llmobs_context_provider.activate(None)
+
     async def _process_record(
         self,
         idx_record: tuple[int, DatasetRecord],
@@ -2509,6 +2515,7 @@ class Experiment:
             )
             if task_result is None:
                 return None, None
+            self._clear_trace_context()
             evaluation = await self._evaluate_record(
                 idx_record[1],
                 task_result,
