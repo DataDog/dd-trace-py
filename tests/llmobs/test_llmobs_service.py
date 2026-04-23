@@ -134,6 +134,19 @@ def test_service_disable(tracer):
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
+def test_enable_disable_keeps_global_config_llmobs_enabled_in_sync(tracer):
+    """LLMObs.enable()/disable() must mirror their effect into ddtrace.config._llmobs_enabled
+    so the _ConfigItem reflects effective state. Consumers like the APM_TRACING RC handler
+    read this value to reconcile LLMObs state against RC payloads.
+    """
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        assert ddtrace.config._llmobs_enabled is False
+        llmobs_service.enable(_tracer=tracer)
+        assert ddtrace.config._llmobs_enabled is True
+        llmobs_service.disable()
+        assert ddtrace.config._llmobs_enabled is False
+
+
 def test_service_enable_no_api_key(tracer):
     with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
         with pytest.raises(ValueError):

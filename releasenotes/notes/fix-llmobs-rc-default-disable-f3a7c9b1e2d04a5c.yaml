@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where an APM_TRACING remote configuration
+    payload that did not include an ``llmobs`` section would disable LLM
+    Observability on services where it had been enabled programmatically via
+    ``LLMObs.enable()``. Services that enabled LLM Observability via the
+    ``DD_LLMOBS_ENABLED`` environment variable were unaffected. The handler now
+    only changes LLM Observability state when the remote configuration payload
+    explicitly carries an ``llmobs.enabled`` directive.
