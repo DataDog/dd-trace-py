@@ -320,6 +320,15 @@ class TestOptPlugin:
 
         if self.enable_all_ddtrace_integrations:
             enable_all_ddtrace_integrations()
+        elif self.enable_ddtrace_trace_filter:
+            # Patch Selenium so browser tests get test visibility tags (test.is_browser, test.browser.*).
+            # We create a root span with type=test in trace_context(); Selenium integration checks for that span.
+            try:
+                from ddtrace.contrib.internal.selenium.patch import patch as patch_selenium
+
+                patch_selenium()
+            except Exception:
+                log.debug("Could not patch Selenium for test visibility", exc_info=True)
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
@@ -520,6 +529,9 @@ class TestOptPlugin:
         )
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
+            self.manager._set_suite_source_location(test_suite)
+            if codeowners := test.tags.get(TestTag.CODEOWNERS):
+                test_suite.tags[TestTag.CODEOWNERS] = codeowners
             test_suite.finish()
             self.manager.writer.put_item(test_suite)
             TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
@@ -557,14 +569,28 @@ class TestOptPlugin:
         with trace_context(self.enable_ddtrace_trace_filter) as context:
             test_run, reports = self._do_one_test_run(item, nextitem, context)
 
-        if not test.is_skipped_by_itr() and retry_handler and retry_handler.should_retry(test):
-            self._do_retries(item, nextitem, test, retry_handler, reports)
+        should_retry = not test.is_skipped_by_itr() and retry_handler is not None and retry_handler.should_retry(test)
+
+        if should_retry:
+            retry_reports, last_reports = self._do_retries(
+                item, nextitem, test, t.cast(RetryHandler, retry_handler), reports
+            )
         else:
             if _get_user_property(item, "dd_disabled_attempt_to_fix"):
                 self._mark_attempt_to_fix_report_group_as_skipped(item, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
-            test.set_status(test_run.get_status())
+
+        # Finalization: when a retry handler applies, it always determines final status and tags,
+        # regardless of whether retries were actually performed.
+        if retry_handler:
+            final_status = retry_handler.get_final_status(test)
+        else:
+            final_status = test_run.get_status()
+        test.set_status(final_status)
+
+        if should_retry:
+            self._log_retry_final_reports(item, test, retry_reports, final_status, last_reports)
 
         # Set final status on the last test run (single location for both retry and non-retry paths)
         if test.test_runs:
@@ -591,7 +617,8 @@ class TestOptPlugin:
         test: Test,
         retry_handler: RetryHandler,
         reports: _ReportGroup,
-    ) -> None:
+    ) -> tuple[RetryReports, _ReportGroup]:
+        """Execute retry loop and collect reports. Returns (retry_reports, last_reports)."""
         retry_reports = RetryReports()
 
         # Log initial attempt.
@@ -604,13 +631,10 @@ class TestOptPlugin:
         retry_handler.set_tags_for_test_run(test_run)
         test_run.finish()
 
-        should_retry = True
-
-        while should_retry:
+        while retry_handler.should_retry(test):
             with trace_context(self.enable_ddtrace_trace_filter) as context:
                 test_run, reports = self._do_one_test_run(item, nextitem, context)
 
-            should_retry = retry_handler.should_retry(test)
             retry_handler.set_tags_for_test_run(test_run)
             self._mark_test_reports_as_retry(reports, retry_handler)
 
@@ -623,10 +647,17 @@ class TestOptPlugin:
 
             test_run.finish()
 
-        final_status = retry_handler.get_final_status(test)
-        test.set_status(final_status)
+        return retry_reports, reports
 
-        # Log final status.
+    def _log_retry_final_reports(
+        self,
+        item: pytest.Item,
+        test: Test,
+        retry_reports: RetryReports,
+        final_status: TestStatus,
+        last_reports: _ReportGroup,
+    ) -> None:
+        """Create and log the final report and teardown after retries."""
         final_report = retry_reports.make_final_report(test, item, final_status)
 
         if extra_failed_report := retry_reports.get_extra_failed_report(test, final_status):
@@ -639,7 +670,7 @@ class TestOptPlugin:
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
         # closes the <testcase> element when teardown is logged.
-        teardown_report = reports.get(TestPhase.TEARDOWN)
+        teardown_report = last_reports.get(TestPhase.TEARDOWN)
         if _get_user_property(item, "dd_disabled_attempt_to_fix"):
             self._mark_attempt_to_fix_report_as_skipped(item, teardown_report)
         item.ihook.pytest_runtest_logreport(report=teardown_report)
