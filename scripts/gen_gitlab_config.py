@@ -23,7 +23,7 @@ import datetime
 import hashlib
 import os
 import re
-import subprocess
+import subprocess  # nosec B404
 import typing as t
 
 
@@ -124,7 +124,7 @@ class JobSpec:
         suite_name = env["SUITE_NAME"]
         env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
         env["PIP_CACHE_KEY"] = (
-            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
+            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()  # nosec B603
         )
         lines.append("  cache:")
         lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
@@ -409,6 +409,7 @@ def _get_benchmark_class_name(suite_name: str) -> str:
         match = re.match(BENCHMARK_CLASS_REGEX, line)
         if match:
             return match.group(1).lower()
+    raise ValueError(f"No benchmark class name found for suite {suite_name!r}")
 
 
 def _filter_benchmarks_slos_file(classnames: list) -> None:
@@ -656,6 +657,11 @@ def gen_pre_checks() -> None:
         name="Hook tests",
         command="scripts/run-hook-tests",
         paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*"},
+    )
+    check(
+        name="Shellcheck hook scripts",
+        command="scripts/shellcheck",
+        paths={"hooks/scripts/*.sh"},
     )
     if not checks:
         return

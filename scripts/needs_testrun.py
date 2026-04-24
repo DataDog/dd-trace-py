@@ -17,7 +17,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from subprocess import check_output
+from subprocess import check_output  # nosec B404
 import sys
 import typing as t
 from urllib.parse import urlencode
@@ -54,7 +54,7 @@ def get_base_branch(pr_number: int) -> str:
     'main'
     """
 
-    pr_page_content = urlopen(f"https://github.com/DataDog/dd-trace-py/pull/{pr_number}").read().decode("utf-8")
+    pr_page_content = urlopen(f"https://github.com/DataDog/dd-trace-py/pull/{pr_number}").read().decode("utf-8")  # nosec B310
 
     tree = html.fromstring(pr_page_content)
     base_ref = tree.find_class("base-ref")
@@ -70,7 +70,7 @@ def get_base_branch(pr_number: int) -> str:
 def get_merge_base(pr_number: int) -> str:
     """Get the merge base of a PR."""
     return (
-        check_output(
+        check_output(  # nosec B603, B607
             [
                 "git",
                 "merge-base",
@@ -87,8 +87,8 @@ def get_merge_base(pr_number: int) -> str:
 def get_latest_commit_message() -> str:
     """Get the commit message of the last commit."""
     try:
-        return check_output(["git", "log", "-1", "--pretty=%B"]).decode("utf-8").strip()
-    except Exception:
+        return check_output(["git", "log", "-1", "--pretty=%B"]).decode("utf-8").strip()  # nosec B603, B607
+    except Exception:  # nosec B110
         pass
     return ""
 
@@ -96,7 +96,7 @@ def get_latest_commit_message() -> str:
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", os.environ.get("GH_TOKEN"))
 if not GITHUB_TOKEN:
     try:
-        GITHUB_TOKEN = check_output(["gh", "auth", "token"], text=True).strip()
+        GITHUB_TOKEN = check_output(["gh", "auth", "token"], text=True).strip()  # nosec B603, B607
         LOGGER.info("GitHub token retrieved from gh auth token")
     except Exception:
         LOGGER.warning("No GitHub token available. Changes may not be detected accurately.", exc_info=True)
@@ -111,7 +111,7 @@ def github_api(path: str, query: t.Optional[dict] = None) -> t.Any:
         headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
     if query is not None:
         url += "?" + urlencode(query)
-    return json.load(urlopen(Request(url, headers=headers)))
+    return json.load(urlopen(Request(url, headers=headers)))  # nosec B310
 
 
 @cache
@@ -133,7 +133,7 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> set[str]:
     'tests/debugging/test_expressions.py']
     """
     if sha is None:
-        files = set()
+        files: set[str] = set()
         try:
             for page in count(1):
                 result = {_["filename"] for _ in github_api(f"/pulls/{pr_number}/files", {"page": page})}
@@ -145,7 +145,7 @@ def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> set[str]:
 
     diff_base = sha or get_merge_base(pr_number)
     LOGGER.info("Checking changed files against commit %s", diff_base)
-    return set(check_output(["git", "diff", "--name-only", "HEAD", diff_base]).decode("utf-8").strip().splitlines())
+    return set(check_output(["git", "diff", "--name-only", "HEAD", diff_base]).decode("utf-8").strip().splitlines())  # nosec B603, B607
 
 
 @cache
