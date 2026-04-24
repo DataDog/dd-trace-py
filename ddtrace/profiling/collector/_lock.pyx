@@ -158,9 +158,14 @@ class _ProfiledLock:
     def acquire(self, *args: Any, **kwargs: Any) -> Any:
         cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
         if not sampler.capture():
-            if config.enable_asserts:
+            if config.enable_asserts and type(self.__wrapped__).__name__ == "RLock":
+                # For RLock, a re-entrant acquire can arrive here while a previous sampled acquire
+                # is still in progress (acquired_time set). If so, the next release will emit a
+                # sample whose hold time is truncated at this release rather than the true outer
+                # release — the outer hold time is silently lost, skewing the "lock held" time metrics.
                 assert self.acquired_time is None, (
-                    "Expected acquired_time to be None when acquire is not sampled, got %r" % (self.acquired_time,)
+                    "Unsampled re-entrant acquire while a sampled hold is in progress; "
+                    "the next release will emit a truncated hold-time sample. acquired_time=%r" % (self.acquired_time,)
                 )  # nosec
             return self.__wrapped__.acquire(*args, **kwargs)
         return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
@@ -168,9 +173,10 @@ class _ProfiledLock:
     def __enter__(self, *args: Any, **kwargs: Any) -> Any:
         cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
         if not sampler.capture():
-            if config.enable_asserts:
+            if config.enable_asserts and type(self.__wrapped__).__name__ == "RLock":
                 assert self.acquired_time is None, (
-                    "Expected acquired_time to be None when acquire is not sampled, got %r" % (self.acquired_time,)
+                    "Unsampled re-entrant acquire while a sampled hold is in progress; "
+                    "the next release will emit a truncated hold-time sample. acquired_time=%r" % (self.acquired_time,)
                 )  # nosec
             return self.__wrapped__.__enter__(*args, **kwargs)
         return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
@@ -178,9 +184,10 @@ class _ProfiledLock:
     def __aenter__(self, *args: Any, **kwargs: Any) -> Any:
         cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
         if not sampler.capture():
-            if config.enable_asserts:
+            if config.enable_asserts and type(self.__wrapped__).__name__ == "RLock":
                 assert self.acquired_time is None, (
-                    "Expected acquired_time to be None when acquire is not sampled, got %r" % (self.acquired_time,)
+                    "Unsampled re-entrant acquire while a sampled hold is in progress; "
+                    "the next release will emit a truncated hold-time sample. acquired_time=%r" % (self.acquired_time,)
                 )  # nosec
             return self.__wrapped__.__aenter__(*args, **kwargs)
         return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
@@ -235,8 +242,11 @@ class _ProfiledLock:
         return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
 
     def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        # All callers *must* check that `self.acquired_time` is not None (i.e. the event was sampled)
-        start: int = self.acquired_time  # type: ignore[assignment]
+        # `acquired_time` is guaranteed non-None by all callers, but we check it here anyway to be defensive.
+        if self.acquired_time is None:
+            return inner_func(*args, **kwargs)
+
+        cdef long long start = self.acquired_time
         self.acquired_time = None
 
         # Note: this can raise an exception. We don't catch it because we
