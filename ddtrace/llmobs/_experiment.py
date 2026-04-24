@@ -1649,7 +1649,7 @@ class Dataset:
                 flat_record[("expected_output", "")] = expected_output
                 column_tuples.add(("expected_output", ""))
 
-            metadata = record.get("metadata", {})
+            metadata = (record.get("metadata") or {})
             if isinstance(metadata, dict):
                 for metadata_col, metadata_val in metadata.items():
                     flat_record[("metadata", metadata_col)] = metadata_val
@@ -2000,7 +2000,7 @@ class Experiment:
             record: DatasetRecord = self._dataset[idx]
             inputs.append(record["input_data"])
             expected_outputs.append(record["expected_output"])
-            record_metadata = record.get("metadata", {})
+            record_metadata = (record.get("metadata") or {})
             metadata_list.append({**record_metadata, "experiment_config": self._config})
 
             eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
@@ -2237,7 +2237,7 @@ class Experiment:
                     tags["dataset_record_canonical_id"] = canonical_id
                 output_data = None
                 last_exc_info = None
-                record_metadata = record.get("metadata", {})
+                record_metadata = (record.get("metadata") or {})
                 task_args: list = [input_data, self._config]
                 if self._task_accepts_metadata:
                     task_args.append(record_metadata)
@@ -2358,7 +2358,7 @@ class Experiment:
         input_data = record["input_data"]
         output_data = task_result["output"]
         expected_output = record["expected_output"]
-        metadata = record.get("metadata", {})
+        metadata = (record.get("metadata") or {})
 
         async def _run_single_evaluator(
             evaluator: Union[EvaluatorType, AsyncEvaluatorType],

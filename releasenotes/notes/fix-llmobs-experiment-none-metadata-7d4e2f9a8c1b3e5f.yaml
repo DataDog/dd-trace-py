@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes a ``TypeError: 'NoneType' object is not a mapping`` raised
+    when running an experiment over dataset records whose ``metadata`` field is ``None``
+    (a common shape for records serialized with an explicit ``null``). Metadata reads in
+    ``ddtrace/llmobs/_experiment.py`` now fall back to an empty dict for both missing and
+    ``None`` values, so summary evaluators, task argument plumbing, and per-record evaluator
+    context no longer crash on these records.

@@ -1753,6 +1753,45 @@ def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
     }
 
 
+def test_experiment_run_summary_evaluators_handles_none_metadata(llmobs):
+    """Regression: records whose `metadata` field is explicitly None must not crash
+    the summary evaluator path. `dict.get("metadata", {})` returns the stored None
+    (not the default), which then fails when spread into a dict literal. See
+    _prepare_summary_evaluator_data and the per-record paths that build
+    `{**metadata, "experiment_config": ...}`.
+    """
+    dataset = Dataset(
+        name="test_dataset_none_metadata",
+        project={"name": "test_project", "_id": "proj_123"},
+        dataset_id="ds_none_metadata",
+        records=[
+            {
+                "record_id": "rec_1",
+                "input_data": {"prompt": "What is the capital of France?"},
+                "expected_output": {"answer": "Paris"},
+                "metadata": None,
+            }
+        ],
+        description="Dataset whose records carry metadata=None",
+        latest_version=1,
+        version=1,
+        _dne_client=None,
+    )
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        dataset,
+        [dummy_evaluator],
+        summary_evaluators=[dummy_summary_evaluator],
+    )
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    summary_eval_results = asyncio.run(
+        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=True)
+    )
+    assert summary_eval_results[0]["evaluations"]["dummy_summary_evaluator"]["error"] is None
+
+
 def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
     task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
