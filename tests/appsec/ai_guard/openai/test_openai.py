@@ -1,3 +1,11 @@
+"""Integration and unit tests for the AI Guard + OpenAI integration.
+
+Covers ``_convert_openai_messages`` / ``_convert_openai_response`` unit tests,
+sync + async chat completion allow/block flows (cassette + mock transport),
+streaming allow/block, collision-avoidance (ContextVar isolation across tasks
+and threads), ``init_ai_guard()`` registration gating, and fail-open behaviour.
+"""
+
 import asyncio
 import contextvars
 import threading
@@ -5,6 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
+import ddtrace.appsec._ai_guard as ai_guard_mod
 from ddtrace.appsec._ai_guard._context import _ai_guard_active
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active
@@ -14,6 +23,37 @@ from ddtrace.appsec._ai_guard._openai import _convert_openai_response
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import override_ai_guard_config
+
+
+@pytest.fixture
+def aiguard_active_context():
+    """Mark the current Context as under active AI Guard evaluation for the test.
+
+    Sets ``_ai_guard_active=True`` via a token and always resets on teardown —
+    even if the test raises — so subsequent tests do not observe a leaked
+    ContextVar value.
+    """
+    token = set_aiguard_context_active()
+    try:
+        yield
+    finally:
+        reset_aiguard_context_active(token)
+
+
+@pytest.fixture
+def reset_ai_guard_loaded():
+    """Save and restore ``ai_guard_mod._AI_GUARD_TO_BE_LOADED`` around each test.
+
+    ``init_ai_guard()`` flips this flag to ``False`` after its first successful
+    call (idempotency guard). Tests that exercise registration need to flip it
+    back to ``True`` to re-enter the branch; this fixture guarantees the module
+    global is restored to its pre-test value regardless of what the test did.
+    """
+    original = ai_guard_mod._AI_GUARD_TO_BE_LOADED
+    try:
+        yield
+    finally:
+        ai_guard_mod._AI_GUARD_TO_BE_LOADED = original
 
 
 CHAT_PROMPT = "When do you use 'whom' instead of 'who'?"
@@ -257,6 +297,7 @@ def test_chat_sync_block(mock_execute_request, openai_client, decision):
 @pytest.mark.asyncio
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 async def test_chat_async_allow(mock_execute_request, async_openai_client):
+    """ALLOW (async): before + after evaluations fire, response returned from VCR."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     resp = await async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
@@ -269,6 +310,7 @@ async def test_chat_async_allow(mock_execute_request, async_openai_client):
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 async def test_chat_async_block(mock_execute_request, async_openai_client, decision):
+    """DENY/ABORT before-model (async): AIGuardAbortError raised, OpenAI never called."""
     mock_execute_request.return_value = mock_evaluate_response(decision)
 
     with pytest.raises(AIGuardAbortError):
@@ -299,6 +341,7 @@ def test_chat_sync_after_block(mock_execute_request, openai_client):
 @pytest.mark.asyncio
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 async def test_chat_async_after_block(mock_execute_request, async_openai_client):
+    """After-model DENY (async): first ALLOW (before), second DENY (after) -> error after response."""
     mock_execute_request.side_effect = [
         mock_evaluate_response("ALLOW"),
         mock_evaluate_response("DENY"),
@@ -331,6 +374,7 @@ def test_chat_sync_block_config_disabled(mock_execute_request, openai_client, de
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 async def test_chat_async_block_config_disabled(mock_execute_request, async_openai_client, decision):
+    """When _ai_guard_block=False (async), DENY/ABORT should NOT raise AIGuardAbortError."""
     mock_execute_request.return_value = mock_evaluate_response(decision, block=True)
 
     with override_ai_guard_config(dict(_ai_guard_block=False)):
@@ -408,31 +452,26 @@ async def test_chat_streaming_async_block(mock_execute_request, async_openai_cli
 
 
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_collision_avoidance_skips_evaluation(mock_execute_request, openai_client):
+def test_collision_avoidance_skips_evaluation(mock_execute_request, openai_client, aiguard_active_context):
     """When _ai_guard_active is True, evaluate is NOT called."""
     mock_execute_request.return_value = mock_evaluate_response("DENY")
 
-    token = set_aiguard_context_active()
-    try:
-        resp = openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
-        assert resp is not None
-        mock_execute_request.assert_not_called()
-    finally:
-        reset_aiguard_context_active(token)
+    resp = openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+    assert resp is not None
+    mock_execute_request.assert_not_called()
 
 
 @pytest.mark.asyncio
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-async def test_collision_avoidance_async_skips_evaluation(mock_execute_request, async_openai_client):
+async def test_collision_avoidance_async_skips_evaluation(
+    mock_execute_request, async_openai_client, aiguard_active_context
+):
+    """Async collision avoidance: when _ai_guard_active is True, evaluate is NOT called."""
     mock_execute_request.return_value = mock_evaluate_response("DENY")
 
-    token = set_aiguard_context_active()
-    try:
-        resp = await async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
-        assert resp is not None
-        mock_execute_request.assert_not_called()
-    finally:
-        reset_aiguard_context_active(token)
+    resp = await async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+    assert resp is not None
+    mock_execute_request.assert_not_called()
 
 
 def test_reset_same_context_restores_previous_value():
@@ -522,6 +561,7 @@ def test_chat_sync_fails_open_on_non_abort_error(mock_execute_request, openai_cl
 @pytest.mark.asyncio
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 async def test_chat_async_fails_open_on_non_abort_error(mock_execute_request, async_openai_client):
+    """Async fail-open: a non-abort exception from the AI Guard service must not block the OpenAI call."""
     mock_execute_request.side_effect = RuntimeError("ai-guard service unreachable")
 
     resp = await async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
@@ -629,53 +669,35 @@ def test_reset_cross_context_does_not_raise():
 # ---------------------------------------------------------------------------
 
 
-def test_init_ai_guard_disabled_does_not_register_listeners():
+def test_init_ai_guard_disabled_does_not_register_listeners(reset_ai_guard_loaded):
     """DD_AI_GUARD_ENABLED=false: ai_guard_listen() must NOT run."""
-    import ddtrace.appsec._ai_guard as ai_guard_mod
-
-    original = ai_guard_mod._AI_GUARD_TO_BE_LOADED
     ai_guard_mod._AI_GUARD_TO_BE_LOADED = True
-    try:
-        with patch("ddtrace.appsec._ai_guard._listener.ai_guard_listen") as mock_listen:
-            with override_ai_guard_config(dict(_ai_guard_enabled=False)):
-                ai_guard_mod.init_ai_guard()
-            mock_listen.assert_not_called()
-        # Disabled or not, init must mark itself loaded so it never retries.
-        assert ai_guard_mod._AI_GUARD_TO_BE_LOADED is False
-    finally:
-        ai_guard_mod._AI_GUARD_TO_BE_LOADED = original
+    with patch("ddtrace.appsec._ai_guard._listener.ai_guard_listen") as mock_listen:
+        with override_ai_guard_config(dict(_ai_guard_enabled=False)):
+            ai_guard_mod.init_ai_guard()
+        mock_listen.assert_not_called()
+    # Disabled or not, init must mark itself loaded so it never retries.
+    assert ai_guard_mod._AI_GUARD_TO_BE_LOADED is False
 
 
-def test_init_ai_guard_enabled_registers_listeners():
+def test_init_ai_guard_enabled_registers_listeners(reset_ai_guard_loaded):
     """DD_AI_GUARD_ENABLED=true: ai_guard_listen() runs exactly once."""
-    import ddtrace.appsec._ai_guard as ai_guard_mod
-
-    original = ai_guard_mod._AI_GUARD_TO_BE_LOADED
     ai_guard_mod._AI_GUARD_TO_BE_LOADED = True
-    try:
-        with patch("ddtrace.appsec._ai_guard._listener.ai_guard_listen") as mock_listen:
-            with override_ai_guard_config(dict(_ai_guard_enabled=True)):
-                ai_guard_mod.init_ai_guard()
-            mock_listen.assert_called_once()
-        assert ai_guard_mod._AI_GUARD_TO_BE_LOADED is False
-    finally:
-        ai_guard_mod._AI_GUARD_TO_BE_LOADED = original
+    with patch("ddtrace.appsec._ai_guard._listener.ai_guard_listen") as mock_listen:
+        with override_ai_guard_config(dict(_ai_guard_enabled=True)):
+            ai_guard_mod.init_ai_guard()
+        mock_listen.assert_called_once()
+    assert ai_guard_mod._AI_GUARD_TO_BE_LOADED is False
 
 
-def test_init_ai_guard_is_idempotent():
+def test_init_ai_guard_is_idempotent(reset_ai_guard_loaded):
     """Second call is a no-op regardless of config (_AI_GUARD_TO_BE_LOADED guard)."""
-    import ddtrace.appsec._ai_guard as ai_guard_mod
-
-    original = ai_guard_mod._AI_GUARD_TO_BE_LOADED
     ai_guard_mod._AI_GUARD_TO_BE_LOADED = False  # simulate already-loaded state
-    try:
-        with patch("ddtrace.appsec._ai_guard._listener.ai_guard_listen") as mock_listen:
-            with override_ai_guard_config(dict(_ai_guard_enabled=True)):
-                ai_guard_mod.init_ai_guard()
-                ai_guard_mod.init_ai_guard()
-            mock_listen.assert_not_called()
-    finally:
-        ai_guard_mod._AI_GUARD_TO_BE_LOADED = original
+    with patch("ddtrace.appsec._ai_guard._listener.ai_guard_listen") as mock_listen:
+        with override_ai_guard_config(dict(_ai_guard_enabled=True)):
+            ai_guard_mod.init_ai_guard()
+            ai_guard_mod.init_ai_guard()
+        mock_listen.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -753,7 +775,7 @@ def test_cassette_real_response_is_evaluated_after_model(mock_execute_request, o
 
     assert resp.choices[0].message.role == "assistant"
     assistant_content = resp.choices[0].message.content
-    assert assistant_content  # real cassette body contains the gramar explanation
+    assert assistant_content  # real cassette body contains the grammar explanation
 
     # Two calls: before(user-only) and after(user + assistant response).
     assert mock_execute_request.call_count == 2

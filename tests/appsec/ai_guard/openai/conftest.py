@@ -1,3 +1,5 @@
+"""Pytest fixtures and HTTP transport helpers for the AI Guard + OpenAI integration tests."""
+
 import json
 
 import httpx
@@ -10,8 +12,15 @@ from tests.appsec.ai_guard.utils import override_ai_guard_config
 from tests.utils import override_env
 
 
-# `pytest` automatically calls this function once when tests are run.
-def pytest_configure():
+@pytest.fixture(scope="session", autouse=True)
+def _ai_guard_session_init():
+    """Initialise AI Guard once for the whole session and keep config active.
+
+    ``init_ai_guard()`` reads config eagerly; holding the ``override_ai_guard_config``
+    context open via ``yield`` keeps session-scoped values (_dd_api_key, endpoint,
+    …) in place for every test rather than tearing them down the instant the init
+    call returns.
+    """
     with override_ai_guard_config(
         dict(
             _ai_guard_enabled="True",
@@ -21,6 +30,7 @@ def pytest_configure():
         )
     ):
         init_ai_guard()
+        yield
 
 
 @pytest.fixture
@@ -33,8 +43,10 @@ def openai_sdk():
         patch()
         import openai
 
-        yield openai
-        unpatch()
+        try:
+            yield openai
+        finally:
+            unpatch()
 
 
 @pytest.fixture
@@ -94,12 +106,12 @@ def _fake_stream_response() -> httpx.Response:
 
 
 class _StreamMockTransport(httpx.BaseTransport):
-    def handle_request(self, request):
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
         return _fake_stream_response()
 
 
 class _AsyncStreamMockTransport(httpx.AsyncBaseTransport):
-    async def handle_async_request(self, request):
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         return _fake_stream_response()
 
 
@@ -159,12 +171,12 @@ def _fake_chat_response() -> httpx.Response:
 
 
 class _ChatMockTransport(httpx.BaseTransport):
-    def handle_request(self, request):
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
         return _fake_chat_response()
 
 
 class _AsyncChatMockTransport(httpx.AsyncBaseTransport):
-    async def handle_async_request(self, request):
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         return _fake_chat_response()
 
 
