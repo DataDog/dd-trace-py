@@ -10,7 +10,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69e92a7200000000",
-      "_dd.svc_src": "m",
+      "_dd.svc_src": "test-func",
       "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "topic_send_message_batch",
       "aas.function.trigger": "Http",
@@ -43,7 +43,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_servicebus",
          "component": "azure_servicebus",
          "messaging.destination.name": "topic.1",
          "messaging.message_id": "47e5e5ad-ba9f-49e4-8976-784cbb56ab24",
@@ -69,7 +69,7 @@
        "meta": {
          "_dd.base_service": "test-func",
          "_dd.p.tid": "69e92a7200000000",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_servicebus",
          "component": "azure_servicebus",
          "messaging.destination.name": "topic.1",
          "messaging.message_id": "c0d0de64-c1b6-4881-8242-e7500a9540dd",
@@ -95,7 +95,7 @@
        "meta": {
          "_dd.base_service": "test-func",
          "_dd.p.tid": "69e92a7200000000",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_servicebus",
          "component": "azure_servicebus",
          "messaging.batch_count": "2",
          "messaging.destination.name": "topic.1",
@@ -138,7 +138,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69e92a7200000000",
-      "_dd.svc_src": "m",
+      "_dd.svc_src": "test-func",
       "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "servicebustopic",
       "aas.function.trigger": "ServiceBus",

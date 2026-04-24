@@ -1,0 +1,29 @@
+[[
+  {
+    "name": "internal",
+    "service": "tests.opentelemetry",
+    "resource": "async-function",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69ebaf3000000000",
+      "_dd.svc_src": "tests.opentelemetry",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
+      "language": "python",
+      "runtime-id": "e20749b9e12e47779df8e789a0ae8079",
+      "test-attribute1": "before-sleep",
+      "test-attribute2": "after-sleep"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 43109.0
+    },
+    "duration": 13415375,
+    "start": 1777053488147886963
+  }]]
