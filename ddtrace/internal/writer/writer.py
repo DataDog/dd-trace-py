@@ -1120,7 +1120,28 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
     if _use_log_writer():
         return LogWriter()
 
-    if config._trace_agentless_enabled:
+    # Inline the LLMObs-agentless predicate here (rather than importing from
+    # ddtrace.llmobs._writer) because create_trace_writer runs during tracer init,
+    # which happens while the ddtrace package is still being initialized — importing
+    # the llmobs module at that point triggers a circular import.
+    def _llmobs_wants_agentless() -> bool:
+        if not config._llmobs_enabled:
+            return False
+        if config._llmobs_agentless_enabled is not None:
+            return bool(config._llmobs_agentless_enabled)
+        from ddtrace.internal import agent
+        from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
+
+        try:
+            agent_info = agent.info()
+        except Exception:
+            agent_info = None
+        if agent_info is None:
+            return True
+        endpoints = agent_info.get("endpoints", [])
+        return not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
+
+    if config._trace_agentless_enabled or _llmobs_wants_agentless():
         if config._dd_api_key:
             intake_url = "https://{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, config._dd_site)
             verify_url(intake_url)
@@ -1131,7 +1152,7 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
                 sync_mode=_use_sync_mode(),
                 report_metrics=not asm_config._apm_opt_out,
             )
-        log.warning("APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.")
+        log.warning("Agentless trace submission enabled but DD_API_KEY is not set. Agentless mode will be disabled.")
 
     verify_url(agent_config.trace_agent_url)
 

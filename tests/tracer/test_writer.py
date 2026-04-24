@@ -1366,9 +1366,73 @@ def test_agentless_writer_serialize_span_fields():
         "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
         "DD_API_KEY": None,
     },
-    err=b"APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.\n",
+    err=b"Agentless trace submission enabled but DD_API_KEY is not set. Agentless mode will be disabled.\n",
 )
 def test_agentless_writer_no_api_key():
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert not isinstance(writer, AgentlessTraceWriter)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "DD_API_KEY": "test-api-key",
+    }
+)
+def test_agentless_writer_enabled_via_llmobs_agentless():
+    """LLMObs agentless alone routes the tracer through AgentlessTraceWriter."""
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert isinstance(writer, AgentlessTraceWriter)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_API_KEY": "test-api-key",
+    }
+)
+def test_agentless_writer_not_enabled_when_llmobs_agentless_disabled():
+    """Explicit DD_LLMOBS_AGENTLESS_ENABLED=0 leaves the tracer on NativeWriter."""
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert not isinstance(writer, AgentlessTraceWriter)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_ENABLED": "0",
+        "DD_API_KEY": "test-api-key",
+    }
+)
+def test_agentless_writer_not_enabled_when_llmobs_disabled():
+    """LLMObs disabled: no auto-detect agentless, tracer stays on NativeWriter."""
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert not isinstance(writer, AgentlessTraceWriter)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "DD_API_KEY": None,
+    },
+    err=b"Agentless trace submission enabled but DD_API_KEY is not set. Agentless mode will be disabled.\n",
+)
+def test_agentless_writer_llmobs_agentless_no_api_key():
+    """LLMObs agentless without DD_API_KEY falls back and logs."""
     from ddtrace.internal.writer.writer import AgentlessTraceWriter
     from ddtrace.trace import tracer
 

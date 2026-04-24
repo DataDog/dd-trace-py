@@ -63,16 +63,16 @@ class LLMObsSpanData(TypedDict, total=False):
     """Structure of LLMObs span data attached to APM spans."""
 
     name: str
-    parent_id: Optional[int]
-    trace_id: int
+    parent_id: str
+    trace_id: str
     ml_app: str
     session_id: str
     tags: dict[str, str]
     metrics: dict[str, Any]
     span_links: list["_SpanLink"]
     config: "ExperimentConfigType"
-    is_evaluation_span: bool
     meta: _Meta
+    _dd: dict[str, str]
 
 
 class _LLMObsSpanEventOptional(TypedDict, total=False):
@@ -162,6 +162,20 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
 
     endpoints = agent_info.get("endpoints", [])
     return not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
+
+
+def llmobs_wants_agentless() -> bool:
+    """Return True if LLMObs is enabled and should use agentless APM submission.
+
+    Used by ``create_trace_writer`` to pick ``AgentlessTraceWriter`` so LLM
+    spans ship to the APM agentless intake with their ``meta_struct["_llmobs"]``
+    payload preserved, instead of being POSTed to ``llmobs-intake`` separately.
+    """
+    if not config._llmobs_enabled:
+        return False
+    if config._llmobs_agentless_enabled is not None:
+        return bool(config._llmobs_agentless_enabled)
+    return should_use_agentless()
 
 
 class BaseLLMObsWriter(PeriodicService):

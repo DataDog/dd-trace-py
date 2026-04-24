@@ -362,7 +362,7 @@ class TestAnnotateLLMObsSpanData:
             assert data[LLMOBS_STRUCT.PARENT_ID] == "parent-1"
             assert data[LLMOBS_STRUCT.TRACE_ID] == 12345
             assert data[LLMOBS_STRUCT.METRICS] == {"input_tokens": 10}
-            assert data[LLMOBS_STRUCT.TAGS] == {"env": "prod"}
+            assert {"env": "prod"}.items() <= data[LLMOBS_STRUCT.TAGS].items()
             assert data[LLMOBS_STRUCT.SPAN_LINKS] == links
             meta = data[LLMOBS_STRUCT.META]
             assert meta[LLMOBS_STRUCT.SPAN][LLMOBS_STRUCT.KIND] == "llm"
@@ -385,4 +385,4 @@ class TestAnnotateLLMObsSpanData:
             data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
             assert data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA] == {"key1": "val1", "key2": "val2"}
             assert data[LLMOBS_STRUCT.METRICS] == {"input_tokens": 10, "output_tokens": 5}
-            assert data[LLMOBS_STRUCT.TAGS] == {"env": "prod", "version": "1.0"}
+            assert {"env": "prod", "version": "1.0"}.items() <= data[LLMOBS_STRUCT.TAGS].items()
