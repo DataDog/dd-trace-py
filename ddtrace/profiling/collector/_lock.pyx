@@ -193,7 +193,7 @@ class _ProfiledLock:
         return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        # Called only when capture_sampler.capture() already returned True — no re-check needed.
+        # Called only when capture_sampler.capture already returned True — no re-check needed.
         cdef long long start = time.monotonic_ns()
         result: Any = None
         error_info: Optional[tuple[BaseException, Optional[TracebackType]]] = None
