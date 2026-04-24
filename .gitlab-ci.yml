@@ -187,8 +187,6 @@ targeted-tests-gen:
   needs: []
   rules:
     - if: $VERSION_SUPPORT_SPEC_JSON
-      when: never
-    - when: on_success
   variables:
     UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
     NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
