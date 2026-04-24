@@ -10,7 +10,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69e92a0700000000",
-      "_dd.svc_src": "test-func",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "queue_send_single_message",
       "aas.function.trigger": "Http",
@@ -70,7 +70,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69e92a0800000000",
-      "_dd.svc_src": "test-func",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "servicebusqueue",
       "aas.function.trigger": "ServiceBus",
