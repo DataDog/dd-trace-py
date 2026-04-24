@@ -480,6 +480,15 @@ def test_annotate_finished_span_does_nothing(llmobs):
     assert str(excinfo.value) == "Cannot annotate a finished span."
 
 
+def test_annotate_when_llmobs_is_disabled_does_nothing(llmobs, mock_llmobs_logs):
+    llmobs.enabled = False
+    llmobs.annotate(metadata={"test": "test"})
+    mock_llmobs_logs.warning.assert_called_once_with(
+        "annotating when LLMObs is disabled. No annotation will be recorded."
+    )
+    llmobs.enabled = True
+
+
 def test_annotate_metadata(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, metadata={"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3})

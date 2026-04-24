@@ -2284,6 +2284,10 @@ class LLMObs(Service):
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
         """
+        if cls.enabled is False:
+            log.warning("annotating when LLMObs is disabled. No annotation will be recorded.")
+            return
+
         error = None
         try:
             if span is None:
