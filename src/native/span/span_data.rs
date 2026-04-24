@@ -473,11 +473,26 @@ impl SpanData {
         } else if value.cast::<PyInt>().is_ok() {
             // Catches int and bool (PyBool subclasses PyInt); downcast (not downcast_exact)
             // is used so subclasses are included.
-            let Ok(n) = value.extract::<f64>() else {
+            //
+            // Only store as f64 metric when the value can be represented exactly (abs <= 2^53).
+            // Larger integers lose precision in f64, so they are stored as strings in meta to
+            // preserve their exact value for the wire format and for callers reading them back.
+            if let Ok(n) = value.extract::<i64>() {
+                if n.unsigned_abs() <= (1u64 << 53) {
+                    self.data.meta.remove(&*key_pbs);
+                    self.data.metrics.insert(key_pbs, n as f64);
+                    return Ok(());
+                }
+            }
+            // Value is too large for exact f64 representation — store as string.
+            let Ok(s) = value.str() else {
                 return Ok(());
             };
-            self.data.meta.remove(&*key_pbs);
-            self.data.metrics.insert(key_pbs, n);
+            let Some(v) = PyBackedString::try_from(s.clone()).ok() else {
+                return Ok(());
+            };
+            self.data.metrics.remove(&*key_pbs);
+            self.data.meta.insert(key_pbs, v);
         } else if let Ok(b) = value.cast::<PyBytes>() {
             // Decode bytes as UTF-8 (with U+FFFD replacements for invalid sequences).
             let decoded = String::from_utf8_lossy(b.as_bytes());

@@ -13,3 +13,10 @@ upgrade:
     of stored as their ``repr()``. The typed signature accepts ``str`` values
     only; any existing callers passing non-``str`` values should convert to
     ``str`` explicitly to avoid unexpected behavior.
+  - |
+    Integer values whose absolute value exceeds ``2**53`` (the maximum integer
+    exactly representable as a 64-bit float) are now stored as strings in the
+    span's meta (tag) map rather than as metrics, to preserve their exact value.
+    Previously such integers were silently rounded when stored as ``f64``.
+    Callers reading large integers back via ``get_metric()`` will now receive
+    ``None``; use ``get_tag()`` instead.
