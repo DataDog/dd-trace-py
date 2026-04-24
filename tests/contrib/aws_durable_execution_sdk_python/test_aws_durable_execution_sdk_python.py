@@ -151,7 +151,7 @@ class MockDurableServiceClient:
 # ---------------------------------------------------------------------------
 # Constants for test fixtures
 # ---------------------------------------------------------------------------
-DURABLE_EXECUTION_ARN = "arn:aws:lambda:us-east-1:123456789012:function:sample-durable-fn:dex:abc-123"
+DURABLE_EXECUTION_ARN = "arn:aws:lambda:us-east-1:123456789012:function:sample-durable-fn:$LATEST/durable-execution/my-execution/abc-123"
 INITIAL_CHECKPOINT_TOKEN = "initial-token-0"
 INPUT_PAYLOAD = json.dumps({"order_id": "ORD-42", "amount": 99.95})
 
@@ -566,7 +566,7 @@ class TestWorkflowExecution:
         assert len(workflow_spans) == 1
         workflow_span = workflow_spans[0]
 
-        assert workflow_span.get_tag("aws_lambda.durable_execution.execution_name") == "sample-durable-fn"
+        assert workflow_span.get_tag("aws_lambda.durable_execution.execution_name") == "my-execution"
         assert workflow_span.get_tag("aws_lambda.durable_execution.execution_id") == "abc-123"
 
 

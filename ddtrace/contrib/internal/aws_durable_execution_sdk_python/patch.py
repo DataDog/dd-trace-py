@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import contextvars
 import functools
+import re
 import sys
 from typing import NamedTuple
 
@@ -64,15 +65,22 @@ class TracedThreadPoolExecutor(ThreadPoolExecutor):
         return super().submit(_wrapped, *args, **kwargs)
 
 
+_DURABLE_EXECUTION_ARN_RE = re.compile(r"/durable-execution/([^/]+)/([^/]+)$")
+
+
 def _parse_durable_execution_arn(arn):
     """Extract execution_name and execution_id from a durable execution ARN.
 
-    Expected format: arn:aws:lambda:{region}:{account}:function:{name}:dex:{id}
+    Expected format:
+    arn:aws:lambda:{region}:{account}:function:{func}:{version}/durable-execution/{name}/{id}
     """
-    parts = arn.split(":")
-    if len(parts) >= 9 and parts[7] == "dex":
-        return parts[6], parts[8]
-    return None, None
+    match = _DURABLE_EXECUTION_ARN_RE.search(arn)
+    if not match:
+        return None, None
+    execution_name, execution_id = match.group(1), match.group(2)
+    if not execution_name or not execution_id:
+        return None, None
+    return execution_name, execution_id
 
 
 def _execution_tags(durable_context):
