@@ -864,7 +864,10 @@ args = argp.parse_args()
 if (args.package_version or args.package_name or args.python_version) and not args.suites:
     argp.error("--package-version, --package-name, and --python-version require --suite")
 if args.version_support_spec_json and (args.suites or args.package_version or args.package_name or args.python_version):
-    argp.error("--version-support-spec-json cannot be combined with --suite, --package-version, --package-name, or --python-version")
+    argp.error(
+        "--version-support-spec-json cannot be combined with "
+        "--suite, --package-version, --package-name, or --python-version"
+    )
 if args.debug:
     LOGGER.setLevel(logging.DEBUG)
 elif args.verbose:

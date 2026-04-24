@@ -1,6 +1,7 @@
 # type: ignore
 import logging
 import os
+import re
 
 from riot import Venv
 
@@ -99,6 +100,217 @@ _base_env = {
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
+
+
+def _apply_version_support_overrides(root_venv: Venv) -> None:
+    spec_json = os.environ.get("VERSION_SUPPORT_SPEC_JSON")
+    if not spec_json:
+        return
+
+    from scripts.riot_selection import RiotInstanceMetadata
+    from scripts.riot_selection import _matches_python_selector
+    from scripts.riot_selection import _normalize_package_name
+    from scripts.riot_selection import _resolve_candidate_packages
+    from scripts.riot_selection import load_version_support_spec
+    from scripts.riot_selection import suite_leaf_name
+
+    try:
+        raw_integrations = load_version_support_spec(spec_json)
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid VERSION_SUPPORT_SPEC_JSON: {exc}") from exc
+
+    requested_targets_by_suite = {}
+    for integration in raw_integrations:
+        suite_name = suite_leaf_name(integration.requested_suite)
+        requested_targets_by_suite.setdefault(suite_name, []).extend(integration.targets)
+
+    suite_nodes = {suite.name: suite for suite in root_venv.venvs if suite.name}
+    suite_instances = {suite_name: [] for suite_name in requested_targets_by_suite}
+    for inst in root_venv.instances():
+        if inst.name not in suite_instances:
+            continue
+        py_hint = inst.py._hint  # type: ignore[attr-defined]
+        suite_instances[inst.name].append(
+            (
+                inst,
+                RiotInstanceMetadata(
+                    hash=inst.short_hash,  # type: ignore[attr-defined]
+                    python_version=py_hint if re.match(r"^3\.\d+$", py_hint) else None,
+                    packages={
+                        str(package_name).lower(): package_spec for package_name, package_spec in inst.pkgs.items()
+                    },
+                ),
+            )
+        )
+
+    # AIDEV-NOTE: VERSION_SUPPORT_SPEC_JSON must rewrite the Riot matrix before
+    # hashes are computed so config generation and child jobs agree on the same
+    # synthetic environments for targeted version-support runs.
+    for suite_name, targets in requested_targets_by_suite.items():
+        suite_node = suite_nodes.get(suite_name)
+        if suite_node is None:
+            raise RuntimeError(f"Unknown suite {suite_name!r} in VERSION_SUPPORT_SPEC_JSON")
+        if not targets:
+            continue
+
+        original_instances = suite_instances.get(suite_name, [])
+        if not original_instances:
+            raise RuntimeError(f"No riot environments found for suite {suite_name!r}")
+
+        synthetic_children = []
+        overridden_packages = set()
+        for target in targets:
+            target_instances = list(original_instances)
+            if target.python_selector:
+                target_instances = [
+                    instance
+                    for instance in target_instances
+                    if _matches_python_selector(instance[1].python_version, target.python_selector)
+                ]
+                if not target_instances:
+                    raise RuntimeError(
+                        f"No riot environments found for suite {suite_name!r} "
+                        f"on Python selector {target.python_selector!r}"
+                    )
+
+            if not target.package_versions:
+                synthetic_children.extend(_build_synthetic_children(target_instances))
+                continue
+
+            candidate_package_names = _resolve_candidate_packages(
+                suite_name,
+                [metadata for _, metadata in target_instances],
+                explicit_package=target.package_name,
+                integration_to_dependencies=None,
+            )
+            if not candidate_package_names:
+                raise RuntimeError(
+                    f"Unable to determine which dependency to version-filter for suite {suite_name!r}; "
+                    "specify 'package' in VERSION_SUPPORT_SPEC_JSON to disambiguate"
+                )
+            if target.package_name:
+                package_name = _normalize_package_name(target.package_name)
+            elif len(candidate_package_names) == 1:
+                package_name = candidate_package_names[0]
+            else:
+                raise RuntimeError(
+                    f"Multiple dependencies in suite {suite_name!r} require disambiguation: "
+                    f"{sorted(candidate_package_names)}"
+                )
+
+            overridden_packages.add(package_name)
+            for requested_version in target.package_versions:
+                version_children = _build_version_overridden_children(
+                    suite_name,
+                    target_instances,
+                    package_name,
+                    requested_version,
+                )
+                synthetic_children.extend(version_children)
+
+        suite_node.pys = []
+        suite_node.pkgs = {
+            package_name: package_spec
+            for package_name, package_spec in suite_node.pkgs.items()
+            if _normalize_package_name(package_name) not in overridden_packages
+        }
+        suite_node.venvs = synthetic_children
+        logger.info(
+            "Applied VERSION_SUPPORT_SPEC_JSON override for suite %s (%d synthetic envs)",
+            suite_name,
+            len(synthetic_children),
+        )
+
+
+def _build_synthetic_children(instances):
+    children = []
+    seen = set()
+    for inst, metadata in instances:
+        signature = (
+            metadata.python_version,
+            tuple(
+                sorted(
+                    (str(package_name).lower(), str(package_spec)) for package_name, package_spec in inst.pkgs.items()
+                )
+            ),
+            tuple(sorted((str(key), str(value)) for key, value in inst.env.items())),
+            inst.command,
+        )
+        if signature in seen:
+            continue
+        seen.add(signature)
+        children.append(
+            Venv(
+                pys=[metadata.python_version] if metadata.python_version else [],
+                pkgs=dict(inst.pkgs),
+                env=dict(inst.env),
+                command=inst.command,
+            )
+        )
+    return children
+
+
+def _build_version_overridden_children(suite_name, instances, package_name, requested_version):
+    from scripts.riot_selection import _get_package_spec
+    from scripts.riot_selection import _instance_matches_requested_version
+    from scripts.riot_selection import normalize_target_package_version
+
+    grouped_instances = {}
+    for inst, metadata in instances:
+        group_key = (
+            metadata.python_version,
+            tuple(
+                sorted(
+                    (str(pkg_name).lower(), str(pkg_spec))
+                    for pkg_name, pkg_spec in inst.pkgs.items()
+                    if str(pkg_name).lower() != package_name
+                )
+            ),
+            tuple(sorted((str(key), str(value)) for key, value in inst.env.items())),
+            inst.command,
+        )
+        grouped_instances.setdefault(group_key, []).append((inst, metadata))
+
+    children = []
+    for grouped_candidates in grouped_instances.values():
+        best_instance = None
+        best_priority = None
+        for inst, metadata in grouped_candidates:
+            package_spec = _get_package_spec(metadata, package_name)
+            if _instance_matches_requested_version(metadata, package_name, requested_version):
+                priority = 0
+            elif str(package_spec).strip() in ("", "latest"):
+                priority = 1
+            else:
+                priority = 2
+
+            if best_priority is None or priority < best_priority:
+                best_priority = priority
+                best_instance = inst, metadata
+
+        if best_instance is None or best_priority is None or best_priority > 1:
+            requested_python = grouped_candidates[0][1].python_version
+            requested_python_msg = f" on Python {requested_python}" if requested_python else ""
+            raise RuntimeError(
+                f"No riot template found for suite {suite_name!r}{requested_python_msg} matching {requested_version!r}"
+            )
+
+        inst, metadata = best_instance
+        synthetic_pkgs = dict(inst.pkgs)
+        matching_keys = [key for key in synthetic_pkgs if str(key).lower() == package_name]
+        if matching_keys:
+            synthetic_pkgs[matching_keys[0]] = normalize_target_package_version(requested_version)
+        else:
+            synthetic_pkgs[package_name] = normalize_target_package_version(requested_version)
+        children.append(
+            Venv(
+                pys=[metadata.python_version] if metadata.python_version else [],
+                pkgs=synthetic_pkgs,
+                env=dict(inst.env),
+                command=inst.command,
+            )
+        )
+    return children
 
 
 # Common env configurations for appsec threats testing without/with IAST
@@ -4448,3 +4660,5 @@ venv = Venv(
         ),
     ],
 )
+
+_apply_version_support_overrides(venv)

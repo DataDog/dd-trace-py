@@ -47,6 +47,12 @@ class VersionSupportTarget:
     python_selector: str | None = None
 
 
+@dataclass(frozen=True)
+class VersionSupportIntegration:
+    requested_suite: str
+    targets: tuple[VersionSupportTarget, ...] = ()
+
+
 def resolve_suite_name(requested_suite: str, suites: Mapping[str, object]) -> str:
     if requested_suite in suites:
         return requested_suite
@@ -75,6 +81,14 @@ def parse_version_support_spec(
     spec_json: str,
     suites: Mapping[str, object],
 ) -> dict[str, tuple[VersionSupportTarget, ...]]:
+    parsed: dict[str, list[VersionSupportTarget]] = {}
+    for integration in load_version_support_spec(spec_json):
+        suite_name = resolve_suite_name(integration.requested_suite, suites)
+        parsed.setdefault(suite_name, []).extend(integration.targets)
+    return {suite_name: tuple(targets) for suite_name, targets in parsed.items()}
+
+
+def load_version_support_spec(spec_json: str) -> tuple[VersionSupportIntegration, ...]:
     try:
         raw_spec = json.loads(spec_json)
     except json.JSONDecodeError as exc:
@@ -87,7 +101,7 @@ def parse_version_support_spec(
     if not isinstance(raw_integrations, Sequence) or isinstance(raw_integrations, (str, bytes)):
         raise ValueError("VERSION_SUPPORT_SPEC_JSON must define an 'integrations' array")
 
-    parsed: dict[str, list[VersionSupportTarget]] = {}
+    integrations: list[VersionSupportIntegration] = []
     for index, raw_integration in enumerate(raw_integrations):
         if not isinstance(raw_integration, Mapping):
             raise ValueError(f"Integration entry #{index + 1} must be an object")
@@ -95,16 +109,15 @@ def parse_version_support_spec(
         raw_suite_name = _get_first_string(raw_integration, ("suite",))
         if not raw_suite_name:
             raise ValueError(f"Integration entry #{index + 1} must define 'suite'")
-        suite_name = resolve_suite_name(raw_suite_name, suites)
 
         raw_targets = raw_integration.get("targets")
         if raw_targets is None:
-            parsed.setdefault(suite_name, [])
+            integrations.append(VersionSupportIntegration(requested_suite=raw_suite_name))
             continue
         if not isinstance(raw_targets, Sequence) or isinstance(raw_targets, (str, bytes)):
             raise ValueError(f"Integration entry {raw_suite_name!r} has invalid 'targets'")
 
-        targets = parsed.setdefault(suite_name, [])
+        targets: list[VersionSupportTarget] = []
         for target_index, raw_target in enumerate(raw_targets):
             if not isinstance(raw_target, Mapping):
                 raise ValueError(f"Target #{target_index + 1} for integration {raw_suite_name!r} must be an object")
@@ -115,8 +128,16 @@ def parse_version_support_spec(
                     python_selector=_get_first_string(raw_target, ("python",)),
                 )
             )
+        integrations.append(VersionSupportIntegration(requested_suite=raw_suite_name, targets=tuple(targets)))
+    return tuple(integrations)
 
-    return {suite_name: tuple(targets) for suite_name, targets in parsed.items()}
+
+def suite_leaf_name(requested_suite: str) -> str:
+    return requested_suite.split("::")[-1].strip()
+
+
+def normalize_target_package_version(requested_version: str) -> str:
+    return "" if requested_version.strip().lower() == "latest" else requested_version.strip()
 
 
 def select_instances_for_suite(
@@ -349,7 +370,9 @@ def _filter_instances_by_python_selector(
     instances: Sequence[RiotInstanceMetadata],
     python_selector: str,
 ) -> list[RiotInstanceMetadata]:
-    selected = [instance for instance in instances if _matches_python_selector(instance.python_version, python_selector)]
+    selected = [
+        instance for instance in instances if _matches_python_selector(instance.python_version, python_selector)
+    ]
     if not selected:
         raise ValueError(f"No riot environments found for suite {suite_name!r} on Python selector {python_selector!r}")
     return selected
@@ -396,7 +419,9 @@ def _filter_instances_for_package_version(
     matches_by_package: dict[str, list[RiotInstanceMetadata]] = {}
     for candidate_package in candidate_packages:
         matches = [
-            instance for instance in instances if _instance_matches_requested_version(instance, candidate_package, package_version)
+            instance
+            for instance in instances
+            if _instance_matches_requested_version(instance, candidate_package, package_version)
         ]
         if matches:
             matches_by_package[candidate_package] = matches
