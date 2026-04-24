@@ -1074,7 +1074,7 @@ experiments:
           # codeprovenancefork
           - name: codeprovenancefork-fork-10
             thresholds:
-              - execution_time < 2400 ms
+              - execution_time < 2300 ms
               - max_rss_usage < 20 MB
 
           # forktime
