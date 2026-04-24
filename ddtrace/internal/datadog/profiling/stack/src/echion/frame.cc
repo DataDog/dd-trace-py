@@ -99,9 +99,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     }
 
 #if PY_VERSION_HEX >= 0x030c0000
-    // Exhaustive switch on _frameowner so -Wswitch fires if CPython adds a
-    // new value and we forget to handle it.  See test_cpython_layout_contracts
-    // for static_asserts that verify the enum values match our expectations.
+    // _PyInterpreterFrame.owner is stored as char, not the _frameowner enum
+    // itself, so -Wswitch can't enforce exhaustiveness.  test_cpython_layout
+    // _contracts static_asserts the enum values we rely on; an unknown owner
+    // here means CPython grew a new value and is treated as an error.
     switch (frame_addr->owner) {
         case FRAME_OWNED_BY_THREAD:
         case FRAME_OWNED_BY_GENERATOR:
@@ -121,8 +122,8 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
             // https://github.com/python/cpython/blob/ebf955df7a89ed0c7968f79faec1de49f61ed7cb/Modules/_remote_debugging_module.c#L2134
             *prev_addr = frame_addr->previous;
             return std::ref(C_FRAME);
-            // No default — intentional: -Wswitch warns if a new _frameowner value
-            // is added to CPython without a corresponding case here.
+        default:
+            return ErrorKind::FrameError;
     }
 #endif // PY_VERSION_HEX >= 0x030c0000
 
