@@ -362,6 +362,19 @@ class ProfilingConfigLock(DDConfig):
         ),
     )
 
+    exclude_modules = DDConfig.v(
+        frozenset,
+        "exclude_modules",
+        parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
+        default=frozenset(),
+        help_type="String",
+        help=(
+            "Comma-separated list of module or package names to exclude from lock profiling. "
+            "Locks created from these modules are not profiled."
+            "Examples: ``ddtrace`` (excludes profiler overhead), ``django.db,sqlalchemy.pool,urllib3``"
+        ),
+    )
+
 
 class ProfilingConfigMemory(DDConfig):
     __item__ = __prefix__ = "memory"

@@ -24,7 +24,8 @@ from ddtrace.trace import Tracer
 
 from ddtrace.profiling._threading import get_thread_name, get_thread_native_id
 from ddtrace.profiling.collector._sampler cimport CaptureSampler
-from ddtrace.profiling.collector._task cimport get_task as _c_get_task, initialize_gevent_support as _c_initialize_gevent_support
+from ddtrace.profiling.collector._task cimport get_task as _c_get_task
+from ddtrace.profiling.collector._task cimport initialize_gevent_support as _c_initialize_gevent_support
 
 
 ACQUIRE_RELEASE_CO_NAMES: frozenset[str] = frozenset(["_acquire", "_release"])
@@ -387,7 +388,7 @@ class _LockAllocatorWrapper:
                 return
 
         # Case 1: Normal wrapper initialization
-        self._func: Callable[..., _ProfiledLock]
+        self._func: Callable[..., Any]
         self._original_class: Optional[type[Any]]
         if args:
             self._func = args[0]
@@ -396,7 +397,7 @@ class _LockAllocatorWrapper:
             self._func = kwargs.get("func")  # type: ignore[assignment]
             self._original_class = kwargs.get("original_class")
 
-    def __call__(self, *args: Any, **kwargs: Any) -> _ProfiledLock:
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         return self._func(*args, **kwargs)
 
     def __get__(self, instance: Any, owner: Optional[type[Any]] = None) -> _LockAllocatorWrapper:
@@ -496,18 +497,36 @@ class LockCollector(collector.CaptureSamplerCollector):
 
             internal_module_file = threading_module.__file__
 
-        def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> _ProfiledLock:
+        # Precompute module exclusion structures once at patch time (not per lock creation).
+        # Two structures for fast matching:
+        #   exclude_exact  — frozenset for O(1) exact module name lookup
+        #   exclude_dotted — tuple of "prefix." strings for str.startswith
+        exclude_exact: frozenset[str] = config.lock.exclude_modules
+        exclude_dotted: tuple[str, ...] = tuple(p + "." for p in exclude_exact)
+
+        def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> Any:
             """Simple wrapper that returns profiled locks.
 
             Detects if the lock is being created from within the stdlib module
             (i.e., internal to Semaphore/Condition) to avoid double-counting.
+            Skips wrapping entirely for locks created from excluded modules.
             """
             cdef bint is_internal = False
             cdef str caller_filename
             cdef str internal_file
+            cdef str caller_module
             try:
                 # In Cython, intermediate frames are invisible; caller is at index 0
-                caller_filename = sys._getframe(0).f_code.co_filename
+                caller_frame: FrameType = sys._getframe(0)
+                caller_filename = caller_frame.f_code.co_filename
+
+                # Module exclusion: return native lock with zero profiling overhead
+                if exclude_exact:
+                    caller_module = caller_frame.f_globals.get("__name__", "")
+                    if caller_module in exclude_exact or caller_module.startswith(exclude_dotted):
+                        return original_lock(*args, **kwargs)
+
+                # Internal lock detection (e.g., threading.Semaphore creating a Lock internally)
                 if internal_module_file and caller_filename:
                     caller_filename = os.path.normpath(os.path.realpath(caller_filename))
                     internal_file = os.path.normpath(os.path.realpath(internal_module_file))
