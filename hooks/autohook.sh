@@ -38,6 +38,7 @@ install() {
         "pre-commit"
         "post-merge"
         "post-checkout"
+        "commit-msg"
     )
 
     repo_root=$(git rev-parse --show-toplevel)
@@ -83,7 +84,7 @@ main() {
             do
                 scriptname=$(basename $file)
                 echo "BEGIN $scriptname"
-                eval "\"$file\""
+                "$file" "$@"
                 script_exit_code="$?"
                 if [[ "$script_exit_code" != 0 ]]
                 then
@@ -93,7 +94,7 @@ main() {
             done
             if [[ $hook_exit_code != 0 ]]
             then
-              if [[ $hook_type == "pre-commit" ]]
+              if [[ $hook_type == "pre-commit" || $hook_type == "commit-msg" ]]
               then
                 echo "A $hook_type script exited with non-zero code $hook_exit_code — aborting commit."
                 exit $hook_exit_code
