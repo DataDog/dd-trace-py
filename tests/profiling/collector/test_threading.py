@@ -20,6 +20,7 @@ from ddtrace import ext
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.profiling.collector import CaptureSampler
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
 from ddtrace.profiling.collector._lock import _ProfiledLock
 from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
@@ -466,6 +467,66 @@ def test_internal_lock_skips_asserts() -> None:
             )
         if error:
             raise error[0]
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
+def test_reentrant_unsampled_acquire_asserts_for_rlock() -> None:
+    """Unsampled re-entrant acquire on an RLock while a sampled hold is in progress must raise
+    AssertionError — the next release would emit a hold-time sample truncated at this inner
+    release rather than the true outer release.
+    """
+    import time
+
+    import pytest
+
+    from ddtrace.profiling import collector
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+
+    class RLock:  # class name must be exactly "RLock" to trigger the type check
+        def acquire(self, *args, **kwargs):
+            return True
+
+        def __enter__(self, *args, **kwargs):
+            return True
+
+        def __exit__(self, *args, **kwargs):
+            pass
+
+    sampler = collector.CaptureSampler(capture_pct=0)  # always unsampled
+    profiled = _ProfiledLock(wrapped=RLock(), tracer=None, capture_sampler=sampler)
+    profiled.acquired_time = time.monotonic_ns()  # simulate a prior sampled hold in progress
+
+    with pytest.raises(AssertionError, match="truncated hold-time sample"):
+        profiled.acquire()
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
+def test_reentrant_unsampled_acquire_no_assert_for_non_rlock() -> None:
+    """The truncated-hold-time assertion is RLock-only. Non-reentrant locks (Lock, Semaphore, …)
+    would deadlock before reaching this path in real usage, so the check is intentionally skipped
+    for them.
+    """
+    import time
+
+    from ddtrace.profiling import collector
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+
+    class Lock:  # any name other than "RLock" — type check must be False
+        def acquire(self, *args, **kwargs):
+            return True
+
+        def __enter__(self, *args, **kwargs):
+            return True
+
+        def __exit__(self, *args, **kwargs):
+            pass
+
+    sampler = collector.CaptureSampler(capture_pct=0)  # always unsampled
+    profiled = _ProfiledLock(wrapped=Lock(), tracer=None, capture_sampler=sampler)
+    profiled.acquired_time = time.monotonic_ns()  # simulate a prior sampled hold in progress
+
+    # Must NOT raise — the assertion is RLock-specific
+    profiled.acquire()
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
@@ -1333,9 +1394,13 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         # Capture reference before context manager
         foo_class = Foo
 
-        with self.collector_class(capture_pct=100):
-            foo: Foo = Foo(self.lock_class)
-            foo.foo()
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                foo: Foo = Foo(self.lock_class)
+                foo.foo()
 
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
@@ -1447,33 +1512,37 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         foo_func: Optional[Callable[[], None]] = None
         test_bar_class: Optional[type] = None
 
-        with self.collector_class(capture_pct=100):
-            # Create true module-level globals
-            _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                # Create true module-level globals
+                _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
 
-            class TestBar:
-                def __init__(self, lock_class: LockTypeClass) -> None:
-                    self.bar_lock: LockTypeInst = lock_class()  # !CREATE! bar_lock
+                class TestBar:
+                    def __init__(self, lock_class: LockTypeClass) -> None:
+                        self.bar_lock: LockTypeInst = lock_class()  # !CREATE! bar_lock
 
-                def bar(self) -> None:
-                    with self.bar_lock:  # !ACQUIRE! !RELEASE! bar_lock
+                    def bar(self) -> None:
+                        with self.bar_lock:  # !ACQUIRE! !RELEASE! bar_lock
+                            pass
+
+                def foo() -> None:
+                    global _test_global_lock
+                    assert _test_global_lock is not None
+                    with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
                         pass
 
-            def foo() -> None:
-                global _test_global_lock
-                assert _test_global_lock is not None
-                with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
-                    pass
+                # Capture references before context manager exits
+                foo_func = foo
+                test_bar_class = TestBar
 
-            # Capture references before context manager exits
-            foo_func = foo
-            test_bar_class = TestBar
+                _test_global_bar_instance = TestBar(self.lock_class)  # type: ignore[assignment]
 
-            _test_global_bar_instance = TestBar(self.lock_class)  # type: ignore[assignment]
-
-            # Use the locks
-            foo()
-            _test_global_bar_instance.bar()  # type: ignore[attr-defined]
+                # Use the locks
+                foo()
+                _test_global_bar_instance.bar()  # type: ignore[attr-defined]
 
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
@@ -2006,6 +2075,93 @@ class BaseSemaphoreTest(LockCollectorTestBase):
         assert realpath_call_counts["alloc_time"] <= 5, (
             f"os.path.realpath called {realpath_call_counts['alloc_time']} times during 5 allocations — "
             "expected at most 5 (one per caller filename). The internal module file path may be recomputed per-call."
+        )
+
+    def test_unsampled_acquire_bypasses_inner_acquire(self) -> None:
+        """Regression: on the unsampled path, acquire/enter entry points must NOT call _acquire.
+
+        The inline-dispatch optimization eliminates one function call per lock operation on the
+        hot (unsampled) path by checking capture_sampler.capture() directly in each entry point
+        and falling through to the wrapped lock without going through _acquire.
+
+        If someone refactors acquire/__enter__/__aenter__ back into a shared helper that calls
+        _acquire unconditionally, this test will catch it.
+        """
+        real_lock = self.lock_class()
+        capture_sampler = CaptureSampler(capture_pct=0)
+        profiled_lock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
+
+        with mock.patch.object(type(profiled_lock), "_acquire", wraps=profiled_lock._acquire) as spy:
+            for _ in range(5):
+                profiled_lock.acquire()
+                profiled_lock.release()
+
+        assert spy.call_count == 0, (
+            f"_acquire was called {spy.call_count} times on the unsampled path (capture_pct=0). "
+            "The inline-dispatch optimization requires that unsampled acquires bypass _acquire entirely. "
+            "Do NOT refactor acquire/__enter__/__aenter__ to call _acquire unconditionally."
+        )
+
+    def test_sampled_acquire_calls_inner_acquire(self) -> None:
+        """Regression: on the sampled path, each entry point must delegate to _acquire exactly once.
+
+        Counterpart to test_unsampled_acquire_bypasses_inner_acquire — ensures we don't accidentally
+        drop the _acquire delegation on the sampled path either.
+        """
+        real_lock = self.lock_class()
+        capture_sampler = CaptureSampler(capture_pct=100)
+        profiled_lock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
+
+        with mock.patch.object(type(profiled_lock), "_acquire", wraps=profiled_lock._acquire) as spy:
+            for _ in range(3):
+                profiled_lock.acquire()
+                profiled_lock.release()
+
+        assert spy.call_count == 3, (
+            f"_acquire was called {spy.call_count} times instead of 3 on the sampled path (capture_pct=100)."
+        )
+
+    def test_unsampled_release_bypasses_inner_release(self) -> None:
+        """Regression: when acquired_time is None (unsampled acquire), release entry points must NOT call _release.
+
+        On the unsampled path, acquired_time is left as None. The inline-dispatch optimization
+        checks this directly in each release entry point and falls through to the wrapped lock
+        without going through _release.
+
+        If someone refactors release/__exit__/__aexit__ back into a shared helper that calls
+        _release unconditionally, this test will catch it.
+        """
+        real_lock = self.lock_class()
+        capture_sampler = CaptureSampler(capture_pct=0)
+        profiled_lock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
+
+        # Acquire (unsampled — acquired_time stays None)
+        profiled_lock.acquire()
+        assert profiled_lock.acquired_time is None, "precondition: acquired_time must be None after unsampled acquire"
+
+        with mock.patch.object(type(profiled_lock), "_release", wraps=profiled_lock._release) as spy:
+            profiled_lock.release()
+
+        assert spy.call_count == 0, (
+            f"_release was called {spy.call_count} times when acquired_time was None (unsampled path). "
+            "The inline-dispatch optimization requires that unsampled releases bypass _release entirely. "
+            "Do NOT refactor release/__exit__/__aexit__ to call _release unconditionally."
+        )
+
+    def test_sampled_release_calls_inner_release(self) -> None:
+        """Regression: on the sampled path, each release entry point must delegate to _release exactly once."""
+        real_lock = self.lock_class()
+        capture_sampler = CaptureSampler(capture_pct=100)
+        profiled_lock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
+
+        profiled_lock.acquire()
+        assert profiled_lock.acquired_time is not None, "precondition: acquired_time must be set after sampled acquire"
+
+        with mock.patch.object(type(profiled_lock), "_release", wraps=profiled_lock._release) as spy:
+            profiled_lock.release()
+
+        assert spy.call_count == 1, (
+            f"_release was called {spy.call_count} times instead of 1 on the sampled path (capture_pct=100)."
         )
 
     def test_acquire_return_values_preserved(self) -> None:
