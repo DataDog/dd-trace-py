@@ -43,8 +43,28 @@ echion_fuzz_copy_memory(proc_ref_t /*proc_ref*/, const void* /*addr*/, ssize_t /
 // _frameowner enum  (pycore_interpframe_structs.h, introduced in 3.12)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// 3.12 – 3.14: five members, CSTACK present
-#if PY_VERSION_HEX >= 0x030c0000 && PY_VERSION_HEX < 0x030f0000
+// 3.12 – 3.13: four members, CSTACK=3, no INTERPRETER
+#if PY_VERSION_HEX >= 0x030c0000 && PY_VERSION_HEX < 0x030e0000
+static_assert(FRAME_OWNED_BY_THREAD == 0,
+              "AIDEV-NOTE: _frameowner::FRAME_OWNED_BY_THREAD changed value — update frame.cc owner switch");
+static_assert(FRAME_OWNED_BY_GENERATOR == 1,
+              "AIDEV-NOTE: _frameowner::FRAME_OWNED_BY_GENERATOR changed value — update frame.cc owner switch");
+static_assert(FRAME_OWNED_BY_FRAME_OBJECT == 2,
+              "AIDEV-NOTE: _frameowner::FRAME_OWNED_BY_FRAME_OBJECT changed value — update frame.cc owner switch");
+static_assert(FRAME_OWNED_BY_CSTACK == 3,
+              "AIDEV-NOTE: _frameowner::FRAME_OWNED_BY_CSTACK changed value — update frame.cc owner switch");
+
+TEST(FrameOwnerEnum_312_313, ValuesMatchExpected)
+{
+    EXPECT_EQ(FRAME_OWNED_BY_THREAD, 0);
+    EXPECT_EQ(FRAME_OWNED_BY_GENERATOR, 1);
+    EXPECT_EQ(FRAME_OWNED_BY_FRAME_OBJECT, 2);
+    EXPECT_EQ(FRAME_OWNED_BY_CSTACK, 3);
+}
+#endif // 3.12 – 3.13
+
+// 3.14: five members, INTERPRETER added (=3), CSTACK bumped to 4
+#if PY_VERSION_HEX >= 0x030e0000 && PY_VERSION_HEX < 0x030f0000
 static_assert(FRAME_OWNED_BY_THREAD == 0,
               "AIDEV-NOTE: _frameowner::FRAME_OWNED_BY_THREAD changed value — update frame.cc owner switch");
 static_assert(FRAME_OWNED_BY_GENERATOR == 1,
@@ -56,7 +76,7 @@ static_assert(FRAME_OWNED_BY_INTERPRETER == 3,
 static_assert(FRAME_OWNED_BY_CSTACK == 4,
               "AIDEV-NOTE: _frameowner::FRAME_OWNED_BY_CSTACK changed value — update frame.cc owner switch");
 
-TEST(FrameOwnerEnum_312_314, ValuesMatchExpected)
+TEST(FrameOwnerEnum_314, ValuesMatchExpected)
 {
     EXPECT_EQ(FRAME_OWNED_BY_THREAD, 0);
     EXPECT_EQ(FRAME_OWNED_BY_GENERATOR, 1);
@@ -64,7 +84,7 @@ TEST(FrameOwnerEnum_312_314, ValuesMatchExpected)
     EXPECT_EQ(FRAME_OWNED_BY_INTERPRETER, 3);
     EXPECT_EQ(FRAME_OWNED_BY_CSTACK, 4);
 }
-#endif // 3.12 – 3.14
+#endif // 3.14
 
 // 3.15+: FRAME_OWNED_BY_CSTACK removed
 #if PY_VERSION_HEX >= 0x030f0000

@@ -111,7 +111,9 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 #if PY_VERSION_HEX < 0x030f0000
         case FRAME_OWNED_BY_CSTACK: // C shim frame (removed in 3.15)
 #endif
+#if PY_VERSION_HEX >= 0x030e0000
         case FRAME_OWNED_BY_INTERPRETER:
+#endif
             // C/interpreter-managed frame — skip it and follow the frame chain.
             // FRAME_OWNED_BY_INTERPRETER introduced in 3.14; FRAME_OWNED_BY_CSTACK
             // present in 3.12–3.14, removed in 3.15.
