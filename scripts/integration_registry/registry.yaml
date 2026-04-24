@@ -222,7 +222,9 @@ integrations:
     bottle:
       min: 0.12.25
       max: 0.13.4
-
+- integration_name: builtins
+  is_external_package: false
+  is_tested: false
 - integration_name: celery
   is_external_package: true
   is_tested: true
@@ -702,7 +704,9 @@ integrations:
     openai-agents:
       min: 0.0.8
       max: 0.0.16
-
+- integration_name: pathlib
+  is_external_package: false
+  is_tested: false
 - integration_name: protobuf
   is_external_package: true
   is_tested: true

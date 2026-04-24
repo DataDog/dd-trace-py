@@ -114,7 +114,10 @@ def test_flask_common_modules_patch(function, iast_enabled, appsec_enabled):
         response = flask_client.get(f"/common-modules-patch?function={function}")
 
         assert response.status_code == 200
-        if appsec_enabled == "false":
+        if function == "open":
+            # builtins.open is always patched by the builtins contrib regardless of appsec
+            assert response.content == b"OK: True"
+        elif appsec_enabled == "false":
             assert response.content == b"OK: False"
         else:
             assert response.content == b"OK: True"

@@ -9,6 +9,7 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace.contrib._events.database import DbApiExecuteEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -146,7 +147,9 @@ class TracedCursor(wrapt.ObjectProxy):
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        core.dispatch("asm.block.dbapi.execute", (self, query, args, kwargs))
+        if core.has_listeners(DbApiExecuteEvent.event_name):
+            db_span_name = getattr(self, "_self_config", {}).get("_dbapi_span_name_prefix", None)
+            core.dispatch_event(DbApiExecuteEvent(query=query, span_name_prefix=db_span_name))
         return self._trace_method(
             self.__wrapped__.executemany,
             self._self_datadog_name,
@@ -165,7 +168,9 @@ class TracedCursor(wrapt.ObjectProxy):
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
-        core.dispatch("asm.block.dbapi.execute", (self, query, args, kwargs))
+        if core.has_listeners(DbApiExecuteEvent.event_name):
+            db_span_name = getattr(self, "_self_config", {}).get("_dbapi_span_name_prefix", None)
+            core.dispatch_event(DbApiExecuteEvent(query=query, span_name_prefix=db_span_name))
         return self._trace_method(
             self.__wrapped__.execute,
             self._self_datadog_name,

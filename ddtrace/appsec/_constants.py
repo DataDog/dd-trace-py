@@ -276,6 +276,17 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     )
 
 
+RASP_CAPABILITY = Literal["lfi", "shi", "cmdi", "sqli", "ssrf"]
+
+RASP_ADDRESSES: dict[RASP_CAPABILITY, str] = {
+    "lfi": WAF_DATA_NAMES.LFI_ADDRESS,
+    "shi": WAF_DATA_NAMES.SHI_ADDRESS,
+    "cmdi": WAF_DATA_NAMES.CMDI_ADDRESS,
+    "sqli": WAF_DATA_NAMES.SQLI_ADDRESS,
+    "ssrf": WAF_DATA_NAMES.SSRF_ADDRESS,
+}
+
+
 class SPAN_DATA_NAMES(metaclass=Constant_Class):
     """string names used by the library for tagging data from requests in context or span"""
 

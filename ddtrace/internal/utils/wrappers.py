@@ -1,3 +1,4 @@
+from types import TracebackType
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
@@ -21,3 +22,20 @@ def unwrap(obj, attr):
     # type: (Any, str) -> None
     f = getattr(obj, attr)
     setattr(obj, attr, f.__wrapped__)
+
+
+_E = TypeVar("_E", bound=Exception)
+
+
+def crop_previous_frame(e: _E) -> _E:
+    """Return exception with traceback pointing to the caller's frame.
+
+    Used by wrappers that should be transparent in tracebacks.
+    """
+    tb = e.__traceback__
+    if tb is None:
+        return e
+    previous_frame = tb.tb_frame.f_back
+    if previous_frame is None:
+        return e
+    return e.with_traceback(TracebackType(None, previous_frame, previous_frame.f_lasti, previous_frame.f_lineno))
