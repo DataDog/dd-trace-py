@@ -10,6 +10,8 @@ import pytest
 import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
@@ -18,6 +20,8 @@ from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -131,6 +135,19 @@ def test_service_disable(tracer):
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
+
+
+def test_enable_disable_keeps_global_config_llmobs_enabled_in_sync(tracer):
+    """LLMObs.enable()/disable() must mirror their effect into ddtrace.config._llmobs_enabled
+    so the _ConfigItem reflects effective state. Consumers like the APM_TRACING RC handler
+    read this value to reconcile LLMObs state against RC payloads.
+    """
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        assert ddtrace.config._llmobs_enabled is False
+        llmobs_service.enable(_tracer=tracer)
+        assert ddtrace.config._llmobs_enabled is True
+        llmobs_service.disable()
+        assert ddtrace.config._llmobs_enabled is False
 
 
 def test_service_enable_no_api_key(tracer):
@@ -349,21 +366,21 @@ def test_llm_span(llmobs, llmobs_events):
 
 def test_llm_span_no_model_sets_default(llmobs, llmobs_events):
     with llmobs.llm(name="test_llm_call", model_provider="test_provider") as span:
-        assert get_llmobs_model_name(span) == "custom"
+        assert get_llmobs_model_name(span) == UNKNOWN_MODEL_NAME
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "llm", model_name="custom", model_provider="test_provider"
+        span, "llm", model_name=UNKNOWN_MODEL_NAME, model_provider="test_provider"
     )
 
 
-def test_default_model_provider_set_to_custom(llmobs):
+def test_default_model_provider_set_to_unknown(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call") as span:
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
         assert get_llmobs_span_kind(span) == "llm"
         assert get_llmobs_model_name(span) == "test_model"
-        assert get_llmobs_model_provider(span) == "custom"
+        assert get_llmobs_model_provider(span) == UNKNOWN_MODEL_PROVIDER
 
 
 def test_tool_span(llmobs, llmobs_events):
@@ -408,21 +425,21 @@ def test_agent_span(llmobs, llmobs_events):
 
 def test_embedding_span_no_model_sets_default(llmobs, llmobs_events):
     with llmobs.embedding(name="test_embedding", model_provider="test_provider") as span:
-        assert get_llmobs_model_name(span) == "custom"
+        assert get_llmobs_model_name(span) == UNKNOWN_MODEL_NAME
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "embedding", model_name="custom", model_provider="test_provider"
+        span, "embedding", model_name=UNKNOWN_MODEL_NAME, model_provider="test_provider"
     )
 
 
-def test_embedding_default_model_provider_set_to_custom(llmobs):
+def test_embedding_default_model_provider_set_to_unknown(llmobs):
     with llmobs.embedding(model_name="test_model", name="test_embedding") as span:
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
         assert get_llmobs_span_kind(span) == "embedding"
         assert get_llmobs_model_name(span) == "test_model"
-        assert get_llmobs_model_provider(span) == "custom"
+        assert get_llmobs_model_provider(span) == UNKNOWN_MODEL_PROVIDER
 
 
 def test_embedding_span(llmobs, llmobs_events):
@@ -945,13 +962,13 @@ def test_ml_app_override(llmobs, llmobs_events):
         pass
     assert len(llmobs_events) == 3
     assert llmobs_events[2] == _expected_llmobs_llm_span_event(
-        span, "llm", model_name="model_name", model_provider="custom", tags={"ml_app": "test_app"}
+        span, "llm", model_name="model_name", model_provider=UNKNOWN_MODEL_PROVIDER, tags={"ml_app": "test_app"}
     )
     with llmobs.embedding(model_name="model_name", name="test_embedding", ml_app="test_app") as span:
         pass
     assert len(llmobs_events) == 4
     assert llmobs_events[3] == _expected_llmobs_llm_span_event(
-        span, "embedding", model_name="model_name", model_provider="custom", tags={"ml_app": "test_app"}
+        span, "embedding", model_name="model_name", model_provider=UNKNOWN_MODEL_PROVIDER, tags={"ml_app": "test_app"}
     )
     with llmobs.workflow(name="test_workflow", ml_app="test_app") as span:
         pass
@@ -2395,3 +2412,27 @@ class TestBuildSpanEventFromMetaStructE2E:
         assert event["status"] == "error"
         assert event["meta"]["error"]["type"] == "builtins.ValueError"
         assert event["meta"]["error"]["message"] == "something went wrong"
+
+
+class TestExperimentScope:
+    """`_dd.scope = "experiments"` must be set in meta_struct at activation time
+    (not only at submit time) so downstream consumers that read meta_struct
+    directly can see the scope before the span finishes.
+    """
+
+    def test_experiment_span_dd_scope_set_on_start(self, llmobs):
+        with llmobs._experiment(name="root_exp", experiment_id="exp-1") as span:
+            data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+            assert data["_dd"]["scope"] == "experiments"
+
+    def test_child_span_inherits_experiment_scope_on_start(self, llmobs):
+        with llmobs._experiment(name="root_exp", experiment_id="exp-1"):
+            with llmobs.task(name="child_task") as child:
+                assert child.context.get_baggage_item(EXPERIMENT_ID_KEY) == "exp-1"
+                data = child._get_struct_tag(LLMOBS_STRUCT.KEY)
+                assert data["_dd"]["scope"] == "experiments"
+
+    def test_non_experiment_span_has_no_scope_on_start(self, llmobs):
+        with llmobs.task(name="standalone_task") as span:
+            data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+            assert "scope" not in data.get("_dd", {})

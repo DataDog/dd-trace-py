@@ -139,6 +139,8 @@ class LLMOBS_STRUCT:
     METRICS: Final = "metrics"
     METADATA: Final = "metadata"
     METADATA_DD: Final = "_dd"
+    DD: Final = "_dd"
+    SCOPE: Final = "scope"
     SPAN_LINKS: Final = "span_links"
     META: Final = "meta"
     ERROR: Final = "error"
