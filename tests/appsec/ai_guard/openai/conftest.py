@@ -44,8 +44,8 @@ def openai_url() -> str:
 
     The request body determines which cassette is replayed (see
     ``ddapm_test_agent.vcr_proxy._generate_cassette_name``). Cassettes live
-    alongside the other LLM provider cassettes under
-    ``tests/llmobs/llmobs_cassettes/openai/`` — the same directory the
+    under the shared top-level ``tests/cassettes/openai/`` directory
+    (consolidated via PR #17715) — the same directory the
     ``ai_guard_langchain``, ``contrib/langchain``, and ``contrib/openai``
     suites read from, so recordings of identical request bodies are reused
     across suites without duplication.

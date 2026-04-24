@@ -21,11 +21,38 @@ CHAT_MODEL = "gpt-3.5-turbo"
 # NOTE: request params (``stream=False``, ``temperature=0.0`` as float, and
 # message key order ``content`` before ``role``) are chosen so the OpenAI SDK
 # serializes a body that byte-matches the 200-response testagent VCR cassette
-# at tests/llmobs/llmobs_cassettes/openai/openai_chat_completions_post_caac525c.json.
+# at tests/cassettes/openai/openai_chat_completions_post_caac525c.json.
 # The dd-apm-test-agent VCR derives the cassette hash from a sorted-keys JSON
 # dump, so key order does not matter for matching — but float/int type does
 # (``0.0`` vs ``0`` hash differently, picking different cassette responses).
 CHAT_PARAMS = dict(model=CHAT_MODEL, max_tokens=256, n=1, temperature=0.0, stream=False)
+
+# Tool-call cassette: request matches
+# tests/cassettes/openai/openai_chat_completions_post_c180b8dd.json
+# (user asks "What is the sum of 1 and 2?" with an `add` tool; the response
+# returns a tool_call to `add(a=1, b=2)`). The description string must match
+# exactly — the testagent hashes a sorted-keys JSON dump of the request body,
+# but the string payload (including the embedded newline and 8-space indent)
+# is part of that hash.
+TOOL_CALL_MODEL = "gpt-3.5-turbo-0125"
+TOOL_CALL_PROMPT = "What is the sum of 1 and 2?"
+ADD_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "add",
+        "description": (
+            "add(a: int, b: int) -> int - Adds a and b.\n"
+            "        Args:\n"
+            "            a: first int\n"
+            "            b: second int"
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+            "required": ["a", "b"],
+        },
+    },
+}
 
 
 def _user_messages(content=CHAT_PROMPT):
@@ -589,3 +616,229 @@ def test_reset_cross_context_does_not_raise():
     finally:
         reset_aiguard_context_active(token)
     assert is_aiguard_context_active() is False
+
+
+# ---------------------------------------------------------------------------
+# DD_AI_GUARD_ENABLED — init_ai_guard() registration gating
+#
+# The flag is evaluated ONCE at ``init_ai_guard()`` time (lazy, idempotent via
+# ``_AI_GUARD_TO_BE_LOADED``). There is no runtime re-check in the listeners,
+# so DD_AI_GUARD_ENABLED=false must fully short-circuit listener registration.
+# These tests pin that contract so a regression that wires the flag through
+# listeners-but-keeps-them-registered fails loudly.
+# ---------------------------------------------------------------------------
+
+
+def test_init_ai_guard_disabled_does_not_register_listeners():
+    """DD_AI_GUARD_ENABLED=false: ai_guard_listen() must NOT run."""
+    import ddtrace.appsec._ai_guard as ai_guard_mod
+
+    original = ai_guard_mod._AI_GUARD_TO_BE_LOADED
+    ai_guard_mod._AI_GUARD_TO_BE_LOADED = True
+    try:
+        with patch("ddtrace.appsec._ai_guard._listener.ai_guard_listen") as mock_listen:
+            with override_ai_guard_config(dict(_ai_guard_enabled=False)):
+                ai_guard_mod.init_ai_guard()
+            mock_listen.assert_not_called()
+        # Disabled or not, init must mark itself loaded so it never retries.
+        assert ai_guard_mod._AI_GUARD_TO_BE_LOADED is False
+    finally:
+        ai_guard_mod._AI_GUARD_TO_BE_LOADED = original
+
+
+def test_init_ai_guard_enabled_registers_listeners():
+    """DD_AI_GUARD_ENABLED=true: ai_guard_listen() runs exactly once."""
+    import ddtrace.appsec._ai_guard as ai_guard_mod
+
+    original = ai_guard_mod._AI_GUARD_TO_BE_LOADED
+    ai_guard_mod._AI_GUARD_TO_BE_LOADED = True
+    try:
+        with patch("ddtrace.appsec._ai_guard._listener.ai_guard_listen") as mock_listen:
+            with override_ai_guard_config(dict(_ai_guard_enabled=True)):
+                ai_guard_mod.init_ai_guard()
+            mock_listen.assert_called_once()
+        assert ai_guard_mod._AI_GUARD_TO_BE_LOADED is False
+    finally:
+        ai_guard_mod._AI_GUARD_TO_BE_LOADED = original
+
+
+def test_init_ai_guard_is_idempotent():
+    """Second call is a no-op regardless of config (_AI_GUARD_TO_BE_LOADED guard)."""
+    import ddtrace.appsec._ai_guard as ai_guard_mod
+
+    original = ai_guard_mod._AI_GUARD_TO_BE_LOADED
+    ai_guard_mod._AI_GUARD_TO_BE_LOADED = False  # simulate already-loaded state
+    try:
+        with patch("ddtrace.appsec._ai_guard._listener.ai_guard_listen") as mock_listen:
+            with override_ai_guard_config(dict(_ai_guard_enabled=True)):
+                ai_guard_mod.init_ai_guard()
+                ai_guard_mod.init_ai_guard()
+            mock_listen.assert_not_called()
+    finally:
+        ai_guard_mod._AI_GUARD_TO_BE_LOADED = original
+
+
+# ---------------------------------------------------------------------------
+# DD_AI_GUARD_BLOCK — explicit true/false coverage
+#
+# The ``_ai_guard_block=False`` case is already covered above. This section
+# pins the explicit True case so the default path is locked under its env-var
+# name, and the client-side override semantics (local config beats server
+# ``is_blocking_enabled``) are clear in the test suite.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_sync_block_config_enabled(mock_execute_request, openai_client, decision):
+    """DD_AI_GUARD_BLOCK=true (default): DENY/ABORT MUST raise AIGuardAbortError."""
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    with override_ai_guard_config(dict(_ai_guard_block=True)):
+        with pytest.raises(AIGuardAbortError):
+            openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_chat_async_block_config_enabled(mock_execute_request, async_openai_client, decision):
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    with override_ai_guard_config(dict(_ai_guard_block=True)):
+        with pytest.raises(AIGuardAbortError):
+            await async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+    mock_execute_request.assert_called_once()
+
+
+def test_chat_sync_block_server_side_disabled_wins(openai_client):
+    """DD_AI_GUARD_BLOCK=true + server response ``is_blocking_enabled=False``:
+    the server-side "don't block" hint wins over the local "block on DENY"
+    config (see ``AIGuardClient._is_blocking_enabled``). DENY must NOT raise.
+
+    Pins the precedence rule: server ``is_blocking_enabled=False`` short-
+    circuits any local Options(block=True) — local config can only *relax*
+    blocking, never force it past a server override.
+    """
+    with patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request") as mock_execute_request:
+        mock_execute_request.return_value = mock_evaluate_response("DENY", block=False)
+        with override_ai_guard_config(dict(_ai_guard_block=True)):
+            resp = openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+            assert resp is not None
+
+
+# ---------------------------------------------------------------------------
+# Real-integration cassettes — emulate a full OpenAI flow end-to-end.
+#
+# These tests hit the testagent VCR proxy (``http://localhost:9126/vcr/openai``)
+# which replays recorded OpenAI traffic from ``tests/cassettes/openai/``.
+# Only the AI Guard API itself is mocked — the OpenAI request serialization,
+# HTTP plumbing, and response parsing all exercise the real SDK path.
+# ---------------------------------------------------------------------------
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_cassette_real_response_is_evaluated_after_model(mock_execute_request, openai_client):
+    """Full OpenAI flow: the after-model evaluation payload contains the
+    assistant content parsed out of the real cassette response (not a mock).
+
+    Pins that ``_convert_openai_response`` handles actual SDK response objects
+    (``ChatCompletion`` with ``.choices[].message.content``), not just the
+    hand-rolled mocks in ``TestConvertOpenAIResponse``.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    resp = openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    assert resp.choices[0].message.role == "assistant"
+    assistant_content = resp.choices[0].message.content
+    assert assistant_content  # real cassette body contains the gramar explanation
+
+    # Two calls: before(user-only) and after(user + assistant response).
+    assert mock_execute_request.call_count == 2
+
+    before_args = mock_execute_request.call_args_list[0].args
+    after_args = mock_execute_request.call_args_list[1].args
+
+    before_messages = before_args[1]["data"]["attributes"]["messages"]
+    after_messages = after_args[1]["data"]["attributes"]["messages"]
+
+    assert before_messages == [{"role": "user", "content": CHAT_PROMPT}]
+    assert len(after_messages) == 2
+    assert after_messages[0] == {"role": "user", "content": CHAT_PROMPT}
+    assert after_messages[1]["role"] == "assistant"
+    assert after_messages[1]["content"] == assistant_content
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_cassette_tool_call_response_carries_tool_calls_in_after(mock_execute_request, openai_client):
+    """Full OpenAI flow with tools: cassette returns ``tool_calls`` and the
+    after-model evaluation payload MUST include them on the assistant message.
+
+    Uses the cassette at
+    ``tests/cassettes/openai/openai_chat_completions_post_c180b8dd.json`` —
+    the request body is byte-matched by the testagent VCR hasher so the
+    ``tools`` schema + prompt must be identical to the recording.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    resp = openai_client.chat.completions.create(
+        model=TOOL_CALL_MODEL,
+        messages=[{"content": TOOL_CALL_PROMPT, "role": "user"}],
+        n=1,
+        stream=False,
+        temperature=0.7,
+        tools=[ADD_TOOL],
+    )
+
+    # Sanity: the cassette response returned a tool_call to ``add``.
+    tool_calls = resp.choices[0].message.tool_calls
+    assert tool_calls and tool_calls[0].function.name == "add"
+
+    # before (user) + after (user + assistant-with-tool_calls)
+    assert mock_execute_request.call_count == 2
+    _, after_payload = mock_execute_request.call_args_list[1].args
+    after_messages = after_payload["data"]["attributes"]["messages"]
+
+    assistant_msg = after_messages[-1]
+    assert assistant_msg["role"] == "assistant"
+    # Content is None in the cassette response; _convert_openai_response drops
+    # missing content so the key MUST be absent (not present-with-None).
+    assert "content" not in assistant_msg
+    assert assistant_msg["tool_calls"][0]["function"]["name"] == "add"
+    assert assistant_msg["tool_calls"][0]["function"]["arguments"] == '{"a": 1, "b": 2}'
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_cassette_real_response_async_matches_sync(mock_execute_request, async_openai_client):
+    """Same cassette, async path: sanity-check that the async listener receives
+    the same converted payload structure as the sync one.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    resp = await async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    assert resp.choices[0].message.content
+    assert mock_execute_request.call_count == 2
+    _, after_payload = mock_execute_request.call_args_list[1].args
+    after_messages = after_payload["data"]["attributes"]["messages"]
+    assert after_messages[0] == {"role": "user", "content": CHAT_PROMPT}
+    assert after_messages[1]["role"] == "assistant"
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_cassette_deny_before_does_not_call_openai(mock_execute_request, openai_client):
+    """Before-model DENY must short-circuit BEFORE any HTTP call to OpenAI —
+    if it didn't, the testagent VCR would serve the cassette response and
+    the after-evaluation would also fire.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    with pytest.raises(AIGuardAbortError):
+        openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    # Exactly one call — the before-evaluation. If OpenAI was hit, the
+    # after-hook would have fired a second call.
+    mock_execute_request.assert_called_once()
