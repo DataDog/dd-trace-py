@@ -22,6 +22,8 @@ components:
   aws_lambda:
     - ddtrace/contrib/internal/aws_lambda/*
     - ddtrace/ext/aws.py
+  aws_durable_execution_sdk_python:
+    - ddtrace/contrib/internal/aws_durable_execution_sdk_python/*
   azure_cosmos:
     - ddtrace/contrib/internal/azure_cosmos/*
   azure_durable_functions:
@@ -386,6 +388,15 @@ suites:
       - tests/contrib/aws_lambda/*
       - tests/snapshots/tests.{suite}.*
     snapshot: true
+  aws_durable_execution_sdk_python:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@aws_durable_execution_sdk_python'
+      - tests/contrib/aws_durable_execution_sdk_python/*
   azure_cosmos:
     venvs_per_job: 4
     paths:
