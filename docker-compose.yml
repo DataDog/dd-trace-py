@@ -126,7 +126,7 @@ services:
             - "127.0.0.1:${TESTAGENT_HOST_PORT:-9126}:8126"
         volumes:
             - ./tests/snapshots:/snapshots
-            - ./tests/llmobs/llmobs_cassettes:/cassettes
+            - ./tests/cassettes:/cassettes
         environment:
             - LOG_LEVEL=WARNING
             - SNAPSHOT_DIR=/snapshots
