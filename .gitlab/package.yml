@@ -18,7 +18,11 @@ variables:
   - "cp312-cp312"
   - "cp313-cp313"
   - "cp314-cp314"
-  - "cp315-cp315"
+  # AIDEV-TODO(py315): cp315-cp315 is built in the separate "build linux cp315"
+  # job with allow_failure: true until the manylinux base image ships a
+  # cp315-cp315 interpreter (pypa/manylinux upstream; current image only
+  # exposes cp38-cp314 via manylinux-interpreters). Move the tag back into
+  # this anchor and delete the cp315 job once the image supports it.
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
   - "v85383414-751efc0-manylinux2014_aarch64"
@@ -130,6 +134,21 @@ variables:
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
         DD_SERVERLESS_BUILD: "1"
+
+# AIDEV-TODO(py315): fold back into "build linux" once the manylinux image ships
+# a cp315-cp315 interpreter. allow_failure keeps the pipeline green while the
+# upstream pypa/manylinux image is catching up to CPython 3.15.
+"build linux cp315":
+  extends: "build linux"
+  allow_failure: true
+  parallel:
+    matrix:
+      - ARCH_TAG: "amd64"
+        PYTHON_TAG: "cp315-cp315"
+        IMAGE_TAG: *X86_64_IMAGES
+      - ARCH_TAG: "arm64"
+        PYTHON_TAG: "cp315-cp315"
+        IMAGE_TAG: *AARCH64_IMAGES
 
 "build macos":
   extends: .build_base
