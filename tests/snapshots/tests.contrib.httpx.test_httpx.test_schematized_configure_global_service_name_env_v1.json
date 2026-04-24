@@ -2,7 +2,7 @@
   {
     "name": "http.client.request",
     "service": "global-service-name",
-    "resource": "http.client.request",
+    "resource": "GET /status/200",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,

@@ -1,6 +1,7 @@
 from types import TracebackType
 from typing import Optional
 from typing import cast
+from urllib import parse
 
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
@@ -26,6 +27,14 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: HttpClientRequestEvent = ctx.event
+
+        # Set resource from request method and URL path if not explicitly provided by the integration
+        if event.resource is None and event.request_method and event.request_url:
+            try:
+                parsed_url = parse.urlparse(event.request_url)
+                ctx.span.resource = f"{event.request_method.upper()} {parsed_url.path}"
+            except Exception:
+                log.debug("error computing resource from request URL", exc_info=True)
 
         if trace_utils.distributed_tracing_enabled(event.integration_config) and event.request_headers is not None:
             HTTPPropagator.inject(ctx.span.context, cast(dict[str, str], event.request_headers))
