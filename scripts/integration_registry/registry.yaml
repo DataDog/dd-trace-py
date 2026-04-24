@@ -230,8 +230,8 @@ integrations:
   - celery
   tested_versions_by_dependency:
     celery:
-      min: 5.5.3
-      max: 5.5.3
+      min: 5.6.3
+      max: 5.6.3
 
 - integration_name: cherrypy
   is_external_package: true
