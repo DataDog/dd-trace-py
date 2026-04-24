@@ -3,16 +3,17 @@ APM span tests for the aws_durable_execution_sdk_python integration.
 
 Tests verify that the integration produces correct spans with proper names,
 types, tags, and parent-child relationships for:
-  1. durable_execution — top-level workflow execution span (aws.durable_execution.execute)
-  2. DurableContext.step — individual step execution spans (aws.durable_execution.step)
-  3. DurableContext.invoke — cross-function invocation spans (aws.durable_execution.invoke)
+  1. durable_execution — top-level workflow execution span (aws.durable.execute)
+  2. DurableContext.step — individual step execution spans (aws.durable.step)
+  3. DurableContext.invoke — cross-function invocation spans (aws.durable.invoke)
 
 These tests use a mock DurableServiceClient to simulate the checkpoint/state
 management that normally runs against the real AWS Lambda Durable Execution API.
 """
+
+from dataclasses import dataclass
 import hashlib
 import json
-from dataclasses import dataclass
 from threading import Lock
 from typing import Any
 
@@ -77,16 +78,15 @@ class MockDurableServiceClient:
         return "mock-token-{}".format(self._token_counter)
 
     def checkpoint(self, durable_execution_arn, checkpoint_token, updates, client_token=None):
-        from aws_durable_execution_sdk_python.lambda_service import (
-            CheckpointOutput,
-            CheckpointUpdatedExecutionState,
-            ChainedInvokeDetails,
-            Operation,
-            OperationAction,
-            OperationStatus,
-            OperationType,
-            StepDetails,
-        )
+        from aws_durable_execution_sdk_python.lambda_service import CallbackDetails
+        from aws_durable_execution_sdk_python.lambda_service import ChainedInvokeDetails
+        from aws_durable_execution_sdk_python.lambda_service import CheckpointOutput
+        from aws_durable_execution_sdk_python.lambda_service import CheckpointUpdatedExecutionState
+        from aws_durable_execution_sdk_python.lambda_service import Operation
+        from aws_durable_execution_sdk_python.lambda_service import OperationAction
+        from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+        from aws_durable_execution_sdk_python.lambda_service import OperationType
+        from aws_durable_execution_sdk_python.lambda_service import StepDetails
 
         with self._lock:
             new_ops = []
@@ -107,6 +107,14 @@ class MockDurableServiceClient:
                     chained_invoke_details = ChainedInvokeDetails(
                         result=update.payload if update.action == OperationAction.SUCCEED else None,
                     )
+                callback_details = None
+                if update.operation_type == OperationType.CALLBACK:
+                    # The SDK requires callback_details.callback_id to be present once the
+                    # CALLBACK op is checkpointed; use the operation_id as a deterministic stand-in.
+                    callback_details = CallbackDetails(
+                        callback_id=update.operation_id,
+                        result=update.payload if update.action == OperationAction.SUCCEED else None,
+                    )
                 op = Operation(
                     operation_id=update.operation_id,
                     operation_type=update.operation_type,
@@ -116,6 +124,7 @@ class MockDurableServiceClient:
                     sub_type=update.sub_type,
                     step_details=step_details,
                     chained_invoke_details=chained_invoke_details,
+                    callback_details=callback_details,
                 )
                 self._operations[update.operation_id] = op
                 new_ops.append(op)
@@ -149,13 +158,11 @@ INPUT_PAYLOAD = json.dumps({"order_id": "ORD-42", "amount": 99.95})
 
 def _build_initial_state_with_invoke():
     """Build initial state with a pre-completed invoke so invoke() returns immediately."""
-    from aws_durable_execution_sdk_python.lambda_service import (
-        ChainedInvokeDetails,
-        ExecutionDetails,
-        Operation,
-        OperationStatus,
-        OperationType,
-    )
+    from aws_durable_execution_sdk_python.lambda_service import ChainedInvokeDetails
+    from aws_durable_execution_sdk_python.lambda_service import ExecutionDetails
+    from aws_durable_execution_sdk_python.lambda_service import Operation
+    from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+    from aws_durable_execution_sdk_python.lambda_service import OperationType
 
     invoke_op_id = _step_id(None, 3)
     execution_op = Operation(
@@ -178,12 +185,10 @@ def _build_initial_state_with_invoke():
 
 def _build_initial_state_basic():
     """Build initial state with only the execution operation (no pre-completed invoke)."""
-    from aws_durable_execution_sdk_python.lambda_service import (
-        ExecutionDetails,
-        Operation,
-        OperationStatus,
-        OperationType,
-    )
+    from aws_durable_execution_sdk_python.lambda_service import ExecutionDetails
+    from aws_durable_execution_sdk_python.lambda_service import Operation
+    from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+    from aws_durable_execution_sdk_python.lambda_service import OperationType
 
     execution_op = Operation(
         operation_id="exec-op-0",
@@ -205,13 +210,11 @@ def _build_initial_state_with_steps():
     format (not plain JSON), because the SDK's step executor deserializes results using
     its own typed-value wrapper format (e.g. ``{"t":"m","v":{...}}``).
     """
-    from aws_durable_execution_sdk_python.lambda_service import (
-        ExecutionDetails,
-        Operation,
-        OperationStatus,
-        OperationType,
-        StepDetails,
-    )
+    from aws_durable_execution_sdk_python.lambda_service import ExecutionDetails
+    from aws_durable_execution_sdk_python.lambda_service import Operation
+    from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+    from aws_durable_execution_sdk_python.lambda_service import OperationType
+    from aws_durable_execution_sdk_python.lambda_service import StepDetails
     from aws_durable_execution_sdk_python.serdes import EXTENDED_TYPES_SERDES
     from aws_durable_execution_sdk_python.serdes import serialize
 
@@ -240,13 +243,145 @@ def _build_initial_state_with_steps():
     return [execution_op, step1_op]
 
 
+def _build_initial_state_with_context_op(op_name, sub_type, op_counter=1):
+    """Build initial state with a pre-completed CONTEXT operation (map / parallel / child_context / wait_for_callback).
+
+    AIDEV-NOTE: When the SDK finds a SUCCEEDED CONTEXT op with replay_children=False,
+    ChildOperationExecutor.check_result_status() returns CheckResult.create_completed()
+    without calling the user callable.  Omitting ``context_details`` leaves result=None
+    and replay_children=False, which is exactly the short-circuit path.
+    """
+    from aws_durable_execution_sdk_python.lambda_service import ExecutionDetails
+    from aws_durable_execution_sdk_python.lambda_service import Operation
+    from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+    from aws_durable_execution_sdk_python.lambda_service import OperationType
+
+    execution_op = Operation(
+        operation_id="exec-op-0",
+        operation_type=OperationType.EXECUTION,
+        status=OperationStatus.STARTED,
+        execution_details=ExecutionDetails(input_payload=INPUT_PAYLOAD),
+    )
+    context_op = Operation(
+        operation_id=_step_id(None, op_counter),
+        operation_type=OperationType.CONTEXT,
+        status=OperationStatus.SUCCEEDED,
+        name=op_name,
+        sub_type=sub_type,
+    )
+    return [execution_op, context_op]
+
+
+def _build_initial_state_with_context_child_op(parent_op_counter, child_counter, op_name, sub_type):
+    """Build initial state with a completed SDK-internal child CONTEXT operation."""
+    from aws_durable_execution_sdk_python.lambda_service import Operation
+    from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+    from aws_durable_execution_sdk_python.lambda_service import OperationType
+
+    initial_ops = _build_initial_state_basic()
+    parent_op_id = _step_id(None, parent_op_counter)
+    initial_ops.append(
+        Operation(
+            operation_id=_step_id(parent_op_id, child_counter),
+            operation_type=OperationType.CONTEXT,
+            status=OperationStatus.SUCCEEDED,
+            name=op_name,
+            sub_type=sub_type,
+        )
+    )
+    return initial_ops
+
+
+def _build_initial_state_with_wait_for_condition_op(op_name, op_counter=1):
+    """Build initial state with a pre-completed wait_for_condition op (STEP / WAIT_FOR_CONDITION).
+
+    AIDEV-NOTE: WaitForConditionOperationExecutor.check_result_status() short-circuits
+    when is_succeeded() returns True, returning the cached result without calling the
+    user ``check`` function.  We omit step_details.result → returns None to the workflow.
+    """
+    from aws_durable_execution_sdk_python.lambda_service import ExecutionDetails
+    from aws_durable_execution_sdk_python.lambda_service import Operation
+    from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+    from aws_durable_execution_sdk_python.lambda_service import OperationSubType
+    from aws_durable_execution_sdk_python.lambda_service import OperationType
+
+    execution_op = Operation(
+        operation_id="exec-op-0",
+        operation_type=OperationType.EXECUTION,
+        status=OperationStatus.STARTED,
+        execution_details=ExecutionDetails(input_payload=INPUT_PAYLOAD),
+    )
+    op = Operation(
+        operation_id=_step_id(None, op_counter),
+        operation_type=OperationType.STEP,
+        status=OperationStatus.SUCCEEDED,
+        name=op_name,
+        sub_type=OperationSubType.WAIT_FOR_CONDITION,
+    )
+    return [execution_op, op]
+
+
+def _build_initial_state_with_wait_op(op_name, op_counter=1):
+    """Build initial state with a pre-completed wait op (WAIT / WAIT)."""
+    from aws_durable_execution_sdk_python.lambda_service import ExecutionDetails
+    from aws_durable_execution_sdk_python.lambda_service import Operation
+    from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+    from aws_durable_execution_sdk_python.lambda_service import OperationSubType
+    from aws_durable_execution_sdk_python.lambda_service import OperationType
+
+    execution_op = Operation(
+        operation_id="exec-op-0",
+        operation_type=OperationType.EXECUTION,
+        status=OperationStatus.STARTED,
+        execution_details=ExecutionDetails(input_payload=INPUT_PAYLOAD),
+    )
+    wait_op = Operation(
+        operation_id=_step_id(None, op_counter),
+        operation_type=OperationType.WAIT,
+        status=OperationStatus.SUCCEEDED,
+        name=op_name,
+        sub_type=OperationSubType.WAIT,
+    )
+    return [execution_op, wait_op]
+
+
+def _build_initial_state_with_callback_op(op_name, op_counter=1):
+    """Build initial state with a pre-completed callback op (CALLBACK / CALLBACK).
+
+    AIDEV-NOTE: CallbackOperationExecutor.execute() reads callback_details.callback_id,
+    so the initial operation must populate callback_details; we reuse the operation_id
+    as a deterministic stand-in.
+    """
+    from aws_durable_execution_sdk_python.lambda_service import CallbackDetails
+    from aws_durable_execution_sdk_python.lambda_service import ExecutionDetails
+    from aws_durable_execution_sdk_python.lambda_service import Operation
+    from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+    from aws_durable_execution_sdk_python.lambda_service import OperationSubType
+    from aws_durable_execution_sdk_python.lambda_service import OperationType
+
+    execution_op = Operation(
+        operation_id="exec-op-0",
+        operation_type=OperationType.EXECUTION,
+        status=OperationStatus.STARTED,
+        execution_details=ExecutionDetails(input_payload=INPUT_PAYLOAD),
+    )
+    callback_op_id = _step_id(None, op_counter)
+    callback_op = Operation(
+        operation_id=callback_op_id,
+        operation_type=OperationType.CALLBACK,
+        status=OperationStatus.SUCCEEDED,
+        name=op_name,
+        sub_type=OperationSubType.CALLBACK,
+        callback_details=CallbackDetails(callback_id=callback_op_id),
+    )
+    return [execution_op, callback_op]
+
+
 def _create_invocation_event(initial_operations, mock_service_client):
     """Create the invocation event that simulates an AWS Lambda invocation."""
-    from aws_durable_execution_sdk_python.execution import (
-        DurableExecutionInvocationInput,
-        DurableExecutionInvocationInputWithClient,
-        InitialExecutionState,
-    )
+    from aws_durable_execution_sdk_python.execution import DurableExecutionInvocationInput
+    from aws_durable_execution_sdk_python.execution import DurableExecutionInvocationInputWithClient
+    from aws_durable_execution_sdk_python.execution import InitialExecutionState
 
     base_input = DurableExecutionInvocationInput(
         durable_execution_arn=DURABLE_EXECUTION_ARN,
@@ -270,9 +405,7 @@ def _create_invocation_event(initial_operations, mock_service_client):
 # ---------------------------------------------------------------------------
 def _extract_result(sdk_output):
     """Extract the actual user-function result from the SDK's output wrapper."""
-    assert sdk_output["Status"] == "SUCCEEDED", (
-        "Expected SUCCEEDED status, got {}".format(sdk_output.get("Status"))
-    )
+    assert sdk_output["Status"] == "SUCCEEDED", "Expected SUCCEEDED status, got {}".format(sdk_output.get("Status"))
     return json.loads(sdk_output["Result"])
 
 
@@ -302,7 +435,8 @@ class TestWorkflowExecution:
 
     def test_workflow_execution_creates_root_span(self, tracer):
         """A complete workflow execution produces a root span with correct name, type, and tags."""
-        from aws_durable_execution_sdk_python import DurableContext, durable_execution
+        from aws_durable_execution_sdk_python import DurableContext
+        from aws_durable_execution_sdk_python import durable_execution
         from aws_durable_execution_sdk_python.types import StepContext
 
         initial_ops = _build_initial_state_with_invoke()
@@ -312,6 +446,7 @@ class TestWorkflowExecution:
         def my_workflow(event, context):
             def validate(step_ctx):
                 return {"valid": True}
+
             result = context.step(validate, name="validate")
             return {"validation": result}
 
@@ -328,23 +463,22 @@ class TestWorkflowExecution:
         assert len(spans) >= 2
 
         # Find the workflow execution span (root span)
-        workflow_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable.execute"]
         assert len(workflow_spans) == 1, "Expected exactly one workflow execution span"
         workflow_span = workflow_spans[0]
 
         # Verify span structure
-        assert workflow_span.service == "aws.durable_execution"
         assert workflow_span.span_type == "serverless"
-        assert workflow_span.resource == "aws.durable_execution.execute"
+        assert workflow_span.resource == "aws.durable.execute"
         assert workflow_span.error == 0
 
         # Verify span tags
         assert workflow_span.get_tag("component") == "aws_durable_execution_sdk_python"
         assert workflow_span.get_tag("span.kind") == "server"
-        assert workflow_span.get_tag("aws.durable_execution.arn") == DURABLE_EXECUTION_ARN
+        assert workflow_span.get_tag("aws.durable.execution_arn") == DURABLE_EXECUTION_ARN
 
         # The workflow span should be the parent of step spans
-        step_spans = [s for s in spans if s.name == "aws.durable_execution.step"]
+        step_spans = [s for s in spans if s.name == "aws.durable.step"]
         for step_span in step_spans:
             assert step_span.parent_id == workflow_span.span_id, (
                 "Step span should be a child of the workflow execution span"
@@ -370,7 +504,7 @@ class TestWorkflowExecution:
         assert sdk_output["Status"] == "FAILED"
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable.execute"]
         assert len(workflow_spans) == 1
         workflow_span = workflow_spans[0]
 
@@ -380,8 +514,9 @@ class TestWorkflowExecution:
         assert workflow_span.get_tag(ERROR_MSG) is not None
         assert "Workflow failed" in workflow_span.get_tag(ERROR_MSG)
         assert workflow_span.get_tag("component") == "aws_durable_execution_sdk_python"
+        assert workflow_span.get_tag("aws.durable.invocation_status") == "failed"
 
-    def test_workflow_execution_captures_replay_status(self, tracer):
+    def test_workflow_execution_captures_replayed(self, tracer):
         """The workflow span should tag whether this is a fresh execution or a replay."""
         from aws_durable_execution_sdk_python import durable_execution
         from aws_durable_execution_sdk_python.types import StepContext
@@ -393,6 +528,7 @@ class TestWorkflowExecution:
         def replay_workflow(event, context):
             def simple_step(step_ctx):
                 return "done"
+
             return context.step(simple_step, name="simple")
 
         event = _create_invocation_event(initial_ops, mock_client)
@@ -400,14 +536,15 @@ class TestWorkflowExecution:
         replay_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable.execute"]
         assert len(workflow_spans) == 1
         workflow_span = workflow_spans[0]
 
-        # Replay status should be captured as a tag
-        replay_status = workflow_span.get_tag("aws.durable_execution.replay_status")
-        assert replay_status is not None, "Workflow span should include replay_status tag"
-        assert replay_status in ("NEW", "REPLAY"), "replay_status must be 'NEW' or 'REPLAY'"
+        # Replay state should be captured as a boolean-string tag
+        replayed = workflow_span.get_tag("aws.durable.replayed")
+        assert replayed is not None, "Workflow span should include replayed tag"
+        assert replayed in ("true", "false"), "replayed must be 'true' or 'false'"
+        assert workflow_span.get_tag("aws.durable.invocation_status") == "succeeded"
 
 
 # ===========================================================================
@@ -445,26 +582,23 @@ class TestStepExecution:
         assert inner["totals"]["total"] == 107.95
 
         spans = tracer.pop()
-        step_spans = [s for s in spans if s.name == "aws.durable_execution.step"]
+        step_spans = [s for s in spans if s.name == "aws.durable.step"]
         assert len(step_spans) == 2, "Expected exactly 2 step spans"
 
         # Verify first step span
-        validate_spans = [s for s in step_spans if s.get_tag("aws.durable_execution.step.name") == "validate-order"]
+        validate_spans = [s for s in step_spans if s.resource == "validate-order"]
         assert len(validate_spans) == 1, "Expected one 'validate-order' step span"
         validate_span = validate_spans[0]
-        assert validate_span.service == "aws.durable_execution"
         assert validate_span.span_type == "worker"
         assert validate_span.resource == "validate-order"
         assert validate_span.error == 0
         assert validate_span.get_tag("component") == "aws_durable_execution_sdk_python"
         assert validate_span.get_tag("span.kind") == "internal"
-        assert validate_span.get_tag("aws.durable_execution.step.name") == "validate-order"
 
         # Verify second step span
-        totals_spans = [s for s in step_spans if s.get_tag("aws.durable_execution.step.name") == "calculate-totals"]
+        totals_spans = [s for s in step_spans if s.resource == "calculate-totals"]
         assert len(totals_spans) == 1, "Expected one 'calculate-totals' step span"
         totals_span = totals_spans[0]
-        assert totals_span.service == "aws.durable_execution"
         assert totals_span.span_type == "worker"
         assert totals_span.resource == "calculate-totals"
         assert totals_span.error == 0
@@ -505,18 +639,14 @@ class TestStepExecution:
         )
 
         spans = tracer.pop()
-        step_spans = [s for s in spans if s.name == "aws.durable_execution.step"]
+        step_spans = [s for s in spans if s.name == "aws.durable.step"]
 
         # The failing step should have a span with correct metadata
-        failing_spans = [
-            s for s in step_spans
-            if s.get_tag("aws.durable_execution.step.name") == "failing-step"
-        ]
+        failing_spans = [s for s in step_spans if s.resource == "failing-step"]
         assert len(failing_spans) >= 1, "Expected at least one span for the failing step"
         failing_span = failing_spans[0]
 
         # Verify span structure and tags are correct
-        assert failing_span.service == "aws.durable_execution"
         assert failing_span.span_type == "worker"
         assert failing_span.resource == "failing-step"
         assert failing_span.get_tag("component") == "aws_durable_execution_sdk_python"
@@ -540,6 +670,7 @@ class TestStepExecution:
         def fresh_workflow(event, context):
             def my_step(step_ctx):
                 return {"computed": 42}
+
             return context.step(my_step, name="compute")
 
         event = _create_invocation_event(initial_ops, mock_client)
@@ -550,23 +681,19 @@ class TestStepExecution:
         assert inner["computed"] == 42
 
         spans = tracer.pop()
-        step_spans = [s for s in spans if s.name == "aws.durable_execution.step"]
+        step_spans = [s for s in spans if s.name == "aws.durable.step"]
         assert len(step_spans) == 1
         step_span = step_spans[0]
 
         # Verify full span structure
-        assert step_span.service == "aws.durable_execution"
         assert step_span.span_type == "worker"
         assert step_span.resource == "compute"
         assert step_span.error == 0
         assert step_span.get_tag("component") == "aws_durable_execution_sdk_python"
         assert step_span.get_tag("span.kind") == "internal"
-        assert step_span.get_tag("aws.durable_execution.step.name") == "compute"
 
         # Fresh execution: step function was called, so replayed=false
-        assert step_span.get_tag("aws.durable_execution.step.replayed") == "false", (
-            "Fresh step should be tagged as replayed=false"
-        )
+        assert step_span.get_tag("aws.durable.replayed") == "false", "Fresh step should be tagged as replayed=false"
 
     def test_step_replayed_from_checkpoint_is_tagged(self, tracer):
         """When a step is replayed from checkpoint, replayed tag should be 'true'."""
@@ -580,6 +707,7 @@ class TestStepExecution:
         def replay_workflow(event, context):
             def validate(step_ctx):
                 return {"valid": True}
+
             return context.step(validate, name="validate")
 
         event = _create_invocation_event(initial_ops, mock_client)
@@ -591,57 +719,458 @@ class TestStepExecution:
         assert inner["valid"] is True
 
         spans = tracer.pop()
-        step_spans = [s for s in spans if s.name == "aws.durable_execution.step"]
+        step_spans = [s for s in spans if s.name == "aws.durable.step"]
         assert len(step_spans) == 1
         step_span = step_spans[0]
 
         # Verify full span structure
-        assert step_span.service == "aws.durable_execution"
         assert step_span.span_type == "worker"
         assert step_span.resource == "validate"
         assert step_span.error == 0
         assert step_span.get_tag("component") == "aws_durable_execution_sdk_python"
         assert step_span.get_tag("span.kind") == "internal"
-        assert step_span.get_tag("aws.durable_execution.step.name") == "validate"
 
         # Replayed: step function was NOT called (result from checkpoint), so replayed=true
-        assert step_span.get_tag("aws.durable_execution.step.replayed") == "true", (
-            "Replayed step should be tagged as replayed=true"
-        )
+        assert step_span.get_tag("aws.durable.replayed") == "true", "Replayed step should be tagged as replayed=true"
 
-    def test_step_without_explicit_name_uses_function_name(self, tracer):
-        """When name is not provided, the step span should use the function name as resource."""
+
+# ===========================================================================
+# Test class: Replay tagging for callable operations
+# ===========================================================================
+class TestReplayTagging:
+    """Tests for ``aws.durable.replayed`` tagging on every durable op.
+
+    Each op that flows through ``OperationExecutor.process`` gets a fresh +
+    replayed test.  The signal is ``CheckpointedResult.is_succeeded()``, read
+    directly from the SDK by the hook installed by ``_patch_operation_executor``.
+    The step tag is covered separately in TestStepExecution.
+
+    ``wait_for_callback`` is intentionally not covered — it delegates to
+    ``run_in_child_context`` internally, so the inner child_context span gets the
+    tag and the outer ``aws.durable.wait_for_callback`` span does not.
+    """
+
+    # -------------------------- run_in_child_context --------------------------
+
+    def test_child_context_fresh_tagged_not_replayed(self, tracer):
         from aws_durable_execution_sdk_python import durable_execution
-        from aws_durable_execution_sdk_python.types import StepContext
 
         initial_ops = _build_initial_state_basic()
         mock_client = MockDurableServiceClient(initial_operations=initial_ops)
 
         @durable_execution
-        def unnamed_step_workflow(event, context):
-            def my_custom_step(step_ctx):
-                return 42
+        def workflow(event, context):
+            def nested(child_ctx):
+                return {"nested": True}
 
-            # Call step without explicit name argument
-            return context.step(my_custom_step)
+            return context.run_in_child_context(nested, name="compute")
 
         event = _create_invocation_event(initial_ops, mock_client)
-        lambda_ctx = MockLambdaContext()
-
-        unnamed_step_workflow(event, lambda_ctx)
+        workflow(event, MockLambdaContext())
 
         spans = tracer.pop()
-        step_spans = [s for s in spans if s.name == "aws.durable_execution.step"]
-        assert len(step_spans) >= 1, "Expected at least one step span"
+        child_spans = [s for s in spans if s.name == "aws.durable.child_context"]
+        assert len(child_spans) == 1
+        assert child_spans[0].get_tag("aws.durable.replayed") == "false"
 
-        # When no explicit name is given, the step name should be derived from the function's __name__
-        step_span = step_spans[0]
-        assert step_span.get_tag("aws.durable_execution.step.name") == "my_custom_step", (
-            "Step name tag should be derived from the function name when no explicit name is given"
+    def test_child_context_replayed_is_tagged(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+        from aws_durable_execution_sdk_python.lambda_service import OperationSubType
+
+        initial_ops = _build_initial_state_with_context_op("compute", OperationSubType.RUN_IN_CHILD_CONTEXT)
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            def nested(child_ctx):
+                # Should not run on replay; if it does, assertion below will fail.
+                return {"nested": True}
+
+            return context.run_in_child_context(nested, name="compute")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        child_spans = [s for s in spans if s.name == "aws.durable.child_context"]
+        assert len(child_spans) == 1
+        assert child_spans[0].get_tag("aws.durable.replayed") == "true"
+
+    # -------------------------------- map ------------------------------------
+
+    def test_map_fresh_tagged_not_replayed(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            def double(child_ctx, item, index, all_items):
+                return item * 2
+
+            return context.map([1, 2, 3], double, name="doubler")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        map_spans = [s for s in spans if s.name == "aws.durable.map"]
+        assert len(map_spans) == 1
+        assert map_spans[0].get_tag("aws.durable.replayed") == "false"
+
+    def test_map_replayed_is_tagged(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+        from aws_durable_execution_sdk_python.lambda_service import OperationSubType
+
+        initial_ops = _build_initial_state_with_context_op("doubler", OperationSubType.MAP)
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            def double(child_ctx, item, index, all_items):
+                return item * 2
+
+            return context.map([1, 2, 3], double, name="doubler")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        map_spans = [s for s in spans if s.name == "aws.durable.map"]
+        assert len(map_spans) == 1
+        assert map_spans[0].get_tag("aws.durable.replayed") == "true"
+
+    def test_map_iteration_replay_does_not_overwrite_outer_map_tag(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+        from aws_durable_execution_sdk_python.lambda_service import OperationSubType
+
+        initial_ops = _build_initial_state_with_context_child_op(
+            parent_op_counter=1,
+            child_counter=0,
+            op_name="map-item-0",
+            sub_type=OperationSubType.MAP_ITERATION,
         )
-        assert step_span.resource == "my_custom_step", (
-            "Step resource should be derived from the function name when no explicit name is given"
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            def item(child_ctx, value, index, all_items):
+                return value
+
+            return context.map([1], item, name="partial-map")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        map_spans = [s for s in spans if s.name == "aws.durable.map"]
+        assert len(map_spans) == 1
+        assert map_spans[0].get_tag("aws.durable.replayed") == "false"
+
+    # ------------------------------ parallel ---------------------------------
+
+    def test_parallel_fresh_tagged_not_replayed(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            def branch_a(child_ctx):
+                return "a"
+
+            def branch_b(child_ctx):
+                return "b"
+
+            return context.parallel([branch_a, branch_b], name="fan-out")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        parallel_spans = [s for s in spans if s.name == "aws.durable.parallel"]
+        assert len(parallel_spans) == 1
+        assert parallel_spans[0].get_tag("aws.durable.replayed") == "false"
+
+    def test_parallel_replayed_is_tagged(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+        from aws_durable_execution_sdk_python.lambda_service import OperationSubType
+
+        initial_ops = _build_initial_state_with_context_op("fan-out", OperationSubType.PARALLEL)
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            def branch_a(child_ctx):
+                return "a"
+
+            def branch_b(child_ctx):
+                return "b"
+
+            return context.parallel([branch_a, branch_b], name="fan-out")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        parallel_spans = [s for s in spans if s.name == "aws.durable.parallel"]
+        assert len(parallel_spans) == 1
+        assert parallel_spans[0].get_tag("aws.durable.replayed") == "true"
+
+    def test_parallel_branch_replay_does_not_overwrite_outer_parallel_tag(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+        from aws_durable_execution_sdk_python.lambda_service import OperationSubType
+
+        initial_ops = _build_initial_state_with_context_child_op(
+            parent_op_counter=1,
+            child_counter=0,
+            op_name="parallel-branch-0",
+            sub_type=OperationSubType.PARALLEL_BRANCH,
         )
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            def branch(child_ctx):
+                return "a"
+
+            return context.parallel([branch], name="partial-parallel")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        parallel_spans = [s for s in spans if s.name == "aws.durable.parallel"]
+        assert len(parallel_spans) == 1
+        assert parallel_spans[0].get_tag("aws.durable.replayed") == "false"
+
+    # -------------------------- wait_for_condition ---------------------------
+
+    def test_wait_for_condition_fresh_tagged_not_replayed(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+        from aws_durable_execution_sdk_python.waits import WaitForConditionConfig
+        from aws_durable_execution_sdk_python.waits import WaitForConditionDecision
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        def wait_strategy(state, attempt):
+            # Condition met on first check → fresh call succeeds synchronously.
+            return WaitForConditionDecision.stop_polling()
+
+        config = WaitForConditionConfig(wait_strategy=wait_strategy, initial_state={"ready": True})
+
+        @durable_execution
+        def workflow(event, context):
+            def check(state, ctx):
+                return state
+
+            return context.wait_for_condition(check, config=config, name="check-ready")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        wfc_spans = [s for s in spans if s.name == "aws.durable.wait_for_condition"]
+        assert len(wfc_spans) == 1
+        assert wfc_spans[0].get_tag("aws.durable.replayed") == "false"
+
+    def test_wait_for_condition_replayed_is_tagged(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+        from aws_durable_execution_sdk_python.waits import WaitForConditionConfig
+        from aws_durable_execution_sdk_python.waits import WaitForConditionDecision
+
+        initial_ops = _build_initial_state_with_wait_for_condition_op("check-ready")
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        def wait_strategy(state, attempt):
+            return WaitForConditionDecision.stop_polling()
+
+        config = WaitForConditionConfig(wait_strategy=wait_strategy, initial_state={"ready": True})
+
+        @durable_execution
+        def workflow(event, context):
+            def check(state, ctx):
+                # Should not run on replay.
+                return state
+
+            return context.wait_for_condition(check, config=config, name="check-ready")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        wfc_spans = [s for s in spans if s.name == "aws.durable.wait_for_condition"]
+        assert len(wfc_spans) == 1
+        assert wfc_spans[0].get_tag("aws.durable.replayed") == "true"
+
+    # AIDEV-NOTE: wait_for_callback does not get a replayed tag.  It delegates
+    # internally to run_in_child_context, so the hook fires on the inner
+    # child_context span instead of the outer wait_for_callback span.  The gap
+    # is intentional — see _patch_operation_executor in patch.py.
+
+    # -------------------------------- invoke ----------------------------------
+
+    def test_invoke_fresh_tagged_not_replayed(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            return context.invoke(
+                function_name="downstream-fn",
+                payload={"foo": "bar"},
+                name="call-downstream",
+            )
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        invoke_spans = [s for s in spans if s.name == "aws.durable.invoke"]
+        assert len(invoke_spans) == 1
+        assert invoke_spans[0].get_tag("aws.durable.replayed") == "false"
+
+    def test_invoke_replayed_is_tagged(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+
+        # _build_initial_state_with_invoke seeds a SUCCEEDED invoke at counter=3,
+        # so prepend two dummy step checkpoints so the workflow's lone invoke()
+        # call lands on counter=1 instead. Simpler: build a one-op initial state here.
+        from aws_durable_execution_sdk_python.lambda_service import ChainedInvokeDetails
+        from aws_durable_execution_sdk_python.lambda_service import ExecutionDetails
+        from aws_durable_execution_sdk_python.lambda_service import Operation
+        from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+        from aws_durable_execution_sdk_python.lambda_service import OperationSubType
+        from aws_durable_execution_sdk_python.lambda_service import OperationType
+
+        invoke_op_id = _step_id(None, 1)
+        initial_ops = [
+            Operation(
+                operation_id="exec-op-0",
+                operation_type=OperationType.EXECUTION,
+                status=OperationStatus.STARTED,
+                execution_details=ExecutionDetails(input_payload=INPUT_PAYLOAD),
+            ),
+            Operation(
+                operation_id=invoke_op_id,
+                operation_type=OperationType.CHAINED_INVOKE,
+                status=OperationStatus.SUCCEEDED,
+                name="call-downstream",
+                sub_type=OperationSubType.CHAINED_INVOKE,
+                chained_invoke_details=ChainedInvokeDetails(
+                    result=json.dumps({"ok": True}),
+                ),
+            ),
+        ]
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            return context.invoke(
+                function_name="downstream-fn",
+                payload={"foo": "bar"},
+                name="call-downstream",
+            )
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        invoke_spans = [s for s in spans if s.name == "aws.durable.invoke"]
+        assert len(invoke_spans) == 1
+        assert invoke_spans[0].get_tag("aws.durable.replayed") == "true"
+
+    # --------------------------------- wait -----------------------------------
+
+    def test_wait_fresh_tagged_not_replayed(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+        from aws_durable_execution_sdk_python.config import Duration
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            return context.wait(Duration.from_seconds(1), name="cool-down")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        wait_spans = [s for s in spans if s.name == "aws.durable.wait"]
+        assert len(wait_spans) == 1
+        assert wait_spans[0].get_tag("aws.durable.replayed") == "false"
+
+    def test_wait_replayed_is_tagged(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+        from aws_durable_execution_sdk_python.config import Duration
+
+        initial_ops = _build_initial_state_with_wait_op("cool-down")
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            return context.wait(Duration.from_seconds(1), name="cool-down")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        wait_spans = [s for s in spans if s.name == "aws.durable.wait"]
+        assert len(wait_spans) == 1
+        assert wait_spans[0].get_tag("aws.durable.replayed") == "true"
+
+    # ---------------------------- create_callback -----------------------------
+
+    def test_create_callback_fresh_tagged_not_replayed(self, tracer):
+        """Fresh create_callback: no prior checkpoint → is_succeeded()=false → replayed=false."""
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            return context.create_callback(name="await-external")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        cc_spans = [s for s in spans if s.name == "aws.durable.create_callback"]
+        assert len(cc_spans) == 1
+        assert cc_spans[0].get_tag("aws.durable.replayed") == "false"
+
+    def test_create_callback_replayed_is_tagged(self, tracer):
+        """Replayed create_callback with a SUCCEEDED CALLBACK checkpoint pre-populated.
+
+        AIDEV-NOTE: In real workflows, CallbackOperationExecutor.process() rarely sees
+        is_succeeded()=True because the op transitions to SUCCEEDED only after an
+        external party invokes the callback, and by then the code has usually moved on
+        to Callback.result().  Here we force the SUCCEEDED state directly to verify the
+        executor hook reads the signal correctly.
+        """
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_with_callback_op("await-external")
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            return context.create_callback(name="await-external")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        cc_spans = [s for s in spans if s.name == "aws.durable.create_callback"]
+        assert len(cc_spans) == 1
+        assert cc_spans[0].get_tag("aws.durable.replayed") == "true"
 
 
 # ===========================================================================
@@ -680,12 +1209,11 @@ class TestInvokeExecution:
         result = invoke_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws.durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable.invoke"]
         assert len(invoke_spans) == 1, "Expected exactly one invoke span"
         invoke_span = invoke_spans[0]
 
         # Verify span structure
-        assert invoke_span.service == "aws.durable_execution"
         assert invoke_span.span_type == "serverless"
         assert invoke_span.resource == "process-payment"
         assert invoke_span.error == 0
@@ -693,8 +1221,7 @@ class TestInvokeExecution:
         # Verify span tags
         assert invoke_span.get_tag("component") == "aws_durable_execution_sdk_python"
         assert invoke_span.get_tag("span.kind") == "client"
-        assert invoke_span.get_tag("aws.durable_execution.invoke.function_name") == "payment-processor-fn"
-        assert invoke_span.get_tag("aws.durable_execution.invoke.name") == "process-payment"
+        assert invoke_span.get_tag("aws.durable.invoke.function_name") == "payment-processor-fn"
 
     def test_invoke_is_child_of_workflow_span(self, tracer):
         """The invoke span should be a child of the workflow execution span."""
@@ -722,8 +1249,8 @@ class TestInvokeExecution:
         nested_invoke_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
-        invoke_spans = [s for s in spans if s.name == "aws.durable_execution.invoke"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable.execute"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable.invoke"]
 
         assert len(workflow_spans) == 1
         assert len(invoke_spans) == 1
@@ -746,12 +1273,13 @@ class TestFullWorkflowTrace:
         """A workflow with steps and invoke produces a proper parent-child span tree.
 
         Expected trace structure:
-          aws.durable_execution.execute (root)
-            |- aws.durable_execution.step (validate-order)
-            |- aws.durable_execution.step (calculate-totals)
-            |- aws.durable_execution.invoke (process-payment)
+          aws.durable.execute (root)
+            |- aws.durable.step (validate-order)
+            |- aws.durable.step (calculate-totals)
+            |- aws.durable.invoke (process-payment)
         """
-        from aws_durable_execution_sdk_python import DurableContext, durable_execution
+        from aws_durable_execution_sdk_python import DurableContext
+        from aws_durable_execution_sdk_python import durable_execution
         from aws_durable_execution_sdk_python.types import StepContext
 
         initial_ops = _build_initial_state_with_invoke()
@@ -795,9 +1323,9 @@ class TestFullWorkflowTrace:
         assert len(spans) == 4, "Expected 4 spans: 1 execution + 2 steps + 1 invoke, got {}".format(len(spans))
 
         # Categorize spans
-        execution_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
-        step_spans = [s for s in spans if s.name == "aws.durable_execution.step"]
-        invoke_spans = [s for s in spans if s.name == "aws.durable_execution.invoke"]
+        execution_spans = [s for s in spans if s.name == "aws.durable.execute"]
+        step_spans = [s for s in spans if s.name == "aws.durable.step"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable.invoke"]
 
         assert len(execution_spans) == 1
         assert len(step_spans) == 2
@@ -808,9 +1336,7 @@ class TestFullWorkflowTrace:
         # All child spans should be children of the root
         for span in step_spans + invoke_spans:
             assert span.parent_id == root_span.span_id, (
-                "Span '{}' (resource={}) should be child of workflow execution span".format(
-                    span.name, span.resource
-                )
+                "Span '{}' (resource={}) should be child of workflow execution span".format(span.name, span.resource)
             )
 
         # Verify all spans share the same trace ID
@@ -844,7 +1370,7 @@ class TestFullWorkflowTrace:
 
         spans = tracer.pop()
         assert len(spans) == 1, "A no-op workflow should produce exactly 1 execution span"
-        assert spans[0].name == "aws.durable_execution.execute"
+        assert spans[0].name == "aws.durable.execute"
         assert spans[0].error == 0
 
 
@@ -867,6 +1393,7 @@ class TestSuspendExecutionHandling:
         def suspending_workflow(event, context):
             def some_step(step_ctx):
                 return "done"
+
             context.step(some_step, name="pre-step")
             # invoke without pre-completed state will trigger SuspendExecution
             return context.invoke(
@@ -886,15 +1413,14 @@ class TestSuspendExecutionHandling:
 
         spans = tracer.pop()
         # The workflow span should exist
-        workflow_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable.execute"]
         assert len(workflow_spans) >= 1
 
         # AIDEV-NOTE: SuspendExecution is control flow, not an error. The integration
         # should catch SuspendExecution and NOT mark the span as errored.
         workflow_span = workflow_spans[0]
-        assert workflow_span.error == 0, (
-            "SuspendExecution should not mark the workflow span as an error"
-        )
+        assert workflow_span.error == 0, "SuspendExecution should not mark the workflow span as an error"
+        assert workflow_span.get_tag("aws.durable.invocation_status") == "pending"
 
 
 # ===========================================================================
@@ -902,35 +1428,6 @@ class TestSuspendExecutionHandling:
 # ===========================================================================
 class TestConfiguration:
     """Tests for integration configuration options."""
-
-    def test_custom_service_name(self, tracer):
-        """Users can override the service name via config."""
-        from aws_durable_execution_sdk_python import durable_execution
-        from aws_durable_execution_sdk_python.types import StepContext
-
-        initial_ops = _build_initial_state_basic()
-        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
-
-        @durable_execution
-        def configured_workflow(event, context):
-            def step_fn(step_ctx):
-                return "ok"
-            return context.step(step_fn, name="test-step")
-
-        event = _create_invocation_event(initial_ops, mock_client)
-        lambda_ctx = MockLambdaContext()
-
-        with override_config("aws_durable_execution_sdk_python", dict(service_name="my-custom-service")):
-            try:
-                configured_workflow(event, lambda_ctx)
-            except Exception:
-                pass
-
-        spans = tracer.pop()
-        for span in spans:
-            assert span.service == "my-custom-service", (
-                "Service name should be overridden to 'my-custom-service', got '{}'".format(span.service)
-            )
 
     def test_patch_unpatch_idempotent(self, tracer):
         """patch() and unpatch() can be called multiple times without side effects."""
@@ -957,7 +1454,7 @@ class TestConfiguration:
 
         spans = tracer.pop()
         # Should get exactly 1 execution span, not duplicated by double patching
-        execution_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
+        execution_spans = [s for s in spans if s.name == "aws.durable.execute"]
         assert len(execution_spans) == 1, "Double patching should not produce duplicate spans"
 
 
@@ -966,12 +1463,10 @@ class TestConfiguration:
 # ===========================================================================
 def _build_initial_state_with_payload(input_payload_str):
     """Build initial state with a custom input payload string."""
-    from aws_durable_execution_sdk_python.lambda_service import (
-        ExecutionDetails,
-        Operation,
-        OperationStatus,
-        OperationType,
-    )
+    from aws_durable_execution_sdk_python.lambda_service import ExecutionDetails
+    from aws_durable_execution_sdk_python.lambda_service import Operation
+    from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+    from aws_durable_execution_sdk_python.lambda_service import OperationType
 
     execution_op = Operation(
         operation_id="exec-op-0",
@@ -995,9 +1490,9 @@ class TestContextPropagation:
 
     def test_extraction_links_execution_to_parent_trace(self, tracer):
         """When input_event contains _datadog headers, the execution span is a child of the upstream trace."""
-        from ddtrace.propagation.http import HTTPPropagator
-
         from aws_durable_execution_sdk_python import durable_execution
+
+        from ddtrace.propagation.http import HTTPPropagator
 
         # Create upstream span to get valid trace context headers
         with tracer.tracer.trace("upstream.invoke") as upstream_span:
@@ -1010,10 +1505,12 @@ class TestContextPropagation:
         tracer.pop()
 
         # Build input payload with _datadog headers
-        input_payload = json.dumps({
-            "order_id": "ORD-42",
-            "_datadog": headers,
-        })
+        input_payload = json.dumps(
+            {
+                "order_id": "ORD-42",
+                "_datadog": headers,
+            }
+        )
         initial_ops = _build_initial_state_with_payload(input_payload)
         mock_client = MockDurableServiceClient(initial_operations=initial_ops)
 
@@ -1031,31 +1528,26 @@ class TestContextPropagation:
         assert inner["received"] is True
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable.execute"]
         assert len(workflow_spans) == 1
         workflow_span = workflow_spans[0]
 
         # Verify full span structure
-        assert workflow_span.service == "aws.durable_execution"
         assert workflow_span.span_type == "serverless"
-        assert workflow_span.resource == "aws.durable_execution.execute"
+        assert workflow_span.resource == "aws.durable.execute"
         assert workflow_span.get_tag("component") == "aws_durable_execution_sdk_python"
         assert workflow_span.get_tag("span.kind") == "server"
         assert workflow_span.error == 0
 
         # The execution span should be linked to the upstream trace
-        assert workflow_span.trace_id == upstream_trace_id, (
-            "Execution span trace_id should match upstream trace_id"
-        )
-        assert workflow_span.parent_id == upstream_span_id, (
-            "Execution span parent_id should match upstream span_id"
-        )
+        assert workflow_span.trace_id == upstream_trace_id, "Execution span trace_id should match upstream trace_id"
+        assert workflow_span.parent_id == upstream_span_id, "Execution span parent_id should match upstream span_id"
 
     def test_extraction_disabled_no_parent_linkage(self, tracer):
         """When distributed_tracing_enabled=False, _datadog is ignored and span is a root."""
-        from ddtrace.propagation.http import HTTPPropagator
-
         from aws_durable_execution_sdk_python import durable_execution
+
+        from ddtrace.propagation.http import HTTPPropagator
 
         # Create upstream span context
         with tracer.tracer.trace("upstream.invoke") as upstream_span:
@@ -1065,10 +1557,12 @@ class TestContextPropagation:
 
         tracer.pop()
 
-        input_payload = json.dumps({
-            "order_id": "ORD-42",
-            "_datadog": headers,
-        })
+        input_payload = json.dumps(
+            {
+                "order_id": "ORD-42",
+                "_datadog": headers,
+            }
+        )
         initial_ops = _build_initial_state_with_payload(input_payload)
         mock_client = MockDurableServiceClient(initial_operations=initial_ops)
 
@@ -1083,12 +1577,11 @@ class TestContextPropagation:
             no_extract_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable.execute"]
         assert len(workflow_spans) == 1
         workflow_span = workflow_spans[0]
 
         # Verify span is still well-formed
-        assert workflow_span.service == "aws.durable_execution"
         assert workflow_span.span_type == "serverless"
         assert workflow_span.get_tag("component") == "aws_durable_execution_sdk_python"
 
@@ -1118,14 +1611,13 @@ class TestContextPropagation:
         assert inner["status"] == "ok"
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable.execute"]
         assert len(workflow_spans) == 1
         workflow_span = workflow_spans[0]
 
         # Verify full span structure
-        assert workflow_span.service == "aws.durable_execution"
         assert workflow_span.span_type == "serverless"
-        assert workflow_span.resource == "aws.durable_execution.execute"
+        assert workflow_span.resource == "aws.durable.execute"
         assert workflow_span.get_tag("component") == "aws_durable_execution_sdk_python"
         assert workflow_span.get_tag("span.kind") == "server"
         assert workflow_span.error == 0
@@ -1141,9 +1633,9 @@ class TestContextPropagation:
         Verified by the full round-trip: upstream trace → inject into invoke payload →
         extract in downstream @durable_execution → all spans share the same trace_id.
         """
-        from ddtrace.propagation.http import HTTPPropagator
-
         from aws_durable_execution_sdk_python import durable_execution
+
+        from ddtrace.propagation.http import HTTPPropagator
 
         # Create an upstream span to establish a trace context
         with tracer.tracer.trace("upstream.caller") as upstream_span:
@@ -1159,13 +1651,11 @@ class TestContextPropagation:
         input_payload_dict = {"order_id": "ORD-42", "amount": 99.95, "_datadog": headers}
         input_payload = json.dumps(input_payload_dict)
 
-        from aws_durable_execution_sdk_python.lambda_service import (
-            ChainedInvokeDetails,
-            ExecutionDetails,
-            Operation,
-            OperationStatus,
-            OperationType,
-        )
+        from aws_durable_execution_sdk_python.lambda_service import ChainedInvokeDetails
+        from aws_durable_execution_sdk_python.lambda_service import ExecutionDetails
+        from aws_durable_execution_sdk_python.lambda_service import Operation
+        from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+        from aws_durable_execution_sdk_python.lambda_service import OperationType
 
         invoke_op_id = _step_id(None, 3)
         initial_ops = [
@@ -1211,21 +1701,20 @@ class TestContextPropagation:
             sdk_output = inject_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws.durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable.invoke"]
         assert len(invoke_spans) == 1
         invoke_span = invoke_spans[0]
 
         # Verify invoke span structure
-        assert invoke_span.service == "aws.durable_execution"
         assert invoke_span.span_type == "serverless"
         assert invoke_span.resource == "process-payment"
         assert invoke_span.get_tag("span.kind") == "client"
         assert invoke_span.get_tag("component") == "aws_durable_execution_sdk_python"
-        assert invoke_span.get_tag("aws.durable_execution.invoke.function_name") == "payment-fn"
+        assert invoke_span.get_tag("aws.durable.invoke.function_name") == "payment-fn"
         assert invoke_span.error == 0
 
         # Verify all spans share the upstream trace_id (proves context was extracted)
-        execution_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
+        execution_spans = [s for s in spans if s.name == "aws.durable.execute"]
         assert len(execution_spans) == 1
         assert execution_spans[0].trace_id == upstream_trace_id
         assert execution_spans[0].parent_id == upstream_span_id
@@ -1236,9 +1725,9 @@ class TestContextPropagation:
 
     def test_injection_disabled_no_datadog_in_payload(self, tracer):
         """When distributed_tracing_enabled=False, invoke spans are created but traces are not linked."""
-        from ddtrace.propagation.http import HTTPPropagator
-
         from aws_durable_execution_sdk_python import durable_execution
+
+        from ddtrace.propagation.http import HTTPPropagator
 
         # Create an upstream span
         with tracer.tracer.trace("upstream.caller") as upstream_span:
@@ -1264,12 +1753,11 @@ class TestContextPropagation:
             disabled_inject_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        workflow_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
+        workflow_spans = [s for s in spans if s.name == "aws.durable.execute"]
         assert len(workflow_spans) == 1
         workflow_span = workflow_spans[0]
 
         # Verify span exists and is well-formed
-        assert workflow_span.service == "aws.durable_execution"
         assert workflow_span.span_type == "serverless"
         assert workflow_span.get_tag("component") == "aws_durable_execution_sdk_python"
         assert workflow_span.get_tag("span.kind") == "server"
@@ -1302,17 +1790,16 @@ class TestContextPropagation:
             pass  # Original SDK method fails with mock instance; we verify span behavior
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws.durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable.invoke"]
         assert len(invoke_spans) == 1
         invoke_span = invoke_spans[0]
 
         # Verify span is still created correctly despite non-dict payload
-        assert invoke_span.service == "aws.durable_execution"
         assert invoke_span.span_type == "serverless"
         assert invoke_span.resource == "process-payment"
         assert invoke_span.get_tag("span.kind") == "client"
         assert invoke_span.get_tag("component") == "aws_durable_execution_sdk_python"
-        assert invoke_span.get_tag("aws.durable_execution.invoke.function_name") == "payment-fn"
+        assert invoke_span.get_tag("aws.durable.invoke.function_name") == "payment-fn"
 
     def test_injection_does_not_mutate_original_payload(self, tracer):
         """Injecting _datadog should not mutate the caller's original payload dict.
@@ -1340,9 +1827,7 @@ class TestContextPropagation:
         tracer.pop()
 
         # The original payload dict should NOT be mutated
-        assert "_datadog" not in original_payload, (
-            "Original payload dict should not be mutated by injection"
-        )
+        assert "_datadog" not in original_payload, "Original payload dict should not be mutated by injection"
 
     def test_distributed_tracing_enabled_by_default(self, tracer):
         """distributed_tracing_enabled should be True by default."""
@@ -1354,9 +1839,9 @@ class TestContextPropagation:
 
     def test_extraction_with_child_spans_preserves_trace(self, tracer):
         """When extracting context, step and invoke child spans share the same trace_id."""
-        from ddtrace.propagation.http import HTTPPropagator
-
         from aws_durable_execution_sdk_python import durable_execution
+
+        from ddtrace.propagation.http import HTTPPropagator
 
         # Create upstream context
         with tracer.tracer.trace("upstream.invoke") as upstream_span:
@@ -1371,13 +1856,11 @@ class TestContextPropagation:
         input_payload_dict = {"order_id": "ORD-42", "_datadog": headers}
         input_payload = json.dumps(input_payload_dict)
 
-        from aws_durable_execution_sdk_python.lambda_service import (
-            ChainedInvokeDetails,
-            ExecutionDetails,
-            Operation,
-            OperationStatus,
-            OperationType,
-        )
+        from aws_durable_execution_sdk_python.lambda_service import ChainedInvokeDetails
+        from aws_durable_execution_sdk_python.lambda_service import ExecutionDetails
+        from aws_durable_execution_sdk_python.lambda_service import Operation
+        from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+        from aws_durable_execution_sdk_python.lambda_service import OperationType
 
         invoke_op_id = _step_id(None, 3)
         execution_op = Operation(
@@ -1421,9 +1904,9 @@ class TestContextPropagation:
         spans = tracer.pop()
 
         # Verify we got the expected span types
-        execution_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
-        step_spans = [s for s in spans if s.name == "aws.durable_execution.step"]
-        invoke_spans = [s for s in spans if s.name == "aws.durable_execution.invoke"]
+        execution_spans = [s for s in spans if s.name == "aws.durable.execute"]
+        step_spans = [s for s in spans if s.name == "aws.durable.step"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable.invoke"]
 
         assert len(execution_spans) == 1
         assert len(step_spans) == 2
@@ -1438,17 +1921,13 @@ class TestContextPropagation:
         # All spans should share the upstream trace_id
         for span in spans:
             assert span.trace_id == upstream_trace_id, (
-                "Span '{}' (resource={}) should share the upstream trace_id".format(
-                    span.name, span.resource
-                )
+                "Span '{}' (resource={}) should share the upstream trace_id".format(span.name, span.resource)
             )
 
         # Step and invoke spans should be children of the execution span
         for span in step_spans + invoke_spans:
             assert span.parent_id == execution_span.span_id, (
-                "Span '{}' (resource={}) should be child of execution span".format(
-                    span.name, span.resource
-                )
+                "Span '{}' (resource={}) should be child of execution span".format(span.name, span.resource)
             )
 
 
@@ -1493,17 +1972,16 @@ class TestPeerService:
         sdk_output = peer_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws.durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable.invoke"]
         assert len(invoke_spans) == 1
         invoke_span = invoke_spans[0]
 
         # Verify full invoke span structure
-        assert invoke_span.service == "aws.durable_execution"
         assert invoke_span.span_type == "serverless"
         assert invoke_span.resource == "process-payment"
         assert invoke_span.get_tag("span.kind") == "client"
         assert invoke_span.get_tag("component") == "aws_durable_execution_sdk_python"
-        assert invoke_span.get_tag("aws.durable_execution.invoke.function_name") == "payment-processor-fn"
+        assert invoke_span.get_tag("aws.durable.invoke.function_name") == "payment-processor-fn"
 
         # out.host should be set to the function name for peer service derivation
         assert invoke_span.get_tag("out.host") == "payment-processor-fn", (
@@ -1541,7 +2019,7 @@ class TestPeerService:
         out_host_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws.durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable.invoke"]
         assert len(invoke_spans) == 1
         invoke_span = invoke_spans[0]
 
@@ -1549,8 +2027,7 @@ class TestPeerService:
         assert invoke_span.get_tag("out.host") == "my-downstream-lambda"
         assert invoke_span.get_tag("span.kind") == "client"
         assert invoke_span.get_tag("component") == "aws_durable_execution_sdk_python"
-        assert invoke_span.get_tag("aws.durable_execution.invoke.function_name") == "my-downstream-lambda"
-        assert invoke_span.get_tag("aws.durable_execution.invoke.name") == "process-payment"
+        assert invoke_span.get_tag("aws.durable.invoke.function_name") == "my-downstream-lambda"
         assert invoke_span.resource == "process-payment"
 
     def test_execution_span_does_not_set_out_host(self, tracer):
@@ -1569,15 +2046,13 @@ class TestPeerService:
         simple_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        execution_spans = [s for s in spans if s.name == "aws.durable_execution.execute"]
+        execution_spans = [s for s in spans if s.name == "aws.durable.execute"]
         assert len(execution_spans) == 1
         execution_span = execution_spans[0]
 
         # Server spans should not have out.host
         assert execution_span.get_tag("span.kind") == "server"
-        assert execution_span.get_tag("out.host") is None, (
-            "Execution (server) span should not have out.host"
-        )
+        assert execution_span.get_tag("out.host") is None, "Execution (server) span should not have out.host"
 
     def test_step_span_does_not_set_out_host(self, tracer):
         """The step span (internal) should NOT have out.host — peer service is only for client spans."""
@@ -1590,6 +2065,7 @@ class TestPeerService:
         def step_only_workflow(event, context):
             def my_step(step_ctx):
                 return "done"
+
             return context.step(my_step, name="my-step")
 
         event = _create_invocation_event(initial_ops, mock_client)
@@ -1601,15 +2077,13 @@ class TestPeerService:
             pass
 
         spans = tracer.pop()
-        step_spans = [s for s in spans if s.name == "aws.durable_execution.step"]
+        step_spans = [s for s in spans if s.name == "aws.durable.step"]
         assert len(step_spans) >= 1
         step_span = step_spans[0]
 
         # Internal spans should not have out.host
         assert step_span.get_tag("span.kind") == "internal"
-        assert step_span.get_tag("out.host") is None, (
-            "Step (internal) span should not have out.host"
-        )
+        assert step_span.get_tag("out.host") is None, "Step (internal) span should not have out.host"
 
     def test_invoke_without_function_name_no_out_host(self, tracer):
         """When function_name is None/missing, out.host should not be set.
@@ -1634,15 +2108,13 @@ class TestPeerService:
             pass  # Original SDK method fails with mock instance
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws.durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable.invoke"]
         assert len(invoke_spans) == 1
         invoke_span = invoke_spans[0]
 
         # Without a function_name, out.host should not be set
-        assert invoke_span.get_tag("out.host") is None, (
-            "out.host should not be set when function_name is missing"
-        )
         assert invoke_span.resource == "call-no-target"
+        assert invoke_span.get_tag("out.host") is None, "out.host should not be set when function_name is missing"
         assert invoke_span.get_tag("span.kind") == "client"
         assert invoke_span.get_tag("component") == "aws_durable_execution_sdk_python"
 
@@ -1678,7 +2150,7 @@ class TestPeerService:
         peer_test_workflow(event, lambda_ctx)
 
         spans = tracer.pop()
-        invoke_spans = [s for s in spans if s.name == "aws.durable_execution.invoke"]
+        invoke_spans = [s for s in spans if s.name == "aws.durable.invoke"]
         assert len(invoke_spans) == 1
         invoke_span = invoke_spans[0]
 
@@ -1697,6 +2169,191 @@ class TestPeerService:
         assert invoke_span.get_tag("peer.service") == "target-lambda-fn", (
             "peer.service should be derived from out.host (function_name)"
         )
-        assert invoke_span.get_tag("_dd.peer.service.source") == "out.host", (
-            "peer.service source should be out.host"
-        )
+        assert invoke_span.get_tag("_dd.peer.service.source") == "out.host", "peer.service source should be out.host"
+
+
+# ===========================================================================
+# Test class: Positional `name` argument
+# ===========================================================================
+class TestPositionalName:
+    """Regression: the operation ``name`` must be captured whether it is passed
+    as a keyword (``name="x"``) or positionally. The SDK's public API allows
+    both; earlier revisions of the wrapper only consulted ``kwargs``, so
+    positional ``name`` values silently fell back to the default resource.
+    """
+
+    def test_step_positional_name(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            def my_step(step_ctx):
+                return 1
+
+            return context.step(my_step, "positional-step")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        step_spans = [s for s in spans if s.name == "aws.durable.step"]
+        assert len(step_spans) == 1
+        assert step_spans[0].resource == "positional-step"
+
+    def test_invoke_positional_name(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            return context.invoke("downstream-fn", {"foo": "bar"}, "positional-invoke")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        # Without a pre-completed CHAINED_INVOKE checkpoint the SDK suspends;
+        # the outer span is still emitted.
+        try:
+            workflow(event, MockLambdaContext())
+        except Exception:
+            pass
+
+        spans = tracer.pop()
+        invoke_spans = [s for s in spans if s.name == "aws.durable.invoke"]
+        assert len(invoke_spans) == 1
+        assert invoke_spans[0].resource == "positional-invoke"
+        assert invoke_spans[0].get_tag("aws.durable.invoke.function_name") == "downstream-fn"
+
+    def test_wait_positional_name(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+        from aws_durable_execution_sdk_python.config import Duration
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            return context.wait(Duration.from_seconds(1), "payment_hold")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        wait_spans = [s for s in spans if s.name == "aws.durable.wait"]
+        assert len(wait_spans) == 1
+        assert wait_spans[0].resource == "payment_hold"
+
+    def test_wait_for_condition_positional_name(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+        from aws_durable_execution_sdk_python.waits import WaitForConditionConfig
+        from aws_durable_execution_sdk_python.waits import WaitForConditionDecision
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        def wait_strategy(state, attempt):
+            return WaitForConditionDecision.stop_polling()
+
+        config = WaitForConditionConfig(wait_strategy=wait_strategy, initial_state={"ready": True})
+
+        @durable_execution
+        def workflow(event, context):
+            def check(state, ctx):
+                return state
+
+            return context.wait_for_condition(check, config, "positional-wfc")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        wfc_spans = [s for s in spans if s.name == "aws.durable.wait_for_condition"]
+        assert len(wfc_spans) == 1
+        assert wfc_spans[0].resource == "positional-wfc"
+
+    def test_create_callback_positional_name(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            return context.create_callback("positional-cb")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        cc_spans = [s for s in spans if s.name == "aws.durable.create_callback"]
+        assert len(cc_spans) == 1
+        assert cc_spans[0].resource == "positional-cb"
+
+    def test_map_positional_name(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            def double(child_ctx, item, index, all_items):
+                return item * 2
+
+            return context.map([1, 2, 3], double, "positional-map")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        map_spans = [s for s in spans if s.name == "aws.durable.map"]
+        assert len(map_spans) == 1
+        assert map_spans[0].resource == "positional-map"
+
+    def test_parallel_positional_name(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            def branch_a(child_ctx):
+                return "a"
+
+            def branch_b(child_ctx):
+                return "b"
+
+            return context.parallel([branch_a, branch_b], "positional-parallel")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        parallel_spans = [s for s in spans if s.name == "aws.durable.parallel"]
+        assert len(parallel_spans) == 1
+        assert parallel_spans[0].resource == "positional-parallel"
+
+    def test_run_in_child_context_positional_name(self, tracer):
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def workflow(event, context):
+            def nested(child_ctx):
+                return {"nested": True}
+
+            return context.run_in_child_context(nested, "positional-child")
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        workflow(event, MockLambdaContext())
+
+        spans = tracer.pop()
+        child_spans = [s for s in spans if s.name == "aws.durable.child_context"]
+        assert len(child_spans) == 1
+        assert child_spans[0].resource == "positional-child"
