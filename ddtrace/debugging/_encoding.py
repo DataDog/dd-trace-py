@@ -18,6 +18,7 @@ from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal import process_tags
 from ddtrace.internal._encoding import BufferFull
+from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import format_trace_id
@@ -251,9 +252,9 @@ class LogSignalJsonEncoder(Encoder):
     MAX_SIGNAL_SIZE = (1 << 20) - 2
     MIN_LEVEL = 5
 
-    def __init__(self, service: str, host: Optional[str] = None) -> None:
+    def __init__(self, service: str) -> None:
         self._service = service
-        self._host = host
+        self._host = get_hostname()
 
     def _encode(self, item: LogSignal) -> str:
         return json.dumps(_build_log_track_payload(self._service, item, self._host))
