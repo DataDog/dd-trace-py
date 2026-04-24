@@ -10,20 +10,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-4",
-      "_dd.p.tid": "69de7abb00000000",
+      "_dd.p.tid": "69eb932b00000000",
       "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpuecxwdxz,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpvh983js2,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "5dd6c9d0db25405c8d8d6bfe8e3ab87a"
+      "runtime-id": "6422cbf4fe4f47938992611ff5e79432"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1.0,
-      "process_id": 42428.0
+      "process_id": 20364.0
     },
-    "duration": 52033208,
-    "start": 1776188091993947804
+    "duration": 53236917,
+    "start": 1777046315535255921
   },
      {
        "name": "internal",
@@ -36,20 +36,20 @@
        "error": 0,
        "meta": {
          "_dd.p.dm": "-4",
-         "_dd.p.tid": "69de7abb00000000",
-         "_dd.parent_id": "7745352b3aafc951",
+         "_dd.p.tid": "69eb932b00000000",
+         "_dd.parent_id": "1158057a79196591",
          "_dd.svc_src": "ddtrace_subprocess_dir",
-         "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpuecxwdxz,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+         "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpvh983js2,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
          "language": "python",
-         "runtime-id": "a00be096fcbf482c9ed543e3159576b1",
-         "tracestate": "dd=p:7745352b3aafc951;s:-1;t.dm:-4"
+         "runtime-id": "378f3fe9d9d94a49a65ad53dee411047",
+         "tracestate": "dd=p:1158057a79196591;s:-1;t.dm:-4"
        },
        "metrics": {
          "_dd.top_level": 1.0,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": -1.0,
-         "process_id": 42436.0
+         "process_id": 20372.0
        },
-       "duration": 20473584,
-       "start": 1776188092022325137
+       "duration": 20903708,
+       "start": 1777046315564313463
      }]]

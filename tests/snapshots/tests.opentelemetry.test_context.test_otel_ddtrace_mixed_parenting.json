@@ -10,20 +10,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de7abd00000000",
+      "_dd.p.tid": "69eb932c00000000",
       "_dd.svc_src": "tests.opentelemetry",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "language": "python",
-      "runtime-id": "70ff513e149c4275a000e61227618926"
+      "runtime-id": "ee6949b03b33475481d3858e92bfdb34"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 42232.0
+      "process_id": 20204.0
     },
-    "duration": 123015042,
-    "start": 1776188093143197721
+    "duration": 123535916,
+    "start": 1777046316141565630
   },
      {
        "name": "ddtrace-top-level",
@@ -37,8 +37,8 @@
        "meta": {
          "_dd.svc_src": "tests.opentelemetry"
        },
-       "duration": 122735583,
-       "start": 1776188093143345513
+       "duration": 123364208,
+       "start": 1777046316141678255
      },
         {
           "name": "ddtrace-child",
@@ -52,8 +52,8 @@
           "meta": {
             "_dd.svc_src": "tests.opentelemetry"
           },
-          "duration": 45640500,
-          "start": 1776188093164583513
+          "duration": 45453375,
+          "start": 1777046316163646546
         },
         {
           "name": "internal",
@@ -67,8 +67,8 @@
           "meta": {
             "_dd.svc_src": "tests.opentelemetry"
           },
-          "duration": 55503500,
-          "start": 1776188093210385721
+          "duration": 55379334,
+          "start": 1777046316209571546
         },
            {
              "name": "ddtrace-grandchild",
@@ -82,8 +82,8 @@
              "meta": {
                "_dd.svc_src": "tests.opentelemetry"
              },
-             "duration": 30398958,
-             "start": 1776188093235241555
+             "duration": 29729500,
+             "start": 1777046316235124213
            },
               {
                 "name": "internal",
@@ -97,6 +97,6 @@
                 "meta": {
                   "_dd.svc_src": "tests.opentelemetry"
                 },
-                "duration": 26074625,
-                "start": 1776188093235476221
+                "duration": 24697375,
+                "start": 1777046316239757130
               }]]
