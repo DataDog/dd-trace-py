@@ -508,7 +508,7 @@ class Tracer(object):
             else:
                 service = service_source = config.service
         else:
-            if service in [conf._default_service for conf in config._integration_configs.values()]:
+            if service in [getattr(conf, "_default_service") for conf in config._integration_configs.values() if conf]:
                 service_source = service
             else:
                 service_source = "m"
