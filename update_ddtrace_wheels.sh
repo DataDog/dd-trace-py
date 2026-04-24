@@ -14,7 +14,8 @@ if [[ $# -lt 1 ]]; then
 fi
 
 PIPELINE_ID_OR_COMMIT_SHA="${1%/}"
-INDEX_URL="https://dd-trace-py-builds.s3.amazonaws.com/${PIPELINE_ID_OR_COMMIT_SHA}/index-manylinux2014.html"
+BASE_URL="https://dd-trace-py-builds.s3.amazonaws.com/${PIPELINE_ID_OR_COMMIT_SHA}"
+INDEX_URL="${BASE_URL}/index-manylinux2014.html"
 
 git fetch origin apm-sdk-py-smoke-tests-staging > /dev/null 2>&1
 git checkout origin/apm-sdk-py-smoke-tests-staging > /dev/null 2>&1
