@@ -38,6 +38,11 @@ default:
 .is_gh_merge_queue: $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/
 .is_devflow_merge_queue: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
 
+.skip_targeted_suite:
+  rules:
+    - if: $TARGET_SUITE
+      when: never
+
 # trigger new commit cancel
 workflow:
   auto_cancel:
@@ -54,16 +59,59 @@ workflow:
 include:
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/one-pipeline.locked.yml"
+    rules:
+      - if: $TARGET_SUITE
+        when: never
+      - when: always
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
-  - local: ".gitlab/package.yml"
-  - local: ".gitlab/release.yml"
   - local: ".gitlab/testrunner.yml"
+  # Files below are excluded entirely when TARGET_SUITE is set so that only the
+  # targeted test generation / trigger path is compiled.
+  - local: ".gitlab/package.yml"
+    rules:
+      - if: $TARGET_SUITE
+        when: never
+      - when: always
+  - local: ".gitlab/release.yml"
+    rules:
+      - if: $TARGET_SUITE
+        when: never
+      - when: always
   - local: ".gitlab/debugging-exploration.yml"
+    rules:
+      - if: $TARGET_SUITE
+        when: never
+      - when: always
   - local: ".gitlab/multi-os-tests.yml"
+    rules:
+      - if: $TARGET_SUITE
+        when: never
+      - when: always
   - local: ".gitlab/benchmarks/serverless.yml"
+    rules:
+      - if: $TARGET_SUITE
+        when: never
+      - when: always
   - local: ".gitlab/native.yml"
+    rules:
+      - if: $TARGET_SUITE
+        when: never
+      - when: always
   - local: ".gitlab/system-tests.yml"
+    rules:
+      - if: $TARGET_SUITE
+        when: never
+      - when: always
   - local: ".gitlab/fuzz.yml"
+    rules:
+      - if: $TARGET_SUITE
+        when: never
+      - when: always
+  - local: ".gitlab/normal-pipeline-overrides.yml"
+    rules:
+      - if: $TARGET_SUITE
+        when: never
+      - when: always
 
 "pipeline variables":
   stage: .pre
@@ -88,6 +136,11 @@ tests-gen:
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
+  # Skip when a single targeted suite is requested via TARGET_SUITE.
+  rules:
+    - if: $TARGET_SUITE
+      when: never
+    - when: on_success
   script:
     - |
       echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
@@ -114,6 +167,8 @@ run-tests-trigger:
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
  # Allow the child job to fail if explicitly asked
  rules:
+   - if: $TARGET_SUITE
+     when: never
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
      allow_failure: true
    - allow_failure: false
@@ -123,31 +178,63 @@ run-tests-trigger:
        job: tests-gen
    strategy: depend
 
-serverless lambda tests:
+# Run a single test suite without triggering the rest of the pipeline.
+# Set TARGET_SUITE to the suite name (e.g. kombu, celery, redis) when running
+# the pipeline from the GitLab UI or via the API.
+targeted-tests-gen:
   stage: tests
-  trigger:
-    project: DataDog/datadog-lambda-python
-    strategy: depend
-    branch: main
-  needs:
-    - job: "upload serverless"
+  extends: .testrunner
+  needs: []
+  rules:
+    - if: $TARGET_SUITE
   variables:
-    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
-    UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
-    UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
-    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
-    UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
-    UPSTREAM_COMMIT_TAG: $CI_COMMIT_TAG
-    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
-    UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
-    UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
-    SKIP_E2E_TESTS: "true"
+    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      echo "TARGET_SUITE: ${TARGET_SUITE}"
+      echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
+      echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD:-}"
+    - |
+      if [ -z "${GH_TOKEN:-}" ]
+      then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
+    - scripts/gen_gitlab_config.py --verbose --suite "${TARGET_SUITE}"
+    - cp .gitlab/tests-gen.yml .gitlab/targeted-tests-gen.yml
+  artifacts:
+    paths:
+      - .gitlab/targeted-tests-gen.yml
+
+targeted-run-tests-trigger:
+  stage: tests
+  needs: [ targeted-tests-gen ]
+  rules:
+    - if: $TARGET_SUITE && $RELEASE_ALLOW_TEST_FAILURES == "true"
+      allow_failure: true
+    - if: $TARGET_SUITE
+      allow_failure: false
+    - when: never
+  variables:
+    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
+  trigger:
+    include:
+      - artifact: .gitlab/targeted-tests-gen.yml
+        job: targeted-tests-gen
+    strategy: depend
 
 # Validate the ast-grep rule's test suite in .sg/tests
 "ast-grep rules":
   extends: .testrunner
   stage: tests
   needs: []
+  rules:
+    - !reference [.skip_targeted_suite, rules]
+    - when: on_success
   script:
   script:
     - |
@@ -159,75 +246,6 @@ serverless lambda tests:
       hatch run lint:sg
       echo -e "\e[0Ksection_end:`date +%s`:sg_scan\r\e[0K"
 
-microbenchmarks:
-  stage: benchmarks
-  needs:
-    - job: tests-gen
-    - job: "build linux"
-      parallel:
-        matrix:
-          - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp39-cp39"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
-  rules:
-    # Allow failures if explicitly asked
-    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
-      allow_failure: true
-    - allow_failure: false
-  trigger:
-    include:
-      - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
-        job: tests-gen
-    strategy: depend
-  variables:
-    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
-    # Disable VPA for benchmarks
-    DD_DISABLE_VPA: true
-
-apm-sdk-benchmarks:
-  stage: benchmarks
-  when: manual
-  allow_failure: true
-  needs:
-    - job: "upload all"
-  trigger:
-    project: DataDog/apm-reliability/apm-sdks-benchmarks
-    branch: main
-  variables:
-    TARGET_REF: $CI_PIPELINE_ID
-
-macrobenchmarks:
-  stage: benchmarks
-  needs:
-    - job: "build linux"
-      parallel:
-        matrix:
-          - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp39-cp39"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
-  trigger:
-    include: .gitlab/benchmarks/macrobenchmarks.yml
-  variables:
-    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
-    # Disable VPA for benchmarks
-    DD_DISABLE_VPA: true
-  allow_failure: false
-  rules:
-    # Always run on nightly schedule or API triggered pipelines
-    - if: $NIGHTLY_BUILD == "true"
-      when: always
-    # Allow failures if explicitly asked
-    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
-      allow_failure: true
-    # Always run on tagged releases and release branches
-    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
-      when: always
-    - if: !reference [.is_release]
-      when: always
-    # Otherwise, run manually
-    - when: manual
-      allow_failure: true
-
 check_new_flaky_tests:
   stage: tests
   needs: ["run-tests-trigger"]
@@ -238,6 +256,7 @@ check_new_flaky_tests:
     - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.${CI_PROJECT_NAME}.dd-app-key-qualitygate --with-decryption --query "Parameter.Value" --out text)
     - datadog-ci gate evaluate
   rules:
+    - !reference [.skip_targeted_suite, rules]
     - if: !reference [.is_main]
       when: never
     - if: !reference [.is_release]
@@ -261,6 +280,7 @@ codeql-scan:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   rules:
+    - !reference [.skip_targeted_suite, rules]
     - if: !reference [.is_release]
       when: never
     - if: $NIGHTLY_BUILD == "true"
@@ -284,17 +304,13 @@ codeql-scan:
   script:
     - ./scripts/codeql_scan.sh
 
-requirements_json_test:
-  rules:
-    - when: on_success
-  variables:
-    REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
-    REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
-
 check_requirements_lockfiles:
   stage: tests
   needs: []
   extends: .testrunner
+  rules:
+    - !reference [.skip_targeted_suite, rules]
+    - when: on_success
   script:
     - pip install toml==0.10.2
     - scripts/compile-and-prune-test-requirements
@@ -306,6 +322,9 @@ check_ci_dependencies:
   stage: tests
   needs: []
   extends: .testrunner
+  rules:
+    - !reference [.skip_targeted_suite, rules]
+    - when: on_success
   script:
     - scripts/check-ci-dependencies
 
@@ -314,6 +333,9 @@ codeowners:
   needs: []
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
+  rules:
+    - !reference [.skip_targeted_suite, rules]
+    - when: on_success
   script:
     # Validate that each file entry only exists once in CODEOWNERS to prevent confusion about ownership.
     # The file is evaluated from top to bottom where the last match wins, so duplicate entries can lead to unexpected owners being assigned.
@@ -363,6 +385,9 @@ detect_circular_imports:
   stage: tests
   needs: []
   extends: .testrunner
+  rules:
+    - !reference [.skip_targeted_suite, rules]
+    - when: on_success
   script:
     - pip install uv
     - cd ..
@@ -384,80 +409,10 @@ detect_circular_imports:
     - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
     - exit $COMPARE_EXIT
 
-
-package-oci:
-  needs:
-    - job: "package version"
-      artifacts: true
-    - job: "build linux"
-      artifacts: true
-    - job: "download_dependency_wheels"
-      artifacts: true
-
-promote-oci-to-prod:
-  stage: release
-  rules:
-    - if: !reference [.is_non_rc_release]
-      when: on_success
-    - when: never
-  needs:
-    - job: release_pypi_prod
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-promote-oci-to-prod-beta:
-  stage: release
-  needs:
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-promote-oci-to-staging:
-  stage: release
-  needs:
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-publish-lib-init-pinned-tags:
-  stage: release
-  rules:
-    - if: !reference [.is_non_rc_release]
-      when: on_success
-    - when: never
-  needs:
-    - job: release_pypi_prod
-    - job: create-multiarch-lib-injection-image
-    - job: generate-lib-init-pinned-tag-values
-      artifacts: true
-
-configure_system_tests:
-  needs: []
-  variables:
-    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
-
-system_tests:
-  needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
-
-deploy_to_reliability_env:
-  needs: []
-  rules:
-    # Always deploy on main nightly builds
-    - if: $NIGHTLY_BUILD == "true" && $CI_COMMIT_REF_NAME == "main"
-      when: always
-    # Original rules from one-pipeline.yml
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: on_success
-    - when: manual
-      allow_failure: true
-
 deploy_to_di_backend:manual:
   stage: shared-pipeline
   rules:
+    - !reference [.skip_targeted_suite, rules]
     - when: manual
       allow_failure: true
   trigger:
@@ -475,44 +430,15 @@ deploy_to_di_backend:manual:
 # Trigger profiling correctness tests with just-built wheels.
 # Runs the prof-correctness test suite (Python scenarios) against the wheels
 # uploaded to S3 for this commit.
-prof-correctness:
-  stage: shared-pipeline
-  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
-  tags: ["arch:amd64"]
-  needs:
-    - job: "upload all"
-  allow_failure: true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "main"
-    - changes:
-        - .gitlab-ci.yml
-        - ddtrace/internal/datadog/profiling/**/*
-        - ddtrace/profiling/**/*
-        - src/native/**/*
-    - when: manual
-      allow_failure: true
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  script:
-    - |
-      if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)
-      fi
-    - |
-      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA}"
-      # Trigger pipeline, but do not wait for the job to complete
-      gh workflow run downstream-python.yml \
-        --repo DataDog/prof-correctness \
-        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}"
-
 lib_injection_tests:
   # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
   needs: []
   stage: tests
   tags: [ "arch:amd64" ]
   image: registry.ddbuild.io/dd-trace-py:v106957811-b912d74-lib_injection@sha256:d381042ec0c5d8ba617453feec7ccdffefca8ef0e3011d980728fe1a7a9425eb
+  rules:
+    - !reference [.skip_targeted_suite, rules]
+    - when: on_success
   script: |
     echo -e "\e[0Ksection_start:`date +%s`:info[collapsed=true]\r\e[0KPython versions"
     pyenv --version
@@ -562,6 +488,7 @@ profiling_native:
   extends: .profiling_native_base
   retry: 2
   rules:
+    - !reference [.skip_targeted_suite, rules]
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
     - changes:
@@ -614,6 +541,9 @@ test-dd-sts:
   when: manual
   allow_failure: true
   image: registry.ddbuild.io/images/mirror/ubuntu:24.04
+  rules:
+    - !reference [.skip_targeted_suite, rules]
+    - when: manual
   id_tokens:
     DD_STS_OIDC_TOKEN:
       aud: rapid-seceng-sit

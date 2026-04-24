@@ -1,0 +1,52 @@
+stages:
+  - generate
+  - tests
+
+include:
+  - local: ".gitlab/testrunner.yml"
+
+targeted-tests-gen:
+  stage: generate
+  extends: .testrunner
+  needs: []
+  variables:
+    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      if [ -z "${TARGET_SUITE:-}" ]; then
+        echo "TARGET_SUITE must be set"
+        exit 1
+      fi
+      echo "TARGET_SUITE: ${TARGET_SUITE}"
+      echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
+      echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD:-}"
+    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        # Use dd-octo-sts to get GitHub token for suite detection helpers.
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
+    - scripts/gen_gitlab_config.py --verbose --suite "${TARGET_SUITE}"
+    - cp .gitlab/tests-gen.yml .gitlab/targeted-tests-gen.yml
+  artifacts:
+    paths:
+      - .gitlab/targeted-tests-gen.yml
+
+targeted-run-tests-trigger:
+  stage: tests
+  needs: [targeted-tests-gen]
+  variables:
+    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
+  rules:
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
+  trigger:
+    include:
+      - artifact: .gitlab/targeted-tests-gen.yml
+        job: targeted-tests-gen
+    strategy: depend

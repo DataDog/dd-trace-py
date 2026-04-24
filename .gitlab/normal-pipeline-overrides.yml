@@ -1,0 +1,213 @@
+requirements_json_test:
+  rules:
+    - when: on_success
+  variables:
+    REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
+    REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
+
+serverless lambda tests:
+  stage: tests
+  trigger:
+    project: DataDog/datadog-lambda-python
+    strategy: depend
+    branch: main
+  rules:
+    - !reference [.skip_targeted_suite, rules]
+    - when: on_success
+  needs:
+    - job: "upload serverless"
+  variables:
+    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
+    UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
+    UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
+    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
+    UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
+    UPSTREAM_COMMIT_TAG: $CI_COMMIT_TAG
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
+    UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
+    UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
+    SKIP_E2E_TESTS: "true"
+
+microbenchmarks:
+  stage: benchmarks
+  needs:
+    - job: tests-gen
+    - job: "build linux"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp39-cp39"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+  rules:
+    - if: $TARGET_SUITE
+      when: never
+    # Allow failures if explicitly asked
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
+  trigger:
+    include:
+      - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
+        job: tests-gen
+    strategy: depend
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    # Disable VPA for benchmarks
+    DD_DISABLE_VPA: true
+
+apm-sdk-benchmarks:
+  stage: benchmarks
+  when: manual
+  allow_failure: true
+  needs:
+    - job: "upload all"
+  trigger:
+    project: DataDog/apm-reliability/apm-sdks-benchmarks
+    branch: main
+  variables:
+    TARGET_REF: $CI_PIPELINE_ID
+
+macrobenchmarks:
+  stage: benchmarks
+  needs:
+    - job: "build linux"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp39-cp39"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+  trigger:
+    include: .gitlab/benchmarks/macrobenchmarks.yml
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    # Disable VPA for benchmarks
+    DD_DISABLE_VPA: true
+  allow_failure: false
+  rules:
+    # Always run on nightly schedule or API triggered pipelines
+    - if: $NIGHTLY_BUILD == "true"
+      when: always
+    # Allow failures if explicitly asked
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    # Always run on tagged releases and release branches
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+      when: always
+    - if: !reference [.is_release]
+      when: always
+    # Otherwise, run manually
+    - when: manual
+      allow_failure: true
+
+prof-correctness:
+  stage: shared-pipeline
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  tags: ["arch:amd64"]
+  needs:
+    - job: "upload all"
+  allow_failure: true
+  rules:
+    - !reference [.skip_targeted_suite, rules]
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "main"
+    - changes:
+        - .gitlab-ci.yml
+        - ddtrace/internal/datadog/profiling/**/*
+        - ddtrace/profiling/**/*
+        - src/native/**/*
+    - when: manual
+      allow_failure: true
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)
+      fi
+    - |
+      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA}"
+      # Trigger pipeline, but do not wait for the job to complete
+      gh workflow run downstream-python.yml \
+        --repo DataDog/prof-correctness \
+        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}"
+
+package-oci:
+  rules:
+    - !reference [.skip_targeted_suite, rules]
+    - when: on_success
+  needs:
+    - job: "package version"
+      artifacts: true
+    - job: "build linux"
+      artifacts: true
+    - job: "download_dependency_wheels"
+      artifacts: true
+
+promote-oci-to-prod:
+  stage: release
+  rules:
+    - if: !reference [.is_non_rc_release]
+      when: on_success
+    - when: never
+  needs:
+    - job: release_pypi_prod
+    - job: package-oci
+      artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
+
+promote-oci-to-prod-beta:
+  stage: release
+  needs:
+    - job: package-oci
+      artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
+
+promote-oci-to-staging:
+  stage: release
+  needs:
+    - job: package-oci
+      artifacts: true
+    - job: oci-internal-publish
+      artifacts: true
+
+publish-lib-init-pinned-tags:
+  stage: release
+  rules:
+    - if: !reference [.is_non_rc_release]
+      when: on_success
+    - when: never
+  needs:
+    - job: release_pypi_prod
+    - job: create-multiarch-lib-injection-image
+    - job: generate-lib-init-pinned-tag-values
+      artifacts: true
+
+configure_system_tests:
+  rules:
+    - !reference [.skip_targeted_suite, rules]
+    - when: on_success
+  needs: []
+  variables:
+    SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
+
+system_tests:
+  rules:
+    - !reference [.skip_targeted_suite, rules]
+    - when: on_success
+  needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
+
+deploy_to_reliability_env:
+  needs: []
+  rules:
+    - !reference [.skip_targeted_suite, rules]
+    # Always deploy on main nightly builds
+    - if: $NIGHTLY_BUILD == "true" && $CI_COMMIT_REF_NAME == "main"
+      when: always
+    # Original rules from one-pipeline.yml
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: on_success
+    - when: manual
+      allow_failure: true
