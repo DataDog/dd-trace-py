@@ -1,7 +1,9 @@
+use libdd_capabilities_impl::NativeCapabilities;
 use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
 };
+type NativeTraceExporter = TraceExporter<NativeCapabilities>;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
 mod exceptions;
@@ -193,7 +195,7 @@ impl TraceExporterBuilderPy {
                 self.builder
                     .take()
                     .ok_or(PyValueError::new_err("Builder has already been consumed"))?
-                    .build()
+                    .build::<NativeCapabilities>()
                     .map_err(|err| PyValueError::new_err(format!("Builder {err}")))?,
             ),
         };
@@ -208,7 +210,7 @@ impl TraceExporterBuilderPy {
 /// A python object wrapping a [TraceExporter] instance
 #[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
-    inner: Option<TraceExporter>,
+    inner: Option<NativeTraceExporter>,
 }
 
 #[pymethods]

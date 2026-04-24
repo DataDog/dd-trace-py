@@ -37,7 +37,13 @@ endif()
 
 function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
-    target_include_directories(${name} PRIVATE ../include)
+    # Replicate the include dirs that ${EXTENSION_NAME} sets PRIVATE (so they don't propagate to test targets): stack's
+    # own headers, the profiling root (for "dd_wrapper/include/sample.hpp"), Python, echion, and the libdatadog
+    # Rust-generated headers (NATIVE_HEADERS_DIR, set by the parent CMakeLists).
+    target_include_directories(${name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+                                               "${CMAKE_CURRENT_SOURCE_DIR}/../..")
+    target_include_directories(${name} SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/../echion"
+                                                      "${NATIVE_HEADERS_DIR}")
     # this has to refer to the stack extension name to properly link against
     target_link_libraries(${name} PRIVATE gmock gtest_main ${EXTENSION_NAME})
 
@@ -66,6 +72,14 @@ function(dd_wrapper_add_test name)
     gtest_discover_tests(${name} DISCOVERY_MODE PRE_TEST) # Delay test discovery until test execution to avoid running
                                                           # sanitizer-built executables during build
 
+    # Echion headers (vm.h, tasks.h) require PL_DARWIN or PL_LINUX to define proc_ref_t and copy_type. These are set
+    # PRIVATE on ${EXTENSION_NAME} and don't propagate to test targets, so we replicate the logic here.
+    if(APPLE)
+        target_compile_definitions(${name} PRIVATE PL_DARWIN)
+    else()
+        target_compile_definitions(${name} PRIVATE PL_LINUX)
+    endif()
+
     # This is supplemental artifact so make sure to install it in the right place
     if(INPLACE_LIB_INSTALL_DIR)
         set(LIB_INSTALL_DIR "${INPLACE_LIB_INSTALL_DIR}")
@@ -78,3 +92,10 @@ endfunction()
 
 # Add the tests
 dd_wrapper_add_test(test_thread_span_links test_thread_span_links.cpp)
+# test_frame_state_315 validates the PyFrameState renumbering and related frame-internals changes introduced in Python
+# 3.15. All test bodies are gated on PY_VERSION_HEX >= 0x030f0000, so building on older versions would produce an empty
+# test binary.
+if(Python3_VERSION VERSION_GREATER_EQUAL "3.15")
+    dd_wrapper_add_test(test_frame_state_315 test_frame_state_315.cpp)
+endif()
+dd_wrapper_add_test(test_cpython_layout_contracts test_cpython_layout_contracts.cpp)
