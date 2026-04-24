@@ -187,9 +187,6 @@ class Span(OtelSpan):
         if not self.is_recording():
             return
 
-        if isinstance(key, bytes):
-            key = ensure_text(key)
-
         # Override reserved OTel span attributes
         ddattribute = _OTelDatadogMapping.get(key)
         if ddattribute is not None:
@@ -198,17 +195,11 @@ class Span(OtelSpan):
 
         if is_sequence(value):
             for k, v in flatten_key_value(key, value).items():
-                # DEV: Check bool before int/float since bool subclasses from int
-                if isinstance(v, bool):
-                    self._ddspan.set_tag(k, str(v))
-                else:
-                    self._ddspan.set_tag(k, v)
+                self._ddspan.set_tag(k, v)
             return
         if key == "http.status_code":
             if isinstance(value, (int, float)):
                 value = str(value)
-        if isinstance(value, bool):
-            value = str(value)
         if isinstance(value, (str, bytes)):
             value = ensure_text(value)
             self._ddspan.set_tag(key, value)

@@ -2,21 +2,9 @@
 upgrade:
   - |
     ``Span.get_metric()`` and ``Span.get_metrics()`` now always return
-    ``float``. Callers using identity comparisons (``is``) against integer
-    constants should switch to ``==`` or cast explicitly with ``int()``. The
-    return type annotation will be updated to ``float`` in a future 5.0.0
-    release.
-  - |
-    ``Span.set_tag()`` and ``Span.set_tags()`` with ``bool`` values now store
-    them as numeric metrics (``1.0`` / ``0.0``) instead of the string
-    ``"True"`` / ``"False"``. ``bytes`` values are now UTF-8 decoded instead
-    of stored as their ``repr()``. The typed signature accepts ``str`` values
-    only; any existing callers passing non-``str`` values should convert to
-    ``str`` explicitly to avoid unexpected behavior.
-  - |
-    Integer values whose absolute value exceeds ``2**53`` (the maximum integer
-    exactly representable as a 64-bit float) are now stored as strings in the
-    span's meta (tag) map rather than as metrics, to preserve their exact value.
-    Previously such integers were silently rounded when stored as ``f64``.
-    Callers reading large integers back via ``get_metric()`` will now receive
-    ``None``; use ``get_tag()`` instead.
+    ``float``. Integers set via ``Span.set_metric()`` are stored internally
+    as 64-bit floats and lose their original ``int`` type. Callers comparing
+    metric values against integer constants with identity checks (``is``)
+    should switch to equality (``==``) or cast explicitly with ``int()``.
+    The return type annotation will be updated to ``float`` in a future
+    5.0.0 release.

@@ -224,6 +224,9 @@ class Span(SpanData):
             self.set_metric(key, value)  # type: ignore[arg-type]  # ast-grep-ignore: span-set-metric
             return
 
+        if isinstance(value, (bool, bytes)):
+            value = str(value)
+
         try:
             self._set_attribute(key, value)  # type: ignore[arg-type]
         except Exception:
@@ -244,7 +247,7 @@ class Span(SpanData):
                 self.set_tag(k, v)
 
     def set_metric(self, key: str, value: NumericType) -> None:
-        """This method sets a numeric tag value for the given key."""
+        """Set a numeric tag value for the given key."""
         # Enforce a specific constant for `_dd.measured`
         if key == _SPAN_MEASURED_KEY:
             try:
@@ -253,9 +256,16 @@ class Span(SpanData):
                 log.warning("failed to convert %r tag to an integer from %r", key, value)
                 return
 
+        if not isinstance(value, (int, float)):
+            try:
+                value = float(value)
+            except (ValueError, TypeError):
+                log.debug("ignoring not number metric %s:%s", key, value)
+                return
+
         try:
-            self._set_attribute(key, float(value))
-        except (ValueError, TypeError):
+            self._set_attribute(key, value)
+        except Exception:
             log.debug("ignoring not number metric %s:%s", key, value)
 
     def set_metrics(self, metrics: dict[str, NumericType]) -> None:
