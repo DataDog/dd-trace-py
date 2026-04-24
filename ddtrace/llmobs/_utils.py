@@ -517,7 +517,7 @@ def _annotate_llmobs_span_data(
         meta.setdefault(LLMOBS_STRUCT.METADATA, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.TAGS, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.METRICS, {})
-        llmobs_span_data.setdefault("_dd", {})
+        llmobs_span_data.setdefault(LLMOBS_STRUCT.DD, {})
 
         if name is not None:
             llmobs_span_data[LLMOBS_STRUCT.NAME] = name
@@ -585,7 +585,7 @@ def _annotate_llmobs_span_data(
         if intent is not None:
             meta[LLMOBS_STRUCT.INTENT] = intent
         if dd_scope is not None:
-            llmobs_span_data["_dd"]["scope"] = dd_scope
+            llmobs_span_data[LLMOBS_STRUCT.DD][LLMOBS_STRUCT.SCOPE] = dd_scope
     except Exception as e:
         log.warning("Error auto-annotating llmobs data: %s", e)
     finally:
