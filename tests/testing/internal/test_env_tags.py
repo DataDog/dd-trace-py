@@ -8,10 +8,15 @@ from unittest import mock
 import pytest
 
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.env_tags import _PROVIDER_CI
+from ddtrace.testing.internal.env_tags import _PROVIDER_GIT_CLIENT
+from ddtrace.testing.internal.env_tags import _PROVIDER_USER_SUPPLIED
+from ddtrace.testing.internal.env_tags import _check_commit_sha_consistency
 from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.git import Git
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.git import get_git_tags_from_git_command
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.utils import _filter_sensitive_info
 
 
@@ -352,3 +357,223 @@ def test_pull_request_base_branch_normalized_when_branch_is_tag(monkeypatch: pyt
     assert tags[GitTag.TAG] == "v1.2.3"
     assert GitTag.BRANCH not in tags
     assert tags[GitTag.PULL_REQUEST_BASE_BRANCH] == "main"
+
+
+def test_github_actions_base_branch_head_sha_extracted_from_event(
+    monkeypatch: pytest.MonkeyPatch, git_shallow_repo: tuple[str, str]
+) -> None:
+    """pull_request.base.sha from the GitHub event file is stored as base_branch_head_sha."""
+    git_repo, head_sha = git_shallow_repo
+    github_sha = "abcd1234"
+    base_branch_head_sha = "aabbccdd" * 5  # arbitrary fake SHA
+
+    github_event_path = f"{git_repo}/event.json"
+    with open(github_event_path, "w") as f:
+        json.dump(
+            {
+                "pull_request": {
+                    "head": {"sha": head_sha},
+                    "base": {"sha": base_branch_head_sha},
+                }
+            },
+            f,
+        )
+
+    ci_env = {
+        "GITHUB_SHA": github_sha,
+        "GITHUB_EVENT_PATH": github_event_path,
+    }
+
+    monkeypatch.setattr(os, "environ", ci_env)
+    monkeypatch.chdir(git_repo)
+
+    with mock.patch("ddtrace.testing.internal.env_tags.get_pr_base_commit_sha", return_value=None):
+        tags = get_env_tags()
+
+    assert tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] == base_branch_head_sha
+    assert GitTag.PULL_REQUEST_BASE_BRANCH_SHA not in tags
+
+
+def test_github_actions_base_branch_sha_computed_as_merge_base(
+    monkeypatch: pytest.MonkeyPatch, git_shallow_repo: tuple[str, str]
+) -> None:
+    """PULL_REQUEST_BASE_BRANCH_SHA is set to the merge-base of base_branch_head_sha and head_sha."""
+    git_repo, head_sha = git_shallow_repo
+    github_sha = "abcd1234"
+    base_branch_head_sha = "aabbccdd" * 5
+    expected_merge_base = "deadbeef" * 5
+
+    github_event_path = f"{git_repo}/event.json"
+    with open(github_event_path, "w") as f:
+        json.dump(
+            {
+                "pull_request": {
+                    "head": {"sha": head_sha},
+                    "base": {"sha": base_branch_head_sha},
+                }
+            },
+            f,
+        )
+
+    ci_env = {
+        "GITHUB_SHA": github_sha,
+        "GITHUB_EVENT_PATH": github_event_path,
+    }
+
+    monkeypatch.setattr(os, "environ", ci_env)
+    monkeypatch.chdir(git_repo)
+
+    with mock.patch(
+        "ddtrace.testing.internal.env_tags.get_pr_base_commit_sha", return_value=expected_merge_base
+    ) as mock_merge_base:
+        tags = get_env_tags()
+
+    mock_merge_base.assert_called_once_with(base_branch_head_sha, head_sha)
+    assert tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
+
+
+def test_github_actions_base_branch_sha_not_overwritten_when_already_set(
+    monkeypatch: pytest.MonkeyPatch, git_repo: str
+) -> None:
+    """PULL_REQUEST_BASE_BRANCH_SHA from DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA is not overwritten by merge-base."""
+    existing_base_sha = "cafebabe" * 5
+
+    ci_env = {
+        "GITHUB_SHA": "abcd1234",
+        "DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA": existing_base_sha,
+    }
+
+    monkeypatch.setattr(os, "environ", ci_env)
+    monkeypatch.chdir(git_repo)
+
+    with mock.patch("ddtrace.testing.internal.env_tags.get_pr_base_commit_sha") as mock_merge_base:
+        tags = get_env_tags()
+
+    mock_merge_base.assert_not_called()
+    assert tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == existing_base_sha
+
+
+class TestCheckCommitShaConsistency:
+    """Tests for _check_commit_sha_consistency telemetry helper."""
+
+    SHA1 = "aaaa1111"
+    SHA2 = "bbbb2222"
+    SHA3 = "cccc3333"
+    REPO1 = "https://github.com/org/repo-a.git"
+    REPO2 = "https://github.com/org/repo-b.git"
+    REPO3 = "https://github.com/org/repo-c.git"
+
+    def _call(self, user=None, ci=None, git=None, user_repo=None, ci_repo=None, git_repo=None):
+        return _check_commit_sha_consistency(
+            {GitTag.COMMIT_SHA: user, GitTag.REPOSITORY_URL: user_repo},
+            {GitTag.COMMIT_SHA: ci, GitTag.REPOSITORY_URL: ci_repo},
+            {GitTag.COMMIT_SHA: git, GitTag.REPOSITORY_URL: git_repo},
+        )
+
+    def test_all_match_emits_matched_true(self, mock_telemetry: mock.Mock) -> None:
+        self._call(user=self.SHA1, ci=self.SHA1, git=self.SHA1)
+
+        mock_telemetry.record_commit_sha_match.assert_called_once_with(True)
+        mock_telemetry.record_commit_sha_discrepancy.assert_not_called()
+
+    def test_no_providers_have_sha_emits_matched_true(self, mock_telemetry: mock.Mock) -> None:
+        self._call()
+
+        mock_telemetry.record_commit_sha_match.assert_called_once_with(True)
+        mock_telemetry.record_commit_sha_discrepancy.assert_not_called()
+
+    def test_only_one_provider_has_sha_emits_matched_true(self, mock_telemetry: mock.Mock) -> None:
+        self._call(ci=self.SHA1)
+
+        mock_telemetry.record_commit_sha_match.assert_called_once_with(True)
+        mock_telemetry.record_commit_sha_discrepancy.assert_not_called()
+
+    def test_ci_vs_git_client_sha_mismatch(self, mock_telemetry: mock.Mock) -> None:
+        self._call(ci=self.SHA1, git=self.SHA2)
+
+        mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
+        mock_telemetry.record_commit_sha_discrepancy.assert_called_once_with(
+            _PROVIDER_CI, _PROVIDER_GIT_CLIENT, "commit_discrepancy"
+        )
+
+    def test_user_supplied_vs_git_client_sha_mismatch(self, mock_telemetry: mock.Mock) -> None:
+        self._call(user=self.SHA1, git=self.SHA2)
+
+        mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
+        mock_telemetry.record_commit_sha_discrepancy.assert_called_once_with(
+            _PROVIDER_USER_SUPPLIED, _PROVIDER_GIT_CLIENT, "commit_discrepancy"
+        )
+
+    def test_user_supplied_vs_ci_sha_mismatch(self, mock_telemetry: mock.Mock) -> None:
+        self._call(user=self.SHA1, ci=self.SHA2)
+
+        mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
+        mock_telemetry.record_commit_sha_discrepancy.assert_called_once_with(
+            _PROVIDER_USER_SUPPLIED, _PROVIDER_CI, "commit_discrepancy"
+        )
+
+    def test_all_three_sha_different_emits_three_discrepancies(self, mock_telemetry: mock.Mock) -> None:
+        self._call(user=self.SHA1, ci=self.SHA2, git=self.SHA3)
+
+        mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
+        calls = mock_telemetry.record_commit_sha_discrepancy.call_args_list
+        assert len(calls) == 3
+        assert mock.call(_PROVIDER_CI, _PROVIDER_GIT_CLIENT, "commit_discrepancy") in calls
+        assert mock.call(_PROVIDER_USER_SUPPLIED, _PROVIDER_GIT_CLIENT, "commit_discrepancy") in calls
+        assert mock.call(_PROVIDER_USER_SUPPLIED, _PROVIDER_CI, "commit_discrepancy") in calls
+
+    def test_ci_vs_git_client_url_mismatch(self, mock_telemetry: mock.Mock) -> None:
+        self._call(ci_repo=self.REPO1, git_repo=self.REPO2)
+
+        mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
+        mock_telemetry.record_commit_sha_discrepancy.assert_called_once_with(
+            _PROVIDER_CI, _PROVIDER_GIT_CLIENT, "repository_discrepancy"
+        )
+
+    def test_user_supplied_vs_git_client_url_mismatch(self, mock_telemetry: mock.Mock) -> None:
+        self._call(user_repo=self.REPO1, git_repo=self.REPO2)
+
+        mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
+        mock_telemetry.record_commit_sha_discrepancy.assert_called_once_with(
+            _PROVIDER_USER_SUPPLIED, _PROVIDER_GIT_CLIENT, "repository_discrepancy"
+        )
+
+    def test_user_supplied_vs_ci_url_mismatch(self, mock_telemetry: mock.Mock) -> None:
+        self._call(user_repo=self.REPO1, ci_repo=self.REPO2)
+
+        mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
+        mock_telemetry.record_commit_sha_discrepancy.assert_called_once_with(
+            _PROVIDER_USER_SUPPLIED, _PROVIDER_CI, "repository_discrepancy"
+        )
+
+    def test_sha_and_url_mismatch_emits_both_types(self, mock_telemetry: mock.Mock) -> None:
+        self._call(ci=self.SHA1, git=self.SHA2, ci_repo=self.REPO1, git_repo=self.REPO2)
+
+        mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
+        calls = mock_telemetry.record_commit_sha_discrepancy.call_args_list
+        assert mock.call(_PROVIDER_CI, _PROVIDER_GIT_CLIENT, "commit_discrepancy") in calls
+        assert mock.call(_PROVIDER_CI, _PROVIDER_GIT_CLIENT, "repository_discrepancy") in calls
+
+    def test_all_six_discrepancies_when_all_differ(self, mock_telemetry: mock.Mock) -> None:
+        self._call(
+            user=self.SHA1,
+            ci=self.SHA2,
+            git=self.SHA3,
+            user_repo=self.REPO1,
+            ci_repo=self.REPO2,
+            git_repo=self.REPO3,
+        )
+
+        assert mock_telemetry.record_commit_sha_discrepancy.call_count == 6
+        mock_telemetry.record_commit_sha_match.assert_called_once_with(False)
+
+    def test_empty_string_treated_as_absent(self, mock_telemetry: mock.Mock) -> None:
+        self._call(ci="", git=self.SHA1)
+
+        mock_telemetry.record_commit_sha_match.assert_called_once_with(True)
+        mock_telemetry.record_commit_sha_discrepancy.assert_not_called()
+
+    def test_no_telemetry_when_instance_is_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(TelemetryAPI, "_instance", None)
+        # Should not raise
+        self._call(ci=self.SHA1, git=self.SHA2)

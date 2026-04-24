@@ -38,6 +38,9 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 RunGunicornFunc: TypeAlias = Callable[..., subprocess.Popen[bytes]]
 
+# Use /dev/shm for Linux; fall back to /tmp on macOS and other platforms.
+_WORKER_TMP_DIR = "/dev/shm" if os.path.isdir("/dev/shm") else "/tmp"
+
 
 def _run_gunicorn(*args: str, app: str = "tests.profiling.gunicorn-app:app") -> subprocess.Popen[bytes]:
     cmd = (
@@ -47,7 +50,7 @@ def _run_gunicorn(*args: str, app: str = "tests.profiling.gunicorn-app:app") -> 
             "--bind",
             "127.0.0.1:7644",
             "--worker-tmp-dir",
-            "/dev/shm",
+            _WORKER_TMP_DIR,
             "-c",
             os.path.dirname(__file__) + "/gunicorn.conf.py",
             "--chdir",
@@ -270,7 +273,7 @@ def test_gunicorn_gevent_sigterm_graceful_shutdown(monkeypatch: pytest.MonkeyPat
         "--bind",
         bind_addr,
         "--worker-tmp-dir",
-        "/dev/shm",
+        _WORKER_TMP_DIR,
         "-k",
         "gevent",
         "-w",
@@ -350,7 +353,7 @@ def test_gunicorn_profile_export_count_two_workers_flush_false(
             "--bind",
             "127.0.0.1:7644",
             "--worker-tmp-dir",
-            "/dev/shm",
+            _WORKER_TMP_DIR,
             "-c",
             os.path.dirname(__file__) + "/gunicorn.conf.py",
             "--chdir",
