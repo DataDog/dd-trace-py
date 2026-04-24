@@ -1,8 +1,8 @@
 import unittest
 
 import dramatiq
-import pytest
 from dramatiq.brokers.stub import StubBroker
+import pytest
 
 from ddtrace.contrib.internal.dramatiq.patch import patch
 from ddtrace.contrib.internal.dramatiq.patch import unpatch
