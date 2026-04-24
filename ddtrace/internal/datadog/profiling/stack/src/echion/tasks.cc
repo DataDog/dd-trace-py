@@ -9,79 +9,112 @@
 Result<GenInfo::Ptr>
 GenInfo::create(PyObject* gen_addr)
 {
-    return create_impl(gen_addr, 0);
+    return create_impl(gen_addr);
 }
 
 Result<GenInfo::Ptr>
-GenInfo::create_impl(PyObject* gen_addr, size_t recursion_depth)
+GenInfo::create_impl(PyObject* gen_addr)
 {
-    if (recursion_depth > MAX_RECURSION_DEPTH) {
-        return ErrorKind::GenInfoError;
-    }
-
-    PyGenObject gen;
-    if (copy_type(gen_addr, gen)) {
-        return ErrorKind::GenInfoError;
-    }
-
-    if (PyAsyncGenASend_CheckExact(&gen)) {
-        static_assert(
-          sizeof(PyAsyncGenASend) <= sizeof(PyGenObject),
-          "PyAsyncGenASend must be smaller than PyGenObject in order for copy_type to have copied enough data.");
-
-        // Type-pun the PyGenObject to a PyAsyncGenASend. *gen_addr was actually never a PyGenObject to begin with,
-        // but we do not care as the only thing we will use from it is the ags_gen field.
-        PyAsyncGenASend* asend = reinterpret_cast<PyAsyncGenASend*>(&gen);
-        PyAsyncGenObject* gen_ptr = asend->ags_gen;
-        auto asend_yf = reinterpret_cast<PyObject*>(gen_ptr);
-        return GenInfo::create_impl(asend_yf, recursion_depth + 1);
-    }
-
-    if (!PyCoro_CheckExact(&gen) && !PyAsyncGen_CheckExact(&gen)) {
-        return ErrorKind::GenInfoError;
-    }
-
+    // Each node records the coroutine address, its frame address, and the fields
+    // needed to compute is_running for the leaf of the await chain.
+    struct Node
+    {
+        PyObject* origin;
+        PyObject* frame;
 #if PY_VERSION_HEX >= 0x030b0000
-    // The frame follows the generator object
-    auto gen_frame =
-      (gen.gi_frame_state == FRAME_CLEARED)
-        ? NULL
-        : reinterpret_cast<PyObject*>(reinterpret_cast<char*>(gen_addr) + offsetof(PyGenObject, gi_iframe));
-#else
-    auto gen_frame = reinterpret_cast<PyObject*>(gen.gi_frame);
-#endif
-
-    PyFrameObject f;
-    if (copy_type(gen_frame, f)) {
-        return ErrorKind::GenInfoError;
-    }
-
-    PyObject* yf = (gen_frame != NULL ? PyGen_yf(&gen, gen_frame) : NULL);
-    GenInfo::Ptr gen_await = nullptr;
-    if (yf != NULL && yf != gen_addr) {
-        auto maybe_await = GenInfo::create_impl(yf, recursion_depth + 1);
-        if (maybe_await) {
-            gen_await = std::move(*maybe_await);
-        }
-    }
-
-    // A coroutine awaiting another coroutine is never running itself,
-    // so when the coroutine is awaiting another coroutine, we use the running state of the awaited coroutine.
-    // Otherwise, we use the running state of the coroutine itself.
-    bool gen_is_running = false;
-    if (gen_await) {
-        gen_is_running = gen_await->is_running;
-    } else {
-#if PY_VERSION_HEX >= 0x030b0000
-        gen_is_running = (gen.gi_frame_state == FRAME_EXECUTING);
+        int8_t gi_frame_state;
 #elif PY_VERSION_HEX >= 0x030a0000
-        gen_is_running = (gen_frame != NULL) ? _PyFrame_IsExecuting(&f) : false;
+        bool frame_is_executing;
 #else
-        gen_is_running = gen.gi_running;
+        int gi_running;
+#endif
+    };
+    static_assert(sizeof(Node) * MAX_RECURSION_DEPTH <= static_cast<size_t>(10) * 1024,
+                  "Node array too large (max 10KB)");
+    std::array<Node, MAX_RECURSION_DEPTH> chain;
+
+    PyObject* cur = gen_addr;
+    for (size_t depth = 0; depth <= MAX_RECURSION_DEPTH; ++depth) {
+        PyGenObject gen;
+        if (copy_type(cur, gen)) {
+            break;
+        }
+
+        // PyAsyncGenASend is a transparent wrapper: follow its ags_gen pointer
+        // without adding a node to the chain.
+        if (PyAsyncGenASend_CheckExact(&gen)) {
+            static_assert(
+              sizeof(PyAsyncGenASend) <= sizeof(PyGenObject),
+              "PyAsyncGenASend must be smaller than PyGenObject in order for copy_type to have copied enough data.");
+            PyAsyncGenASend* asend = reinterpret_cast<PyAsyncGenASend*>(&gen);
+            cur = reinterpret_cast<PyObject*>(asend->ags_gen);
+            continue;
+        }
+
+        if (!PyCoro_CheckExact(&gen) && !PyAsyncGen_CheckExact(&gen)) {
+            break;
+        }
+
+#if PY_VERSION_HEX >= 0x030b0000
+        auto gen_frame =
+          (gen.gi_frame_state == FRAME_CLEARED)
+            ? NULL
+            : reinterpret_cast<PyObject*>(reinterpret_cast<char*>(cur) + offsetof(PyGenObject, gi_iframe));
+#else
+        auto gen_frame = reinterpret_cast<PyObject*>(gen.gi_frame);
+#endif
+
+        PyFrameObject f;
+        if (copy_type(gen_frame, f)) {
+            break;
+        }
+
+        PyObject* yf = (gen_frame != NULL ? PyGen_yf(&gen, gen_frame) : NULL);
+
+        Node node;
+        node.origin = cur;
+        node.frame = gen_frame;
+#if PY_VERSION_HEX >= 0x030b0000
+        node.gi_frame_state = gen.gi_frame_state;
+#elif PY_VERSION_HEX >= 0x030a0000
+        node.frame_is_executing = (gen_frame != NULL) && _PyFrame_IsExecuting(&f);
+#else
+        node.gi_running = gen.gi_running;
+#endif
+        chain[depth] = node;
+
+        if (yf == NULL || yf == cur) {
+            break;
+        }
+        cur = yf;
+    }
+
+    if (chain.empty()) {
+        return ErrorKind::GenInfoError;
+    }
+
+    // is_running propagates from the leaf (deepest awaited coroutine) all the way
+    // up to the root: each coroutine that is awaiting another one is "running" iff
+    // the coroutine it awaits is running.
+    bool chain_is_running = false;
+    {
+        const auto& leaf = chain.back();
+#if PY_VERSION_HEX >= 0x030b0000
+        chain_is_running = (leaf.gi_frame_state == FRAME_EXECUTING);
+#elif PY_VERSION_HEX >= 0x030a0000
+        chain_is_running = leaf.frame_is_executing;
+#else
+        chain_is_running = (leaf.gi_running != 0);
 #endif
     }
 
-    return std::make_unique<GenInfo>(gen_addr, gen_frame, std::move(gen_await), gen_is_running);
+    // Build the GenInfo linked list from the leaf back to the root.
+    GenInfo::Ptr result = nullptr;
+    for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
+        result = std::make_unique<GenInfo>(it->origin, it->frame, std::move(result), chain_is_running);
+    }
+
+    return result;
 }
 
 // ----------------------------------------------------------------------------
