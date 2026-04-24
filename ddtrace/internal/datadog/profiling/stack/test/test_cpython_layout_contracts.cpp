@@ -112,8 +112,31 @@ TEST(FrameOwnerEnum_315, ValuesMatchExpected)
 // PyFrameState / gi_frame_state  (pycore_frame.h, introduced in 3.11)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// 3.11 – 3.14: negative-valued range, COMPLETED present
-#if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030f0000
+// 3.11 – 3.12: negative-valued range, no FRAME_SUSPENDED_YIELD_FROM yet.
+// FRAME_SUSPENDED_YIELD_FROM was introduced in 3.13 (CPython gh-104210), which
+// also shifted FRAME_CREATED and FRAME_SUSPENDED one slot more negative.
+#if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030d0000
+static_assert(FRAME_CREATED == -2,
+              "AIDEV-NOTE: PyFrameState::FRAME_CREATED changed value — update tasks.h PyGen_yf and tasks.cc");
+static_assert(FRAME_SUSPENDED == -1, "AIDEV-NOTE: PyFrameState::FRAME_SUSPENDED changed value");
+static_assert(FRAME_EXECUTING == 0,
+              "AIDEV-NOTE: PyFrameState::FRAME_EXECUTING changed value — update tasks.cc gen_is_running check");
+// FRAME_COMPLETED == 1 is not used by echion directly; omitted intentionally.
+static_assert(FRAME_CLEARED == 4,
+              "AIDEV-NOTE: PyFrameState::FRAME_CLEARED changed value — update tasks.cc gi_frame_state check");
+
+TEST(PyFrameStateEnum_311_312, ValuesMatchExpected)
+{
+    EXPECT_EQ(FRAME_CREATED, -2);
+    EXPECT_EQ(FRAME_SUSPENDED, -1);
+    EXPECT_EQ(FRAME_EXECUTING, 0);
+    EXPECT_EQ(FRAME_CLEARED, 4);
+}
+#endif // 3.11 – 3.12
+
+// 3.13 – 3.14: negative-valued range, FRAME_SUSPENDED_YIELD_FROM added (-1),
+// pushing FRAME_CREATED to -3 and FRAME_SUSPENDED to -2.
+#if PY_VERSION_HEX >= 0x030d0000 && PY_VERSION_HEX < 0x030f0000
 static_assert(FRAME_CREATED == -3,
               "AIDEV-NOTE: PyFrameState::FRAME_CREATED changed value — update tasks.h PyGen_yf and tasks.cc");
 static_assert(FRAME_SUSPENDED == -2, "AIDEV-NOTE: PyFrameState::FRAME_SUSPENDED changed value");
@@ -125,7 +148,7 @@ static_assert(FRAME_EXECUTING == 0,
 static_assert(FRAME_CLEARED == 4,
               "AIDEV-NOTE: PyFrameState::FRAME_CLEARED changed value — update tasks.cc gi_frame_state check");
 
-TEST(PyFrameStateEnum_311_314, ValuesMatchExpected)
+TEST(PyFrameStateEnum_313_314, ValuesMatchExpected)
 {
     EXPECT_EQ(FRAME_CREATED, -3);
     EXPECT_EQ(FRAME_SUSPENDED, -2);
@@ -133,7 +156,7 @@ TEST(PyFrameStateEnum_311_314, ValuesMatchExpected)
     EXPECT_EQ(FRAME_EXECUTING, 0);
     EXPECT_EQ(FRAME_CLEARED, 4);
 }
-#endif // 3.11 – 3.14
+#endif // 3.13 – 3.14
 
 // 3.15+: all values renumbered, COMPLETED removed
 #if PY_VERSION_HEX >= 0x030f0000
