@@ -22,6 +22,8 @@ All traces submitted from this integration are tagged by:
 - ``service``, ``env``, ``version``: see the `Unified Service Tagging docs
   <https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging>`_.
 - ``aws.durable.execution_arn``: The ARN of the durable execution.
+- ``aws_lambda.durable_execution.execution_name``: The Lambda function name extracted from the execution ARN.
+- ``aws_lambda.durable_execution.execution_id``: The execution ID extracted from the execution ARN.
 - ``aws.durable.replayed``: Whether the operation's terminal result was
   cached from a prior invocation (``"true"``) or not (``"false"``). Set on the
   execute span (derived from the durable context's replay status) and on every

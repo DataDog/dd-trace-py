@@ -546,6 +546,29 @@ class TestWorkflowExecution:
         assert replayed in ("true", "false"), "replayed must be 'true' or 'false'"
         assert workflow_span.get_tag("aws.durable.invocation_status") == "succeeded"
 
+    def test_workflow_execution_tags_execution_name_and_id(self, tracer):
+        """The execute span extracts execution_name and execution_id from the durable execution ARN."""
+        from aws_durable_execution_sdk_python import durable_execution
+
+        initial_ops = _build_initial_state_basic()
+        mock_client = MockDurableServiceClient(initial_operations=initial_ops)
+
+        @durable_execution
+        def simple_workflow(event, context):
+            return {"done": True}
+
+        event = _create_invocation_event(initial_ops, mock_client)
+        lambda_ctx = MockLambdaContext()
+        simple_workflow(event, lambda_ctx)
+
+        spans = tracer.pop()
+        workflow_spans = [s for s in spans if s.name == "aws.durable.execute"]
+        assert len(workflow_spans) == 1
+        workflow_span = workflow_spans[0]
+
+        assert workflow_span.get_tag("aws_lambda.durable_execution.execution_name") == "sample-durable-fn"
+        assert workflow_span.get_tag("aws_lambda.durable_execution.execution_id") == "abc-123"
+
 
 # ===========================================================================
 # Test class: Step Execution Spans

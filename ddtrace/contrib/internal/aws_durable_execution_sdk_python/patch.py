@@ -64,6 +64,17 @@ class TracedThreadPoolExecutor(ThreadPoolExecutor):
         return super().submit(_wrapped, *args, **kwargs)
 
 
+def _parse_durable_execution_arn(arn):
+    """Extract execution_name and execution_id from a durable execution ARN.
+
+    Expected format: arn:aws:lambda:{region}:{account}:function:{name}:dex:{id}
+    """
+    parts = arn.split(":")
+    if len(parts) >= 9 and parts[7] == "dex":
+        return parts[6], parts[8]
+    return None, None
+
+
 def _execution_tags(durable_context):
     """Read execution_arn and initial replay status off the SDK's DurableContext."""
     tags = {}
@@ -72,6 +83,11 @@ def _execution_tags(durable_context):
         arn = getattr(state, "durable_execution_arn", None)
         if arn:
             tags["aws.durable.execution_arn"] = arn
+            execution_name, execution_id = _parse_durable_execution_arn(arn)
+            if execution_name:
+                tags["aws_lambda.durable_execution.execution_name"] = execution_name
+            if execution_id:
+                tags["aws_lambda.durable_execution.execution_id"] = execution_id
         status_enum = getattr(state, "_replay_status", None)
         if status_enum is not None:
             tags["aws.durable.replayed"] = "true" if status_enum.name == "REPLAY" else "false"
