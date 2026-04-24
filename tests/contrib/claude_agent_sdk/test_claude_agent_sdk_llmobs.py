@@ -183,7 +183,7 @@ class TestLLMObsClaudeAgentSdk:
         expected_llm_event = _expected_llmobs_llm_span_event(
             llm_span,
             span_kind="llm",
-            model_name="",
+            model_name="unknown",
             model_provider="anthropic",
             input_messages=[{"content": prompt, "role": "user"}],
             output_messages=[{"content": "", "role": ""}],
