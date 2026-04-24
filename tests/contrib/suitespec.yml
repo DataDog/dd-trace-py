@@ -1231,6 +1231,7 @@ suites:
       - tests/contrib/futures/*
       - tests/contrib/dbapi/*
       - tests/contrib/dbapi_async/*
+      - tests/snapshots/tests.contrib.sqlite3*
     pattern: asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$
     snapshot: true
   structlog:
