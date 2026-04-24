@@ -1,0 +1,134 @@
+interactions:
+- request:
+    body: '{"messages": [{"content": "You are a {role} assistant.", "role": "system"},
+      {"content": "Your expertise is in data analysis.", "role": "system"}, {"content":
+      "Additional context: focus on accuracy", "role": "system"}, {"content": "I''m
+      a user seeking help.", "role": "user"}, {"content": "Please help with analyzing
+      datasets", "role": "user"}, {"content": "Specifically, I need statistical methods",
+      "role": "user"}, {"content": "I understand your request.", "role": "assistant"},
+      {"content": "I''ll help you with analyzing datasets.", "role": "assistant"},
+      {"content": "Let me provide insights", "role": "assistant"}, {"content": "Make
+      it detailed and under 150 words", "role": "developer"}], "model": "gpt-3.5-turbo",
+      "n": 1, "stream": false, "temperature": 0.7}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '762'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.30.3
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.30.3
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CIesgrrGj7PzEPdG5OvPNZTzmC9Xw\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1758563086,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Certainly! I will assist you in analyzing
+        datasets using statistical methods. We can start by exploring the data with
+        descriptive statistics like mean, median, and standard deviation. Then, we
+        can apply inferential statistics such as hypothesis testing or regression
+        analysis to draw meaningful conclusions. It's important to ensure data accuracy
+        throughout the analysis process to maintain the reliability of the results.
+        Feel free to share more details about your specific dataset and analysis goals
+        for a more tailored approach.\",\n        \"refusal\": null,\n        \"annotations\":
+        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 108,\n    \"completion_tokens\":
+        90,\n    \"total_tokens\": 198,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": null\n}\n"
+    headers:
+      CF-RAY:
+      - 98339cbb7ecb4d19-BOS
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 22 Sep 2025 17:44:47 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=euWjg3ikr4nZKHcbyuC.bYYnK.jXMyVDv3M4aT6XUzs-1758563087-1.0.1.1-7qSk1dqCq8_3JgUxMKFTaZb61GS3Enu13aoYBKeccB0N4kAz01tSFR_V1y_b9AVXq0kftzhrYul86M9PdfDKfZBIRIQ3CKZL5HvcL7vb8kI;
+        path=/; expires=Mon, 22-Sep-25 18:14:47 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=6l8XMsDdJN1mhrIcpj_nZ2Q2pARp460CR8cb9Teb56M-1758563087501-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '751'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '774'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '50000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '49999907'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_4f13c054e468464b944056e3299b282c
+    status:
+      code: 200
+      message: OK
+version: 1
