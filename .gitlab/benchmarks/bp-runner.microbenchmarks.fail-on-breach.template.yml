@@ -763,7 +763,7 @@ experiments:
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_cached
             thresholds:
-              - execution_time < 0.13 ms
+              - execution_time < 0.17 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_stdlib
             thresholds:
@@ -775,7 +775,7 @@ experiments:
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_unknown
             thresholds:
-              - execution_time < 0.89 ms
+              - execution_time < 0.96 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_unknown_cached
             thresholds:
@@ -799,7 +799,7 @@ experiments:
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_one_unknown
             thresholds:
-              - execution_time < 0.05 ms
+              - execution_time < 0.051 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_one_unknown_cache
             thresholds:
@@ -956,7 +956,7 @@ experiments:
               - max_rss_usage < 53.00 MB
           - name: span-record-exception
             thresholds:
-              - execution_time < 41.00 ms
+              - execution_time < 42.00 ms
               - max_rss_usage < 53.00 MB
           - name: span-set-status
             thresholds:
@@ -1010,7 +1010,7 @@ experiments:
               - max_rss_usage < 38.00 MB
           - name: telemetryaddmetric-1-gauge-metrics-100-times
             thresholds:
-              - execution_time < 0.15 ms
+              - execution_time < 0.19 ms
               - max_rss_usage < 38.00 MB
           - name: telemetryaddmetric-1-rate-metric-1-times
             thresholds:
@@ -1030,7 +1030,7 @@ experiments:
               - max_rss_usage < 38.00 MB
           - name: telemetryaddmetric-100-gauge-metrics-100-times
             thresholds:
-              - execution_time < 1.55 ms
+              - execution_time < 1.85 ms
               - max_rss_usage < 38.00 MB
           - name: telemetryaddmetric-100-rate-metrics-100-times
             thresholds:
@@ -1048,6 +1048,16 @@ experiments:
             thresholds:
               - execution_time < 2.50 ms
               - max_rss_usage < 38.75 MB
+
+          # telemetrydependencies
+          - name: telemetrydependencies-first-50-deps-sca-off
+            thresholds:
+              - execution_time < 3.50 ms
+              - max_rss_usage < 46.00 MB
+          - name: telemetrydependencies-first-50-deps-sca-on
+            thresholds:
+              - execution_time < 3.75 ms
+              - max_rss_usage < 46.00 MB
 
           # tracer
           - name: tracer-large

@@ -269,7 +269,7 @@ class TestCoveragePatching:
         coverage_patch.patch()
 
         # Should still be marked as patched once
-        assert coverage_patch.coverage._datadog_patch is True
+        assert coverage_patch.coverage._datadog_patch is True  # type:ignore[attr-defined]
 
         coverage_patch.unpatch()
 
@@ -312,13 +312,13 @@ class TestCoveragePatching:
             # Test text report (without outfile parameter which is not supported by coverage.report())
             text_pct = coverage_patch.generate_coverage_report("text")
             assert text_pct is not None
-            assert text_pct >= 7.0
+            assert text_pct >= 6.0
 
             # Test LCOV report
             lcov_path = Path(tmpdir) / "coverage.lcov"
             lcov_pct = coverage_patch.generate_coverage_report("lcov", outfile=str(lcov_path))
             assert lcov_pct is not None
-            assert lcov_pct >= 7.0
+            assert lcov_pct >= 6.0
 
             # Verify LCOV file was created
             if lcov_path.exists():

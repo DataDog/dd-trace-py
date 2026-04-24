@@ -34,6 +34,8 @@ class TestOptDataProvider(t.Protocol):
     mypy catches interface drift between the two implementations.
     """
 
+    configuration_errors: dict[str, str]
+
     def get_settings(self) -> Settings: ...
 
     def get_known_tests(self) -> set[TestRef]: ...
@@ -95,6 +97,7 @@ class CachedFileDataProvider:
         self._dir = test_optimization_dir
         self._itr_skipping_level = itr_skipping_level
         self._telemetry_api = telemetry_api
+        self.configuration_errors: dict[str, str] = {}
 
     def _cache_path(self, relative: str) -> str:
         return os.path.join(self._dir, *relative.split("/"))

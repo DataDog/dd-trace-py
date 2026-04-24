@@ -42,7 +42,7 @@ jobs:
         # Images after this version (>=v0.10) are incompatible with gcr and aws.
         version: v0.9.1  # https://github.com/docker/buildx/issues/1533
     - name: Login to Docker
-      run: docker login -u publisher -p ${{ secrets.token }} ghcr.io
+      run: echo "${{ secrets.token }}" | docker login -u publisher --password-stdin ghcr.io
     - name: Docker Build
       uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
       with:

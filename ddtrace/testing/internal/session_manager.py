@@ -43,6 +43,14 @@ from ddtrace.testing.internal.writer import TestOptWriter
 log = logging.getLogger(__name__)
 
 
+def _parse_line_number(value: str) -> t.Optional[int]:
+    """Return the integer value of a source line tag, or None if it is not numeric."""
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
 class SessionManager:
     def __init__(self, session: TestSession) -> None:
         offline = get_offline_mode()
@@ -138,6 +146,9 @@ class SessionManager:
             self.settings = self.api_client.get_settings()
             self.override_settings_with_env_vars()
 
+        # Snapshot configuration errors before closing the client.
+        self.configuration_errors = dict(self.api_client.configuration_errors)
+
         self.api_client.close()
 
         # Retry handlers must be set up after collection phase for EFD faulty session logic to work.
@@ -165,6 +176,11 @@ class SessionManager:
             skipping_enabled=self.settings.skipping_enabled,
             skipping_level=self.itr_skipping_level,
         )
+
+        # Propagate configuration errors to the session event and all child events.
+        if self.configuration_errors:
+            self.session.configuration_errors = self.configuration_errors
+            self.session.set_tags(self.configuration_errors)
 
         self.writer.add_metadata("*", self.env_tags)
         self.writer.add_metadata("*", self.platform_tags)
@@ -286,6 +302,8 @@ class SessionManager:
         """
         test_module, created = self.session.get_or_create_child(test_ref.suite.module.name)
         if created:
+            if self.configuration_errors:
+                test_module.set_tags(self.configuration_errors)
             try:
                 on_new_module(test_module)
             except Exception:
@@ -293,6 +311,8 @@ class SessionManager:
 
         test_suite, created = test_module.get_or_create_child(test_ref.suite.name)
         if created:
+            if self.configuration_errors:
+                test_suite.set_tags(self.configuration_errors)
             try:
                 on_new_suite(test_suite)
             except Exception:
@@ -349,6 +369,38 @@ class SessionManager:
 
         codeowners = self.codeowners.of(repo_relative_path)
         test.set_codeowners(codeowners)
+
+    def _set_suite_source_location(self, suite: TestSuite) -> None:
+        """Set test.source.file and test.source.start on a suite span.
+
+        In pytest every suite maps to a single source file, so we only set these tags when all
+        tests in the suite share the same file.  The start line is the minimum across all tests
+        (i.e. the first test in the file); when no test carries a start line we fall back to 1
+        so the UI can still link to the top of the file.
+        """
+        source_files = {sf for test in suite.children.values() if (sf := test.get_source_file())}
+        if len(source_files) != 1:
+            return
+
+        (source_file,) = source_files
+        suite.tags[TestTag.SOURCE_FILE] = source_file
+
+        start_lines = [
+            v
+            for test in suite.children.values()
+            if TestTag.SOURCE_START in test.tags
+            if (v := _parse_line_number(test.tags[TestTag.SOURCE_START])) is not None
+        ]
+        suite.tags[TestTag.SOURCE_START] = str(min(start_lines)) if start_lines else "1"
+
+        end_lines = [
+            v
+            for test in suite.children.values()
+            if TestTag.SOURCE_END in test.tags
+            if (v := _parse_line_number(test.tags[TestTag.SOURCE_END])) is not None
+        ]
+        if end_lines:
+            suite.tags[TestTag.SOURCE_END] = str(max(end_lines))
 
     def _get_test_session_name(self) -> str:
         if session_name := env.get("DD_TEST_SESSION_NAME"):

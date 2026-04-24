@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Change the default ``model_provider`` and ``model_name`` to ``"unknown"`` from ``"custom"``
+    when a model did not match any known provider prefix in the Google GenAI, VertexAI, and Google ADK integrations.
