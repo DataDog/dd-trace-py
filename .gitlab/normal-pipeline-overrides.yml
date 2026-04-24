@@ -39,7 +39,7 @@ microbenchmarks:
             PYTHON_TAG: "cp39-cp39"
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   rules:
-    - if: $TEST_SUITE
+    - if: $VERSION_SUPPORT_SPEC_JSON
       when: never
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
@@ -93,7 +93,7 @@ macrobenchmarks:
     # Always run on tagged releases and release branches
     - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
       when: always
-    - if: !reference [.is_release]
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
       when: always
     # Otherwise, run manually
     - when: manual
@@ -147,7 +147,7 @@ package-oci:
 promote-oci-to-prod:
   stage: release
   rules:
-    - if: !reference [.is_non_rc_release]
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
       when: on_success
     - when: never
   needs:
@@ -176,7 +176,7 @@ promote-oci-to-staging:
 publish-lib-init-pinned-tags:
   stage: release
   rules:
-    - if: !reference [.is_non_rc_release]
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
       when: on_success
     - when: never
   needs:

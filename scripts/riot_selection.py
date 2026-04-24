@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache
+import json
 from pathlib import Path
 import re
 
@@ -39,6 +40,13 @@ class RiotInstanceSelection:
     package_name: str | None = None
 
 
+@dataclass(frozen=True)
+class VersionSupportTarget:
+    package_name: str | None = None
+    package_versions: tuple[str, ...] = ()
+    python_selector: str | None = None
+
+
 def resolve_suite_name(requested_suite: str, suites: Mapping[str, object]) -> str:
     if requested_suite in suites:
         return requested_suite
@@ -61,6 +69,54 @@ def normalize_python_version(version: str) -> str:
     if not match:
         raise ValueError(f"Unsupported Python version selector {version!r}; expected X.Y or X.Y.Z")
     return f"{int(match.group('major'))}.{int(match.group('minor'))}"
+
+
+def parse_version_support_spec(
+    spec_json: str,
+    suites: Mapping[str, object],
+) -> dict[str, tuple[VersionSupportTarget, ...]]:
+    try:
+        raw_spec = json.loads(spec_json)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid VERSION_SUPPORT_SPEC_JSON: {exc.msg}") from exc
+
+    if not isinstance(raw_spec, Mapping):
+        raise ValueError("VERSION_SUPPORT_SPEC_JSON must be a JSON object")
+
+    raw_integrations = raw_spec.get("integrations")
+    if not isinstance(raw_integrations, Sequence) or isinstance(raw_integrations, (str, bytes)):
+        raise ValueError("VERSION_SUPPORT_SPEC_JSON must define an 'integrations' array")
+
+    parsed: dict[str, list[VersionSupportTarget]] = {}
+    for index, raw_integration in enumerate(raw_integrations):
+        if not isinstance(raw_integration, Mapping):
+            raise ValueError(f"Integration entry #{index + 1} must be an object")
+
+        raw_suite_name = _get_first_string(raw_integration, ("suite",))
+        if not raw_suite_name:
+            raise ValueError(f"Integration entry #{index + 1} must define 'suite'")
+        suite_name = resolve_suite_name(raw_suite_name, suites)
+
+        raw_targets = raw_integration.get("targets")
+        if raw_targets is None:
+            parsed.setdefault(suite_name, [])
+            continue
+        if not isinstance(raw_targets, Sequence) or isinstance(raw_targets, (str, bytes)):
+            raise ValueError(f"Integration entry {raw_suite_name!r} has invalid 'targets'")
+
+        targets = parsed.setdefault(suite_name, [])
+        for target_index, raw_target in enumerate(raw_targets):
+            if not isinstance(raw_target, Mapping):
+                raise ValueError(f"Target #{target_index + 1} for integration {raw_suite_name!r} must be an object")
+            targets.append(
+                VersionSupportTarget(
+                    package_name=_get_first_string(raw_target, ("package",)),
+                    package_versions=_normalize_requested_versions(raw_target.get("versions")),
+                    python_selector=_get_first_string(raw_target, ("python",)),
+                )
+            )
+
+    return {suite_name: tuple(targets) for suite_name, targets in parsed.items()}
 
 
 def select_instances_for_suite(
@@ -93,7 +149,7 @@ def select_instances_for_suite(
         if not candidate_packages:
             raise ValueError(
                 f"Unable to determine which dependency to version-filter for suite {suite_name!r}; "
-                "set TEST_PACKAGE to disambiguate"
+                "set TEST_PACKAGE or specify 'package' in VERSION_SUPPORT_SPEC_JSON to disambiguate"
             )
 
         matches_by_package: dict[str, list[RiotInstanceMetadata]] = {}
@@ -127,13 +183,62 @@ def select_instances_for_suite(
             if len(hash_sets) != 1:
                 raise ValueError(
                     f"Multiple dependencies in suite {suite_name!r} match version {filters.package_version!r}: "
-                    f"{sorted(matches_by_package)}. Set TEST_PACKAGE to disambiguate"
+                    f"{sorted(matches_by_package)}. Set TEST_PACKAGE or specify 'package' in "
+                    "VERSION_SUPPORT_SPEC_JSON to disambiguate"
                 )
             package_name, selected = next(iter(sorted(matches_by_package.items())))
 
     hashes = tuple(sorted({instance.hash for instance in selected}))
     python_versions = tuple(sorted({instance.python_version for instance in selected if instance.python_version}))
     return RiotInstanceSelection(hashes=hashes, python_versions=python_versions, package_name=package_name)
+
+
+def select_instances_for_targets(
+    suite_name: str,
+    instances: Sequence[RiotInstanceMetadata],
+    targets: Sequence[VersionSupportTarget],
+    *,
+    integration_to_dependencies: Mapping[str, set[str]] | None = None,
+) -> RiotInstanceSelection:
+    if not instances:
+        raise ValueError(f"No riot environments found for suite {suite_name!r}")
+    if not targets:
+        return _build_selection(instances)
+
+    matched_instances: list[RiotInstanceMetadata] = []
+    matched_packages: set[str] = set()
+    # AIDEV-NOTE: VERSION_SUPPORT_SPEC_JSON expands to a union of Riot hashes per
+    # suite so the pipeline still emits one GitLab job per suite instead of one
+    # job per requested version/Python combination.
+    for target in targets:
+        selected = list(instances)
+        if target.python_selector:
+            selected = _filter_instances_by_python_selector(suite_name, selected, target.python_selector)
+
+        if target.package_versions:
+            for package_version in target.package_versions:
+                version_matches, matched_package = _filter_instances_for_package_version(
+                    suite_name,
+                    selected,
+                    package_version=package_version,
+                    explicit_package=target.package_name,
+                    integration_to_dependencies=integration_to_dependencies,
+                    python_selector=target.python_selector,
+                )
+                matched_instances.extend(version_matches)
+                if matched_package:
+                    matched_packages.add(matched_package)
+        else:
+            matched_instances.extend(selected)
+
+    selection = _build_selection(matched_instances)
+    if len(matched_packages) == 1:
+        return RiotInstanceSelection(
+            hashes=selection.hashes,
+            python_versions=selection.python_versions,
+            package_name=next(iter(matched_packages)),
+        )
+    return selection
 
 
 def _resolve_candidate_packages(
@@ -239,6 +344,91 @@ def _matches_requested_version(package_spec: str, requested_version: str) -> boo
     return requested in specifier_set
 
 
+def _filter_instances_by_python_selector(
+    suite_name: str,
+    instances: Sequence[RiotInstanceMetadata],
+    python_selector: str,
+) -> list[RiotInstanceMetadata]:
+    selected = [instance for instance in instances if _matches_python_selector(instance.python_version, python_selector)]
+    if not selected:
+        raise ValueError(f"No riot environments found for suite {suite_name!r} on Python selector {python_selector!r}")
+    return selected
+
+
+def _matches_python_selector(python_version: str | None, python_selector: str) -> bool:
+    if python_version is None:
+        return False
+
+    normalized_python_version = normalize_python_version(python_version)
+    normalized_selector = python_selector.strip()
+    if normalized_selector.endswith("+"):
+        minimum_version = Version(normalize_python_version(normalized_selector[:-1]))
+        return Version(normalized_python_version) >= minimum_version
+    if _looks_like_specifier(normalized_selector):
+        try:
+            return Version(normalized_python_version) in SpecifierSet(normalized_selector)
+        except InvalidSpecifier as exc:
+            raise ValueError(f"Unsupported Python version selector {python_selector!r}") from exc
+    return normalized_python_version == normalize_python_version(normalized_selector)
+
+
+def _filter_instances_for_package_version(
+    suite_name: str,
+    instances: Sequence[RiotInstanceMetadata],
+    *,
+    package_version: str,
+    explicit_package: str | None,
+    integration_to_dependencies: Mapping[str, set[str]] | None,
+    python_selector: str | None = None,
+) -> tuple[list[RiotInstanceMetadata], str | None]:
+    candidate_packages = _resolve_candidate_packages(
+        suite_name,
+        instances,
+        explicit_package=explicit_package,
+        integration_to_dependencies=integration_to_dependencies,
+    )
+    if not candidate_packages:
+        raise ValueError(
+            f"Unable to determine which dependency to version-filter for suite {suite_name!r}; "
+            "set TEST_PACKAGE or specify 'package' in VERSION_SUPPORT_SPEC_JSON to disambiguate"
+        )
+
+    matches_by_package: dict[str, list[RiotInstanceMetadata]] = {}
+    for candidate_package in candidate_packages:
+        matches = [
+            instance for instance in instances if _instance_matches_requested_version(instance, candidate_package, package_version)
+        ]
+        if matches:
+            matches_by_package[candidate_package] = matches
+
+    if not matches_by_package:
+        requested_python = ""
+        if python_selector:
+            requested_python = f" on Python selector {python_selector!r}"
+        raise ValueError(
+            f"No riot environments found for suite {suite_name!r}{requested_python} matching {package_version!r}"
+        )
+
+    if explicit_package:
+        package_name = _normalize_package_name(explicit_package)
+        return matches_by_package[package_name], package_name
+
+    if len(matches_by_package) == 1:
+        package_name, matches = next(iter(matches_by_package.items()))
+        return matches, package_name
+
+    hash_sets = {tuple(sorted(instance.hash for instance in matches)) for matches in matches_by_package.values()}
+    if len(hash_sets) != 1:
+        raise ValueError(
+            f"Multiple dependencies in suite {suite_name!r} match version {package_version!r}: "
+            f"{sorted(matches_by_package)}. Set TEST_PACKAGE or specify 'package' in "
+            "VERSION_SUPPORT_SPEC_JSON to disambiguate"
+        )
+
+    package_name, matches = next(iter(sorted(matches_by_package.items())))
+    return matches, package_name
+
+
 def _looks_like_specifier(value: str) -> bool:
     return any(operator in value for operator in ("<", ">", "=", "!", "~"))
 
@@ -253,6 +443,44 @@ def _normalize_identifier(value: str) -> str:
 
 def _normalize_package_name(value: str) -> str:
     return value.strip().lower()
+
+
+def _normalize_requested_versions(value: object) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        stripped = value.strip()
+        return (stripped,) if stripped else ()
+    if not isinstance(value, Sequence) or isinstance(value, (bytes, bytearray)):
+        raise ValueError("Target 'versions' must be a string or an array of strings")
+
+    versions: list[str] = []
+    for raw_version in value:
+        if not isinstance(raw_version, str):
+            raise ValueError("Target 'versions' entries must be strings")
+        stripped = raw_version.strip()
+        if stripped:
+            versions.append(stripped)
+    return tuple(versions)
+
+
+def _get_first_string(values: Mapping[str, object], keys: Sequence[str]) -> str | None:
+    for key in keys:
+        value = values.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise ValueError(f"{key!r} must be a string")
+        stripped = value.strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def _build_selection(instances: Sequence[RiotInstanceMetadata]) -> RiotInstanceSelection:
+    hashes = tuple(sorted({instance.hash for instance in instances}))
+    python_versions = tuple(sorted({instance.python_version for instance in instances if instance.python_version}))
+    return RiotInstanceSelection(hashes=hashes, python_versions=python_versions)
 
 
 @cache

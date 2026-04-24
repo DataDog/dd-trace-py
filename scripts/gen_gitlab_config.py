@@ -171,7 +171,7 @@ class SuiteVenvInfo:
 
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
 _global_python_versions: set[str] = set()
-_suite_filters: dict[str, tuple[str | None, str | None, str | None]] = {}
+_suite_targets: dict[str, tuple[object, ...]] = {}
 _explicit_suite_selection: set[str] = set()
 
 # Target minimum number of GitLab job instances for a CI run (used to scale up sparse runs)
@@ -196,8 +196,7 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
     # Importing will load/evaluate the whole riotfile.py
     import riotfile
     from scripts.riot_selection import RiotInstanceMetadata
-    from scripts.riot_selection import RiotSelectionFilters
-    from scripts.riot_selection import select_instances_for_suite
+    from scripts.riot_selection import select_instances_for_targets
 
     compiled: dict[str, re.Pattern] = {}
     for suite, pattern in suite_patterns.items():
@@ -225,9 +224,8 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
 
     result: dict[str, SuiteVenvInfo] = {}
     for suite in compiled:
-        filters = RiotSelectionFilters(*_suite_filters.get(suite, (None, None, None)))
         try:
-            selection = select_instances_for_suite(suite, instances_by_suite[suite], filters=filters)
+            selection = select_instances_for_targets(suite, instances_by_suite[suite], _suite_targets.get(suite, ()))
         except ValueError as exc:
             raise RuntimeError(str(exc)) from exc
 
@@ -327,19 +325,26 @@ def _scale_suites(
 def gen_required_suites() -> None:
     """Generate the list of test and benchmark suites that need to be run."""
     global _explicit_suite_selection
-    global _suite_filters
+    global _suite_targets
 
     import suitespec
 
+    from scripts.riot_selection import VersionSupportTarget
+    from scripts.riot_selection import parse_version_support_spec
     from scripts.riot_selection import resolve_suite_name
 
     suites = suitespec.get_suites()
 
     required_suites: list[str] = []
     _explicit_suite_selection = set()
-    _suite_filters = {}
+    _suite_targets = {}
 
-    if args.suites:
+    if args.version_support_spec_json:
+        _suite_targets = parse_version_support_spec(args.version_support_spec_json, suites)
+        required_suites = list(_suite_targets)
+        _explicit_suite_selection = set(required_suites)
+        LOGGER.info("Using version support spec selection: %s", required_suites)
+    elif args.suites:
         # --suite: explicit suite selection, bypass PR/file detection entirely
         unknown = []
         resolved_suites = []
@@ -358,9 +363,17 @@ def gen_required_suites() -> None:
             LOGGER.warning("Unknown suite(s) specified via --suite: %s", unknown)
         required_suites = resolved_suites
         _explicit_suite_selection = set(required_suites)
+        selection_targets: tuple[VersionSupportTarget, ...] = ()
         if args.package_version or args.package_name or args.python_version:
-            for suite_name in required_suites:
-                _suite_filters[suite_name] = (args.package_name, args.package_version, args.python_version)
+            selection_targets = (
+                VersionSupportTarget(
+                    package_name=args.package_name,
+                    package_versions=(args.package_version,) if args.package_version else (),
+                    python_selector=args.python_version,
+                ),
+            )
+        for suite_name in required_suites:
+            _suite_targets[suite_name] = selection_targets
         LOGGER.info("Using explicit suite selection: %s", required_suites)
     elif args.files:
         # --file: match supplied files against suite patterns (same logic as needs_testrun
@@ -841,9 +854,17 @@ argp.add_argument(
     metavar="PYTHON",
     help="Only keep riot envs for this Python version (for example 3.10).",
 )
+argp.add_argument(
+    "--version-support-spec-json",
+    dest="version_support_spec_json",
+    metavar="JSON",
+    help="JSON document describing one or more suites and target dependency/Python combinations to select.",
+)
 args = argp.parse_args()
 if (args.package_version or args.package_name or args.python_version) and not args.suites:
     argp.error("--package-version, --package-name, and --python-version require --suite")
+if args.version_support_spec_json and (args.suites or args.package_version or args.package_name or args.python_version):
+    argp.error("--version-support-spec-json cannot be combined with --suite, --package-version, --package-name, or --python-version")
 if args.debug:
     LOGGER.setLevel(logging.DEBUG)
 elif args.verbose:

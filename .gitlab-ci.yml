@@ -40,7 +40,7 @@ default:
 
 .skip_targeted_suite:
   rules:
-    - if: $TEST_SUITE
+    - if: $VERSION_SUPPORT_SPEC_JSON
       when: never
 
 # trigger new commit cancel
@@ -48,10 +48,10 @@ workflow:
   auto_cancel:
     on_new_commit: interruptible
   rules:
-    - if: !reference [.is_main]
+    - if: $CI_COMMIT_REF_NAME == "main"
       auto_cancel:
         on_new_commit: none
-    - if: !reference [.is_release_branch]
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
       auto_cancel:
         on_new_commit: none
     - when: always
@@ -60,56 +60,56 @@ include:
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/one-pipeline.locked.yml"
     rules:
-      - if: $TEST_SUITE
+      - if: $VERSION_SUPPORT_SPEC_JSON
         when: never
       - when: always
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/testrunner.yml"
-  # Files below are excluded entirely when TEST_SUITE is set so that only the
-  # targeted test generation / trigger path is compiled.
+  # Files below are excluded entirely for targeted suite selection so that only
+  # the targeted test generation / trigger path is compiled.
   - local: ".gitlab/package.yml"
     rules:
-      - if: $TEST_SUITE
+      - if: $VERSION_SUPPORT_SPEC_JSON
         when: never
       - when: always
   - local: ".gitlab/release.yml"
     rules:
-      - if: $TEST_SUITE
+      - if: $VERSION_SUPPORT_SPEC_JSON
         when: never
       - when: always
   - local: ".gitlab/debugging-exploration.yml"
     rules:
-      - if: $TEST_SUITE
+      - if: $VERSION_SUPPORT_SPEC_JSON
         when: never
       - when: always
   - local: ".gitlab/multi-os-tests.yml"
     rules:
-      - if: $TEST_SUITE
+      - if: $VERSION_SUPPORT_SPEC_JSON
         when: never
       - when: always
   - local: ".gitlab/benchmarks/serverless.yml"
     rules:
-      - if: $TEST_SUITE
+      - if: $VERSION_SUPPORT_SPEC_JSON
         when: never
       - when: always
   - local: ".gitlab/native.yml"
     rules:
-      - if: $TEST_SUITE
+      - if: $VERSION_SUPPORT_SPEC_JSON
         when: never
       - when: always
   - local: ".gitlab/system-tests.yml"
     rules:
-      - if: $TEST_SUITE
+      - if: $VERSION_SUPPORT_SPEC_JSON
         when: never
       - when: always
   - local: ".gitlab/fuzz.yml"
     rules:
-      - if: $TEST_SUITE
+      - if: $VERSION_SUPPORT_SPEC_JSON
         when: never
       - when: always
   - local: ".gitlab/normal-pipeline-overrides.yml"
     rules:
-      - if: $TEST_SUITE
+      - if: $VERSION_SUPPORT_SPEC_JSON
         when: never
       - when: always
 
@@ -136,9 +136,9 @@ tests-gen:
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
-  # Skip when a single targeted suite is requested via TEST_SUITE.
+  # Skip when targeted suite selection is requested via VERSION_SUPPORT_SPEC_JSON.
   rules:
-    - if: $TEST_SUITE
+    - if: $VERSION_SUPPORT_SPEC_JSON
       when: never
     - when: on_success
   script:
@@ -167,7 +167,7 @@ run-tests-trigger:
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
  # Allow the child job to fail if explicitly asked
  rules:
-   - if: $TEST_SUITE
+   - if: $VERSION_SUPPORT_SPEC_JSON
      when: never
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
      allow_failure: true
@@ -178,18 +178,17 @@ run-tests-trigger:
        job: tests-gen
    strategy: depend
 
-# Run a single test suite without triggering the rest of the pipeline.
-# Set TEST_SUITE to the suite name (for example contrib::kombu or kombu) when
-# running the pipeline from the GitLab UI or via the API. Optional filters:
-#   TEST_VERSION=5.2.1
-#   TEST_PYTHON_VERSION=3.10
-#   TEST_PACKAGE=redis-py-cluster
+# Run targeted Riot suites without triggering the rest of the pipeline.
+# Set VERSION_SUPPORT_SPEC_JSON to a multi-suite selection spec when running the
+# pipeline from the GitLab UI or via the API.
 targeted-tests-gen:
   stage: tests
   extends: .testrunner
   needs: []
   rules:
-    - if: $TEST_SUITE
+    - if: $VERSION_SUPPORT_SPEC_JSON
+      when: never
+    - when: on_success
   variables:
     UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
     NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
@@ -198,15 +197,11 @@ targeted-tests-gen:
       aud: dd-octo-sts
   script:
     - |
-      resolved_python_version="${TEST_PYTHON_VERSION:-${PYTHON_VERSION:-}}"
-      if [ -z "${TEST_SUITE:-}" ]; then
-        echo "TEST_SUITE must be set"
+      if [ -z "${VERSION_SUPPORT_SPEC_JSON:-}" ]; then
+        echo "VERSION_SUPPORT_SPEC_JSON must be set"
         exit 1
       fi
-      echo "TEST_SUITE: ${TEST_SUITE}"
-      echo "TEST_VERSION: ${TEST_VERSION:-}"
-      echo "TEST_PYTHON_VERSION: ${resolved_python_version:-}"
-      echo "TEST_PACKAGE: ${TEST_PACKAGE:-}"
+      echo "VERSION_SUPPORT_SPEC_JSON: set"
       echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
       echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD:-}"
     - |
@@ -215,17 +210,8 @@ targeted-tests-gen:
         export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
       fi
     - |
-      resolved_python_version="${TEST_PYTHON_VERSION:-${PYTHON_VERSION:-}}"
-      set -- scripts/gen_gitlab_config.py --verbose --suite "${TEST_SUITE}"
-      if [ -n "${TEST_VERSION:-}" ]; then
-        set -- "$@" --package-version "${TEST_VERSION}"
-      fi
-      if [ -n "${resolved_python_version:-}" ]; then
-        set -- "$@" --python-version "${resolved_python_version}"
-      fi
-      if [ -n "${TEST_PACKAGE:-}" ]; then
-        set -- "$@" --package-name "${TEST_PACKAGE}"
-      fi
+      set -- scripts/gen_gitlab_config.py --verbose
+      set -- "$@" --version-support-spec-json "${VERSION_SUPPORT_SPEC_JSON}"
       "$@"
     - cp .gitlab/tests-gen.yml .gitlab/targeted-tests-gen.yml
   artifacts:
@@ -236,9 +222,9 @@ targeted-run-tests-trigger:
   stage: tests
   needs: [ targeted-tests-gen ]
   rules:
-    - if: $TEST_SUITE && $RELEASE_ALLOW_TEST_FAILURES == "true"
+    - if: $VERSION_SUPPORT_SPEC_JSON && $RELEASE_ALLOW_TEST_FAILURES == "true"
       allow_failure: true
-    - if: $TEST_SUITE
+    - if: $VERSION_SUPPORT_SPEC_JSON
       allow_failure: false
     - when: never
   variables:
@@ -280,15 +266,15 @@ check_new_flaky_tests:
     - datadog-ci gate evaluate
   rules:
     - !reference [.skip_targeted_suite, rules]
-    - if: !reference [.is_main]
+    - if: $CI_COMMIT_REF_NAME == "main"
       when: never
-    - if: !reference [.is_release]
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
       when: never
-    - if: !reference [.is_release_branch]
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
       when: never
-    - if: !reference [.is_gh_merge_queue]
+    - if: $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/
       when: never
-    - if: !reference [.is_devflow_merge_queue]
+    - if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
       when: never
     - when: on_success
 
@@ -304,7 +290,7 @@ codeql-scan:
       aud: dd-octo-sts
   rules:
     - !reference [.skip_targeted_suite, rules]
-    - if: !reference [.is_release]
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
       when: never
     - if: $NIGHTLY_BUILD == "true"
       when: never

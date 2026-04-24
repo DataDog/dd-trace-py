@@ -17,15 +17,11 @@ targeted-tests-gen:
       aud: dd-octo-sts
   script:
     - |
-      resolved_python_version="${TEST_PYTHON_VERSION:-${PYTHON_VERSION:-}}"
-      if [ -z "${TEST_SUITE:-}" ]; then
-        echo "TEST_SUITE must be set"
+      if [ -z "${VERSION_SUPPORT_SPEC_JSON:-}" ]; then
+        echo "VERSION_SUPPORT_SPEC_JSON must be set"
         exit 1
       fi
-      echo "TEST_SUITE: ${TEST_SUITE}"
-      echo "TEST_VERSION: ${TEST_VERSION:-}"
-      echo "TEST_PYTHON_VERSION: ${resolved_python_version:-}"
-      echo "TEST_PACKAGE: ${TEST_PACKAGE:-}"
+      echo "VERSION_SUPPORT_SPEC_JSON: set"
       echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
       echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD:-}"
     - |
@@ -34,17 +30,8 @@ targeted-tests-gen:
         export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
       fi
     - |
-      resolved_python_version="${TEST_PYTHON_VERSION:-${PYTHON_VERSION:-}}"
-      set -- scripts/gen_gitlab_config.py --verbose --suite "${TEST_SUITE}"
-      if [ -n "${TEST_VERSION:-}" ]; then
-        set -- "$@" --package-version "${TEST_VERSION}"
-      fi
-      if [ -n "${resolved_python_version:-}" ]; then
-        set -- "$@" --python-version "${resolved_python_version}"
-      fi
-      if [ -n "${TEST_PACKAGE:-}" ]; then
-        set -- "$@" --package-name "${TEST_PACKAGE}"
-      fi
+      set -- scripts/gen_gitlab_config.py --verbose
+      set -- "$@" --version-support-spec-json "${VERSION_SUPPORT_SPEC_JSON}"
       "$@"
     - cp .gitlab/tests-gen.yml .gitlab/targeted-tests-gen.yml
   artifacts:
