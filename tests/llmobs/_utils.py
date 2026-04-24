@@ -52,7 +52,7 @@ DEEP_TOOL_SCHEMA = {
 
 if vcr:
     logs_vcr = vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes"),
         record_mode="once",
         match_on=["path"],
         filter_headers=[
@@ -72,7 +72,7 @@ else:
 
 def get_azure_openai_vcr():
     return vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/azure_openai"),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes", "azure_openai"),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "api-key"],
@@ -82,7 +82,7 @@ def get_azure_openai_vcr():
 
 def get_vertexai_vcr():
     return vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/vertexai"),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes", "vertexai"),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "x-goog-api-key"],
@@ -92,7 +92,7 @@ def get_vertexai_vcr():
 
 def get_bedrock_vcr():
     return vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/bedrock"),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes", "bedrock"),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "X-Amz-Security-Token"],
