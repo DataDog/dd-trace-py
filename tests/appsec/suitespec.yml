@@ -164,9 +164,7 @@ suites:
       - tests/appsec/integrations/flask_tests/*
     retry: 2
     services:
-      - testagent:
-          env:
-            VCR_CASSETTES_DIRECTORY: "${CI_PROJECT_DIR}/tests/appsec/_cassettes"
+      - testagent
     timeout: 40m
   appsec_integrations_django:
     venvs_per_job: 1
@@ -417,9 +415,7 @@ suites:
       - tests/appsec/ai_guard/openai/*
     retry: 2
     services:
-      - testagent:
-          env:
-            VCR_CASSETTES_DIRECTORY: "${CI_PROJECT_DIR}/tests/appsec/_cassettes"
+      - testagent
     venvs_per_job: 2
   ai_guard_strands:
     paths:

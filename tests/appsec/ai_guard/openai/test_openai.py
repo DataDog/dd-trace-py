@@ -21,7 +21,7 @@ CHAT_MODEL = "gpt-3.5-turbo"
 # NOTE: request params (``stream=False``, ``temperature=0.0`` as float, and
 # message key order ``content`` before ``role``) are chosen so the OpenAI SDK
 # serializes a body that byte-matches the 200-response testagent VCR cassette
-# at tests/appsec/_cassettes/openai/openai_chat_completions_post_caac525c.json.
+# at tests/llmobs/llmobs_cassettes/openai/openai_chat_completions_post_caac525c.json.
 # The dd-apm-test-agent VCR derives the cassette hash from a sorted-keys JSON
 # dump, so key order does not matter for matching — but float/int type does
 # (``0.0`` vs ``0`` hash differently, picking different cassette responses).

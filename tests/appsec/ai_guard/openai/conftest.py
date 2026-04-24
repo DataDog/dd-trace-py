@@ -43,13 +43,12 @@ def openai_url() -> str:
     Use the request recording endpoint of the testagent to capture requests to OpenAI.
 
     The request body determines which cassette is replayed (see
-    ``ddapm_test_agent.vcr_proxy._generate_cassette_name``). In CI the
-    ``ai_guard_openai`` suitespec entry sets the testagent's
-    ``VCR_CASSETTES_DIRECTORY`` to ``${CI_PROJECT_DIR}/tests/appsec/_cassettes``
-    so cassettes under ``tests/appsec/_cassettes/openai/`` are used. Locally
-    the shared ``docker-compose`` testagent still mounts
-    ``tests/llmobs/llmobs_cassettes`` so a duplicate of each ai_guard cassette
-    is kept in both locations — update both when regenerating.
+    ``ddapm_test_agent.vcr_proxy._generate_cassette_name``). Cassettes live
+    alongside the other LLM provider cassettes under
+    ``tests/llmobs/llmobs_cassettes/openai/`` — the same directory the
+    ``ai_guard_langchain``, ``contrib/langchain``, and ``contrib/openai``
+    suites read from, so recordings of identical request bodies are reused
+    across suites without duplication.
     """
     return "http://localhost:9126/vcr/openai"
 

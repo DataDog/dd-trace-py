@@ -207,31 +207,14 @@ class TestRunner:
 
         return matching
 
-    @staticmethod
-    def _service_names(suite_services) -> set[str]:
-        """Normalize suitespec services (strings or single-key dicts) to service names.
-
-        The dict form ``{name: {env: {...}}}`` carries a per-service env override
-        that only the GitLab generator applies (service container variables).
-        Locally we just need the service name to know which docker-compose
-        service to bring up; the env override is handled via docker-compose
-        (e.g., bind mounts for cassettes).
-        """
-        names: set[str] = set()
-        for item in suite_services or []:
-            if isinstance(item, str):
-                names.add(item)
-            elif isinstance(item, dict) and item:
-                names.add(next(iter(item.keys())))
-        return names
-
     def extract_required_services(self, suites: dict[str, dict]) -> set[str]:
         """Extract all required services from selected suites."""
-        services: set[str] = set()
+        services = set()
         needs_testagent = False
 
         for suite_config in suites.values():
-            services |= self._service_names(suite_config.get("services"))
+            suite_services = suite_config.get("services", [])
+            services.update(suite_services)
 
             # Check if any suite needs testagent (has snapshot: true)
             if suite_config.get("snapshot", False):
@@ -551,9 +534,8 @@ class TestRunner:
             # Get suite config
             suite_config = matching_suites.get(suite_name, {})
 
-            # Extract services for this suite only (normalize dict-form entries
-            # that carry per-service env overrides — env is a CI-only concern).
-            suite_services = self._service_names(suite_config.get("services"))
+            # Extract services for this suite only
+            suite_services = set(suite_config.get("services", []))
             needs_testagent = suite_config.get("snapshot", False)
             if needs_testagent:
                 suite_services.add("testagent")

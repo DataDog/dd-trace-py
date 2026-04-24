@@ -42,86 +42,13 @@ class BenchmarkSpec:
     type: str = "benchmark"  # ignored
 
 
-_SERVICE_DEFINITIONS_CACHE: t.Optional[dict] = None
-
-
-def _get_service_definitions() -> dict:
-    """Load and cache the `.services` block from `.gitlab/services.yml`.
-
-    Used to expand services inline when a suite defines per-service env overrides.
-    """
-    global _SERVICE_DEFINITIONS_CACHE
-    if _SERVICE_DEFINITIONS_CACHE is None:
-        import ruamel.yaml as _yaml
-
-        data = _yaml.YAML().load((GITLAB / "services.yml").read_text())
-        _SERVICE_DEFINITIONS_CACHE = data.get(".services", {}) or {}
-    return _SERVICE_DEFINITIONS_CACHE
-
-
-def _render_service_with_env(name: str, env_override: dict, indent: str) -> list[str]:
-    """Render a GitLab service as an expanded list item with the env merged into `variables`.
-
-    `!reference` copies the referenced value verbatim, so we cannot merge into it.
-    To apply per-service env overrides we expand the service definition inline,
-    preserving its other fields (name, alias, command, entrypoint, etc.) and
-    merging the override on top of its existing `variables`.
-    """
-    services = _get_service_definitions()
-    if name not in services:
-        raise ValueError(f"Service '{name}' has env override in suitespec but is not defined in .gitlab/services.yml")
-    service_def = services[name]
-
-    # Merge existing service variables with the per-suite override (override wins).
-    merged_vars = dict(service_def.get("variables") or {})
-    merged_vars.update(env_override)
-
-    lines: list[str] = []
-    first = True
-    for key, value in service_def.items():
-        if key == "variables":
-            continue
-        prefix = f"{indent}- " if first else f"{indent}  "
-        first = False
-        lines.append(f"{prefix}{key}: {_format_yaml_scalar(value)}")
-    if merged_vars:
-        prefix = f"{indent}- " if first else f"{indent}  "
-        lines.append(f"{prefix}variables:")
-        for k, v in merged_vars.items():
-            lines.append(f"{indent}    {k}: {_format_yaml_scalar(v)}")
-    return lines
-
-
-def _format_yaml_scalar(value: t.Any) -> str:
-    """Format a scalar/list for inline YAML emission matching existing output style."""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, (int, float)):
-        return str(value)
-    if isinstance(value, list):
-        rendered = ", ".join(_format_yaml_scalar(v) for v in value)
-        return f"[{rendered}]"
-    text = str(value)
-    # Quote strings that contain shell-expanded references or characters YAML may
-    # misinterpret at parse time. Leave plain values unquoted to match the style
-    # used throughout the generated file.
-    needs_quote = any(
-        ch in text
-        for ch in ("$", ":", "#", "{", "}", "[", "]", ",", "&", "*", "!", "?", "|", "<", ">", "=", "%", "@", "`")
-    )
-    if needs_quote or text.strip() != text:
-        escaped = text.replace('"', '\\"')
-        return f'"{escaped}"'
-    return text
-
-
 @dataclass
 class JobSpec:
     name: str
     stage: str
     pattern: t.Optional[str] = None
     snapshot: bool = False
-    services: t.Optional[list[t.Union[str, dict]]] = None
+    services: t.Optional[list[str]] = None
     env: t.Optional[dict[str, str]] = None
     parallelism: t.Optional[int] = None
     venvs_per_job: t.Optional[int] = None
@@ -164,30 +91,18 @@ class JobSpec:
             lines.append("    - job: build_base_venvs")
             lines.append("      artifacts: true")
 
-        # Normalize services: each entry is either a bare name (str) or a single-key
-        # dict `{name: {env: {...}}}` carrying a per-service env override. The dict
-        # form is expanded inline so the override is scoped to the service container;
-        # bare names keep using `!reference` for minimal diff.
-        service_items: list[tuple[str, dict]] = []
-        for item in self.services or []:
-            if isinstance(item, dict):
-                name, cfg = next(iter(item.items()))
-                service_items.append((name, (cfg or {}).get("env") or {}))
-            else:
-                service_items.append((item, {}))
-
-        service_names = {name for name, _ in service_items}
-        if service_items:
+        services = set(self.services or [])
+        if services:
             lines.append("  services:")
-            if self.snapshot:
-                lines.append(f"    - !reference [{base}, services]")
-            for name, env_override in service_items:
-                if env_override:
-                    lines.extend(_render_service_with_env(name, env_override, indent="    "))
-                else:
-                    lines.append(f"    - !reference [.services, {name}]")
 
-        wait_for = set(service_names)
+            _services = [f"!reference [.services, {_}]" for _ in services]
+            if self.snapshot:
+                _services.insert(0, f"!reference [{base}, services]")
+
+            for service in _services:
+                lines.append(f"    - {service}")
+
+        wait_for = services.copy()
         if self.snapshot:
             wait_for.add("testagent")
 
@@ -499,6 +414,7 @@ def _get_benchmark_class_name(suite_name: str) -> str:
 def _filter_benchmarks_slos_file(classnames: list) -> None:
     in_scenario_to_keep = True
     new_contents = []
+    kept_scenarios = 0
     contents = MICROBENCHMARKS_SLOS_TEMPLATE.read_text()
 
     for line in contents.split("\n")[1:]:
@@ -507,12 +423,16 @@ def _filter_benchmarks_slos_file(classnames: list) -> None:
             class_on_line = match.group(1)
             if class_on_line in classnames:
                 in_scenario_to_keep = True
+                kept_scenarios += 1
             else:
                 in_scenario_to_keep = False
         if line.strip().startswith("#"):
             in_scenario_to_keep = False
         if in_scenario_to_keep:
             new_contents.append(line)
+
+    if kept_scenarios == 0:
+        new_contents[-1] = "scenarios: []"
 
     MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents))
 
