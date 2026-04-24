@@ -1,4 +1,6 @@
 from types import CodeType
+from typing import Final
+from typing import Optional
 
 import bytecode as bc
 
@@ -27,8 +29,8 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 # except StopIteration:
 #     return
 # -----------------------------------------------------------------------------
-GENERATOR_ASSEMBLY = Assembly()
-GENERATOR_HEAD_ASSEMBLY = None
+GENERATOR_ASSEMBLY: Final[Assembly] = Assembly()
+GENERATOR_HEAD_ASSEMBLY: Optional[Assembly] = None
 
 if PY >= (3, 16):
     raise NotImplementedError("This version of CPython is not supported yet")

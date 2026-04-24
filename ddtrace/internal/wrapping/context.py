@@ -75,9 +75,9 @@ T = t.TypeVar("T")
 # __wrapped__ attribute. Context-specific values can be stored and retrieved
 # with the set and get methods.
 
-CONTEXT_HEAD = Assembly()
-CONTEXT_RETURN = Assembly()
-CONTEXT_FOOT = Assembly()
+CONTEXT_HEAD: t.Final[Assembly] = Assembly()
+CONTEXT_RETURN: t.Final[Assembly] = Assembly()
+CONTEXT_FOOT: t.Final[Assembly] = Assembly()
 
 if PY >= (3, 16):
     raise NotImplementedError("Python >= 3.16 is not supported yet")

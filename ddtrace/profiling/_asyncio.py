@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 from functools import partial
 import sys
+from types import FunctionType
 from types import ModuleType
 import typing
 
@@ -11,13 +12,31 @@ if typing.TYPE_CHECKING:
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
 
 
+log = get_logger(__name__)
+
+# True for every Python version we have explicitly validated (< 3.16).
+# Used to decide whether a missing asyncio internal is a hard bug (raise) or
+# a graceful degradation (warn + continue) for future, unvalidated versions.
+_ON_KNOWN_VERSION: bool = sys.hexversion < 0x03100000  # < 3.16
+
 ASYNCIO_IMPORTED: bool = False
+
+
+# AIDEV-NOTE: Structural Protocols for introspected asyncio/uvloop classes. getattr() returns Any, so
+# these annotations document the contract we actually depend on rather than accepting any `type`.
+class _HasSetEventLoop(typing.Protocol):
+    set_event_loop: typing.Callable[..., typing.Any]
+
+
+class _HasCreateTask(typing.Protocol):
+    create_task: typing.Callable[..., typing.Any]
 
 
 def current_task() -> typing.Optional["asyncio.Task[typing.Any]"]:
@@ -35,11 +54,42 @@ def _task_get_name(task: "asyncio.Task[typing.Any]") -> str:
 def _call_init_asyncio(asyncio: ModuleType) -> None:
     from asyncio import tasks as asyncio_tasks
 
+    # AIDEV-NOTE: _scheduled_tasks, _eager_tasks, and _all_tasks are asyncio internals.
+    # They are confirmed present through Python 3.15. On known versions (<=3.15) a missing
+    # attribute is a real bug; on unknown future versions (>=3.16) degrade gracefully.
     if sys.hexversion >= 0x030C0000:
-        scheduled_tasks = asyncio_tasks._scheduled_tasks.data  # type: ignore[attr-defined]
-        eager_tasks = asyncio_tasks._eager_tasks  # type: ignore[attr-defined]
+        if not hasattr(asyncio_tasks, "_scheduled_tasks"):
+            if _ON_KNOWN_VERSION:
+                raise RuntimeError(
+                    f"ddtrace profiler: asyncio.tasks._scheduled_tasks not found on "
+                    f"Python {sys.version}. asyncio task tracking will not work. "
+                    "Please report this at https://github.com/DataDog/dd-trace-py/issues"
+                )
+            else:
+                log.warning(
+                    "ddtrace profiler: asyncio.tasks._scheduled_tasks not found on "
+                    "Python %s. asyncio task tracking will be incomplete.",
+                    sys.version,
+                )
+                return
+        scheduled_tasks: typing.Any = getattr(asyncio_tasks, "_scheduled_tasks").data
+        eager_tasks: typing.Any = getattr(asyncio_tasks, "_eager_tasks", None)
     else:
-        scheduled_tasks = asyncio_tasks._all_tasks.data  # type: ignore[attr-defined]
+        if not hasattr(asyncio_tasks, "_all_tasks"):
+            if _ON_KNOWN_VERSION:
+                raise RuntimeError(
+                    f"ddtrace profiler: asyncio.tasks._all_tasks not found on "
+                    f"Python {sys.version}. asyncio task tracking will not work. "
+                    "Please report this at https://github.com/DataDog/dd-trace-py/issues"
+                )
+            else:
+                log.warning(
+                    "ddtrace profiler: asyncio.tasks._all_tasks not found on "
+                    "Python %s. asyncio task tracking will be incomplete.",
+                    sys.version,
+                )
+                return
+        scheduled_tasks = getattr(asyncio_tasks, "_all_tasks").data
         eager_tasks = None
 
     stack.init_asyncio(scheduled_tasks, eager_tasks)
@@ -90,9 +140,13 @@ def _(asyncio: ModuleType) -> None:
 
     init_stack: bool = config.stack.enabled and stack.is_available
 
-    # Python 3.14+: BaseDefaultEventLoopPolicy was renamed to _BaseDefaultEventLoopPolicy
-    # Try both names for compatibility
-    events_module = sys.modules["asyncio.events"]
+    # Python 3.14+: BaseDefaultEventLoopPolicy was renamed to _BaseDefaultEventLoopPolicy.
+    # AIDEV-TODO: The entire asyncio policy system is deprecated in 3.15 (CPython #127949)
+    # and scheduled for removal in 3.16. When porting to 3.16, this block needs to be
+    # replaced — the policy hook won't exist. Use asyncio.run(loop_factory=...) instead.
+    # See docs/contributing-profiling-new-cpython.rst for migration guidance.
+    events_module: ModuleType = sys.modules["asyncio.events"]
+    policy_class: typing.Optional[type[_HasSetEventLoop]]
     if sys.hexversion >= 0x030E0000:
         # Python 3.14+: Use _BaseDefaultEventLoopPolicy
         policy_class = getattr(events_module, "_BaseDefaultEventLoopPolicy", None)
@@ -112,35 +166,85 @@ def _(asyncio: ModuleType) -> None:
             return f(*args, **kwargs)
 
     if init_stack:
+        # AIDEV-NOTE: _GatheringFuture and _wait are asyncio internals with no stability
+        # guarantee. On Python <= 3.15 (versions we've explicitly validated), we raise
+        # immediately if they're missing — that's a real bug, not a graceful degradation.
+        # On Python >= 3.16 (where the asyncio policy system is being removed and these
+        # may go too), we degrade gracefully with a warning instead of crashing.
+        # AIDEV-TODO: asyncio policy system deprecated in 3.15 (CPython #127949), removed
+        # in 3.16. When porting to 3.16, revisit this whole block — _GatheringFuture and
+        # _wait may also be gone. Replace with asyncio.run(loop_factory=...) pattern.
+        # See docs/contributing-profiling-new-cpython.rst.
+        if hasattr(sys.modules["asyncio"].tasks, "_GatheringFuture"):
 
-        @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
-        def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:
-            try:
-                return f(*args, **kwargs)
-            finally:
+            @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
+            def _wrap_gathering_future(
+                f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
+            ) -> None:
+                f(*args, **kwargs)
                 children = get_argument_value(args, kwargs, 1, "children")
                 assert children is not None  # nosec: assert is used for typing
 
-                if globals()["get_running_loop"]() is not None:
+                # AIDEV-NOTE: current_task() raises RuntimeError if there is no running
+                # event loop (e.g. asyncio.gather() called outside an async context to
+                # build a coroutine for later scheduling). In that case there is no parent
+                # task to link from, so we skip link_tasks entirely.
+                try:
                     parent = globals()["current_task"]()
-                    for child in children:
-                        stack.link_tasks(parent, child)
+                except RuntimeError:
+                    return
+                for child in children:
+                    stack.link_tasks(parent, child)
 
-        @partial(wrap, sys.modules["asyncio"].tasks._wait)
-        def _(
-            f: typing.Callable[..., tuple[set["aio.Future[typing.Any]"], set["aio.Future[typing.Any]"]]],
-            args: tuple[typing.Any, ...],
-            kwargs: dict[str, typing.Any],
-        ) -> typing.Any:
-            try:
-                return f(*args, **kwargs)
-            finally:
+        elif _ON_KNOWN_VERSION:
+            raise RuntimeError(
+                f"ddtrace profiler: asyncio.tasks._GatheringFuture not found on Python {sys.version}. "
+                "asyncio.gather() task-parent linking will not work. "
+                "Please report this at https://github.com/DataDog/dd-trace-py/issues"
+            )
+        else:
+            log.warning(
+                "ddtrace profiler: asyncio.tasks._GatheringFuture not found on Python %s. "
+                "asyncio.gather() task-parent links will be missing from profiler data. "
+                "This may be caused by asyncio internals changing in this Python version.",
+                sys.version,
+            )
+
+        if hasattr(sys.modules["asyncio"].tasks, "_wait"):
+
+            @partial(wrap, sys.modules["asyncio"].tasks._wait)
+            def _wrap_wait(
+                f: typing.Callable[..., tuple[set["aio.Future[typing.Any]"], set["aio.Future[typing.Any]"]]],
+                args: tuple[typing.Any, ...],
+                kwargs: dict[str, typing.Any],
+            ) -> typing.Any:
+                result = f(*args, **kwargs)
                 futures = typing.cast(set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
 
-                if globals()["get_running_loop"]() is not None:
+                # AIDEV-NOTE: same guard as _wrap_gathering_future — _wait may also be
+                # invoked outside a running loop (e.g. building the coroutine before
+                # scheduling). Skip link_tasks when there is no current task.
+                try:
                     parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"]())
-                    for future in futures:
-                        stack.link_tasks(parent, future)
+                except RuntimeError:
+                    return result
+                for future in futures:
+                    stack.link_tasks(parent, future)
+                return result
+
+        elif _ON_KNOWN_VERSION:
+            raise RuntimeError(
+                f"ddtrace profiler: asyncio.tasks._wait not found on Python {sys.version}. "
+                "asyncio.wait() task-parent linking will not work. "
+                "Please report this at https://github.com/DataDog/dd-trace-py/issues."
+            )
+        else:
+            log.warning(
+                "ddtrace profiler: asyncio.tasks._wait not found on Python %s. "
+                "asyncio.wait() task-parent links will be missing from profiler data. "
+                "This may be caused by asyncio internals changing in this Python version.",
+                sys.version,
+            )
 
         @partial(wrap, sys.modules["asyncio"].tasks.as_completed)
         def _(
@@ -196,12 +300,12 @@ def _(asyncio: ModuleType) -> None:
 
         # Wrap asyncio.TaskGroup.create_task to link parent task to created tasks (Python 3.11+)
         if sys.hexversion >= 0x030B0000:  # Python 3.11+
-            taskgroups_module = sys.modules.get("asyncio.taskgroups")
+            taskgroups_module: typing.Optional[ModuleType] = sys.modules.get("asyncio.taskgroups")
             if taskgroups_module is not None:
-                taskgroup_class = getattr(taskgroups_module, "TaskGroup", None)
+                taskgroup_class: typing.Optional[type[_HasCreateTask]] = getattr(taskgroups_module, "TaskGroup", None)
                 if taskgroup_class is not None and hasattr(taskgroup_class, "create_task"):
 
-                    @partial(wrap, taskgroup_class.create_task)
+                    @partial(wrap, typing.cast(FunctionType, taskgroup_class.create_task))
                     def _(
                         f: typing.Callable[..., "aio.Task[typing.Any]"],
                         args: tuple[typing.Any, ...],
@@ -259,18 +363,20 @@ def _(uvloop: ModuleType) -> None:
     init_stack: bool = config.stack.enabled and stack.is_available
 
     # Wrap uvloop.new_event_loop to track loops when they're created
-    new_event_loop_func = getattr(uvloop, "new_event_loop", None)
+    new_event_loop_func: typing.Optional[typing.Callable[..., "asyncio.AbstractEventLoop"]] = getattr(
+        uvloop, "new_event_loop", None
+    )
     if new_event_loop_func is not None:
 
-        @partial(wrap, new_event_loop_func)
+        @partial(wrap, typing.cast(FunctionType, new_event_loop_func))
         def _(
             f: typing.Callable[..., "asyncio.AbstractEventLoop"],
             args: tuple[typing.Any, ...],
             kwargs: dict[str, typing.Any],
         ) -> "asyncio.AbstractEventLoop":
-            loop = f(*args, **kwargs)
+            loop: "asyncio.AbstractEventLoop" = f(*args, **kwargs)
             if init_stack:
-                thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+                thread_id: int = typing.cast(int, ddtrace_threading.current_thread().ident)
                 stack.set_uvloop_mode(thread_id, True)
 
                 stack.track_asyncio_loop(thread_id, loop)
@@ -280,14 +386,14 @@ def _(uvloop: ModuleType) -> None:
             return loop
 
     # Wrap uvloop.EventLoopPolicy.set_event_loop for uvloop.install() + asyncio.run() pattern
-    policy_class = getattr(uvloop, "EventLoopPolicy", None)
-    if policy_class is not None and hasattr(policy_class, "set_event_loop"):
+    uvloop_policy_class: typing.Optional[type[_HasSetEventLoop]] = getattr(uvloop, "EventLoopPolicy", None)
+    if uvloop_policy_class is not None and hasattr(uvloop_policy_class, "set_event_loop"):
 
-        @partial(wrap, policy_class.set_event_loop)
+        @partial(wrap, typing.cast(FunctionType, uvloop_policy_class.set_event_loop))
         def _(
             f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
         ) -> typing.Any:
-            thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+            thread_id: int = typing.cast(int, ddtrace_threading.current_thread().ident)
             if init_stack:
                 stack.set_uvloop_mode(thread_id, True)
 
