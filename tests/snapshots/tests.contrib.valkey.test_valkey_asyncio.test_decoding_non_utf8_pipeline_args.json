@@ -11,14 +11,14 @@
     "meta": {
       "_dd.base_service": "tests.contrib.valkey",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e27a8a00000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69eba7d200000000",
+      "_dd.svc_src": "valkey",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.valkey",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "fed65df52b054628a4831772b2acd6e9",
+      "runtime-id": "12d05392889b44369e89403e1f7fb28d",
       "server.address": "127.0.0.1",
       "span.kind": "client",
       "valkey.raw_command": "SET \\x80blah boo\nSET foo \\x80abc\nGET \\x80blah\nGET foo"
@@ -30,9 +30,9 @@
       "_sampling_priority_v1": 1.0,
       "network.destination.port": 6379.0,
       "out.valkey_db": 0.0,
-      "process_id": 38006.0,
+      "process_id": 41379.0,
       "valkey.pipeline_length": 4.0
     },
-    "duration": 463292,
-    "start": 1776450186574093800
+    "duration": 511750,
+    "start": 1777051602677784303
   }]]

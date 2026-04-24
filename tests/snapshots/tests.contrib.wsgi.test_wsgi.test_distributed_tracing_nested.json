@@ -19,17 +19,17 @@
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
       "language": "python",
-      "runtime-id": "1fb067689cc34dbfacb0169765b85ebe",
+      "runtime-id": "6c579551b9914a8990c622aa75091a00",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 78847.0
+      "process_id": 42467.0
     },
-    "duration": 1652000,
-    "start": 1776197281382070676
+    "duration": 591000,
+    "start": 1777051657204853884
   },
      {
        "name": "wsgi.application",
@@ -45,8 +45,8 @@
          "_dd.svc_src": "wsgi",
          "component": "wsgi"
        },
-       "duration": 937125,
-       "start": 1776197281382614551
+       "duration": 378083,
+       "start": 1777051657204965634
      },
         {
           "name": "wsgi.request",
@@ -67,8 +67,8 @@
             "http.url": "http://localhost:80/",
             "span.kind": "server"
           },
-          "duration": 925208,
-          "start": 1776197281382777593
+          "duration": 368583,
+          "start": 1777051657205057634
         },
            {
              "name": "wsgi.application",
@@ -84,8 +84,8 @@
                "_dd.svc_src": "wsgi",
                "component": "wsgi"
              },
-             "duration": 524333,
-             "start": 1776197281382852801
+             "duration": 177917,
+             "start": 1777051657205114800
            },
               {
                 "name": "wsgi.start_response",
@@ -102,8 +102,8 @@
                   "component": "wsgi",
                   "span.kind": "server"
                 },
-                "duration": 278458,
-                "start": 1776197281383057218
+                "duration": 110875,
+                "start": 1777051657205165967
               },
            {
              "name": "wsgi.response",
@@ -120,8 +120,8 @@
                "component": "wsgi",
                "result_class": "list"
              },
-             "duration": 285667,
-             "start": 1776197281383407009
+             "duration": 109875,
+             "start": 1777051657205307092
            },
         {
           "name": "wsgi.start_response",
@@ -138,8 +138,8 @@
             "component": "wsgi",
             "span.kind": "server"
           },
-          "duration": 186583,
-          "start": 1776197281383123551
+          "duration": 41583,
+          "start": 1777051657205217134
         },
      {
        "name": "wsgi.response",
@@ -156,6 +156,6 @@
          "component": "wsgi",
          "result_class": "list_iterator"
        },
-       "duration": 143792,
-       "start": 1776197281383569384
+       "duration": 79250,
+       "start": 1777051657205356967
      }]]

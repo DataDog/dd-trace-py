@@ -12,7 +12,7 @@
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69e92dc700000000",
-      "_dd.svc_src": "m",
+      "_dd.svc_src": "azure_eventhubs",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_eventhubs",
       "language": "python",
@@ -45,7 +45,7 @@
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
          "_dd.p.tid": "69e92dc700000000",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_eventhubs",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
          "messaging.operation": "create",
@@ -68,7 +68,7 @@
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
          "_dd.p.tid": "69e92dc700000000",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_eventhubs",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
          "messaging.message_id": "eb692ceb-d11b-446a-9fda-92bc13db41b9",
@@ -94,7 +94,7 @@
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69e92dc800000000",
-      "_dd.svc_src": "m",
+      "_dd.svc_src": "azure_eventhubs",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_eventhubs",
       "language": "python",
@@ -127,7 +127,7 @@
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
          "_dd.p.tid": "69e92dc800000000",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_eventhubs",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
          "messaging.operation": "create",
@@ -150,7 +150,7 @@
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
          "_dd.p.tid": "69e92dc800000000",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_eventhubs",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
          "messaging.message_id": "40f4cc72-50ca-4677-8fae-5042ad8ae94d",

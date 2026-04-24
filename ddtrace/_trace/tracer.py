@@ -508,7 +508,12 @@ class Tracer(object):
             else:
                 service = service_source = config.service
         else:
-            service_source = "m"
+            if service in [
+                getattr(conf, "_default_service", None) for conf in config._integration_configs.values() if conf
+            ]:
+                service_source = service
+            else:
+                service_source = "m"
 
         # Update the service name based on any mapping
         if service is not None:
