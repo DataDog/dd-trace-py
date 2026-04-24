@@ -18,6 +18,7 @@ components:
     - ddtrace/contrib/internal/litellm/*
   llmobs:
     - ddtrace/llmobs/*
+    - tests/cassettes/*
   mcp:
     - ddtrace/contrib/internal/mcp/*
   openai:
