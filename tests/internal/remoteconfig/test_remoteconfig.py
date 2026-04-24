@@ -501,30 +501,22 @@ def test_apm_tracing_precedence_ordering(remote_config_worker):
 
         # Send all payloads to the callback
         all_payloads = [service_payload, env_payload, cluster_payload, wildcard_payload]
-        callback(all_payloads)
-
         # Get the chained configuration
-        chained_config = callback._get_chained_lib_config()
+        chained_config = callback._process_payloads(all_payloads)
 
         # The first (highest precedence) config should be from the service-specific payload
         assert chained_config["tracing_enabled"] == "service_config"
 
         # Test that removing the service-specific config promotes the env config
-        callback._config_map.clear()
-        callback([env_payload, cluster_payload, wildcard_payload])
-        chained_config = callback._get_chained_lib_config()
+        chained_config = callback._process_payloads([env_payload, cluster_payload, wildcard_payload])
         assert chained_config["tracing_enabled"] == "env_config"
 
         # Test that removing the env config promotes the cluster config
-        callback._config_map.clear()
-        callback([cluster_payload, wildcard_payload])
-        chained_config = callback._get_chained_lib_config()
+        chained_config = callback._process_payloads([cluster_payload, wildcard_payload])
         assert chained_config["tracing_enabled"] == "cluster_config"
 
         # Test that only wildcard config remains at the end
-        callback._config_map.clear()
-        callback([wildcard_payload])
-        chained_config = callback._get_chained_lib_config()
+        chained_config = callback._process_payloads([wildcard_payload])
         assert chained_config["tracing_enabled"] == "wildcard_config"
 
     finally:
@@ -579,11 +571,7 @@ def test_apm_tracing_sampling_rules_none_override(remote_config_worker):
             "sampling_rules_config",
         )
 
-        # Apply the sampling rules configuration
-        callback([sampling_rules_payload])
-
-        # Get the chained configuration and verify sampling rules are set
-        chained_config = callback._get_chained_lib_config()
+        chained_config = callback._process_payloads([sampling_rules_payload])
         assert "tracing_sampling_rules" in chained_config
         sampling_rules = chained_config["tracing_sampling_rules"]
         assert len(sampling_rules) == 2
@@ -604,11 +592,9 @@ def test_apm_tracing_sampling_rules_none_override(remote_config_worker):
             "none_sampling_rules_config",
         )
 
-        # Apply the None sampling rules configuration
-        callback([none_sampling_rules_payload, sampling_rules_payload])
-
-        # Get the chained configuration and verify sampling rules are now None
-        chained_config = callback._get_chained_lib_config()
+        # Same service_target → tie-break by payload index: higher index sorts first in ChainMap
+        # (see APMTracingCallback._get_chained_lib_config), so put the None override last.
+        chained_config = callback._process_payloads([sampling_rules_payload, none_sampling_rules_payload])
         assert "tracing_sampling_rules" in chained_config
         assert chained_config["tracing_sampling_rules"] is None
 
@@ -848,3 +834,153 @@ def test_apm_sampling_rules_override():
                 lib_config = call_args[1][0]
                 # After removing configs, we should get an empty dict
                 assert isinstance(lib_config, dict)
+
+
+@pytest.mark.subprocess(env={"DD_REMOTE_CONFIGURATION_ENABLED": "false"})
+def test_apm_tracing_rc_handlers_dispatched_from_products():
+    """APMTracingCallback.dispatch routes lib_config to handlers registered via on()."""
+    from ddtrace.internal.core.event_hub import on
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingCallback
+
+    received: list = []
+
+    def fake_handler(lib_config, dd_config):
+        received.append(dict(lib_config))
+
+    on("apm-tracing.rc", fake_handler, "test-product")
+    callback = APMTracingCallback()
+    payload = Payload(
+        metadata=ConfigMetadata(
+            id="cfg1",
+            product_name="APM_TRACING",
+            sha256_hash="abc123",
+            length=10,
+            tuf_version=1,
+        ),
+        path="datadog/2/APM_TRACING/cfg1/hash",
+        content={
+            "service_target": {"service": "*", "env": "*"},
+            "lib_config": {"llmobs": {"enabled": True, "ml_app_name": "my-app"}},
+        },
+    )
+    callback([payload])
+
+    assert len(received) == 1
+    assert received[0]["llmobs"] == {"enabled": True, "ml_app_name": "my-app"}
+
+
+@pytest.mark.subprocess(env={"DD_REMOTE_CONFIGURATION_ENABLED": "false"})
+def test_apm_tracing_same_config_id_delete_is_not_skipped():
+    """A content=None payload with the same config_id as a prior content payload deletes it.
+
+    Verifies via the dispatch→handler chain: the deletion payload must not be skipped,
+    so the lib_config reaching downstream handlers is empty (not the content from the
+    first payload).
+    """
+    import ddtrace
+    from ddtrace._trace.product import apm_tracing_rc as tracer_rc
+    from ddtrace.internal.core.event_hub import on
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingCallback
+
+    # Register the real tracer handler so config changes are applied to ddtrace.config
+    on("apm-tracing.rc", tracer_rc, "tracer")
+
+    shared_metadata = dict(
+        product_name="APM_TRACING",
+        sha256_hash="abc123",
+        length=10,
+        tuf_version=1,
+    )
+
+    payload_with_content = Payload(
+        metadata=ConfigMetadata(id="cfg1", **shared_metadata),
+        path="datadog/2/APM_TRACING/cfg1/hash",
+        content={
+            "service_target": {"service": "*", "env": "*"},
+            "lib_config": {"tracing_enabled": False},
+        },
+    )
+    payload_deleted = Payload(
+        metadata=ConfigMetadata(id="cfg1", **shared_metadata),
+        path="datadog/2/APM_TRACING/cfg1/hash",
+        content=None,
+    )
+
+    APMTracingCallback()([payload_with_content, payload_deleted])
+
+    # deletion was processed — tracer handler received empty lib_config,
+    # so tracing_enabled=False from the first payload must not have been applied
+    assert ddtrace.config._tracing_enabled is True, (
+        "content=None payload was skipped — tracing_enabled=False from the first payload leaked through"
+    )
+
+
+@pytest.mark.subprocess(env={"DD_REMOTE_CONFIGURATION_ENABLED": "false"})
+def test_apm_tracing_start_collects_product_apm_capabilities():
+    """start() aggregates APMCapabilities from all registered products into RC registration."""
+    import enum
+    import types
+
+    import mock
+
+    from ddtrace.internal.remoteconfig.products import apm_tracing
+
+    class FakeCapabilities(enum.IntFlag):
+        MY_CAP = 1 << 10
+
+    fake_product = types.SimpleNamespace(APMCapabilities=FakeCapabilities, apm_tracing_rc=None)
+
+    with mock.patch("ddtrace.internal.products.manager") as mock_manager:
+        mock_manager.__products__ = {"fake": fake_product}
+        with mock.patch("ddtrace.internal.remoteconfig.worker.remoteconfig_poller") as mock_poller:
+            apm_tracing.start()
+
+            mock_poller.register_callback.assert_called_once()
+            _, kwargs = mock_poller.register_callback.call_args
+            assert FakeCapabilities.MY_CAP in kwargs["capabilities"]
+
+
+def test_send_request_retries_once_on_oserror():
+    """First attempt raises OSError; the retry decorator should produce a successful second call."""
+    client = RemoteConfigClient()
+    attempts = []
+
+    def fake_get_connection(*args, **kwargs):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise OSError("timed out")
+        mock_conn = mock.MagicMock()
+        mock_conn.getresponse.return_value.status = 200
+        mock_conn.getresponse.return_value.headers.get.return_value = None
+        mock_conn.getresponse.return_value.read.return_value = b'{"ok": true}'
+        return mock_conn
+
+    with mock.patch("ddtrace.internal.agent.get_connection", side_effect=fake_get_connection):
+        result = client._send_request("{}")
+
+    assert len(attempts) == 2
+    assert result == {"ok": True}
+
+
+def test_online_tolerates_transient_failures_before_bouncing(remote_config_worker):
+    """_online should stay in _online for N-1 consecutive failures, and bounce on the Nth."""
+    worker = RemoteConfigPoller()
+    worker._state = worker._online
+    threshold = worker._MAX_CONSECUTIVE_FAILURES
+
+    with mock.patch.object(worker._client, "request", return_value=False):
+        for i in range(threshold - 1):
+            worker._online()
+            assert worker._state == worker._online, f"bounced too early at failure {i + 1}"
+            assert worker._consecutive_failures == i + 1
+
+        worker._online()
+        assert worker._state == worker._agent_check
+        assert worker._consecutive_failures == 0
+
+    worker.stop_subscriber(True)
+    worker.disable()

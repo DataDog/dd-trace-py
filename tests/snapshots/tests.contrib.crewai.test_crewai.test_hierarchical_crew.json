@@ -10,19 +10,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67d8a4b400000000",
+      "_dd.p.tid": "69e6428d00000000",
+      "_dd.svc_src": "tests.contrib.crewai",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.crewai",
       "language": "python",
-      "runtime-id": "bad43c1740734ba39e8647b64c509771"
+      "runtime-id": "6779cc59a5b84839a09ffe339a3c6f1c"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 69849
+      "_sampling_priority_v1": 1.0,
+      "process_id": 507.0
     },
-    "duration": 13962869000,
-    "start": 1742251188598484000
+    "duration": 130635541,
+    "start": 1776697997364371506
   },
      {
        "name": "crewai.request",
@@ -33,11 +35,14 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "metrics": {
-         "_dd.measured": 1
+       "meta": {
+         "_dd.svc_src": "tests.contrib.crewai"
        },
-       "duration": 2285441000,
-       "start": 1742251188601806000
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 13951834,
+       "start": 1776697997369121297
      },
         {
           "name": "Task Execution Planner",
@@ -48,11 +53,14 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "metrics": {
-            "_dd.measured": 1
+          "meta": {
+            "_dd.svc_src": "tests.contrib.crewai"
           },
-          "duration": 2285043000,
-          "start": 1742251188601959000
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 13671292,
+          "start": 1776697997369260297
         },
      {
        "name": "Calculate participants' average ages",
@@ -63,11 +71,14 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "metrics": {
-         "_dd.measured": 1
+       "meta": {
+         "_dd.svc_src": "tests.contrib.crewai"
        },
-       "duration": 3487166000,
-       "start": 1742251190888891000
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 38743375,
+       "start": 1776697997385854381
      },
         {
           "name": "Crew Manager",
@@ -78,11 +89,14 @@
           "parent_id": 3,
           "type": "",
           "error": 0,
-          "metrics": {
-            "_dd.measured": 1
+          "meta": {
+            "_dd.svc_src": "tests.contrib.crewai"
           },
-          "duration": 3486291000,
-          "start": 1742251190889276000
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 38247541,
+          "start": 1776697997386296881
         },
            {
              "name": "Ask question to coworker",
@@ -93,11 +107,14 @@
              "parent_id": 6,
              "type": "",
              "error": 0,
-             "metrics": {
-               "_dd.measured": 1
+             "meta": {
+               "_dd.svc_src": "tests.contrib.crewai"
              },
-             "duration": 1380707000,
-             "start": 1742251192328707000
+             "metrics": {
+               "_dd.measured": 1.0
+             },
+             "duration": 18522416,
+             "start": 1776697997397131631
            },
               {
                 "name": "Python Data Analyst",
@@ -108,11 +125,14 @@
                 "parent_id": 8,
                 "type": "",
                 "error": 0,
-                "metrics": {
-                  "_dd.measured": 1
+                "meta": {
+                  "_dd.svc_src": "tests.contrib.crewai"
                 },
-                "duration": 1379537000,
-                "start": 1742251192329684000
+                "metrics": {
+                  "_dd.measured": 1.0
+                },
+                "duration": 17906333,
+                "start": 1776697997397716756
               },
                  {
                    "name": "Average Calculator",
@@ -123,11 +143,14 @@
                    "parent_id": 10,
                    "type": "",
                    "error": 0,
-                   "metrics": {
-                     "_dd.measured": 1
+                   "meta": {
+                     "_dd.svc_src": "tests.contrib.crewai"
                    },
-                   "duration": 206000,
-                   "start": 1742251193080850000
+                   "metrics": {
+                     "_dd.measured": 1.0
+                   },
+                   "duration": 71291,
+                   "start": 1776697997406858756
                  },
      {
        "name": "Recommend fun activities",
@@ -138,11 +161,14 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "metrics": {
-         "_dd.measured": 1
+       "meta": {
+         "_dd.svc_src": "tests.contrib.crewai"
        },
-       "duration": 8172764000,
-       "start": 1742251194383037000
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 65164541,
+       "start": 1776697997428124131
      },
         {
           "name": "Crew Manager",
@@ -153,11 +179,14 @@
           "parent_id": 4,
           "type": "",
           "error": 0,
-          "metrics": {
-            "_dd.measured": 1
+          "meta": {
+            "_dd.svc_src": "tests.contrib.crewai"
           },
-          "duration": 8167029000,
-          "start": 1742251194384409000
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 64871166,
+          "start": 1776697997428354506
         },
            {
              "name": "Ask question to coworker",
@@ -168,11 +197,14 @@
              "parent_id": 7,
              "type": "",
              "error": 0,
-             "metrics": {
-               "_dd.measured": 1
+             "meta": {
+               "_dd.svc_src": "tests.contrib.crewai"
              },
-             "duration": 3810877000,
-             "start": 1742251196017552000
+             "metrics": {
+               "_dd.measured": 1.0
+             },
+             "duration": 37839500,
+             "start": 1776697997439749714
            },
               {
                 "name": "Tour Guide",
@@ -183,9 +215,12 @@
                 "parent_id": 9,
                 "type": "",
                 "error": 0,
-                "metrics": {
-                  "_dd.measured": 1
+                "meta": {
+                  "_dd.svc_src": "tests.contrib.crewai"
                 },
-                "duration": 3809132000,
-                "start": 1742251196019220000
+                "metrics": {
+                  "_dd.measured": 1.0
+                },
+                "duration": 37150667,
+                "start": 1776697997440397339
               }]]
