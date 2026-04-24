@@ -10,7 +10,11 @@ specific Django apps like Django Rest Framework (DRF).
 from inspect import getmro
 from inspect import iscoroutinefunction
 from inspect import unwrap
+from typing import TYPE_CHECKING
 from typing import Any
+from typing import Callable
+from typing import Iterable
+from typing import Optional
 from typing import cast
 import weakref
 
@@ -38,6 +42,11 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.vendor.packaging.version import parse as parse_version
+
+
+if TYPE_CHECKING:
+    from django.urls.resolvers import URLPattern
+    from django.urls.resolvers import URLResolver
 
 
 log = get_logger(__name__)
@@ -258,13 +267,7 @@ _DEFAULT_METHODS = ("get", "delete", "post", "options", "head")
 
 
 def _instrument_view(django, view):
-    """Helper to wrap Django views.
-
-    Endpoint registration is deferred to _collect_routes_once(), which walks
-    the full resolver tree on the first request. Registering here from a
-    URLPattern's local pattern would lose the parent prefix for views mounted
-    via django.urls.include() — see _collect_django_routes for the full walk.
-    """
+    """Helper to wrap Django views."""
     from . import utils
 
     # All views should be callable, double check before doing anything
@@ -315,22 +318,21 @@ def _instrument_view(django, view):
     return view
 
 
-# Resolvers whose url_patterns tree has already been walked by
-# _collect_routes_once(). A WeakSet lets entries auto-drop when Django releases
-# a resolver (e.g. after clear_url_caches()), which removes any id-reuse risk
-# that a plain set[int] would carry.
-_collected_resolvers: "weakref.WeakSet[Any]" = weakref.WeakSet()
+# Resolvers whose url_patterns tree has already been walked for endpoint
+# collection by _collect_routes_once(). A WeakSet lets entries auto-drop when
+# Django releases a resolver (e.g. after clear_url_caches()), which removes any
+# id-reuse risk that a plain set[int] would carry.
+_collected_resolvers: "weakref.WeakSet[URLResolver]" = weakref.WeakSet()
 
 
-def _collect_pattern_methods(callback):
-    """Return the HTTP methods handled by a URLPattern.callback.
+def _collect_pattern_methods(callback: Optional[Callable[..., Any]]) -> list[str]:
+    """Return the HTTP methods a URLPattern.callback handles, for endpoint collection.
 
-    Matches the extraction the old _instrument_view performed on the view as
-    received from path()/re_path(): extract_request_method_list walks the
-    wrapper's closure chain itself (via the view_func freevar), so we must
-    hand it the outer callback and let it do the unwrapping. Unwrapping via
-    __wrapped__ first would peel past the require_http_methods wrapper and
-    lose the captured request_method_list.
+    Extraction semantics: extract_request_method_list walks the wrapper's
+    closure chain itself (via the view_func freevar), so the outer callback is
+    passed as-is. Unwrapping via __wrapped__ first would peel past the
+    require_http_methods wrapper and lose the captured request_method_list,
+    collapsing the recorded method list to a wildcard.
     """
     if callback is None:
         return ["*"]
@@ -339,8 +341,8 @@ def _collect_pattern_methods(callback):
     return list(request_method_list) or ["*"]
 
 
-def _collect_django_routes(patterns, prefix=""):
-    """Walk a list of URLPattern / URLResolver nodes and register endpoints.
+def _collect_django_routes(patterns: "Iterable[URLPattern | URLResolver]", prefix: str = "") -> None:
+    """Walk URLPattern / URLResolver nodes and register endpoints in endpoint_collection.
 
     Joins parent and child route segments with the same semantics Django
     itself uses in django.urls.resolvers.URLResolver._join_route for
@@ -370,8 +372,8 @@ def _collect_django_routes(patterns, prefix=""):
                 endpoint_collection.add_endpoint(method, full_path, operation_name="django.request")
 
 
-def _collect_routes_once(resolver):
-    """Walk resolver.url_patterns the first time we see a given resolver.
+def _collect_routes_once(resolver: "URLResolver | None") -> None:
+    """Populate endpoint_collection by walking resolver.url_patterns once per resolver.
 
     Called from traced_get_response / traced_get_response_async on every
     request. The WeakSet gate makes repeated calls O(1), and naturally handles
