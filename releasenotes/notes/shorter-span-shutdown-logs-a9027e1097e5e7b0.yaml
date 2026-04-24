@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    fix(tracing): Decrease amount of overly-verbose logging emitted during some shutdowns.
+
