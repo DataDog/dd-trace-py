@@ -106,7 +106,8 @@ cdef class MetricNamespace:
                 else:
                     self._metrics_data[metric_id] = value
         elif metric_type is MetricType.GAUGE:
-            self._metrics_data[metric_id] = value
+            with self._metrics_data_lock:
+                self._metrics_data[metric_id] = value
         else:  # MetricType.DISTRIBUTION
             with self._metrics_data_lock:
                 existing = self._metrics_data.get(metric_id)
