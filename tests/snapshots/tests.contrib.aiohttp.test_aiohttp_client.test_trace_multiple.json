@@ -2,7 +2,7 @@
   {
     "name": "aiohttp.request",
     "service": "tests.contrib.aiohttp",
-    "resource": "aiohttp.request",
+    "resource": "GET /status/200",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -53,7 +53,7 @@
   {
     "name": "aiohttp.request",
     "service": "tests.contrib.aiohttp",
-    "resource": "aiohttp.request",
+    "resource": "GET /status/200",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
@@ -104,7 +104,7 @@
   {
     "name": "aiohttp.request",
     "service": "tests.contrib.aiohttp",
-    "resource": "aiohttp.request",
+    "resource": "GET /status/200",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,

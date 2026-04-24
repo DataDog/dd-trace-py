@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Fixes ``httpx``, ``urllib3``, ``httplib``, and ``aiohttp`` client integrations to set span resource to ``METHOD /path`` (e.g. ``GET /api/users``), matching the existing ``requests`` integration behavior. Previously these integrations defaulted resource to the operation name, which caused all endpoints to be aggregated together in the Datadog UI.

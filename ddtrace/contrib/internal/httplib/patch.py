@@ -168,6 +168,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
         trace_utils.set_http_meta(
             span, config.httplib, method=method, url=sanitized_url, target_host=instance.host, query=parsed.query
         )
+        span.resource = f"{method} {parsed.path}"
 
     except Exception:
         log.debug("error applying request tags", exc_info=True)

@@ -90,6 +90,7 @@ async def _traced_clientsession_request(func, instance, args, kwargs):
         schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.HTTP,
     ) as span:
+        span.resource = f"{method.upper()} {url.path}"
         set_service_and_source(span, service, config.aiohttp_client)
 
         if config.aiohttp_client.distributed_tracing:
