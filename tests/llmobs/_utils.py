@@ -15,6 +15,8 @@ except ImportError:
 import ddtrace
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
@@ -50,7 +52,7 @@ DEEP_TOOL_SCHEMA = {
 
 if vcr:
     logs_vcr = vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes"),
         record_mode="once",
         match_on=["path"],
         filter_headers=[
@@ -70,7 +72,7 @@ else:
 
 def get_azure_openai_vcr():
     return vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/azure_openai"),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes", "azure_openai"),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "api-key"],
@@ -80,7 +82,7 @@ def get_azure_openai_vcr():
 
 def get_vertexai_vcr():
     return vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/vertexai"),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes", "vertexai"),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "x-goog-api-key"],
@@ -90,7 +92,7 @@ def get_vertexai_vcr():
 
 def get_bedrock_vcr():
     return vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/bedrock"),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes", "bedrock"),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "X-Amz-Security-Token"],
@@ -221,11 +223,11 @@ def _expected_llmobs_llm_span_event(
     if not meta_dict["output"]:
         meta_dict.pop("output")
     if span_kind in ("llm", "embedding"):
-        meta_dict["model_name"] = model_name if model_name is not None else ""
-        meta_dict["model_provider"] = (model_provider or "custom").lower()
+        meta_dict["model_name"] = model_name if model_name is not None else UNKNOWN_MODEL_NAME
+        meta_dict["model_provider"] = (model_provider or UNKNOWN_MODEL_PROVIDER).lower()
     elif model_name is not None:
         meta_dict["model_name"] = model_name
-        meta_dict["model_provider"] = (model_provider or "custom").lower()
+        meta_dict["model_provider"] = (model_provider or UNKNOWN_MODEL_PROVIDER).lower()
     if tool_definitions is not None:
         meta_dict["tool_definitions"] = tool_definitions
     meta_dict.update({"metadata": metadata or {}})
