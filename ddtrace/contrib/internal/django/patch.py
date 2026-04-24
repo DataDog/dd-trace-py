@@ -167,6 +167,18 @@ def traced_populate(django, pin, func, instance, args, kwargs):
         except Exception:
             log.debug("Error patching rest_framework", exc_info=True)
 
+    # Eager endpoint discovery: walk the ROOT_URLCONF resolver now that apps
+    # are ready, so the telemetry "app-endpoints" payload is populated at
+    # startup (not only when a request arrives). Dynamic per-tenant urlconfs
+    # set by middleware are still picked up by the per-request walk in
+    # traced_get_response / traced_get_response_async.
+    try:
+        from django.urls import get_resolver
+
+        _collect_routes_once(get_resolver(None))
+    except Exception:
+        log.debug("Error collecting Django routes for endpoint discovery", exc_info=True)
+
     return ret
 
 
