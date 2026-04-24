@@ -15,6 +15,7 @@ from typing import Any
 from typing import Callable
 from typing import Iterable
 from typing import Optional
+from typing import Union
 from typing import cast
 import weakref
 
@@ -341,7 +342,7 @@ def _collect_pattern_methods(callback: Optional[Callable[..., Any]]) -> list[str
     return list(request_method_list) or ["*"]
 
 
-def _collect_django_routes(patterns: "Iterable[URLPattern | URLResolver]", prefix: str = "") -> None:
+def _collect_django_routes(patterns: "Iterable[Union[URLPattern, URLResolver]]", prefix: str = "") -> None:
     """Walk URLPattern / URLResolver nodes and register endpoints in endpoint_collection.
 
     Joins parent and child route segments with the same semantics Django
@@ -372,7 +373,7 @@ def _collect_django_routes(patterns: "Iterable[URLPattern | URLResolver]", prefi
                 endpoint_collection.add_endpoint(method, full_path, operation_name="django.request")
 
 
-def _collect_routes_once(resolver: "URLResolver | None") -> None:
+def _collect_routes_once(resolver: "Optional[URLResolver]") -> None:
     """Populate endpoint_collection by walking resolver.url_patterns once per resolver.
 
     Called from traced_get_response / traced_get_response_async on every
