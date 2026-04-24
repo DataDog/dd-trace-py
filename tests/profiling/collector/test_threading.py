@@ -469,6 +469,66 @@ def test_internal_lock_skips_asserts() -> None:
             raise error[0]
 
 
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
+def test_reentrant_unsampled_acquire_asserts_for_rlock() -> None:
+    """Unsampled re-entrant acquire on an RLock while a sampled hold is in progress must raise
+    AssertionError — the next release would emit a hold-time sample truncated at this inner
+    release rather than the true outer release.
+    """
+    import time
+
+    import pytest
+
+    from ddtrace.profiling import collector
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+
+    class RLock:  # class name must be exactly "RLock" to trigger the type check
+        def acquire(self, *args, **kwargs):
+            return True
+
+        def __enter__(self, *args, **kwargs):
+            return True
+
+        def __exit__(self, *args, **kwargs):
+            pass
+
+    sampler = collector.CaptureSampler(capture_pct=0)  # always unsampled
+    profiled = _ProfiledLock(wrapped=RLock(), tracer=None, capture_sampler=sampler)
+    profiled.acquired_time = time.monotonic_ns()  # simulate a prior sampled hold in progress
+
+    with pytest.raises(AssertionError, match="truncated hold-time sample"):
+        profiled.acquire()
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
+def test_reentrant_unsampled_acquire_no_assert_for_non_rlock() -> None:
+    """The truncated-hold-time assertion is RLock-only. Non-reentrant locks (Lock, Semaphore, …)
+    would deadlock before reaching this path in real usage, so the check is intentionally skipped
+    for them.
+    """
+    import time
+
+    from ddtrace.profiling import collector
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+
+    class Lock:  # any name other than "RLock" — type check must be False
+        def acquire(self, *args, **kwargs):
+            return True
+
+        def __enter__(self, *args, **kwargs):
+            return True
+
+        def __exit__(self, *args, **kwargs):
+            pass
+
+    sampler = collector.CaptureSampler(capture_pct=0)  # always unsampled
+    profiled = _ProfiledLock(wrapped=Lock(), tracer=None, capture_sampler=sampler)
+    profiled.acquired_time = time.monotonic_ns()  # simulate a prior sampled hold in progress
+
+    # Must NOT raise — the assertion is RLock-specific
+    profiled.acquire()
+
+
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="false"))
 def test_profiled_lock_ctor_handles_shallow_stack() -> None:
     """Test that _ProfiledLock.__init__ handles shallow stacks gracefully.
