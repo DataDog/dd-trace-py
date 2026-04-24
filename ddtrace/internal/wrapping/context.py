@@ -601,9 +601,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
                 bc = Bytecode.from_code(code := get_function_code(f))
             except IndexError:
                 if PY >= (3, 15):
-                    import logging as _logging
-
-                    _logging.getLogger(__name__).debug(
+                    log.debug(
                         "context wrapping skipped for %r: bytecode library does not support Python %d.%d yet",
                         f,
                         *PY[:2],
@@ -706,7 +704,18 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
             wrapped = t.cast(ContextWrappedFunction, f)
 
-            bc = Bytecode.from_code(get_function_code(f))
+            # AIDEV-TODO: drop when bytecode supports Python 3.15 (IndexError in from_code).
+            try:
+                bc = Bytecode.from_code(get_function_code(f))
+            except IndexError:
+                if PY >= (3, 15):
+                    log.debug(
+                        "context unwrapping skipped for %r: bytecode library does not support Python %d.%d yet",
+                        f,
+                        *PY[:2],
+                    )
+                    return
+                raise
 
             # Remove the exception handling code
             bc[-len(CONTEXT_FOOT) :] = []
