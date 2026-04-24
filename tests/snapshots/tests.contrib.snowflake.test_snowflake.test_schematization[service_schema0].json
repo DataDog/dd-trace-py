@@ -11,8 +11,8 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dfa96800000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69eba78e00000000",
+      "_dd.svc_src": "snowflake",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "snowflake",
       "db.application": "PythonConnector",
@@ -23,7 +23,7 @@
       "db.warehouse": "mock-warehouse-name",
       "language": "python",
       "out.host": "mock-account.snowflakecomputing.com",
-      "runtime-id": "8c8dfebbe0904597a0fcf52be9fbcb6a",
+      "runtime-id": "98853afc2abd4257a110a49d9fa86113",
       "server.address": "mock-account.snowflakecomputing.com",
       "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d",
       "span.kind": "client"
@@ -35,8 +35,8 @@
       "_sampling_priority_v1": 1.0,
       "db.row_count": 1.0,
       "network.destination.port": 443.0,
-      "process_id": 98240.0
+      "process_id": 40667.0
     },
-    "duration": 610084,
-    "start": 1776265576252002505
+    "duration": 554833,
+    "start": 1777051534692728966
   }]]
