@@ -203,7 +203,7 @@ class TestAIGuardPopulatesRootSpan:
 
 
 class TestOutboundClientSpansDoNotStash:
-    """Only inbound (WEB) spans may stash the candidate IP; client spans must be ignored."""
+    """Only inbound server spans (WEB, SERVERLESS) may stash the candidate IP; client spans must be ignored."""
 
     def test_outbound_http_client_span_does_not_stash(self, integration_config):
         # Simulate an aiohttp-style outbound client span: span_type=HTTP, forwarded headers
@@ -233,6 +233,19 @@ class TestOutboundClientSpansDoNotStash:
                 client_span,
                 integration_config,
                 request_headers={"x-forwarded-for": "1.2.3.4"},
+            )
+
+        assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) == "8.8.8.8"
+
+    def test_serverless_span_stashes_candidate_ip(self, integration_config):
+        # Serverless entry spans (e.g. AWS Lambda) must also stash the candidate IP so
+        # that evaluate() can later tag the root span — WEB is not the only valid entry kind.
+        serverless_span = Span("aws.lambda", span_type=SpanTypes.SERVERLESS)
+        with override_ai_guard_config(AI_GUARD_CONFIG):
+            set_http_meta(
+                serverless_span,
+                integration_config,
+                request_headers={"x-forwarded-for": "8.8.8.8"},
             )
 
         assert core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY) == "8.8.8.8"

@@ -58,12 +58,12 @@ def _on_set_http_meta_for_ai_guard(
 ) -> None:
     # Stash the candidate client IP so it can be applied to the service-entry span
     # only if an ai_guard span is actually created during the request. Restricted to
-    # inbound server (WEB) spans so outbound HTTP client spans can't overwrite the key
-    # with forwarded-IP headers from downstream calls.
+    # inbound server (WEB/SERVERLESS) spans so outbound HTTP client spans can't overwrite
+    # the key with forwarded-IP headers from downstream calls.
     # https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6523551943
     if not ai_guard_config._ai_guard_enabled:
         return
-    if span.span_type != SpanTypes.WEB:
+    if span.span_type not in (SpanTypes.WEB, SpanTypes.SERVERLESS):
         return
     candidate_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
     if candidate_ip:
