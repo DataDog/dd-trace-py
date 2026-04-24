@@ -130,22 +130,15 @@ variables:
         IMAGE_TAG: *AARCH64_IMAGES
         DD_SERVERLESS_BUILD: "1"
 
-"build macos":
+.build_macos_base:
   extends: .build_base
-  tags: [ "macos:sonoma-$ARCH_TAG", "specific:true" ]
-  parallel:
-    matrix:
-      # amd64 runners are slower
-      - ARCH_TAG: "amd64"
-        PYTHON_VERSIONS:
-          - "3.9 3.10 3.11"
-          - "3.12 3.13 3.14"
-      - ARCH_TAG: "arm64"
-        PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
   variables:
     SYSTEM_VERSION_COMPAT: "0"
+    MACOSX_DEPLOYMENT_TARGET: "14.7"
     DD_USE_SCCACHE: "1"
   script: |
+    # Forces word splitting in zsh
+    setopt shwordsplit 2>/dev/null || true
     set -euo pipefail
     if ! command -v sccache &> /dev/null; then
       brew install sccache
@@ -159,6 +152,26 @@ variables:
       echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
     done
     sccache --show-stats
+
+"build macos amd64":
+  extends: .build_macos_base
+  tags: [ "macos:sonoma-amd64", "specific:true" ]
+  variables:
+    ARCH_TAG: "amd64"
+  parallel:
+    matrix:
+      # amd64 runners are slower
+      - PYTHON_VERSIONS:
+          - "3.9 3.10 3.11"
+          - "3.12 3.13 3.14"
+
+"build macos arm64":
+  extends: .build_macos_base
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-6fb8511f-106729702"
+  tags: [ "macos:sonoma-tart" ]
+  variables:
+    ARCH_TAG: "arm64"
+    PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
 
 # Only amd64 manylinux2014 wheels
 "upload manylinux2014_x86_64":
@@ -404,7 +417,8 @@ download_dependency_wheels:
   extends: .package_base
   needs:
     - "build linux"
-    - "build macos"
+    - "build macos amd64"
+    - "build macos arm64"
     - "build sdist"
     - "collect windows wheels"
     - "package version"
