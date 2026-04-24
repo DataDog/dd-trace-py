@@ -2,7 +2,11 @@
 set -e -u -o pipefail
 
 SUITE_NAME="${1:-}"
-hashes=( $(./.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
+if [[ -n "${RIOT_HASHES:-}" ]]; then
+  read -r -a hashes <<< "${RIOT_HASHES}"
+else
+  hashes=( $(./.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
+fi
 # Get the sha256sum of all the requirements files combined
 for hash in "${hashes[@]}"; do
   req_file="./.riot/requirements/${hash}.txt"

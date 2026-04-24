@@ -47,6 +47,7 @@ class JobSpec:
     name: str
     stage: str
     pattern: t.Optional[str] = None
+    hashes: t.Optional[tuple[str, ...]] = None
     snapshot: bool = False
     services: t.Optional[list[str]] = None
     env: t.Optional[dict[str, str]] = None
@@ -122,9 +123,15 @@ class JobSpec:
             env["SUITE_NAME"] = self.pattern or self.name
 
         suite_name = env["SUITE_NAME"]
+        cache_env = os.environ.copy()
+        if self.hashes:
+            env["RIOT_HASHES"] = " ".join(self.hashes)
+            cache_env["RIOT_HASHES"] = env["RIOT_HASHES"]
         env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
         env["PIP_CACHE_KEY"] = (
-            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
+            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name], env=cache_env)
+            .decode()
+            .strip()
         )
         lines.append("  cache:")
         lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
@@ -159,10 +166,13 @@ class JobSpec:
 class SuiteVenvInfo:
     venv_count: int
     python_versions: set[str]
+    hashes: tuple[str, ...]
 
 
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
 _global_python_versions: set[str] = set()
+_suite_filters: dict[str, tuple[str | None, str | None, str | None]] = {}
+_explicit_suite_selection: set[str] = set()
 
 # Target minimum number of GitLab job instances for a CI run (used to scale up sparse runs)
 TARGET_JOBS = 200
@@ -185,6 +195,9 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
     """
     # Importing will load/evaluate the whole riotfile.py
     import riotfile
+    from scripts.riot_selection import RiotInstanceMetadata
+    from scripts.riot_selection import RiotSelectionFilters
+    from scripts.riot_selection import select_instances_for_suite
 
     compiled: dict[str, re.Pattern] = {}
     for suite, pattern in suite_patterns.items():
@@ -193,26 +206,36 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
         except re.error:
             LOGGER.warning("Invalid pattern for suite %s: %s", suite, pattern)
 
-    venv_hashes: dict[str, set] = {s: set() for s in compiled}
-    python_versions: dict[str, set] = {s: set() for s in compiled}
+    instances_by_suite: dict[str, list[RiotInstanceMetadata]] = {s: [] for s in compiled}
 
     for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
         if not inst.name:
             continue
         hint = inst.py._hint  # type: ignore[attr-defined]
+        instance = RiotInstanceMetadata(
+            hash=inst.short_hash,  # type: ignore[attr-defined]
+            python_version=hint if re.match(r"^3\.\d+$", hint) else None,
+            packages={
+                str(package_name).lower(): package_spec for package_name, package_spec in (inst.pkgs or {}).items()
+            },
+        )
         for suite, regex in compiled.items():
             if inst.matches_pattern(regex):  # type: ignore[attr-defined]
-                venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
-                # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
-                if re.match(r"^3\.\d+$", hint):
-                    python_versions[suite].add(hint)
+                instances_by_suite[suite].append(instance)
 
     result: dict[str, SuiteVenvInfo] = {}
     for suite in compiled:
-        if venv_hashes[suite]:
+        filters = RiotSelectionFilters(*_suite_filters.get(suite, (None, None, None)))
+        try:
+            selection = select_instances_for_suite(suite, instances_by_suite[suite], filters=filters)
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
+
+        if selection.hashes:
             result[suite] = SuiteVenvInfo(
-                venv_count=len(venv_hashes[suite]),
-                python_versions=python_versions[suite],
+                venv_count=len(selection.hashes),
+                python_versions=set(selection.python_versions),
+                hashes=selection.hashes,
             )
         else:
             LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite, suite_patterns[suite])
@@ -303,18 +326,41 @@ def _scale_suites(
 
 def gen_required_suites() -> None:
     """Generate the list of test and benchmark suites that need to be run."""
+    global _explicit_suite_selection
+    global _suite_filters
+
     import suitespec
+
+    from scripts.riot_selection import resolve_suite_name
 
     suites = suitespec.get_suites()
 
     required_suites: list[str] = []
+    _explicit_suite_selection = set()
+    _suite_filters = {}
 
     if args.suites:
         # --suite: explicit suite selection, bypass PR/file detection entirely
-        unknown = [s for s in args.suites if s not in suites]
+        unknown = []
+        resolved_suites = []
+        seen_suites = set()
+        for requested_suite in args.suites:
+            try:
+                resolved_suite = resolve_suite_name(requested_suite, suites)
+            except ValueError:
+                unknown.append(requested_suite)
+                continue
+            if resolved_suite in seen_suites:
+                continue
+            seen_suites.add(resolved_suite)
+            resolved_suites.append(resolved_suite)
         if unknown:
             LOGGER.warning("Unknown suite(s) specified via --suite: %s", unknown)
-        required_suites = [s for s in args.suites if s in suites]
+        required_suites = resolved_suites
+        _explicit_suite_selection = set(required_suites)
+        if args.package_version or args.package_name or args.python_version:
+            for suite_name in required_suites:
+                _suite_filters[suite_name] = (args.package_name, args.package_version, args.python_version)
         LOGGER.info("Using explicit suite selection: %s", required_suites)
     elif args.files:
         # --file: match supplied files against suite patterns (same logic as needs_testrun
@@ -494,7 +540,10 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
         venvs_per_job = config.get("venvs_per_job")
 
         if static_parallelism is not None:
-            baseline_jobs[suite] = static_parallelism
+            if suite in _explicit_suite_selection and suite in suite_venv_info:
+                baseline_jobs[suite] = min(static_parallelism, max(suite_venv_info[suite].venv_count, 1))
+            else:
+                baseline_jobs[suite] = static_parallelism
             if suite in suite_venv_info:
                 scalable_suites.append(suite)
         elif venvs_per_job is not None and suite in suite_venv_info:
@@ -507,7 +556,7 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
     # Scale up suites if total job count is below the target
     total_baseline = sum(baseline_jobs.values())
-    if total_baseline < TARGET_JOBS and scalable_suites:
+    if not _explicit_suite_selection and total_baseline < TARGET_JOBS and scalable_suites:
         LOGGER.info(
             "Total baseline jobs (%d) below target (%d), scaling up %d suite(s)",
             total_baseline,
@@ -527,19 +576,23 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             clean_name = suite_config.pop("_clean_name", suite)
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
-            jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, **suite_config)
+            hashes = (
+                suite_venv_info[suite].hashes
+                if suite in _explicit_suite_selection and suite in suite_venv_info
+                else None
+            )
+            jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, hashes=hashes, **suite_config)
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
 
             # Apply final parallelism (may be higher than baseline if scaling was applied)
             final_parallelism = final_jobs.get(suite)
-            if final_parallelism is not None and final_parallelism > 1:
+            if final_parallelism is not None:
                 if jobspec.parallelism != final_parallelism:
                     LOGGER.info("Suite %s: parallelism=%d", suite, final_parallelism)
-                jobspec.parallelism = final_parallelism
-            elif jobspec.parallelism is None and (final_parallelism is None or final_parallelism <= 1):
-                pass  # leave as None (GitLab default: single job)
+                if final_parallelism > 1 or jobspec.parallelism is not None or suite in _explicit_suite_selection:
+                    jobspec.parallelism = final_parallelism
 
             print(str(jobspec), file=f)
 
@@ -770,7 +823,27 @@ argp.add_argument(
     metavar="FILE",
     help="Treat this file as changed for suite/precheck detection (can be repeated). Bypasses PR detection.",
 )
+argp.add_argument(
+    "--package-version",
+    dest="package_version",
+    metavar="VERSION",
+    help="Only keep riot envs whose integration dependency matches this version. Use 'latest' for the latest row.",
+)
+argp.add_argument(
+    "--package-name",
+    dest="package_name",
+    metavar="PACKAGE",
+    help="Dependency name to version-filter on when a suite maps to multiple packages.",
+)
+argp.add_argument(
+    "--python-version",
+    dest="python_version",
+    metavar="PYTHON",
+    help="Only keep riot envs for this Python version (for example 3.10).",
+)
 args = argp.parse_args()
+if (args.package_version or args.package_name or args.python_version) and not args.suites:
+    argp.error("--package-version, --package-name, and --python-version require --suite")
 if args.debug:
     LOGGER.setLevel(logging.DEBUG)
 elif args.verbose:

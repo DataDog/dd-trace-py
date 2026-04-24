@@ -39,7 +39,7 @@ microbenchmarks:
             PYTHON_TAG: "cp39-cp39"
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   rules:
-    - if: $TARGET_SUITE
+    - if: $TEST_SUITE
       when: never
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"

@@ -17,11 +17,15 @@ targeted-tests-gen:
       aud: dd-octo-sts
   script:
     - |
-      if [ -z "${TARGET_SUITE:-}" ]; then
-        echo "TARGET_SUITE must be set"
+      resolved_python_version="${TEST_PYTHON_VERSION:-${PYTHON_VERSION:-}}"
+      if [ -z "${TEST_SUITE:-}" ]; then
+        echo "TEST_SUITE must be set"
         exit 1
       fi
-      echo "TARGET_SUITE: ${TARGET_SUITE}"
+      echo "TEST_SUITE: ${TEST_SUITE}"
+      echo "TEST_VERSION: ${TEST_VERSION:-}"
+      echo "TEST_PYTHON_VERSION: ${resolved_python_version:-}"
+      echo "TEST_PACKAGE: ${TEST_PACKAGE:-}"
       echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
       echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD:-}"
     - |
@@ -29,7 +33,19 @@ targeted-tests-gen:
         # Use dd-octo-sts to get GitHub token for suite detection helpers.
         export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
       fi
-    - scripts/gen_gitlab_config.py --verbose --suite "${TARGET_SUITE}"
+    - |
+      resolved_python_version="${TEST_PYTHON_VERSION:-${PYTHON_VERSION:-}}"
+      set -- scripts/gen_gitlab_config.py --verbose --suite "${TEST_SUITE}"
+      if [ -n "${TEST_VERSION:-}" ]; then
+        set -- "$@" --package-version "${TEST_VERSION}"
+      fi
+      if [ -n "${resolved_python_version:-}" ]; then
+        set -- "$@" --python-version "${resolved_python_version}"
+      fi
+      if [ -n "${TEST_PACKAGE:-}" ]; then
+        set -- "$@" --package-name "${TEST_PACKAGE}"
+      fi
+      "$@"
     - cp .gitlab/tests-gen.yml .gitlab/targeted-tests-gen.yml
   artifacts:
     paths:

@@ -29,7 +29,12 @@ include:
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
   script:
     - |
-      hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
+      if [[ -n "${RIOT_HASHES:-}" ]]; then
+        read -r -a selected_hashes <<< "${RIOT_HASHES}"
+        hashes=( $(printf '%s\n' "${selected_hashes[@]}" | sort | ./.gitlab/ci-split-input.sh) )
+      else
+        hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
+      fi
       echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD}"
       if [[ ${#hashes[@]} -eq 0 ]]; then
         echo "No riot hashes found for ${SUITE_NAME}"

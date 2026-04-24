@@ -40,7 +40,7 @@ default:
 
 .skip_targeted_suite:
   rules:
-    - if: $TARGET_SUITE
+    - if: $TEST_SUITE
       when: never
 
 # trigger new commit cancel
@@ -60,56 +60,56 @@ include:
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/one-pipeline.locked.yml"
     rules:
-      - if: $TARGET_SUITE
+      - if: $TEST_SUITE
         when: never
       - when: always
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/testrunner.yml"
-  # Files below are excluded entirely when TARGET_SUITE is set so that only the
+  # Files below are excluded entirely when TEST_SUITE is set so that only the
   # targeted test generation / trigger path is compiled.
   - local: ".gitlab/package.yml"
     rules:
-      - if: $TARGET_SUITE
+      - if: $TEST_SUITE
         when: never
       - when: always
   - local: ".gitlab/release.yml"
     rules:
-      - if: $TARGET_SUITE
+      - if: $TEST_SUITE
         when: never
       - when: always
   - local: ".gitlab/debugging-exploration.yml"
     rules:
-      - if: $TARGET_SUITE
+      - if: $TEST_SUITE
         when: never
       - when: always
   - local: ".gitlab/multi-os-tests.yml"
     rules:
-      - if: $TARGET_SUITE
+      - if: $TEST_SUITE
         when: never
       - when: always
   - local: ".gitlab/benchmarks/serverless.yml"
     rules:
-      - if: $TARGET_SUITE
+      - if: $TEST_SUITE
         when: never
       - when: always
   - local: ".gitlab/native.yml"
     rules:
-      - if: $TARGET_SUITE
+      - if: $TEST_SUITE
         when: never
       - when: always
   - local: ".gitlab/system-tests.yml"
     rules:
-      - if: $TARGET_SUITE
+      - if: $TEST_SUITE
         when: never
       - when: always
   - local: ".gitlab/fuzz.yml"
     rules:
-      - if: $TARGET_SUITE
+      - if: $TEST_SUITE
         when: never
       - when: always
   - local: ".gitlab/normal-pipeline-overrides.yml"
     rules:
-      - if: $TARGET_SUITE
+      - if: $TEST_SUITE
         when: never
       - when: always
 
@@ -136,9 +136,9 @@ tests-gen:
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
-  # Skip when a single targeted suite is requested via TARGET_SUITE.
+  # Skip when a single targeted suite is requested via TEST_SUITE.
   rules:
-    - if: $TARGET_SUITE
+    - if: $TEST_SUITE
       when: never
     - when: on_success
   script:
@@ -167,7 +167,7 @@ run-tests-trigger:
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
  # Allow the child job to fail if explicitly asked
  rules:
-   - if: $TARGET_SUITE
+   - if: $TEST_SUITE
      when: never
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
      allow_failure: true
@@ -179,14 +179,17 @@ run-tests-trigger:
    strategy: depend
 
 # Run a single test suite without triggering the rest of the pipeline.
-# Set TARGET_SUITE to the suite name (e.g. kombu, celery, redis) when running
-# the pipeline from the GitLab UI or via the API.
+# Set TEST_SUITE to the suite name (for example contrib::kombu or kombu) when
+# running the pipeline from the GitLab UI or via the API. Optional filters:
+#   TEST_VERSION=5.2.1
+#   TEST_PYTHON_VERSION=3.10
+#   TEST_PACKAGE=redis-py-cluster
 targeted-tests-gen:
   stage: tests
   extends: .testrunner
   needs: []
   rules:
-    - if: $TARGET_SUITE
+    - if: $TEST_SUITE
   variables:
     UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
     NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
@@ -195,7 +198,15 @@ targeted-tests-gen:
       aud: dd-octo-sts
   script:
     - |
-      echo "TARGET_SUITE: ${TARGET_SUITE}"
+      resolved_python_version="${TEST_PYTHON_VERSION:-${PYTHON_VERSION:-}}"
+      if [ -z "${TEST_SUITE:-}" ]; then
+        echo "TEST_SUITE must be set"
+        exit 1
+      fi
+      echo "TEST_SUITE: ${TEST_SUITE}"
+      echo "TEST_VERSION: ${TEST_VERSION:-}"
+      echo "TEST_PYTHON_VERSION: ${resolved_python_version:-}"
+      echo "TEST_PACKAGE: ${TEST_PACKAGE:-}"
       echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
       echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD:-}"
     - |
@@ -203,7 +214,19 @@ targeted-tests-gen:
       then
         export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
       fi
-    - scripts/gen_gitlab_config.py --verbose --suite "${TARGET_SUITE}"
+    - |
+      resolved_python_version="${TEST_PYTHON_VERSION:-${PYTHON_VERSION:-}}"
+      set -- scripts/gen_gitlab_config.py --verbose --suite "${TEST_SUITE}"
+      if [ -n "${TEST_VERSION:-}" ]; then
+        set -- "$@" --package-version "${TEST_VERSION}"
+      fi
+      if [ -n "${resolved_python_version:-}" ]; then
+        set -- "$@" --python-version "${resolved_python_version}"
+      fi
+      if [ -n "${TEST_PACKAGE:-}" ]; then
+        set -- "$@" --package-name "${TEST_PACKAGE}"
+      fi
+      "$@"
     - cp .gitlab/tests-gen.yml .gitlab/targeted-tests-gen.yml
   artifacts:
     paths:
@@ -213,9 +236,9 @@ targeted-run-tests-trigger:
   stage: tests
   needs: [ targeted-tests-gen ]
   rules:
-    - if: $TARGET_SUITE && $RELEASE_ALLOW_TEST_FAILURES == "true"
+    - if: $TEST_SUITE && $RELEASE_ALLOW_TEST_FAILURES == "true"
       allow_failure: true
-    - if: $TARGET_SUITE
+    - if: $TEST_SUITE
       allow_failure: false
     - when: never
   variables:
