@@ -509,7 +509,7 @@ class Tracer(object):
                 service = service_source = config.service
         else:
             if service in [conf._default_service for conf in config._integration_configs.values()]:
-                service_source = service  # type: ignore
+                service_source = service
             else:
                 service_source = "m"
 
