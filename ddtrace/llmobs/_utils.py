@@ -478,7 +478,7 @@ def _annotate_llmobs_span_data(
         meta.setdefault(LLMOBS_STRUCT.INPUT, _MetaIO())
         meta.setdefault(LLMOBS_STRUCT.OUTPUT, _MetaIO())
         meta.setdefault(LLMOBS_STRUCT.SPAN, _SpanField(kind=kind or ""))
-        meta.setdefault(LLMOBS_STRUCT.METADATA, {})
+        meta.setdefault(LLMOBS_STRUCT.METADATA, {}).setdefault(LLMOBS_STRUCT.METADATA_DD, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.TAGS, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.METRICS, {})
 
@@ -498,7 +498,8 @@ def _annotate_llmobs_span_data(
         if model_provider is not None:
             meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
-            meta[LLMOBS_STRUCT.METADATA].update(metadata)
+            # _dd is reserved for Datadog-internal metadata; don't let user metadata clobber it.
+            meta[LLMOBS_STRUCT.METADATA].update({k: v for k, v in metadata.items() if k != LLMOBS_STRUCT.METADATA_DD})
         if agent_manifest is not None:
             metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
             metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
@@ -507,12 +508,9 @@ def _annotate_llmobs_span_data(
         if tags is not None:
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
         if cost_tags is not None:
-            metadata_dict = meta[LLMOBS_STRUCT.METADATA]
-            metadata_dd = metadata_dict.get(LLMOBS_STRUCT.METADATA_DD)
-            if not isinstance(metadata_dd, dict):
-                metadata_dd = {}
-                metadata_dict[LLMOBS_STRUCT.METADATA_DD] = metadata_dd
-            existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
+            existing_cost_tags = meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.METADATA_DD].setdefault(
+                LLMOBS_STRUCT.COST_TAGS, []
+            )
             for cost_tag in cost_tags:
                 if cost_tag not in existing_cost_tags:
                     existing_cost_tags.append(cost_tag)
