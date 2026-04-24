@@ -189,32 +189,12 @@ def record_llmobs_annotate(span: Optional[Span], error: Optional[str]):
     )
 
 
-def _cost_tags_num_keys_bucket(num_keys: Optional[int]) -> str:
-    if num_keys is None:
-        return "unknown"
-    if num_keys == 1:
-        return "1"
-    if num_keys < 5:
-        return "2-4"
-    if num_keys <= 10:
-        return "5-10"
-    return "10+"
-
-
-def record_cost_tags_annotated(span: Optional[Span], source: str, num_keys: Optional[int]) -> None:
-    span_kind = "N/A"
-    ml_app = "N/A"
-    model_provider = "N/A"
-    if span and isinstance(span, Span):
-        span_kind = get_llmobs_span_kind(span) or "N/A"
-        ml_app = get_llmobs_ml_app(span) or "N/A"
-        model_provider = get_llmobs_model_provider(span) or "N/A"
+def record_cost_tags_annotated(span: Span, source: str) -> None:
     tags = [
-        ("span_kind", span_kind),
+        ("span_kind", get_llmobs_span_kind(span) or "N/A"),
         ("source", source),
-        ("ml_app", ml_app),
-        ("model_provider", model_provider),
-        ("num_keys", _cost_tags_num_keys_bucket(num_keys)),
+        ("ml_app", get_llmobs_ml_app(span) or "N/A"),
+        ("model_provider", get_llmobs_model_provider(span) or "N/A"),
     ]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
@@ -224,19 +204,12 @@ def record_cost_tags_annotated(span: Optional[Span], source: str, num_keys: Opti
     )
 
 
-def record_cost_tags_submitted(span: Optional[Span], count: int, source: str, state: str, reason: str = "none") -> None:
-    span_kind = "N/A"
-    ml_app = "N/A"
-    model_provider = "N/A"
-    if span and isinstance(span, Span):
-        span_kind = get_llmobs_span_kind(span) or "N/A"
-        ml_app = get_llmobs_ml_app(span) or "N/A"
-        model_provider = get_llmobs_model_provider(span) or "N/A"
+def record_cost_tags_submitted(span: Span, count: int, source: str, state: str, reason: str = "none") -> None:
     tags = [
-        ("span_kind", span_kind),
+        ("span_kind", get_llmobs_span_kind(span) or "N/A"),
         ("source", source),
-        ("ml_app", ml_app),
-        ("model_provider", model_provider),
+        ("ml_app", get_llmobs_ml_app(span) or "N/A"),
+        ("model_provider", get_llmobs_model_provider(span) or "N/A"),
         ("state", state),
         ("reason", reason),
     ]
