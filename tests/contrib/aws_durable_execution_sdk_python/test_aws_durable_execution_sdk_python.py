@@ -20,6 +20,9 @@ import pytest
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import _normalize_headers_for_checkpoint_comparison
+from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import _traced_invoke
+from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import _traced_wait_for_callback
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import patch
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import unpatch
 from tests.utils import TracerSpanContainer
@@ -1314,6 +1317,66 @@ class TestContextPropagation:
         assert invoke_span.get_tag("component") == "aws_durable_execution_sdk_python"
         assert invoke_span.get_tag("aws.durable_execution.invoke.function_name") == "payment-fn"
 
+    def test_injection_with_keyword_empty_dict_payload(self, tracer):
+        """Keyword payload={} should still be treated as injectable payload."""
+        captured = {}
+
+        def _fake_invoke(*invoke_args, **invoke_kwargs):
+            captured["args"] = invoke_args
+            captured["kwargs"] = invoke_kwargs
+            return {"ok": True}
+
+        with override_config("aws_durable_execution_sdk_python", dict(distributed_tracing_enabled=True)):
+            result = _traced_invoke(
+                _fake_invoke,
+                object(),
+                ("payment-fn",),
+                {"payload": {}, "name": "process-payment"},
+            )
+
+        assert result == {"ok": True}
+        assert "payload" in captured["kwargs"]
+        forwarded_payload = captured["kwargs"]["payload"]
+        assert isinstance(forwarded_payload, dict)
+        assert "_datadog" in forwarded_payload
+        assert "x-datadog-trace-id" in forwarded_payload["_datadog"]
+        assert "x-datadog-parent-id" in forwarded_payload["_datadog"]
+
+        spans = tracer.pop()
+        invoke_spans = [s for s in spans if s.name == "aws.durable_execution.invoke"]
+        assert len(invoke_spans) == 1
+
+    def test_injection_merges_existing_datadog_headers(self, tracer):
+        """Existing _datadog payload fields should be preserved and merged."""
+        existing_datadog = {"custom-header": "keep-me"}
+        original_payload = {"order_id": "ORD-42", "_datadog": existing_datadog}
+        captured = {}
+
+        def _fake_invoke(*invoke_args, **invoke_kwargs):
+            captured["args"] = invoke_args
+            captured["kwargs"] = invoke_kwargs
+            return {"ok": True}
+
+        with override_config("aws_durable_execution_sdk_python", dict(distributed_tracing_enabled=True)):
+            _traced_invoke(
+                _fake_invoke,
+                object(),
+                ("payment-fn", original_payload),
+                {"name": "process-payment"},
+            )
+
+        forwarded_payload = captured["args"][1]
+        assert forwarded_payload is not original_payload
+        assert forwarded_payload["_datadog"] is not existing_datadog
+        assert forwarded_payload["_datadog"]["custom-header"] == "keep-me"
+        assert "x-datadog-trace-id" in forwarded_payload["_datadog"]
+        assert "x-datadog-parent-id" in forwarded_payload["_datadog"]
+        assert "x-datadog-trace-id" not in existing_datadog
+
+        spans = tracer.pop()
+        invoke_spans = [s for s in spans if s.name == "aws.durable_execution.invoke"]
+        assert len(invoke_spans) == 1
+
     def test_injection_does_not_mutate_original_payload(self, tracer):
         """Injecting _datadog should not mutate the caller's original payload dict.
 
@@ -1343,6 +1406,84 @@ class TestContextPropagation:
         assert "_datadog" not in original_payload, (
             "Original payload dict should not be mutated by injection"
         )
+
+    def test_suspend_fallback_saves_checkpoint_without_execute_span(self, tracer):
+        """Suspend in wait_for_callback should save _dd_trace_context_0 as fallback.
+
+        This covers runtime scenarios where method wrappers are active but the
+        decorator-level execute span wrapper is not.
+        """
+        from aws_durable_execution_sdk_python.exceptions import SuspendExecution
+
+        class _MockState(object):
+            def __init__(self):
+                self.durable_execution_arn = DURABLE_EXECUTION_ARN
+                self.operations = {}
+                self.calls = []
+
+            def create_checkpoint(self, operation_update, is_sync=True):
+                self.calls.append((operation_update, is_sync))
+
+        class _MockDurableContext(object):
+            def __init__(self, state):
+                self.state = state
+
+        def _suspending_wait(*_args, **_kwargs):
+            raise SuspendExecution("suspend for callback")
+
+        state = _MockState()
+        durable_context = _MockDurableContext(state)
+
+        with tracer.tracer.trace("aws.lambda") as lambda_span:
+            with pytest.raises(SuspendExecution):
+                _traced_wait_for_callback(
+                    _suspending_wait,
+                    durable_context,
+                    (),
+                    {"name": "callback-wait"},
+                )
+
+        # One checkpoint is persisted as STEP START + STEP SUCCEED.
+        assert len(state.calls) == 2
+        start_update, start_sync = state.calls[0]
+        finish_update, finish_sync = state.calls[1]
+        assert start_sync is True
+        assert finish_sync is True
+        assert start_update.name == "_dd_trace_context_0"
+        assert finish_update.name == "_dd_trace_context_0"
+
+        headers = json.loads(finish_update.payload)
+        assert headers.get("x-datadog-trace-id")
+        assert headers.get("x-datadog-parent-id") == str(lambda_span.span_id)
+
+        spans = tracer.pop()
+        wait_spans = [s for s in spans if s.name == "aws.durable_execution.wait_for_callback"]
+        assert len(wait_spans) == 1
+
+    def test_checkpoint_header_comparison_ignores_tracestate_dd_parent(self, tracer):
+        """Checkpoint comparison should ignore tracestate dd.p differences."""
+        traceparent_a = "00-5d89697714596e30000000000000000-2a9e29982216c13a-01"
+        traceparent_b = "00-5d89697714596e30000000000000000-1d136d04e3515ce8-01"
+        tracestate_a = "dd=t.tid:5d89697714596e3;s:1;p:2a9e29982216c13a,congo=t61rcWkgMzE"
+        tracestate_b = "dd=t.tid:5d89697714596e3;s:1;p:1d136d04e3515ce8,congo=t61rcWkgMzE"
+
+        headers_a = {
+            "x-datadog-trace-id": "464651002939861672",
+            "x-datadog-parent-id": "3076973402166868346",
+            "x-datadog-tags": "_dd.p.tid=5d89697714596e3",
+            "traceparent": traceparent_a,
+            "tracestate": tracestate_a,
+        }
+        headers_b = {
+            "x-datadog-trace-id": "464651002939861672",
+            "x-datadog-parent-id": "2090769253242836200",
+            "x-datadog-tags": "_dd.p.tid=5d89697714596e3",
+            "traceparent": traceparent_b,
+            "tracestate": tracestate_b,
+        }
+
+        assert _normalize_headers_for_checkpoint_comparison(headers_a) == \
+            _normalize_headers_for_checkpoint_comparison(headers_b)
 
     def test_distributed_tracing_enabled_by_default(self, tracer):
         """distributed_tracing_enabled should be True by default."""

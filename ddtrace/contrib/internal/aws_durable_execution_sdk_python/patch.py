@@ -30,11 +30,9 @@ from concurrent.futures import ThreadPoolExecutor
 import aws_durable_execution_sdk_python
 
 from ddtrace import config
-from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
-from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator as Propagator
 
@@ -43,6 +41,7 @@ log = get_logger(__name__)
 
 _CHECKPOINT_NAME_PREFIX = "_dd_trace_context_"
 _TERMINAL_STATUSES = ("SUCCEEDED", "FAILED")
+_DURABLE_DEBUG_REV = "checkpoint-debug-v3-2026-04-24"
 
 
 config._add(
@@ -78,6 +77,60 @@ def _get_service():
     if custom:
         return custom
     return int_service(None, config.aws_durable_execution_sdk_python)
+
+
+def _start_integration_span(operation_name, span_type, span_kind, resource, tags=None, parent_context=None):
+    """Create and activate a span without relying on span.lifecycle handlers.
+
+    AIDEV-NOTE: We intentionally avoid ``core.context_with_event(TracingEvent)``
+    here to maintain compatibility with runtimes where span.lifecycle handlers
+    are unavailable/misaligned, which otherwise causes fallback ``default`` spans.
+    """
+    from ddtrace import tracer
+
+    integration_name = getattr(
+        config.aws_durable_execution_sdk_python, "integration_name", "aws_durable_execution_sdk_python"
+    )
+    child_of = parent_context if parent_context is not None else tracer.context_provider.active()
+    span = tracer.start_span(
+        operation_name,
+        child_of=child_of,
+        service=_get_service(),
+        resource=resource,
+        span_type=span_type,
+        activate=True,
+    )
+    span.set_tag("component", integration_name)
+    span.set_tag("span.kind", span_kind)
+    for k, v in (tags or {}).items():
+        if v is not None:
+            span.set_tag(k, v)
+    return span
+
+
+def _checkpoint_debug(message, **fields):
+    """Emit debug prints for checkpoint decision flow."""
+    try:
+        if fields:
+            print("[DD-DURABLE][checkpoint] {} {}".format(message, fields))
+        else:
+            print("[DD-DURABLE][checkpoint] {}".format(message))
+    except Exception:
+        # Debug logging must never impact application flow.
+        pass
+
+
+def _checkpoint_header_summary(headers):
+    if not isinstance(headers, dict):
+        return {"valid": False, "type": type(headers).__name__}
+    return {
+        "trace_id": headers.get("x-datadog-trace-id"),
+        "parent_id": headers.get("x-datadog-parent-id"),
+        "sampling_priority": headers.get("x-datadog-sampling-priority"),
+        "traceparent": headers.get("traceparent"),
+        "tracestate": headers.get("tracestate"),
+        "keys": sorted(headers.keys()),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -192,8 +245,47 @@ def _headers_parent_id(headers):
     return None
 
 
-def _normalize_headers_ignoring_parent_id(headers):
-    """Return a copy of headers with the parent_id fields zeroed/removed."""
+def _normalize_tracestate_ignoring_dd_parent(tracestate):
+    """Normalize ``tracestate`` by removing Datadog's ``p:`` member.
+
+    ``p:`` encodes the current parent span id and is expected to differ across
+    invocations. For checkpoint dedupe we treat those differences as equivalent.
+    """
+    if not isinstance(tracestate, str):
+        return tracestate
+
+    members = [part.strip() for part in tracestate.split(",") if part.strip()]
+    normalized_members = []
+
+    for member in members:
+        if not member.startswith("dd="):
+            normalized_members.append(member)
+            continue
+
+        _, _, value = member.partition("=")
+        if not value:
+            continue
+
+        dd_parts = []
+        for dd_part in value.split(";"):
+            dd_part = dd_part.strip()
+            if not dd_part:
+                continue
+            if dd_part.startswith("p:"):
+                continue
+            dd_parts.append(dd_part)
+
+        if dd_parts:
+            normalized_members.append("dd={}".format(";".join(dd_parts)))
+
+    return ",".join(normalized_members)
+
+
+def _normalize_headers_for_checkpoint_comparison(headers):
+    """Return normalized headers for checkpoint dedupe comparisons.
+
+    Differences in parent-id fields and W3C tracestate ``dd.p`` are ignored.
+    """
     result = dict(headers)
     result.pop("x-datadog-parent-id", None)
     tp = result.get("traceparent")
@@ -202,6 +294,9 @@ def _normalize_headers_ignoring_parent_id(headers):
         if len(parts) == 4:
             parts[2] = "0" * 16
             result["traceparent"] = "-".join(parts)
+    ts = result.get("tracestate")
+    if isinstance(ts, str):
+        result["tracestate"] = _normalize_tracestate_ignoring_dd_parent(ts)
     return result
 
 
@@ -224,6 +319,24 @@ def _override_parent_id(headers, parent_id):
             headers["traceparent"] = "-".join(parts)
 
 
+def _current_trace_root_span_id():
+    """Best-effort lookup of the current trace root span id.
+
+    This is used by the suspend fallback path when the decorator-level
+    ``aws.durable_execution.execute`` span is unavailable and we still need
+    to persist a checkpoint parent.
+    """
+    try:
+        from ddtrace import tracer
+
+        root = tracer.current_root_span()
+        if root is not None:
+            return root.span_id
+    except Exception:
+        pass
+    return None
+
+
 def _save_trace_context_checkpoint(state, number, headers):
     """Create a ``_dd_trace_context_{number}`` STEP operation with the payload."""
     from aws_durable_execution_sdk_python.identifier import OperationIdentifier
@@ -236,13 +349,31 @@ def _save_trace_context_checkpoint(state, number, headers):
 
     identifier = OperationIdentifier(operation_id=op_id, name=name)
 
+    _checkpoint_debug(
+        "Saving checkpoint operation",
+        checkpoint_name=name,
+        checkpoint_number=number,
+        operation_id=op_id,
+        arn=arn,
+        header_summary=_checkpoint_header_summary(headers),
+    )
     state.create_checkpoint(
         operation_update=OperationUpdate.create_step_start(identifier),
         is_sync=True,
     )
+    _checkpoint_debug(
+        "Checkpoint START persisted",
+        checkpoint_name=name,
+        operation_id=op_id,
+    )
     state.create_checkpoint(
         operation_update=OperationUpdate.create_step_succeed(identifier, payload),
         is_sync=True,
+    )
+    _checkpoint_debug(
+        "Checkpoint SUCCEED persisted",
+        checkpoint_name=name,
+        operation_id=op_id,
     )
     log.debug("Saved trace context checkpoint %s", name)
 
@@ -257,39 +388,94 @@ def _maybe_save_trace_context_checkpoint(span, durable_context, grandparent_span
       - The current trace context matches the latest existing checkpoint
         (ignoring parent_id)
     """
+    _checkpoint_debug(
+        "Entering checkpoint save decision",
+        has_span=span is not None,
+        has_durable_context=durable_context is not None,
+        grandparent_span_id=grandparent_span_id,
+        result_status=result.get("Status") if isinstance(result, dict) else None,
+    )
     if span is None or durable_context is None:
+        _checkpoint_debug(
+            "Skipping checkpoint save: missing span or durable context",
+            has_span=span is not None,
+            has_durable_context=durable_context is not None,
+        )
         return
     state = getattr(durable_context, "state", None)
     if state is None:
+        _checkpoint_debug("Skipping checkpoint save: durable context has no state")
         return
 
     # Skip for terminal statuses — no next invocation
     if isinstance(result, dict):
         status = result.get("Status")
         if status in _TERMINAL_STATUSES:
+            _checkpoint_debug(
+                "Skipping checkpoint save: terminal status",
+                status=status,
+            )
             return
 
     # Inject current trace context into headers
     try:
         current_headers = {}
         Propagator.inject(span.context, current_headers)
-    except Exception:
+        _checkpoint_debug(
+            "Injected current span context into headers",
+            current_header_summary=_checkpoint_header_summary(current_headers),
+        )
+    except Exception as e:
+        _checkpoint_debug(
+            "Skipping checkpoint save: failed to inject current context",
+            error=str(e),
+        )
         return
     if not current_headers:
+        _checkpoint_debug("Skipping checkpoint save: injected headers empty")
         return
 
     existing = _find_trace_context_checkpoints(state)
+    _checkpoint_debug(
+        "Discovered existing checkpoint operations",
+        existing_count=len(existing),
+        checkpoints=[
+            {"number": number, "name": getattr(op, "name", None), "id": getattr(op, "operation_id", None)}
+            for (number, op) in existing
+        ],
+    )
 
     if not existing:
         # First checkpoint: _dd_trace_context_0, parent_id = grandparent (root)
         new_number = 0
+        _checkpoint_debug(
+            "No existing checkpoints found; preparing first checkpoint",
+            new_checkpoint_number=new_number,
+            grandparent_span_id=grandparent_span_id,
+        )
         if grandparent_span_id is not None:
             _override_parent_id(current_headers, grandparent_span_id)
+            _checkpoint_debug(
+                "Applied grandparent as checkpoint parent",
+                updated_header_summary=_checkpoint_header_summary(current_headers),
+            )
     else:
         latest_number, latest_op = existing[-1]
         latest_headers = _parse_checkpoint_payload(latest_op)
         if latest_headers is None:
+            _checkpoint_debug(
+                "Skipping checkpoint save: latest checkpoint payload is not parseable",
+                latest_checkpoint_number=latest_number,
+                latest_checkpoint_name=getattr(latest_op, "name", None),
+                latest_checkpoint_id=getattr(latest_op, "operation_id", None),
+            )
             return
+        _checkpoint_debug(
+            "Loaded latest checkpoint payload",
+            latest_checkpoint_number=latest_number,
+            latest_checkpoint_name=getattr(latest_op, "name", None),
+            latest_header_summary=_checkpoint_header_summary(latest_headers),
+        )
 
         # Warn if trace_id differs — should never happen in a single execution
         cur_tid = _headers_trace_id(current_headers)
@@ -300,20 +486,47 @@ def _maybe_save_trace_context_checkpoint(span, durable_context, grandparent_span
                 cur_tid,
                 prev_tid,
             )
+            _checkpoint_debug(
+                "Trace ID mismatch detected",
+                current_trace_id=cur_tid,
+                previous_trace_id=prev_tid,
+            )
 
-        # Skip save if trace context is unchanged (ignoring parent_id)
-        if _normalize_headers_ignoring_parent_id(current_headers) == \
-                _normalize_headers_ignoring_parent_id(latest_headers):
+        # Skip save if trace context is unchanged for checkpoint semantics.
+        normalized_current = _normalize_headers_for_checkpoint_comparison(current_headers)
+        normalized_latest = _normalize_headers_for_checkpoint_comparison(latest_headers)
+        if normalized_current == normalized_latest:
+            _checkpoint_debug(
+                "Skipping checkpoint save: normalized context unchanged",
+                normalized_current=_checkpoint_header_summary(normalized_current),
+                normalized_latest=_checkpoint_header_summary(normalized_latest),
+            )
             return
 
         new_number = latest_number + 1
         # Reuse previous checkpoint's parent_id (same grandparent)
         _override_parent_id(current_headers, _headers_parent_id(latest_headers))
+        _checkpoint_debug(
+            "Context changed; preparing next checkpoint",
+            new_checkpoint_number=new_number,
+            updated_header_summary=_checkpoint_header_summary(current_headers),
+            previous_parent_id=_headers_parent_id(latest_headers),
+        )
 
     try:
         _save_trace_context_checkpoint(state, new_number, current_headers)
+        _checkpoint_debug(
+            "Checkpoint save complete",
+            checkpoint_number=new_number,
+            saved_header_summary=_checkpoint_header_summary(current_headers),
+        )
     except Exception as e:
         log.debug("Failed to save trace context checkpoint: %s", e)
+        _checkpoint_debug(
+            "Checkpoint save failed with exception",
+            checkpoint_number=new_number,
+            error=str(e),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -348,6 +561,13 @@ def _traced_durable_execution(func, instance, args, kwargs):
         # AIDEV-NOTE: The user function signature is (input_event, durable_context).
         input_event = inner_args[0] if inner_args else inner_kwargs.get("input_event")
         durable_context = inner_args[1] if len(inner_args) > 1 else inner_kwargs.get("durable_context")
+        _checkpoint_debug(
+            "Entered traced durable_execution user function",
+            debug_rev=_DURABLE_DEBUG_REV,
+            input_event_type=type(input_event).__name__,
+            has_durable_context=durable_context is not None,
+            durable_context_type=type(durable_context).__name__ if durable_context is not None else None,
+        )
 
         # --- Extract metadata from the DurableContext ---
         tags = {}
@@ -392,44 +612,37 @@ def _traced_durable_execution(func, instance, args, kwargs):
         except Exception:
             pass
 
-        # --- Create the execution span via event ---
-        event = TracingEvent.create(
-            component=config.aws_durable_execution_sdk_python.integration_name,
-            integration_config=config.aws_durable_execution_sdk_python,
-            operation_name="aws.durable_execution.execute",
+        execution_span = _start_integration_span(
+            "aws.durable_execution.execute",
             span_type="serverless",
             span_kind="server",
             resource="aws.durable_execution.execute",
-            service=_get_service(),
             tags=tags,
-            distributed_context=distributed_context,
-            use_active_context=distributed_context is None,
+            parent_context=distributed_context,
         )
-
-        with core.context_with_event(event, dispatch_end_event=False) as ctx:
-            try:
-                result = user_func(*inner_args, **inner_kwargs)
-            except SuspendExecution:
-                # AIDEV-NOTE: SuspendExecution is control flow, not an error.
-                # Save checkpoint before closing the span so the span is still
-                # active (propagator.inject reads from ctx.span.context).
-                _maybe_save_trace_context_checkpoint(
-                    ctx.span, durable_context, grandparent_span_id, None
-                )
-                ctx.dispatch_ended_event()
-                raise
-            except BaseException:
-                exc_info = sys.exc_info()
-                _maybe_save_trace_context_checkpoint(
-                    ctx.span, durable_context, grandparent_span_id, None
-                )
-                ctx.dispatch_ended_event(*exc_info)
-                raise
+        try:
+            result = user_func(*inner_args, **inner_kwargs)
+        except SuspendExecution:
+            # AIDEV-NOTE: SuspendExecution is control flow, not an error.
+            # Save checkpoint before closing the span so the span is still
+            # active (propagator.inject reads from span.context).
             _maybe_save_trace_context_checkpoint(
-                ctx.span, durable_context, grandparent_span_id, result
+                execution_span, durable_context, grandparent_span_id, None
             )
-            ctx.dispatch_ended_event()
-            return result
+            execution_span.finish()
+            raise
+        except BaseException:
+            _maybe_save_trace_context_checkpoint(
+                execution_span, durable_context, grandparent_span_id, None
+            )
+            execution_span.set_exc_info(*sys.exc_info())
+            execution_span.finish()
+            raise
+        _maybe_save_trace_context_checkpoint(
+            execution_span, durable_context, grandparent_span_id, result
+        )
+        execution_span.finish()
+        return result
 
     # Replace user func with traced version, call the original decorator
     new_args = (traced_user_func,) + args[1:]
@@ -492,32 +705,27 @@ def _traced_step(func, instance, args, kwargs):
     if step_name:
         tags["aws.durable_execution.step.name"] = step_name
 
-    # --- Create the step span via event ---
-    event = TracingEvent.create(
-        component=config.aws_durable_execution_sdk_python.integration_name,
-        integration_config=config.aws_durable_execution_sdk_python,
-        operation_name="aws.durable_execution.step",
+    step_span = _start_integration_span(
+        "aws.durable_execution.step",
         span_type="worker",
         span_kind="internal",
         resource=step_name or "step",
-        service=_get_service(),
         tags=tags,
     )
-
-    with core.context_with_event(event, dispatch_end_event=False) as ctx:
-        try:
-            result = func(*args, **kwargs)
-        except SuspendExecution:
-            _try_tag_replayed(ctx.span, step_func, _step_executed)
-            ctx.dispatch_ended_event()
-            raise
-        except BaseException:
-            _try_tag_replayed(ctx.span, step_func, _step_executed)
-            ctx.dispatch_ended_event(*sys.exc_info())
-            raise
-        _try_tag_replayed(ctx.span, step_func, _step_executed)
-        ctx.dispatch_ended_event()
-        return result
+    try:
+        result = func(*args, **kwargs)
+    except SuspendExecution:
+        _try_tag_replayed(step_span, step_func, _step_executed)
+        step_span.finish()
+        raise
+    except BaseException:
+        _try_tag_replayed(step_span, step_func, _step_executed)
+        step_span.set_exc_info(*sys.exc_info())
+        step_span.finish()
+        raise
+    _try_tag_replayed(step_span, step_func, _step_executed)
+    step_span.finish()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -548,31 +756,35 @@ def _traced_invoke(func, instance, args, kwargs):
     if invoke_name:
         tags["aws.durable_execution.invoke.name"] = invoke_name
 
-    # --- Create the invoke span via event ---
-    event = TracingEvent.create(
-        component=config.aws_durable_execution_sdk_python.integration_name,
-        integration_config=config.aws_durable_execution_sdk_python,
-        operation_name="aws.durable_execution.invoke",
+    invoke_span = _start_integration_span(
+        "aws.durable_execution.invoke",
         span_type="serverless",
         span_kind="client",
         resource=invoke_name or function_name or "invoke",
-        service=_get_service(),
         tags=tags,
     )
-
-    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+    try:
         # --- Inject distributed tracing context into payload ---
         # AIDEV-NOTE: When the payload is a dict, we inject trace context under a
         # "_datadog" key so the downstream @durable_execution handler can extract it
         # and link its execution span to this invoke span's trace.
         if config.aws_durable_execution_sdk_python.distributed_tracing_enabled:
             try:
-                payload = kwargs.get("payload") or (args[1] if len(args) > 1 else None)
+                if "payload" in kwargs:
+                    payload = kwargs.get("payload")
+                else:
+                    payload = args[1] if len(args) > 1 else None
                 if isinstance(payload, dict):
                     _datadog_headers = {}
-                    Propagator.inject(ctx.span.context, _datadog_headers)
+                    Propagator.inject(invoke_span.context, _datadog_headers)
                     payload = dict(payload)  # shallow copy to avoid mutating caller's dict
-                    payload["_datadog"] = _datadog_headers
+                    existing_datadog_headers = payload.get("_datadog")
+                    if isinstance(existing_datadog_headers, dict):
+                        merged_datadog_headers = dict(existing_datadog_headers)
+                        merged_datadog_headers.update(_datadog_headers)
+                        payload["_datadog"] = merged_datadog_headers
+                    else:
+                        payload["_datadog"] = _datadog_headers
                     if "payload" in kwargs:
                         kwargs = dict(kwargs)
                         kwargs["payload"] = payload
@@ -581,23 +793,23 @@ def _traced_invoke(func, instance, args, kwargs):
             except Exception:
                 pass
 
-        try:
-            result = func(*args, **kwargs)
-        except SuspendExecution:
-            ctx.dispatch_ended_event()
-            raise
-        except BaseException:
-            ctx.dispatch_ended_event(*sys.exc_info())
-            raise
-        ctx.dispatch_ended_event()
-        return result
+        result = func(*args, **kwargs)
+    except SuspendExecution:
+        invoke_span.finish()
+        raise
+    except BaseException:
+        invoke_span.set_exc_info(*sys.exc_info())
+        invoke_span.finish()
+        raise
+    invoke_span.finish()
+    return result
 
 
 # ---------------------------------------------------------------------------
 # Factory for simple internal operations (wait, callback, map, etc.)
 # ---------------------------------------------------------------------------
 
-def _make_traced_internal(span_name, default_resource):
+def _make_traced_internal(span_name, default_resource, checkpoint_on_suspend=False):
     """Create a wrapper for an internal durable operation.
 
     All internal operations follow the same tracing pattern: extract an
@@ -610,38 +822,72 @@ def _make_traced_internal(span_name, default_resource):
 
         name = kwargs.get("name")
 
-        event = TracingEvent.create(
-            component=config.aws_durable_execution_sdk_python.integration_name,
-            integration_config=config.aws_durable_execution_sdk_python,
-            operation_name=span_name,
+        span = _start_integration_span(
+            span_name,
             span_type="worker",
             span_kind="internal",
             resource=name or default_resource,
-            service=_get_service(),
         )
-
-        with core.context_with_event(event, dispatch_end_event=False) as ctx:
-            try:
-                result = func(*args, **kwargs)
-            except SuspendExecution:
-                ctx.dispatch_ended_event()
-                raise
-            except BaseException:
-                ctx.dispatch_ended_event(*sys.exc_info())
-                raise
-            ctx.dispatch_ended_event()
-            return result
+        try:
+            result = func(*args, **kwargs)
+        except SuspendExecution:
+            if checkpoint_on_suspend:
+                root_span_id = _current_trace_root_span_id()
+                _checkpoint_debug(
+                    "SuspendExecution caught in internal span; running checkpoint fallback",
+                    operation=span_name,
+                    resource=name or default_resource,
+                    root_span_id=root_span_id,
+                    has_durable_context=instance is not None and hasattr(instance, "state"),
+                )
+                try:
+                    _maybe_save_trace_context_checkpoint(
+                        span=span,
+                        durable_context=instance,
+                        grandparent_span_id=root_span_id,
+                        result=None,
+                    )
+                except Exception as e:
+                    _checkpoint_debug(
+                        "Checkpoint fallback on suspend raised exception",
+                        operation=span_name,
+                        error=str(e),
+                    )
+            span.finish()
+            raise
+        except BaseException:
+            span.set_exc_info(*sys.exc_info())
+            span.finish()
+            raise
+        span.finish()
+        return result
 
     return _traced
 
 
-_traced_wait = _make_traced_internal("aws.durable_execution.wait", "wait")
-_traced_wait_for_condition = _make_traced_internal("aws.durable_execution.wait_for_condition", "wait_for_condition")
-_traced_wait_for_callback = _make_traced_internal("aws.durable_execution.wait_for_callback", "wait_for_callback")
+_traced_wait = _make_traced_internal(
+    "aws.durable_execution.wait",
+    "wait",
+    checkpoint_on_suspend=True,
+)
+_traced_wait_for_condition = _make_traced_internal(
+    "aws.durable_execution.wait_for_condition",
+    "wait_for_condition",
+    checkpoint_on_suspend=True,
+)
+_traced_wait_for_callback = _make_traced_internal(
+    "aws.durable_execution.wait_for_callback",
+    "wait_for_callback",
+    checkpoint_on_suspend=True,
+)
 _traced_create_callback = _make_traced_internal("aws.durable_execution.create_callback", "create_callback")
 _traced_map = _make_traced_internal("aws.durable_execution.map", "map")
 _traced_parallel = _make_traced_internal("aws.durable_execution.parallel", "parallel")
-_traced_run_in_child_context = _make_traced_internal("aws.durable_execution.child_context", "child_context")
+_traced_run_in_child_context = _make_traced_internal(
+    "aws.durable_execution.child_context",
+    "child_context",
+    checkpoint_on_suspend=True,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -661,6 +907,10 @@ def patch():
     if getattr(aws_durable_execution_sdk_python, "_datadog_patch", False):
         return
 
+    print(
+        "[DD-DURABLE][integration] patch() loaded "
+        "rev={} file={}".format(_DURABLE_DEBUG_REV, __file__)
+    )
     aws_durable_execution_sdk_python._datadog_patch = True
 
     # --- durable_execution decorator ---
@@ -669,6 +919,22 @@ def patch():
     # name binding, so we must wrap in BOTH modules.
     wrap("aws_durable_execution_sdk_python.execution", "durable_execution", _traced_durable_execution)
     wrap("aws_durable_execution_sdk_python", "durable_execution", _traced_durable_execution)
+    try:
+        import aws_durable_execution_sdk_python.execution as execution_module
+
+        print(
+            "[DD-DURABLE][integration] durable_execution wrap status "
+            "rev={} top_level_wrapped={} execution_wrapped={}".format(
+                _DURABLE_DEBUG_REV,
+                hasattr(aws_durable_execution_sdk_python.durable_execution, "__wrapped__"),
+                hasattr(execution_module.durable_execution, "__wrapped__"),
+            )
+        )
+    except Exception as e:
+        print(
+            "[DD-DURABLE][integration] durable_execution wrap status unavailable "
+            "rev={} error={}".format(_DURABLE_DEBUG_REV, e)
+        )
 
     # --- DurableContext methods (always present) ---
     wrap("aws_durable_execution_sdk_python.context", "DurableContext.step", _traced_step)
