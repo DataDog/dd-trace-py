@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: A crash that could happen in child processes after fork
+    has been fixed.
