@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Prevent potential crashes when the client library fails to restart a worker
+    thread due to hitting a system resource limit.

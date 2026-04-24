@@ -11,6 +11,7 @@ from typing import OrderedDict
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._llmobs import LLMObsAnnotateSpanError
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_output_value
@@ -22,7 +23,7 @@ log = get_logger(__name__)
 def _get_llmobs_span_options(name, model_name, func):
     traced_model_name = model_name
     if traced_model_name is None:
-        traced_model_name = "custom"
+        traced_model_name = UNKNOWN_MODEL_NAME
 
     span_name = name
     if span_name is None:

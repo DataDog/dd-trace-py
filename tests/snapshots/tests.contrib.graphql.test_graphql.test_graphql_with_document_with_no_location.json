@@ -11,20 +11,22 @@
     "meta": {
       "_dd.base_service": "tests.contrib.graphql",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de9e4000000000",
+      "_dd.svc_src": "graphql",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.graphql",
       "component": "graphql",
       "graphql.source": "query HELLO { hello }",
       "language": "python",
-      "runtime-id": "630b203d91914ec1bf98fe21da63344d"
+      "runtime-id": "6b5a1e496034457f826b52cf30d11ad4"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 29253
+      "_sampling_priority_v1": 1.0,
+      "process_id": 75639.0
     },
-    "duration": 284000,
-    "start": 1695228158961101000
+    "duration": 237375,
+    "start": 1776197184160642506
   }],
 [
   {
@@ -39,21 +41,23 @@
     "meta": {
       "_dd.base_service": "tests.contrib.graphql",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de9e4000000000",
+      "_dd.svc_src": "graphql",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.graphql",
       "component": "graphql",
       "graphql.operation.name": "HELLO",
       "graphql.operation.type": "query",
       "graphql.source": "",
       "language": "python",
-      "runtime-id": "630b203d91914ec1bf98fe21da63344d"
+      "runtime-id": "6b5a1e496034457f826b52cf30d11ad4"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 29253
+      "_sampling_priority_v1": 1.0,
+      "process_id": 75639.0
     },
-    "duration": 336000,
-    "start": 1695228158977945000
+    "duration": 230458,
+    "start": 1776197184161037631
   }]]
