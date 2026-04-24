@@ -498,8 +498,7 @@ def _annotate_llmobs_span_data(
         if model_provider is not None:
             meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
-            # _dd is reserved for Datadog-internal metadata; don't let user metadata clobber it.
-            meta[LLMOBS_STRUCT.METADATA].update({k: v for k, v in metadata.items() if k != LLMOBS_STRUCT.METADATA_DD})
+            meta[LLMOBS_STRUCT.METADATA].update(metadata)
         if agent_manifest is not None:
             metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
             metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
