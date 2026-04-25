@@ -182,7 +182,7 @@ class TelemetryAPI:
     def record_test_management_tests_count(self, count: int) -> None:
         self.add_distribution_metric("test_management_tests.response_tests", count)
 
-    def record_git_command(self, command: GitTelemetry, elapsed_seconds: float, exit_code: int) -> None:
+    def record_git_command(self, command: GitTelemetry, elapsed_seconds: float, exit_code: t.Union[int, str]) -> None:
         tags = {"command": command.value}
         self.add_count_metric("git.command", 1, tags)
         self.add_distribution_metric("git.command_ms", elapsed_seconds * 1000, tags)

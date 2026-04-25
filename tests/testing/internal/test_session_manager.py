@@ -343,6 +343,25 @@ class TestSessionManagerGitHandling:
 
         mock_warning.assert_any_call("Error calling git binary, skipping metadata upload")
 
+    def test_upload_git_data_records_telemetry_when_git_missing(self) -> None:
+        from ddtrace.testing.internal.telemetry import GitTelemetry
+
+        session_manager = SessionManager.__new__(SessionManager)
+        mock_telemetry_instance = Mock()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", side_effect=RuntimeError("`git` command not found")),
+            patch("ddtrace.testing.internal.session_manager.log"),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI") as mock_telemetry_cls,
+        ):
+            mock_telemetry_cls._instance = Mock()
+            mock_telemetry_cls.get.return_value = mock_telemetry_instance
+            session_manager.upload_git_data()
+
+        mock_telemetry_instance.record_git_command.assert_called_once_with(
+            command=GitTelemetry.GET_REPOSITORY, elapsed_seconds=0, exit_code="missing"
+        )
+
     def test_upload_git_data_aborts_when_search_commits_fails(self) -> None:
         session_manager = SessionManager.__new__(SessionManager)
         session_manager.api_client = Mock()
