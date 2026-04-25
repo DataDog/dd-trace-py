@@ -338,11 +338,13 @@ class TraceExporterBuilder:
         self,
         heartbeat_ms: int,
         runtime_id: str,
+        debug_enabled: bool,
     ) -> TraceExporterBuilder:
         """
         Emit telemetry in the TraceExporter
         :param heartbeat: The flush interval for telemetry metrics in milliseconds.
         :param runtime_id: The runtime id to use for telemetry.
+        :param debug_enabled: Whether to enable debug logging for telemetry.
         """
         ...
     def enable_health_metrics(self) -> TraceExporterBuilder:
