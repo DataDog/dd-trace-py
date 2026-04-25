@@ -628,3 +628,20 @@ class TestTelemetry:
                 ),
             )
         ]
+
+    def test_record_test_session(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_test_session(ci_provider_name="gitlab", is_auto_injected=True)
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(
+                CIVISIBILITY,
+                "test_session",
+                1,
+                (("provider", "gitlab"), ("auto_injected", "true")),
+            )
+        ]
+
+    def test_record_test_session_unsupported_ci(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_test_session(ci_provider_name=None, is_auto_injected=False)
+
+        assert mock_writer.add_count_metric.call_args_list == [call(CIVISIBILITY, "test_session", 1, ())]

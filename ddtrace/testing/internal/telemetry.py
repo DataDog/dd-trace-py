@@ -297,6 +297,13 @@ class TelemetryAPI:
 
         self.add_count_metric("event_finished", 1, tags)
 
+    def record_test_session(self, ci_provider_name: t.Optional[str], is_auto_injected: bool) -> None:
+        tags = {
+            "provider": ci_provider_name,
+            "auto_injected": is_auto_injected,
+        }
+        self.add_count_metric("test_session", 1, tags)
+
     def record_git_pack_data(self, uploaded_files: int, uploaded_bytes: int) -> None:
         self.add_distribution_metric("git_requests.objects_pack_files", uploaded_files)
         self.add_distribution_metric("git_requests.objects_pack_bytes", uploaded_bytes)

@@ -376,6 +376,11 @@ class TestOptPlugin:
             efd_abort_reason=self.session.get_early_flake_detection_abort_reason(),
         )
 
+        TelemetryAPI.get().record_test_session(
+            ci_provider_name=self.manager.env_tags.get(CITag.PROVIDER_NAME),
+            is_auto_injected=self.manager.is_auto_injected,
+        )
+
         if not self.is_xdist_worker:
             # When running with xdist, only the main process writes the session event.
             self.manager.writer.put_item(self.session)
