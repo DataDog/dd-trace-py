@@ -55,6 +55,7 @@ class BackendResult:
     is_gzip_response: bool = False
     elapsed_seconds: float = 0.0
     retry_after_seconds: t.Optional[float] = None
+    status_code: t.Optional[int] = None
 
     def on_error_raise_exception(self) -> None:
         if self.error_type:
@@ -295,6 +296,7 @@ class BackendConnector(threading.local):
                 result.response_body = response_body = result.response.read()
 
             if not (200 <= result.response.status <= 299):
+                result.status_code = result.response.status
                 result.error_description = f"{result.response.status} {result.response.reason}"
                 if result.response.status >= 500:
                     result.error_type = ErrorType.CODE_5XX
@@ -379,6 +381,7 @@ class BackendConnector(threading.local):
                     compressed_response=result.is_gzip_response,
                     error=result.error_type,
                     request_bytes=result.request_length,
+                    status_code=result.status_code,
                 )
 
             if result.error_type and result.error_type in RETRIABLE_ERRORS and attempts_so_far < max_attempts:

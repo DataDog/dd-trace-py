@@ -24,6 +24,8 @@ log = logging.getLogger(__name__)
 
 CIVISIBILITY = TELEMETRY_NAMESPACE.CIVISIBILITY
 
+_TRACKED_STATUS_CODES = {400, 401, 403, 404, 408, 429}
+
 
 class ErrorType(str, Enum):
     TIMEOUT = "timeout"
@@ -392,6 +394,7 @@ class TelemetryAPIRequestMetrics:
         compressed_response: bool,
         error: t.Optional[ErrorType],
         request_bytes: t.Optional[int] = None,
+        status_code: t.Optional[int] = None,
     ) -> None:
         self.telemetry_api.add_count_metric(self.count, 1)
         self.telemetry_api.add_distribution_metric(self.duration, seconds)
@@ -404,9 +407,12 @@ class TelemetryAPIRequestMetrics:
             self.telemetry_api.add_distribution_metric(self.request_bytes, request_bytes)
 
         if error is not None:
-            self.record_error(error)
+            self.record_error(error, status_code=status_code)
 
-    def record_error(self, error: ErrorType) -> None:
+    def record_error(self, error: ErrorType, status_code: t.Optional[int] = None) -> None:
         # Map RATE_LIMITED to the same telemetry value as CODE_4XX for cross-language consistency
         error_type = ErrorType.CODE_4XX if error == ErrorType.RATE_LIMITED else error
-        self.telemetry_api.add_count_metric(self.error, 1, {"error_type": error_type})
+        tags: dict[str, t.Any] = {"error_type": error_type}
+        if status_code is not None and status_code in _TRACKED_STATUS_CODES:
+            tags["status_code"] = str(status_code)
+        self.telemetry_api.add_count_metric(self.error, 1, tags)
