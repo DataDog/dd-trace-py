@@ -392,8 +392,15 @@ class TelemetryAPIRequestMetrics:
         compressed_response: bool,
         error: t.Optional[ErrorType],
         request_bytes: t.Optional[int] = None,
+        compressed_request: bool = False,
     ) -> None:
-        self.telemetry_api.add_count_metric(self.count, 1)
+        request_tags: dict[str, t.Any] = {}
+        if compressed_request:
+            request_tags["rq_compressed"] = True
+        if compressed_response:
+            request_tags["rs_compressed"] = True
+
+        self.telemetry_api.add_count_metric(self.count, 1, request_tags if request_tags else None)
         self.telemetry_api.add_distribution_metric(self.duration, seconds)
         if response_bytes is not None and self.response_bytes is not None:
             # We don't always want to record response bytes (for settings requests), so assume that no metric name
