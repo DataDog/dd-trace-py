@@ -18,7 +18,7 @@ from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
 from ddtrace.internal.utils.http import Response
-from ddtrace.internal.utils.http import get_connection
+from ddtrace.llmobs._http import get_connection
 from ddtrace.trace import tracer
 from ddtrace.version import __version__
 
