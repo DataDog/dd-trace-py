@@ -374,10 +374,12 @@ def _normalize_wire_trace_id_to_hex(value: Optional[str]) -> Optional[str]:
 
     A 32-char all-digit value is ambiguous between hex and a decimal serialization
     of a 128-bit int. Leading ``"0"`` or any ``a-f`` marks it as unambiguous hex;
-    otherwise interpret as decimal (as per the wire contract). Note: some rare (1 in 5 million)
-    cases with 32-char all-[0-9] hex and no leading zero will be incorrectly interpreted as decimal.
+    otherwise interpret as decimal (as per the wire contract). Non-numeric custom IDs pass through unmodified.
 
-    Non-numeric custom IDs pass through unmodified.
+    Note: In the case of trace IDs being submitted on request headers as hex strings, some rare values (~ 1/3.78 M)
+    with 32-char all-[0-9] chars and no leading zero will be incorrectly interpreted as decimal. This is only a risk
+    for hand-crafted/forwarded headers.
+
     """
     if value is None or value == "":
         return None

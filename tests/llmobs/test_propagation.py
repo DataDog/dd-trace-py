@@ -522,7 +522,8 @@ _AMBIGUOUS_WIRE_TRACE_ID = str(int(_AMBIGUOUS_HEX_TRACE_ID, 16))
 def test_submitted_event_trace_id_matches_stored_for_ambiguous_hex(llmobs, llmobs_events):
     """Regression: submit must not re-normalize the stored hex. A trace_id whose 32-char hex
     form is all-[0-9] with no leading zero would otherwise be mangled by
-    _normalize_wire_trace_id_to_hex reinterpreting it as decimal."""
+    _normalize_wire_trace_id_to_hex reinterpreting it as decimal.
+    """
     ctx = _make_upstream_llmobs_context(_AMBIGUOUS_WIRE_TRACE_ID)
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("w") as span:
