@@ -2798,22 +2798,20 @@ class LLMObs(Service):
 
         ml_app = None
         if isinstance(active_span, Span):
+            # meta_struct holds canonical hex; convert to wire format for the header.
             ml_app = get_llmobs_ml_app(active_span)
-            llmobs_trace_id = get_llmobs_trace_id(active_span)
+            wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active_span))
         elif active_context is not None:
+            # Context._meta holds wire format by invariant — read directly.
             ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))
-            _propagated_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or None
-            llmobs_trace_id = (
-                _propagated_trace_id
-                if _propagated_trace_id is not None
-                else format_trace_id(generate_128bit_trace_id())
+            wire_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or str(
+                generate_128bit_trace_id()
             )
         else:
             ml_app = resolve_ml_app()
-            llmobs_trace_id = format_trace_id(generate_128bit_trace_id())
+            wire_trace_id = str(generate_128bit_trace_id())
 
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
-        wire_trace_id = _trace_id_to_wire(llmobs_trace_id)
         if wire_trace_id:
             span_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
 
