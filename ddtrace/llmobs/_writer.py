@@ -71,6 +71,7 @@ class LLMObsSpanData(TypedDict, total=False):
     metrics: dict[str, Any]
     span_links: list["_SpanLink"]
     config: "ExperimentConfigType"
+    is_evaluation_span: bool
     meta: _Meta
     _dd: dict[str, str]
 
