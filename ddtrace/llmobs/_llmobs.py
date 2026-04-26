@@ -1874,19 +1874,21 @@ class LLMObs(Service):
     def _current_trace_context(self) -> Optional[Context]:
         """Returns the context for the current LLMObs trace.
 
-        The returned Context is re-activated as a parent for spans created in another
-        thread/task, so `PROPAGATED_LLMOBS_TRACE_ID_KEY` is written in canonical hex
-        (storage format). Wire-format conversion happens in `_inject_llmobs_context`
-        for outbound HTTP injection only.
+        Invariant: `PROPAGATED_LLMOBS_TRACE_ID_KEY` on `Context._meta` always holds
+        the wire-format (decimal) trace_id. The APM HTTP propagator can serialize
+        this slot directly into the `x-datadog-tags` header, and `_dd.p.*` is
+        dd-trace's namespace for wire-propagated tags. Conversion to canonical hex
+        is deferred to `_activate_llmobs_span` (Context-parent branch) when the
+        value is read into `meta_struct`.
         """
         active = self._llmobs_context_provider.active()
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
             context = active.context
-            trace_id = get_llmobs_trace_id(active) or format_trace_id(active.trace_id)
-            if trace_id:
-                context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = trace_id
+            wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active) or format_trace_id(active.trace_id))
+            if wire_trace_id:
+                context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
             return context
         return None
 
@@ -1902,11 +1904,13 @@ class LLMObs(Service):
                 parent_llmobs_trace_id = get_llmobs_trace_id(llmobs_parent)
                 fallback_trace_id = format_trace_id(llmobs_parent.trace_id)
             else:
-                # Invariant: writers of PROPAGATED_LLMOBS_TRACE_ID_KEY on a Context used as
-                # an LLMObs parent (`_activate_llmobs_distributed_context`, `_current_trace_context`)
-                # always store canonical hex, so we can read it directly.
+                # `Context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY]` holds wire-format (decimal)
+                # by invariant — it's the slot the APM HTTP propagator (de)serializes. Convert
+                # to canonical hex here at the read boundary into `meta_struct`.
                 # ast-grep-ignore: span-meta-access
-                parent_llmobs_trace_id = llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+                parent_llmobs_trace_id = _normalize_wire_trace_id_to_hex(
+                    llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+                )
                 # Context.trace_id is Optional[int]; fall back to a fresh ID rather than an all-zeros placeholder.
                 fallback_trace_id = format_trace_id(llmobs_parent.trace_id or generate_128bit_trace_id())
             llmobs_trace_id = parent_llmobs_trace_id or fallback_trace_id
@@ -2834,21 +2838,22 @@ class LLMObs(Service):
                 log.warning("Failed to parse LLMObs parent ID from request headers.")
                 return
             parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+            # `PROPAGATED_LLMOBS_TRACE_ID_KEY` on `Context._meta` is wire-format (decimal).
+            # Store the inbound value as-is and defer normalization to the reader
+            # (`_activate_llmobs_span`, Context-parent branch) so we never apply
+            # `_normalize_wire_trace_id_to_hex` more than once on the same value.
             if parent_llmobs_trace_id is None:
                 log.debug(
                     "Failed to extract LLMObs trace ID from request headers. Expected string, got None. "
                     "Defaulting to the corresponding APM trace ID."
                 )
                 llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
-                llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = format_trace_id(context.trace_id)
+                llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(context.trace_id)
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
                 return
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
-            normalized_trace_id = _normalize_wire_trace_id_to_hex(str(parent_llmobs_trace_id))
-            llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = (
-                normalized_trace_id if normalized_trace_id is not None else format_trace_id(context.trace_id)
-            )
+            llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(parent_llmobs_trace_id)
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
             telemetry.record_activate_distributed_headers(error)
