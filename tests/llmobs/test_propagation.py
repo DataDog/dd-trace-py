@@ -508,3 +508,26 @@ def test_inject_skips_header_when_trace_id_is_empty(llmobs, monkeypatch):
     with llmobs.workflow("w") as span:
         llmobs._inject_llmobs_context(span.context, {})
         assert PROPAGATED_LLMOBS_TRACE_ID_KEY not in span.context._meta
+
+
+# Ambiguous trace_id class: 32-char hex composed only of [0-9] with no leading zero.
+# Indistinguishable by shape from a 32-digit decimal, which is why
+# _normalize_wire_trace_id_to_hex is non-idempotent on these values and must only ever be
+# called on wire-sourced inputs. The wire-decimal form is the int's decimal representation
+# (~38 digits for 128-bit), so wire-in/hex-out round-trips cleanly.
+_AMBIGUOUS_HEX_TRACE_ID = "12345678901234567890123456789012"
+_AMBIGUOUS_WIRE_TRACE_ID = str(int(_AMBIGUOUS_HEX_TRACE_ID, 16))
+
+
+def test_submitted_event_trace_id_matches_stored_for_ambiguous_hex(llmobs, llmobs_events):
+    """Regression: submit must not re-normalize the stored hex. A trace_id whose 32-char hex
+    form is all-[0-9] with no leading zero would otherwise be mangled by
+    _normalize_wire_trace_id_to_hex reinterpreting it as decimal."""
+    ctx = _make_upstream_llmobs_context(_AMBIGUOUS_WIRE_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        stored = get_llmobs_trace_id(span)
+    assert stored == _AMBIGUOUS_HEX_TRACE_ID
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["trace_id"] == _AMBIGUOUS_HEX_TRACE_ID
+    assert llmobs_events[0]["trace_id"] == stored

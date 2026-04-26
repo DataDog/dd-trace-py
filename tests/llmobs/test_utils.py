@@ -4,7 +4,7 @@ import pytest
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _normalize_trace_id_to_hex
+from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
@@ -396,42 +396,42 @@ class TestTraceIdNormalization:
     DECIMAL_TRACE_ID = str(int(HEX_TRACE_ID, 16))
 
     def test_normalize_canonical_hex_passthrough(self):
-        assert _normalize_trace_id_to_hex(self.HEX_TRACE_ID) == self.HEX_TRACE_ID
+        assert _normalize_wire_trace_id_to_hex(self.HEX_TRACE_ID) == self.HEX_TRACE_ID
 
     def test_normalize_decimal_converts_to_hex(self):
-        assert _normalize_trace_id_to_hex(self.DECIMAL_TRACE_ID) == self.HEX_TRACE_ID
+        assert _normalize_wire_trace_id_to_hex(self.DECIMAL_TRACE_ID) == self.HEX_TRACE_ID
 
     def test_normalize_small_decimal_identity(self):
         # format_trace_id returns str(int) for values <= 2^64, so small ints stay decimal.
-        assert _normalize_trace_id_to_hex("12345") == "12345"
+        assert _normalize_wire_trace_id_to_hex("12345") == "12345"
 
     def test_normalize_non_numeric_custom_id_passthrough(self, caplog):
         import logging
 
         caplog.set_level(logging.DEBUG, logger="ddtrace.llmobs._utils")
-        assert _normalize_trace_id_to_hex("custom-trace-id-abc") == "custom-trace-id-abc"
+        assert _normalize_wire_trace_id_to_hex("custom-trace-id-abc") == "custom-trace-id-abc"
         assert any("not canonical hex or a decimal integer" in r.message for r in caplog.records)
 
     def test_normalize_uppercase_hex_passthrough(self):
         up = self.HEX_TRACE_ID.upper()
-        assert _normalize_trace_id_to_hex(up) == up
+        assert _normalize_wire_trace_id_to_hex(up) == up
 
     def test_normalize_none_and_empty(self):
-        assert _normalize_trace_id_to_hex(None) is None
-        assert _normalize_trace_id_to_hex("") is None
+        assert _normalize_wire_trace_id_to_hex(None) is None
+        assert _normalize_wire_trace_id_to_hex("") is None
 
     def test_normalize_32_digit_decimal_wire_value_not_misclassified_as_hex(self):
         # 32-digit decimals (older-SDK str(int128) output) must round-trip as decimal,
         # otherwise _trace_id_to_wire would re-parse as base-16 on the next hop.
         decimal_wire = "50000000000000000000000000000000"
-        normalized = _normalize_trace_id_to_hex(decimal_wire)
+        normalized = _normalize_wire_trace_id_to_hex(decimal_wire)
         assert normalized == format_trace_id(int(decimal_wire))
         assert _trace_id_to_wire(normalized) == decimal_wire
 
     def test_normalize_zero_padded_hex_passthrough_even_if_all_digits(self):
         # Leading "0" disambiguates as hex: str(int) can't emit leading zeros.
         padded_hex_all_digits = "00000000000000001234567890123456"
-        assert _normalize_trace_id_to_hex(padded_hex_all_digits) == padded_hex_all_digits
+        assert _normalize_wire_trace_id_to_hex(padded_hex_all_digits) == padded_hex_all_digits
 
     def test_wire_hex_to_decimal(self):
         assert _trace_id_to_wire(self.HEX_TRACE_ID) == self.DECIMAL_TRACE_ID
@@ -448,4 +448,4 @@ class TestTraceIdNormalization:
 
     def test_normalize_after_wire_recovers_hex(self):
         wire = _trace_id_to_wire(self.HEX_TRACE_ID)
-        assert _normalize_trace_id_to_hex(wire) == self.HEX_TRACE_ID
+        assert _normalize_wire_trace_id_to_hex(wire) == self.HEX_TRACE_ID
