@@ -372,11 +372,19 @@ _HEX_TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 def _normalize_wire_trace_id_to_hex(value: Optional[str]) -> Optional[str]:
     """Normalize an incoming wire trace_id to canonical 32-char hex storage.
 
-    Call only on values sourced from the wire (HTTP header). Do NOT call on
-    values already in canonical hex form (e.g. read back from meta_struct or
-    from Context._meta after an earlier normalize), because this function is
-    non-idempotent on the rare 32-char all-[0-9] hex strings with no leading
-    zero — it would reinterpret them as decimal.
+    Safe-to-call inputs: values just extracted from the wire — i.e. an
+    inbound HTTP header value, or the value on an inbound `Context._meta`
+    coming straight from the APM HTTP propagator (before
+    `_activate_llmobs_distributed_context` has run on it).
+
+    Do NOT call on values already in canonical hex form. That includes
+    values from `meta_struct` and from `Context._meta` on a locally-active
+    LLMObs parent context — both of which already hold canonical hex
+    (post-normalize for activated contexts; written as hex by
+    `_current_trace_context` for cross-thread/async hand-off). Re-running
+    normalize on those values is non-idempotent on the rare 32-char
+    all-[0-9] hex with no leading zero — it would reinterpret them as
+    decimal and mangle them.
 
     A 32-char all-digit value is ambiguous between hex and a decimal serialization
     of a 128-bit int. Leading ``"0"`` or any ``a-f`` marks it as unambiguous hex;
