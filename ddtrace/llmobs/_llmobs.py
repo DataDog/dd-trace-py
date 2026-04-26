@@ -2255,9 +2255,7 @@ class LLMObs(Service):
         # tags explicitly. Child spans pick these up from baggage on their own activation.
         if experiment_id:
             span.context.set_baggage_item(EXPERIMENT_ID_KEY, experiment_id)
-            _annotate_llmobs_span_data(
-                span, tags={"experiment_id": experiment_id}, dd_scope="experiments"
-            )
+            _annotate_llmobs_span_data(span, tags={"experiment_id": experiment_id}, dd_scope="experiments")
         if run_id:
             span.context.set_baggage_item(EXPERIMENT_RUN_ID_KEY, run_id)
             _annotate_llmobs_span_data(span, tags={"run_id": run_id})
