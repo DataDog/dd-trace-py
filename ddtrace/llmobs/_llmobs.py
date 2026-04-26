@@ -125,7 +125,7 @@ from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _get_span_name
-from ddtrace.llmobs._utils import _normalize_trace_id_to_hex
+from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
@@ -578,10 +578,12 @@ class LLMObs(Service):
         if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
             _dd_attrs["scope"] = "experiments"
 
-        submitted_trace_id = _normalize_trace_id_to_hex(llmobs_trace_id) or llmobs_trace_id
-
+        # llmobs_trace_id is already canonical hex from meta_struct. Do NOT re-normalize:
+        # _normalize_wire_trace_id_to_hex expects wire-format input and is non-idempotent on
+        # the rare 32-char all-[0-9] hex with no leading zero — it would mangle such values
+        # by reinterpreting them as decimal.
         llmobs_span_event: LLMObsSpanEvent = {
-            "trace_id": submitted_trace_id,
+            "trace_id": llmobs_trace_id,
             "span_id": str(span.span_id),
             "parent_id": parent_id,
             "name": _get_span_name(span),
@@ -2843,7 +2845,7 @@ class LLMObs(Service):
                 error = "missing_parent_llmobs_trace_id"
                 return
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
-            normalized_trace_id = _normalize_trace_id_to_hex(str(parent_llmobs_trace_id))
+            normalized_trace_id = _normalize_wire_trace_id_to_hex(str(parent_llmobs_trace_id))
             llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = (
                 normalized_trace_id if normalized_trace_id is not None else format_trace_id(context.trace_id)
             )
