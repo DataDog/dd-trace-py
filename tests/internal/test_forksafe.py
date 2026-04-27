@@ -117,7 +117,7 @@ def test_duplicates():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
 def test_method_usage():
     import os
 
