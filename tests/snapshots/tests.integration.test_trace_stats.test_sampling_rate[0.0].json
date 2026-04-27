@@ -10,18 +10,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6670642000000000",
+      "_dd.p.tid": "69dfabe000000000",
+      "_dd.svc_src": "tests.integration",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
-      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+      "runtime-id": "cbe82f0b9fd0421a9763f996b5b602f6"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4319
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4999.0
     },
-    "duration": 35875,
-    "start": 1718641696636756961
+    "duration": 29375,
+    "start": 1776266208500380090
   }],
 [
   {
@@ -35,18 +37,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6670642000000000",
+      "_dd.p.tid": "69dfabe000000000",
+      "_dd.svc_src": "tests.integration",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
-      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+      "runtime-id": "cbe82f0b9fd0421a9763f996b5b602f6"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4319
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4999.0
     },
-    "duration": 14708,
-    "start": 1718641696637089086
+    "duration": 29250,
+    "start": 1776266208500621756
   }],
 [
   {
@@ -60,18 +64,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6670642000000000",
+      "_dd.p.tid": "69dfabe000000000",
+      "_dd.svc_src": "tests.integration",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
-      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+      "runtime-id": "cbe82f0b9fd0421a9763f996b5b602f6"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4319
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4999.0
     },
-    "duration": 8375,
-    "start": 1718641696637162211
+    "duration": 7834,
+    "start": 1776266208500715006
   }],
 [
   {
@@ -85,18 +91,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6670642000000000",
+      "_dd.p.tid": "69dfabe000000000",
+      "_dd.svc_src": "tests.integration",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
-      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+      "runtime-id": "cbe82f0b9fd0421a9763f996b5b602f6"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4319
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4999.0
     },
-    "duration": 12875,
-    "start": 1718641696637255044
+    "duration": 6917,
+    "start": 1776266208500762673
   }],
 [
   {
@@ -110,18 +118,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6670642000000000",
+      "_dd.p.tid": "69dfabe000000000",
+      "_dd.svc_src": "tests.integration",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
-      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+      "runtime-id": "cbe82f0b9fd0421a9763f996b5b602f6"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4319
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4999.0
     },
-    "duration": 7583,
-    "start": 1718641696637309044
+    "duration": 43459,
+    "start": 1776266208500805756
   }],
 [
   {
@@ -135,18 +145,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6670642000000000",
+      "_dd.p.tid": "69dfabe000000000",
+      "_dd.svc_src": "tests.integration",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
-      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+      "runtime-id": "cbe82f0b9fd0421a9763f996b5b602f6"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4319
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4999.0
     },
-    "duration": 28458,
-    "start": 1718641696637356586
+    "duration": 8042,
+    "start": 1776266208500915756
   }],
 [
   {
@@ -160,18 +172,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6670642000000000",
+      "_dd.p.tid": "69dfabe000000000",
+      "_dd.svc_src": "tests.integration",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
-      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+      "runtime-id": "cbe82f0b9fd0421a9763f996b5b602f6"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4319
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4999.0
     },
-    "duration": 70500,
-    "start": 1718641696637418419
+    "duration": 7666,
+    "start": 1776266208500965465
   }],
 [
   {
@@ -185,18 +199,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6670642000000000",
+      "_dd.p.tid": "69dfabe000000000",
+      "_dd.svc_src": "tests.integration",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
-      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+      "runtime-id": "cbe82f0b9fd0421a9763f996b5b602f6"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4319
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4999.0
     },
-    "duration": 13500,
-    "start": 1718641696637640794
+    "duration": 5291,
+    "start": 1776266208501008090
   }],
 [
   {
@@ -210,18 +226,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6670642000000000",
+      "_dd.p.tid": "69dfabe000000000",
+      "_dd.svc_src": "tests.integration",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
-      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+      "runtime-id": "cbe82f0b9fd0421a9763f996b5b602f6"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4319
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4999.0
     },
-    "duration": 6625,
-    "start": 1718641696637688877
+    "duration": 6000,
+    "start": 1776266208501044381
   }],
 [
   {
@@ -235,16 +253,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6670642000000000",
+      "_dd.p.tid": "69dfabe000000000",
+      "_dd.svc_src": "tests.integration",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.integration",
       "language": "python",
-      "runtime-id": "423178dbb29d4ca784743ac73e5678c8"
+      "runtime-id": "cbe82f0b9fd0421a9763f996b5b602f6"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 4319
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4999.0
     },
-    "duration": 6084,
-    "start": 1718641696637731252
+    "duration": 4875,
+    "start": 1776266208501079715
   }]]
