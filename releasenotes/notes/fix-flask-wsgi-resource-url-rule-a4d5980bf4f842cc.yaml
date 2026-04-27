@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    flask: This fix resolves an issue where the WSGI span resource retained the raw URL path
+    instead of the matched route pattern when a gunicorn worker was killed mid-request (timeout).
+    The span resource is now set from ``url_rule`` during ``preprocess_request``, ensuring
+    correct resource naming even if the worker is terminated before ``start_response`` fires.
