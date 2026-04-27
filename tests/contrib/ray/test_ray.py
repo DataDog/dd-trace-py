@@ -7,6 +7,7 @@ import pytest
 import ray
 from ray.util.tracing import tracing_helper
 
+from ddtrace.internal.settings import env
 from tests.utils import TracerTestCase
 from tests.utils import override_config
 
@@ -333,13 +334,13 @@ class TestRayIntegration(TracerTestCase):
 
 def _start_ray_cluster(env_vars=None, ddtrace_run=False):
     """Start a Ray cluster with optional environment variables."""
-    env = os.environ.copy()
+    subenv = env.copy()
     base_env = {
         "DD_PATCH_MODULES": "ray:true,aiohttp:false,grpc:false,requests:false",
     }
     if env_vars:
         base_env.update(env_vars)
-    env.update(base_env)
+    subenv.update(base_env)
 
     cmd = []
     if ddtrace_run:
@@ -362,7 +363,7 @@ def _start_ray_cluster(env_vars=None, ddtrace_run=False):
 
     subprocess.run(
         cmd,
-        env=env,
+        env=subenv,
         check=True,
     )
     # Wait for dashboard to be ready

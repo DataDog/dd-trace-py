@@ -1,9 +1,9 @@
-import os
 import time
 
 import mock
 import pytest
 
+from ddtrace.internal.settings import env
 from ddtrace.llmobs._log_writer import V2LogWriter
 
 
@@ -35,7 +35,7 @@ def test_buffer_limit(mock_logs):
 
 @pytest.mark.vcr_logs
 def test_send_log(mock_logs):
-    logger = V2LogWriter(site="datadoghq.com", api_key=os.getenv("DD_API_KEY"), interval=1, timeout=1)
+    logger = V2LogWriter(site="datadoghq.com", api_key=env.get("DD_API_KEY"), interval=1, timeout=1)
     logger.start()
     mock_logs.debug.assert_has_calls(
         [mock.call("started log writer to %r", "https://http-intake.logs.datadoghq.com/api/v2/logs")]
@@ -66,7 +66,7 @@ def test_send_log_bad_api_key(mock_logs):
 
 @pytest.mark.vcr_logs
 def test_send_timed(mock_logs):
-    logger = V2LogWriter(site="datadoghq.com", api_key=os.getenv("DD_API_KEY"), interval=0.01, timeout=1)
+    logger = V2LogWriter(site="datadoghq.com", api_key=env.get("DD_API_KEY"), interval=0.01, timeout=1)
     logger.start()
 
     logger.enqueue(_test_log())
@@ -91,7 +91,6 @@ def test_send_timed(mock_logs):
 @pytest.mark.subprocess()
 def test_send_on_exit():
     import atexit
-    import os
     import time
 
     from ddtrace.llmobs._log_writer import V2LogWriter
@@ -103,7 +102,7 @@ def test_send_on_exit():
     # registered before logger.start() is called so that the request
     # can be captured. Handlers run in stack order.
     atexit.register(lambda: ctx.__exit__())
-    logger = V2LogWriter(site="datadoghq.com", api_key=os.getenv("DD_API_KEY"), interval=1, timeout=1)
+    logger = V2LogWriter(site="datadoghq.com", api_key=env.get("DD_API_KEY"), interval=1, timeout=1)
     logger.start()
     logger.enqueue(
         {

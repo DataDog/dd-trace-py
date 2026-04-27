@@ -7,6 +7,7 @@ import time
 import mock
 import pytest
 
+from ddtrace.internal.settings import env
 from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._writer import LLMObsSpanWriter
@@ -20,7 +21,7 @@ from tests.utils import override_global_config
 
 
 DD_SITE = "datad0g.com"
-DD_API_KEY = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
+DD_API_KEY = env.get("DD_API_KEY", default="<not-a-real-api-key>")
 INTAKE_URL = f"{AGENTLESS_SPAN_BASE_URL}.{DD_SITE}{SPAN_ENDPOINT}"
 
 
@@ -194,11 +195,11 @@ def test_send_on_exit(run_python_code_in_subprocess):
 
     mock_url = f"http://localhost:{server.server_address[1]}"
 
-    env = os.environ.copy()
+    subenv = env.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
     if "PYTHONPATH" in env:
-        pypath.append(env["PYTHONPATH"])
-    env.update({"PYTHONPATH": ":".join(pypath), "DD_LLMOBS_OVERRIDE_ORIGIN": mock_url})
+        pypath.append(subenv["PYTHONPATH"])
+    subenv.update({"PYTHONPATH": ":".join(pypath), "DD_LLMOBS_OVERRIDE_ORIGIN": mock_url})
 
     out, err, status, pid = run_python_code_in_subprocess(
         """
@@ -209,7 +210,7 @@ llmobs_span_writer = LLMObsSpanWriter(1000, 1, is_agentless=True, _api_key="<not
 llmobs_span_writer.start()
 llmobs_span_writer.enqueue(_completion_event())
 """,
-        env=env,
+        env=subenv,
     )
 
     server.shutdown()

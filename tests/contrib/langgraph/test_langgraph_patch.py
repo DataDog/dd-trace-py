@@ -1,4 +1,3 @@
-import os
 import sys
 from tempfile import NamedTemporaryFile
 
@@ -6,6 +5,7 @@ from ddtrace.contrib.internal.langgraph.patch import LANGGRAPH_VERSION
 from ddtrace.contrib.internal.langgraph.patch import get_version
 from ddtrace.contrib.internal.langgraph.patch import patch
 from ddtrace.contrib.internal.langgraph.patch import unpatch
+from ddtrace.internal.settings import env
 from tests.contrib.patch import PatchTestCase
 from tests.utils import call_program
 
@@ -126,10 +126,10 @@ if not patched and (
             )
             f.flush()
 
-            env = os.environ.copy()
-            env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
+            subenv = env.copy()
+            subenv["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
 
-            out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
+            out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=subenv)
 
             self.assertEqual(out, b"OK", "stderr:\n%s" % err.decode())
 
@@ -189,9 +189,9 @@ if not supported_versions_called and (
             )
             f.flush()
 
-            env = os.environ.copy()
-            env["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "1"
-            env["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
+            subenv = env.copy()
+            subenv["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "1"
+            subenv["DD_TRACE_%s_ENABLED" % self.__integration_name__.upper()] = "1"
 
-            out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=env)
+            out, err, _, _ = call_program("ddtrace-run", sys.executable, f.name, env=subenv)
             assert "OKK" in out.decode(), "stderr:\n%s" % err.decode()

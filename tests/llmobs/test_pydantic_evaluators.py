@@ -2,7 +2,6 @@
 
 import asyncio
 from dataclasses import dataclass
-import os
 
 import pytest
 
@@ -18,6 +17,7 @@ from pydantic_evals.reporting import ReportAnalysis  # noqa: E402
 from pydantic_evals.reporting import ScalarResult  # noqa: E402
 from pydantic_evals.reporting import TableResult  # noqa: E402
 
+from ddtrace.internal.settings import env  # noqa: E402
 from ddtrace.llmobs._experiment import Dataset  # noqa: E402
 from ddtrace.llmobs._experiment import _ExperimentRunInfo  # noqa: E402
 from ddtrace.llmobs._experiment import _is_pydantic_evaluator  # noqa: E402
@@ -450,7 +450,7 @@ class TestPydanticLLMJudge:
         assert result["reasoning"] == "mocked judge pass"
 
     @pytest.mark.skipif(
-        not os.environ.get("OPENAI_API_KEY"),
+        not env.get("OPENAI_API_KEY"),
         reason="OPENAI_API_KEY required for real LLMJudge with OpenAI",
     )
     @pytest.mark.asyncio

@@ -1,4 +1,3 @@
-import os
 from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 from unittest.mock import patch as mock_patch
@@ -7,6 +6,7 @@ import pytest
 
 from ddtrace.contrib.internal.claude_agent_sdk.patch import patch
 from ddtrace.contrib.internal.claude_agent_sdk.patch import unpatch
+from ddtrace.internal.settings import env
 from ddtrace.llmobs import LLMObs
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_RESPONSE_SEQUENCE
@@ -56,7 +56,7 @@ def claude_agent_sdk(ddtrace_config_claude_agent_sdk):
     with override_config("claude_agent_sdk", ddtrace_config_claude_agent_sdk):
         with override_env(
             dict(
-                ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+                ANTHROPIC_API_KEY=env.get("ANTHROPIC_API_KEY", "<not-a-real-key>"),
             )
         ):
             patch()

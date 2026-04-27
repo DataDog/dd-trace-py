@@ -1,11 +1,11 @@
 import json
-import os
 from typing import Optional
 from typing import Union
 from unittest.mock import patch
 
 import pytest
 
+from ddtrace.internal.settings import env
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
@@ -156,7 +156,7 @@ class TestPrompts:
             call_count += 1
             return MockHTTPConnection(MockHTTPResponse(200, TEXT_PROMPT_RESPONSE))
 
-        with patch.dict(os.environ, {"DD_LLMOBS_PROMPTS_CACHE_TTL": "0"}):
+        with patch.dict(env, {"DD_LLMOBS_PROMPTS_CACHE_TTL": "0"}):
             with patch("ddtrace.llmobs._prompts.manager.get_connection", counting_conn):
                 prompt1 = LLMObs.get_prompt("greeting")
                 prompt2 = LLMObs.get_prompt("greeting")

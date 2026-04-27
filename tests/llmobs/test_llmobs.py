@@ -1,11 +1,11 @@
 import asyncio
-import os
 from textwrap import dedent
 from typing import Optional
 
 import pytest
 
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
 from ddtrace.llmobs import _constants as const
@@ -187,13 +187,13 @@ class TestLLMIOProcessing:
 
     def test_ddtrace_run_register_processor(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Users using ddtrace-run can register a processor to be called on each LLMObs span."""
-        env = os.environ.copy()
-        env["DD_LLMOBS_ML_APP"] = "test-ml-app"
-        env["DD_API_KEY"] = "test-api-key"
-        env["DD_LLMOBS_ENABLED"] = "1"
-        env["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
-        env["DD_TRACE_ENABLED"] = "0"
-        env["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
+        subenv = env.copy()
+        subenv["DD_LLMOBS_ML_APP"] = "test-ml-app"
+        subenv["DD_API_KEY"] = "test-api-key"
+        subenv["DD_LLMOBS_ENABLED"] = "1"
+        subenv["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
+        subenv["DD_TRACE_ENABLED"] = "0"
+        subenv["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
         out, err, status, _ = ddtrace_run_python_code_in_subprocess(
             dedent(
                 """
@@ -213,7 +213,7 @@ class TestLLMIOProcessing:
                 LLMObs.annotate(llm_span, input_data="value", output_data="value", tags={"scrub_values": "0"})
             """
             ),
-            env=env,
+            env=subenv,
         )
         assert out == b""
         assert status == 0, err
@@ -247,13 +247,13 @@ class TestLLMIOProcessing:
 
     def test_processor_error_is_logged(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Ensure that when an exception is raised an exception is logged."""
-        env = os.environ.copy()
-        env["DD_LLMOBS_ML_APP"] = "test-ml-app"
-        env["DD_API_KEY"] = "test-api-key"
-        env["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
-        env["DD_TRACE_ENABLED"] = "0"
-        env["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
-        env["DD_TRACE_LOGGING_RATE"] = "0"
+        subenv = env.copy()
+        subenv["DD_LLMOBS_ML_APP"] = "test-ml-app"
+        subenv["DD_API_KEY"] = "test-api-key"
+        subenv["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
+        subenv["DD_TRACE_ENABLED"] = "0"
+        subenv["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
+        subenv["DD_TRACE_LOGGING_RATE"] = "0"
         out, err, status, _ = ddtrace_run_python_code_in_subprocess(
             dedent(
                 """
@@ -274,7 +274,7 @@ class TestLLMIOProcessing:
                 LLMObs.annotate(llm_span, input_data="value", output_data="value", tags={"scrub_values": "1"})
             """
             ),
-            env=env,
+            env=subenv,
         )
         assert status == 0, err
         assert b"something bad happened" in err

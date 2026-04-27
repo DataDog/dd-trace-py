@@ -9,6 +9,7 @@ import pytest
 
 import ddtrace
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import ML_APP
@@ -48,7 +49,7 @@ from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-RAGAS_AVAILABLE = os.getenv("RAGAS_AVAILABLE", False)
+RAGAS_AVAILABLE = env.get("RAGAS_AVAILABLE", False)
 
 
 def run_llmobs_trace_filter(tracer, test_spans):
@@ -1153,11 +1154,11 @@ def test_listener_hooks_enqueue_correct_writer(run_python_code_in_subprocess):
     Regression test that ensures that listener hooks enqueue span events to the correct writer,
     not the default writer created at startup.
     """
-    env = os.environ.copy()
+    subenv = env.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
-        pypath.append(env["PYTHONPATH"])
-    env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
+        pypath.append(subenv["PYTHONPATH"])
+    subenv.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
     out, err, status, pid = run_python_code_in_subprocess(
         """
 import mock
@@ -1168,7 +1169,7 @@ from ddtrace.llmobs import LLMObs
 LLMObs.enable(ml_app="repro-issue", agentless_enabled=True, api_key="foobar.baz", site="datad0g.com")
 assert LLMObs._instance._llmobs_span_writer._url == "https://llmobs-intake.datad0g.com/api/v2/llmobs"
 """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, err
 
@@ -1312,9 +1313,9 @@ def test_llmobs_fork_evaluator_runner_run():
     except ImportError:
         sys.exit(0)
 
-    os.environ["DD_LLMOBS_EVALUATOR_INTERVAL"] = "5.0"
-    os.environ["DD_LLMOBS_EVALUATORS"] = "ragas_faithfulness"
-    os.environ.setdefault("OPENAI_API_KEY", "<not-a-real-key>")
+    env["DD_LLMOBS_EVALUATOR_INTERVAL"] = "5.0"
+    env["DD_LLMOBS_EVALUATORS"] = "ragas_faithfulness"
+    env.setdefault("OPENAI_API_KEY", "<not-a-real-key>")
     with mock.patch("ddtrace.llmobs._evaluators.runner.EvaluatorRunner.periodic"):
         llmobs_service.enable(_tracer=ddtrace.tracer, ml_app="test_app", api_key="test_api_key")
         pid = os.fork()
@@ -1374,7 +1375,7 @@ def test_llmobs_fork_disabled_then_enabled():
     assert svc._llmobs_eval_metric_writer.status == ServiceStatus.STOPPED
     if not pid:
         # Enable the service in the child
-        os.environ["DD_LLMOBS_ENABLED"] = "1"
+        env["DD_LLMOBS_ENABLED"] = "1"
         with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
             llmobs_service.enable(_tracer=ddtrace.tracer)
         svc = llmobs_service._instance

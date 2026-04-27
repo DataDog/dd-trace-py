@@ -1,10 +1,9 @@
-import os
-
 import mock
 import pytest
 
 from ddtrace.contrib.internal.anthropic.patch import patch
 from ddtrace.contrib.internal.anthropic.patch import unpatch
+from ddtrace.internal.settings import env
 from ddtrace.llmobs import LLMObs
 from tests.contrib.anthropic.utils import get_request_vcr
 from tests.utils import override_config
@@ -58,7 +57,7 @@ def anthropic(ddtrace_global_config, ddtrace_config_anthropic):
         with override_config("anthropic", ddtrace_config_anthropic):
             with override_env(
                 dict(
-                    ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+                    ANTHROPIC_API_KEY=env.get("ANTHROPIC_API_KEY", "<not-a-real-key>"),
                 )
             ):
                 patch()

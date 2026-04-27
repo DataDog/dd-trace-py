@@ -5,6 +5,7 @@ import time
 import mock
 import pytest
 
+from ddtrace.internal.settings import env
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSamplingRule
@@ -94,11 +95,11 @@ def test_evaluator_runner_multiple_evaluators(llmobs, mock_llmobs_eval_metric_wr
 
 @pytest.mark.skip(reason="Skipping due to flakiness in hitting the staging endpoint")
 def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subprocess):
-    env = os.environ.copy()
+    subenv = env.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
     if "PYTHONPATH" in env:
-        pypath.append(env["PYTHONPATH"])
-    env.update(
+        pypath.append(subenv["PYTHONPATH"])
+    subenv.update(
         {"PYTHONPATH": ":".join(pypath), "_DD_LLMOBS_EVALUATOR_INTERVAL": "0.01", "_DD_LLMOBS_WRITER_INTERVAL": "0.01"}
     )
     out, err, status, pid = run_python_code_in_subprocess(
@@ -117,7 +118,7 @@ LLMObs._instance._evaluator_runner.evaluators.append(DummyEvaluator(llmobs_servi
 LLMObs._instance._evaluator_runner.start()
 LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, None)
 """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, err
     assert out == b""

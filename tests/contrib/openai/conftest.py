@@ -1,4 +1,3 @@
-import os
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Optional  # noqa:F401
 
@@ -7,6 +6,7 @@ import pytest
 
 from ddtrace.contrib.internal.openai.patch import patch
 from ddtrace.contrib.internal.openai.patch import unpatch
+from ddtrace.internal.settings import env
 from ddtrace.llmobs import LLMObs
 from ddtrace.trace import TraceFilter
 from tests.utils import override_config
@@ -40,7 +40,7 @@ def request_api_key(api_key_in_env, openai_api_key):
 
 @pytest.fixture
 def openai_api_key():
-    return os.getenv("OPENAI_API_KEY", "<not-a-real-key>")
+    return env.get("OPENAI_API_KEY", "<not-a-real-key>")
 
 
 @pytest.fixture
@@ -55,7 +55,7 @@ def openai(openai_api_key, openai_organization, api_key_in_env):
     if api_key_in_env:
         openai.api_key = openai_api_key
     # When testing locally to generate new cassette files, comment the line below to use the real OpenAI API key.
-    os.environ["OPENAI_API_KEY"] = "<not-a-real-key>"
+    env["OPENAI_API_KEY"] = "<not-a-real-key>"
     openai.organization = openai_organization
     yield openai
 

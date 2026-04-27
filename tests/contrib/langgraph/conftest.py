@@ -1,5 +1,4 @@
 import operator
-import os
 from typing import Annotated
 from typing import TypedDict
 
@@ -17,6 +16,7 @@ from ddtrace.contrib.internal.langgraph.patch import patch
 from ddtrace.contrib.internal.langgraph.patch import unpatch
 from ddtrace.contrib.internal.openai.patch import patch as patch_openai
 from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
+from ddtrace.internal.settings import env
 from ddtrace.llmobs import LLMObs as llmobs_service
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import override_global_config
@@ -279,7 +279,7 @@ def agent_from_create_react_agent(langgraph):
         model="gpt-4o-mini",
         temperature=0.5,
         base_url="http://127.0.0.1:9126/vcr/openai",
-        api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+        api_key=env.get("OPENAI_API_KEY", "<not-a-real-key>"),
     )
 
     agent = create_react_agent(
@@ -305,7 +305,7 @@ def agent_from_create_react_agent_integrations_enabled(langgraph, openai, langch
         model="gpt-4o-mini",
         temperature=0.5,
         base_url="http://127.0.0.1:9126/vcr/openai",
-        api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+        api_key=env.get("OPENAI_API_KEY", "<not-a-real-key>"),
     )
 
     agent = create_react_agent(
