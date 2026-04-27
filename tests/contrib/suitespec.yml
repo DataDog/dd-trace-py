@@ -397,6 +397,8 @@ suites:
       - '@tracing'
       - '@aws_durable_execution_sdk_python'
       - tests/contrib/aws_durable_execution_sdk_python/*
+      - tests/snapshots/tests.{suite}.*
+    snapshot: true
   azure_cosmos:
     venvs_per_job: 4
     paths:
