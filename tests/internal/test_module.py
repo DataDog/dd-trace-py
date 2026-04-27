@@ -634,8 +634,6 @@ def test_module_watchdog_find_spec_no_cross_thread_deadlock():
 
     from ddtrace.internal.module import ModuleWatchdog
 
-    # importlib._bootstrap is always present in sys.modules; _get_module_lock
-    # gives us the per-module lock used by CPython's import system.
     bootstrap = sys.modules.get("importlib._bootstrap")
     if bootstrap is None or not hasattr(bootstrap, "_get_module_lock"):
         import pytest
@@ -646,22 +644,12 @@ def test_module_watchdog_find_spec_no_cross_thread_deadlock():
 
     ModuleWatchdog.install()
 
-    # Hold the "tests" import lock in the main thread, simulating a package
-    # mid-import (e.g. snowflake.connector being executed by the main thread).
-    lock = _get_module_lock("tests")
+    lock = _get_module_lock("tests")  # hold the "tests" import lock, simulating a package mid-import
     lock.acquire()
 
     background_done = threading.Event()
 
     def background():
-        # Simulate the background thread calling find_spec() for a submodule of
-        # the locked package — the path that snowflake-connector-python 4.4.0
-        # triggers via importlib.files() → importlib.util.find_spec().
-        # Old code: called importlib.util.find_spec("tests.<sub>") which called
-        # __import__("tests") to resolve the parent __path__, which called
-        # _lock_unlock_module("tests") → blocked on the lock the main thread holds.
-        # New code: iterates sys.meta_path directly with path/target already
-        # provided — no _lock_unlock_module call, no deadlock.
         for finder in sys.meta_path:
             if isinstance(finder, ModuleWatchdog):
                 finder.find_spec("tests._ddtrace_regression_nonexistent", None, None)
