@@ -16,7 +16,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "2c44787de1c98f37db6d1cfc7156fe43878cfe9d"
+  SYSTEM_TESTS_REF: "adcd0e88eecd59a179f9470d76a5bc48eed14524"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -33,6 +33,7 @@ default:
 
 .is_main: $CI_COMMIT_REF_NAME == "main"
 .is_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+.is_non_rc_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
 .is_release_branch: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
 .is_gh_merge_queue: $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/
 .is_devflow_merge_queue: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
@@ -294,6 +295,16 @@ check_requirements_lockfiles:
   stage: tests
   needs: []
   extends: .testrunner
+  variables:
+    # DD_DISABLE_VPA is required: without it VPA overrides KUBERNETES_MEMORY_*
+    # (see "overridden by VPA" in runner logs) and clamps the build container
+    # down to ~4 GiB based on its learned model. compile-and-prune-test-
+    # requirements pip-compiles every riot lockfile sequentially and peaks
+    # above that when resolving the full venv matrix (including 3.15 venvs),
+    # causing OOMKilled (exit 137).
+    DD_DISABLE_VPA: "true"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
   script:
     - pip install toml==0.10.2
     - scripts/compile-and-prune-test-requirements
@@ -396,7 +407,7 @@ package-oci:
 promote-oci-to-prod:
   stage: release
   rules:
-    - if: !reference [.is_release]
+    - if: !reference [.is_non_rc_release]
       when: on_success
     - when: never
   needs:
@@ -425,7 +436,7 @@ promote-oci-to-staging:
 publish-lib-init-pinned-tags:
   stage: release
   rules:
-    - if: !reference [.is_release]
+    - if: !reference [.is_non_rc_release]
       when: on_success
     - when: never
   needs:

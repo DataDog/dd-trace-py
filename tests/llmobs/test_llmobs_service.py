@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import threading
@@ -18,6 +19,8 @@ from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -131,6 +134,19 @@ def test_service_disable(tracer):
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
+
+
+def test_enable_disable_keeps_global_config_llmobs_enabled_in_sync(tracer):
+    """LLMObs.enable()/disable() must mirror their effect into ddtrace.config._llmobs_enabled
+    so the _ConfigItem reflects effective state. Consumers like the APM_TRACING RC handler
+    read this value to reconcile LLMObs state against RC payloads.
+    """
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
+        assert ddtrace.config._llmobs_enabled is False
+        llmobs_service.enable(_tracer=tracer)
+        assert ddtrace.config._llmobs_enabled is True
+        llmobs_service.disable()
+        assert ddtrace.config._llmobs_enabled is False
 
 
 def test_service_enable_no_api_key(tracer):
@@ -349,21 +365,21 @@ def test_llm_span(llmobs, llmobs_events):
 
 def test_llm_span_no_model_sets_default(llmobs, llmobs_events):
     with llmobs.llm(name="test_llm_call", model_provider="test_provider") as span:
-        assert get_llmobs_model_name(span) == "custom"
+        assert get_llmobs_model_name(span) == UNKNOWN_MODEL_NAME
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "llm", model_name="custom", model_provider="test_provider"
+        span, "llm", model_name=UNKNOWN_MODEL_NAME, model_provider="test_provider"
     )
 
 
-def test_default_model_provider_set_to_custom(llmobs):
+def test_default_model_provider_set_to_unknown(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call") as span:
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
         assert get_llmobs_span_kind(span) == "llm"
         assert get_llmobs_model_name(span) == "test_model"
-        assert get_llmobs_model_provider(span) == "custom"
+        assert get_llmobs_model_provider(span) == UNKNOWN_MODEL_PROVIDER
 
 
 def test_tool_span(llmobs, llmobs_events):
@@ -408,21 +424,21 @@ def test_agent_span(llmobs, llmobs_events):
 
 def test_embedding_span_no_model_sets_default(llmobs, llmobs_events):
     with llmobs.embedding(name="test_embedding", model_provider="test_provider") as span:
-        assert get_llmobs_model_name(span) == "custom"
+        assert get_llmobs_model_name(span) == UNKNOWN_MODEL_NAME
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "embedding", model_name="custom", model_provider="test_provider"
+        span, "embedding", model_name=UNKNOWN_MODEL_NAME, model_provider="test_provider"
     )
 
 
-def test_embedding_default_model_provider_set_to_custom(llmobs):
+def test_embedding_default_model_provider_set_to_unknown(llmobs):
     with llmobs.embedding(model_name="test_model", name="test_embedding") as span:
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
         assert get_llmobs_span_kind(span) == "embedding"
         assert get_llmobs_model_name(span) == "test_model"
-        assert get_llmobs_model_provider(span) == "custom"
+        assert get_llmobs_model_provider(span) == UNKNOWN_MODEL_PROVIDER
 
 
 def test_embedding_span(llmobs, llmobs_events):
@@ -943,13 +959,13 @@ def test_ml_app_override(llmobs, llmobs_events):
         pass
     assert len(llmobs_events) == 3
     assert llmobs_events[2] == _expected_llmobs_llm_span_event(
-        span, "llm", model_name="model_name", model_provider="custom", tags={"ml_app": "test_app"}
+        span, "llm", model_name="model_name", model_provider=UNKNOWN_MODEL_PROVIDER, tags={"ml_app": "test_app"}
     )
     with llmobs.embedding(model_name="model_name", name="test_embedding", ml_app="test_app") as span:
         pass
     assert len(llmobs_events) == 4
     assert llmobs_events[3] == _expected_llmobs_llm_span_event(
-        span, "embedding", model_name="model_name", model_provider="custom", tags={"ml_app": "test_app"}
+        span, "embedding", model_name="model_name", model_provider=UNKNOWN_MODEL_PROVIDER, tags={"ml_app": "test_app"}
     )
     with llmobs.workflow(name="test_workflow", ml_app="test_app") as span:
         pass
@@ -2231,6 +2247,106 @@ def test_submit_evaluation_incorrect_json_value_type_raises_error(llmobs, mock_l
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="json", value="high"
         )
+
+
+def test_submit_evaluation_invalid_eval_scope_raises_error(llmobs):
+    with pytest.raises(ValueError, match="eval_scope must be one of 'span' or 'trace'."):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"},
+            label="quality",
+            metric_type="score",
+            value=0.9,
+            eval_scope="invalid",
+        )
+
+
+def test_submit_evaluation_trace_scope(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation(
+        span={"span_id": "123", "trace_id": "456"},
+        label="quality",
+        metric_type="score",
+        value=0.9,
+        ml_app="test_app",
+        eval_scope="trace",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
+        {
+            "metric_type": "score",
+            "label": "quality",
+            "tags": [
+                "ddtrace.version:{}".format(ddtrace.__version__),
+                "ml_app:test_app",
+            ],
+            "join_on": {"span": {"span_id": "123", "trace_id": "456"}},
+            "score_value": 0.9,
+            "timestamp_ms": mock.ANY,
+            "ml_app": "test_app",
+            "eval_scope": "trace",
+        }
+    )
+
+
+# ── get_spans ──────────────────────────────────────────────────────────────────
+
+
+def _make_mock_response(status, body):
+    """Return a mock HTTP response object compatible with Response.from_http_response."""
+    mock_resp = mock.MagicMock()
+    mock_resp.status = status
+    mock_resp.read.return_value = json.dumps(body).encode()
+    mock_resp.reason = "OK" if status == 200 else "Error"
+    mock_resp.msg = None
+    return mock_resp
+
+
+@pytest.fixture
+def mock_get_connection(llmobs):
+    with mock.patch("ddtrace.llmobs._writer.get_connection") as m:
+        yield m
+
+
+def _setup_mock_connection(mock_get_connection, pages):
+    """
+    pages: list of (status, body) tuples, one per paginated request.
+    """
+    mock_conn = mock.MagicMock()
+    mock_get_connection.return_value = mock_conn
+    mock_conn.getresponse.side_effect = [_make_mock_response(s, b) for s, b in pages]
+    return mock_conn
+
+
+def test_get_spans_returns_span_list(mock_get_connection, llmobs):
+    llmobs._app_key = "test-app-key"
+    page = {
+        "data": [
+            {"attributes": {"span_id": "abc", "name": "my_span", "span_kind": "llm"}},
+            {"attributes": {"span_id": "def", "name": "other_span", "span_kind": "agent"}},
+        ],
+        "meta": {"page": {}},
+    }
+    _setup_mock_connection(mock_get_connection, [(200, page)])
+    result = llmobs.get_spans(trace_id="trace123")
+    assert len(result) == 2
+    assert result[0]["span_id"] == "abc"
+    assert result[1]["span_id"] == "def"
+
+
+def test_get_spans_paginates(mock_get_connection, llmobs):
+    llmobs._app_key = "test-app-key"
+    page1 = {
+        "data": [{"attributes": {"span_id": "s1"}}],
+        "meta": {"page": {"after": "cursor-xyz"}},
+    }
+    page2 = {
+        "data": [{"attributes": {"span_id": "s2"}}],
+        "meta": {"page": {}},
+    }
+    _setup_mock_connection(mock_get_connection, [(200, page1), (200, page2)])
+    result = llmobs.get_spans(trace_id="trace123")
+    assert len(result) == 2
+    assert result[0]["span_id"] == "s1"
+    assert result[1]["span_id"] == "s2"
+    assert mock_get_connection.call_count == 2
 
 
 class TestBuildSpanEventFromMetaStructE2E:

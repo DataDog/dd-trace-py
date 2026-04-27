@@ -95,7 +95,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '2c44787de1c98f37db6d1cfc7156fe43878cfe9d'
+          ref: 'adcd0e88eecd59a179f9470d76a5bc48eed14524'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -148,7 +148,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '2c44787de1c98f37db6d1cfc7156fe43878cfe9d'
+          ref: 'adcd0e88eecd59a179f9470d76a5bc48eed14524'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -194,6 +194,10 @@ jobs:
       - name: Run RUNTIME_METRICS_ENABLED
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh RUNTIME_METRICS_ENABLED
+
+      - name: Run AI_GUARD
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other' && matrix.weblog-variant == 'flask-poc'
+        run: ./run.sh AI_GUARD
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
@@ -335,7 +339,7 @@ jobs:
 
       - name: Upload test results to Test Optimization
         if: always() && steps.docker_load.outcome == 'success'
-        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
+        uses: DataDog/system-tests/.github/actions/push_to_test_optim@1e5d6b7096279ca43ce4826fda3cc805635b63c1
         with:
           datadog_api_key: ${{ steps.dd-sts.outputs.api_key }}
 
@@ -351,6 +355,8 @@ jobs:
         with:
           name: logs_${{ matrix.weblog-variant }}_${{ matrix.scenario }}
           path: artifact.tar.gz
+
+
 
   serverless-system-tests-build-layer:
     runs-on: ubuntu-latest
@@ -382,7 +388,7 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@1e5d6b7096279ca43ce4826fda3cc805635b63c1
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@23941ab6de4122b7d0ca2b0d4aa7818def68a0d5
     secrets: inherit
     with:
       library: python_lambda
@@ -412,7 +418,7 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@1e5d6b7096279ca43ce4826fda3cc805635b63c1
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@23941ab6de4122b7d0ca2b0d4aa7818def68a0d5
     secrets: inherit
     with:
       library: python
@@ -422,7 +428,7 @@ jobs:
 
   tracer-release:
     if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@1e5d6b7096279ca43ce4826fda3cc805635b63c1
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
     with:
       library: python
       ref: main

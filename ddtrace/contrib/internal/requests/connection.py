@@ -91,7 +91,7 @@ def _wrap_send(func, instance, args, kwargs):
             integration_config=config.requests,
             request_method=request.method,
             request_headers=request.headers,
-            url=request.url,
+            request_url=request.url,
             query=_extract_query_string(url) or "",
             target_host=host_without_port,
         ),

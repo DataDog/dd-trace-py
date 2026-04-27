@@ -146,6 +146,8 @@ suites:
       - '@core'
       - '@tracing'
       - '@vendor'
+      - ddtrace/internal/telemetry/constants.py
+      - ddtrace/internal/telemetry/metrics_namespaces.py*
       - benchmarks/telemetry_add_metric/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
@@ -373,6 +375,18 @@ suites:
     paths:
       - 'src/native/rand.rs'
       - benchmarks/rand/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  telemetry_dependencies:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - ddtrace/internal/telemetry/dependency*.py
+      - ddtrace/appsec/sca/*
+      - benchmarks/telemetry_dependencies/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'

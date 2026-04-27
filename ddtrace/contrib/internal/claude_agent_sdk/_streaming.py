@@ -1,5 +1,6 @@
 import inspect
 from typing import Any
+from typing import Optional
 
 import wrapt
 
@@ -9,6 +10,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.types import Message
 
 
 log = get_logger(__name__)
@@ -76,11 +78,55 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self.instance = instance
         self.context = None
         self._active_tool_spans: dict[str, dict[str, Any]] = {}
+        self.current_llm_span = None
+        self._accumulated_input_messages: Optional[list[Message]] = None
+        # Open the first LLM span immediately so its duration includes
+        # the time waiting for the first AssistantMessage.
+        self._create_llm_span()
+
+    def _create_llm_span(self) -> None:
+        self.current_llm_span = self.integration.trace(
+            "claude_agent_sdk.llm",
+            submit_to_llmobs=True,
+            span_name="claude_agent_sdk.llm",
+            instance=self.instance,
+        )
+
+    def _finalize_llm_span(self, chunk: Any, exception: BaseException | None = None) -> None:
+        if self.current_llm_span is None:
+            return
+        span = self.current_llm_span
+        self.current_llm_span = None
+
+        if self._accumulated_input_messages is None:
+            self._accumulated_input_messages = self.integration.extract_llm_input_messages(
+                self.request_args, self.request_kwargs, self.primary_span
+            )
+
+        self.integration.llmobs_set_tags(
+            span,
+            args=[],
+            kwargs={"input_messages": list(self._accumulated_input_messages)},
+            response=chunk,
+            operation="llm",
+        )
+        if exception is not None:
+            span.set_exc_info(type(exception), exception, exception.__traceback__)
+        span.finish()
+
+        if chunk is not None:
+            content = getattr(chunk, "content", []) or []
+            if isinstance(content, list):
+                self._accumulated_input_messages.extend(self.integration.parse_content_blocks("assistant", content))
 
     async def process_chunk(self, chunk, iterator=None):
         self.chunks.append(chunk)
+        chunk_type = type(chunk).__name__
 
-        if type(chunk).__name__ == "ResultMessage" and self.instance and self.context is None:
+        if chunk_type == "AssistantMessage":
+            self._finalize_llm_span(chunk)
+
+        if chunk_type == "ResultMessage" and self.instance and self.context is None:
             self.context = await _retrieve_context(self.instance)
 
         # Handle tool use and result blocks for tool span creation
@@ -97,7 +143,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 tool_input = getattr(block, "input", {})
 
                 tool_span = self.integration.trace(
-                    tool_name,
+                    "claude_agent_sdk.tool",
                     submit_to_llmobs=True,
                     span_name=f"claude_agent_sdk.tool.{tool_name}",
                 )
@@ -114,6 +160,17 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                     result_content = getattr(block, "content", "")
                     tool_output = safe_json(result_content) or str(result_content)
                     self._finalize_tool_span(tool_data, tool_output)
+
+        # After all tool results in a UserMessage are processed, append the tool results
+        # to the growing context and open the next LLM span.
+        if chunk_type == "UserMessage" and not self._active_tool_spans:
+            if self._accumulated_input_messages is None:
+                self._accumulated_input_messages = self.integration.extract_llm_input_messages(
+                    self.request_args, self.request_kwargs, self.primary_span
+                )
+            user_content = getattr(chunk, "content", []) or []
+            self._accumulated_input_messages.extend(self.integration.parse_content_blocks("user", user_content))
+            self._create_llm_span()
 
     def _finalize_tool_span(self, tool_data: dict[str, Any], tool_output: str) -> None:
         tool_span = tool_data["tool_span"]
@@ -134,6 +191,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
 
     def finalize_stream(self, exception=None):
         try:
+            if self.current_llm_span is not None:
+                self._finalize_llm_span(None, exception=exception)
+
             model = _extract_model_from_response(self.chunks)
             if model:
                 self.primary_span._set_attribute("claude_agent_sdk.request.model", model)
