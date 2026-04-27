@@ -1,4 +1,14 @@
 integrations:
+- integration_name: aio_pika
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - aio-pika
+  tested_versions_by_dependency:
+    aio-pika:
+      min: 9.0.0
+      max: 9.6.2
+
 - integration_name: aiobotocore
   is_external_package: true
   is_tested: true

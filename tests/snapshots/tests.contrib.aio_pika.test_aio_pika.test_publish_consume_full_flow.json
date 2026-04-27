@@ -1,0 +1,91 @@
+[[
+  {
+    "name": "rabbitmq.publish",
+    "service": "tests.contrib.aio_pika",
+    "resource": "rabbitmq.publish",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69d3e41800000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aio_pika",
+      "component": "aio-pika",
+      "language": "python",
+      "messaging.destination.name": "test_exchange_aiopika",
+      "messaging.operation": "publish",
+      "messaging.system": "rabbitmq",
+      "out.host": "127.0.0.1",
+      "pathway.hash": "11335993597382858722",
+      "runtime-id": "5acce521d45c442f99f6864fe35228a6",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "network.destination.port": 5672.0,
+      "process_id": 605.0
+    },
+    "duration": 1010792,
+    "start": 1775494168894206429
+  },
+     {
+       "name": "rabbitmq.receive",
+       "service": "tests.contrib.aio_pika",
+       "resource": "rabbitmq.receive",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "_dd.p.tid": "69d3e41800000000",
+         "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aio_pika",
+         "component": "aio-pika",
+         "language": "python",
+         "messaging.destination.name": "test_exchange_aiopika",
+         "messaging.operation": "receive",
+         "messaging.system": "rabbitmq",
+         "pathway.hash": "12814130129000393133",
+         "runtime-id": "5acce521d45c442f99f6864fe35228a6",
+         "span.kind": "consumer",
+         "tracestate": "dd=p:c004419feb2d9e4e;s:1;t.dm:-0;t.tid:69d3e41800000000"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1.0,
+         "process_id": 605.0
+       },
+       "duration": 591292,
+       "start": 1775494168896025846
+     },
+        {
+          "name": "rabbitmq.ack",
+          "service": "tests.contrib.aio_pika",
+          "resource": "rabbitmq.ack",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "worker",
+          "error": 0,
+          "meta": {
+            "_dd.p.tid": "69d3e41800000000",
+            "component": "aio-pika",
+            "messaging.destination.name": "test_exchange_aiopika",
+            "messaging.operation": "ack",
+            "messaging.system": "rabbitmq",
+            "span.kind": "internal"
+          },
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 189167,
+          "start": 1775494168896353471
+        }]]
