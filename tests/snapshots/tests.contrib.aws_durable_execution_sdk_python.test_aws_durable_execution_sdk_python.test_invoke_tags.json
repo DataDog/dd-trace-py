@@ -1,0 +1,61 @@
+[[
+  {
+    "name": "aws.durable.execute",
+    "service": "tests.contrib.aws_durable_execution_sdk_python",
+    "resource": "tests.contrib.aws_durable_execution_sdk_python.test_aws_durable_execution_sdk.test_invoke_tags.<locals>.workflow",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69ef57fa00000000",
+      "_dd.svc_src": "aws_durable_execution_sdk_python",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aws_durable_execution_sdk_python",
+      "aws.durable.execution_arn": "021e595c-c4bc-4e20-b07a-28f9d6e8f334",
+      "aws.durable.invocation_status": "failed",
+      "aws.durable.replayed": "false",
+      "component": "aws_durable_execution_sdk_python",
+      "error.message": "Serialization failed for id: 1ced8f5be2db23a6513eba4d819c73806424748a7bc6fa0d792cc1c7d1775a97, error: Object of type bytes is not JSON serializable.",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/serdes.py\", line 464, in serialize\n    return active_serdes.serialize(value, serdes_context)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/serdes.py\", line 381, in serialize\n    return json.dumps(value)\n           ~~~~~~~~~~^^^^^^^\n  File \"/home/bits/.pyenv/versions/3.13.11/lib/python3.13/json/__init__.py\", line 235, in dumps\n    return _default_encoder.encode(obj)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^\n  File \"/home/bits/.pyenv/versions/3.13.11/lib/python3.13/json/encoder.py\", line 202, in encode\n    chunks = self.iterencode(o, _one_shot=True)\n  File \"/home/bits/.pyenv/versions/3.13.11/lib/python3.13/json/encoder.py\", line 263, in iterencode\n    return _iterencode(o, 0)\n  File \"/home/bits/.pyenv/versions/3.13.11/lib/python3.13/json/encoder.py\", line 182, in default\n    raise TypeError(f'Object of type {o.__class__.__name__} '\n                    f'is not JSON serializable')\nTypeError: Object of type bytes is not JSON serializable\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/aws_durable_execution_sdk_python/patch.py\", line 115, in traced_user_func\n    result = user_func(*inner_args, **inner_kwargs)\n  File \"/home/bits/project/tests/contrib/aws_durable_execution_sdk_python/test_aws_durable_execution_sdk.py\", line 149, in workflow\n    return context.invoke(function_name=\"my-target-fn\", payload=b\"{}\", name=\"call-downstream\")\n           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/ddtrace/contrib/internal/aws_durable_execution_sdk_python/patch.py\", line 182, in _traced_context\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/context.py\", line 396, in invoke\n    result: R = executor.process()\n                ~~~~~~~~~~~~~~~~^^\n  File \"/home/bits/project/ddtrace/contrib/internal/aws_durable_execution_sdk_python/patch.py\", line 147, in _traced_process\n    return wrapped(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/operation/base.py\", line 168, in process\n    result = self.check_result_status()\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/operation/invoke.py\", line 122, in check_result_status\n    serialized_payload: str = serialize(\n                              ~~~~~~~~~^\n        serdes=self.config.serdes_payload or DEFAULT_JSON_SERDES,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<2 lines>...\n        durable_execution_arn=self.state.durable_execution_arn,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/serdes.py\", line 471, in serialize\n    raise ExecutionError(msg) from e\naws_durable_execution_sdk_python.exceptions.ExecutionError: Serialization failed for id: 1ced8f5be2db23a6513eba4d819c73806424748a7bc6fa0d792cc1c7d1775a97, error: Object of type bytes is not JSON serializable.\n",
+      "error.type": "aws_durable_execution_sdk_python.exceptions.ExecutionError",
+      "language": "python",
+      "runtime-id": "9668da0008b349628845adc5eaf8684b",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 6297000,
+    "start": 1777293306900479259
+  },
+     {
+       "name": "aws.durable.invoke",
+       "service": "tests.contrib.aws_durable_execution_sdk_python",
+       "resource": "call-downstream",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "serverless",
+       "error": 1,
+       "meta": {
+         "_dd.svc_src": "aws_durable_execution_sdk_python",
+         "aws.durable.invoke.function_name": "my-target-fn",
+         "aws.durable.replayed": "false",
+         "component": "aws_durable_execution_sdk_python",
+         "error.message": "Serialization failed for id: 1ced8f5be2db23a6513eba4d819c73806424748a7bc6fa0d792cc1c7d1775a97, error: Object of type bytes is not JSON serializable.",
+         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/serdes.py\", line 464, in serialize\n    return active_serdes.serialize(value, serdes_context)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/serdes.py\", line 381, in serialize\n    return json.dumps(value)\n           ~~~~~~~~~~^^^^^^^\n  File \"/home/bits/.pyenv/versions/3.13.11/lib/python3.13/json/__init__.py\", line 235, in dumps\n    return _default_encoder.encode(obj)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^\n  File \"/home/bits/.pyenv/versions/3.13.11/lib/python3.13/json/encoder.py\", line 202, in encode\n    chunks = self.iterencode(o, _one_shot=True)\n  File \"/home/bits/.pyenv/versions/3.13.11/lib/python3.13/json/encoder.py\", line 263, in iterencode\n    return _iterencode(o, 0)\n  File \"/home/bits/.pyenv/versions/3.13.11/lib/python3.13/json/encoder.py\", line 182, in default\n    raise TypeError(f'Object of type {o.__class__.__name__} '\n                    f'is not JSON serializable')\nTypeError: Object of type bytes is not JSON serializable\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/aws_durable_execution_sdk_python/patch.py\", line 182, in _traced_context\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/context.py\", line 396, in invoke\n    result: R = executor.process()\n                ~~~~~~~~~~~~~~~~^^\n  File \"/home/bits/project/ddtrace/contrib/internal/aws_durable_execution_sdk_python/patch.py\", line 147, in _traced_process\n    return wrapped(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/operation/base.py\", line 168, in process\n    result = self.check_result_status()\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/operation/invoke.py\", line 122, in check_result_status\n    serialized_payload: str = serialize(\n                              ~~~~~~~~~^\n        serdes=self.config.serdes_payload or DEFAULT_JSON_SERDES,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<2 lines>...\n        durable_execution_arn=self.state.durable_execution_arn,\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/serdes.py\", line 471, in serialize\n    raise ExecutionError(msg) from e\naws_durable_execution_sdk_python.exceptions.ExecutionError: Serialization failed for id: 1ced8f5be2db23a6513eba4d819c73806424748a7bc6fa0d792cc1c7d1775a97, error: Object of type bytes is not JSON serializable.\n",
+         "error.type": "aws_durable_execution_sdk_python.exceptions.ExecutionError",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 4749375,
+       "start": 1777293306900572509
+     }]]
