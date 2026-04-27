@@ -6,7 +6,7 @@ use std::time::Duration;
 mod exceptions;
 use exceptions::shared_runtime_error_to_pyerr;
 
-#[pyclass(name = "SharedRuntime")]
+#[pyclass(name = "SharedRuntime", subclass)]
 pub struct SharedRuntimePy {
     inner: Arc<SharedRuntime>,
 }

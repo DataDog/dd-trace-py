@@ -11,34 +11,27 @@ log = logging.getLogger(__name__)
 _DEFAULT_SHUTDOWN_TIMEOUT_MS = 3000
 
 
-class NativeRuntime:
+class NativeRuntime(SharedRuntime):
     """Manages a SharedRuntime with fork-safe lifecycle hooks.
 
     The SharedRuntime wraps a Tokio async runtime shared across TraceExporter
     instances. This class registers before_fork / after_fork_parent /
     after_fork_child hooks so the runtime is correctly paused and resumed
-    around process forks. To pass the runtime to native components use `self.inner`.
+    around process forks.
     """
 
+    _instance: Optional["NativeRuntime"] = None
+
     def __init__(self) -> None:
-        self.inner = SharedRuntime()
-        forksafe.register_before_fork(self._before_fork)
-        forksafe.register_after_parent(self._after_fork_parent)
-        forksafe.register(self._after_fork_child)
+        super().__init__()
+        forksafe.register_before_fork(self.before_fork)
+        forksafe.register_after_parent(self.after_fork_parent)
+        forksafe.register(self.after_fork_child)
         atexit.register(self._atexit)
-
-    def _before_fork(self) -> None:
-        self.inner.before_fork()
-
-    def _after_fork_parent(self) -> None:
-        self.inner.after_fork_parent()
-
-    def _after_fork_child(self) -> None:
-        self.inner.after_fork_child()
 
     def _atexit(self) -> None:
         try:
-            self.inner.shutdown(timeout_ms=_DEFAULT_SHUTDOWN_TIMEOUT_MS)
+            self.shutdown(timeout_ms=_DEFAULT_SHUTDOWN_TIMEOUT_MS)
         except Exception:
             log.debug("Error shutting down native runtime at exit", exc_info=True)
 
@@ -50,14 +43,11 @@ class NativeRuntime:
                 If None, waits indefinitely — only safe if all workers have
                 already been stopped (e.g. via TraceExporter.shutdown).
         """
-        self.inner.shutdown(timeout_ms=timeout_ms)
+        super().shutdown(timeout_ms=timeout_ms)
         atexit.unregister(self._atexit)
-        forksafe.unregister_before_fork(self._before_fork)
-        forksafe.unregister_parent(self._after_fork_parent)
-        forksafe.unregister(self._after_fork_child)
-
-
-_instance: Optional[NativeRuntime] = None
+        forksafe.unregister_before_fork(self.before_fork)
+        forksafe.unregister_parent(self.after_fork_parent)
+        forksafe.unregister(self.after_fork_child)
 
 
 def get_native_runtime() -> NativeRuntime:
@@ -65,7 +55,6 @@ def get_native_runtime() -> NativeRuntime:
 
     The first call also registers an atexit hook to shut the runtime down.
     """
-    global _instance
-    if _instance is None:
-        _instance = NativeRuntime()
-    return _instance
+    if NativeRuntime._instance is None:
+        NativeRuntime._instance = NativeRuntime()
+    return NativeRuntime._instance
