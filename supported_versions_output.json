@@ -468,7 +468,7 @@
         "dependency": "logbook",
         "integration": "logbook",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.8.2",
+        "max_tracer_supported": "1.9.2",
         "auto-instrumented": true
     },
     {
