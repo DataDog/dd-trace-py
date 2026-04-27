@@ -1,0 +1,136 @@
+interactions:
+- request:
+    body: '{"messages": [{"content": "You are a {role} assistant.", "role": "system"},
+      {"content": "Your expertise is in software engineering.", "role": "system"},
+      {"content": "Additional context: focus on best practices", "role": "system"},
+      {"content": "I''m a user seeking help.", "role": "user"}, {"content": "Please
+      help with code review", "role": "user"}, {"content": "Specifically, I need performance
+      optimization", "role": "user"}, {"content": "I understand your request.", "role":
+      "assistant"}, {"content": "I''ll help you with code review.", "role": "assistant"},
+      {"content": "Let me provide recommendations", "role": "assistant"}, {"content":
+      "Make it thorough and under 200 words", "role": "developer"}], "model": "gpt-3.5-turbo",
+      "n": 1, "stream": false, "temperature": 0.7}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '773'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - AsyncOpenAI/Python 1.30.3
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - async:asyncio
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.30.3
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-CIesfljG3kdiFje8g6472JNaqQCgs\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1758563085,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"When optimizing for performance, consider
+        the following: \\n1. Use efficient data structures and algorithms.\\n2. Minimize
+        unnecessary operations and avoid nested loops.\\n3. Cache results of expensive
+        computations.\\n4. Optimize database queries and minimize network requests.\\n5.
+        Utilize asynchronous processing and parallel programming.\\n6. Profile your
+        code to identify bottlenecks.\\n7. Avoid premature optimization; focus on
+        critical areas first.\\n8. Consider using a profiler tool to measure performance
+        improvements.\\n9. Regularly review and refactor code for better performance.\\n10.
+        Test performance changes and monitor for regressions. Remember, optimizing
+        code is a balance between performance gains and code complexity.\",\n        \"refusal\":
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        109,\n    \"completion_tokens\": 131,\n    \"total_tokens\": 240,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": null\n}\n"
+    headers:
+      CF-RAY:
+      - 98339cb37b67904d-BOS
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 22 Sep 2025 17:44:46 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=oNqeFDsHxjp57DO51OQdISF3Rv7ullj_2sqWTb.S_30-1758563086-1.0.1.1-lQxQBATc6qZ6885iAbP4q4GcorpFkumyl4a3sbnw91vDcB2MVUB4tAFSRlpWmW3iX6s6a1Kn5auYHerQzjwqJvezKRtKrdFeKAlsTk1E3ek;
+        path=/; expires=Mon, 22-Sep-25 18:14:46 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=SlLwMUXOeHtVRpbotBOCe.2amWEGWxTLJrXtR.4yOoo-1758563086515-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '1073'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '1094'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '50000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '49999905'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_1690ccbc68564cc1a3041ea020bbe6d6
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,138 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["Write a creative story
+      about time travel."], "frequency_penalty": 0, "logit_bias": {}, "max_tokens":
+      256, "n": 1, "presence_penalty": 0, "temperature": 0.7, "top_p": 1}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '216'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.30.3
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.30.3
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"cmpl-CIewkLZmfJsU1nplXAFDznjxKFW3Y\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1758563338,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\n\\nOnce upon a time, in the
+        year 2045, a young scientist named Ava had just completed her time machine.
+        She had been working on it for years, fueled by her fascination with time
+        travel and her desire to change the course of history. Her machine was sleek
+        and modern, with flashing lights and advanced technology that she had designed
+        herself.\\n\\nAva had always been a bit of a rebel, and she had never been
+        content with the way things were in her time. The world was plagued by wars,
+        poverty, and environmental disasters. She dreamed of going back in time and
+        preventing these tragedies from ever happening. And now, with her time machine,
+        she finally had the chance to do so.\\n\\nWith a deep breath, Ava stepped
+        into her machine and set the date to 1920, a time she had always been drawn
+        to. As the machine whirred to life, she felt a rush of excitement and fear.
+        What if her plan didn't work? What if she caused more harm than good?\\n\\nBut
+        it was too late to turn back now. Before she knew it, she was transported
+        through time, landing in a bustling city street. As she stepped out of the
+        machine, she was immediately struck by the sights and sounds of the roaring
+        twenties. The fashion\",\n      \"index\": 0,\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"length\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        8,\n    \"completion_tokens\": 256,\n    \"total_tokens\": 264\n  }\n}\n"
+    headers:
+      CF-RAY:
+      - 9833a2dd5efb8fcc-BOS
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 22 Sep 2025 17:49:00 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=rHB1WT4cm36iY6hlJ8YrIYVdycicTQbkFBkWNoDOY9g-1758563340-1.0.1.1-dflE5EN9tBQz.NWy4o7.e6snRB6uSzOTsVG4ChFYgdFagrbmLIF1KzW9xTGCrLlJZJ24JlVWyJvf8KDj7BhJ113p5YV0kAodnvx9K3xj9.4;
+        path=/; expires=Mon, 22-Sep-25 18:19:00 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=epUYLQglxq8rJ1L9Wx4Wu27nkRnKVdngRy0cmHCS93A-1758563340287-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-model:
+      - gpt-3.5-turbo-instruct:20230824-v2
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '2238'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      via:
+      - envoy-router-6c4cfffd5b-r5whb
+      x-envoy-upstream-service-time:
+      - '2401'
+      x-openai-proxy-wasm:
+      - v0.1
+      x-ratelimit-limit-requests:
+      - '3500'
+      x-ratelimit-limit-tokens:
+      - '90000'
+      x-ratelimit-remaining-requests:
+      - '3498'
+      x-ratelimit-remaining-tokens:
+      - '89989'
+      x-ratelimit-reset-requests:
+      - 17ms
+      x-ratelimit-reset-tokens:
+      - 7ms
+      x-request-id:
+      - req_6353e5a6d22645b181fda4c2fbd2d176
+    status:
+      code: 200
+      message: OK
+version: 1
