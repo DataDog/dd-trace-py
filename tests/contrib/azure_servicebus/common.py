@@ -1,6 +1,5 @@
 from datetime import datetime
 from datetime import timezone
-import os
 from typing import Union
 from uuid import uuid4
 
@@ -14,6 +13,8 @@ from azure.servicebus.aio import ServiceBusReceiver as ServiceBusReceiverAsync
 from azure.servicebus.aio import ServiceBusSender as ServiceBusSenderAsync
 from azure.servicebus.amqp import AmqpAnnotatedMessage
 import pytest
+
+from ddtrace.internal.settings import env
 
 
 CONNECTION_STRING = "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
@@ -164,11 +165,11 @@ async def run_test_async(
 
 @pytest.mark.asyncio
 async def test_common():
-    method = os.environ.get("METHOD")
-    is_async = os.environ.get("IS_ASYNC") == "True"
-    message_payload_type = os.environ.get("MESSAGE_PAYLOAD_TYPE")
-    distributed_tracing_enabled = os.environ.get("DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING", "True") == "True"
-    batch_links_enabled = os.environ.get("DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED", "True") == "True"
+    method = env.get("METHOD")
+    is_async = env.get("IS_ASYNC") == "True"
+    message_payload_type = env.get("MESSAGE_PAYLOAD_TYPE")
+    distributed_tracing_enabled = env.get("DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING", "True") == "True"
+    batch_links_enabled = env.get("DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED", "True") == "True"
 
     if is_async:
         client = ServiceBusClientAsync.from_connection_string(CONNECTION_STRING)

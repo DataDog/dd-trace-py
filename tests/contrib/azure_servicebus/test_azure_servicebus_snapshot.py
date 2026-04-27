@@ -1,11 +1,11 @@
 import itertools
-import os
 from pathlib import Path
 
 import pytest
 
 from ddtrace.contrib.internal.azure_servicebus.patch import patch
 from ddtrace.contrib.internal.azure_servicebus.patch import unpatch
+from ddtrace.internal.settings import env
 
 
 # Ignoring span link attributes until values are normalized: https://github.com/DataDog/dd-apm-test-agent/issues/154
@@ -61,11 +61,11 @@ def patch_azure_servicebus():
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 async def test_producer(ddtrace_run_python_code_in_subprocess, env_vars):
-    env = os.environ.copy()
-    env.update(env_vars)
+    subenv = env.copy()
+    subenv.update(env_vars)
 
     helper_path = Path(__file__).resolve().parent.joinpath("common.py")
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(helper_path.read_text(), env=env)
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(helper_path.read_text(), env=subenv)
 
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
