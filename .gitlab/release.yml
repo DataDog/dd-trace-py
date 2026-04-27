@@ -90,6 +90,7 @@ notify_datadog_release:
     - '[ -n "$DD_API_KEY" ] && echo "DD_API_KEY is set (${#DD_API_KEY} chars)" || echo "DD_API_KEY is EMPTY"'
     - '[ -n "$DD_APP_KEY" ] && echo "DD_APP_KEY is set (${#DD_APP_KEY} chars)" || echo "DD_APP_KEY is EMPTY"'
   script:
+    - sleep 3
     - |
       echo "Testing workflow API with hardcoded values..."
       PAYLOAD='{"version": "v0.0.0-dry-run", "git_commit_sha": "0000000000000000000000000000000000000000"}'
