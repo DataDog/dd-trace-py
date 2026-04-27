@@ -182,7 +182,9 @@ def test_remote_config_enable_validate_rc_disabled(remote_config_worker):
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
 
-@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_REMOTE_CONFIGURATION_ENABLED="true", PYTHONWARNINGS="ignore::DeprecationWarning:os"))
+@pytest.mark.subprocess(
+    ddtrace_run=True, env=dict(DD_REMOTE_CONFIGURATION_ENABLED="true", PYTHONWARNINGS="ignore::DeprecationWarning:os")
+)
 def test_remote_config_forksafe():
     import os
 
