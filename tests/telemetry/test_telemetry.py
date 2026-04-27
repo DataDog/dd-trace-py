@@ -468,7 +468,6 @@ def test_extended_heartbeat_sent(collect_dependencies, ddtrace_run_python_code_i
     env["DD_TELEMETRY_LOG_COLLECTION_ENABLED"] = "0.1"
     env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = str(collect_dependencies)
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-    env["DD_CODE_ORIGIN_FOR_SPANS_ENABLED"] = "false"
 
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import time; time.sleep(1.5)", env=env)
     assert status == 0, stderr
