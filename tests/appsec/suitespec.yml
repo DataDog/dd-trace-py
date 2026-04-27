@@ -406,6 +406,17 @@ suites:
     services:
       - testagent
     venvs_per_job: 2
+  ai_guard_openai:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/appsec/ai_guard/openai/*
+    retry: 2
+    services:
+      - testagent
+    venvs_per_job: 2
   ai_guard_strands:
     paths:
       - '@bootstrap'
