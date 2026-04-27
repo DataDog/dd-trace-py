@@ -115,7 +115,7 @@ class ASMConfig(DDConfig):
         float,
         "DD_APPSEC_WAF_TIMEOUT",
         default=DEFAULT.WAF_TIMEOUT,
-        help_type=float,
+        help_type="float",
         help="Timeout in milliseconds for WAF computations",
     )
     _asm_deduplication_enabled = DDConfig.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)

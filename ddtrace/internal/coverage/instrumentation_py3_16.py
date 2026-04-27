@@ -7,7 +7,7 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
-assert sys.version_info >= (3, 14)  # nosec
+assert sys.version_info >= (3, 16)  # nosec
 
 EXTENDED_ARG = dis.EXTENDED_ARG
 IMPORT_NAME = dis.opmap["IMPORT_NAME"]
