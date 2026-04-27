@@ -460,9 +460,9 @@ class BaseModuleWatchdog(abc.ABC):
                 # every reload, which would make the loader identity test in
                 # test_module_watchdog_does_not_rewrap_get_code fail.
                 existing_module = sys.modules.get(fullname)
-                existing_spec_loader = getattr(getattr(existing_module, "__spec__", None), "loader", None)
-                if existing_spec_loader is not None and not isinstance(existing_spec_loader, _ImportHookChainedLoader):
-                    loader = existing_spec_loader
+                existing_loader = getattr(existing_module, "__loader__", None)
+                if existing_loader is not None and not isinstance(existing_loader, _ImportHookChainedLoader):
+                    loader = existing_loader
                 spec.loader = t.cast("Loader", _ImportHookChainedLoader(loader, spec))
 
             t.cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
