@@ -556,8 +556,7 @@ class LLMObs(Service):
 
         Returns True if the span is ready to be serialized into an event; False if
         the span has no LLMObs data, the user processor dropped it, or finalization
-        failed. Exceptions are caught and logged so a malformed span never crashes
-        the user's span-finish path.
+        failed.
         """
         try:
             llmobs_data = _get_llmobs_data_metastruct(span)
@@ -1930,9 +1929,7 @@ class LLMObs(Service):
             if val:
                 initial_tags[tag_key] = str(val)
 
-        # Inherited experiment scope: child spans created under an `LLMObs._experiment` root
-        # see EXPERIMENT_ID_KEY in their baggage at activation time. The experiment span itself
-        # sets its own _dd.scope in `LLMObs._experiment` after setting the baggage.
+        # child spans created under an `LLMObs._experiment` need to set experiment scope at activation time.
         dd_scope = "experiments" if span.context.get_baggage_item(EXPERIMENT_ID_KEY) else None
 
         _annotate_llmobs_span_data(
@@ -2233,9 +2230,8 @@ class LLMObs(Service):
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         span = cls._instance._start_span("experiment", name=name, session_id=session_id, ml_app=ml_app)
 
-        # `_activate_llmobs_span` already ran at `_start_span` time — before any baggage
-        # was set — so the root experiment span needs each value mirrored into llmobs
-        # tags explicitly. Child spans pick these up from baggage on their own activation.
+        # root experiment span needs each baggage value mirrored into llmobs tags explicitly.
+        # child spans automatically pick these up from baggage on activation.
         if experiment_id:
             span.context.set_baggage_item(EXPERIMENT_ID_KEY, experiment_id)
             _annotate_llmobs_span_data(span, tags={"experiment_id": experiment_id}, dd_scope="experiments")
@@ -2775,15 +2771,13 @@ class LLMObs(Service):
 
         ml_app = None
         if isinstance(active_span, Span):
-            # meta_struct holds canonical hex; convert to wire format for the header.
+            # meta_struct holds canonical hex so have to convert to decimal wire format
             ml_app = get_llmobs_ml_app(active_span)
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active_span))
         elif active_context is not None:
-            # Context._meta holds wire format by invariant — read directly.
+            # Context._meta always holds decimal wire format so we can read directly
             ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))
-            wire_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or str(
-                generate_128bit_trace_id()
-            )
+            wire_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or str(generate_128bit_trace_id())
         else:
             ml_app = resolve_ml_app()
             wire_trace_id = str(generate_128bit_trace_id())
