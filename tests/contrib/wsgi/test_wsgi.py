@@ -6,6 +6,7 @@ from webtest import TestApp
 from ddtrace import config
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
+from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
 from tests.utils import override_config
 from tests.utils import override_http_config
@@ -409,3 +410,83 @@ app.get("/")"""
         env["DD_SERVICE"] = service_name
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for construct_url SCRIPT_NAME composition.
+#
+# Two distinct WSGI flows leave a non-empty ``SCRIPT_NAME`` in ``environ``:
+#   1. In-process mounts (e.g. ``werkzeug.middleware.dispatcher.DispatcherMiddleware``)
+#      preserve the original request URI in ``RAW_URI`` / ``REQUEST_URI`` while
+#      also setting ``SCRIPT_NAME`` to the mount prefix. Naively prepending
+#      ``SCRIPT_NAME`` would double the prefix in ``http.url``.
+#   2. A reverse proxy strips a path prefix before forwarding, exposing only
+#      the post-strip path in ``RAW_URI`` while reporting the prefix via
+#      ``SCRIPT_NAME``. Skipping ``SCRIPT_NAME`` would lose the prefix.
+# ``construct_url`` distinguishes the two by checking whether the raw URI
+# already starts with ``SCRIPT_NAME``. These tests pin that behavior.
+# ---------------------------------------------------------------------------
+
+
+def test_construct_url_dispatcher_middleware_does_not_double_prefix():
+    """RAW_URI already includes the mount prefix → SCRIPT_NAME must NOT be prepended."""
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/admin",
+        "PATH_INFO": "/users",
+        "RAW_URI": "/admin/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/admin/users"
+
+
+def test_construct_url_reverse_proxy_prepends_script_name():
+    """RAW_URI lacks the prefix (proxy stripped it) → SCRIPT_NAME must be prepended."""
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/api/v2",
+        "PATH_INFO": "/users",
+        "RAW_URI": "/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/api/v2/users"
+
+
+def test_construct_url_request_uri_dispatcher_middleware_does_not_double_prefix():
+    """Same as the RAW_URI case but exercising the REQUEST_URI fallback (uWSGI)."""
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/admin",
+        "PATH_INFO": "/users",
+        "REQUEST_URI": "/admin/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/admin/users"
+
+
+def test_construct_url_path_info_fallback_uses_script_name():
+    """Without RAW_URI / REQUEST_URI, the fallback always composes SCRIPT_NAME + PATH_INFO."""
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/admin",
+        "PATH_INFO": "/users",
+        "QUERY_STRING": "x=1",
+    }
+    assert construct_url(environ) == "http://localhost:8000/admin/users?x=1"
+
+
+def test_construct_url_no_script_name_passthrough():
+    """Empty SCRIPT_NAME is the common case (flat apps): the raw URI is returned as-is."""
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "",
+        "PATH_INFO": "/users",
+        "RAW_URI": "/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/users"

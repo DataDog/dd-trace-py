@@ -244,20 +244,32 @@ def construct_url(environ):
             if environ["SERVER_PORT"] != "80":
                 url += ":" + environ["SERVER_PORT"]
 
-    url += quote(environ.get("SCRIPT_NAME", ""))
-    # we need the raw uri here for reporting, not the computed one
-    if environ.get("RAW_URI"):
-        url += environ["RAW_URI"]
+    # SCRIPT_NAME composition with RAW_URI / REQUEST_URI is subtle. Two distinct
+    # WSGI flows put a non-empty SCRIPT_NAME in environ:
+    #   1. werkzeug DispatcherMiddleware (and similar in-process mounts) set
+    #      SCRIPT_NAME to the mount prefix AND the original (pre-strip) request
+    #      line is preserved in RAW_URI / REQUEST_URI. Prepending SCRIPT_NAME on
+    #      top of RAW_URI would double the mount prefix (e.g. /asm/asm/...).
+    #   2. A reverse proxy (or upstream WSGI server) strips a path prefix before
+    #      handing the request off, exposing only the post-strip path in
+    #      RAW_URI / REQUEST_URI while the prefix is reported in SCRIPT_NAME.
+    #      Skipping SCRIPT_NAME would lose the prefix from the reported URL.
+    # Distinguish the two by checking whether the raw URI already starts with
+    # SCRIPT_NAME: case (1) starts with it (don't prepend), case (2) doesn't
+    # (prepend). On the PATH_INFO fallback we always prepend SCRIPT_NAME because
+    # PATH_INFO is the stripped value in both cases.
+    script_name = environ.get("SCRIPT_NAME") or ""
+    raw = environ.get("RAW_URI") or environ.get("REQUEST_URI") or ""
+    if raw:
+        if script_name and not raw.startswith(script_name):
+            url += quote(script_name)
+        url += raw
         # on old versions of wsgi, the raw uri does not include the query string
-        if environ.get("QUERY_STRING") and "?" not in environ["RAW_URI"]:
-            url += "?" + environ["QUERY_STRING"]
-    elif environ.get("REQUEST_URI"):
-        url += environ["REQUEST_URI"]
-        # on old versions of wsgi, the raw uri does not include the query string
-        if environ.get("QUERY_STRING") and "?" not in environ["REQUEST_URI"]:
+        if environ.get("QUERY_STRING") and "?" not in raw:
             url += "?" + environ["QUERY_STRING"]
     else:
-        url += quote(environ.get("PATH_INFO", ""))
+        url += quote(script_name)
+        url += quote(environ.get("PATH_INFO") or "")
         if environ.get("QUERY_STRING"):
             url += "?" + environ["QUERY_STRING"]
 
