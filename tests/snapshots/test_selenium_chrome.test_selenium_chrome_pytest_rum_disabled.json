@@ -182,8 +182,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "process_id": 13623,
-      "test.source.end": 29,
-      "test.source.start": 7
+      "test.source.end": 31,
+      "test.source.start": 13
     },
     "duration": 1035420043,
     "start": 1733243045320806200
