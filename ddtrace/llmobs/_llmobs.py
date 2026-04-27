@@ -566,12 +566,14 @@ class LLMObs(Service):
         llmobs_data = _get_llmobs_data_metastruct(span)
         if not llmobs_data:
             log.error(
-                "Error preparing LLMObs span event for span %s, missing LLMObs data in span context.", span,
+                "Error preparing LLMObs span event for span %s, missing LLMObs data in span context.",
+                span,
             )
             return False
         if not span_kind:
             log.error(
-                "Error preparing LLMObs span event for span %s, missing span kind in span context.", span,
+                "Error preparing LLMObs span event for span %s, missing span kind in span context.",
+                span,
             )
             return False
 
