@@ -72,6 +72,7 @@ class LLMObsSpanData(TypedDict, total=False):
     span_links: list["_SpanLink"]
     config: "ExperimentConfigType"
     meta: _Meta
+    _dd: dict[str, str]
 
 
 class _LLMObsSpanEventOptional(TypedDict, total=False):
