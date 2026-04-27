@@ -520,7 +520,7 @@ class LLMObs(Service):
         if self._export_directly_to_llmobs and span_event:
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
-            span._meta_struct.pop(LLMOBS_STRUCT.KEY, None)
+            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             return
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
