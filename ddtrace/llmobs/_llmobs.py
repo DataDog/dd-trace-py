@@ -1548,9 +1548,15 @@ class LLMObs(Service):
     @classmethod
     def disable(cls, _auto: bool = False) -> None:
         if not cls.enabled:
-            log.debug("%s not enabled", cls.__name__)
+            try:
+                log.debug("%s not enabled", cls.__name__)
+            except Exception:  # nosec: B110
+                pass
             return
-        log.debug("Disabling %s", cls.__name__)
+        try:
+            log.debug("Disabling %s", cls.__name__)
+        except Exception:  # nosec: B110
+            pass
         atexit.unregister(cls.disable)
 
         cls._instance.stop()
@@ -1563,7 +1569,10 @@ class LLMObs(Service):
         cls._prompt_manager = None
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
-        log.debug("%s disabled", cls.__name__)
+        try:
+            log.debug("%s disabled", cls.__name__)
+        except Exception:  # nosec: B110
+            pass
 
     @classmethod
     def annotation_context(
