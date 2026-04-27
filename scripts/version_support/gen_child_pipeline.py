@@ -30,6 +30,9 @@ import typing as t
 
 ROOT = Path(__file__).resolve().parents[2]
 GITLAB = ROOT / ".gitlab"
+TESTS = ROOT / "tests"
+BENCHMARKS = ROOT / "benchmarks"
+SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
 
 # Make scripts/ and project root importable (same as gen_gitlab_config.py)
 for _p in (str(ROOT / "scripts"), str(ROOT), str(ROOT / "tests")):
@@ -94,6 +97,114 @@ def _load_riot_venv(source: str) -> t.Any:
     return ns["venv"]
 
 
+def _parse_yaml_scalar(value: str) -> object:
+    scalar = value.strip()
+    if not (scalar.startswith('"') or scalar.startswith("'")):
+        scalar = re.sub(r"\s+#.*$", "", scalar).strip()
+    if scalar in {"true", "false"}:
+        return scalar == "true"
+    if scalar.isdigit():
+        return int(scalar)
+    if (scalar.startswith('"') and scalar.endswith('"')) or (scalar.startswith("'") and scalar.endswith("'")):
+        return scalar[1:-1]
+    return scalar
+
+
+def _load_simple_suitespec_yaml(path: Path) -> dict[str, object]:
+    """Load the limited YAML shape used by suitespec.yml without external deps."""
+
+    # AIDEV-NOTE: version_support_generate runs before script dependencies are installed.
+    # Keep this parser limited to the suitespec.yml subset instead of importing ruamel/PyYAML.
+    lines: list[tuple[int, str, int]] = []
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        stripped = raw_line.strip()
+        if not stripped or stripped == "---" or stripped.startswith("#"):
+            continue
+        lines.append((len(raw_line) - len(raw_line.lstrip(" ")), stripped, line_number))
+
+    def parse_block(index: int, indent: int) -> tuple[object, int]:
+        if index >= len(lines):
+            return {}, index
+
+        current_indent, current, _ = lines[index]
+        if current_indent < indent:
+            return {}, index
+
+        if current.startswith("- "):
+            list_values: list[object] = []
+            while index < len(lines):
+                line_indent, line, _ = lines[index]
+                if line_indent != indent or not line.startswith("- "):
+                    break
+                item = line[2:].strip()
+                index += 1
+                if item:
+                    list_values.append(_parse_yaml_scalar(item))
+                else:
+                    child_value, index = parse_block(index, indent + 2)
+                    list_values.append(child_value)
+            return list_values, index
+
+        dict_values: dict[str, object] = {}
+        while index < len(lines):
+            line_indent, line, _ = lines[index]
+            if line_indent != indent or line.startswith("- "):
+                break
+            if line.endswith(":"):
+                key = line[:-1]
+                value = ""
+            elif ": " in line:
+                key, value = line.split(": ", 1)
+            else:
+                raise ValueError(f"Unsupported suitespec line in {path}: {line!r}")
+            index += 1
+            if value.strip():
+                dict_values[key] = _parse_yaml_scalar(value)
+            elif index < len(lines) and lines[index][0] > line_indent:
+                dict_values[key], index = parse_block(index, lines[index][0])
+            else:
+                dict_values[key] = {}
+        return dict_values, index
+
+    parsed, index = parse_block(0, 0)
+    if index != len(lines) or not isinstance(parsed, dict):
+        remaining = lines[index] if index < len(lines) else None
+        raise ValueError(f"Unable to parse suitespec YAML file: {path} at {remaining!r}")
+    return parsed
+
+
+def _get_suites() -> dict[str, dict]:
+    suitespec: dict[str, dict] = {"components": {}, "suites": {}}
+
+    specfiles: list[tuple[Path, Path, str]] = []
+    for root, ns_prefix in SEARCH_ROOTS:
+        for specfile in root.rglob("suitespec.yml"):
+            specfiles.append((specfile, root, ns_prefix))
+
+    for specfile, root, ns_prefix in specfiles:
+        path_parts = specfile.relative_to(root).parts[:-1]
+        namespace = "::".join(path_parts) if path_parts else ns_prefix or None
+        data = _load_simple_suitespec_yaml(specfile)
+
+        components = data.get("components", {})
+        if isinstance(components, dict):
+            suitespec["components"].update(components)
+
+        suites = data.get("suites", {})
+        if not isinstance(suites, dict):
+            continue
+        if namespace is not None:
+            for name, spec in list(suites.items()):
+                if not isinstance(spec, dict):
+                    continue
+                spec.setdefault("pattern", name)
+                suitespec["suites"][f"{namespace}::{name}"] = spec
+        else:
+            suitespec["suites"].update(suites)
+
+    return suitespec["suites"]
+
+
 def _collect_suite_venv_info(suite_patterns: dict[str, str], riot_venv: t.Any) -> dict[str, tuple[int, set[str]]]:
     compiled: dict[str, re.Pattern[str]] = {}
     for suite_name, pattern in suite_patterns.items():
@@ -130,10 +241,11 @@ def _calculate_parallelism_from_venvs(venv_count: int, venvs_per_job: int, max_p
 
 
 def _testrunner_image_hash() -> str:
-    import ruamel.yaml  # noqa: PLC0415
-
-    data = ruamel.yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
-    image: str = data["variables"]["TESTRUNNER_IMAGE"]
+    content = (GITLAB / "testrunner.yml").read_text(encoding="utf-8")
+    match = re.search(r"^\s*TESTRUNNER_IMAGE:\s*(?P<image>.+?)\s*$", content, re.MULTILINE)
+    if match is None:
+        raise RuntimeError("Unable to find TESTRUNNER_IMAGE in .gitlab/testrunner.yml")
+    image = match.group("image").strip("\"'")
     return hashlib.sha256(image.encode()).hexdigest()[:16]
 
 
@@ -154,7 +266,7 @@ def _pip_cache_key(suite_pattern: str) -> str:
 
 def _render_template(name: str, **params: object) -> str:
     template_path = (GITLAB / "templates" / name).with_suffix(".yml")
-    return "\n" + template_path.read_text().format(**params).strip() + "\n"
+    return f"\n{template_path.read_text().format(**params).strip()}\n"
 
 
 # ---------------------------------------------------------------------------
@@ -165,12 +277,10 @@ def _render_template(name: str, **params: object) -> str:
 def generate(output: Path) -> None:
     spec_data = _get_spec_data()
 
-    import suitespec  # type: ignore[import-untyped]
-
     from version_support.ci_specs import load_integration_names_from_json_text
     from version_support.ci_specs import resolve_suite_names_for_integrations
 
-    all_suites = suitespec.get_suites()
+    all_suites = _get_suites()
     integration_names = load_integration_names_from_json_text(json.dumps(spec_data))
     suite_names = resolve_suite_names_for_integrations(integration_names, suites=all_suites)
 

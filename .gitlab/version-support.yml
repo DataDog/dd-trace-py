@@ -1,8 +1,8 @@
 # Version-support child pipeline.
 #
 # Triggered automatically when VERSION_SUPPORT_SPEC_JSON or VERSION_SUPPORT_SPEC_FILE is set.
-# All logic lives in scripts/version_support/ — the main pipeline files (tests.yml,
-# gen_gitlab_config.py, build-base-venvs.yml) are not touched.
+# The top-level .gitlab-ci.yml includes this file instead of the regular
+# main-pipeline.yml when VERSION_SUPPORT_SPEC_* is set.
 #
 # Pipeline flow when the env var is set:
 #   version_support_generate  →  generates version-support-pipeline.yml
