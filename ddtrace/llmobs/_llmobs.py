@@ -431,6 +431,8 @@ def _finalize_meta_struct(
         meta_input[LLMOBS_STRUCT.VALUE] = llmobs_span.input[0].get("content", "")
     if meta_input:
         llmobs_meta[LLMOBS_STRUCT.INPUT] = meta_input
+    else:
+        llmobs_meta.pop(LLMOBS_STRUCT.INPUT, None)
 
     if output_type == "messages":
         meta_output[LLMOBS_STRUCT.MESSAGES] = llmobs_span.output
@@ -438,6 +440,8 @@ def _finalize_meta_struct(
         meta_output[LLMOBS_STRUCT.VALUE] = llmobs_span.output[0].get("content", "")
     if meta_output:
         llmobs_meta[LLMOBS_STRUCT.OUTPUT] = meta_output
+    else:
+        llmobs_meta.pop(LLMOBS_STRUCT.OUTPUT, None)
 
 
 class LLMObs(Service):
@@ -501,11 +505,10 @@ class LLMObs(Service):
         if span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
-        if not self._prepare_llmobs_span_data(span, span_kind):
-            return
-
         span_event = None
         try:
+            if not self._prepare_llmobs_span_data(span, span_kind):
+                return
             span_event = self._llmobs_span_event(span)
         except (KeyError, TypeError, ValueError):
             log.error(
@@ -514,14 +517,16 @@ class LLMObs(Service):
                 exc_info=True,
             )
 
-        if span_event and self._evaluator_runner and span_kind == "llm":
+        if not span_event:
+            return
+
+        if self._evaluator_runner and span_kind == "llm":
             self._evaluator_runner.enqueue(span_event, span)
 
-        if self._export_directly_to_llmobs and span_event:
+        if self._export_directly_to_llmobs:
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
-            return
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
@@ -558,34 +563,39 @@ class LLMObs(Service):
         the span has no LLMObs data, the user processor dropped it, or finalization
         failed.
         """
-        try:
-            llmobs_data = _get_llmobs_data_metastruct(span)
-            if not llmobs_data or not span_kind:
-                return False
-
-            llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
-            llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
-            llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or _MetaIO()
-
-            llmobs_span, input_type, output_type = _build_llmobs_span(span_kind, llmobs_input, llmobs_output)
-            user_processed_span = self._apply_user_span_processor(span, llmobs_span)
-            if user_processed_span is None:
-                return False
-
-            _finalize_meta_struct(
-                span,
-                user_processed_span,
-                llmobs_meta,
-                span_kind,
-                input_type,
-                output_type,
-                self._export_directly_to_llmobs,
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        if not llmobs_data:
+            log.error(
+                "Error preparing LLMObs span event for span %s, missing LLMObs data in span context.", span,
             )
-            span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
-            return True
-        except Exception:
-            log.error("Error preparing LLMObs span data for span %s", span, exc_info=True)
             return False
+        if not span_kind:
+            log.error(
+                "Error preparing LLMObs span event for span %s, missing span kind in span context.", span,
+            )
+            return False
+
+        llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
+        llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
+        llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or _MetaIO()
+
+        llmobs_span, input_type, output_type = _build_llmobs_span(span_kind, llmobs_input, llmobs_output)
+        user_processed_span = self._apply_user_span_processor(span, llmobs_span)
+        if user_processed_span is None:
+            log.debug("LLMObs span %s dropped by user processor", span)
+            return False
+
+        _finalize_meta_struct(
+            span,
+            user_processed_span,
+            llmobs_meta,
+            span_kind,
+            input_type,
+            output_type,
+            self._export_directly_to_llmobs,
+        )
+        span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
+        return True
 
     def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
         """Assemble the LLMObs span event from the finalized meta_struct contents.
@@ -598,12 +608,7 @@ class LLMObs(Service):
         if not llmobs_data:
             return None
 
-        span_kind = get_llmobs_span_kind(span)
-        if not span_kind:
-            raise KeyError("Span kind not found in span context")
-
         parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID) or ROOT_PARENT_ID
-
         llmobs_trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
         if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
