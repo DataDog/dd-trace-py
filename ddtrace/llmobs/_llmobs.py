@@ -603,9 +603,8 @@ class LLMObs(Service):
         if not span_kind:
             raise KeyError("Span kind not found in span context")
 
-        parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
-        if parent_id is None:
-            raise ValueError("Failed to extract LLMObs parent ID from span context.")
+        parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID) or ROOT_PARENT_ID
+
         llmobs_trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
         if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
@@ -620,10 +619,6 @@ class LLMObs(Service):
             "apm_trace_id": format_trace_id(span.trace_id),
         }
 
-        # llmobs_trace_id is already canonical hex from meta_struct. Do NOT re-normalize:
-        # _normalize_wire_trace_id_to_hex expects wire-format input and is non-idempotent on
-        # the rare 32-char all-[0-9] hex with no leading zero — it would mangle such values
-        # by reinterpreting them as decimal.
         llmobs_span_event: LLMObsSpanEvent = {
             "trace_id": llmobs_trace_id,
             "span_id": str(span.span_id),
@@ -1870,23 +1865,15 @@ class LLMObs(Service):
         return active if isinstance(active, Span) else None
 
     def _current_trace_context(self) -> Optional[Context]:
-        """Returns the context for the current LLMObs trace.
-
-        Invariant: `PROPAGATED_LLMOBS_TRACE_ID_KEY` on `Context._meta` always holds
-        the wire-format (decimal) trace_id. The APM HTTP propagator can serialize
-        this slot directly into the `x-datadog-tags` header, and `_dd.p.*` is
-        dd-trace's namespace for wire-propagated tags. Conversion to canonical hex
-        is deferred to `_activate_llmobs_span` (Context-parent branch) when the
-        value is read into `meta_struct`.
-        """
+        """Returns the context for the current LLMObs trace."""
         active = self._llmobs_context_provider.active()
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
+            # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
             context = active.context
-            wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active) or format_trace_id(active.trace_id))
-            if wire_trace_id:
-                context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
+            wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
+            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
             return context
         return None
 
@@ -1899,29 +1886,20 @@ class LLMObs(Service):
         if llmobs_parent:
             parent_id = str(llmobs_parent.span_id)
             if isinstance(llmobs_parent, Span):
-                parent_llmobs_trace_id = get_llmobs_trace_id(llmobs_parent)
-                fallback_trace_id = format_trace_id(llmobs_parent.trace_id)
-            else:
-                # `Context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY]` holds wire-format (decimal)
-                # by invariant — it's the slot the APM HTTP propagator (de)serializes. Convert
-                # to canonical hex here at the read boundary into `meta_struct`.
-                # ast-grep-ignore: span-meta-access
-                parent_llmobs_trace_id = _normalize_wire_trace_id_to_hex(
-                    llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
-                )
-                # Context.trace_id is Optional[int]; fall back to a fresh ID rather than an all-zeros placeholder.
-                fallback_trace_id = format_trace_id(llmobs_parent.trace_id or generate_128bit_trace_id())
-            llmobs_trace_id = parent_llmobs_trace_id or fallback_trace_id
-            if isinstance(llmobs_parent, Span):
+                llmobs_trace_id = get_llmobs_trace_id(llmobs_parent)
                 ml_app = llmobs_parent._get_ctx_item(ML_APP)
                 session_id = llmobs_parent._get_ctx_item(SESSION_ID)
             else:
-                ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)  # ast-grep-ignore: span-meta-access
+                # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
+                llmobs_trace_id = _normalize_wire_trace_id_to_hex(
+                    llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+                )
+                ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)
                 session_id = None
         else:
-            llmobs_trace_id = format_trace_id(generate_128bit_trace_id())
             parent_id = ROOT_PARENT_ID
-            ml_app, session_id = None, None
+            llmobs_trace_id, ml_app, session_id = None, None, None
+        llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
 
         resolved_name = span.name
