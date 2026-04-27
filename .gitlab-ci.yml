@@ -295,6 +295,16 @@ check_requirements_lockfiles:
   stage: tests
   needs: []
   extends: .testrunner
+  variables:
+    # DD_DISABLE_VPA is required: without it VPA overrides KUBERNETES_MEMORY_*
+    # (see "overridden by VPA" in runner logs) and clamps the build container
+    # down to ~4 GiB based on its learned model. compile-and-prune-test-
+    # requirements pip-compiles every riot lockfile sequentially and peaks
+    # above that when resolving the full venv matrix (including 3.15 venvs),
+    # causing OOMKilled (exit 137).
+    DD_DISABLE_VPA: "true"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
   script:
     - pip install toml==0.10.2
     - scripts/compile-and-prune-test-requirements
