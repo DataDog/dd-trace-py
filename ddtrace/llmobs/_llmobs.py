@@ -1892,11 +1892,10 @@ class LLMObs(Service):
                 ml_app = llmobs_parent._get_ctx_item(ML_APP)
                 session_id = llmobs_parent._get_ctx_item(SESSION_ID)
             else:
+                parent_ctx = llmobs_parent
                 # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
-                llmobs_trace_id = _normalize_wire_trace_id_to_hex(
-                    llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
-                )
-                ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)
+                llmobs_trace_id = _normalize_wire_trace_id_to_hex(parent_ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY))
+                ml_app = parent_ctx._meta.get(PROPAGATED_ML_APP_KEY)
                 session_id = None
         else:
             parent_id = ROOT_PARENT_ID
