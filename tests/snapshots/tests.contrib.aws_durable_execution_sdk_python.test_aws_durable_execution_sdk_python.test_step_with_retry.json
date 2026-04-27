@@ -2,7 +2,7 @@
   {
     "name": "aws.durable.execute",
     "service": "tests.contrib.aws_durable_execution_sdk_python",
-    "resource": "tests.contrib.aws_durable_execution_sdk_python.test_aws_durable_execution_sdk.test_step_with_retry.<locals>.workflow",
+    "resource": "tests.contrib.aws_durable_execution_sdk_python.test_aws_durable_execution_sdk_python.test_step_with_retry.<locals>.workflow",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -56,7 +56,7 @@
   {
     "name": "aws.durable.execute",
     "service": "tests.contrib.aws_durable_execution_sdk_python",
-    "resource": "tests.contrib.aws_durable_execution_sdk_python.test_aws_durable_execution_sdk.test_step_with_retry.<locals>.workflow",
+    "resource": "tests.contrib.aws_durable_execution_sdk_python.test_aws_durable_execution_sdk_python.test_step_with_retry.<locals>.workflow",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
@@ -99,7 +99,7 @@
          "aws.durable.replayed": "false",
          "component": "aws_durable_execution_sdk_python",
          "error.message": "transient failure",
-         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/operation/step.py\", line 222, in execute\n    raw_result: T = self.func(step_context)\n                    ~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/bits/project/tests/contrib/aws_durable_execution_sdk_python/test_aws_durable_execution_sdk.py\", line 70, in flaky\n    raise RuntimeError(\"transient failure\")\nRuntimeError: transient failure\n",
+         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_aws-durable-execution-sdk-python_aws-durable-execution-sdk-python-testing/lib/python3.13/site-packages/aws_durable_execution_sdk_python/operation/step.py\", line 222, in execute\n    raw_result: T = self.func(step_context)\n                    ~~~~~~~~~^^^^^^^^^^^^^^\n  File \"/home/bits/project/tests/contrib/aws_durable_execution_sdk_python/test_aws_durable_execution_sdk_python.py\", line 70, in flaky\n    raise RuntimeError(\"transient failure\")\nRuntimeError: transient failure\n",
          "error.type": "builtins.RuntimeError",
          "span.kind": "internal"
        },
