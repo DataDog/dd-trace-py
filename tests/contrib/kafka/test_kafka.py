@@ -697,3 +697,48 @@ def test_cluster_id_success_caching(kafka_tracer, producer, kafka_topic):
     result2 = _get_cluster_id(producer, kafka_topic)
     assert result2 == result1
     assert call_count == 1  # Should still be 1 (used cache)
+
+
+def test_cluster_id_lookup_skipped_in_delivery_callback(monkeypatch):
+    from ddtrace._trace.pin import Pin
+    from ddtrace.contrib.internal.kafka import patch as kafka_patch
+
+    class NoClusterMetadata(object):
+        cluster_id = None
+
+    class DummyProducer(object):
+        _dd_bootstrap_servers = None
+
+        def __init__(self):
+            self.list_topics_calls = 0
+
+        def list_topics(self, *args, **kwargs):
+            self.list_topics_calls += 1
+            return NoClusterMetadata()
+
+    producer = DummyProducer()
+    Pin(service="test").onto(producer)
+
+    monkeypatch.setattr(kafka_patch.core, "dispatch", lambda *args, **kwargs: None)
+
+    def nested_func(*args, **kwargs):
+        return "nested"
+
+    def user_callback(_err, _msg):
+        kafka_patch.traced_produce(nested_func, producer, ("nested-topic", b"payload"), {})
+
+    def outer_func(*args, **kwargs):
+        callback = kwargs.get("callback") or kwargs.get("on_delivery")
+        assert callback is not None
+        callback(None, None)
+        return "outer"
+
+    result = kafka_patch.traced_produce(
+        outer_func,
+        producer,
+        ("outer-topic", b"payload"),
+        {"callback": user_callback},
+    )
+
+    assert result == "outer"
+    assert producer.list_topics_calls == 1

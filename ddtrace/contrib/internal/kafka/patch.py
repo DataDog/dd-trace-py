@@ -1,4 +1,5 @@
 import sys
+from threading import local
 from time import time
 from time import time_ns
 
@@ -39,6 +40,7 @@ _DeserializingConsumer = (
 )
 
 log = get_logger(__name__)
+_delivery_callback_state = local()
 
 config._add(
     "kafka",
@@ -173,6 +175,7 @@ def traced_produce(func, instance, args, kwargs):
     message_key = kwargs.get("key", "") or ""
     partition = kwargs.get("partition", -1)
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
+    is_serializing_producer = _SerializingProducer is not None and isinstance(instance, _SerializingProducer)
     with tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.WORKER,
@@ -183,7 +186,7 @@ def traced_produce(func, instance, args, kwargs):
         if cluster_id:
             span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
 
-        core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
+        core.dispatch("kafka.produce.start", (instance, args, kwargs, is_serializing_producer, span))
 
         span._set_attribute(MESSAGING_SYSTEM, kafkax.SERVICE)
         span._set_attribute(COMPONENT, config.kafka.integration_name)
@@ -193,7 +196,7 @@ def traced_produce(func, instance, args, kwargs):
             # Should fall back to broker id if topic is not provided but it is not readily available here
             span._set_attribute(MESSAGING_DESTINATION_NAME, topic)
 
-        if _SerializingProducer is not None and isinstance(instance, _SerializingProducer):
+        if is_serializing_producer:
             serialized_key = serialize_key(instance, topic, message_key, headers)
             if serialized_key is not None:
                 span._set_attribute(kafkax.MESSAGE_KEY, serialized_key)
@@ -205,6 +208,8 @@ def traced_produce(func, instance, args, kwargs):
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
         if instance._dd_bootstrap_servers is not None:
             span._set_attribute(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
+
+        args, kwargs = _wrap_delivery_callback_in_args(args, kwargs, is_serializing_producer)
 
         # inject headers with Datadog tags if trace propagation is enabled
         if config.kafka.distributed_tracing_enabled:
@@ -344,6 +349,11 @@ def _get_cluster_id(instance, topic):
     if instance and getattr(instance, "_dd_cluster_id", None):
         return instance._dd_cluster_id
 
+    # AIDEV-NOTE: list_topics() can trigger fatal reentrant queue handling when
+    # called from delivery callbacks (e.g., callbacks executed inside flush()).
+    if _in_kafka_delivery_callback():
+        return ""
+
     # Check failure cache - skip for 5 minutes if we fail
     last_failure = getattr(instance, "_dd_cluster_id_failure_time", 0)
     if time() - last_failure < 300:
@@ -363,3 +373,45 @@ def _get_cluster_id(instance, topic):
         log.debug("Failed to get Kafka cluster ID, will retry after 5 minutes")
 
     return ""
+
+
+def _wrap_delivery_callback_in_args(args, kwargs, is_serializing):
+    callback_kwarg_name = "on_delivery"
+    callback_arg_pos = 5
+    callback = None
+    try:
+        callback = get_argument_value(args, kwargs, callback_arg_pos, callback_kwarg_name)
+    except ArgumentError:
+        if not is_serializing:
+            callback_kwarg_name = "callback"
+            callback_arg_pos = 4
+            callback = get_argument_value(args, kwargs, callback_arg_pos, callback_kwarg_name, optional=True)
+
+    if callback is None:
+        return args, kwargs
+
+    wrapped_callback = _wrap_kafka_delivery_callback(callback)
+    try:
+        return set_argument_value(args, kwargs, callback_arg_pos, callback_kwarg_name, wrapped_callback)
+    except ArgumentError:
+        kwargs[callback_kwarg_name] = wrapped_callback
+        return args, kwargs
+
+
+def _in_kafka_delivery_callback():
+    return getattr(_delivery_callback_state, "depth", 0) > 0
+
+
+def _wrap_kafka_delivery_callback(callback):
+    def wrapped_callback(err, msg):
+        previous_depth = getattr(_delivery_callback_state, "depth", 0)
+        _delivery_callback_state.depth = previous_depth + 1
+        try:
+            return callback(err, msg)
+        finally:
+            if previous_depth:
+                _delivery_callback_state.depth = previous_depth
+            else:
+                delattr(_delivery_callback_state, "depth")
+
+    return wrapped_callback
