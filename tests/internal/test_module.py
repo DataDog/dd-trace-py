@@ -615,19 +615,8 @@ def test_lazy_decorator():
 
 @pytest.mark.subprocess(timeout=10)
 def test_module_watchdog_find_spec_no_cross_thread_deadlock():
-    """Regression: ModuleWatchdog.find_spec() must not call importlib.util.find_spec(),
-    which re-enters the import machinery and calls _lock_unlock_module() on the parent
-    package to resolve its __path__.  When a background thread is spawned during a
-    package's __init__ (e.g. snowflake-connector-python >= 4.4.0 spawns a thread in
-    _utils._load() that calls importlib.files()), that thread reaches find_spec() for a
-    submodule of the package currently being loaded.  The old code would try to acquire
-    the parent's import lock — already held by the main thread — while the main thread
-    waited for the background thread: a classic A-B deadlock.
-
-    The test holds the "tests" package import lock in the main thread and has a
-    background thread call ModuleWatchdog.find_spec() for a (nonexistent) submodule of
-    "tests" directly, bypassing the outer _find_and_load() so we reach the code path
-    that previously called importlib.util.find_spec().
+    """Regression: ModuleWatchdog.find_spec() must not re-enter the import machinery
+    and deadlock with a background thread holding a parent package import lock.
     """
     import sys
     import threading
