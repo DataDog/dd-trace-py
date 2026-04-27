@@ -224,6 +224,9 @@ class Span(SpanData):
             self.set_metric(key, value)  # type: ignore[arg-type]  # ast-grep-ignore: span-set-metric
             return
 
+        if isinstance(key, bytes):
+            key = key.decode("utf-8", errors="replace")
+
         if isinstance(value, (bool, bytes)):
             value = str(value)
 
