@@ -4,11 +4,13 @@ severity: error
 language: python
 files:
   - "ddtrace/**"
+  - "tests/**"
 ignores:
   - "ddtrace/internal/settings/env.py"
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
   - "ddtrace/vendor/**"
-  - "ddtrace/testing/**"
+  - "tests/contrib/config.py"
+  - "tests/wait-for-services.py"
 rule:
   pattern: os.getenv($$$ARGS)
 fix: env.get($$$ARGS)
