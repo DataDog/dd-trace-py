@@ -533,6 +533,8 @@ def set_http_meta(
             status_code,
             response_headers,
             response_cookies,
+            peer_ip,
+            headers_are_case_sensitive,
         ],
     )
 
