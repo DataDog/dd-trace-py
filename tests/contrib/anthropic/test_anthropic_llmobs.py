@@ -1754,3 +1754,32 @@ class TestLLMObsAnthropic:
                 },
             },
         ]
+
+
+class TestAPMShadowTagsAnthropic:
+    """Verify shadow tags are set on Anthropic spans when LLMObs is disabled."""
+
+    def test_shadow_tags_chat(self, tracer):
+        from unittest.mock import MagicMock
+
+        from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
+
+        integration = AnthropicIntegration(MagicMock())
+        integration._base_url = "https://api.anthropic.com"
+
+        response = MagicMock()
+        response.usage.input_tokens = 12
+        response.usage.output_tokens = 8
+        response.usage.cache_creation_input_tokens = None
+        response.usage.cache_read_input_tokens = None
+
+        with tracer.trace("anthropic.request") as span:
+            span._set_attribute("anthropic.request.model", "claude-3-sonnet")
+            integration._set_apm_shadow_tags(span, [], {}, response=response)
+
+        assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+        assert span.get_tag("_dd.llmobs.model_name") == "claude-3-sonnet"
+        assert span.get_tag("_dd.llmobs.model_provider") == "anthropic"
+        assert span.get_metric("_dd.llmobs.enabled") == 0
+        assert span.get_metric("_dd.llmobs.input_tokens") == 12
+        assert span.get_metric("_dd.llmobs.output_tokens") == 8

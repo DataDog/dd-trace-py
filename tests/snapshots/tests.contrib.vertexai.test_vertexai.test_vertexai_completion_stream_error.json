@@ -9,25 +9,27 @@
     "type": "",
     "error": 1,
     "meta": {
+      "_dd.llmobs.model_name": "gemini-1.5-flash",
+      "_dd.llmobs.model_provider": "google",
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e6470300000000",
-      "_dd.svc_src": "tests.contrib.vertexai",
-      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.vertexai",
+      "_dd.p.tid": "685ae96d00000000",
       "error.message": "_GenerativeModel.generate_content() got an unexpected keyword argument 'candidate_count'",
-      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/vertexai/patch.py\", line 59, in _traced_generate\n    generations = func(*args, **kwargs)\n                  ^^^^^^^^^^^^^^^^^^^^^\nTypeError: _GenerativeModel.generate_content() got an unexpected keyword argument 'candidate_count'\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jacob.simpher/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/vertexai/patch.py\", line 73, in _traced_generate\n    generations = func(*args, **kwargs)\nTypeError: _GenerativeModel.generate_content() got an unexpected keyword argument 'candidate_count'\n",
       "error.type": "builtins.TypeError",
       "language": "python",
-      "runtime-id": "d5979d38e7db4b038bec44cb583a3732",
+      "runtime-id": "51dd90093585456fa5287bb1606924df",
       "vertexai.request.model": "gemini-1.5-flash",
       "vertexai.request.provider": "google"
     },
     "metrics": {
-      "_dd.measured": 1.0,
-      "_dd.top_level": 1.0,
+      "_dd.llmobs.enabled": 0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 45.0
+      "_sampling_priority_v1": 1,
+      "process_id": 93922
     },
-    "duration": 171125,
-    "start": 1776699139560526923
+    "duration": 122000,
+    "start": 1750788461619518000
   }]]

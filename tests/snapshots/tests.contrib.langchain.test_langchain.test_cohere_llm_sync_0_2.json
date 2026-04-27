@@ -9,6 +9,8 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_provider": "cohere",
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "68769e7700000000",
       "langchain.request.provider": "cohere",
@@ -16,6 +18,7 @@
       "runtime-id": "32c15b370bff4b03b48acfad8098f61b"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
