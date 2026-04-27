@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 from typing import AsyncGenerator
 from typing import Optional
 
@@ -472,6 +473,20 @@ class RedirectHttpxAsyncHandler(BaseHandler):
         self._write_json(payload)
 
 
+class ExceptionGroupBlockHandler(BaseHandler):
+    async def get(self) -> None:
+        """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
+        if sys.version_info < (3, 11) or self.get_query_argument("block", "") != "true":
+            self.set_header("Content-Type", "text/html")
+            self.write("ok")
+            return
+
+        from ddtrace.appsec._utils import Block_config
+        from ddtrace.internal._exceptions import BlockingException
+
+        raise BaseExceptionGroup("test", [BlockingException(Block_config())])  # noqa: F821
+
+
 class LoginHandler(BaseHandler):
     async def get(self) -> None:
         """manual instrumentation login endpoint"""
@@ -584,6 +599,7 @@ def get_app() -> tornado.web.Application:
             (r"/redirect_requests/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectRequestsHandler),
             (r"/redirect_httpx/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectHttpxHandler),
             (r"/redirect_httpx_async/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectHttpxAsyncHandler),
+            (r"/exception-group-block", ExceptionGroupBlockHandler),
             (r"/login/?", LoginHandler),
             (r"/login_sdk/?", LoginSdkHandler),
         ]

@@ -10,7 +10,6 @@ import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import override_env
@@ -145,15 +144,6 @@ def reset_ragas_answer_relevancy_llm():
     previous_llm = ragas.metrics.answer_relevancy.llm
     yield
     ragas.metrics.answer_relevancy.llm = previous_llm
-
-
-@pytest.fixture
-def mock_ragas_evaluator(mock_llmobs_eval_metric_writer, ragas):
-    patcher = mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate")
-    LLMObsMockRagas = patcher.start()
-    LLMObsMockRagas.return_value = 1.0
-    yield RagasFaithfulnessEvaluator
-    patcher.stop()
 
 
 @pytest.fixture

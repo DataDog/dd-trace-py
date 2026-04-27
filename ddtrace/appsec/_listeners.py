@@ -19,6 +19,12 @@ def _abort_appsec(failure_msg: str) -> None:
 
     log.warning("Disabling AppSec: libddwaf failed to load (%s)", failure_msg or "unknown error")
 
+    if asm_config._asm_enabled:
+        from ddtrace.internal.telemetry import telemetry_writer
+        from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.APPSEC, False)
+
     asm_config._asm_enabled = False
     asm_config._asm_can_be_enabled = False
     asm_config._asm_libddwaf_available = False

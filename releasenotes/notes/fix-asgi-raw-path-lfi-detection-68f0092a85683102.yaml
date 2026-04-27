@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: Fixes a minor issue where the ASGI middleware used the framework-resolved ``scope["path"]`` instead of ``scope["raw_path"]`` for WAF URI evaluation. In rare cases where the URI contained path traversal sequences, these could be resolved before reaching the WAF, potentially affecting a small number of URI-based detection rules on ASGI-based frameworks like FastAPI and Starlette.

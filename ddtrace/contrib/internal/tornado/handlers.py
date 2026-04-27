@@ -1,5 +1,7 @@
 from collections import deque
+from functools import lru_cache
 
+from tornado.routing import PathMatches
 from tornado.web import HTTPError
 
 from ddtrace import config
@@ -7,6 +9,7 @@ from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
@@ -91,6 +94,127 @@ async def execute(func, handler, args, kwargs):
                 ).tornado_future
                 if dispatch_res and dispatch_res.value is not None:
                     return await dispatch_res.value
+            except BaseException as exc:
+                # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
+                if blocking_exc := find_exception(exc, BlockingException):
+                    dispatch_res = core.dispatch_with_results(
+                        "tornado.block_request", ("tornado", handler, blocking_exc.args[0])
+                    ).tornado_future
+                    if dispatch_res and dispatch_res.value is not None:
+                        return await dispatch_res.value
+                else:
+                    raise
+
+
+# Regex group prefixes that mark a group as non-capturing (kept verbatim in the route).
+# Full Python re syntax for groups starting with '(':
+#   (?:...)   non-capturing group
+#   (?=...)   positive lookahead
+#   (?!...)   negative lookahead
+#   (?<=...)  positive lookbehind
+#   (?<!...)  negative lookbehind
+#   (?>...)   atomic group
+#   (?(...)   conditional group
+#   (?P=name) named backreference  — NOT a capturing group despite starting with ?P
+#
+# Capturing groups — intentionally absent, they become %s in the route:
+#   (...)         positional capturing group
+#   (?P<name>...) named capturing group
+#
+# Comments — handled separately in _regex_to_route, removed entirely from the route:
+#   (?#...)  inline comment — matches nothing, contributes nothing to the path
+_NON_CAPTURING_PREFIXES = ("?:", "?=", "?!", "?<=", "?<!", "?>", "?(", "?P=")
+
+
+@lru_cache(maxsize=512)
+def _regex_to_route(pattern: str) -> str:
+    """
+    Convert a compiled regex pattern to an ``http.route``-style string.
+
+    This mirrors what Tornado's ``PathMatches._find_groups`` produces: capturing
+    groups (positional ``(...)`` and named ``(?P<name>...)``) are replaced with
+    ``%s``, while non-capturing constructs (``(?:...)``, lookaheads, lookbehinds)
+    are kept verbatim so the route remains readable.
+
+    Unlike ``_find_groups`` this never returns ``None`` — it always produces a
+    usable route string regardless of pattern complexity.
+    """
+    # Strip the anchors that Tornado's PathMatches.__init__ appends.
+    if pattern.startswith("^"):
+        pattern = pattern[1:]
+    if pattern.endswith("$"):
+        pattern = pattern[:-1]
+
+    result = []
+    i = 0
+    n = len(pattern)
+
+    while i < n:
+        if pattern[i] == "\\":
+            # Escaped character — copy both chars and move on.
+            result.append(pattern[i : i + 2])
+            i += 2
+            continue
+
+        if pattern[i] == "[":
+            # Character class — copy verbatim until the closing ']'.
+            # Inside '[…]', '(' is literal, not a group boundary.
+            j = i + 1
+            if j < n and pattern[j] == "^":
+                j += 1
+            # A ']' immediately after '[' or '[^' is a literal ']', not the end.
+            if j < n and pattern[j] == "]":
+                j += 1
+            while j < n and pattern[j] != "]":
+                if pattern[j] == "\\":
+                    j += 2
+                else:
+                    j += 1
+            if j < n:
+                j += 1  # skip the closing ']'
+            result.append(pattern[i:j])
+            i = j
+            continue
+
+        if pattern[i] != "(":
+            result.append(pattern[i])
+            i += 1
+            continue
+
+        # Peek past the opening parenthesis to decide whether this is capturing.
+        suffix = pattern[i + 1 :]
+        capturing = not any(suffix.startswith(p) for p in _NON_CAPTURING_PREFIXES)
+
+        # Find the matching closing paren, respecting nesting and escapes.
+        depth = 1
+        j = i + 1
+        while j < n and depth > 0:
+            if pattern[j] == "\\":
+                j += 2
+            elif pattern[j] == "(":
+                depth += 1
+                j += 1
+            elif pattern[j] == ")":
+                depth -= 1
+                j += 1
+            else:
+                j += 1
+
+        if suffix.startswith("?#"):
+            # Inline comment (?#...) — matches nothing, omit from route entirely.
+            pass
+        else:
+            result.append("%s" if capturing else pattern[i:j])
+        i = j
+
+    return "".join(result)
+
+
+def _path_for_path_match(matcher: PathMatches) -> str:
+    if matcher._path is not None:
+        return matcher._path
+
+    return _regex_to_route(matcher.regex.pattern)
 
 
 def _find_route(initial_rule_set, request):
@@ -104,11 +228,14 @@ def _find_route(initial_rule_set, request):
 
     while len(rules) > 0:
         rule = rules.popleft()
-        if (m := rule.matcher.match(request)) is not None:
-            if hasattr(rule.matcher, "_path"):
-                return rule.matcher._path, m.get("path_args", []) or m.get("path_kwargs", {})
+        matcher = rule.matcher
+        if (m := matcher.match(request)) is not None:
+            if isinstance(matcher, PathMatches):
+                path_args = m.get("path_args", []) or m.get("path_kwargs", {})
+                return _path_for_path_match(matcher), path_args
+
             elif hasattr(rule.target, "rules"):
-                rules.extendleft(rule.target.rules)
+                rules.extendleft(reversed(rule.target.rules))
 
     return "^$", {}
 

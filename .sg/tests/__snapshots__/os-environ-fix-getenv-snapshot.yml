@@ -1,0 +1,23 @@
+id: os-environ-fix-getenv
+snapshots:
+  os.getenv("DEBUG"):
+    fixed: env.get("DEBUG")
+    labels:
+    - source: os.getenv("DEBUG")
+      style: primary
+      start: 0
+      end: 18
+  os.getenv("DEBUG", "false"):
+    fixed: env.get("DEBUG", "false")
+    labels:
+    - source: os.getenv("DEBUG", "false")
+      style: primary
+      start: 0
+      end: 27
+  value = os.getenv("KEY", "default"):
+    fixed: value = env.get("KEY", "default")
+    labels:
+    - source: os.getenv("KEY", "default")
+      style: primary
+      start: 8
+      end: 35

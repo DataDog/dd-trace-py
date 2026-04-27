@@ -1,0 +1,52 @@
+id: fork-without-subprocess-marker
+message: "Test function calls os.fork() or multiprocessing.Process() without @pytest.mark.subprocess — pytest does not support forking within test functions"
+severity: warning
+language: python
+files:
+  - "tests/**/*.py"
+rule:
+  any:
+    - kind: function_definition
+      regex: "^def test_"
+      has:
+        stopBy: end
+        pattern: os.fork()
+      not:
+        inside:
+          kind: decorated_definition
+          has:
+            kind: decorator
+            has:
+              stopBy: end
+              pattern: pytest.mark.subprocess($$$)
+    - kind: function_definition
+      regex: "^def test_"
+      has:
+        stopBy: end
+        pattern: multiprocessing.Process($$$)
+      not:
+        inside:
+          kind: decorated_definition
+          has:
+            kind: decorator
+            has:
+              stopBy: end
+              pattern: pytest.mark.subprocess($$$)
+note: |
+  pytest does not support forking within test functions. Wrap the test with
+  @pytest.mark.subprocess() and move all imports and logic inside the function
+  body — the function body becomes the script run in an isolated process.
+
+  Example:
+
+    @pytest.mark.subprocess()
+    def test_fork_example():
+        import os
+
+        pid = os.fork()
+        if pid == 0:
+            assert some_condition()
+            os._exit(0)
+
+        _, status = os.waitpid(pid, 0)
+        assert os.WEXITSTATUS(status) == 0

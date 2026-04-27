@@ -1,12 +1,17 @@
 import os
+import pathlib
 import sys
 
 import pytest
 
-from tests.contrib.integration_registry.registry_update_helpers.integration_registry_manager import registry_manager
-from tests.contrib.integration_registry.registry_update_helpers.integration_update_orchestrator import (
-    IntegrationUpdateOrchestrator,
-)
+
+# Add scripts/ to sys.path so integration_registry package is importable
+_scripts_dir = str(pathlib.Path(__file__).parent.parent.parent / "scripts" / "integration_registry")
+if _scripts_dir not in sys.path:
+    sys.path.append(_scripts_dir)
+
+from registry_update_helpers.integration_registry_manager import registry_manager  # noqa: E402
+from registry_update_helpers.integration_update_orchestrator import IntegrationUpdateOrchestrator  # noqa: E402
 
 
 @pytest.fixture(scope="function", autouse=True)

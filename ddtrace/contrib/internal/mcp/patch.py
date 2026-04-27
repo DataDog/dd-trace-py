@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import TYPE_CHECKING
 from typing import Optional
@@ -17,6 +16,7 @@ from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import SERVER_REQUEST_OPERATION_NAME
@@ -32,8 +32,8 @@ log = get_logger(__name__)
 config._add(
     "mcp",
     {
-        "distributed_tracing": asbool(os.getenv("DD_MCP_DISTRIBUTED_TRACING", default=True)),
-        "capture_intent": asbool(os.getenv("DD_MCP_CAPTURE_INTENT", default=False)),
+        "distributed_tracing": asbool(env.get("DD_MCP_DISTRIBUTED_TRACING", default=True)),
+        "capture_intent": asbool(env.get("DD_MCP_CAPTURE_INTENT", default=False)),
     },
 )
 

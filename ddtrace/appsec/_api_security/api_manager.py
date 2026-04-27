@@ -155,7 +155,7 @@ class APIManager(Service):
             return
         root = env.entry_span
         collected = self.BLOCK_COLLECTED if env.blocked else self.COLLECTED
-        if not root or any(meta_name in root._meta for _, meta_name, _ in collected):
+        if not root or any(root._has_attribute(meta_name) for _, meta_name, _ in collected):
             return
 
         try:
@@ -212,7 +212,7 @@ class APIManager(Service):
                 ).decode()
                 if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
                     raise TooLargeSchemaException
-                root._meta[meta] = b64_gzip_content
+                root._set_attribute(meta, b64_gzip_content)
                 nb_schemas += 1
             except Exception:
                 extra = {"product": "appsec", "exec_limit": 6, "more_info": f":schema_failure:{meta}"}

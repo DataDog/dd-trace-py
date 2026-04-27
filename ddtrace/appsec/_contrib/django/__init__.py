@@ -1,3 +1,8 @@
+from collections.abc import Callable
+from typing import Any
+from typing import Optional
+
+from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
@@ -15,19 +20,29 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._trace_utils import track_user_login_failure_event
 from ddtrace.appsec._trace_utils import track_user_login_success_event
 from ddtrace.appsec._utils import _hash_user_id
+from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.contrib.internal.trace_utils_base import set_user
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
 
 
-def _on_django_login(pin, request, user_obj, mode, info_retriever, django_config):
+def _on_django_login(
+    _pin: Pin,
+    request: Any,
+    user_obj: Any,
+    mode: str,
+    info_retriever: _DjangoUserInfoRetriever,
+    django_config: IntegrationConfig,
+) -> None:
     if user_obj:
         from ddtrace.contrib.internal.django.compat import user_is_authenticated
 
@@ -55,7 +70,14 @@ def _on_django_login(pin, request, user_obj, mode, info_retriever, django_config
             )
 
 
-def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_config):
+def _on_django_auth(
+    result_user: Any,
+    mode: str,
+    kwargs: dict[str, Any],
+    _pin: Pin,
+    info_retriever: _DjangoUserInfoRetriever,
+    django_config: IntegrationConfig,
+) -> tuple[bool, Any]:
     if not asm_config._asm_enabled:
         return True, result_user
 
@@ -85,7 +107,13 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
     return False, None
 
 
-def get_user_info(info_retriever, django_config, kwargs={}):
+def get_user_info(
+    info_retriever: _DjangoUserInfoRetriever,
+    django_config: IntegrationConfig,
+    kwargs: Optional[dict[str, Any]] = None,
+) -> tuple[Any, dict[str, Any]]:
+    if kwargs is None:
+        kwargs = {}
     userid_list = info_retriever.possible_user_id_fields + info_retriever.possible_login_fields
 
     for possible_key in userid_list:
@@ -105,7 +133,14 @@ def get_user_info(info_retriever, django_config, kwargs={}):
     return user_id_found or user_id, user_extra
 
 
-def _on_django_process(result_user, session_key, mode, kwargs, info_retriever, django_config):
+def _on_django_process(
+    result_user: Any,
+    session_key: Optional[str],
+    mode: str,
+    kwargs: dict[str, Any],
+    info_retriever: _DjangoUserInfoRetriever,
+    django_config: IntegrationConfig,
+) -> None:
     if (not asm_config._asm_enabled) or mode == LOGIN_EVENTS_MODE.DISABLED:
         return
     user_id, user_extra = get_user_info(info_retriever, django_config, kwargs)
@@ -156,7 +191,16 @@ def _on_django_process(result_user, session_key, mode, kwargs, info_retriever, d
         raise BlockingException(get_blocked())
 
 
-def _on_django_signup_user(django_config, pin, func, instance, args, kwargs, user_obj, info_retriever):
+def _on_django_signup_user(
+    django_config: IntegrationConfig,
+    _pin: Pin,
+    _func: object,
+    _instance: object,
+    _args: tuple[object, ...],
+    _kwargs: dict[str, Any],
+    user_obj: Any,
+    info_retriever: _DjangoUserInfoRetriever,
+) -> None:
     if (not asm_config._asm_enabled) or asm_config._user_event_mode == LOGIN_EVENTS_MODE.DISABLED:
         return
     user_id, user_extra = get_user_info(info_retriever, django_config)
@@ -181,7 +225,16 @@ def _on_django_signup_user(django_config, pin, func, instance, args, kwargs, use
             span._set_attribute(APPSEC.USER_LOGIN_USERID, user_id)
 
 
-def listen():
+def _on_traced_get_response_pre(
+    block_callable: Callable[[], None],
+    _ctx: ExecutionContext,
+    _request: Any,
+    _before_request_tags: Any,
+) -> None:
+    set_block_request_callable(block_callable)
+
+
+def listen() -> None:
     core.on("django.login", _on_django_login)
     core.on("django.auth", _on_django_auth, "user")
     core.on("django.process_request", _on_django_process)
@@ -194,4 +247,4 @@ def listen():
     core.on("django.after_request_headers.finalize", _set_headers_and_response)
 
     core.on("context.ended.django.traced_get_response", _on_context_ended)
-    core.on("django.traced_get_response.pre", lambda block_callable, *_: set_block_request_callable(block_callable))
+    core.on("django.traced_get_response.pre", _on_traced_get_response_pre)

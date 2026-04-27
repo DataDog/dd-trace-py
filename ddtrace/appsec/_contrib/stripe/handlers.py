@@ -1,4 +1,14 @@
+from typing import Union
+from typing import cast
+
 from ddtrace.appsec._asm_request_context import call_waf_callback
+from ddtrace.appsec._contrib.stripe.types import StripeCanceledEventPaymentIntent
+from ddtrace.appsec._contrib.stripe.types import StripeCheckoutSession
+from ddtrace.appsec._contrib.stripe.types import StripeEvent
+from ddtrace.appsec._contrib.stripe.types import StripeEventPaymentIntent
+from ddtrace.appsec._contrib.stripe.types import StripeFailedEventPaymentIntent
+from ddtrace.appsec._contrib.stripe.types import StripePaymentIntent
+from ddtrace.appsec._contrib.stripe.types import StripeSucceededEventPaymentIntent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 
@@ -6,7 +16,7 @@ from ddtrace.internal.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _on_checkout_session_create(session):
+def _on_checkout_session_create(session: StripeCheckoutSession) -> None:
     try:
         mode = session.mode
         if mode != "payment":
@@ -54,10 +64,10 @@ def _on_checkout_session_create(session):
         logger.debug("can't extract payment creation data from Session object", exc_info=True)
 
 
-def _on_payment_intent_create(payment_intent):
+def _on_payment_intent_create(payment_intent: StripePaymentIntent) -> None:
     try:
         payment_method = payment_intent.payment_method
-        if not isinstance(payment_method, str):
+        if payment_method is not None and not isinstance(payment_method, str):
             payment_method = payment_method.id
 
         payment_creation_data = {
@@ -74,39 +84,48 @@ def _on_payment_intent_create(payment_intent):
         logger.debug("can't extract payment creation data from PaymentIntent object", exc_info=True)
 
 
-def _on_payment_intent_event(event):
+def _on_payment_intent_event(event: StripeEvent) -> None:
     try:
+        payment_intent: StripeEventPaymentIntent
+        payment_intent_webhook_data: dict[str, Union[str, int, None]]
         if event.type == "payment_intent.succeeded":
             waf_data_name = "PAYMENT_SUCCESS"
+            payment_intent = cast(StripeSucceededEventPaymentIntent, event.data.object)
+            payment_method = payment_intent.payment_method
+
+            if payment_method is not None and not isinstance(payment_method, str):
+                payment_method = payment_method.id
 
             payment_intent_webhook_data = {
-                "payment_method": event.data.object.payment_method,
+                "payment_method": payment_method,
             }
 
         elif event.type == "payment_intent.payment_failed":
             waf_data_name = "PAYMENT_FAILURE"
+            payment_intent = cast(StripeFailedEventPaymentIntent, event.data.object)  # noqa: F821
 
             payment_intent_webhook_data = {
-                "last_payment_error.code": event.data.object.last_payment_error.code,
-                "last_payment_error.decline_code": event.data.object.last_payment_error.decline_code,
-                "last_payment_error.payment_method.id": event.data.object.last_payment_error.payment_method.id,
-                "last_payment_error.payment_method.type": event.data.object.last_payment_error.payment_method.type,
+                "last_payment_error.code": payment_intent.last_payment_error.code,
+                "last_payment_error.decline_code": payment_intent.last_payment_error.decline_code,
+                "last_payment_error.payment_method.id": payment_intent.last_payment_error.payment_method.id,
+                "last_payment_error.payment_method.type": payment_intent.last_payment_error.payment_method.type,
             }
         elif event.type == "payment_intent.canceled":
             waf_data_name = "PAYMENT_CANCELLATION"
+            payment_intent = cast(StripeCanceledEventPaymentIntent, event.data.object)
 
             payment_intent_webhook_data = {
-                "cancellation_reason": event.data.object.cancellation_reason,
+                "cancellation_reason": payment_intent.cancellation_reason,
             }
         else:
             return
 
         payment_intent_webhook_data |= {
             "integration": "stripe",
-            "id": event.data.object.id,
-            "amount": event.data.object.amount,
-            "currency": event.data.object.currency,
-            "livemode": event.data.object.livemode,
+            "id": payment_intent.id,
+            "amount": payment_intent.amount,
+            "currency": payment_intent.currency,
+            "livemode": payment_intent.livemode,
         }
 
         call_waf_callback({waf_data_name: payment_intent_webhook_data})
@@ -114,7 +133,7 @@ def _on_payment_intent_event(event):
         logger.debug("can't extract payment_intent event data from Event object", exc_info=True)
 
 
-def listen():
+def listen() -> None:
     core.on("appsec.stripe.checkout.session.create", _on_checkout_session_create)
     core.on("appsec.stripe.payment_intent.create", _on_payment_intent_create)
     core.on("appsec.stripe.webhook.construct_event", _on_payment_intent_event)

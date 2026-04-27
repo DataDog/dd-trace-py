@@ -48,6 +48,34 @@ def test_periodic_double_start():
     t.join()
 
 
+def test_periodic_join_positional_timeout_is_honored():
+    """Regression: PeriodicThread.join(timeout) passed positionally was ignored.
+
+    The native PeriodicThread_join skipped argument parsing whenever kwargs was
+    NULL — which is the normal case for positional calls — so the timeout was
+    dropped and execution fell through to the Py_None infinite-wait branch.
+    PeriodicService.join(timeout=...) forwards positionally to its worker, so
+    every user of that wrapper was silently waiting forever instead of
+    honoring the timeout. This test pins the positional form (and the kwarg
+    form) to actually return within the requested timeout.
+    """
+    t = periodic.PeriodicThread(60.0, lambda: None)
+    t.start()
+    try:
+        start = monotonic()
+        t.join(0.1)  # positional
+        elapsed_pos = monotonic() - start
+        assert elapsed_pos < 1.0, "positional join(0.1) blocked for %.2fs — timeout was ignored" % elapsed_pos
+
+        start = monotonic()
+        t.join(timeout=0.1)  # keyword
+        elapsed_kw = monotonic() - start
+        assert elapsed_kw < 1.0, "keyword join(timeout=0.1) blocked for %.2fs — timeout was ignored" % elapsed_kw
+    finally:
+        t.stop()
+        t.join()
+
+
 def test_periodic_error():
     x = {"OK": False}
 
@@ -128,7 +156,13 @@ def test_awakeable_periodic_service():
     assert queue == list(range(n + 1))
 
 
+@pytest.mark.subprocess()
 def test_forksafe_awakeable_periodic_service():
+    import os
+    from threading import Event
+
+    from ddtrace.internal import periodic
+
     queue = [None]
     periodic_ran = Event()
 
@@ -165,6 +199,7 @@ def test_forksafe_awakeable_periodic_service():
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess()
 def test_autorestart_false_service_restarts_in_parent_after_fork():
     """A PeriodicService with autorestart=False must keep running in the parent
     process after a fork. The flag means 'do not restart in the child', not
@@ -175,6 +210,12 @@ def test_autorestart_false_service_restarts_in_parent_after_fork():
     restarted in the parent because _after_fork() checks __autorestart__ without
     knowing whether it is running in the child or in the parent.
     """
+    import os
+    from threading import Event
+    from time import sleep
+
+    from ddtrace.internal import periodic
+
     periodic_ran = Event()
 
     class MyService(periodic.PeriodicService):
@@ -361,6 +402,7 @@ def _get_native_thread_name():
     return None
 
 
+@pytest.mark.subprocess()
 def test_periodic_thread_stop_without_join_forksafe():
     """
     Dropping a PeriodicThread that was stop()'d without join() in a forked child
@@ -383,7 +425,12 @@ def test_periodic_thread_stop_without_join_forksafe():
     been reused.
     """
     import gc
+    import os
     import signal
+    from threading import Thread
+    from time import sleep
+
+    from ddtrace.internal import periodic
 
     def noop():
         pass

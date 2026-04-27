@@ -1,3 +1,4 @@
+from pathlib import Path
 import unittest.mock
 
 from ddtrace import _monkey
@@ -41,6 +42,29 @@ class TestPatching(SubprocessTestCase):
 
         assert "module_dne does not have automatic instrumentation" in str(me.exception)
         assert "module_dne" not in _monkey._PATCHED_MODULES
+
+    @run_in_subprocess()
+    def test_patch_no_raise_when_only_pyc_exists(self):
+        # A compiled-only integration (patch.pyc, no patch.py) should not raise ModuleNotFoundException.
+        original_exists = Path.exists
+
+        def mock_exists(self):
+            if self.name == "patch.py" and self.parent.name == "fake_pyc_mod":
+                return False
+            if self.name == "patch.pyc" and self.parent.name == "fake_pyc_mod":
+                return True
+            return original_exists(self)
+
+        raised_module_not_found = False
+        with unittest.mock.patch.object(Path, "exists", mock_exists):
+            try:
+                _monkey.patch(raise_errors=True, fake_pyc_mod=True)
+            except _monkey.ModuleNotFoundException:
+                raised_module_not_found = True
+            except Exception:
+                pass  # ImportError etc. for non-existent fake module is expected
+
+        assert not raised_module_not_found, "ModuleNotFoundException raised when patch.pyc exists"
 
     @run_in_subprocess(env_overrides=dict())
     def test_patch_all_env_override_httplib_none(self):
@@ -104,5 +128,5 @@ class TestPatching(SubprocessTestCase):
                     True,
                     True,
                     "",
-                    version="3.40.1",
+                    version="3.46.1",
                 )

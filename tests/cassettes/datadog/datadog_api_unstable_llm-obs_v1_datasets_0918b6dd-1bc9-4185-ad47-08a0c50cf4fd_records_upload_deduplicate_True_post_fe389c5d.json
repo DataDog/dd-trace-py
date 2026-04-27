@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/0918b6dd-1bc9-4185-ad47-08a0c50cf4fd/records/upload?deduplicate=True",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "342",
+      "Content-Type": "multipart/form-data; boundary=----------boundary------"
+    },
+    "body": "------------boundary------\r\nContent-Disposition: form-data; name=\"file\"; filename=\"tmp.csv\"\r\nContent-Type: text/csv\r\n\r\ninput,expected_output,metadata,id\r\n\"{\"\"in0\"\": \"\"r0v1\"\", \"\"in1\"\": \"\"r0v2\"\"}\",\"{\"\"out0\"\": \"\"r0v3\"\"}\",{},user-id-0\r\n\"{\"\"in0\"\": \"\"r1v1\"\", \"\"in1\"\": \"\"r1v2\"\"}\",\"{\"\"out0\"\": \"\"r1v3\"\"}\",{},user-id-1\r\n\r\n------------boundary--------\r\n"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "210",
+      "date": "Thu, 26 Mar 2026 20:04:20 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":{\"id\":\"22a2adc3-e93b-4416-abe5-dc54b6151f5d\",\"type\":\"dataset_version\",\"attributes\":{\"dataset_id\":\"0918b6dd-1bc9-4185-ad47-08a0c50cf4fd\",\"last_used\":\"2026-03-26T20:04:20.858759781Z\",\"version_number\":1}}}"
+  }
+}

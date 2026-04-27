@@ -11,7 +11,6 @@ from ddtrace.internal.logger import get_logger
 
 # Duplicated from ddtrace.llmobs._constants to avoid importing
 # ddtrace.llmobs at module level (triggers LLMObs -> multiprocessing/threading chain).
-_INTEGRATION = "_ml_obs.integration"
 _PROXY_REQUEST = "llmobs.proxy_request"
 
 
@@ -37,8 +36,8 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         # BaseLLMIntegration.trace() never set these, so existing snapshot
         # tests expect them absent.
         # TODO: keep these tags once snapshots are updated
-        span._meta.pop(COMPONENT, None)
-        span._meta.pop(SPAN_KIND, None)
+        span._remove_attribute(COMPONENT)
+        span._remove_attribute(SPAN_KIND)
 
         event.llmobs_integration._set_base_span_tags(
             span,
@@ -50,9 +49,7 @@ class LlmTracingSubscriber(TracingSubscriber["LlmRequestEvent"]):
         base_url = event.llmobs_integration._get_base_url(instance=event.instance)  # type: ignore[arg-type]
         if event.llmobs_integration._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(_PROXY_REQUEST, True)
-
-        if event.llmobs_integration.llmobs_enabled:
-            span._set_ctx_item(_INTEGRATION, event.component)
+        event.llmobs_integration._annotate_integration_tag(span)
 
     @classmethod
     def on_ended(

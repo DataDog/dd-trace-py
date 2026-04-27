@@ -5,6 +5,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
@@ -124,9 +125,9 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
 
     with tracer.trace(
         schematize_cloud_api_operation("algoliasearch.search", cloud_provider="algoliasearch", cloud_service="search"),
-        service=trace_utils.ext_service(pin, config.algoliasearch),
         span_type=SpanTypes.HTTP,
     ) as span:
+        set_service_and_source(span, trace_utils.ext_service(pin, config.algoliasearch), config.algoliasearch)
         span._set_attribute(COMPONENT, config.algoliasearch.integration_name)
 
         # set span.kind to the type of request being performed

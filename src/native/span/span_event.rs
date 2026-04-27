@@ -8,16 +8,16 @@ use pyo3::{
 
 use crate::py_string::PyBackedString;
 
-use super::utils::{extract_backed_string_or_default, wall_clock_ns};
+use super::utils::{extract_backed_string_or_default, extract_time_unix_nano};
 
 #[pyo3::pyclass(frozen, name = "SpanEvent", module = "ddtrace.internal.native._native")]
 pub struct SpanEvent {
     #[pyo3(get)]
-    name: PyBackedString,
+    pub(crate) name: PyBackedString,
     #[pyo3(get)]
-    time_unix_nano: i64,
+    pub(crate) time_unix_nano: u64,
     #[pyo3(get)]
-    attributes: Py<PyDict>,
+    pub(crate) attributes: Py<PyDict>,
 }
 
 #[pyo3::pymethods]
@@ -28,10 +28,10 @@ impl SpanEvent {
         py: Python<'_>,
         name: &Bound<'_, PyAny>,
         attributes: Option<&Bound<'_, PyAny>>,
-        time_unix_nano: Option<i64>,
+        time_unix_nano: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let name = extract_backed_string_or_default(name);
-        let time_unix_nano = time_unix_nano.unwrap_or_else(wall_clock_ns);
+        let time_unix_nano = extract_time_unix_nano(time_unix_nano);
         let attributes = match attributes {
             None => PyDict::new(py).unbind(),
             Some(obj) if obj.is_none() => PyDict::new(py).unbind(),
@@ -66,12 +66,11 @@ impl SpanEvent {
     }
 
     fn __iter__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let name_str: &str = &self.name;
         let name_pair = PyTuple::new(
             py,
             [
                 "name".into_pyobject(py)?.into_any().unbind(),
-                name_str.into_pyobject(py)?.into_any().unbind(),
+                self.name.as_py(py).unbind(),
             ],
         )?;
         let time_pair = PyTuple::new(
@@ -100,12 +99,11 @@ impl SpanEvent {
     }
 
     fn __reduce__(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        let name_str: &str = &self.name;
         let cls = py.get_type::<SpanEvent>();
         let args = PyTuple::new(
             py,
             [
-                name_str.into_pyobject(py)?.into_any().unbind(),
+                self.name.as_py(py).unbind(),
                 self.attributes.clone_ref(py).into_any(),
                 self.time_unix_nano.into_pyobject(py)?.into_any().unbind(),
             ],

@@ -22,22 +22,12 @@ FIXTURES_PATH = "tests/appsec/iast/fixtures/taint_sinks/path_traversal.py"
 
 
 @pytest.fixture
-def ensure_test_file():
+def ensure_test_file(tmp_path):
     """Fixture to ensure the test file exists for path traversal tests."""
-    file_path = os.path.join(ROOT_DIR, "../fixtures", "taint_sinks", "not_exists.txt")
-    file_existed = os.path.exists(file_path)
-
-    # Create the file if it doesn't exist
-    if not file_existed:
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        with open(file_path, "w") as f:
-            f.write("test content for path traversal")
-
+    file_path = str(tmp_path / "path_traversal_test.txt")
+    with open(file_path, "w") as f:
+        f.write("test content for path traversal")
     yield file_path
-
-    # Clean up: remove the file if we created it
-    if not file_existed and os.path.exists(file_path):
-        os.remove(file_path)
 
 
 def _get_path_traversal_module_functions():
@@ -130,7 +120,7 @@ def test_path_traversal_open_secure(file_path, iast_context_defaults):
 
 @pytest.mark.parametrize(
     "module, function",
-    _get_path_traversal_module_functions(),
+    sorted(_get_path_traversal_module_functions()),
 )
 def test_path_traversal(module, function, iast_context_defaults, ensure_test_file):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.path_traversal")

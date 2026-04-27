@@ -4,7 +4,6 @@ import dataclasses
 from http.client import RemoteDisconnected
 import json
 from json import JSONDecodeError
-import os
 import socket
 import typing as t
 from typing import TypedDict  # noqa:F401
@@ -48,6 +47,7 @@ from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import ConnectionType
@@ -74,7 +74,6 @@ _CONFIGURATIONS_TYPE = dict[str, t.Union[str, dict[str, str]]]
 _KNOWN_TESTS_TYPE = set[TestId]
 
 _NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
-
 
 _RETRIABLE_ERRORS = (*_NETWORK_ERRORS, CIVisibilityAPIServerError)
 
@@ -235,7 +234,7 @@ _DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
 def _get_known_tests_max_pages() -> int:
     """Max pages for known tests pagination; configurable via _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES."""
     try:
-        value = int(os.environ.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
+        value = int(env.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
     except ValueError:
         log.warning(
             "Failed to parse _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES, using default: %s",
@@ -432,7 +431,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             require_git = attributes["require_git"]
             itr_enabled = attributes["itr_enabled"]
             flaky_test_retries_enabled = attributes["flaky_test_retries_enabled"] or asbool(
-                os.getenv("_DD_TEST_FORCE_ENABLE_ATR")
+                env.get("_DD_TEST_FORCE_ENABLE_ATR")
             )
             known_tests_enabled = attributes["known_tests_enabled"]
             coverage_report_upload_enabled = attributes.get("coverage_report_upload_enabled", False)
@@ -451,7 +450,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
             test_management_attributes = attributes.get("test_management", {})
             test_management_enabled = test_management_attributes.get("enabled", False)
-            attempt_to_fix_retries_env = os.getenv("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
+            attempt_to_fix_retries_env = env.get("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
             if attempt_to_fix_retries_env and attempt_to_fix_retries_env.isdigit():
                 attempt_to_fix_retries = int(attempt_to_fix_retries_env)
                 log.debug("Number of Attempt to Fix retries obtained from environment: %d", attempt_to_fix_retries)
@@ -462,7 +461,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 log.debug("Number of Attempt to Fix retries obtained from API: %d", attempt_to_fix_retries)
 
             test_management = TestManagementSettings(
-                enabled=test_management_enabled or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT")),
+                enabled=test_management_enabled or asbool(env.get("_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT")),
                 attempt_to_fix_retries=attempt_to_fix_retries,
             )
 

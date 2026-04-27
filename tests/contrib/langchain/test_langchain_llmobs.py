@@ -90,7 +90,7 @@ def _expected_langchain_llmobs_llm_span(
         output_messages=output_messages if not mock_io else mock.ANY,
         metadata=metadata,
         token_metrics=metrics,
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain", "integration": "langchain"},
         span_links=span_links,
         prompt=prompt,
         prompt_tracking_instrumentation_method="auto" if prompt else None,
@@ -104,7 +104,7 @@ def _expected_langchain_llmobs_chain_span(span, input_value=None, output_value=N
         "workflow",
         input_value=input_value if input_value is not None else mock.ANY,
         output_value=output_value if output_value is not None else mock.ANY,
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain", "integration": "langchain"},
         span_links=span_links,
         metadata=metadata,
     )
@@ -461,7 +461,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         input_value=json.dumps({"person": "Spongebob Squarepants", "language": "Spanish"}, sort_keys=True),
         output_value="Spanish",
         span_links=True,
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain", "integration": "langchain"},
     )
     assert events_by_span_id[str(trace[3].span_id)] == _expected_langchain_llmobs_llm_span(
         trace[3],
@@ -655,7 +655,7 @@ def test_llmobs_embedding_documents(langchain_openai, llmobs_events, tracer, tes
         model_provider="openai",
         input_documents=[{"text": "hello world"}, {"text": "goodbye world"}],
         output_value="[2 embedding(s) returned with size 1536]",
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain", "integration": "langchain"},
     )
 
 
@@ -672,7 +672,7 @@ def test_llmobs_embedding_query(langchain_openai, llmobs_events, tracer, test_sp
         model_provider="openai",
         input_documents=[{"text": "hello world"}],
         output_value="[1 embedding(s) returned with size 1536]",
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain", "integration": "langchain"},
     )
 
 
@@ -689,7 +689,7 @@ def test_llmobs_vectorstore_similarity_search(langchain_in_memory_vectorstore, l
         input_value="France",
         output_documents=[{"text": mock.ANY, "id": mock.ANY, "name": mock.ANY}],
         output_value="[1 document(s) retrieved]",
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain", "integration": "langchain"},
         span_links=True,
     )
     assert llmobs_events[0] == expected_span
@@ -731,7 +731,7 @@ def test_llmobs_chat_model_tool_calls(langchain_core, langchain_openai, llmobs_e
         ],
         metadata={"temperature": 0.7},
         token_metrics={"input_tokens": mock.ANY, "output_tokens": mock.ANY, "total_tokens": mock.ANY},
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain", "integration": "langchain"},
     )
 
 
@@ -765,7 +765,7 @@ def test_llmobs_base_tool_invoke(langchain_core, llmobs_events, tracer, test_spa
                 "description": mock.ANY,
             },
         },
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain", "integration": "langchain"},
     )
 
 
@@ -803,7 +803,7 @@ def test_llmobs_streamed_chain(
         output_messages=[{"content": mock.ANY, "role": "assistant"}],
         metadata={"temperature": 0.7, "max_tokens": 256},
         token_metrics={},
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain", "integration": "langchain"},
         span_links=True,
     )
 
@@ -825,7 +825,7 @@ def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, test_spans
         output_messages=[{"content": "The answer is 4."}],
         metadata={"temperature": 0.7, "max_tokens": 256},
         token_metrics={},
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain", "integration": "langchain"},
     )
 
 
@@ -864,7 +864,7 @@ def test_llmobs_runnable_lambda_invoke(langchain_core, llmobs_events, tracer, te
         span_kind="task",
         input_value=json.dumps({"a": 1, "b": 2}, sort_keys=True),
         output_value="3",
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain", "integration": "langchain"},
     )
 
 
@@ -883,7 +883,7 @@ async def test_llmobs_runnable_lambda_ainvoke(langchain_core, llmobs_events, tra
         span_kind="task",
         input_value=json.dumps({"a": 1, "b": 2}, sort_keys=True),
         output_value="3",
-        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain", "integration": "langchain"},
     )
 
 

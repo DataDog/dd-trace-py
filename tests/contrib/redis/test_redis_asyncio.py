@@ -53,12 +53,8 @@ def test_patching():
         We unwrap the correct methods
     """
     assert is_wrapted(redis.asyncio.client.Redis.execute_command)
-    assert is_wrapted(redis.asyncio.client.Redis.pipeline)
-    assert is_wrapted(redis.asyncio.client.Pipeline.pipeline)
     unpatch()
     assert not is_wrapted(redis.asyncio.client.Redis.execute_command)
-    assert not is_wrapted(redis.asyncio.client.Redis.pipeline)
-    assert not is_wrapted(redis.asyncio.client.Pipeline.pipeline)
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1)

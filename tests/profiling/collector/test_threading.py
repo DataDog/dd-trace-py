@@ -11,9 +11,9 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 from typing import cast
+from unittest import mock  # type: ignore[import-untyped]
 import uuid
 
-import mock  # type: ignore[import-untyped]
 import pytest
 
 from ddtrace import ext
@@ -414,8 +414,8 @@ def test_rlock_gevent_tasks() -> None:
 def test_assertion_error_raised_with_enable_asserts():
     """Ensure that AssertionError is propagated when config.enable_asserts=True."""
     import threading
+    from unittest import mock
 
-    import mock
     import pytest
 
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -607,6 +607,83 @@ def test_all_exceptions_suppressed_by_default() -> None:
         lock._update_name = mock.Mock(side_effect=Exception("Wut happened?!?!"))  # type: ignore[attr-defined]
         lock.acquire()
         lock.release()
+
+
+def test_flush_sample_uses_push_monotonic_ns() -> None:
+    """Verify _flush_sample always uses push_monotonic_ns on all platforms.
+
+    The clock mismatch between Python's time.monotonic_ns() and the C++ offset
+    computation is fixed at the C++ layer (sample.cpp uses mach_absolute_time() on
+    macOS to match Python's clock source), so no platform-specific workaround is
+    needed here.
+    """
+    import threading
+    import time
+
+    import mock
+
+    import ddtrace.profiling.collector._lock as _lock_module
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_flush_sample_push_monotonic_ns")
+
+    mock_handle: mock.MagicMock = mock.MagicMock()
+
+    before: int = time.monotonic_ns()
+    with (
+        mock.patch.object(_lock_module, "ddup") as mock_ddup,
+        ThreadingLockCollector(capture_pct=100),
+    ):
+        mock_ddup.SampleHandle.return_value = mock_handle
+
+        lock: threading.Lock = threading.Lock()
+        lock.acquire()
+        lock.release()
+    after: int = time.monotonic_ns()
+
+    assert not mock_handle.push_absolute_ns.called, "push_absolute_ns should not be called"
+    assert mock_handle.push_monotonic_ns.called, "push_monotonic_ns should be called"
+    for call in mock_handle.push_monotonic_ns.call_args_list:
+        ts: int = call[0][0]
+        assert isinstance(ts, int), f"Expected int timestamp, got {type(ts)}"
+        assert before <= ts <= after, f"Expected monotonic timestamp in [{before}, {after}], got {ts}"
+
+
+def test_flush_sample_never_passes_zero_to_push_monotonic_ns() -> None:
+    """Verify _flush_sample never passes 0 to push_monotonic_ns.
+
+    push_monotonic_ns returns False and skips the sample when given 0.
+    time.monotonic_ns() returns ns since boot, so 0 is only possible at
+    the exact instant of boot — never in practice, but guard it anyway.
+    """
+    import threading
+
+    import mock
+
+    import ddtrace.profiling.collector._lock as _lock_module
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_flush_sample_zero_guard")
+
+    mock_handle: mock.MagicMock = mock.MagicMock()
+
+    with (
+        mock.patch.object(_lock_module, "ddup") as mock_ddup,
+        mock.patch.object(_lock_module, "time") as mock_time,
+        ThreadingLockCollector(capture_pct=100),
+    ):
+        mock_ddup.SampleHandle.return_value = mock_handle
+        mock_time.monotonic_ns.return_value = 0
+
+        lock: threading.Lock = threading.Lock()
+        lock.acquire()
+        lock.release()
+
+    for call in mock_handle.push_monotonic_ns.call_args_list:
+        ts: int = call[0][0]
+        assert ts == 0, f"Expected 0 to be passed through to push_monotonic_ns (guard is in C++), got {ts}"
 
 
 def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
@@ -1185,6 +1262,61 @@ class TestGenericLockProfiling(LockCollectorTestBase):
                     ),
                 ],
             )
+
+    def test_find_name_slots_object(self) -> None:
+        """Regression: _find_name resolves lock names on __slots__-based objects.
+
+        Objects with __slots__ have no __dict__, so the slots inspection path
+        in _find_name must be used. Previously, the TypeError from vars() was
+        caught and the name resolution was skipped entirely.
+        """
+
+        class SlottedHolder:
+            __slots__ = ("my_lock",)
+
+            def __init__(self, lock_class: LockTypeClass) -> None:
+                self.my_lock: LockTypeInst = lock_class()
+
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                holder = SlottedHolder(self.lock_class)
+                assert isinstance(holder.my_lock, _ProfiledLock)
+                found_name: Optional[str] = holder.my_lock._find_name({"holder": holder})
+                assert found_name == "my_lock", (
+                    f"Expected 'my_lock' but got {found_name!r}. Lock name resolution through __slots__ is broken."
+                )
+
+    def test_crashing_descriptor_does_not_crash(self) -> None:
+        """Regression: _find_name must not crash when an object has a descriptor that raises.
+
+        Ray's get_actor_name descriptor crashes when accessed from a non-actor
+        worker context. The old dir()+getattr() approach would invoke it and
+        crash. The fix uses __dict__ to avoid invoking class-level descriptors.
+        """
+
+        class CrashingDescriptor:
+            def __get__(self, obj: object, objtype: Optional[type] = None) -> object:
+                raise RuntimeError("Simulated Ray descriptor crash")
+
+        class HolderWithCrashingDescriptor:
+            dangerous_attr = CrashingDescriptor()
+
+            def __init__(self, lock_class: LockTypeClass) -> None:
+                self.my_lock: LockTypeInst = lock_class()
+
+        with mock.patch(
+            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+            True,
+        ):
+            with self.collector_class(capture_pct=100):
+                holder = HolderWithCrashingDescriptor(self.lock_class)
+                assert isinstance(holder.my_lock, _ProfiledLock)
+                # Must not raise, even though accessing dangerous_attr crashes
+                found_name = holder.my_lock._find_name({"holder": holder})
+                assert found_name == "my_lock", f"Expected 'my_lock' but got {found_name!r}."
 
     def test_private_lock(self) -> None:
         # Store reference to class for later qualname access

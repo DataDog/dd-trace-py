@@ -96,4 +96,6 @@ urlpatterns = [
     handler(r"^shutdown-tracer/$", shutdown, name="shutdown-tracer"),
     handler(r"^alter-resource/$", views.alter_resource),
     handler(r"^identify/$", views.identify, name="identify"),
+    handler(r"^async-view/$", views.AsyncView.as_view(), name="async-view"),
+    handler(r"^async-fn-view/$", views.async_function_view, name="async-fn-view"),
 ]

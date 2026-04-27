@@ -1,0 +1,35 @@
+---
+description: Review CI results for a branch, commit, or PR using the Datadog MCP
+globs: []
+alwaysApply: false
+---
+
+<!-- ⚠️ EDITOR WARNING ⚠️ -->
+<!-- Don't update this file. If you want to extend the rules and description, -->
+<!-- go to the skill: .claude/skills/review-ci/SKILL.md -->
+
+# CI Review
+
+## Overview
+
+Use the **`review-ci` skill** to review CI results for the current branch, commit,
+or PR. It identifies failed jobs, failed tests, and known-flaky tests, then produces
+actionable fix instructions. Requires the Datadog MCP.
+
+## Usage
+
+Use the Skill tool with command "review-ci"
+
+## Full Documentation
+
+For complete documentation including:
+- How to find failed GitLab CI and GitHub Actions jobs
+- How to retrieve logs from Datadog or `gh` CLI
+- How to distinguish real failures from known-flaky tests
+- Merge queue working branch support
+
+See: `.claude/skills/review-ci/SKILL.md`
+
+## Related
+
+- Datadog MCP setup: `claude mcp add --transport http datadog-mcp "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp?toolsets=core,software-delivery"`

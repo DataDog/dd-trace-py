@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    AI Guard: Add ``DD_AI_GUARD_BLOCK`` environment variable. Defaults to ``True``, which means
+    the blocking behavior configured in the Datadog AI Guard UI (in-app) will be honored. Set to
+    ``False`` to force monitor-only mode locally: evaluations are still performed but
+    ``AIGuardAbortError`` is never raised, regardless of the in-app blocking setting.

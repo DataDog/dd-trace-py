@@ -26,8 +26,7 @@ variables:
     - pip install -r ci/requirements/ci.txt
     - python -m twine check --strict pywheels/*
   script:
-    - rm -rf pywheels/ddtrace_serverless*
-    - python -m twine upload --repository ${PYPI_REPOSITORY} pywheels/*
+    - python -m twine upload --repository ${PYPI_REPOSITORY} pywheels/ddtrace-*
   artifacts:
     paths:
       - pywheels/*.whl
@@ -43,3 +42,34 @@ release_pypi_prod:
   extends: .release_pypi
   variables:
     PYPI_REPOSITORY: pypi
+
+notify_datadog_release:
+  extends: .release_base
+  allow_failure: true
+  needs: [ "ddtrace package", "release_pypi_prod" ]
+  image: ${PYPI_PUBLISH_IMAGE}
+  id_tokens:
+    DD_STS_OIDC_TOKEN:
+      aud: rapid-seceng-sit
+  tags: [ "arch:amd64" ]
+  before_script:
+    - apt-get update && apt-get install --no-install-recommends -y curl jq
+    - >-
+      DD_STS_API_KEY=$(curl -sS
+      -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}"
+      "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab")
+    - >-
+      DD_STS_APP_KEY=$(curl -sS
+      -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}"
+      "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab-app-key")
+    - export DD_API_KEY=$(echo "$DD_STS_API_KEY" | jq -re '.api_key')
+    - export DD_APP_KEY=$(echo "$DD_STS_APP_KEY" | jq -re '.application_key')
+  script:
+    - |
+      echo "Tag: ${CI_COMMIT_TAG} -> Commit SHA: ${CI_COMMIT_SHA}"
+      curl --retry 3 --retry-delay 2 --fail -X POST \
+        -H "Content-Type: application/json" \
+        -H "DD-API-KEY: ${DD_API_KEY}" \
+        -H "DD-APPLICATION-KEY: ${DD_APP_KEY}" \
+        -d "{\"meta\": {\"payload\": {\"version\": \"${CI_COMMIT_TAG}\", \"git_commit_sha\": \"${CI_COMMIT_SHA}\"}}}" \
+        https://api.datadoghq.com/api/v2/workflows/dd0d5405-b38c-4f4f-8f4c-c0cd4a65d4d6/instances

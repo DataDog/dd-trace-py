@@ -8,6 +8,7 @@ from claude_agent_sdk import AssistantMessage
 from claude_agent_sdk import ResultMessage
 from claude_agent_sdk import SystemMessage
 from claude_agent_sdk import TextBlock
+from claude_agent_sdk import ToolResultBlock
 from claude_agent_sdk import ToolUseBlock
 from claude_agent_sdk import UserMessage
 
@@ -60,12 +61,29 @@ def create_mock_system_message(
     )
 
 
-def create_mock_assistant_message(text: str, model: str = MOCK_MODEL) -> AssistantMessage:
+MOCK_ASSISTANT_USAGE = {
+    "input_tokens": 10,
+    "output_tokens": 3,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+}
+
+EXPECTED_ASSISTANT_USAGE = {
+    "input_tokens": 10,
+    "output_tokens": 3,
+    "total_tokens": 13,
+}
+
+
+def create_mock_assistant_message(text: str, model: str = MOCK_MODEL, usage: dict = None) -> AssistantMessage:
     """Create a mock AssistantMessage for testing."""
-    return AssistantMessage(
+    msg = AssistantMessage(
         content=[TextBlock(text=text)],
         model=model,
     )
+    if usage is not None:
+        msg.usage = usage
+    return msg
 
 
 def create_mock_assistant_message_with_tool_use(
@@ -94,6 +112,8 @@ def create_mock_result_message(
     total_cost_usd: float = 0.0484227,
     result: str = "4",
     usage: dict = None,
+    stop_reason: str = "end_turn",
+    structured_output: object = None,
 ) -> ResultMessage:
     """Create a mock ResultMessage for testing with realistic usage data.
 
@@ -109,7 +129,7 @@ def create_mock_result_message(
             "server_tool_use": {"web_search_requests": 0, "web_fetch_requests": 0},
             "service_tier": "standard",
         }
-    return ResultMessage(
+    msg = ResultMessage(
         subtype=subtype,
         duration_ms=duration_ms,
         duration_api_ms=duration_api_ms,
@@ -120,6 +140,11 @@ def create_mock_result_message(
         usage=usage,
         result=result,
     )
+    # stop_reason and structured_output fields were added in newer claude-agent-sdk versions;
+    # set via setattr for compatibility with older SDK versions that lack these fields
+    msg.stop_reason = stop_reason
+    msg.structured_output = structured_output
+    return msg
 
 
 def create_mock_user_message(content: str) -> UserMessage:
@@ -129,12 +154,28 @@ def create_mock_user_message(content: str) -> UserMessage:
 
 MOCK_SYSTEM_MESSAGE = create_mock_system_message()
 MOCK_ASSISTANT_RESPONSE = create_mock_assistant_message("4")
+MOCK_ASSISTANT_RESPONSE_WITH_USAGE = create_mock_assistant_message("4", usage=MOCK_ASSISTANT_USAGE)
 MOCK_RESULT_MESSAGE = create_mock_result_message()
 
 
 MOCK_QUERY_RESPONSE_SEQUENCE = [
     MOCK_SYSTEM_MESSAGE,
     MOCK_ASSISTANT_RESPONSE,
+    MOCK_RESULT_MESSAGE,
+]
+
+MOCK_ASSISTANT_MESSAGE_ERROR = "invalid_request"
+MOCK_ASSISTANT_MESSAGE_WITH_ERROR = AssistantMessage(content=[], model=MOCK_MODEL)
+MOCK_ASSISTANT_MESSAGE_WITH_ERROR.error = MOCK_ASSISTANT_MESSAGE_ERROR
+MOCK_ASSISTANT_MESSAGE_ERROR_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_ASSISTANT_MESSAGE_WITH_ERROR,
+    MOCK_RESULT_MESSAGE,
+]
+
+MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_ASSISTANT_RESPONSE_WITH_USAGE,
     MOCK_RESULT_MESSAGE,
 ]
 
@@ -185,6 +226,33 @@ MOCK_GREP_TOOL_RESPONSE_SEQUENCE = [
     MOCK_RESULT_MESSAGE,
 ]
 
+MOCK_TOOL_RESULT_USER_READ = UserMessage(
+    content=[ToolResultBlock(tool_use_id=MOCK_READ_TOOL_ID, content="myhost.local")]
+)
+MOCK_FINAL_ASSISTANT_TEXT = "The hostname is myhost.local"
+MOCK_FINAL_ASSISTANT = create_mock_assistant_message(MOCK_FINAL_ASSISTANT_TEXT)
+MOCK_MULTI_TURN_RESULT_MESSAGE = create_mock_result_message(result=MOCK_FINAL_ASSISTANT_TEXT)
+
+MOCK_TOOL_USE_WITH_FOLLOWUP_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_TOOL_USE_ASSISTANT,  # AssistantMessage with ToolUseBlock → LLM span #1 + tool span
+    MOCK_TOOL_RESULT_USER_READ,  # UserMessage with ToolResultBlock → finishes tool span
+    MOCK_FINAL_ASSISTANT,  # AssistantMessage with text → LLM span #2
+    MOCK_MULTI_TURN_RESULT_MESSAGE,
+]
+
+
+MOCK_STRUCTURED_OUTPUT = {"answer": 4, "unit": "integer"}
+MOCK_STRUCTURED_RESULT_MESSAGE = create_mock_result_message(
+    result=None,
+    structured_output=MOCK_STRUCTURED_OUTPUT,
+)
+MOCK_STRUCTURED_OUTPUT_RESPONSE_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_ASSISTANT_RESPONSE,
+    MOCK_STRUCTURED_RESULT_MESSAGE,
+]
+
 EXPECTED_CACHE_WRITE_INPUT_TOKENS = 12742
 EXPECTED_CACHE_READ_INPUT_TOKENS = 1854
 EXPECTED_INPUT_TOKENS = 3 + EXPECTED_CACHE_WRITE_INPUT_TOKENS + EXPECTED_CACHE_READ_INPUT_TOKENS
@@ -209,6 +277,7 @@ MOCK_CLIENT_RAW_MESSAGES = [
     {
         "type": "result",
         "subtype": "success",
+        "stop_reason": "end_turn",
         "duration_ms": 100,
         "duration_api_ms": 90,
         "is_error": False,

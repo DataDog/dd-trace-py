@@ -10,7 +10,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.internal.trace_utils_async import with_traced_module
@@ -95,8 +95,8 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
     # When using a pool, there's a connection_class args
     is_pool_context = "connection_class" in kwargs
 
-    with tracer.trace("postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)) as span:
-        maybe_set_service_source_tag(span, config.asyncpg)
+    with tracer.trace("postgres.connect", span_type=SpanTypes.SQL) as span:
+        set_service_and_source(span, ext_service(pin, config.asyncpg), config.asyncpg)
         span._set_attribute(COMPONENT, config.asyncpg.integration_name)
         span._set_attribute(db.SYSTEM, DBMS_NAME)
 
@@ -126,9 +126,9 @@ async def _traced_query(pin, method, query, args, kwargs):
     with tracer.trace(
         schematize_database_operation("postgres.query", database_provider="postgresql"),
         resource=query,
-        service=ext_service(pin, config.asyncpg),
         span_type=SpanTypes.SQL,
     ) as span:
+        set_service_and_source(span, ext_service(pin, config.asyncpg), config.asyncpg)
         span._set_attribute(COMPONENT, config.asyncpg.integration_name)
         span._set_attribute(db.SYSTEM, DBMS_NAME)
 

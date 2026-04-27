@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: A race condition which could make asyncio code raise exceptions at exit
+    has been fixed.

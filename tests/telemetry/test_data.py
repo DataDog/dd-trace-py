@@ -177,7 +177,7 @@ def test_get_container_id_when_container_does_not_exists():
 
 @pytest.mark.subprocess
 def test_update_imported_dependencies_both_empty():
-    from ddtrace.internal.telemetry.data import update_imported_dependencies
+    from ddtrace.internal.telemetry.dependency_tracker import update_imported_dependencies
 
     already_imported = {}
     new_modules = []
@@ -191,7 +191,7 @@ def test_update_imported_dependencies_both_empty():
 def test_update_imported_dependencies():
     import xmltodict
 
-    from ddtrace.internal.telemetry.data import update_imported_dependencies
+    from ddtrace.internal.telemetry.dependency_tracker import update_imported_dependencies
 
     already_imported = {}
     res = update_imported_dependencies(already_imported, [xmltodict.__name__])
@@ -199,7 +199,7 @@ def test_update_imported_dependencies():
     assert res[0]["name"] == "xmltodict"
     assert res[0]["version"]
     assert "xmltodict" in already_imported
-    assert already_imported["xmltodict"] == res[0]["version"]
+    assert already_imported["xmltodict"].version == res[0]["version"]
 
     import typing
 
@@ -211,4 +211,4 @@ def test_update_imported_dependencies():
     assert res[0]["version"]
     assert len(already_imported) == 2
     assert "pytest" in already_imported
-    assert already_imported["pytest"] == res[0]["version"]
+    assert already_imported["pytest"].version == res[0]["version"]

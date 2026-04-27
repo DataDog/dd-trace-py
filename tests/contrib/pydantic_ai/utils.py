@@ -53,7 +53,7 @@ def expected_run_agent_span_event(
         input_value=input_value,
         output_value=output,
         metadata=expected_agent_metadata(instructions, system_prompt, model_settings, tools),
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai", "integration": "pydantic_ai"},
     )
 
 
@@ -64,7 +64,7 @@ def expected_run_tool_span_event(span, input_value='{"x":2}', output="4"):
         input_value=input_value,
         output_value=output,
         metadata={"description": "Calculates the square of a number"},
-        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai", "integration": "pydantic_ai"},
     )
 
 

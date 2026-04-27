@@ -1,0 +1,18 @@
+id: span-metrics-access
+valid:
+  - span._set_attribute("key", 42)
+  - span._get_numeric_attribute("key")
+  - span._get_numeric_attributes()
+  - span._has_attribute("key")
+  - span._remove_attribute("key")
+  - context._metrics["key"]
+  - ctx._metrics.get("key")
+  - span.context._metrics["key"]
+invalid:
+  - span._metrics["key"]
+  - span._metrics.get("key")
+  - span._metrics["key"] = 42
+  - self._metrics[key]
+  - |
+    s = tracer.trace("op")
+    s._metrics["key"] = 1.0

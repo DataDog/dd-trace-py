@@ -1,6 +1,5 @@
 from abc import ABC
 from abc import abstractmethod
-import asyncio
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
@@ -14,6 +13,7 @@ from typing import Any
 from typing import Awaitable
 from typing import Callable
 from typing import Iterator
+from typing import Mapping
 from typing import Optional
 from typing import Sequence
 from typing import TypedDict
@@ -39,9 +39,10 @@ except ImportError:
 
 try:
     from pydantic_evals.evaluators import Evaluator as PydanticEvaluator
+    from pydantic_evals.evaluators import ReportEvaluator as PydanticReportEvaluator
 except ImportError:
     PydanticEvaluator = None
-
+    PydanticReportEvaluator = None
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -49,28 +50,26 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
-from ddtrace.llmobs._constants import EXPERIMENT_CONFIG
-from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
-from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
+from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_tags_list
 from ddtrace.version import __version__
 
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._writer import LLMObsExperimentEvalMetricEvent
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
     from ddtrace.llmobs.types import ExportedLLMObsSpan
 
-
 logger = get_logger(__name__)
 
-JSONType = Union[str, int, float, bool, None, list["JSONType"], dict[str, "JSONType"]]
-NonNoneJSONType = Union[str, int, float, bool, list[JSONType], dict[str, JSONType]]
+JSONType = Union[str, int, float, bool, None, Sequence["JSONType"], Mapping[str, "JSONType"]]
 ConfigType = dict[str, JSONType]
-DatasetRecordInputType = dict[str, NonNoneJSONType]
 ContextTransformFn = Callable[["EvaluatorContext"], dict[str, Any]]
 
 TaskType = Callable[..., JSONType]
@@ -178,7 +177,7 @@ class EvaluatorContext:
     providing better state management and extensibility compared to individual parameters.
 
     :param input_data: The input data that was provided to the task (read-only).
-                       Dictionary with string keys mapping to JSON-serializable values.
+                       Any JSON-serializable type.
     :param output_data: The output data produced by the task (read-only).
                         Any JSON-serializable type.
     :param expected_output: The expected output for comparison, if available (read-only).
@@ -191,7 +190,7 @@ class EvaluatorContext:
                      Optional string.
     """
 
-    input_data: dict[str, Any]
+    input_data: JSONType
     output_data: Any
     expected_output: Optional[JSONType] = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -211,7 +210,7 @@ class SummaryEvaluatorContext:
                      Each element contains the record's metadata merged with {"experiment_config": ...}.
     """
 
-    inputs: list[DatasetRecordInputType]
+    inputs: list[JSONType]
     outputs: list[JSONType]
     expected_outputs: list[JSONType]
     evaluation_results: dict[str, list[JSONType]]
@@ -509,7 +508,7 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
     _DeepEvalListType: TypeAlias = Union[list[BaseMetric], list[BaseConversationalMetric]]
     EvaluatorType: TypeAlias = Union[
         Callable[
-            [DatasetRecordInputType, JSONType, JSONType],
+            [JSONType, JSONType, JSONType],
             Union[JSONType, "EvaluatorResult"],
         ],
         BaseEvaluator,
@@ -517,7 +516,7 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
     ]
     AsyncEvaluatorType: TypeAlias = Union[
         Callable[
-            [DatasetRecordInputType, JSONType, JSONType],
+            [JSONType, JSONType, JSONType],
             Awaitable[Union[JSONType, "EvaluatorResult"]],
         ],
         BaseAsyncEvaluator,
@@ -526,14 +525,14 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
 else:
     EvaluatorType: TypeAlias = Union[  # type: ignore[no-redef,misc]
         Callable[
-            [DatasetRecordInputType, JSONType, JSONType],
+            [JSONType, JSONType, JSONType],
             Union[JSONType, "EvaluatorResult"],
         ],
         BaseEvaluator,
     ]
     AsyncEvaluatorType: TypeAlias = Union[  # type: ignore[no-redef,misc]
         Callable[
-            [DatasetRecordInputType, JSONType, JSONType],
+            [JSONType, JSONType, JSONType],
             Awaitable[Union[JSONType, "EvaluatorResult"]],
         ],
         BaseAsyncEvaluator,
@@ -543,30 +542,58 @@ if PydanticEvaluator is not None:
     AsyncEvaluatorType = Union[AsyncEvaluatorType, PydanticEvaluator]  # type: ignore[misc]
 
 # Summary evaluator types
-SummaryEvaluatorType = Union[
-    Callable[
-        [
-            Sequence[DatasetRecordInputType],
-            Sequence[JSONType],
-            Sequence[JSONType],
-            dict[str, Sequence[JSONType]],
+if PydanticReportEvaluator is not None:
+    SummaryEvaluatorType = Union[
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            JSONType,
         ],
-        JSONType,
-    ],
-    BaseSummaryEvaluator,
-]
-AsyncSummaryEvaluatorType = Union[
-    Callable[
-        [
-            Sequence[DatasetRecordInputType],
-            Sequence[JSONType],
-            Sequence[JSONType],
-            dict[str, Sequence[JSONType]],
+        BaseSummaryEvaluator,
+        PydanticReportEvaluator,
+    ]
+    AsyncSummaryEvaluatorType = Union[
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            Awaitable[JSONType],
         ],
-        Awaitable[JSONType],
-    ],
-    BaseAsyncSummaryEvaluator,
-]
+        BaseAsyncSummaryEvaluator,
+        PydanticReportEvaluator,
+    ]
+else:
+    SummaryEvaluatorType = Union[  # type: ignore[misc]
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            JSONType,
+        ],
+        BaseSummaryEvaluator,
+    ]
+    AsyncSummaryEvaluatorType = Union[  # type: ignore[misc]
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            Awaitable[JSONType],
+        ],
+        BaseAsyncSummaryEvaluator,
+    ]
 
 
 def _is_class_evaluator(evaluator: Any) -> bool:
@@ -598,6 +625,16 @@ def _is_pydantic_evaluator(evaluator: Any) -> bool:
     if PydanticEvaluator is None:
         return False
     return isinstance(evaluator, PydanticEvaluator)
+
+
+def _is_pydantic_report_evaluator(evaluator: Any) -> bool:
+    """Check if an evaluator is a pydantic report evaluator (inherits from PydanticReportEvaluator).
+    :param evaluator: The evaluator to check
+    :return: True if it's a pydantic report evaluator with a scalar result, False otherwise
+    """
+    if PydanticReportEvaluator is None:
+        return False
+    return isinstance(evaluator, PydanticReportEvaluator)
 
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
@@ -717,8 +754,12 @@ if PydanticEvaluator is not None:
 
     from pydantic_evals.evaluators import EvaluatorContext as PydanticEvaluatorContext
     from pydantic_evals.evaluators import EvaluatorOutput as PydanticEvaluatorOutput
+    from pydantic_evals.evaluators import ReportEvaluatorContext as PydanticReportEvaluatorContext
     from pydantic_evals.evaluators.evaluator import EvaluationReason as PydanticEvaluationReason
     from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
+    from pydantic_evals.reporting import EvaluationReport as PydanticEvaluationReport
+    from pydantic_evals.reporting import ReportCase as PydanticReportCase
+    from pydantic_evals.reporting import ScalarResult as PydanticScalarResult
 
     def get_mapping_result(_eval_result: Mapping) -> EvaluatorResult:
         eval_result_list = list(_eval_result.values())
@@ -820,6 +861,7 @@ if PydanticEvaluator is not None:
             expected_output: Optional[JSONType] = None,
             duration: Optional[float] = None,
         ) -> EvaluatorResult:
+            asyncio = get_asyncio()
             evalContext = PydanticEvaluatorContext(
                 name="",
                 inputs=input_data,
@@ -853,6 +895,67 @@ if PydanticEvaluator is not None:
             wrapped_evaluator.__name__ = f"{eval_name}_{idx}"
         else:
             wrapped_evaluator.__name__ = eval_name
+        return wrapped_evaluator
+
+    def _pydantic_report_evaluator_wrapper(evaluator: Any) -> Any:
+        """Wrapper to run pydantic report evaluators and convert their result to an EvaluatorResult.
+        :param evaluator: The pydantic report evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+
+        # Note: duration and total duration are not available as of 4-1-2026 and are set to 0
+        def wrapped_evaluator(
+            eval_context: SummaryEvaluatorContext,
+        ) -> JSONType:
+            cases = []
+            eval_results = eval_context.evaluation_results
+            eval_names = eval_results.keys()
+            for idx, input_data in enumerate(eval_context.inputs):
+                assertions = dict()
+                scores = dict()
+                labels = dict()
+                for eval_name in eval_names:
+                    if isinstance(eval_results[eval_name][idx], bool):
+                        assertions[eval_name] = eval_results[eval_name][idx]
+                    elif isinstance(eval_results[eval_name][idx], float) or isinstance(
+                        eval_results[eval_name][idx], int
+                    ):
+                        scores[eval_name] = eval_results[eval_name][idx]
+                    else:
+                        labels[eval_name] = eval_results[eval_name][idx]
+                cases.append(
+                    PydanticReportCase(
+                        name=f"case_{idx}",
+                        inputs=input_data,
+                        metadata=eval_context.metadata[idx],
+                        expected_output=eval_context.expected_outputs[idx],
+                        output=eval_context.outputs[idx],
+                        assertions=assertions,
+                        scores=scores,
+                        labels=labels,
+                        task_duration=0,
+                        total_duration=0,
+                        attributes={},
+                        metrics={},
+                    )
+                )
+            report_eval_context = PydanticReportEvaluatorContext(
+                name="",
+                report=PydanticEvaluationReport(
+                    name=evaluator.get_serialization_name(),
+                    cases=cases,
+                    experiment_metadata=eval_context.metadata,
+                ),
+                experiment_metadata=eval_context.metadata,
+            )
+            result = evaluator.evaluate(report_eval_context)
+            if not isinstance(result, PydanticScalarResult):
+                raise TypeError(
+                    "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
+                )
+            return result.value
+
+        wrapped_evaluator.__name__ = evaluator.get_serialization_name()
         return wrapped_evaluator
 
     def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
@@ -890,6 +993,66 @@ if PydanticEvaluator is not None:
             wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator
 
+    def _pydantic_async_report_evaluator_wrapper(evaluator: Any) -> Any:
+        """Wrapper to run pydantic report evaluators and convert their result to an EvaluatorResult.
+        :param evaluator: The pydantic report evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+
+        # Note: duration and total duration are not available as of 4-1-2026 and are set to 0
+        async def wrapped_evaluator(
+            eval_context: SummaryEvaluatorContext,
+        ) -> JSONType:
+            cases = []
+            eval_results = eval_context.evaluation_results
+            eval_names = eval_results.keys()
+            for idx, input_data in enumerate(eval_context.inputs):
+                assertions = dict()
+                scores = dict()
+                labels = dict()
+                for eval_name in eval_names:
+                    if isinstance(eval_results[eval_name][idx], bool):
+                        assertions[eval_name] = eval_results[eval_name][idx]
+                    elif isinstance(eval_results[eval_name][idx], float) or isinstance(
+                        eval_results[eval_name][idx], int
+                    ):
+                        scores[eval_name] = eval_results[eval_name][idx]
+                    else:
+                        labels[eval_name] = eval_results[eval_name][idx]
+                cases.append(
+                    PydanticReportCase(
+                        name=f"case_{idx}",
+                        inputs=input_data,
+                        metadata=eval_context.metadata[idx],
+                        expected_output=eval_context.expected_outputs[idx],
+                        output=eval_context.outputs[idx],
+                        assertions=assertions,
+                        scores=scores,
+                        labels=labels,
+                        task_duration=0,
+                        total_duration=0,
+                        attributes={},
+                        metrics={},
+                    )
+                )
+            report_eval_context = PydanticReportEvaluatorContext(
+                name="",
+                report=PydanticEvaluationReport(
+                    name=evaluator.get_serialization_name(),
+                    cases=cases,
+                    experiment_metadata=eval_context.metadata,
+                ),
+                experiment_metadata=eval_context.metadata,
+            )
+            result = await evaluator.evaluate_async(report_eval_context)
+            if not isinstance(result, PydanticScalarResult):
+                raise TypeError(
+                    "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
+                )
+            return result.value
+
+        wrapped_evaluator.__name__ = evaluator.get_serialization_name()
+        return wrapped_evaluator
 else:
 
     def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
@@ -900,20 +1063,41 @@ else:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
+    def _pydantic_report_evaluator_wrapper(evaluator: Any) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
+
+    def _pydantic_async_report_evaluator_wrapper(evaluator: Any) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
+
 
 class Project(TypedDict):
     name: str
     _id: str
 
 
-class _DatasetRecordRawOptional(TypedDict, total=False):
+class _DatasetRecordOptional(TypedDict, total=False):
+    expected_output: JSONType
+    metadata: dict[str, Any]
+    tags: list[str]
+    canonical_id: Optional[str]
+
+
+class DatasetRecord(_DatasetRecordOptional):
+    input_data: JSONType
+    record_id: str  # ID for the record, either from user or system
+
+
+class _DatasetRecordNewOptional(TypedDict, total=False):
+    id: str  # optional user-defined ID for the new record
+    expected_output: JSONType
+    metadata: dict[str, Any]
     tags: list[str]
 
 
-class DatasetRecordRaw(_DatasetRecordRawOptional):
-    input_data: DatasetRecordInputType
-    expected_output: JSONType
-    metadata: dict[str, Any]
+class DatasetRecordNew(_DatasetRecordNewOptional):
+    input_data: JSONType
 
 
 class _TagOperations(TypedDict, total=False):
@@ -922,23 +1106,15 @@ class _TagOperations(TypedDict, total=False):
     replace: list[str]
 
 
-class _UpdatableDatasetRecordOptional(TypedDict, total=False):
-    input_data: DatasetRecordInputType
+class DatasetRecordUpdate(TypedDict, total=False):
+    input_data: JSONType
     expected_output: JSONType
     metadata: dict[str, Any]
     tags: list[str]
     tag_operations: _TagOperations
 
 
-class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
-    record_id: str
-
-
-class _DatasetRecordOptional(TypedDict, total=False):
-    canonical_id: Optional[str]
-
-
-class DatasetRecord(DatasetRecordRaw, _DatasetRecordOptional):
+class DatasetRecordUpdateWithId(DatasetRecordUpdate):
     record_id: str
 
 
@@ -970,7 +1146,7 @@ class ExperimentRowResult(TypedDict):
     span_id: str
     trace_id: str
     timestamp: int
-    input: dict[str, NonNoneJSONType]
+    input: JSONType
     output: JSONType
     expected_output: JSONType
     evaluations: dict[str, dict[str, JSONType]]
@@ -990,6 +1166,80 @@ class ExperimentRun:
         self.summary_evaluations = summary_evaluations or {}
         self.rows = rows or []
 
+    def as_dataframe(self) -> "pd.DataFrame":
+        """Convert experiment run rows to a pandas DataFrame with MultiIndex columns.
+
+        Each top-level group (``input``, ``output``, ``expected_output``,
+        ``evaluations``, ``metadata``, ``error``, ``span_id``, ``trace_id``) becomes
+        the first level of the column MultiIndex.  Dict-valued fields are flattened
+        one level deep; scalar fields use an empty string as the sub-column name.
+
+        Evaluation cells contain the full evaluation dict
+        (``value``, ``type``, ``reasoning``, ``assessment``).
+
+        :raises ImportError: if ``pandas`` is not installed.
+        :return: ``pd.DataFrame`` with ``pd.MultiIndex`` columns.
+        """
+        try:
+            import pandas as pd
+        except ImportError as e:
+            raise ImportError(
+                "pandas is required to convert experiment results to a DataFrame. "
+                "Please install it via `pip install pandas`."
+            ) from e
+
+        column_tuples: set = set()
+        data_rows = []
+        for row in self.rows:
+            flat: dict = {}
+
+            input_data = row.get("input", {})
+            if isinstance(input_data, dict):
+                for k, v in input_data.items():
+                    flat[("input", k)] = v
+                    column_tuples.add(("input", k))
+            else:
+                flat[("input", "")] = input_data
+                column_tuples.add(("input", ""))
+
+            output_data = row.get("output")
+            if isinstance(output_data, dict):
+                for k, v in output_data.items():
+                    flat[("output", k)] = v
+                    column_tuples.add(("output", k))
+            else:
+                flat[("output", "")] = output_data
+                column_tuples.add(("output", ""))
+
+            expected = row.get("expected_output", {})
+            if isinstance(expected, dict):
+                for k, v in expected.items():
+                    flat[("expected_output", k)] = v
+                    column_tuples.add(("expected_output", k))
+            else:
+                flat[("expected_output", "")] = expected
+                column_tuples.add(("expected_output", ""))
+
+            metadata = row.get("metadata", {})
+            if isinstance(metadata, dict):
+                for k, v in metadata.items():
+                    flat[("metadata", k)] = v
+                    column_tuples.add(("metadata", k))
+
+            for eval_name, eval_data in (row.get("evaluations") or {}).items():
+                flat[("evaluations", eval_name)] = eval_data
+                column_tuples.add(("evaluations", eval_name))
+
+            flat[("error", "")] = row.get("error")
+            flat[("span_id", "")] = row.get("span_id")
+            flat[("trace_id", "")] = row.get("trace_id")
+            column_tuples.update([("error", ""), ("span_id", ""), ("trace_id", "")])
+
+            data_rows.append(flat)
+
+        records = [[flat.get(col) for col in column_tuples] for flat in data_rows]
+        return pd.DataFrame(data=records, columns=pd.MultiIndex.from_tuples(column_tuples))
+
 
 class ExperimentResult(TypedDict):
     # TODO: remove these fields (summary_evaluations, rows) in the next major release (5.x)
@@ -1004,14 +1254,16 @@ class Dataset:
     filter_tags: Optional[list[str]]
     _id: str
     _records: list[DatasetRecord]
+    _records_by_id: dict[str, DatasetRecord]
     _version: int
     _latest_version: int
     _dne_client: "LLMObsExperimentsClient"
-    _new_records_by_record_id: dict[str, DatasetRecordRaw]
-    _updated_record_ids_to_new_fields: dict[str, UpdatableDatasetRecord]
+    _new_records_by_record_id: dict[str, DatasetRecord]
+    _updated_record_ids_to_new_fields: dict[str, DatasetRecordUpdateWithId]
     _deleted_record_ids: list[str]
 
     BATCH_UPDATE_THRESHOLD = 5 * 1024 * 1024  # 5MB
+    BATCH_UPDATE_MAX_RECORDS = 1000
 
     def __init__(
         self,
@@ -1034,6 +1286,7 @@ class Dataset:
         self._version = version
         self._dne_client = _dne_client
         self._records = records
+        self._records_by_id = {r["record_id"]: r for r in records}
         self._new_records_by_record_id = {}
         self._updated_record_ids_to_new_fields = {}
         self._deleted_record_ids = []
@@ -1114,19 +1367,11 @@ class Dataset:
                 create_new_version=create_new_version,
             )
 
-            # Attach server-assigned record ids to newly created records.
-            # Use a snapshot of the keys so we can selectively remove only the records
-            # that the server acknowledged. Records the server did not return (e.g. because
-            # they were deduplicated against records in another dataset) keep their local
-            # placeholder id and stay in _new_records_by_record_id so that a subsequent
-            # delete() call treats them as local-only rather than sending the non-deterministic
-            # placeholder id to the server as a delete_record_id.
-            pending_keys = list(self._new_records_by_record_id.keys())
-            for key, record_id, canonical_id in zip(pending_keys, new_record_ids, new_canonical_ids):
-                self._new_records_by_record_id[key]["record_id"] = record_id  # type: ignore
-                if canonical_id:  # avoid overriding if not present in response
-                    self._new_records_by_record_id[key]["canonical_id"] = canonical_id  # type: ignore
-                del self._new_records_by_record_id[key]
+            for returned_id, canonical_id in zip(new_record_ids, new_canonical_ids):
+                if canonical_id and returned_id in self._records_by_id:
+                    self._records_by_id[returned_id]["canonical_id"] = canonical_id
+                if returned_id in self._new_records_by_record_id:
+                    del self._new_records_by_record_id[returned_id]
 
             data_changed = len(new_record_ids) > 0 or len(self._deleted_record_ids) > 0
             if new_version != -1:
@@ -1140,7 +1385,7 @@ class Dataset:
         self._pending_tag_operations = {}
         return data_changed
 
-    def update(self, index: int, record: DatasetRecordRaw) -> None:
+    def update(self, index: int, record: DatasetRecordUpdate) -> None:
         if all(k not in record for k in ("input_data", "expected_output", "metadata", "tags")):
             raise ValueError(
                 "invalid update, record should contain at least one of "
@@ -1152,31 +1397,44 @@ class Dataset:
             self.replace_tags(index, tags)
 
         record_id = self._records[index]["record_id"]
-        # Only update non-tag fields if there are any
         if any(k in record for k in ("input_data", "expected_output", "metadata")):
             self._updated_record_ids_to_new_fields[record_id] = {
                 **self._updated_record_ids_to_new_fields.get(record_id, {"record_id": record_id}),
                 **record,
                 "record_id": record_id,
             }
-            self._records[index] = {
-                **self._records[index],
-                **record,
-                "record_id": record_id,
-            }
+            self._records[index] = cast(
+                DatasetRecord,
+                {
+                    **self._records[index],
+                    **record,
+                    "record_id": record_id,
+                },
+            )
 
-    def append(self, record: DatasetRecordRaw) -> None:
+    def append(self, record: DatasetRecordNew) -> None:
         if record.get("tags"):
             validate_tags_list(record["tags"])
-        record_id: str = uuid.uuid4().hex
-        # this record ID will be discarded after push, BE will generate a new one, this is just
-        # for tracking new records locally before the push
-        r: DatasetRecord = {**record, "record_id": record_id, "canonical_id": None}
+        record_id: str = record.get("id") or uuid.uuid4().hex
+        if record_id in self._records_by_id:
+            raise ValueError(f"Record id {record_id!r} used more than once. ")
+        # convert to DatasetRecord with required record_id
+        r = DatasetRecord(
+            record_id=record_id,
+            input_data=record.get("input_data"),
+        )
+        if "expected_output" in record:
+            r["expected_output"] = record["expected_output"]
+        if "metadata" in record:
+            r["metadata"] = record["metadata"]
+        if "tags" in record:
+            r["tags"] = record["tags"]
         # keep the same reference in both lists to enable us to update the record_id after push
         self._new_records_by_record_id[record_id] = r
         self._records.append(r)
+        self._records_by_id[record_id] = r
 
-    def extend(self, records: list[DatasetRecordRaw]) -> None:
+    def extend(self, records: Sequence[DatasetRecordNew]) -> None:
         for record in records:
             self.append(record)
 
@@ -1311,6 +1569,9 @@ class Dataset:
 
         if record_id in self._pending_tag_operations:
             del self._pending_tag_operations[record_id]
+
+        if record_id in self._records_by_id:
+            del self._records_by_id[record_id]
 
         if record_id in self._new_records_by_record_id:
             del self._new_records_by_record_id[record_id]
@@ -1464,7 +1725,7 @@ class Experiment:
         self._config: dict[str, JSONType] = config or {}
         # Write dataset tags to experiment config
         if dataset.filter_tags:
-            self._config["filtered_record_tags"] = cast(JSONType, dataset.filter_tags)
+            self._config["filtered_record_tags"] = dataset.filter_tags
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
         self._is_distributed = is_distributed
@@ -1497,7 +1758,7 @@ class Experiment:
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
-            metadata: dict[str, JSONType] = {"tags": cast(list[JSONType], convert_tags_dict_to_list(self._tags))}
+            metadata: dict[str, JSONType] = {"tags": convert_tags_dict_to_list(self._tags)}
             metadata.update(task_result.get("metadata") or {})
             record: DatasetRecord = self._dataset[idx]
             evals = evaluations[idx]["evaluations"]
@@ -1722,13 +1983,13 @@ class Experiment:
     def _prepare_summary_evaluator_data(
         self, task_results: list[TaskResult], eval_results: list[EvaluationResult]
     ) -> tuple[
-        list[DatasetRecordInputType],
+        list[JSONType],
         list[JSONType],
         list[JSONType],
         list[dict[str, Any]],
         dict[str, list[JSONType]],
     ]:
-        inputs: list[DatasetRecordInputType] = []
+        inputs: list[JSONType] = []
         outputs: list[JSONType] = []
         expected_outputs: list[JSONType] = []
         metadata_list: list[dict[str, Any]] = []
@@ -1929,11 +2190,12 @@ class Experiment:
         self,
         idx_record: tuple[int, DatasetRecord],
         run: _ExperimentRunInfo,
-        semaphore: asyncio.Semaphore,
+        semaphore,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> Optional[TaskResult]:
         """Process single record asynchronously."""
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
         async with semaphore:
@@ -1982,7 +2244,7 @@ class Experiment:
                 for attempt in range(1 + max_retries):
                     try:
                         if asyncio.iscoroutinefunction(self._task):
-                            output_data = await self._task(*task_args)
+                            output_data = await self._task(*task_args)  # type: ignore[misc]
                         else:
                             output_data = await asyncio.to_thread(self._task, *task_args)
                         last_exc_info = None
@@ -2004,12 +2266,12 @@ class Experiment:
                     self._has_errors = True
                     span.set_exc_info(*last_exc_info)
                 self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
-
-                span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
-                if "metadata" in record:
-                    span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
-                if self._config:
-                    span._set_ctx_item(EXPERIMENT_CONFIG, self._config)
+                _annotate_llmobs_span_data(
+                    span,
+                    expected_output=record.get("expected_output"),
+                    metadata=record.get("metadata"),
+                    config=self._config or None,
+                )
 
                 return {
                     "idx": idx,
@@ -2049,6 +2311,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[TaskResult]:
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         subset_dataset = self._get_subset_dataset(sample_size)
@@ -2085,11 +2348,12 @@ class Experiment:
         self,
         record: DatasetRecord,
         task_result: TaskResult,
-        semaphore: asyncio.Semaphore,
+        semaphore,
         raise_errors: bool = False,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> EvaluationResult:
+        asyncio = get_asyncio()
         idx = task_result["idx"]
         input_data = record["input_data"]
         output_data = task_result["output"]
@@ -2125,8 +2389,8 @@ class Experiment:
                             )
                             eval_result = await evaluator.evaluate(context)
                         elif asyncio.iscoroutinefunction(evaluator):
-                            evaluator_name = evaluator.__name__
-                            eval_result = await evaluator(input_data, output_data, expected_output)
+                            evaluator_name = evaluator.__name__  # type: ignore[union-attr]
+                            eval_result = await evaluator(input_data, output_data, expected_output)  # type: ignore[misc, operator]
                         elif _is_class_evaluator(evaluator):
                             evaluator_name = evaluator.name  # type: ignore[union-attr]
                             combined_metadata = {
@@ -2148,7 +2412,7 @@ class Experiment:
                         elif _is_function_evaluator(evaluator):
                             evaluator_name = evaluator.__name__  # type: ignore[union-attr]
                             eval_result = await asyncio.to_thread(
-                                evaluator,  # type: ignore[arg-type]
+                                evaluator,
                                 input_data,
                                 output_data,
                                 expected_output,
@@ -2212,6 +2476,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
+        asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
         coros = [
             self._evaluate_record(self._dataset[idx], task_result, semaphore, raise_errors, max_retries, retry_delay)
@@ -2228,6 +2493,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> tuple[list[TaskResult], list[EvaluationResult]]:
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return [], []
         subset_dataset = self._get_subset_dataset(sample_size)
@@ -2316,7 +2582,7 @@ class Experiment:
             metadata_list,
             eval_results_by_name,
         ) = self._prepare_summary_evaluator_data(task_results, eval_results)
-
+        asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
 
         async def _evaluate_summary_single(
@@ -2340,7 +2606,20 @@ class Experiment:
                         eval_result = await summary_evaluator.evaluate(context)
                     elif asyncio.iscoroutinefunction(summary_evaluator):
                         evaluator_name = summary_evaluator.__name__
-                        eval_result = await summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
+                        signature = inspect.signature(summary_evaluator)
+                        if len(signature.parameters) == 1:
+                            context = SummaryEvaluatorContext(
+                                inputs=inputs,
+                                outputs=outputs,
+                                expected_outputs=expected_outputs,
+                                evaluation_results=eval_results_by_name,
+                                metadata=metadata_list,
+                            )
+                            eval_result = await summary_evaluator(context)
+                        else:
+                            eval_result = await summary_evaluator(
+                                inputs, outputs, expected_outputs, eval_results_by_name
+                            )
                     elif _is_class_summary_evaluator(summary_evaluator):
                         evaluator_name = summary_evaluator.name
                         context = SummaryEvaluatorContext(
@@ -2353,13 +2632,24 @@ class Experiment:
                         eval_result = await asyncio.to_thread(summary_evaluator.evaluate, context)
                     else:
                         evaluator_name = summary_evaluator.__name__
-                        eval_result = await asyncio.to_thread(
-                            summary_evaluator,
-                            inputs,
-                            outputs,
-                            expected_outputs,
-                            eval_results_by_name,
-                        )
+                        signature = inspect.signature(summary_evaluator)
+                        if len(signature.parameters) == 1:
+                            context = SummaryEvaluatorContext(
+                                inputs=inputs,
+                                outputs=outputs,
+                                expected_outputs=expected_outputs,
+                                evaluation_results=eval_results_by_name,
+                                metadata=metadata_list,
+                            )
+                            eval_result = summary_evaluator(context)
+                        else:
+                            eval_result = await asyncio.to_thread(
+                                summary_evaluator,
+                                inputs,
+                                outputs,
+                                expected_outputs,
+                                eval_results_by_name,
+                            )
                     eval_result_value = eval_result
                 except Exception as e:
                     self._has_errors = True
@@ -2524,6 +2814,7 @@ class SyncExperiment:
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
     ) -> None:
+        self.result: Optional[ExperimentResult] = None
         self._experiment = Experiment(
             name=name,
             task=task,
@@ -2557,6 +2848,7 @@ class SyncExperiment:
                             in seconds before the next retry. Default: ``0.1 * (attempt + 1)``
         :return: ExperimentResult containing evaluation results and metadata
         """
+        asyncio = get_asyncio()
         coro = self._experiment.run(
             jobs=jobs,
             raise_errors=raise_errors,
@@ -2567,13 +2859,59 @@ class SyncExperiment:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(coro)
+            result = asyncio.run(coro)
         else:
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
+                result = pool.submit(asyncio.run, coro).result()
+        self.result = result
+        return result
+
+    def as_dataframe(self) -> "pd.DataFrame":
+        r"""Return all runs stacked into a single MultiIndex DataFrame.
+
+        Rows from every run in ``self.result["runs"]`` are concatenated in
+        run-iteration order. Two extra top-level column groups are prepended:
+
+        - ``("run_id", "")``        — UUID of the run (str)
+        - ``("run_iteration", "")`` — 1-based run counter (int)
+
+        These columns let callers filter or group by run:
+
+        .. code-block:: python
+
+            df = experiment.as_dataframe()
+            run1 = df[df[("run_iteration", "")] == 1]
+            df.groupby(("run_iteration", ""))[(\"evaluations\", \"exact_match\")].apply(...)
+
+        :raises ValueError: if ``self.result`` is ``None`` (experiment not yet run).
+        :raises ImportError: if ``pandas`` is not installed.
+        :return: ``pd.DataFrame`` with ``pd.MultiIndex`` columns and a reset integer index.
+        """
+        try:
+            import pandas as pd
+        except ImportError as e:
+            raise ImportError(
+                "pandas is required to convert experiment results to a DataFrame. "
+                "Please install it via `pip install pandas`."
+            ) from e
+
+        if self.result is None:
+            raise ValueError("No result found. Call run() before as_dataframe().")
+
+        frames = []
+        for run in self.result.get("runs", []):
+            df = run.as_dataframe()
+            df.insert(0, ("run_id", ""), str(run.run_id))
+            df.insert(1, ("run_iteration", ""), run.run_iteration)
+            df.columns = pd.MultiIndex.from_tuples(df.columns)
+            frames.append(df)
+
+        if not frames:
+            return pd.DataFrame()
+
+        return pd.concat(frames, ignore_index=True)
 
     @property
     def url(self) -> str:

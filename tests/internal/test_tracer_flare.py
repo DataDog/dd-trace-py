@@ -1,17 +1,13 @@
 import json
 import logging
 from logging import Logger
-import multiprocessing
 import os
-import pathlib
 import shutil
-import time
 from typing import Optional
 from typing import Union
 from typing import cast
 import unittest
 from unittest import mock
-from uuid import uuid4
 
 import pytest
 
@@ -26,81 +22,12 @@ from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnect
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 # Renamed to avoid pytest trying to collect it as a Test class:
-from tests.utils import TestAgentClient as _TestAgentClient
 from tests.utils import remote_config_build_payload as build_payload
 
 
 DEBUG_LEVEL_INT = logging.DEBUG
 TRACE_AGENT_URL = "http://localhost:9126"
 FLARE_REQUEST_DATA = ("1111111", "myhostname", "user.name@datadoghq.com", "d53fc8a4-8820-47a2-aa7d-d565582feb81")
-
-
-# Helper functions for multiprocessing tests (must be module-level for pickling)
-def _multiproc_handle_agent_config(trace_agent_url: str, shared_dir: pathlib.Path, errors: multiprocessing.Queue):
-    """Helper for multiprocessing tests - handles AGENT_CONFIG (prepare)."""
-    try:
-        # Create Flare object inside the process to avoid pickling issues
-        flare = Flare(
-            trace_agent_url=trace_agent_url,
-            flare_dir=str(shared_dir),
-            ddconfig={"config": "testconfig"},
-        )
-        flare.prepare("DEBUG")
-        # Assert that each process wrote its file successfully
-        if len(os.listdir(shared_dir)) == 0:
-            errors.put(Exception("Files were not generated"))
-    except Exception as e:
-        errors.put(e)
-
-
-def _multiproc_handle_agent_task(trace_agent_url: str, shared_dir: pathlib.Path, errors: multiprocessing.Queue):
-    """Helper for multiprocessing tests - handles AGENT_TASK (send)."""
-    try:
-        # Create Flare inside the process to avoid pickling issues
-        flare = Flare(
-            trace_agent_url=trace_agent_url,
-            flare_dir=str(shared_dir),
-            ddconfig={"config": "testconfig"},
-        )
-        flare.send(setup_task_request(flare, *FLARE_REQUEST_DATA))
-        # In multiprocess mode, workers share the same directory and may overlap:
-        # one worker can recreate the directory while another is still checking it.
-        # Avoid asserting per-process cleanup to keep this test deterministic.
-    except Exception as e:
-        errors.put(e)
-
-
-def _multiproc_do_tracer_flare(
-    log_level: str,
-    case_id: str,
-    hostname: str,
-    email: str,
-    uuid: str,
-    trace_agent_url: str,
-    shared_dir: pathlib.Path,
-    errors: multiprocessing.Queue,
-):
-    """Helper for multiprocessing partial failure test."""
-    try:
-        # Create Flare and FlareAction inside the process to avoid pickling issues
-        flare = Flare(
-            trace_agent_url=trace_agent_url,
-            flare_dir=str(shared_dir),
-            ddconfig={"config": "testconfig"},
-        )
-        send_request = setup_task_request(flare, case_id, hostname, email, uuid)
-
-        result = flare.prepare(log_level)
-        if not result:
-            raise Exception(f"Prepare failed with log_level={log_level}")
-        # Check that files were generated (at least log + config)
-        # Use >= instead of == because other processes might have written files too
-        file_count = len(os.listdir(shared_dir))
-        if file_count < 2:
-            raise Exception(f"Expected at least 2 files, got {file_count}")
-        flare.send(send_request)
-    except Exception as e:
-        errors.put(e)
 
 
 def setup_task_request(flare: Flare, case_id: str, hostname: str, email: str, uuid: str) -> native_flare.FlareAction:
@@ -130,11 +57,19 @@ class TracerFlareTests(unittest.TestCase):
             flare_dir=str(self.shared_dir),
             ddconfig={"config": "testconfig"},
         )
-        self.testagent_token = f"tracer-flare-{uuid4().hex}"
-        self.testagent_client = _TestAgentClient(base_url=TRACE_AGENT_URL, token=self.testagent_token)
-        status, _ = self.testagent_client._request("GET", self.testagent_client._url("/test/session/start"))
-        if status == 200:
-            self.testagent_client.clear()
+        # TODO: TracerFlareManager.zip_and_send() (Rust/libdatadog) does not support
+        # custom request headers, so we cannot pass test_session_token to scope flare
+        # uploads to this test's session in the test agent. Under xdist parallel
+        # execution, unscoped flare requests bleed across workers causing unreliable
+        # counts. Wrap the native manager so all methods (handle_remote_config_data,
+        # set_current_log_level) still delegate to the real implementation, but
+        # zip_and_send is replaced with a MagicMock so uploads are counted in-process
+        # without making real HTTP calls. The native object's attributes are read-only
+        # (PyO3), so we can't patch zip_and_send in-place; wrapping it in a MagicMock
+        # first is the workaround.
+        # Remove this mock once libdatadog's TracerFlareManager gains custom header support.
+        self.flare._native_manager = mock.MagicMock(wraps=self.flare._native_manager)
+        self.flare._native_manager.zip_and_send = mock.MagicMock()
         self.pid = os.getpid()
         self.flare_file_path = str(self.shared_dir / f"tracer_python_{self.pid}.log")
         self.config_file_path = str(self.shared_dir / f"tracer_config_{self.pid}.json")
@@ -149,10 +84,7 @@ class TracerFlareTests(unittest.TestCase):
         self.confirm_cleanup()
 
     def _flare_upload_count(self) -> int:
-        status, body = self.testagent_client._request("GET", self.testagent_client._url("/test/session/requests"))
-        assert status == 200
-        requests = json.loads(body)
-        return sum(1 for req in requests if (req.get("url") or "").endswith("/tracer_flare/v1"))
+        return self.flare._native_manager.zip_and_send.call_count
 
     def _get_handler(self) -> Optional[logging.Handler]:
         ddlogger = get_logger("ddtrace")
@@ -588,90 +520,178 @@ class TracerFlareTests(unittest.TestCase):
         self.flare.revert_configs()
 
 
-class TracerFlareMultiprocessTests(unittest.TestCase):
-    @pytest.fixture(autouse=True)
-    def inject_fixtures(self, tmp_path):
-        self.tmp_path = tmp_path
+@pytest.mark.subprocess(
+    err=lambda err: all(
+        "ddtrace logs will be routed to" in line or "Flare:" in line for line in err.splitlines() if line
+    )
+)
+def test_multiple_process_success():
+    """
+    Validate that the tracer flare will generate for multiple processes
+    """
+    import multiprocessing
+    import os
+    import pathlib
+    import tempfile
+    import time
 
-    def setUp(self):
-        self.shared_dir = self.tmp_path / "tracer_flare_test"
-        self.shared_dir.mkdir(parents=True, exist_ok=True)
-        self.errors = multiprocessing.Queue()
+    from ddtrace.internal.flare.flare import Flare
 
-    def test_multiple_process_success(self):
-        """
-        Validate that the tracer flare will generate for multiple processes
-        """
-        processes = []
-        num_processes = 3
+    TRACE_AGENT_URL = "http://localhost:9126"
+    FLARE_REQUEST_DATA = ("1111111", "myhostname", "user.name@datadoghq.com", "d53fc8a4-8820-47a2-aa7d-d565582feb81")
 
-        # Create multiple processes - use module-level function for pickling
-        # Flare objects are created inside the process to avoid pickling issues
-        for i in range(num_processes):
-            p = multiprocessing.Process(
-                target=_multiproc_handle_agent_config, args=(TRACE_AGENT_URL, self.shared_dir, self.errors)
+    def setup_task_request(flare, case_id, hostname, email, uuid):
+        config = {
+            "args": {"case_id": case_id, "hostname": hostname, "user_handle": email},
+            "task_type": "tracer_flare",
+            "uuid": uuid,
+        }
+        return flare.handle_remote_config_data(config, "AGENT_TASK")
+
+    def _multiproc_handle_agent_config(trace_agent_url, shared_dir, errors):
+        try:
+            flare = Flare(
+                trace_agent_url=trace_agent_url,
+                flare_dir=str(shared_dir),
+                ddconfig={"config": "testconfig"},
             )
-            processes.append(p)
-            p.start()
-        for p in processes:
-            p.join()
+            flare.prepare("DEBUG")
+            if len(os.listdir(shared_dir)) == 0:
+                errors.put(Exception("Files were not generated"))
+        except Exception as e:
+            errors.put(e)
 
-        for i in range(num_processes):
-            p = multiprocessing.Process(
-                target=_multiproc_handle_agent_task, args=(TRACE_AGENT_URL, self.shared_dir, self.errors)
+    def _multiproc_handle_agent_task(trace_agent_url, shared_dir, errors):
+        try:
+            flare = Flare(
+                trace_agent_url=trace_agent_url,
+                flare_dir=str(shared_dir),
+                ddconfig={"config": "testconfig"},
             )
-            processes.append(p)
-            p.start()
-        for p in processes:
-            p.join()
+            flare.send(setup_task_request(flare, *FLARE_REQUEST_DATA))
+        except Exception as e:
+            errors.put(e)
 
-        # Check for errors (don't use qsize() as it's not supported on macOS)
-        errors_list = []
-        while not self.errors.empty():
-            try:
-                errors_list.append(self.errors.get_nowait())
-            except Exception:
-                break
-        assert len(errors_list) == 0, f"Expected no errors, got: {errors_list}"
-        # Shared directory cleanup can race across workers; assert eventual cleanup.
-        for _ in range(20):
-            if not self.shared_dir.exists():
-                break
-            time.sleep(0.05)
-        assert not self.shared_dir.exists(), f"Expected shared dir to be cleaned up: {self.shared_dir}"
+    tmp_dir = tempfile.mkdtemp()
+    shared_dir = pathlib.Path(tmp_dir) / "tracer_flare_test"
+    shared_dir.mkdir(parents=True, exist_ok=True)
+    ctx = multiprocessing.get_context("fork")
+    errors = ctx.Queue()
 
-    def test_multiple_process_partial_failure(self):
-        """
-        Validate that even if the tracer flare fails for one process, we should
-        still continue the work for the other processes (ensure best effort)
-        """
-        processes = []
+    processes = []
+    num_processes = 3
 
-        # Create successful process - use module-level function for pickling
-        # Flare objects and FlareActions are created inside the process to avoid pickling issues
-        p = multiprocessing.Process(
-            target=_multiproc_do_tracer_flare,
-            args=("DEBUG", *FLARE_REQUEST_DATA, TRACE_AGENT_URL, self.shared_dir, self.errors),
-        )
+    for i in range(num_processes):
+        p = ctx.Process(target=_multiproc_handle_agent_config, args=(TRACE_AGENT_URL, shared_dir, errors))
         processes.append(p)
         p.start()
-        # Create failing process
-        p = multiprocessing.Process(
-            target=_multiproc_do_tracer_flare,
-            args=(None, *FLARE_REQUEST_DATA, TRACE_AGENT_URL, self.shared_dir, self.errors),
-        )
+    for p in processes:
+        p.join()
+
+    for i in range(num_processes):
+        p = ctx.Process(target=_multiproc_handle_agent_task, args=(TRACE_AGENT_URL, shared_dir, errors))
         processes.append(p)
         p.start()
-        for p in processes:
-            p.join()
-        # Check for errors (don't use qsize() as it's not supported on macOS)
-        errors_list = []
-        while not self.errors.empty():
-            try:
-                errors_list.append(self.errors.get_nowait())
-            except Exception:
-                break
-        assert len(errors_list) == 1, f"Expected 1 error, got {len(errors_list)}: {errors_list}"
+    for p in processes:
+        p.join()
+
+    # Check for errors (don't use qsize() as it's not supported on macOS)
+    errors_list = []
+    while not errors.empty():
+        try:
+            errors_list.append(errors.get_nowait())
+        except Exception:
+            break
+    assert len(errors_list) == 0, f"Expected no errors, got: {errors_list}"
+    # Shared directory cleanup can race across workers; assert eventual cleanup.
+    for _ in range(20):
+        if not shared_dir.exists():
+            break
+        time.sleep(0.05)
+    assert not shared_dir.exists(), f"Expected shared dir to be cleaned up: {shared_dir}"
+
+
+@pytest.mark.subprocess(
+    # Use any() rather than all(): background ddtrace threads write additional lines to stderr while
+    # forked grandchild processes run (remote config, telemetry writers, etc.), so we can't require
+    # EVERY line to be the routing message. We still assert the expected message appears at least once,
+    # confirming set_current_log_level() ran successfully.
+    err=lambda err: any("ddtrace logs will be routed to" in line for line in err.splitlines() if line)
+)
+def test_multiple_process_partial_failure():
+    """
+    Validate that even if the tracer flare fails for one process, we should
+    still continue the work for the other processes (ensure best effort)
+    """
+    import multiprocessing
+    import pathlib
+    import tempfile
+
+    TRACE_AGENT_URL = "http://localhost:9126"
+    FLARE_REQUEST_DATA = ("1111111", "myhostname", "user.name@datadoghq.com", "d53fc8a4-8820-47a2-aa7d-d565582feb81")
+
+    def setup_task_request(flare, case_id, hostname, email, uuid):
+        config = {
+            "args": {"case_id": case_id, "hostname": hostname, "user_handle": email},
+            "task_type": "tracer_flare",
+            "uuid": uuid,
+        }
+        return flare.handle_remote_config_data(config, "AGENT_TASK")
+
+    def _multiproc_do_tracer_flare(log_level, case_id, hostname, email, uuid, trace_agent_url, shared_dir, errors):
+        try:
+            import os
+
+            from ddtrace.internal.flare.flare import Flare
+
+            flare = Flare(
+                trace_agent_url=trace_agent_url,
+                flare_dir=str(shared_dir),
+                ddconfig={"config": "testconfig"},
+            )
+            send_request = setup_task_request(flare, case_id, hostname, email, uuid)
+
+            result = flare.prepare(log_level)
+            if not result:
+                raise Exception(f"Prepare failed with log_level={log_level}")
+            file_count = len(os.listdir(shared_dir))
+            if file_count < 2:
+                raise Exception(f"Expected at least 2 files, got {file_count}")
+            flare.send(send_request)
+        except Exception as e:
+            errors.put(e)
+
+    tmp_dir = tempfile.mkdtemp()
+    shared_dir = pathlib.Path(tmp_dir) / "tracer_flare_test"
+    shared_dir.mkdir(parents=True, exist_ok=True)
+    ctx = multiprocessing.get_context("fork")
+    errors = ctx.Queue()
+
+    processes = []
+
+    p = ctx.Process(
+        target=_multiproc_do_tracer_flare,
+        args=("DEBUG", *FLARE_REQUEST_DATA, TRACE_AGENT_URL, shared_dir, errors),
+    )
+    processes.append(p)
+    p.start()
+    # Create failing process
+    p = ctx.Process(
+        target=_multiproc_do_tracer_flare,
+        args=(None, *FLARE_REQUEST_DATA, TRACE_AGENT_URL, shared_dir, errors),
+    )
+    processes.append(p)
+    p.start()
+    for p in processes:
+        p.join()
+    # Check for errors (don't use qsize() as it's not supported on macOS)
+    errors_list = []
+    while not errors.empty():
+        try:
+            errors_list.append(errors.get_nowait())
+        except Exception:
+            break
+    assert len(errors_list) == 1, f"Expected 1 error, got {len(errors_list)}: {errors_list}"
 
 
 class TracerFlareSubscriberTests(unittest.TestCase):
@@ -693,19 +713,28 @@ class TracerFlareSubscriberTests(unittest.TestCase):
     def setUp(self):
         self.shared_dir = self.tmp_path / "tracer_flare_test"
         self.shared_dir.mkdir(parents=True, exist_ok=True)
-        self.testagent_token = f"tracer-flare-sub-{uuid4().hex}"
-        self.testagent_client = _TestAgentClient(base_url=TRACE_AGENT_URL, token=self.testagent_token)
-        status, _ = self.testagent_client._request("GET", self.testagent_client._url("/test/session/start"))
-        if status == 200:
-            self.testagent_client.clear()
         self.connector = PublisherSubscriberConnector()
+        flare = Flare(
+            trace_agent_url=TRACE_AGENT_URL,
+            ddconfig={"config": "testconfig"},
+            flare_dir=self.shared_dir,
+        )
+        # TODO: TracerFlareManager.zip_and_send() (Rust/libdatadog) does not support
+        # custom request headers, so we cannot pass test_session_token to scope flare
+        # uploads to this test's session in the test agent. Under xdist parallel
+        # execution, unscoped flare requests bleed across workers causing unreliable
+        # counts. Wrap the native manager so all methods (handle_remote_config_data,
+        # set_current_log_level) still delegate to the real implementation, but
+        # zip_and_send is replaced with a MagicMock so uploads are counted in-process
+        # without making real HTTP calls. The native object's attributes are read-only
+        # (PyO3), so we can't patch zip_and_send in-place; wrapping it in a MagicMock
+        # first is the workaround.
+        # Remove this mock once libdatadog's TracerFlareManager gains custom header support.
+        flare._native_manager = mock.MagicMock(wraps=flare._native_manager)
+        flare._native_manager.zip_and_send = mock.MagicMock()
         self.tracer_flare_sub = TracerFlareSubscriber(
             data_connector=self.connector,
-            flare=Flare(
-                trace_agent_url=TRACE_AGENT_URL,
-                ddconfig={"config": "testconfig"},
-                flare_dir=self.shared_dir,
-            ),
+            flare=flare,
         )
 
     def get_data_from_connector_and_exec(self):
@@ -733,10 +762,28 @@ class TracerFlareSubscriberTests(unittest.TestCase):
         self.get_data_from_connector_and_exec()
 
     def _flare_upload_count(self) -> int:
-        status, body = self.testagent_client._request("GET", self.testagent_client._url("/test/session/requests"))
-        assert status == 200
-        requests = json.loads(body)
-        return sum(1 for req in requests if (req.get("url") or "").endswith("/tracer_flare/v1"))
+        return self.tracer_flare_sub.flare._native_manager.zip_and_send.call_count
+
+    def test_configuration_order_payload_is_skipped(self):
+        """
+        AGENT_CONFIG payloads with configuration_order shape (no 'name' field) must be
+        silently skipped — no exception raised, no warning logged, flare state unchanged.
+        """
+        configuration_order_payload = {
+            "internal_order": [],
+            "order": [
+                "flare-log-level-61c7ebea-7129-4e63-9bce-95e61d38493a",
+                "flare-log-level-b9b280f9-bc3a-4d1c-898c-3ba564616241",
+            ],
+        }
+        with mock.patch("ddtrace.internal.flare._subscribers.log") as mock_log:
+            self.connector.write([build_payload("AGENT_CONFIG", configuration_order_payload, "config")])
+            self.get_data_from_connector_and_exec()
+
+        # Flare must not have started
+        assert self.tracer_flare_sub.current_request_start is None
+        # No warning logged — this is an expected payload shape, not an error
+        mock_log.warning.assert_not_called()
 
     def test_process_flare_request_success(self):
         """
@@ -810,13 +857,10 @@ def test_native_logs(tmp_path):
     """
     import os
 
-    from ddtrace import config
     from ddtrace.internal.native._native import logger as native_logger
 
-    original_trace_writer_native = config._trace_writer_native
     flare = None
     try:
-        config._trace_writer_native = True
         flare = Flare(
             trace_agent_url=TRACE_AGENT_URL,
             flare_dir=tmp_path,
@@ -839,7 +883,6 @@ def test_native_logs(tmp_path):
         send_request = setup_task_request(flare, *FLARE_REQUEST_DATA)
         flare.send(send_request)
     finally:
-        config._trace_writer_native = original_trace_writer_native
         if flare is not None:
             flare.revert_configs()
             flare.clean_up_files()

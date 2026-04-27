@@ -89,7 +89,24 @@ class _Test_Tornado_Base:
 
 
 class Test_Tornado(_Test_Tornado_Base, utils.Contrib_TestClass_For_Threats):
-    pass
+    ENDPOINT_DISCOVERY_EXPECTED_PATHS = {
+        "/",
+        "/asm/%s/%s/?",
+        "/asm/?",
+        "/new_service/%s/?",
+        "/login/?",
+        "/login_sdk/?",
+        "/rasp/%s/?",
+    }
+
+    @staticmethod
+    def endpoint_path_to_uri(path: str) -> str:
+        # Tornado uses %s for all capturing groups and does not have a notion of typed path parameters.
+        # We substitute with "123" which satisfies both \d+ and [^/]+ patterns.
+        path = path.replace("%s", "123")
+        if path.endswith("/?"):
+            path = path[:-2]
+        return path if path.startswith("/") else ("/" + path)
 
 
 class Test_Tornado_RC(_Test_Tornado_Base, utils.Contrib_TestClass_For_Threats_RC):

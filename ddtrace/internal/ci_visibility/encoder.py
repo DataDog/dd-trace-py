@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import threading
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
@@ -25,6 +24,7 @@ from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_pay
 from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_serialization_time
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.writer.writer import NoEncodableSpansError
 
@@ -49,7 +49,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         super(CIVisibilityEncoderV01, self).__init__()  # type: ignore[call-arg]
         self._metadata: dict[str, dict[str, str]] = {}
         self._lock = threading.RLock()
-        self._is_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is not None
+        self._is_xdist_worker = env.get("PYTEST_XDIST_WORKER") is not None
         self._init_buffer()
 
     def __len__(self):
@@ -192,8 +192,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         sp = JSONEncoderV2._normalize_span(sp)
         sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
         sp["duration"] = span.duration_ns
-        sp["meta"] = dict(sorted(span._meta.items()))
-        sp["metrics"] = dict(sorted(span._metrics.items()))
+        sp["meta"] = dict(sorted(span._get_str_attributes().items()))
+        sp["metrics"] = dict(sorted(span._get_numeric_attributes().items()))
         if dd_origin is not None:
             sp["meta"].update({"_dd.origin": dd_origin})
         sp = CIVisibilityEncoderV01._filter_ids(sp, new_parent_session_span_id)

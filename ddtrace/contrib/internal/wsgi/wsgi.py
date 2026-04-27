@@ -24,6 +24,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -160,9 +161,17 @@ class _DDWSGIMiddlewareBase(object):
                     handling pathways.
                     """
                     stop_iteration_exception = e
-                except BaseException:
-                    core.dispatch("wsgi.app.exception", (ctx,))
-                    raise
+                except BaseException as exc:
+                    # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
+                    if blocking_exc := find_exception(exc, BlockingException):
+                        set_blocked(blocking_exc.args[0])
+                        content, status, headers = blocked_view()
+                        start_response(str(status), headers)
+                        closing_iterable = [content]
+                        core.dispatch("wsgi.app.exception", (ctx,))
+                    else:
+                        core.dispatch("wsgi.app.exception", (ctx,))
+                        raise
                 else:
                     if get_blocked():
                         _, _, content = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results

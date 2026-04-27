@@ -327,7 +327,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
                 assert span.parent_id == 5678
                 # Priority is unset
                 assert span.context.sampling_priority is None
-                assert "_sampling_priority_v1" not in span._metrics
+                assert not span._has_attribute("_sampling_priority_v1")
                 assert span.context.dd_origin == "synthetics"
                 assert "_dd.p.test" in span.context._meta
                 assert "_dd.p.ts" not in span.context._meta
@@ -344,7 +344,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
 
             # Span priority was unset, but as we keep 1 per min, it should be kept
             # Since we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
-            assert span._metrics["_sampling_priority_v1"] == AUTO_KEEP
+            assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_KEEP
 
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
@@ -393,7 +393,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
             assert "x-datadog-sampling-priority" not in next_headers
 
             # Ensure span is dropped (no appsec event upstream or in this span)
-            assert span._metrics["_sampling_priority_v1"] == AUTO_REJECT
+            assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_REJECT
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
                 ddtrace.config._reset()
@@ -429,7 +429,7 @@ def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept
         assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
 
         # Ensure span is user keep
-        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+        assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP
     finally:
         tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
@@ -472,7 +472,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
                 assert span.parent_id == 5678
                 # Priority is unset
                 assert span.context.sampling_priority is None
-                assert "_sampling_priority_v1" not in span._metrics
+                assert not span._has_attribute("_sampling_priority_v1")
                 assert span.context.dd_origin == "synthetics"
                 assert "_dd.p.test" in span.context._meta
                 assert "_dd.p.ts" not in span.context._meta
@@ -489,7 +489,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
 
             # Priority was unset, and trace is not kept, so it should be dropped
             # As we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
-            assert span._metrics["_sampling_priority_v1"] == AUTO_REJECT
+            assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_REJECT
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
                 ddtrace.config._reset()
@@ -538,7 +538,7 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
         assert "_dd.p.ts=02" in next_headers["x-datadog-tags"]
 
         # Ensure span has force-keep priority now
-        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+        assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP
 
     finally:
         tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
@@ -608,7 +608,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
                 assert next_headers["x-datadog-tags"] == "_dd.p.ts=02"
 
             # Ensure span sets user keep regardless of received priority (appsec event upstream)
-            assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+            assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP
 
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
@@ -681,7 +681,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
                 assert next_headers["x-datadog-tags"].startswith("_dd.p.ts=02,")
 
             # Ensure span set to user keep regardless received priority (appsec event upstream)
-            assert span._metrics["_sampling_priority_v1"] == USER_KEEP  # user keep always
+            assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP  # user keep always
 
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
@@ -739,6 +739,30 @@ def test_extract_128bit_trace_ids_datadog():
             assert span.parent_id == span_id
             with tracer.trace("child_span") as child_span:
                 assert child_span.trace_id == expected_trace_id
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
+    check_logs=False,
+)
+def test_extract_128bit_trace_id_uppercase_tid_is_rejected():
+    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace.trace import tracer  # noqa:F811
+
+    low_64_bits = 13088165645273925489
+    uppercase_tid = "AABBCCDD00112233"
+    headers = {
+        "x-datadog-trace-id": str(low_64_bits),
+        "x-datadog-parent-id": "1",
+        "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, uppercase_tid]),
+    }
+    context = HTTPPropagator.extract(headers)
+    tracer.context_provider.activate(context)
+    with tracer.trace("local_root_span") as span:
+        assert span.trace_id == low_64_bits
+        assert span.context._meta.get("_dd.propagation_error") == "malformed_tid {}".format(uppercase_tid)
+        assert HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
 
 
 @pytest.mark.subprocess(
@@ -2778,7 +2802,7 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, fastapi_tracer, f
         f"Expected root span 'fastapi.request', got '{root_span.name}'. "
         f"Trace has {len(spans[0])} spans: {[s.name for s in spans[0]]}"
     )
-    assert [link for link in root_span._links if link.span_id == 67667974448284343] == [
+    assert [link for link in root_span._get_links() if link.span_id == 67667974448284343] == [
         SpanLink(
             trace_id=171395628812617415352188477958425669623,
             span_id=67667974448284343,
@@ -2787,7 +2811,7 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, fastapi_tracer, f
             attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
         )
     ]
-    assert spans[0][1]._links == []
+    assert spans[0][1]._get_links() == []
     assert spans[0][1].context._span_links == []
 
 

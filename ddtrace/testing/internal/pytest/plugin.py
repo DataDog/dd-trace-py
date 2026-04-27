@@ -4,7 +4,6 @@ from collections import defaultdict
 from io import StringIO
 import json
 import logging
-import os
 from pathlib import Path
 import re
 import traceback
@@ -20,12 +19,14 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
+from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -226,8 +227,37 @@ class TestOptPlugin:
 
         # EXCEPTION: When testing ddtrace itself, we don't want to interfere with the normal operation of the tracer,
         # and want ddtrace spans to be entirely independent from the test spans.
-        if asbool(os.environ.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+        if asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
             self.enable_ddtrace_trace_filter = False
+
+        # Log correlation: if DD_LOGS_INJECTION is enabled, a real ddtrace span must be active during tests so that
+        # the logging patch can read the test's trace_id/span_id. Re-enable the trace filter unless it was explicitly
+        # disabled via _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER.
+        if asbool(env.get("DD_LOGS_INJECTION")) and not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+            self.enable_ddtrace_trace_filter = True
+
+        # Agentless log submission: explicit opt-in via DD_AGENTLESS_LOG_SUBMISSION_ENABLED.
+        # Requires DD_CIVISIBILITY_AGENTLESS_ENABLED.
+        self.enable_agentless_log_submission = asbool(env.get("DD_AGENTLESS_LOG_SUBMISSION_ENABLED"))
+        if self.enable_agentless_log_submission:
+            if not asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+                log.warning(
+                    "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but DD_CIVISIBILITY_AGENTLESS_ENABLED is not. "
+                    "Log submission to Datadog requires agentless mode; logs will not be forwarded."
+                )
+                self.enable_agentless_log_submission = False
+            elif not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+                # Agentless log submission needs a real ddtrace span to carry trace/span IDs.
+                self.enable_ddtrace_trace_filter = True
+
+        # Log submission via connector: active when DD_LOGS_INJECTION is set (works with both EVP proxy and agentless
+        # connectors), or when explicit agentless log submission is enabled.
+        self.enable_log_submission = self.enable_agentless_log_submission or (
+            asbool(env.get("DD_LOGS_INJECTION")) and not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER"))
+        )
+
+        self._logs_writer: t.Optional[t.Any] = None
+        self._logs_handler: t.Optional[t.Any] = None
 
         self.enable_all_ddtrace_integrations = False
         self.reports_by_nodeid: dict[str, _ReportGroup] = defaultdict(lambda: {})
@@ -261,9 +291,44 @@ class TestOptPlugin:
 
         if self.enable_ddtrace_trace_filter:
             install_global_trace_filter(self.manager.writer)
+            try:
+                import ddtrace
+            except ImportError:
+                log.debug("ddtrace is not available, skipping logging patch")
+            else:
+                if ddtrace.config._logs_injection or self.enable_log_submission:
+                    try:
+                        from ddtrace.contrib.internal.logging.patch import patch as _patch_logging
+
+                        _patch_logging()
+                    except ImportError:
+                        log.warning(
+                            "Could not import ddtrace logging patch; log records will not carry trace/span IDs."
+                        )
+
+        if self.enable_log_submission:
+            from ddtrace.testing.internal.logs import LogsHandler
+            from ddtrace.testing.internal.logs import LogsWriter
+
+            self._logs_writer = LogsWriter(
+                connector_setup=self.manager.connector_setup,
+                service=self.manager.session.service,
+            )
+            self._logs_writer.start()
+            self._logs_handler = LogsHandler(self._logs_writer)
+            logging.getLogger().addHandler(self._logs_handler)
 
         if self.enable_all_ddtrace_integrations:
             enable_all_ddtrace_integrations()
+        elif self.enable_ddtrace_trace_filter:
+            # Patch Selenium so browser tests get test visibility tags (test.is_browser, test.browser.*).
+            # We create a root span with type=test in trace_context(); Selenium integration checks for that span.
+            try:
+                from ddtrace.contrib.internal.selenium.patch import patch as patch_selenium
+
+                patch_selenium()
+            except Exception:
+                log.debug("Could not patch Selenium for test visibility", exc_info=True)
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
@@ -277,8 +342,10 @@ class TestOptPlugin:
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
 
-        # If coverage report upload is enabled, generate and upload the report
-        if self.manager.settings.coverage_report_upload_enabled:
+        # If coverage report upload is enabled, generate and upload the report.
+        # NOTE: Skip in payload-files mode (Bazel): coverage data is already
+        # written as JSON files by TestCoverageWriter; network upload is not possible.
+        if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
             # Create upload function wrapper for manager
             def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
                 return self.manager.upload_coverage_report(
@@ -312,6 +379,15 @@ class TestOptPlugin:
         if not self.is_xdist_worker:
             # When running with xdist, only the main process writes the session event.
             self.manager.writer.put_item(self.session)
+
+        if self._logs_handler is not None:
+            logging.getLogger().removeHandler(self._logs_handler)
+            self._logs_handler = None
+
+        if self._logs_writer is not None:
+            self._logs_writer.signal_finish()
+            self._logs_writer.wait_finish(timeout=30.0)
+            self._logs_writer = None
 
         self.manager.finish()
 
@@ -453,6 +529,9 @@ class TestOptPlugin:
         )
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
+            self.manager._set_suite_source_location(test_suite)
+            if codeowners := test.tags.get(TestTag.CODEOWNERS):
+                test_suite.tags[TestTag.CODEOWNERS] = codeowners
             test_suite.finish()
             self.manager.writer.put_item(test_suite)
             TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
@@ -490,14 +569,28 @@ class TestOptPlugin:
         with trace_context(self.enable_ddtrace_trace_filter) as context:
             test_run, reports = self._do_one_test_run(item, nextitem, context)
 
-        if not test.is_skipped_by_itr() and retry_handler and retry_handler.should_retry(test):
-            self._do_retries(item, nextitem, test, retry_handler, reports)
+        should_retry = not test.is_skipped_by_itr() and retry_handler is not None and retry_handler.should_retry(test)
+
+        if should_retry:
+            retry_reports, last_reports = self._do_retries(
+                item, nextitem, test, t.cast(RetryHandler, retry_handler), reports
+            )
         else:
             if _get_user_property(item, "dd_disabled_attempt_to_fix"):
                 self._mark_attempt_to_fix_report_group_as_skipped(item, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
-            test.set_status(test_run.get_status())
+
+        # Finalization: when a retry handler applies, it always determines final status and tags,
+        # regardless of whether retries were actually performed.
+        if retry_handler:
+            final_status = retry_handler.get_final_status(test)
+        else:
+            final_status = test_run.get_status()
+        test.set_status(final_status)
+
+        if should_retry:
+            self._log_retry_final_reports(item, test, retry_reports, final_status, last_reports)
 
         # Set final status on the last test run (single location for both retry and non-retry paths)
         if test.test_runs:
@@ -524,7 +617,8 @@ class TestOptPlugin:
         test: Test,
         retry_handler: RetryHandler,
         reports: _ReportGroup,
-    ) -> None:
+    ) -> tuple[RetryReports, _ReportGroup]:
+        """Execute retry loop and collect reports. Returns (retry_reports, last_reports)."""
         retry_reports = RetryReports()
 
         # Log initial attempt.
@@ -537,13 +631,10 @@ class TestOptPlugin:
         retry_handler.set_tags_for_test_run(test_run)
         test_run.finish()
 
-        should_retry = True
-
-        while should_retry:
+        while retry_handler.should_retry(test):
             with trace_context(self.enable_ddtrace_trace_filter) as context:
                 test_run, reports = self._do_one_test_run(item, nextitem, context)
 
-            should_retry = retry_handler.should_retry(test)
             retry_handler.set_tags_for_test_run(test_run)
             self._mark_test_reports_as_retry(reports, retry_handler)
 
@@ -556,10 +647,17 @@ class TestOptPlugin:
 
             test_run.finish()
 
-        final_status = retry_handler.get_final_status(test)
-        test.set_status(final_status)
+        return retry_reports, reports
 
-        # Log final status.
+    def _log_retry_final_reports(
+        self,
+        item: pytest.Item,
+        test: Test,
+        retry_reports: RetryReports,
+        final_status: TestStatus,
+        last_reports: _ReportGroup,
+    ) -> None:
+        """Create and log the final report and teardown after retries."""
         final_report = retry_reports.make_final_report(test, item, final_status)
 
         if extra_failed_report := retry_reports.get_extra_failed_report(test, final_status):
@@ -572,7 +670,7 @@ class TestOptPlugin:
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
         # closes the <testcase> element when teardown is logged.
-        teardown_report = reports.get(TestPhase.TEARDOWN)
+        teardown_report = last_reports.get(TestPhase.TEARDOWN)
         if _get_user_property(item, "dd_disabled_attempt_to_fix"):
             self._mark_attempt_to_fix_report_as_skipped(item, teardown_report)
         item.ihook.pytest_runtest_logreport(report=teardown_report)
@@ -799,7 +897,7 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         if test.is_disabled() and not test.is_attempt_to_fix():
             item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
         elif test.is_quarantined() or (test.is_disabled() and test.is_attempt_to_fix()):
-            # AIDEV-NOTE: keep is_attempt_to_fix() check inside this branch, not outside — plain ATF tests that are
+            # NOTE: keep is_attempt_to_fix() check inside this branch, not outside — plain ATF tests that are
             # neither disabled nor quarantined run normally and must not get report mangling or a user property.
             if test.is_attempt_to_fix():
                 item.user_properties += [("dd_disabled_attempt_to_fix", True)]
@@ -982,7 +1080,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def _is_test_optimization_disabled_by_kill_switch() -> bool:
-    return not asbool(os.environ.get("DD_CIVISIBILITY_ENABLED", "true"))
+    return not asbool(env.get("DD_CIVISIBILITY_ENABLED", "true"))
 
 
 def _is_enabled_early(early_config: pytest.Config, args: list[str]) -> bool:
@@ -1025,7 +1123,7 @@ def pytest_load_initial_conftests(
 
     early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
 
-    # AIDEV-NOTE: Coverage collection decision tree:
+    # NOTE: Coverage collection decision tree:
     # - coverage_report_upload_enabled: Use coverage.py (external) to generate uploadable reports
     # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal)
     # When coverage_report_upload_enabled, we rely on pytest-cov to run coverage.py if available,
@@ -1106,7 +1204,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
-    # AIDEV-NOTE: Coverage.py integration when report upload is enabled
+    # NOTE: Coverage.py integration when report upload is enabled
     # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
     if session_manager.settings.coverage_report_upload_enabled and not _is_pytest_cov_enabled(config):
         # Start coverage.py ourselves for report generation
@@ -1127,7 +1225,7 @@ def _get_test_command(config: pytest.Config) -> str:
     command = "pytest"
     if invocation_params := getattr(config, "invocation_params", None):
         command += " {}".format(" ".join(invocation_params.args))
-    if addopts := os.environ.get("PYTEST_ADDOPTS"):
+    if addopts := env.get("PYTEST_ADDOPTS"):
         command += " {}".format(addopts)
     return command
 

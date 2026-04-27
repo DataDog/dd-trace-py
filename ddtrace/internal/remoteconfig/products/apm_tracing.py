@@ -40,40 +40,24 @@ def config_key(payload: Payload) -> int:
 class APMTracingCallback(RCCallback):
     """Remote config callback for APM tracing configuration."""
 
-    def __init__(self) -> None:
-        """Initialize the APM tracing callback with empty configuration state."""
-        self._config_map: dict[str, Payload] = {}
-
-    def _get_chained_lib_config(self) -> t.ChainMap:
+    @staticmethod
+    def _get_chained_lib_config(config_map: t.Mapping[str, Payload]) -> t.ChainMap:
         """Get merged library configuration from all configs, ordered by precedence."""
-        # Get items in insertion order, then sort by precedence while preserving order for ties
-        items_with_order = [(i, p) for i, p in enumerate(self._config_map.values())]
-
-        return ChainMap(
-            *(
-                t.cast(dict, content["lib_config"])
-                for content in (
-                    p.content
-                    for _, p in sorted(
-                        items_with_order,
-                        key=lambda x: (
-                            config_key(x[1]),
-                            x[0],
-                        ),  # Higher precedence first, then newer (higher index) first
-                        reverse=True,
-                    )
-                    if p.content is not None and "lib_config" in p.content
-                )
-            )
+        # Higher config_key first; on ties, higher insertion index (newer) first.
+        ordered = sorted(
+            enumerate(config_map.values()),
+            key=lambda ip: (config_key(ip[1]), ip[0]),
+            reverse=True,
         )
+        lib_configs = [
+            t.cast(dict, p.content["lib_config"])
+            for _, p in ordered
+            if p.content is not None and "lib_config" in p.content
+        ]
+        return ChainMap(*lib_configs)
 
-    def __call__(self, payloads: t.Sequence[Payload]) -> None:
-        """Process APM tracing configuration payloads.
-
-        Args:
-            payloads: Sequence of configuration payloads to process
-        """
-        seen_config_ids = set()
+    def _process_payloads(self, payloads: t.Sequence[Payload]) -> t.ChainMap:
+        config_map: dict[str, Payload] = {}
         for payload in payloads:
             if payload.metadata is None:
                 log.debug("ignoring invalid APM Tracing remote config payload, path: %s", payload.path)
@@ -81,19 +65,13 @@ class APMTracingCallback(RCCallback):
 
             log.debug("Received APM tracing config payload: %s", payload)
 
-            config_id = payload.metadata.id
-            seen_config_ids.add(config_id)
-
-            if (content := payload.content) is None:
-                log.debug(
-                    "ignoring invalid APM Tracing remote config payload with no content, product: %s, path: %s",
-                    payload.metadata.product_name,
-                    payload.path,
-                )
+            if payload.content is None:
+                if payload.metadata.id in config_map:
+                    log.debug("Deleting config %s", payload.metadata.id)
+                    config_map.pop(payload.metadata.id)
                 continue
 
-            service_target = t.cast(t.Optional[dict], content.get("service_target"))
-
+            service_target = t.cast(t.Optional[dict], payload.content.get("service_target"))
             service = t.cast(str, service_target.get("service")) if service_target is not None else None
             env = t.cast(str, service_target.get("env")) if service_target is not None else None
 
@@ -105,38 +83,44 @@ class APMTracingCallback(RCCallback):
                 log.debug("ignoring APM Tracing remote config payload for env: %r != %r", env, config.env)
                 continue
 
-            self._config_map[config_id] = payload
+            config_map[payload.metadata.id] = payload
+        return self._get_chained_lib_config(config_map)
 
-        # Remove configurations that are no longer present
-        for config_id in set(self._config_map.keys()) - seen_config_ids:
-            log.debug("Removing APM tracing config %s", config_id)
-            self._config_map.pop(config_id, None)
+    def __call__(self, payloads: t.Sequence[Payload]) -> None:
+        """Process APM tracing configuration payloads.
 
-        dispatch("apm-tracing.rc", (dict(self._get_chained_lib_config()), config))
+        Args:
+            payloads: Sequence of configuration payloads to process
+        """
+        chain = self._process_payloads(payloads)
+        dispatch("apm-tracing.rc", (dict(chain), config))
 
 
 def post_preload():
     pass
 
 
+def enabled() -> bool:
+    return config._remote_config_enabled
+
+
 def start():
-    if config._remote_config_enabled:
-        from ddtrace.internal.products import manager
-        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.products import manager
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_poller.register_callback(
-            "APM_TRACING",
-            APMTracingCallback(),
-            capabilities=[
-                cap for product in manager.__products__.values() for cap in getattr(product, "APMCapabilities", [])
-            ],
-        )
-        remoteconfig_poller.enable_product("APM_TRACING")
+    remoteconfig_poller.register_callback(
+        "APM_TRACING",
+        APMTracingCallback(),
+        capabilities=[
+            cap for product in manager.__products__.values() for cap in getattr(product, "APMCapabilities", [])
+        ],
+    )
+    remoteconfig_poller.enable_product("APM_TRACING")
 
-        # Register remote config handlers
-        for name, product in manager.__products__.items():
-            if (rc_handler := getattr(product, "apm_tracing_rc", None)) is not None:
-                on("apm-tracing.rc", rc_handler, name)
+    # Register remote config handlers
+    for name, product in manager.__products__.items():
+        if (rc_handler := getattr(product, "apm_tracing_rc", None)) is not None:
+            on("apm-tracing.rc", rc_handler, name)
 
 
 def restart(join=False):
@@ -144,8 +128,7 @@ def restart(join=False):
 
 
 def stop(join=False):
-    if config._remote_config_enabled:
-        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_poller.unregister_callback("APM_TRACING")
-        remoteconfig_poller.disable_product("APM_TRACING")
+    remoteconfig_poller.unregister_callback("APM_TRACING")
+    remoteconfig_poller.disable_product("APM_TRACING")

@@ -1,0 +1,3 @@
+fixes:
+  - |
+    ray: This fix resolves an issue where Ray integration spans could use an incorrect service name when the Ray job name was set after instrumentation initialization.

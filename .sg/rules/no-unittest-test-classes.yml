@@ -1,0 +1,40 @@
+id: no-unittest-test-classes
+message: "unittest.TestCase subclass in test file — use pytest-style test functions instead"
+severity: warning
+language: python
+files:
+  - "tests/**/*.py"
+rule:
+  kind: class_definition
+  has:
+    field: superclasses
+    kind: argument_list
+    regex: "TestCase"
+note: |
+  pytest markers (@pytest.mark.*) and fixtures do not work reliably on methods
+  inside unittest.TestCase subclasses. pytest discovers these tests via a
+  compatibility shim but does not fully process pytest features on them.
+
+  Convert to pytest-style test functions:
+  - Replace setUp/tearDown with pytest fixtures (or conftest.py fixtures)
+  - Replace self.assert* with plain assert statements
+  - Replace @unittest.skip with @pytest.mark.skip
+  - Replace self.subTest() with @pytest.mark.parametrize
+
+  Example conversion:
+
+    # Before (unittest style)
+    class TestFoo(unittest.TestCase):
+        def setUp(self):
+            self.client = make_client()
+
+        def test_something(self):
+            self.assertEqual(self.client.get(), 42)
+
+    # After (pytest style)
+    @pytest.fixture
+    def client():
+        return make_client()
+
+    def test_something(client):
+        assert client.get() == 42

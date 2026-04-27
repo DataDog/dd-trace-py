@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 from typing import AsyncGenerator
 from typing import Optional
 
@@ -404,6 +405,17 @@ def get_app():
         except Exception as e:
             payload = {"error": repr(e)}
         return payload
+
+    @app.get("/exception-group-block")
+    async def exception_group_block(request: Request):
+        """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
+        if sys.version_info < (3, 11) or request.query_params.get("block") != "true":
+            return HTMLResponse("ok", status_code=200)
+
+        from ddtrace.appsec._utils import Block_config
+        from ddtrace.internal._exceptions import BlockingException
+
+        raise BaseExceptionGroup("test", [BlockingException(Block_config())])  # noqa: F821
 
     @app.get("/login/")
     async def login_user(request: Request):

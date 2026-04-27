@@ -157,9 +157,15 @@ pip_cache_shared_venvs/
 # Claude
 CLAUDE.local.md
 .claude/settings.local.json
+.claude/worktrees/
+
+# oh-my-claudecode
+.omc/
 
 # Riot
 .riot/venv*
+.riot/envs/
+.riot/.build.lock
 .riot/requirements/*.in
 
 # Benchmarks
@@ -183,18 +189,20 @@ ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/CMakeFiles/*
 ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/cmake_install.cmake
 # Those folders are required for tests/appsec/iast_packages/test_packages.py
 template_venv/
+template_venv.lock
 cloned_venvs/
 # CircleCI generated config
 .circleci/config.gen.yml
 # GitLab CI generated config
-.gitlab/*-gen.yml
+.gitlab/**/*-gen.yml
+.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
 .gitlab-ci-local/
 
 # Automatically generated fixtures
-tests/appsec/iast/fixtures/aspects/obj_callers.py
-tests/appsec/iast/fixtures/aspects/unpatched_obj_callers.py
-tests/appsec/iast/fixtures/aspects/callers.py
-tests/appsec/iast/fixtures/aspects/unpatched_callers.py
+tests/appsec/iast/fixtures/aspects/obj_callers*.py
+tests/appsec/iast/fixtures/aspects/unpatched_obj_callers*.py
+tests/appsec/iast/fixtures/aspects/callers*.py
+tests/appsec/iast/fixtures/aspects/unpatched_callers*.py
 tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 
 #MacOS files
@@ -215,3 +223,6 @@ src/native/target*
 
 # Fuzzing corpus, output and artifacts
 .fuzz/
+
+# APM AI Toolkit Analysis Logs
+.analysis/

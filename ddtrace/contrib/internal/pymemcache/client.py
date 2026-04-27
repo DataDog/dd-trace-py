@@ -1,4 +1,3 @@
-import os
 import sys
 from typing import Iterable
 
@@ -20,6 +19,7 @@ from ddtrace._trace.pin import Pin
 # project
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -28,20 +28,19 @@ from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
 
-
 config._add(
     "pymemcache",
     {
-        "command_enabled": asbool(os.getenv("DD_TRACE_MEMCACHED_COMMAND_ENABLED", default=False)),
+        "command_enabled": asbool(env.get("DD_TRACE_MEMCACHED_COMMAND_ENABLED", default=False)),
     },
 )
-
 
 # keep a reference to the original unpatched clients
 _Client = Client
@@ -309,10 +308,10 @@ def _trace(func, p, method_name, *args, **kwargs):
     """
     with tracer.trace(
         schematize_cache_operation(memcachedx.CMD, cache_provider="memcached"),
-        service=p.service,
         resource=method_name,
         span_type=SpanTypes.CACHE,
     ) as span:
+        set_service_and_source(span, p.service, config.pymemcache)
         span._set_attribute(COMPONENT, config.pymemcache.integration_name)
         span._set_attribute(db.SYSTEM, memcachedx.DBMS_NAME)
 

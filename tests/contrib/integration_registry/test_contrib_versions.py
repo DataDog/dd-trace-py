@@ -1,14 +1,23 @@
 import ast
 from pathlib import Path
 import re
+import sys
 from typing import Optional
 from typing import Union
 
-from packaging.version import Version
-import pytest
 
-from ddtrace.contrib.integration_registry.mappings import EXCLUDED_FROM_TESTING
-from ddtrace.vendor.packaging.specifiers import Specifier
+# Ensure scripts/integration_registry/ is on sys.path so registry modules are importable
+# when this module is imported directly (e.g. from tests/lib_injection/test_guardrails.py)
+# without tests/contrib/conftest.py having run first.
+_integration_registry_dir = str(Path(__file__).parent.parent.parent.parent / "scripts" / "integration_registry")
+if _integration_registry_dir not in sys.path:
+    sys.path.append(_integration_registry_dir)
+
+from mappings import EXCLUDED_FROM_TESTING  # noqa: E402
+from packaging.version import Version  # noqa: E402
+import pytest  # noqa: E402
+
+from ddtrace.vendor.packaging.specifiers import Specifier  # noqa: E402
 
 
 # allowlist of packages where we can't test the min version
@@ -178,7 +187,7 @@ def test_docs_versions_align_with_tested_versions(documented_versions: dict[str,
         ):
             continue
 
-        if doc_version is None or registry_min_version is None:
+        if doc_version is None or not isinstance(doc_version, Version) or registry_min_version is None:
             misalignments.append(f"{integration_name}: should have doc version and registry min version.")
             continue
 

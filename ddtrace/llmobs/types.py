@@ -6,9 +6,7 @@ from typing import Union
 
 
 JSONType = Union[str, int, float, bool, None, list["JSONType"], dict[str, "JSONType"]]
-NonNoneJSONType = Union[str, int, float, bool, list[JSONType], dict[str, JSONType]]
 ExperimentConfigType = dict[str, JSONType]
-DatasetRecordInputType = dict[str, NonNoneJSONType]
 
 
 class ExportedLLMObsSpan(TypedDict):
