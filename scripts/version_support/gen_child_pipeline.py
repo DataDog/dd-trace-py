@@ -19,12 +19,14 @@ from __future__ import annotations
 import datetime
 import hashlib
 import json
+import math
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
 import typing as t
-from pathlib import Path
+
 
 ROOT = Path(__file__).resolve().parents[2]
 GITLAB = ROOT / ".gitlab"
@@ -92,17 +94,34 @@ def _load_riot_venv(source: str) -> t.Any:
     return ns["venv"]
 
 
-def _collect_python_versions(pattern: str, riot_venv: t.Any) -> set[str]:
-    compiled = re.compile(pattern)
-    versions: set[str] = set()
+def _collect_suite_venv_info(suite_patterns: dict[str, str], riot_venv: t.Any) -> dict[str, tuple[int, set[str]]]:
+    compiled: dict[str, re.Pattern[str]] = {}
+    for suite_name, pattern in suite_patterns.items():
+        compiled[suite_name] = re.compile(pattern)
+
+    venv_hashes: dict[str, set[str]] = {suite_name: set() for suite_name in compiled}
+    python_versions: dict[str, set[str]] = {suite_name: set() for suite_name in compiled}
+
     for inst in riot_venv.instances():
         if not inst.name:
             continue
-        if inst.matches_pattern(compiled):  # type: ignore[attr-defined]
-            hint = inst.py._hint  # type: ignore[attr-defined]
-            if re.match(r"^3\.\d+$", hint):
-                versions.add(hint)
-    return versions
+
+        hint = inst.py._hint  # type: ignore[attr-defined]
+        for suite_name, regex in compiled.items():
+            if inst.matches_pattern(regex):  # type: ignore[attr-defined]
+                venv_hashes[suite_name].add(inst.short_hash)  # type: ignore[attr-defined]
+                if re.match(r"^3\.\d+$", hint):
+                    python_versions[suite_name].add(hint)
+
+    return {
+        suite_name: (len(venv_hashes[suite_name]), python_versions[suite_name])
+        for suite_name in compiled
+        if venv_hashes[suite_name]
+    }
+
+
+def _calculate_parallelism_from_venvs(venv_count: int, venvs_per_job: int, max_parallelism: int = 25) -> int:
+    return min(math.ceil(venv_count / venvs_per_job), max_parallelism)
 
 
 # ---------------------------------------------------------------------------
@@ -146,10 +165,10 @@ def _render_template(name: str, **params: object) -> str:
 def generate(output: Path) -> None:
     spec_data = _get_spec_data()
 
+    import suitespec  # type: ignore[import-untyped]
+
     from version_support.ci_specs import load_integration_names_from_json_text
     from version_support.ci_specs import resolve_suite_names_for_integrations
-
-    import suitespec  # type: ignore[import-untyped]
 
     all_suites = suitespec.get_suites()
     integration_names = load_integration_names_from_json_text(json.dumps(spec_data))
@@ -163,12 +182,18 @@ def generate(output: Path) -> None:
     unpin = os.getenv("UNPIN_DEPENDENCIES", "false") or "false"
     nightly = os.getenv("NIGHTLY_BUILD", "false") or "false"
 
-    all_python_versions: set[str] = set()
-    suite_python_versions: dict[str, set[str]] = {}
+    suite_patterns: dict[str, str] = {}
     for suite_name in suite_names:
         suite_config = all_suites.get(suite_name, {})
         pattern = suite_config.get("pattern", suite_name.split("::")[-1])
-        py_versions = _collect_python_versions(pattern, riot_venv)
+        suite_patterns[suite_name] = pattern
+
+    suite_venv_info = _collect_suite_venv_info(suite_patterns, riot_venv)
+
+    all_python_versions: set[str] = set()
+    suite_python_versions: dict[str, set[str]] = {}
+    for suite_name in suite_names:
+        py_versions = suite_venv_info.get(suite_name, (0, set()))[1]
         suite_python_versions[suite_name] = py_versions
         all_python_versions.update(py_versions)
 
@@ -215,11 +240,12 @@ def generate(output: Path) -> None:
         "      mkdir -p .gitlab/version-support",
         '      spec_path=".gitlab/version-support/specs.json"',
         '      if [[ -n "${VERSION_SUPPORT_SPEC_JSON:-}" ]]; then',
-        "        printf '%s' \"${VERSION_SUPPORT_SPEC_JSON}\" > \"${spec_path}\"",
+        '        printf \'%s\' "${VERSION_SUPPORT_SPEC_JSON}" > "${spec_path}"',
         '      elif [[ -n "${VERSION_SUPPORT_SPEC_FILE:-}" ]]; then',
         '        cp "${VERSION_SUPPORT_SPEC_FILE}" "${spec_path}"',
         "      fi",
-        '      PYTHONPATH=scripts python -m version_support.run_specific_integrations_versions --spec-file "${spec_path}"',
+        "      PYTHONPATH=scripts python -m version_support."
+        'run_specific_integrations_versions --spec-file "${spec_path}"',
         "      scripts/compile-and-prune-test-requirements",
         "  artifacts:",
         "    paths:",
@@ -275,10 +301,21 @@ def generate(output: Path) -> None:
         services: list[str] = suite_config.get("services") or []
         env: dict[str, str] = dict(suite_config.get("env") or {})
         snapshot: bool = bool(suite_config.get("snapshot", False))
+        static_parallelism: int | None = suite_config.get("parallelism")
+        venvs_per_job: int | None = suite_config.get("venvs_per_job")
 
         py_versions = suite_python_versions.get(suite_name, set())
         suite_env_name = env.get("SUITE_NAME", pattern)
         pip_cache_key = _pip_cache_key(suite_env_name)
+        job_parallelism = static_parallelism
+        if job_parallelism is None and venvs_per_job is not None and suite_name in suite_venv_info:
+            # AIDEV-NOTE: Version-support child jobs must preserve the same sharding
+            # semantics as the main tests generator, or large integration suites collapse
+            # onto a single node and exceed their current runtime envelope.
+            venv_count, _ = suite_venv_info[suite_name]
+            computed_parallelism = _calculate_parallelism_from_venvs(venv_count, venvs_per_job)
+            if computed_parallelism > 1:
+                job_parallelism = computed_parallelism
 
         emit(f"test/{clean_name}:")
         emit("  extends: .testrunner")
@@ -349,6 +386,8 @@ def generate(output: Path) -> None:
         for key, value in env.items():
             if key != "SUITE_NAME":
                 emit(f"    {key}: {value}")
+        if job_parallelism is not None:
+            emit(f"  parallel: {job_parallelism}")
         emit("")
 
     output.write_text("\n".join(out), encoding="utf-8")

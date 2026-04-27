@@ -316,6 +316,10 @@ def gen_required_suites() -> None:
             LOGGER.warning("Unknown suite(s) specified via --suite: %s", unknown)
         required_suites = [s for s in args.suites if s in suites]
         LOGGER.info("Using explicit suite selection: %s", required_suites)
+    elif os.getenv("VERSION_SUPPORT_SPEC_JSON") or os.getenv("VERSION_SUPPORT_SPEC_FILE"):
+        # AIDEV-NOTE: VERSION_SUPPORT runs use a dedicated child pipeline. Keep the
+        # regular tests child pipeline empty here so these runs stay isolated.
+        LOGGER.info("VERSION_SUPPORT spec detected; skipping regular test-suite generation")
     elif args.files:
         # --file: match supplied files against suite patterns (same logic as needs_testrun
         # but without any GitHub API calls)
