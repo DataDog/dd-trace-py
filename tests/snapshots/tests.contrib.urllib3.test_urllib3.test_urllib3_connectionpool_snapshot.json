@@ -7,28 +7,29 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
-    "error": 0,
     "meta": {
       "_dd.base_service": "tests.contrib.urllib3",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69e2407b00000000",
       "_dd.svc_src": "urllib3",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.urllib3",
       "component": "urllib3",
       "http.method": "GET",
       "http.status_code": "200",
+      "http.status_msg": "OK",
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "2b4a2b664b6b48e29aac07578be10a07",
+      "runtime-id": "768212b65ecf4fa5891ffd90a52c3b68",
       "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 9975
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
     },
-    "duration": 1447750,
-    "start": 1692650462309622427
+    "duration": 958000,
+    "start": 1776435323430179632
   }]]
