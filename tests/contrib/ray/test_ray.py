@@ -40,11 +40,14 @@ RAY_SNAPSHOT_IGNORES = [
 ]
 
 
-def test_parse_ignored_actors_returns_frozenset():
+def test_parse_ignored_actors_returns_actor_method_mapping():
     from ddtrace.contrib.internal.ray.patch import _parse_ignored_actors
 
-    assert _parse_ignored_actors("") == frozenset()
-    assert _parse_ignored_actors("IgnoredCounter, AnotherActor") == frozenset({"IgnoredCounter", "AnotherActor"})
+    assert _parse_ignored_actors("") == {}
+    assert _parse_ignored_actors('{"IgnoredCounter": ["increment"], "IgnoredActor": "*"}') == {
+        "IgnoredCounter": frozenset({"increment"}),
+        "IgnoredActor": frozenset({"*"}),
+    }
 
 
 class TestRayIntegration(TracerTestCase):
@@ -137,31 +140,43 @@ class TestRayIntegration(TracerTestCase):
         value = ray.get(denied_actor.get_value.remote())
         assert value == 42, f"Unexpected result: {value}"
 
-    def test_configurable_ignored_actors(self):
-        with override_config("ray", dict(ignored_actors=frozenset({"IgnoredCounter"}))):
+    def test_configurable_ignored_actor_methods(self):
+        with override_config(
+            "ray",
+            dict(
+                ignored_actors={"PartiallyIgnoredCounter": frozenset({"increment"}), "IgnoredCounter": frozenset({"*"})}
+            ),
+        ):
+
+            @ray.remote
+            class PartiallyIgnoredCounter:
+                def increment(self):
+                    return 1
+
+                def get_value(self):
+                    return 1
 
             @ray.remote
             class IgnoredCounter:
                 def increment(self):
                     return 1
 
-            @ray.remote
-            class TracedCounter:
-                def increment(self):
-                    return 1
-
+            partially_ignored_actor = PartiallyIgnoredCounter.remote()
             ignored_actor = IgnoredCounter.remote()
-            traced_actor = TracedCounter.remote()
 
+            partially_ignored_result = ray.get(partially_ignored_actor.increment.remote())
+            traced_result = ray.get(partially_ignored_actor.get_value.remote())
             ignored_result = ray.get(ignored_actor.increment.remote())
-            traced_result = ray.get(traced_actor.increment.remote())
 
+            assert partially_ignored_result == 1
             assert ignored_result == 1
             assert traced_result == 1
 
+            partially_ignored_params = [p.name for p in partially_ignored_actor._ray_method_signatures["increment"]]
+            traced_params = [p.name for p in partially_ignored_actor._ray_method_signatures["get_value"]]
             ignored_params = [p.name for p in ignored_actor._ray_method_signatures["increment"]]
-            traced_params = [p.name for p in traced_actor._ray_method_signatures["increment"]]
 
+            assert DD_RAY_TRACE_CTX not in partially_ignored_params
             assert DD_RAY_TRACE_CTX not in ignored_params
             assert DD_RAY_TRACE_CTX in traced_params
 

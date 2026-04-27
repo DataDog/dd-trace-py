@@ -40,8 +40,10 @@ The Ray integration can be configured using environment variables:
     Enable it when you need visibility into queuing/submission latency, fan-out patterns,
     or when work is submitted but delayed before execution.
 
-- ``DD_TRACE_RAY_IGNORED_ACTORS``: Comma-separated list of actor class names to exclude
-    from instrumentation (default: empty). Matching is based on class name only, not module.
+- ``DD_TRACE_RAY_IGNORED_ACTORS``: JSON object mapping actor class names to actor methods
+    to exclude from instrumentation, or ``"*"`` to exclude the full actor class (default:
+    empty). For example, ``{"ActorA": ["method1"], "ActorB": "*"}``. Matching is based
+    on class name only, not module.
 
 - ``DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL``: Interval for resubmitting long-running
     spans (default: ``120.0`` seconds)
