@@ -110,6 +110,11 @@ def _parse_yaml_scalar(value: str) -> object:
     return scalar
 
 
+def _yaml_single_quote(value: str) -> str:
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
+
+
 def _load_simple_suitespec_yaml(path: Path) -> dict[str, object]:
     """Load the limited YAML shape used by suitespec.yml without external deps."""
 
@@ -276,12 +281,13 @@ def _render_template(name: str, **params: object) -> str:
 
 def generate(output: Path) -> None:
     spec_data = _get_spec_data()
+    spec_json = json.dumps(spec_data)
 
     from version_support.ci_specs import load_integration_names_from_json_text
     from version_support.ci_specs import resolve_suite_names_for_integrations
 
     all_suites = _get_suites()
-    integration_names = load_integration_names_from_json_text(json.dumps(spec_data))
+    integration_names = load_integration_names_from_json_text(spec_json)
     suite_names = resolve_suite_names_for_integrations(integration_names, suites=all_suites)
 
     rewritten_source = _rewrite_riotfile(spec_data)
@@ -328,6 +334,7 @@ def generate(output: Path) -> None:
         "",
         "variables:",
         "  RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s",
+        f"  VERSION_SUPPORT_SPEC_JSON: {_yaml_single_quote(spec_json)}",
         "",
         "stages:",
         "  - prepare",
@@ -347,21 +354,13 @@ def generate(output: Path) -> None:
         "  script:",
         "    - |",
         "      set -e -u -o pipefail",
-        "      mkdir -p .gitlab/version-support",
-        '      spec_path=".gitlab/version-support/specs.json"',
-        '      if [[ -n "${VERSION_SUPPORT_SPEC_JSON:-}" ]]; then',
-        '        printf \'%s\' "${VERSION_SUPPORT_SPEC_JSON}" > "${spec_path}"',
-        '      elif [[ -n "${VERSION_SUPPORT_SPEC_FILE:-}" ]]; then',
-        '        cp "${VERSION_SUPPORT_SPEC_FILE}" "${spec_path}"',
-        "      fi",
         "      PYTHONPATH=scripts python -m version_support."
-        'run_specific_integrations_versions --spec-file "${spec_path}"',
+        'run_specific_integrations_versions --spec-json "${VERSION_SUPPORT_SPEC_JSON}"',
         "      scripts/compile-and-prune-test-requirements",
         "  artifacts:",
         "    paths:",
         "      - riotfile.py",
         "      - .riot/requirements/",
-        "      - .gitlab/version-support/specs.json",
         "",
     )
 

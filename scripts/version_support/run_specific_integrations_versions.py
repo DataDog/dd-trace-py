@@ -9,6 +9,7 @@ import argparse
 from pathlib import Path
 
 from .json_specs import load_specs_from_json
+from .json_specs import load_specs_from_json_text
 from .models import FallbackSpec
 from .models import IntegrationSpec
 from .parsing import collect_venvs
@@ -23,6 +24,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=Path(__file__).resolve().parent / "specs.json",
         help="Path to JSON matrix specs file (default: scripts/version_support/specs.json)",
     )
+    parser.add_argument(
+        "--spec-json",
+        help="Raw JSON matrix specs. Takes precedence over --spec-file.",
+    )
     return parser
 
 
@@ -33,7 +38,10 @@ def run(argv: list[str] | None = None) -> int:
     riotfile_source: str = riotfile_path.read_text(encoding="utf-8")
     riotfile_filename = str(riotfile_path)
     suites = collect_venvs(riotfile_source, riotfile_filename)
-    specs = load_specs_from_json(args.spec_file.resolve(), suites=suites)
+    if args.spec_json:
+        specs = load_specs_from_json_text(args.spec_json, suites=suites)
+    else:
+        specs = load_specs_from_json(args.spec_file.resolve(), suites=suites)
 
     rewritten_source = riotfile_source
     rewritten_suites: list[str] = []
