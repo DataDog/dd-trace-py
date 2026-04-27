@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    AAP: This adds Application Security support for Flask applications using sub-Flask-apps
+    mounted via ``werkzeug.middleware.dispatcher.DispatcherMiddleware``. API endpoint
+    discovery now walks the dispatcher tree (at middleware construction time and at the
+    first request reaching each app) and reports endpoints with their full mounted path.
+    The Flask request span resource and ``flask.url_rule`` tag are also prefixed with the
+    WSGI ``script_root`` so sub-app requests report the path the client actually hit.

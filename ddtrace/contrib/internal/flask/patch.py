@@ -1,4 +1,5 @@
 from inspect import unwrap
+import weakref
 
 import flask
 import werkzeug
@@ -14,6 +15,7 @@ from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_blocked
 
 
@@ -182,6 +184,17 @@ def patch():
     _w("flask", "Flask.preprocess_request", request_patcher("preprocess_request"))
     _w("flask", "Flask.add_url_rule", patched_add_url_rule)
     _w("flask", "Flask.endpoint", patched_endpoint)
+
+    # Walk werkzeug.middleware.dispatcher.DispatcherMiddleware at construction so mounted
+    # sub-Flask-apps are discovered eagerly, even when no request has reached them yet.
+    try:
+        _w(
+            "werkzeug.middleware.dispatcher",
+            "DispatcherMiddleware.__init__",
+            patched_dispatcher_middleware_init,
+        )
+    except (ImportError, AttributeError):
+        log.debug("Failed to patch werkzeug DispatcherMiddleware.__init__ for endpoint discovery")
 
     _w("flask", "Flask.finalize_request", patched_finalize_request)
 
@@ -357,6 +370,13 @@ def unpatch():
         props.append("Flask.before_first_request")
         props.append("Blueprint.before_app_first_request")
 
+    try:
+        import werkzeug.middleware.dispatcher as _wmd
+
+        _u(_wmd.DispatcherMiddleware, "__init__")
+    except (ImportError, AttributeError):
+        pass
+
     for prop in props:
         # Handle 'flask.request_started.receivers_for'
         obj = flask
@@ -374,14 +394,148 @@ def unpatch():
         _u(obj, prop)
 
 
-@with_tracing_enabled
 def patched_wsgi_app(wrapped, instance, args, kwargs):
     # This wrapper is the starting point for all requests.
     # DEV: This is safe before this is the args for a WSGI handler
     #   https://www.python.org/dev/peps/pep-3333/
     environ, start_response = args
+    # Populate endpoint_collection for this Flask app under the current SCRIPT_NAME
+    # (which reflects any DispatcherMiddleware mount prefix the request traversed).
+    # Run unconditionally — endpoint discovery is an AppSec/AAP feature whose
+    # gating is owned by ``asm_config._api_security_endpoint_collection`` inside
+    # ``_collect_routes_once``, not by tracing. Pre-PR registration ran in
+    # ``patched_add_url_rule`` at app-construction time with no tracing gate;
+    # keeping discovery alive when tracing is disabled preserves that contract.
+    # ``DispatcherMiddleware.__init__`` also registers mounts eagerly at
+    # construction time; this path additionally covers Flask apps not reachable
+    # from any wrapped DM (e.g. apps served directly without ever being mounted).
+    _collect_routes_once(instance, environ.get("SCRIPT_NAME") or "")
+    if not is_tracing_enabled():
+        return wrapped(*args, **kwargs)
     middleware = _FlaskWSGIMiddleware(wrapped, None, config.flask)
     return middleware(environ, start_response)
+
+
+# Per-Flask-app record of SCRIPT_NAME prefixes we've already walked. WeakKeyDictionary
+# means entries drop when Flask releases an app (hot reload, test teardown) so stale
+# id-reuse can't cause silent misses. Endpoint_collection itself dedupes by (method,
+# path), so this set is a perf gate, not a correctness gate.
+_collected_scripts_by_app: "weakref.WeakKeyDictionary[flask.Flask, set[str]]" = weakref.WeakKeyDictionary()
+
+
+def _collect_flask_routes(app, script_name):
+    """Register every rule in ``app.url_map`` into endpoint_collection, prefixed by
+    ``script_name`` (the mount prefix this app is being served under).
+
+    Flask's url_map already contains Blueprint-prefixed rules, so Blueprints (and
+    nested Blueprints) are registered with their full app-relative path; the
+    ``script_name`` is prepended to capture DispatcherMiddleware mount prefixes
+    which Flask itself is unaware of.
+    """
+    try:
+        url_map = app.url_map
+    except Exception:
+        return
+    for rule in url_map.iter_rules():
+        try:
+            full_path = script_name + rule.rule
+            if rule.methods:
+                # rule.methods carries Flask's auto-added HEAD/OPTIONS — strip those to
+                # match the user-declared method surface that patched_add_url_rule used.
+                methods = [m for m in rule.methods if m not in ("HEAD", "OPTIONS")]
+            else:
+                methods = []
+            if not methods:
+                methods = ["GET"]
+            for method in methods:
+                endpoint_collection.add_endpoint(method, full_path, operation_name="flask.request")
+        except Exception:
+            log.debug("Failed to register Flask rule %r for endpoint collection", rule, exc_info=True)
+
+
+def _walk_wsgi_mounts(wsgi_app, script_name):
+    """Yield ``(flask_app, full_prefix)`` for every Flask app reachable from a WSGI
+    chain, recursing through ``werkzeug.middleware.dispatcher.DispatcherMiddleware``
+    and composing mount prefixes as it descends.
+    """
+    try:
+        from werkzeug.middleware.dispatcher import DispatcherMiddleware
+    except ImportError:
+        DispatcherMiddleware = None  # type: ignore[assignment,misc]
+    if DispatcherMiddleware is not None and isinstance(wsgi_app, DispatcherMiddleware):
+        # Default (unmounted) app handles any path that doesn't match a mount.
+        yield from _walk_wsgi_mounts(wsgi_app.app, script_name)
+        for mount_prefix, mounted in wsgi_app.mounts.items():
+            yield from _walk_wsgi_mounts(mounted, script_name + mount_prefix)
+        return
+    # ``app.wsgi_app`` is a bound method whose __self__ is the Flask app. A direct
+    # Flask instance (passed as the default app to DispatcherMiddleware) also matches.
+    target = getattr(wsgi_app, "__self__", wsgi_app)
+    if isinstance(target, flask.Flask):
+        yield target, script_name
+
+
+def _collect_routes_once(app, script_name=""):
+    """Walk ``app`` (and any DispatcherMiddleware reachable from its wsgi_app) once
+    per ``(app, script_name)`` pair, registering endpoints with the mounted prefix.
+
+    Gated by the endpoint-collection flag — when it's off we skip the walk entirely.
+    """
+    if not asm_config._api_security_endpoint_collection:
+        return
+    if not isinstance(app, flask.Flask):
+        return
+    scripts = _collected_scripts_by_app.get(app)
+    if scripts is None:
+        scripts = set()
+        try:
+            _collected_scripts_by_app[app] = scripts
+        except TypeError:
+            # Unhashable / unreferenceable app — shouldn't happen for flask.Flask but
+            # guard so a degenerate subclass doesn't crash the request path.
+            return
+    if script_name in scripts:
+        return
+    scripts.add(script_name)
+    try:
+        _collect_flask_routes(app, script_name)
+        # app.wsgi_app may itself be a DispatcherMiddleware (Pattern A: user assigned
+        # the DM back onto app.wsgi_app). Descend it so mounts get registered at first
+        # request even if they were constructed before Flask was patched.
+        for sub_app, sub_prefix in _walk_wsgi_mounts(app.wsgi_app, script_name):
+            if sub_app is app:
+                continue
+            _collect_routes_once(sub_app, sub_prefix)
+    except Exception:
+        log.debug("Failed to collect Flask routes for endpoint collection", exc_info=True)
+
+
+def patched_dispatcher_middleware_init(wrapped, instance, args, kwargs):
+    """Walk mounts eagerly at DispatcherMiddleware construction time.
+
+    Without this, sub-apps that never receive traffic would remain invisible to
+    endpoint discovery. Pattern A (DM assigned to app.wsgi_app) would still be
+    covered by the first-request walk in patched_wsgi_app, but Pattern B (DM is
+    the outer WSGI application, not owned by any Flask app) has no such fallback.
+    """
+    wrapped(*args, **kwargs)
+    # Bail before any tree walking when endpoint collection is disabled — the
+    # walk would just hand zero work to a no-op _collect_routes_once otherwise,
+    # and DispatcherMiddleware construction is on the synchronous app-startup
+    # path where every microsecond avoidable is worth avoiding.
+    if not asm_config._api_security_endpoint_collection:
+        return
+    try:
+        # Default app — whatever this DM falls back to when no mount matches.
+        for sub_app, sub_prefix in _walk_wsgi_mounts(getattr(instance, "app", None), ""):
+            _collect_routes_once(sub_app, sub_prefix)
+        # Mounted sub-apps, keyed by mount prefix.
+        mounts = getattr(instance, "mounts", None) or {}
+        for mount_prefix, mounted in mounts.items():
+            for sub_app, sub_prefix in _walk_wsgi_mounts(mounted, mount_prefix):
+                _collect_routes_once(sub_app, sub_prefix)
+    except Exception:
+        log.debug("Failed to walk DispatcherMiddleware mounts for endpoint collection", exc_info=True)
 
 
 def patched_finalize_request(wrapped, instance, args, kwargs):
@@ -401,7 +555,13 @@ def patched_render_debugger_html(wrapped, instance, args, kwargs):
 
 
 def patched_add_url_rule(wrapped, instance, args, kwargs):
-    """Wrapper for flask.app.Flask.add_url_rule to wrap all views attached to this app"""
+    """Wrapper for flask.app.Flask.add_url_rule to wrap all views attached to this app.
+
+    Endpoint registration is deferred to _collect_routes_once() so that Flask apps
+    mounted under a DispatcherMiddleware are reported with their full mount-prefixed
+    path. The mount prefix isn't known at add_url_rule() time (the sub-app is built
+    before being mounted), so registering here would bake in the wrong path.
+    """
 
     def _wrap(rule, endpoint=None, view_func=None, provide_automatic_options=None, **kwargs):
         wrapped_view = None
@@ -410,13 +570,6 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
             #   should we do something special with these views? Change the name/resource? Add tags?
             core.dispatch("service_entrypoint.patch", (unwrap(view_func),))
             wrapped_view = wrap_view(instance, view_func, name=endpoint, resource=rule)
-        methods = kwargs.get("methods", ["GET"])
-        try:
-            methods = iter(methods)
-        except Exception:  # nosec
-            methods = ["GET"]
-        for method in methods:
-            endpoint_collection.add_endpoint(method, rule, operation_name="flask.request")
         return wrapped(
             rule,
             endpoint=endpoint,

@@ -522,8 +522,14 @@ def _set_flask_request_tags(request, span, flask_config):
             span._set_attribute(FLASK_ENDPOINT, request.endpoint)
 
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
-            span.resource = " ".join((request.method, request.url_rule.rule))
-            span._set_attribute(FLASK_URL_RULE, request.url_rule.rule)
+            # Prefix the rule with script_root so sub-apps mounted via
+            # werkzeug.middleware.dispatcher.DispatcherMiddleware report the path the
+            # client actually hit (e.g. `/api/v2/users`) rather than the app-local rule
+            # (`/users`). script_root is empty for non-mounted apps, so flat apps are
+            # unchanged.
+            url_rule = (request.script_root or "") + request.url_rule.rule
+            span.resource = " ".join((request.method, url_rule))
+            span._set_attribute(FLASK_URL_RULE, url_rule)
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
             for k, v in request.view_args.items():
