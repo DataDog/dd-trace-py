@@ -2,6 +2,8 @@ from concurrent.futures import ThreadPoolExecutor
 import contextvars
 import functools
 import sys
+from typing import Any
+from typing import Callable
 from typing import NamedTuple
 
 import aws_durable_execution_sdk_python
@@ -75,7 +77,7 @@ class TracedThreadPoolExecutor(ThreadPoolExecutor):
         return super().submit(_wrapped, *args, **kwargs)
 
 
-def _execution_tags(durable_context):
+def _execution_tags(durable_context: DurableContext):
     """Read execution_arn and initial replay status from DurableContext."""
     tags = {}
     state = getattr(durable_context, "state", None)
@@ -89,7 +91,7 @@ def _execution_tags(durable_context):
     return tags
 
 
-def _traced_durable_execution(wrapped, instance, args, kwargs):
+def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
     # Parameterized decorator @durable_execution(boto3_client=...) calls us with
     # us with no user function and returns a functools.partial, let it re-enter.
     user_func = get_argument_value(args, kwargs, 0, "func", optional=True)
@@ -128,7 +130,7 @@ def _traced_durable_execution(wrapped, instance, args, kwargs):
     return wrapped(traced_user_func, *args[1:], **kwargs)
 
 
-def _is_top_level_for_span(operation_executor):
+def _is_top_level_for_span(operation_executor: OperationExecutor):
     """Skip executors that don't need to be tagged because they don't have corresponding spans.
     MapIteration and ParallelBranch are not traced as they are internal.
     """
@@ -138,7 +140,7 @@ def _is_top_level_for_span(operation_executor):
     )
 
 
-def _traced_process(wrapped, instance, args, kwargs):
+def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
     """Set replayed tag based on checkpoint"""
     active = tracer.current_span()
     if active is not None and active.name.startswith(_SPAN_NAME_PREFIX) and _is_top_level_for_span(instance):
@@ -147,7 +149,7 @@ def _traced_process(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-def _traced_retry_handler(wrapped, instance, args, kwargs):
+def _traced_retry_handler(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
     """Store retried exception to be retrieved by _traced_context"""
     error = get_argument_value(args, kwargs, 0, "error", optional=True)
     if isinstance(error, Exception) and error.__traceback__ is not None:
@@ -161,7 +163,7 @@ class _ContextMethod(NamedTuple):
     name_pos: int
 
 
-def _traced_context(method: _ContextMethod, wrapped, instance, args, kwargs):
+def _traced_context(method: _ContextMethod, wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
     is_invoke = method.method_name == "invoke"
     tags = {}
     if is_invoke:
