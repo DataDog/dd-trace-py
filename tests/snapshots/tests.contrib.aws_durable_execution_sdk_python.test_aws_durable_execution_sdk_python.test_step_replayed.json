@@ -2,7 +2,7 @@
   {
     "name": "aws.durable.execute",
     "service": "tests.contrib.aws_durable_execution_sdk_python",
-    "resource": "tests.contrib.aws_durable_execution_sdk_python.test_aws_durable_execution_sdk.test_step_replayed.<locals>.workflow",
+    "resource": "tests.contrib.aws_durable_execution_sdk_python.test_aws_durable_execution_sdk_python.test_step_replayed.<locals>.workflow",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
