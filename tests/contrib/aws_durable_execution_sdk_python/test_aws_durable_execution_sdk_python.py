@@ -81,7 +81,8 @@ def test_step_with_retry():
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_step_replayed():
     """Single successful step. Runner drives one suspending invocation followed by a
-    replay invocation; the replay's step span carries aws.durable.replayed=true."""
+    replay invocation; the replay's step span carries aws.durable.replayed=true.
+    """
     from aws_durable_execution_sdk_python import durable_execution
     from aws_durable_execution_sdk_python_testing import DurableFunctionTestRunner
 
@@ -99,7 +100,8 @@ def test_step_replayed():
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_parallel_propagates_trace_context():
     """context.parallel uses TracedThreadPoolExecutor so child step spans inherit the
-    trace_id and parent span_id from the parallel span across worker threads."""
+    trace_id and parent span_id from the parallel span across worker threads.
+    """
     from aws_durable_execution_sdk_python import durable_execution
     from aws_durable_execution_sdk_python_testing import DurableFunctionTestRunner
 
@@ -139,10 +141,10 @@ def test_invoke_tags():
     fake_response = InvokeResponse(invocation_output=fake_output, request_id="fake-request-id")
     real_invoke = InProcessInvoker.invoke
 
-    def fake_invoke(self, function_name, input, endpoint_url=None):
+    def fake_invoke(self, function_name, input_, endpoint_url=None):
         if function_name == "my-target-fn":
             return fake_response
-        return real_invoke(self, function_name, input, endpoint_url=endpoint_url)
+        return real_invoke(self, function_name, input_, endpoint_url=endpoint_url)
 
     @durable_execution
     def workflow(event, context):
