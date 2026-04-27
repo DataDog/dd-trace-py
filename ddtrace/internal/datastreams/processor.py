@@ -525,4 +525,7 @@ def _atexit(obj=None):
         obj.shutdown(SHUTDOWN_TIMEOUT)
     except Exception as e:
         if config._data_streams_enabled:
-            log.warning("Failed to shutdown data streams processor: %s", repr(e))
+            try:
+                log.warning("Failed to shutdown data streams processor: %s", repr(e))
+            except Exception:  # nosec: B110
+                pass
