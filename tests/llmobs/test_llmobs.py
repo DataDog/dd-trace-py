@@ -338,6 +338,18 @@ def test_metrics_are_set(tracer, llmobs_events):
     assert llmobs_events[0]["metrics"] == {"tokens": 100}
 
 
+def test_cost_tags_are_set_on_span_event(tracer, llmobs_events):
+    """Test that cost tags are set on the span event if they are present on the span."""
+    with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+        _annotate_llmobs_span_data(
+            llm_span,
+            kind="llm",
+            tags={"team": "ml", "feature": "chatbot"},
+            cost_tags=["team", "feature"],
+        )
+    assert llmobs_events[0]["meta"]["metadata"]["_dd"]["cost_tags"] == ["team", "feature"]
+
+
 def test_langchain_span_name_is_set_to_class_name(tracer, llmobs_events):
     """Test span names for langchain auto-instrumented spans is set correctly."""
     with tracer.trace(const.LANGCHAIN_APM_SPAN_NAME, resource="expected_name", span_type=SpanTypes.LLM) as llm_span:

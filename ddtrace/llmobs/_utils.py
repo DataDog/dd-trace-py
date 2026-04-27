@@ -369,6 +369,11 @@ def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS)
 
 
+def get_llmobs_cost_tags(span: Span) -> Optional[list[str]]:
+    metadata = _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA, {})
+    return metadata.get(LLMOBS_STRUCT.METADATA_DD, {}).get(LLMOBS_STRUCT.COST_TAGS)
+
+
 def get_llmobs_metrics(span: Span) -> Optional[dict[str, Any]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS)
 
@@ -438,6 +443,7 @@ def _annotate_llmobs_span_data(
     metadata: Optional[dict[str, Any]] = None,
     metrics: Optional[dict[str, Any]] = None,
     tags: Optional[dict[str, str]] = None,
+    cost_tags: Optional[list[str]] = None,
     input_messages: Optional[list[Message]] = None,
     input_value: Optional[Any] = None,
     input_documents: Optional[list[Document]] = None,
@@ -461,6 +467,7 @@ def _annotate_llmobs_span_data(
 
     metadata, metrics, and tags are updated on any existing metadata/metrics/tags
     instead of being overwritten.
+    cost_tags must be pre-validated by the caller before being passed here.
     ml_app, session_id, and input_prompt involve being propagated to children spans
     so are additionally stored on span._store to ensure they are available at span finish time.
     """
@@ -471,7 +478,7 @@ def _annotate_llmobs_span_data(
         meta.setdefault(LLMOBS_STRUCT.INPUT, _MetaIO())
         meta.setdefault(LLMOBS_STRUCT.OUTPUT, _MetaIO())
         meta.setdefault(LLMOBS_STRUCT.SPAN, _SpanField(kind=kind or ""))
-        meta.setdefault(LLMOBS_STRUCT.METADATA, {})
+        meta.setdefault(LLMOBS_STRUCT.METADATA, {}).setdefault(LLMOBS_STRUCT.METADATA_DD, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.TAGS, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.METRICS, {})
 
@@ -499,6 +506,13 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
         if tags is not None:
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
+        if cost_tags is not None:
+            existing_cost_tags = meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.METADATA_DD].setdefault(
+                LLMOBS_STRUCT.COST_TAGS, []
+            )
+            for cost_tag in cost_tags:
+                if cost_tag not in existing_cost_tags:
+                    existing_cost_tags.append(cost_tag)
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
             span._set_ctx_item(SESSION_ID, session_id)

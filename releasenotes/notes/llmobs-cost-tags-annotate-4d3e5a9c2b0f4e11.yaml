@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: Adds an optional ``cost_tags`` argument to ``LLMObs.annotate()`` and
+    ``LLMObs.annotation_context()``. Pass a list of tag keys (already set via ``tags``) to have
+    them attached to the cost and token metrics generated from LLM and embedding spans — useful
+    for breaking down spend by team, feature, environment, or any custom dimension. Entries that
+    don't reference an existing span tag are skipped.
