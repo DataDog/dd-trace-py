@@ -23,6 +23,23 @@ import sys
 
 from packaging.utils import parse_sdist_filename
 from packaging.utils import parse_wheel_filename
+from packaging.version import InvalidVersion
+from packaging.version import Version
+
+
+def _public_version(version: object) -> str:
+    # Strip any PEP 440 local version segment (`+g<sha>` added by the rc
+    # stamper in setup.py) so wheels built from a main-descended commit
+    # compare equal to the unstamped PACKAGE_VERSION read from pyproject.toml.
+    # If the input isn't a valid PEP 440 version (e.g. PACKAGE_VERSION is
+    # misconfigured), fall back to the raw string — the downstream equality
+    # check will surface the misconfiguration as a version mismatch rather
+    # than crash the validator with a traceback.
+    raw = str(version)
+    try:
+        return Version(raw).public
+    except InvalidVersion:
+        return raw
 
 
 # Configuration
@@ -44,6 +61,10 @@ SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
 def build_expected_set(version: str, args: argparse.Namespace) -> set[tuple[str, str, str, str]]:
     """Build set of expected (version, python_tag, platform, flavor) tuples."""
+    # Normalize the expected version the same way parse_actual_wheels does,
+    # so stamped wheel tuples collapse equal to expected tuples even when
+    # PACKAGE_VERSION comes in a non-canonical form.
+    version = _public_version(version)
     expected: set[tuple[str, str, str, str]] = set()
     for py_tag in PYTHON_TAGS:
         if args.mode == "serverless":
@@ -81,10 +102,17 @@ def validate_sdist(wheels_dir: str, package_version: str) -> tuple[bool, str, st
 
     sdist_path = sdists[0]
 
-    # Parse sdist filename using packaging library
+    # Parse sdist filename using packaging library.
+    # Unlike wheels, the sdist is intentionally built without a local
+    # version segment (see setup.py's sdist-skip), so an exact string
+    # comparison is used on the sdist side — a regression that accidentally
+    # stamps the sdist should fail validation here rather than be masked
+    # by `_public_version` stripping the segment. The `package_version`
+    # side is still normalized to absorb harmless canonicalization (e.g.
+    # `rc04` → `rc4`).
     try:
         name, version = parse_sdist_filename(sdist_path.name)
-        if str(version) != package_version:
+        if str(version) != _public_version(package_version):
             return (
                 False,
                 f"SDist version {version} != {package_version}",
@@ -124,7 +152,7 @@ def parse_actual_wheels(
                 raise ValueError(f"Cannot parse platform from {wheel_file.name} - searched for marker {marker}")
 
             flavor = name.replace("ddtrace", "").replace("-", "_")
-            actual.add((str(version), py_tag, platform, flavor))
+            actual.add((_public_version(version), py_tag, platform, flavor))
         except Exception as e:
             errors.append(f"{wheel_file.name}: {e}")
 
@@ -136,8 +164,9 @@ def identify_version_mismatches(
 ) -> dict[str, tuple[str, str]]:
     """Identify wheels with wrong versions."""
     mismatches: dict[str, tuple[str, str]] = {}
+    expected_public = _public_version(package_version)
     for version, py_tag, platform, flavor in actual_set:
-        if version != package_version:
+        if version != expected_public:
             key = reconstruct_wheel_filename(version, py_tag, platform, flavor)
             mismatches[key] = (package_version, version)
     return mismatches

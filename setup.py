@@ -13,6 +13,7 @@ import subprocess
 import sys
 import sysconfig
 import tarfile
+import tempfile
 import time
 import typing as t
 import warnings
@@ -1719,6 +1720,234 @@ PACKAGE_NAME = f"ddtrace{WHEEL_FLAVOR}"
 if PACKAGE_NAME != "ddtrace":
     subprocess.run(["sed", "-i", "-e", f's/^name = ".*"/name = "{PACKAGE_NAME}"/g', "pyproject.toml"])
 print(f"INFO: building package '{PACKAGE_NAME}'")
+
+
+def _git(*args: str) -> t.Optional[str]:
+    try:
+        out = subprocess.run(
+            ["git", *args], cwd=str(HERE), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return out.stdout.decode("utf-8", "replace").strip()
+
+
+def _in_git_repo() -> bool:
+    # True iff HERE is itself the top level of a git working tree. We use
+    # `rev-parse --show-toplevel` rather than `--git-dir` because the latter
+    # walks up through parent directories: if a stamped sdist is unpacked
+    # inside some other project's checkout, `--git-dir` would match that
+    # outer repo and stale-stamp recovery would corrupt the sdist's
+    # pyproject.toml. Sdist installs and tarball extracts outside any repo
+    # naturally fall through to False.
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(HERE),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    toplevel = out.stdout.decode("utf-8", "replace").strip()
+    if not toplevel:
+        return False
+    return Path(toplevel).resolve() == HERE.resolve()
+
+
+def _head_on_main() -> bool:
+    # Only stamp when HEAD is an ancestor of the *remote* main branch
+    # (refs/remotes/origin/main) — i.e. the commit is on, or has been merged
+    # to, main. A local refs/heads/main can be stale or contain unpushed
+    # commits, so we deliberately do not fall back to it; a clone with no
+    # origin/main simply doesn't get stamped. Callers must ensure we're
+    # already in a git repo (see _in_git_repo).
+    ref = "refs/remotes/origin/main"
+    # Probe whether origin/main exists. Exit 1 is the normal "ref absent"
+    # answer (forks without tracking refs, mirrors without main, clones that
+    # never fetched origin) and we stay silent for it. Any other non-zero
+    # exit indicates the query itself failed and is worth surfacing.
+    try:
+        subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", ref],
+            cwd=str(HERE),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode != 1:
+            print(
+                f"WARN: rc version stamping skipped; `git rev-parse --verify {ref}` exited {exc.returncode}",
+                file=sys.stderr,
+            )
+        return False
+    except OSError:
+        return False
+    # Ref exists — now check ancestry. Exit 1 is the normal "HEAD is not an
+    # ancestor" answer (topic branches, release-branch checkouts, detached
+    # older commits). Any other non-zero exit indicates the query itself
+    # failed — most often a shallow clone whose history doesn't reach back
+    # far enough.
+    try:
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", "HEAD", ref],
+            cwd=str(HERE),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+        return True
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode != 1:
+            print(
+                "WARN: rc version stamping skipped; `git merge-base "
+                "--is-ancestor HEAD origin/main` exited "
+                f"{exc.returncode} (likely a shallow clone — set GIT_DEPTH=0 "
+                "or fetch --deepen if stamping is expected)",
+                file=sys.stderr,
+            )
+        return False
+    except OSError:
+        return False
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    # Write to a sibling tempfile and rename, so a crash mid-write can't leave
+    # a half-written pyproject.toml on disk.
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        os.replace(tmp, str(path))
+    except OSError:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+def _restore_pyproject(path: str, original_text: str) -> None:
+    # atexit handler: restore pyproject.toml to its pre-stamp contents. Runs
+    # after setup() has returned and all wheel/sdist metadata has been
+    # written, so the restore cannot affect the artifact we just built.
+    with contextlib.suppress(OSError):
+        _atomic_write(Path(path), original_text)
+
+
+# rc-stamping mutates pyproject.toml in place because setuptools reads the
+# version from it; the original is restored via atexit so the working tree
+# (and any subsequent build or `git status` check) stays clean. The local
+# segment (`+g<sha>`) does not affect PEP 440 version precedence, so
+# installs still upgrade as expected, but PyPI rejects local segments —
+# the release-tag pipelines set DD_VERSION_NO_LOCAL=1 to skip stamping (see
+# .gitlab-ci.yml workflow:rules).
+# Only fires for rc builds (not a/b/dev) and only when HEAD is an ancestor
+# of origin/main (i.e. the commit is on, or has been merged to, main), so
+# topic branches and release-branch checkouts never get stamped.
+#
+# Exclusions:
+#   - Windows builds: skipped entirely. Windows wheels ship with the plain
+#     rc version; this avoids propagating env vars into the Windows docker
+#     runner and means aggregation tooling must treat wheel-local segments
+#     as optional (see .gitlab/validate-ddtrace-package.py).
+#   - Sdist builds: skipped when `"sdist"` appears in sys.argv. A stamped
+#     sdist would outrank unstamped platform wheels in pip's candidate
+#     ordering, so a Windows resolver pointed at the combined wheelhouse
+#     would pull the sdist and try to build from source. Only wheels on
+#     supported platforms carry the commit hash.
+#   - Non-repo contexts: if HERE is not the top level of a git working tree
+#     (sdist rebuild, tarball extract, or HERE nested inside an unrelated
+#     repo), we respect whatever pyproject.toml already says.
+#
+# The implementation is intentionally lock-free: every concurrent-build flow
+# we actually care about (CI containers, separate worktrees) runs in its
+# own directory, so the stamp+atexit-restore window can't overlap. In the
+# one remaining theoretical race — two `pip install -e .` running in the
+# exact same checkout — the worst outcome is one wheel being unstamped,
+# which is benign.
+#
+# Stale-stamp recovery handles a prior build that crashed via SIGKILL/OOM
+# before atexit could restore: if the file on disk already has `+g<sha>`,
+# strip it back to the baseline. This runs in two situations: (1)
+# DD_VERSION_NO_LOCAL=1 — we must clear any stale stamp so the escape
+# hatch actually produces a clean artifact for PyPI; and (2) we're in a
+# git repo — safe to strip because we can re-stamp or cleanly leave the
+# baseline on disk. We deliberately do NOT strip when we're in a non-repo
+# context without the env var: pyproject.toml's version there is
+# authoritative (a non-repo build has no other source of truth).
+def _maybe_stamp_rc_version() -> None:
+    if sys.platform == "win32":
+        return
+    pyproject = HERE / "pyproject.toml"
+    try:
+        text = pyproject.read_text()
+    except OSError:
+        return
+    m = re.search(r'^version = "([^"]+)"', text, re.MULTILINE)
+    if not m:
+        return
+    version = m.group(1)
+
+    no_local = os.environ.get("DD_VERSION_NO_LOCAL") == "1"
+    in_repo = _in_git_repo()
+
+    if no_local or in_repo:
+        stale = re.match(r"^(.+?)\+g[0-9a-f]{7,}$", version)
+        if stale:
+            stripped = stale.group(1)
+            text = text.replace(f'version = "{version}"', f'version = "{stripped}"', 1)
+            version = stripped
+            # Persist the recovered baseline immediately so that if we bail
+            # out below (non-rc, non-main ancestor, no head sha, or the
+            # no_local early return) the tree still ends up clean.
+            try:
+                _atomic_write(pyproject, text)
+            except OSError:
+                print(
+                    "WARN: rc version stamping skipped; failed to restore stale "
+                    "pyproject.toml stamp (dirty tree left on disk)",
+                    file=sys.stderr,
+                )
+                return
+
+    if no_local:
+        # Release-tag pipelines: output must not carry a local segment. We
+        # already stripped any stale stamp above; don't stamp anew.
+        return
+    if not in_repo:
+        # Sdist rebuild or other non-repo context. Respect whatever version
+        # is already in pyproject.toml — in particular, if it's a stamped
+        # sdist, its local segment must be preserved so the wheel filename
+        # matches the sdist name.
+        return
+    if "sdist" in sys.argv:
+        # Sdist builds are intentionally left unstamped. A stamped sdist
+        # (`4.8.0rc4+g<sha>`) would outrank unstamped platform wheels
+        # (notably the Windows wheels, which never stamp) in pip's
+        # candidate ordering, so a Windows resolver pointed at the combined
+        # wheelhouse would pull the sdist and try to build from source.
+        # Wheels on supported platforms still carry the commit hash via the
+        # bdist_wheel path.
+        return
+    if not re.search(r"rc\d+", version):
+        return
+    if not _head_on_main():
+        return
+    short_sha = _git("rev-parse", "--short=7", "HEAD")
+    if not short_sha:
+        return
+    new_version = f"{version}+g{short_sha}"
+    new_text = text.replace(f'version = "{version}"', f'version = "{new_version}"', 1)
+    try:
+        _atomic_write(pyproject, new_text)
+    except OSError:
+        return
+    atexit.register(_restore_pyproject, str(pyproject), text)
+    print(f"INFO: stamped rc build with commit hash: {new_version}")
+
+
+_maybe_stamp_rc_version()
 
 interpose_sccache()
 setup(
