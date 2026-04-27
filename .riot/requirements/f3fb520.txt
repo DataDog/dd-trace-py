@@ -14,9 +14,9 @@ importlib-metadata==8.7.1
 iniconfig==2.1.0
 mock==5.2.0
 opentracing==2.4.0
-packaging==26.0
+packaging==26.2
 pluggy==1.6.0
-pygments==2.19.2
+pygments==2.20.0
 pytest==8.4.2
 pytest-asyncio==0.21.1
 pytest-cov==7.1.0
@@ -25,6 +25,6 @@ pytest-randomly==4.0.1
 redis==7.0.1
 rq==2.0.0
 sortedcontainers==2.4.0
-tomli==2.4.0
+tomli==2.4.1
 typing-extensions==4.15.0
-zipp==3.23.0
+zipp==3.23.1
