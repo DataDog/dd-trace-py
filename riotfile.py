@@ -533,7 +533,7 @@ venv = Venv(
         Venv(
             name="dd_coverage",
             command="pytest --no-cov {cmdargs} tests/coverage -s",
-            pys=select_pys(max_version="3.12"),
+            pys=select_pys(),
         ),
         Venv(
             name="detect_global_locks",

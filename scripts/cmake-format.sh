@@ -9,6 +9,7 @@ BASE_DIR=$(dirname "$(realpath "$0")")
 CMAKE_FORMAT="cmake-format"
 
 # NB: consumes the arguments
+EXPLICIT_FILES=()
 while (( "$#" )); do
     case "$1" in
         --fix|-fix|fix)
@@ -18,6 +19,7 @@ while (( "$#" )); do
             ENUM_ALL=true
             ;;
         *)
+            EXPLICIT_FILES+=("$1")
             ;;
     esac
     shift
@@ -39,7 +41,11 @@ enumerate_files() {
 }
 
 # Enumerate and filter files
-FILES=$(enumerate_files | grep -vE '^(\./)?build/' | grep -vE '_vendor/')
+if [[ ${#EXPLICIT_FILES[@]} -gt 0 ]]; then
+    FILES=$(printf '%s\n' "${EXPLICIT_FILES[@]}")
+else
+    FILES=$(enumerate_files | grep -vE '^(\./)?build/' | grep -vE '_vendor/')
+fi
 
 # Run cmake-format on all files
 # Use a process substitution to allow iterating safely
