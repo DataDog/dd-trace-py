@@ -589,7 +589,7 @@ integrations:
   tested_versions_by_dependency:
     logbook:
       min: 1.0.0
-      max: 1.8.2
+      max: 1.9.2
 
 - integration_name: logging
   is_external_package: false
