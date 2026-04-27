@@ -92,20 +92,22 @@ def _(asyncio: ModuleType) -> None:
 
     # Python 3.14+: BaseDefaultEventLoopPolicy was renamed to _BaseDefaultEventLoopPolicy
     # Try both names for compatibility
-    events_module = sys.modules["asyncio.events"]
+    events_module: ModuleType = sys.modules["asyncio.events"]
     if sys.hexversion >= 0x030E0000:
         # Python 3.14+: Use _BaseDefaultEventLoopPolicy
-        policy_class = getattr(events_module, "_BaseDefaultEventLoopPolicy", None)
+        policy_class: typing.Optional[type[typing.Any]] = getattr(events_module, "_BaseDefaultEventLoopPolicy", None)
     else:
         # Python < 3.14: Use BaseDefaultEventLoopPolicy
         policy_class = getattr(events_module, "BaseDefaultEventLoopPolicy", None)
 
     if policy_class is not None:
 
-        @partial(wrap, policy_class.set_event_loop)
+        @partial(wrap, policy_class.set_event_loop)  # pyright: ignore[reportArgumentType]
         def _(
-            f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
-        ) -> typing.Any:
+            f: typing.Callable[[object, typing.Optional["aio.AbstractEventLoop"]], None],
+            args: typing.Any,
+            kwargs: typing.Any,
+        ) -> None:
             loop: typing.Optional["aio.AbstractEventLoop"] = get_argument_value(args, kwargs, 1, "loop")
             if init_stack:
                 stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
@@ -118,13 +120,16 @@ def _(asyncio: ModuleType) -> None:
             try:
                 return f(*args, **kwargs)
             finally:
-                children = get_argument_value(args, kwargs, 1, "children")
+                children: list["aio.Future[typing.Any]"] = typing.cast(
+                    list["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 1, "children")
+                )
                 assert children is not None  # nosec: assert is used for typing
 
                 if globals()["get_running_loop"]() is not None:
-                    parent = globals()["current_task"]()
-                    for child in children:
-                        stack.link_tasks(parent, child)
+                    parent: typing.Optional["aio.Task[typing.Any]"] = globals()["current_task"]()
+                    if parent is not None:
+                        for child in children:
+                            stack.link_tasks(parent, child)
 
         @partial(wrap, sys.modules["asyncio"].tasks._wait)
         def _(
@@ -178,9 +183,9 @@ def _(asyncio: ModuleType) -> None:
         ) -> typing.Any:
             loop = typing.cast(typing.Optional["aio.AbstractEventLoop"], kwargs.get("loop"))
             awaitable = typing.cast("aio.Future[typing.Any]", get_argument_value(args, kwargs, 0, "arg"))
-            future = asyncio.ensure_future(awaitable, loop=loop)
+            future: "aio.Future[typing.Any]" = asyncio.ensure_future(awaitable, loop=loop)
 
-            parent = globals()["current_task"]()
+            parent: typing.Optional["aio.Task[typing.Any]"] = globals()["current_task"]()
             if parent is not None:
                 stack.link_tasks(parent, future)
 
@@ -196,9 +201,9 @@ def _(asyncio: ModuleType) -> None:
 
         # Wrap asyncio.TaskGroup.create_task to link parent task to created tasks (Python 3.11+)
         if sys.hexversion >= 0x030B0000:  # Python 3.11+
-            taskgroups_module = sys.modules.get("asyncio.taskgroups")
+            taskgroups_module: typing.Optional[ModuleType] = sys.modules.get("asyncio.taskgroups")
             if taskgroups_module is not None:
-                taskgroup_class = getattr(taskgroups_module, "TaskGroup", None)
+                taskgroup_class: typing.Optional[type[typing.Any]] = getattr(taskgroups_module, "TaskGroup", None)
                 if taskgroup_class is not None and hasattr(taskgroup_class, "create_task"):
 
                     @partial(wrap, taskgroup_class.create_task)
@@ -206,10 +211,10 @@ def _(asyncio: ModuleType) -> None:
                         f: typing.Callable[..., "aio.Task[typing.Any]"],
                         args: tuple[typing.Any, ...],
                         kwargs: dict[str, typing.Any],
-                    ) -> typing.Any:
-                        result = f(*args, **kwargs)
+                    ) -> "aio.Task[typing.Any]":
+                        result: "aio.Task[typing.Any]" = f(*args, **kwargs)
 
-                        parent = globals()["current_task"]()
+                        parent: typing.Optional["aio.Task[typing.Any]"] = globals()["current_task"]()
                         if parent is not None and result is not None:
                             # Link parent task to the task created by TaskGroup
                             stack.link_tasks(parent, result)
@@ -259,18 +264,20 @@ def _(uvloop: ModuleType) -> None:
     init_stack: bool = config.stack.enabled and stack.is_available
 
     # Wrap uvloop.new_event_loop to track loops when they're created
-    new_event_loop_func = getattr(uvloop, "new_event_loop", None)
+    new_event_loop_func: typing.Optional[typing.Callable[[], "asyncio.AbstractEventLoop"]] = getattr(
+        uvloop, "new_event_loop", None
+    )
     if new_event_loop_func is not None:
 
-        @partial(wrap, new_event_loop_func)
+        @partial(wrap, new_event_loop_func)  # type: ignore[arg-type]
         def _(
-            f: typing.Callable[..., "asyncio.AbstractEventLoop"],
+            f: typing.Callable[[], "asyncio.AbstractEventLoop"],
             args: tuple[typing.Any, ...],
             kwargs: dict[str, typing.Any],
         ) -> "asyncio.AbstractEventLoop":
-            loop = f(*args, **kwargs)
+            loop: "asyncio.AbstractEventLoop" = f(*args, **kwargs)
             if init_stack:
-                thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+                thread_id: int = typing.cast(int, ddtrace_threading.current_thread().ident)
                 stack.set_uvloop_mode(thread_id, True)
 
                 stack.track_asyncio_loop(thread_id, loop)
@@ -280,14 +287,16 @@ def _(uvloop: ModuleType) -> None:
             return loop
 
     # Wrap uvloop.EventLoopPolicy.set_event_loop for uvloop.install() + asyncio.run() pattern
-    policy_class = getattr(uvloop, "EventLoopPolicy", None)
+    policy_class: typing.Optional[type[typing.Any]] = getattr(uvloop, "EventLoopPolicy", None)
     if policy_class is not None and hasattr(policy_class, "set_event_loop"):
 
-        @partial(wrap, policy_class.set_event_loop)
+        @partial(wrap, policy_class.set_event_loop)  # pyright: ignore[reportArgumentType]
         def _(
-            f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
-        ) -> typing.Any:
-            thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+            f: typing.Callable[[object, typing.Optional["asyncio.AbstractEventLoop"]], None],
+            args: typing.Any,
+            kwargs: typing.Any,
+        ) -> None:
+            thread_id: int = typing.cast(int, ddtrace_threading.current_thread().ident)
             if init_stack:
                 stack.set_uvloop_mode(thread_id, True)
 
