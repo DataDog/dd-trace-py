@@ -453,6 +453,16 @@ class BaseModuleWatchdog(abc.ABC):
             loader = getattr(spec, "loader", None)
 
             if not isinstance(loader, _ImportHookChainedLoader):
+                # PathFinder always returns a fresh loader, but for modules
+                # already in sys.modules the existing loader may already have
+                # accumulated state (e.g. the _dd_get_code wrapper set by
+                # _exec_module). Reusing it avoids re-wrapping get_code on
+                # every reload, which would make the loader identity test in
+                # test_module_watchdog_does_not_rewrap_get_code fail.
+                existing_module = sys.modules.get(fullname)
+                existing_spec_loader = getattr(getattr(existing_module, "__spec__", None), "loader", None)
+                if existing_spec_loader is not None and not isinstance(existing_spec_loader, _ImportHookChainedLoader):
+                    loader = existing_spec_loader
                 spec.loader = t.cast("Loader", _ImportHookChainedLoader(loader, spec))
 
             t.cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)

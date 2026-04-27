@@ -615,49 +615,66 @@ def test_lazy_decorator():
 
 @pytest.mark.subprocess(timeout=10)
 def test_module_watchdog_find_spec_no_cross_thread_deadlock():
-    """Regression test: ModuleWatchdog.find_spec must not re-enter the import
-    machinery via importlib.util.find_spec(), which acquires per-module import
-    locks and can deadlock when a background thread is spawned during a module's
-    __init__ (e.g. snowflake-connector-python >= 4.4.0 spawns a thread in
-    _utils._load() that calls importlib.files(), reproducing a classic A-B lock
-    deadlock against the main thread).
+    """Regression: ModuleWatchdog.find_spec() must not call importlib.util.find_spec(),
+    which re-enters the import machinery and calls _lock_unlock_module() on the parent
+    package to resolve its __path__.  When a background thread is spawned during a
+    package's __init__ (e.g. snowflake-connector-python >= 4.4.0 spawns a thread in
+    _utils._load() that calls importlib.files()), that thread reaches find_spec() for a
+    submodule of the package currently being loaded.  The old code would try to acquire
+    the parent's import lock — already held by the main thread — while the main thread
+    waited for the background thread: a classic A-B deadlock.
+
+    The test holds the "tests" package import lock in the main thread and has a
+    background thread call ModuleWatchdog.find_spec() for a (nonexistent) submodule of
+    "tests" directly, bypassing the outer _find_and_load() so we reach the code path
+    that previously called importlib.util.find_spec().
     """
-    import importlib
     import sys
     import threading
 
     from ddtrace.internal.module import ModuleWatchdog
 
+    # importlib._bootstrap is always present in sys.modules; _get_module_lock
+    # gives us the per-module lock used by CPython's import system.
+    bootstrap = sys.modules.get("importlib._bootstrap")
+    if bootstrap is None or not hasattr(bootstrap, "_get_module_lock"):
+        import pytest
+
+        pytest.skip("importlib._bootstrap._get_module_lock not available")
+
+    _get_module_lock = bootstrap._get_module_lock
+
     ModuleWatchdog.install()
+
+    # Hold the "tests" import lock in the main thread, simulating a package
+    # mid-import (e.g. snowflake.connector being executed by the main thread).
+    lock = _get_module_lock("tests")
+    lock.acquire()
 
     background_done = threading.Event()
 
-    def background_import(module_name):
-        # Simulate what snowflake-connector-python 4.4.0's _utils._load() thread
-        # does: call importlib.import_module() for a module that is currently
-        # being loaded by the main thread.  The old find_spec() called
-        # importlib.util.find_spec() which re-entered _find_and_load() and
-        # called _lock_unlock_module(), blocking on the lock held by the main
-        # thread while the main thread was waiting for this thread to finish.
-        try:
-            importlib.import_module(module_name)
-        except Exception:
-            pass
+    def background():
+        # Simulate the background thread calling find_spec() for a submodule of
+        # the locked package — the path that snowflake-connector-python 4.4.0
+        # triggers via importlib.files() → importlib.util.find_spec().
+        # Old code: called importlib.util.find_spec("tests.<sub>") which called
+        # __import__("tests") to resolve the parent __path__, which called
+        # _lock_unlock_module("tests") → blocked on the lock the main thread holds.
+        # New code: iterates sys.meta_path directly with path/target already
+        # provided — no _lock_unlock_module call, no deadlock.
+        for finder in sys.meta_path:
+            if isinstance(finder, ModuleWatchdog):
+                finder.find_spec("tests._ddtrace_regression_nonexistent", None, None)
+                break
         background_done.set()
 
-    def pre_exec_hook(loader, module):
-        t = threading.Thread(target=background_import, args=(module.__name__,))
-        t.start()
-        t.join(timeout=5)
-        if not background_done.is_set():
-            raise RuntimeError("Deadlock: background thread did not complete within 5 seconds")
-        loader.exec_module(module)
-
-    ModuleWatchdog.register_pre_exec_module_hook("tests.test_module", pre_exec_hook)
-
-    if "tests.test_module" in sys.modules:
-        del sys.modules["tests.test_module"]
-
-    importlib.import_module("tests.test_module")
-
-    assert background_done.is_set()
+    t = threading.Thread(target=background)
+    t.start()
+    t.join(timeout=5)
+    try:
+        assert background_done.is_set(), (
+            "Deadlock: ModuleWatchdog.find_spec() blocked the background thread on a "
+            "module import lock held by the main thread"
+        )
+    finally:
+        lock.release()
