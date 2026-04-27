@@ -82,7 +82,7 @@ def test_registry():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
 def test_duplicates():
     import os
 
@@ -201,7 +201,7 @@ def test_event_basic():
     event.clear()
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
 def test_event_fork():
     """Check that a forksafe.Event is reset after a fork().
 
@@ -228,7 +228,7 @@ def test_event_fork():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
 def test_double_fork():
     import os
 

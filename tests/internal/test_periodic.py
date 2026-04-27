@@ -199,7 +199,7 @@ def test_forksafe_awakeable_periodic_service():
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
 def test_autorestart_false_service_restarts_in_parent_after_fork():
     """A PeriodicService with autorestart=False must keep running in the parent
     process after a fork. The flag means 'do not restart in the child', not
