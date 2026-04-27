@@ -617,6 +617,26 @@ profiling_native:
         MEMCPY_MODE: ["fast"]
         SANITIZER: ["safety", "thread"]
 
+# AIDEV-TODO(py315): fold 3.15 back into the profiling_native matrix once the
+# dd/images/dd-trace-py/profiling_native base image installs a Python 3.15
+# pyenv version. Today it only carries 3.9–3.14, so PYENV_VERSION=3.15 fails
+# with "pyenv: version `3.15' is not installed". allow_failure keeps the
+# pipeline green while the upstream image catches up; delete this job and
+# re-add "3.15" to the PYTHON_VERSION arrays above once the image is updated.
+profiling_native_py315:
+  extends: .profiling_native_base
+  allow_failure: true
+  retry: 2
+  rules: !reference [profiling_native, rules]
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.15"]
+        MEMCPY_MODE: ["default"]
+        SANITIZER: ["safety", "thread", "", "valgrind"]
+      - PYTHON_VERSION: ["3.15"]
+        MEMCPY_MODE: ["fast"]
+        SANITIZER: ["safety", "thread"]
+
 test-dd-sts:
   stage: tests
   needs: []
