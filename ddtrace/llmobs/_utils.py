@@ -402,7 +402,7 @@ def _trace_id_to_wire(value: Optional[str]) -> Optional[str]:
     """
     if not value:
         return None
-    if _HEX_TRACE_ID_RE.match(value):
+    if _HEX_TRACE_ID_RE.match(value.lower()):
         try:
             return str(int(value, 16))
         except ValueError:
