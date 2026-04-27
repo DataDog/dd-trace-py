@@ -371,7 +371,10 @@ def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
 
 def get_llmobs_cost_tags(span: Span) -> Optional[list[str]]:
     metadata = _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA, {})
-    return metadata.get(LLMOBS_STRUCT.METADATA_DD, {}).get(LLMOBS_STRUCT.COST_TAGS)
+    metadata_dd = metadata.get(LLMOBS_STRUCT.METADATA_DD, {})
+    if not isinstance(metadata_dd, dict):
+        return None
+    return metadata_dd.get(LLMOBS_STRUCT.COST_TAGS)
 
 
 def get_llmobs_metrics(span: Span) -> Optional[dict[str, Any]]:
@@ -478,7 +481,7 @@ def _annotate_llmobs_span_data(
         meta.setdefault(LLMOBS_STRUCT.INPUT, _MetaIO())
         meta.setdefault(LLMOBS_STRUCT.OUTPUT, _MetaIO())
         meta.setdefault(LLMOBS_STRUCT.SPAN, _SpanField(kind=kind or ""))
-        meta.setdefault(LLMOBS_STRUCT.METADATA, {}).setdefault(LLMOBS_STRUCT.METADATA_DD, {})
+        meta.setdefault(LLMOBS_STRUCT.METADATA, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.TAGS, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.METRICS, {})
 
@@ -500,16 +503,21 @@ def _annotate_llmobs_span_data(
         if metadata is not None:
             meta[LLMOBS_STRUCT.METADATA].update(metadata)
         if agent_manifest is not None:
-            metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
+            metadata_dd = meta[LLMOBS_STRUCT.METADATA].get(LLMOBS_STRUCT.METADATA_DD)
+            if not isinstance(metadata_dd, dict):
+                metadata_dd = {}
+                meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.METADATA_DD] = metadata_dd
             metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
         if tags is not None:
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
         if cost_tags is not None:
-            existing_cost_tags = meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.METADATA_DD].setdefault(
-                LLMOBS_STRUCT.COST_TAGS, []
-            )
+            metadata_dd = meta[LLMOBS_STRUCT.METADATA].get(LLMOBS_STRUCT.METADATA_DD)
+            if not isinstance(metadata_dd, dict):
+                metadata_dd = {}
+                meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.METADATA_DD] = metadata_dd
+            existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
             for cost_tag in cost_tags:
                 if cost_tag not in existing_cost_tags:
                     existing_cost_tags.append(cost_tag)
