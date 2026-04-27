@@ -75,7 +75,7 @@ def test_uds_wrong_socket_path():
             "failed to send, dropping %d traces to intake at %s: %s",
             1,
             "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
-            "client error (Connect)",
+            "Network error: client error (Connect)",
             extra={"send_to_telemetry": False},
         )
     ]
@@ -318,7 +318,7 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
             "failed to send, dropping %d traces to intake at %s: %s",
             1,
             "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
-            "client error (Connect)",
+            "Network error: client error (Connect)",
             extra={"send_to_telemetry": False},
         )
     ]
