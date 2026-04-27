@@ -625,7 +625,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "canonical_id": attrs.get("canonical_id"),
                     "input_data": attrs["input"],
                     "expected_output": attrs.get("expected_output"),
-                    "metadata": attrs.get("metadata", {}),
+                    "metadata": attrs.get("metadata") or {},
                     "tags": attrs.get("tags", []),
                 }
                 class_records.append(dataset_record)
