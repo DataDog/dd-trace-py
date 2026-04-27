@@ -237,6 +237,11 @@ tests/snapshots/tests.contrib.openai_agents.*                 @DataDog/ml-observ
 tests/snapshots/tests.contrib.litellm.*                       @DataDog/ml-observability
 tests/snapshots/tests.contrib.vllm.*                          @DataDog/ml-observability
 tests/snapshots/tests.contrib.mlflow.*                        @DataDog/ml-observability
+tests/snapshots/tests.contrib.google_genai.*                  @DataDog/ml-observability
+tests/snapshots/tests.contrib.pydantic_ai.*                   @DataDog/ml-observability
+tests/snapshots/tests.contrib.ray.*                           @DataDog/ml-observability
+tests/snapshots/tests.contrib.mcp.*                           @DataDog/ml-observability
+tests/snapshots/tests.contrib.claude_agent_sdk.*              @DataDog/ml-observability
 
 # Remote Config
 ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-python
