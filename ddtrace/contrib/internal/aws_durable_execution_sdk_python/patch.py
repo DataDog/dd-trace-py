@@ -11,6 +11,7 @@ from aws_durable_execution_sdk_python.context import DurableContext
 from aws_durable_execution_sdk_python.exceptions import SuspendExecution
 from aws_durable_execution_sdk_python.lambda_service import OperationSubType
 from aws_durable_execution_sdk_python.operation.base import OperationExecutor
+from aws_durable_execution_sdk_python.operation.step import StepOperationExecutor
 
 from ddtrace import config
 from ddtrace import tracer
@@ -26,6 +27,16 @@ log = get_logger(__name__)
 
 
 config._add("aws_durable_execution_sdk_python", {})
+
+
+_SPAN_NAME_PREFIX = "aws.durable."
+_TAG_EXECUTION_ARN = "aws.durable.execution_arn"
+_TAG_REPLAYED = "aws.durable.replayed"
+_TAG_INVOCATION_STATUS = "aws.durable.invocation_status"
+_TAG_INVOKE_FUNCTION_NAME = "aws.durable.invoke.function_name"
+
+
+_SUSPEND_CAUSE_KEY = "aws_durable.suspend_cause"
 
 
 def get_version() -> str:
@@ -65,25 +76,25 @@ class TracedThreadPoolExecutor(ThreadPoolExecutor):
 
 
 def _execution_tags(durable_context):
-    """Read execution_arn and initial replay status off the SDK's DurableContext."""
+    """Read execution_arn and initial replay status from DurableContext."""
     tags = {}
     state = getattr(durable_context, "state", None)
     if state is not None:
         arn = getattr(state, "durable_execution_arn", None)
         if arn:
-            tags["aws.durable.execution_arn"] = arn
+            tags[_TAG_EXECUTION_ARN] = arn
         status_enum = getattr(state, "_replay_status", None)
         if status_enum is not None:
-            tags["aws.durable.replayed"] = "true" if status_enum.name == "REPLAY" else "false"
+            tags[_TAG_REPLAYED] = "true" if status_enum.name == "REPLAY" else "false"
     return tags
 
 
-def _traced_durable_execution(func, instance, args, kwargs):
-    # Keyword-only invocation (e.g. @durable_execution(boto3_client=...)) calls
-    # us with func=None and returns a functools.partial; let that partial re-enter.
+def _traced_durable_execution(wrapped, instance, args, kwargs):
+    # Parameterized decorator @durable_execution(boto3_client=...) calls us with
+    # us with no user function and returns a functools.partial, let it re-enter.
     user_func = get_argument_value(args, kwargs, 0, "func", optional=True)
     if user_func is None or not callable(user_func):
-        return func(*args, **kwargs)
+        return wrapped(*args, **kwargs)
 
     @functools.wraps(user_func)
     def traced_user_func(*inner_args, **inner_kwargs):
@@ -94,7 +105,7 @@ def _traced_durable_execution(func, instance, args, kwargs):
             integration_config=config.aws_durable_execution_sdk_python,
             operation_name="aws.durable.execute",
             span_type="serverless",
-            span_kind="server",
+            span_kind="internal",
             resource="{}.{}".format(user_func.__module__, user_func.__qualname__),
             tags=_execution_tags(durable_context),
         )
@@ -103,19 +114,18 @@ def _traced_durable_execution(func, instance, args, kwargs):
             try:
                 result = user_func(*inner_args, **inner_kwargs)
             except SuspendExecution:
-                # SuspendExecution is control flow (InvocationStatus.PENDING), not an error.
-                ctx.span.set_tag("aws.durable.invocation_status", "pending")
+                ctx.span.set_tag(_TAG_INVOCATION_STATUS, "pending")
                 ctx.dispatch_ended_event()
                 raise
             except BaseException:
-                ctx.span.set_tag("aws.durable.invocation_status", "failed")
+                ctx.span.set_tag(_TAG_INVOCATION_STATUS, "failed")
                 ctx.dispatch_ended_event(*sys.exc_info())
                 raise
-            ctx.span.set_tag("aws.durable.invocation_status", "succeeded")
+            ctx.span.set_tag(_TAG_INVOCATION_STATUS, "succeeded")
             ctx.dispatch_ended_event()
             return result
 
-    return func(traced_user_func, *args[1:], **kwargs)
+    return wrapped(traced_user_func, *args[1:], **kwargs)
 
 
 def _is_top_level_for_span(operation_executor):
@@ -129,10 +139,19 @@ def _is_top_level_for_span(operation_executor):
 
 
 def _traced_process(wrapped, instance, args, kwargs):
+    """Set replayed tag based on checkpoint"""
     active = tracer.current_span()
-    if active is not None and active.name.startswith("aws.durable.") and _is_top_level_for_span(instance):
+    if active is not None and active.name.startswith(_SPAN_NAME_PREFIX) and _is_top_level_for_span(instance):
         checkpoint = instance.state.get_checkpoint_result(instance.operation_identifier.operation_id)
-        active.set_tag("aws.durable.replayed", "true" if checkpoint.is_succeeded() else "false")
+        active.set_tag(_TAG_REPLAYED, "true" if checkpoint.is_succeeded() else "false")
+    return wrapped(*args, **kwargs)
+
+
+def _traced_retry_handler(wrapped, instance, args, kwargs):
+    """Store retried exception to be retrieved by _traced_context"""
+    error = get_argument_value(args, kwargs, 0, "error", optional=True)
+    if isinstance(error, Exception) and error.__traceback__ is not None:
+        core.set_item(_SUSPEND_CAUSE_KEY, (type(error), error, error.__traceback__))
     return wrapped(*args, **kwargs)
 
 
@@ -142,26 +161,31 @@ class _ContextMethod(NamedTuple):
     name_pos: int
 
 
-def _traced_context(method: _ContextMethod, func, instance, args, kwargs):
+def _traced_context(method: _ContextMethod, wrapped, instance, args, kwargs):
+    is_invoke = method.method_name == "invoke"
     tags = {}
-    if method.method_name == "invoke":
-        tags["aws.durable.invoke.function_name"] = get_argument_value(args, kwargs, 0, "function_name")
+    if is_invoke:
+        tags[_TAG_INVOKE_FUNCTION_NAME] = get_argument_value(args, kwargs, 0, "function_name")
 
     event = TracingEvent.create(
         component=config.aws_durable_execution_sdk_python.integration_name,
         integration_config=config.aws_durable_execution_sdk_python,
         operation_name=method.span_name,
-        span_type="worker",
-        span_kind="internal",
+        span_type="serverless",
+        span_kind="client" if is_invoke else "internal",
         resource=get_argument_value(args, kwargs, method.name_pos, "name", optional=True),
         tags=tags,
     )
 
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
-            result = func(*args, **kwargs)
+            result = wrapped(*args, **kwargs)
         except SuspendExecution:
-            ctx.dispatch_ended_event()
+            cause_exc_info = ctx.get_item(_SUSPEND_CAUSE_KEY)
+            if cause_exc_info is not None:
+                ctx.dispatch_ended_event(*cause_exc_info)
+            else:
+                ctx.dispatch_ended_event()
             raise
         except BaseException:
             ctx.dispatch_ended_event(*sys.exc_info())
@@ -206,6 +230,9 @@ def patch():
     executor_module.ThreadPoolExecutor = TracedThreadPoolExecutor
 
     wrap("aws_durable_execution_sdk_python.operation.base", "OperationExecutor.process", _traced_process)
+    wrap(
+        "aws_durable_execution_sdk_python.operation.step", "StepOperationExecutor.retry_handler", _traced_retry_handler
+    )
 
 
 def unpatch():
@@ -224,3 +251,4 @@ def unpatch():
     executor_module.ThreadPoolExecutor = ThreadPoolExecutor
 
     unwrap(OperationExecutor, "process")
+    unwrap(StepOperationExecutor, "retry_handler")
