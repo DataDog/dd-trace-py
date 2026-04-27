@@ -89,11 +89,13 @@ notify_datadog_release:
     - export DD_APP_KEY=$(echo "$DD_STS_RESPONSE" | jq -re '.application_key')
     - '[ -n "$DD_API_KEY" ] && echo "DD_API_KEY is set (${#DD_API_KEY} chars)" || echo "DD_API_KEY is EMPTY"'
     - '[ -n "$DD_APP_KEY" ] && echo "DD_APP_KEY is set (${#DD_APP_KEY} chars)" || echo "DD_APP_KEY is EMPTY"'
+    - export CI_COMMIT_TAG=test_commit
+    - export CI_COMMIT_SHA=test_hash
   script:
     - sleep 3
     - |
       echo "Testing workflow API with hardcoded values..."
-      PAYLOAD='{"version": "v0.0.0-dry-run", "git_commit_sha": "0000000000000000000000000000000000000000"}'
+      PAYLOAD="{\"version\": \"${CI_COMMIT_TAG}\", \"git_commit_sha\": \"${CI_COMMIT_SHA}\"}"
       BODY=$(jq -n --arg input "$PAYLOAD" '{"meta": {"payload": {"input": $input}}}')
       curl --retry 3 --retry-delay 2 -w "\nHTTP status: %{http_code}\n" -X POST \
         -H "Content-Type: application/json" \
