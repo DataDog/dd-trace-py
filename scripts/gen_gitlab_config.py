@@ -171,6 +171,10 @@ TARGET_JOBS = 200
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 
+def _is_version_support_run() -> bool:
+    return bool(os.getenv("VERSION_SUPPORT_SPEC_JSON") or os.getenv("VERSION_SUPPORT_SPEC_FILE"))
+
+
 def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, SuiteVenvInfo]:
     """Collect venv count and Python versions for multiple suites in a single pass.
 
@@ -316,7 +320,7 @@ def gen_required_suites() -> None:
             LOGGER.warning("Unknown suite(s) specified via --suite: %s", unknown)
         required_suites = [s for s in args.suites if s in suites]
         LOGGER.info("Using explicit suite selection: %s", required_suites)
-    elif os.getenv("VERSION_SUPPORT_SPEC_JSON") or os.getenv("VERSION_SUPPORT_SPEC_FILE"):
+    elif _is_version_support_run():
         # AIDEV-NOTE: VERSION_SUPPORT runs use a dedicated child pipeline. Keep the
         # regular tests child pipeline empty here so these runs stay isolated.
         LOGGER.info("VERSION_SUPPORT spec detected; skipping regular test-suite generation")
@@ -350,6 +354,19 @@ def gen_required_suites() -> None:
         required_suites = sorted(suites.keys())
 
     _gen_tests(suites, required_suites)
+    if _is_version_support_run():
+        with TESTS_GEN.open("a") as f:
+            print(
+                """
+version_support_regular_tests_noop:
+  extends: .testrunner
+  stage: setup
+  needs: []
+  script:
+    - echo "Regular test child pipeline skipped for VERSION_SUPPORT run"
+""".strip(),
+                file=f,
+            )
     _gen_benchmarks(suites, required_suites)
 
 
@@ -550,6 +567,10 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
 def gen_build_docs() -> None:
     """Include the docs build step if the docs have changed."""
+    if _is_version_support_run():
+        LOGGER.info("VERSION_SUPPORT spec detected; skipping docs build generation")
+        return
+
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
@@ -701,6 +722,10 @@ prechecks:
 
 def gen_cached_testrunner() -> None:
     """Generate the cached testrunner job."""
+    if _is_version_support_run():
+        LOGGER.info("VERSION_SUPPORT spec detected; skipping cached testrunner generation")
+        return
+
     with TESTS_GEN.open("a") as f:
         f.write(
             template(
@@ -720,6 +745,10 @@ def gen_build_base_venvs() -> None:
     Only builds venvs for the Python versions actually needed by the required suites,
     falling back to all supported versions when no venv info is available.
     """
+    if _is_version_support_run():
+        LOGGER.info("VERSION_SUPPORT spec detected; skipping regular base venv generation")
+        return
+
     if _global_python_versions:
         py_versions = sorted(_global_python_versions)
         LOGGER.info("Building base venvs for Python versions: %s", py_versions)
