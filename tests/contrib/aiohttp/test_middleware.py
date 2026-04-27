@@ -374,7 +374,7 @@ async def test_distributed_tracing(app, test_spans, aiohttp_client):
     # with the right trace_id and parent_id
     assert span.trace_id == 100
     assert span.parent_id == 42
-    assert span.get_metric(_SAMPLING_PRIORITY_KEY) is AUTO_KEEP
+    assert int(span.get_metric(_SAMPLING_PRIORITY_KEY)) is AUTO_KEEP
 
 
 async def test_distributed_tracing_with_sampling_true(app, tracer, test_spans, aiohttp_client):

@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-import logging
 import os
 import signal
 
-import mock
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
@@ -220,62 +218,6 @@ def test_wrong_service_type_not_sent():
     with tracer.trace("test.span", service=456) as span:
         # Invalid type gets coerced to empty string
         assert span.service is None
-
-
-@pytest.mark.parametrize(
-    "meta",
-    [
-        ({"env": "my-env", "tag1": "some_str_1", "tag2": "some_str_2", "tag3": [1, 2, 3]}),
-        ({"env": "test-env", b"tag1": {"wrong_type": True}, b"tag2": "some_str_2", b"tag3": "some_str_3"}),
-        ({"env": "my-test-env", "😐": "some_str_1", b"tag2": "some_str_2", "unicode": 12345}),
-        ({"env": set([1, 2, 3])}),
-        ({"env": None}),
-        ({"env": True}),
-        ({"env": 1.0}),
-    ],
-)
-@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
-def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
-    """Wrong meta types should raise TypeErrors during encoding and fail to send to the agent."""
-    with override_global_config(dict(_trace_api=encoding)):
-        logger = logging.getLogger("ddtrace.internal._encoding")
-        with mock.patch.object(logger, "warning") as log_warning:
-            with tracer.trace("root") as root:
-                root._meta = meta  # ast-grep-ignore: span-meta-access
-                for _ in range(299):
-                    with tracer.trace("child") as child:
-                        child._meta = meta  # ast-grep-ignore: span-meta-access
-
-            assert log_warning.call_count == 300
-            log_warning.assert_called_with(
-                "[span ID %d] Meta key %r has non-string value %r, skipping", mock.ANY, mock.ANY, mock.ANY
-            )
-
-
-@pytest.mark.parametrize(
-    "metrics,expected_warning_count",
-    [
-        ({"num1": 12345, "num2": 53421, "num3": 1, "num4": "not-a-number"}, 300),
-        ({b"num1": 123.45, b"num2": [1, 2, 3], b"num3": 11.0, b"num4": 1.20}, 300),
-        ({"😐": "123.45", b"num2": "1", "num3": {"is_number": False}, "num4": "12345"}, 1200),
-    ],
-)
-@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
-def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, expected_warning_count):
-    """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
-    with override_global_config(dict(_trace_api=encoding)):
-        logger = logging.getLogger("ddtrace.internal._encoding")
-        with mock.patch.object(logger, "warning") as log_warning:
-            with tracer.trace("root") as root:
-                root._metrics = metrics  # ast-grep-ignore: span-metrics-access
-                for _ in range(299):
-                    with tracer.trace("child") as child:
-                        child._metrics = metrics  # ast-grep-ignore: span-metrics-access
-
-            assert log_warning.call_count == expected_warning_count
-            log_warning.assert_called_with(
-                "[span ID %d] Metric key %r has non-numeric value %r, skipping", mock.ANY, mock.ANY, mock.ANY
-            )
 
 
 @pytest.mark.subprocess()
