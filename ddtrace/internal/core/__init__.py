@@ -196,8 +196,10 @@ class ExecutionContext(Generic[EventType]):
             if self._token is not None:
                 try:
                     _CURRENT_CONTEXT.reset(self._token)
-                except Exception:
-                    pass
+                except ValueError:
+                    log.debug("Encountered ValueError resetting context in __enter__ error path for %s", self)
+                except LookupError:
+                    log.debug("Encountered LookupError resetting context in __enter__ error path for %s", self)
                 self._token = None
             raise
         return self

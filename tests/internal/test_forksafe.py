@@ -5,7 +5,7 @@ import pytest
 from ddtrace.internal import forksafe
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
 def test_forksafe():
     import os
 
@@ -34,7 +34,7 @@ def test_forksafe():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
 def test_registry():
     """This verifies that registered hooks are called after a fork.
 

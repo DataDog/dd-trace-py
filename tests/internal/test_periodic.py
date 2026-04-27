@@ -156,7 +156,7 @@ def test_awakeable_periodic_service():
     assert queue == list(range(n + 1))
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
 def test_forksafe_awakeable_periodic_service():
     import os
     from threading import Event
@@ -402,7 +402,7 @@ def _get_native_thread_name():
     return None
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
 def test_periodic_thread_stop_without_join_forksafe():
     """
     Dropping a PeriodicThread that was stop()'d without join() in a forked child
