@@ -216,12 +216,21 @@ Traces
      default: True
      description: Send query strings in http.url tag in http client integrations.
 
+   DD_TRACE_HTTP_CLIENT_ERROR_STATUSES:
+     type: String
+     default: "500-599"
+
+     description: |
+        Comma-separated list of HTTP status codes that should be considered errors for HTTP client spans.
+        Multiple comma separated error ranges can be set (ex:  ``200,400-404,500-599``).
+        The status codes are used to set the ``error`` field on the span.
+
    DD_TRACE_HTTP_SERVER_ERROR_STATUSES:
      type: String
      default: "500-599"
 
      description: |
-        Comma-separated list of HTTP status codes that should be considered errors when returned by an HTTP request.
+        Comma-separated list of HTTP status codes that should be considered errors for HTTP server spans.
         Multiple comma separated error ranges can be set (ex:  ``200,400-404,500-599``).
         The status codes are used to set the ``error`` field on the span.
 

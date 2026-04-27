@@ -42,6 +42,8 @@ from ddtrace.vendor.debtcollector import deprecate
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
 from .http import HttpConfig
+from .http import _HTTPClientConfig
+from .http import _HTTPServerConfig
 from .integration import IntegrationConfig
 
 
@@ -275,23 +277,6 @@ def _deepmerge(source, destination):
     return destination
 
 
-def get_error_ranges(error_range_str: str) -> list[tuple[int, int]]:
-    error_ranges = []
-    error_range_str = error_range_str.strip()
-    error_ranges_str = error_range_str.split(",")
-    for error_range in error_ranges_str:
-        values = error_range.split("-")
-        try:
-            # Note: mypy does not like variable type changing
-            values = [int(v) for v in values]  # type: ignore[misc]
-        except ValueError:
-            log.exception("Error status codes was not a number %s", values)
-            continue
-        error_range = (min(values), max(values))  # type: ignore[assignment]
-        error_ranges.append(error_range)
-    return error_ranges  # type: ignore[return-value]
-
-
 _ConfigSource = Literal["default", "env_var", "code", "remote_config"]
 _JSONType = Union[None, int, float, str, bool, list["_JSONType"], dict[str, "_JSONType"]]
 
@@ -410,33 +395,6 @@ class Config(object):
     available and can be updated by users.
     """
 
-    class _HTTPServerConfig(object):
-        _error_statuses: str = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")
-        _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
-
-        @property
-        def error_statuses(self) -> str:
-            return self._error_statuses
-
-        @error_statuses.setter
-        def error_statuses(self, value: str) -> None:
-            self._error_statuses = value
-            self._error_ranges = get_error_ranges(value)
-            # Mypy can't catch cached method's invalidate()
-            self.is_error_code.cache_clear()  # type: ignore[attr-defined]
-
-        @property
-        def error_ranges(self) -> list[tuple[int, int]]:
-            return self._error_ranges
-
-        @cachedmethod()
-        def is_error_code(self, status_code: int) -> bool:
-            """Returns a boolean representing whether or not a status code is an error code."""
-            for error_range in self.error_ranges:
-                if error_range[0] <= status_code <= error_range[1]:
-                    return True
-            return False
-
     def __init__(self) -> None:
         # Must validate Otel configurations before creating the config object.
         validate_otel_envs()
@@ -518,7 +476,8 @@ class Config(object):
 
         self._extra_services: set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
-        self._http_server = self._HTTPServerConfig()
+        self._http_server = _HTTPServerConfig()
+        self._http_client = _HTTPClientConfig()
 
         self._extra_services_sent: set[str] = set()
         self._extra_services_queue = None
