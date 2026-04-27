@@ -1,6 +1,6 @@
 variables:
   SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
-  SLS_CI_BRANCH: v1.0.0
+  SLS_CI_BRANCH: v1.2.0
 
 benchmark-serverless:
   stage: benchmarks
