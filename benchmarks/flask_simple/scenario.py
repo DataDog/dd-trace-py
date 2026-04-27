@@ -15,6 +15,7 @@ class FlaskSimple(bm.Scenario, FlaskScenarioMixin):
     telemetry_metrics_enabled: bool
     errortracking_enabled: str
     resource_renaming_enabled: bool
+    native_span_writer_enabled: bool
 
     def run(self):
         app = self.create_app()

@@ -1075,6 +1075,265 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
 
 
+class NativeSpanWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
+    """Writer that passes span data directly to the trace exporter, bypassing msgpack encoding.
+
+    Unlike NativeWriter, this writer collects finished Span (SpanData) objects and submits
+    them as structured data via TraceExporter.send_trace_chunks(), skipping the
+    encode-then-decode round trip that NativeWriter performs.
+
+    Flushes occur only on the periodic background thread (default every 1s). The producer
+    thread (writer.write) does only a list append and immediately returns.
+    """
+
+    STATSD_NAMESPACE = "tracer"
+
+    def __init__(
+        self,
+        intake_url: str,
+        processing_interval: Optional[float] = None,
+        compute_stats_enabled: bool = False,
+        dogstatsd: Optional["DogStatsd"] = None,
+        sync_mode: bool = False,
+        api_version: Optional[str] = None,
+        report_metrics: bool = True,
+        response_callback: Optional[Callable[[AgentResponse], None]] = None,
+        test_session_token: Optional[str] = None,
+        stats_opt_out: Optional[bool] = False,
+        otlp_endpoint: Optional[str] = None,
+    ) -> None:
+        if processing_interval is None:
+            processing_interval = config._trace_writer_interval_seconds
+
+        # DEV: NativeSpanWriter always uses v0.4 output format. libdatadog's v0.5 output
+        # (TraceExporterOutputFormat::V05) converts spans via from_v04_span, which silently
+        # drops span_links and span_events because the v05::Span struct has no fields for them.
+        # v0.4 encodes both fields natively via msgpack_encoder::v04.
+        # When libdatadog adds v0.5 support for span_links/events, revisit this default.
+        self._api_version = "v0.4"
+
+        additional_header_str = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        if test_session_token is None and additional_header_str is not None:
+            additional_header = parse_tags_str(additional_header_str)
+            if "X-Datadog-Test-Session-Token" in additional_header:
+                test_session_token = additional_header["X-Datadog-Test-Session-Token"]
+
+        super(NativeSpanWriter, self).__init__(interval=processing_interval)
+        self.intake_url = intake_url
+        self._otlp_endpoint = otlp_endpoint
+        self._test_session_token = test_session_token
+        self.dogstatsd = dogstatsd
+        self._metrics: dict[str, int] = defaultdict(int)
+        self._report_metrics = report_metrics
+        self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
+        self._sync_mode = sync_mode
+        self._compute_stats_enabled = compute_stats_enabled
+        self._response_cb = response_callback
+        self._stats_opt_out = stats_opt_out
+
+        self._trace_chunks: list[list["Span"]] = []
+        self._lock = threading.Lock()
+
+        before_fork_hook = make_weak_method_hook(self.before_fork_hook)
+        self._fork_hook = before_fork_hook
+        forksafe.register_before_fork(before_fork_hook)
+
+        self._exporter = self._create_exporter()
+
+    def before_fork_hook(self):
+        if self.status != service.ServiceStatus.RUNNING:
+            self._exporter.stop_worker()
+
+    def __del__(self):
+        if hasattr(self, "_fork_hook") and self._fork_hook:
+            forksafe.unregister_before_fork(self._fork_hook)
+
+    def _create_exporter(self) -> native.TraceExporter:
+        _, commit_sha, _ = get_git_tags()
+
+        builder = (
+            native.TraceExporterBuilder()
+            .set_url(self.intake_url)
+            .set_hostname(get_hostname())
+            .set_language("python")
+            .set_language_version(compat.PYTHON_VERSION)
+            .set_language_interpreter(compat.PYTHON_INTERPRETER)
+            .set_tracer_version(__version__)
+            .set_git_commit_sha(commit_sha)
+            .set_client_computed_top_level()
+            # DEV: No input_format needed — send_trace_chunks bypasses deserialization.
+            # output_format controls how libdatadog re-serializes before sending to agent.
+            .set_output_format(self._api_version)
+        )
+        if config.service:
+            builder.set_service(config.service)
+        if config.env:
+            builder.set_env(config.env)
+        if config.version:
+            builder.set_app_version(config.version)
+        if self._otlp_endpoint is not None:
+            builder.set_otlp_endpoint(self._otlp_endpoint)
+            otlp_headers = NativeWriter._parse_otlp_headers()
+            if otlp_headers:
+                builder.set_otlp_headers(otlp_headers)
+            builder.set_connection_timeout(otel_config.exporter.TRACES_TIMEOUT)
+        if p_tags := process_tags.process_tags:
+            builder.set_process_tags(p_tags)
+        if self._test_session_token is not None:
+            builder.set_test_session_token(self._test_session_token)
+        if self._stats_opt_out:
+            builder.set_client_computed_stats()
+        elif self._compute_stats_enabled:
+            stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            bucket_size_ns: int = int(stats_interval * 1e9)
+            builder.enable_stats(bucket_size_ns)
+
+        if config._telemetry_enabled and sys.platform.startswith("linux"):
+            heartbeat_ms = int(config._telemetry_heartbeat_interval * 1000)
+            builder.enable_telemetry(heartbeat_ms, get_runtime_id())
+        if config._health_metrics_enabled:
+            builder.enable_health_metrics()
+
+        return builder.build()
+
+    def set_test_session_token(self, token: Optional[str]) -> None:
+        self._test_session_token = token
+        self._exporter.stop_worker()
+        self._exporter = self._create_exporter()
+
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeSpanWriter":
+        try:
+            self.stop()
+        except ServiceStatusError:
+            pass
+
+        api_version = "v0.4" if appsec_enabled else self._api_version
+        return self.__class__(
+            intake_url=self.intake_url,
+            processing_interval=self._interval,
+            compute_stats_enabled=self._compute_stats_enabled,
+            dogstatsd=self.dogstatsd,
+            sync_mode=self._sync_mode,
+            api_version=api_version,
+            report_metrics=self._report_metrics,
+            response_callback=self._response_cb,
+            test_session_token=self._test_session_token,
+            stats_opt_out=self._stats_opt_out,
+            otlp_endpoint=self._otlp_endpoint,
+        )
+
+    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
+        if not self._report_metrics:
+            return
+        if config._health_metrics_enabled and self.dogstatsd:
+            self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
+
+    def _set_drop_rate(self) -> None:
+        accepted = self._metrics["accepted_traces"]
+        sent = self._metrics["sent_traces"]
+        with self._lock:
+            buffered = len(self._trace_chunks)
+        dropped = max(accepted - sent - buffered, 0)
+        self._drop_sma.set(dropped, accepted)
+        self._metrics["sent_traces"] = 0
+        self._metrics["accepted_traces"] = buffered
+
+    def _set_keep_rate(self, trace):
+        if trace:
+            trace[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
+
+    def write(self, spans: Optional[list["Span"]] = None) -> None:
+        if spans is None:
+            return
+
+        if not self._sync_mode:
+            try:
+                if self.status != service.ServiceStatus.RUNNING:
+                    self.start()
+            except service.ServiceStatusError:
+                _safelog(log.warning, "failed to start writer service")
+
+        self._metrics_dist("writer.accepted.traces")
+        self._metrics["accepted_traces"] += 1
+        self._set_keep_rate(spans)
+
+        with self._lock:
+            self._trace_chunks.append(spans)
+
+        self._metrics_dist("buffer.accepted.traces", 1)
+        self._metrics_dist("buffer.accepted.spans", len(spans))
+
+        if self._sync_mode:
+            self.flush_queue()
+
+    def flush_queue(self, raise_exc: bool = False) -> None:
+        with self._lock:
+            if not self._trace_chunks:
+                return
+            chunks = self._trace_chunks
+            n_chunks = len(chunks)
+            self._trace_chunks = []
+
+        try:
+            response_body = self._exporter.send_trace_chunks(chunks)
+        except native.RequestError as e:
+            try:
+                code = int(str(e).split(",")[0].split(":", maxsplit=1)[1])
+            except Exception:
+                raise e
+            if code not in (404, 415):
+                raise e
+            _safelog(
+                log.warning,
+                "Received %s from agent; the send_trace_chunks path does not support downgrade, dropping %d chunks.",
+                code,
+                n_chunks,
+            )
+        except Exception as e:
+            if raise_exc:
+                raise
+            _safelog(log.error, "failed to send %d trace chunks to %s: %s", n_chunks, self.intake_url, str(e))
+        else:
+            self._metrics["sent_traces"] += n_chunks
+            if self._response_cb and response_body:
+                response = Response(body=response_body)
+                raw_resp = response.get_json()
+                if raw_resp and "rate_by_service" in raw_resp:
+                    self._response_cb(AgentResponse(rate_by_service=raw_resp["rate_by_service"]))
+        finally:
+            self._set_drop_rate()
+
+    def periodic(self):
+        self.flush_queue(raise_exc=False)
+
+    def _stop_service(self, timeout: Optional[float] = None) -> None:
+        try:
+            super(NativeSpanWriter, self)._stop_service()
+            self.join(timeout=timeout)
+        finally:
+            self._exporter.stop_worker()
+            if self._fork_hook:
+                forksafe.unregister_before_fork(self._fork_hook)
+                self._fork_hook = None
+
+    def _start_service(self, *args, **kwargs):
+        super()._start_service(*args, **kwargs)
+
+        def _before_fork(worker: periodic.PeriodicThread) -> None:
+            super(periodic.PeriodicThread, worker)._before_fork()
+            super(periodic.PeriodicThread, worker).join()
+            self._exporter.stop_worker()
+
+        assert self._worker is not None  # nosec
+        self._worker._before_fork = _before_fork.__get__(self._worker, type(self._worker))
+
+    def on_shutdown(self):
+        try:
+            self.periodic()
+        finally:
+            self._exporter.shutdown(3_000_000_000)
+
+
 def _use_log_writer() -> bool:
     """Returns whether the LogWriter should be used in the environment by
     default.
@@ -1138,6 +1397,18 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
     otlp_endpoint = (
         otel_config.exporter.TRACES_ENDPOINT if _is_otlp_traces_exporter_enabled(otel_config.exporter) else None
     )
+
+    if env.get("_DD_TRACE_NATIVE_SPAN_WRITER_ENABLED", "false").lower() in ("true", "1"):
+        return NativeSpanWriter(
+            intake_url=agent_config.trace_agent_url,
+            dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
+            sync_mode=_use_sync_mode(),
+            compute_stats_enabled=config._trace_compute_stats,
+            report_metrics=not asm_config._apm_opt_out,
+            response_callback=response_callback,
+            stats_opt_out=asm_config._apm_opt_out,
+            otlp_endpoint=otlp_endpoint,
+        )
 
     return NativeWriter(
         intake_url=agent_config.trace_agent_url,

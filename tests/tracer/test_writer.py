@@ -26,6 +26,7 @@ from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_en
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import LogWriter
+from ddtrace.internal.writer import NativeSpanWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import _human_size
 from ddtrace.trace import Span
@@ -1400,3 +1401,110 @@ def test_native_writer_stores_otlp_endpoint():
     """NativeWriter stores the otlp_endpoint when provided."""
     writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
     assert writer._otlp_endpoint == "http://localhost:4318/v1/traces"
+
+
+class NativeSpanWriterTests(BaseTestCase):
+    """Unit tests for NativeSpanWriter."""
+
+    def _make_writer(self, **kwargs):
+        """Create a NativeSpanWriter with a mocked exporter."""
+        writer = NativeSpanWriter("http://dne:1234", **kwargs)
+        writer._exporter = mock.Mock()
+        writer._exporter.send_trace_chunks.return_value = ""
+        return writer
+
+    def test_write_queues_chunk_without_flushing(self):
+        """write() appends to the queue without calling send_trace_chunks."""
+        writer = self._make_writer(sync_mode=False)
+        spans = [Span(name="op", trace_id=1, span_id=1)]
+        writer.write(spans)
+
+        writer._exporter.send_trace_chunks.assert_not_called()
+        with writer._lock:
+            assert writer._trace_chunks == [spans]
+
+    def test_flush_queue_sends_all_chunks(self):
+        """flush_queue() drains the queue and calls send_trace_chunks once with all chunks."""
+        writer = self._make_writer(sync_mode=False)
+        trace1 = [Span(name="op1", trace_id=1, span_id=1)]
+        trace2 = [Span(name="op2", trace_id=2, span_id=2)]
+        with writer._lock:
+            writer._trace_chunks = [trace1, trace2]
+
+        writer.flush_queue()
+
+        writer._exporter.send_trace_chunks.assert_called_once_with([trace1, trace2])
+        with writer._lock:
+            assert writer._trace_chunks == []
+
+    def test_flush_queue_empty_is_noop(self):
+        """flush_queue() with an empty queue does not call send_trace_chunks."""
+        writer = self._make_writer(sync_mode=False)
+        writer.flush_queue()
+        writer._exporter.send_trace_chunks.assert_not_called()
+
+    def test_write_sync_mode_flushes_immediately(self):
+        """In sync_mode=True, write() calls send_trace_chunks immediately."""
+        writer = self._make_writer(sync_mode=True)
+        spans = [Span(name="op", trace_id=1, span_id=1)]
+        writer.write(spans)
+
+        writer._exporter.send_trace_chunks.assert_called_once_with([spans])
+
+    def test_keep_rate_set_on_first_span(self):
+        """write() sets the keep-rate attribute on the first span of each trace."""
+        writer = self._make_writer(sync_mode=False)
+        spans = [Span(name="op", trace_id=1, span_id=1)]
+        writer.write(spans)
+
+        assert spans[0]._get_numeric_attribute(_KEEP_SPANS_RATE_KEY) is not None
+
+    def test_on_shutdown_idempotent(self):
+        """on_shutdown() can be called multiple times without raising."""
+        writer = NativeSpanWriter("http://dne:1234")
+        writer.start()
+        writer.on_shutdown()
+        writer.on_shutdown()
+
+    def test_on_shutdown_before_start(self):
+        """on_shutdown() can be called before start() without raising."""
+        writer = NativeSpanWriter("http://dne:1234")
+        writer.on_shutdown()
+
+    def test_write_none_is_noop(self):
+        """write(None) does nothing."""
+        writer = self._make_writer(sync_mode=False)
+        writer.write(None)
+        writer._exporter.send_trace_chunks.assert_not_called()
+
+    def test_api_version_always_v04(self):
+        """NativeSpanWriter always uses v0.4 output format."""
+        writer = NativeSpanWriter("http://dne:1234")
+        assert writer._api_version == "v0.4"
+
+    def test_accepted_traces_metric(self):
+        """write() increments the accepted_traces metric."""
+        statsd = mock.Mock()
+        with override_global_config(dict(_health_metrics_enabled=True)):
+            writer = self._make_writer(sync_mode=False, dogstatsd=statsd)
+            for i in range(3):
+                writer.write([Span(name="op", trace_id=i + 1, span_id=1)])
+
+        statsd.distribution.assert_any_call(
+            "datadog.tracer.buffer.accepted.traces", 1, tags=None
+        )
+
+    def test_meta_struct_span_passed_to_send_trace_chunks(self):
+        """flush_queue() passes spans with meta_struct set to send_trace_chunks."""
+        writer = self._make_writer(sync_mode=False)
+        span = Span(name="op", trace_id=1, span_id=1)
+        span.finish()
+        span._set_struct_tag("my_key", {"key": "value"})
+        assert span._has_meta_structs()
+
+        with writer._lock:
+            writer._trace_chunks = [[span]]
+
+        writer.flush_queue()
+
+        writer._exporter.send_trace_chunks.assert_called_once_with([[span]])

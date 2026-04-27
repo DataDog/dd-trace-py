@@ -93,6 +93,7 @@ class FlaskScenarioMixin:
                 "DD_IAST_ENABLED": str(self.iast_enabled),
                 "DD_TELEMETRY_METRICS_ENABLED": str(self.telemetry_metrics_enabled),
                 "DD_TRACE_RESOURCE_RENAMING_ENABLED": str(self.resource_renaming_enabled),
+                "DD_TRACE_NATIVE_SPAN_WRITER_ENABLED": str(self.native_span_writer_enabled),
             }
         )
 

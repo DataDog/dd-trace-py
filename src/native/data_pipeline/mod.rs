@@ -5,6 +5,7 @@ use libdd_data_pipeline::trace_exporter::{
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
 mod exceptions;
+use crate::span::SpanData;
 use exceptions::TraceExporterErrorPy;
 
 /// A wrapper around [TraceExporterBuilder]
@@ -213,6 +214,51 @@ pub struct TraceExporterPy {
 
 #[pymethods]
 impl TraceExporterPy {
+    /// Send trace chunks as structured span data, bypassing msgpack deserialization.
+    ///
+    /// Accepts a list of trace chunks (each chunk is a list of [SpanData] objects).
+    /// [SpanData::take_data] is called on each span, which moves `meta_struct` into
+    /// the wire-format span and then takes the inner [Span<PyTraceData>], leaving the
+    /// Python objects with default (empty) span data. Callers must not access span data
+    /// fields after this call.
+    ///
+    /// The GIL is released while the HTTP send is in progress.
+    fn send_trace_chunks(
+        &self,
+        py: Python<'_>,
+        trace_chunks: Vec<Vec<PyRefMut<'_, SpanData>>>,
+    ) -> PyResult<String> {
+        // Extract the inner Span<PyTraceData> from each SpanData while holding the GIL.
+        // PyRefMut borrows cannot be held across a GIL release, so we must move the data
+        // into an owned Vec before calling py.detach().
+        let chunks: Vec<Vec<_>> = trace_chunks
+            .into_iter()
+            .map(|chunk| {
+                chunk
+                    .into_iter()
+                    .map(|mut span| span.take_data(py))
+                    .collect()
+            })
+            .collect();
+
+        py.detach(move || {
+            match self
+                .inner
+                .as_ref()
+                .ok_or(PyValueError::new_err(
+                    "TraceExporter has already been consumed",
+                ))?
+                .send_trace_chunks(chunks)
+            {
+                Ok(res) => match res {
+                    AgentResponse::Changed { body } => Ok(body),
+                    AgentResponse::Unchanged => Ok("".to_string()),
+                },
+                Err(e) => Err(TraceExporterErrorPy::from(e).into()),
+            }
+        })
+    }
+
     /// Send a msgpack encoded trace payload.
     ///
     /// The payload is passed as an immutable `bytes` object to be able to release the GIL while

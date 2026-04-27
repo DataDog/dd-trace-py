@@ -7,7 +7,7 @@ use pyo3::{
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 
-use crate::py_string::{PyBackedString, PyTraceData};
+use crate::py_string::{Bytes, PyBackedString, PyTraceData};
 use crate::utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use libdd_trace_utils::span::{
     v04::{
@@ -54,6 +54,50 @@ impl SpanData {
     fn set_default_attribute_entry(&mut self, k: &Bound<'_, PyAny>, v: &Bound<'_, PyAny>) {
         if !self.has_attribute(k) {
             let _ = self.set_attribute(k, v);
+        }
+    }
+
+    /// Prepare the span for export and move out the inner `Span<PyTraceData>`.
+    ///
+    /// Any state on the outer `SpanData` wrapper that must be reflected in the wire-format
+    /// `Span<PyTraceData>` must be moved/encoded into `self.data` here, before the take.
+    /// Callers must not access span data fields after this call.
+    pub fn take_data(&mut self, py: Python<'_>) -> libdd_trace_utils::span::v04::Span<PyTraceData> {
+        self.prepare_meta_struct_for_take(py);
+        std::mem::take(&mut self.data)
+    }
+
+    /// Encode `self.meta_struct` into `self.data.meta_struct` as msgpack bytes.
+    ///
+    /// `self.meta_struct` stores live Python dicts (cheap to update on the hot set_tag path).
+    /// `self.data.meta_struct` stores already-encoded msgpack bytes (required by the wire format).
+    /// We defer the encoding to flush time so serialization cost is paid once per span, not once
+    /// per `_set_struct_tag` call.
+    ///
+    /// Uses `ddtrace.internal._encoding.packb` to match the byte-for-byte output of the
+    /// existing Cython encoder path.
+    fn prepare_meta_struct_for_take(&mut self, py: Python<'_>) {
+        let Some(meta_struct) = self.meta_struct.take() else {
+            return;
+        };
+        let packb = match py
+            .import("ddtrace.internal._encoding")
+            .and_then(|m| m.getattr("packb"))
+        {
+            Ok(f) => f,
+            Err(_) => return,
+        };
+        let dict = meta_struct.bind(py);
+        for (k, v) in dict.iter() {
+            let key = match k.extract::<PyBackedString>() {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+            let encoded = match packb.call1((&v,)).and_then(|b| b.extract::<Vec<u8>>()) {
+                Ok(bytes) => bytes,
+                Err(_) => continue,
+            };
+            self.data.meta_struct.insert(key, Bytes::from(encoded));
         }
     }
 }

@@ -230,6 +230,12 @@ impl Borrow<[u8]> for Bytes {
     }
 }
 
+impl From<Vec<u8>> for Bytes {
+    fn from(v: Vec<u8>) -> Self {
+        Self(v)
+    }
+}
+
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct PyTraceData;
 impl TraceData for PyTraceData {
