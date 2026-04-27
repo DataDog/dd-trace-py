@@ -96,7 +96,7 @@
      {
        "name": "http.request",
        "service": "pytest",
-       "resource": "http.request",
+       "resource": "GET /bad_path.cgi",
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,

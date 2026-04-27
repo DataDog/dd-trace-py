@@ -26,7 +26,7 @@
      {
        "name": "aiohttp.request",
        "service": "tests.contrib.aiohttp",
-       "resource": "aiohttp.request",
+       "resource": "GET /status/200",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
