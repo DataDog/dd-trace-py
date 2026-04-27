@@ -11,6 +11,7 @@ from typing import Union
 from ddtrace import config
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec._trace_utils import _aiguard_manual_keep
+from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
@@ -313,6 +314,18 @@ class AIGuardClient:
                 root_span = core.get_root_span()
                 if root_span:
                     _aiguard_manual_keep(root_span)
+                    root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
+                    # Populate client IP on the service-entry span only when an ai_guard span
+                    # is actually created, mirroring the AppSec spec. The candidate IP was
+                    # stashed earlier by set_http_meta when DD_AI_GUARD_ENABLED=true.
+                    # Discard the key after use so a later evaluate() call can't inherit a
+                    # stale IP from an earlier request that shared this context tree.
+                    client_ip = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
+                    core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
+                    if client_ip:
+                        entry_span = root_span._service_entry_span
+                        entry_span._set_attribute(http.CLIENT_IP, client_ip)
+                        entry_span._set_attribute("network.client.ip", client_ip)
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(

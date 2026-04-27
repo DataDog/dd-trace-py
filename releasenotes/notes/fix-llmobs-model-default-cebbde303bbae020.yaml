@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Changes the default ``model_name`` and ``model_provider`` of LLM and embedding spans from ``custom`` to ``unknown`` if not provided or empty. This applies to both auto-instrumented spans and manual instrumentation via ``LLMObs.llm()`` / ``LLMObs.embedding()`` and the ``@llm`` / ``@embedding`` decorators.

@@ -533,6 +533,8 @@ def set_http_meta(
             status_code,
             response_headers,
             response_cookies,
+            peer_ip,
+            headers_are_case_sensitive,
         ],
     )
 
@@ -642,7 +644,10 @@ def set_flattened_tags(
 ) -> None:
     for prefix, value in items:
         for tag, v in _flatten(value, sep, prefix, exclude_policy):
-            span.set_tag(tag, processor(v) if processor is not None else v)
+            v = processor(v) if processor is not None else v
+            if isinstance(v, bool):
+                v = str(v)
+            span.set_tag(tag, v)
 
 
 def extract_netloc_and_query_info_from_url(url: str) -> tuple[str, str]:

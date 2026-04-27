@@ -6,15 +6,10 @@ from __future__ import annotations
 import dataclasses
 from enum import Enum
 import logging
-import time
 import typing as t
 
-from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.telemetry.data import get_application
-from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.offline_mode import write_payload_file
 from ddtrace.testing.internal.settings_data import Settings
@@ -306,65 +301,79 @@ class TelemetryAPI:
         self.add_distribution_metric("git_requests.objects_pack_files", uploaded_files)
         self.add_distribution_metric("git_requests.objects_pack_bytes", uploaded_bytes)
 
+    def record_commit_sha_match(self, matched: bool) -> None:
+        self.add_count_metric("git.commit_sha_match", 1, {"matched": "true" if matched else "false"})
+
+    def record_commit_sha_discrepancy(
+        self,
+        expected_provider: str,
+        discrepant_provider: str,
+        discrepancy_type: str,
+    ) -> None:
+        self.add_count_metric(
+            "git.commit_sha_discrepancy",
+            1,
+            {
+                "expected_provider": expected_provider,
+                "discrepant_provider": discrepant_provider,
+                "type": discrepancy_type,
+            },
+        )
+
+
+class _PayloadFileTelemetryClient:
+    """Drop-in replacement for ``_TelemetryClient`` that writes payloads to files.
+
+    Installed on the ``telemetry_writer`` so that the writer's full lifecycle
+    (``app-started``, heartbeats, integrations, dependencies, CI metrics,
+    ``app-closing``) is captured with real content and proper ``seq_id`` — the
+    same payload the writer would have sent over HTTP, just redirected to disk.
+    """
+
+    # Matches the attribute read by TelemetryWriter.enable_agentless_client().
+    _agentless: bool = False
+
+    def __init__(self, output_dir: str) -> None:
+        self._output_dir = output_dir
+
+    def send_event(self, request: dict, payload_type: str) -> None:
+        write_payload_file(output_dir=self._output_dir, payload=request, kind="telemetry")
+        return None
+
 
 class PayloadFileTelemetryAPI(TelemetryAPI):
-    """TelemetryAPI variant that writes accumulated metrics to a JSON payload file.
+    """TelemetryAPI variant that redirects the ddtrace telemetry writer to payload files.
 
-    Used in payload-files mode (Bazel).  Metrics are accumulated during the
-    session and flushed to ``payloads/telemetry/`` on ``finish()``.  The
-    underlying ``telemetry_writer`` is still called so that ddtrace's own
-    telemetry pipeline can attempt delivery (it will silently fail inside the
-    sandbox, which is fine).
+    Used in payload-files mode (Bazel).  Swaps the telemetry writer's HTTP client
+    with ``_PayloadFileTelemetryClient`` so that all telemetry events are written to
+    ``payloads/telemetry/`` instead of being sent over the network.  Resetting
+    ``writer.started`` ensures the writer re-emits ``app-started`` with the real
+    integration and dependency information on the next flush.
     """
 
     def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
         super().__init__(connector_setup)
         self._output_dir = output_dir
-        self._accumulated_metrics: list[dict[str, t.Any]] = []
+        self._writer_supports_intercept = hasattr(self.writer, "_client")
+        if self._writer_supports_intercept:
+            self.writer._client = _PayloadFileTelemetryClient(output_dir)  # type: ignore[assignment]
+            # Re-arm app-started so it is included in the next flush with real content.
+            self.writer.started = False
+        else:
+            log.warning(
+                "Telemetry writer does not support client swapping (NoOpTelemetryWriter?); "
+                "telemetry payloads will not be written to files"
+            )
 
     def finish(self) -> None:
-        if self._accumulated_metrics:
-            from ddtrace.internal.settings._telemetry import config as telemetry_config
-
-            generate_metrics_event = {
-                "request_type": TELEMETRY_EVENT_TYPE.METRICS.value,
-                "payload": {
-                    "namespace": TELEMETRY_NAMESPACE.CIVISIBILITY.value,
-                    "series": self._accumulated_metrics,
-                },
-            }
-            batch_payload = {
-                "api_version": "v2",
-                "tracer_time": int(time.time()),
-                "runtime_id": get_runtime_id(),
-                "request_type": TELEMETRY_EVENT_TYPE.MESSAGE_BATCH.value,
-                "application": get_application(
-                    telemetry_config.SERVICE, telemetry_config.VERSION, telemetry_config.ENV
-                ),
-                "host": get_host_info(),
-                "payload": [generate_metrics_event],
-            }
-            write_payload_file(
-                output_dir=self._output_dir,
-                payload=batch_payload,
-                kind="telemetry",
-            )
-            log.debug("Wrote %d telemetry metrics to payload file", len(self._accumulated_metrics))
-        super().finish()
-
-    def add_count_metric(self, metric_name: str, value: int, tags: t.Optional[dict[str, t.Any]] = None) -> None:
-        super().add_count_metric(metric_name, value, tags)
-        self._accumulated_metrics.append(
-            {"type": "count", "metric": metric_name, "value": value, "tags": dict(self._make_tags(tags))}
-        )
-
-    def add_distribution_metric(
-        self, metric_name: str, value: float, tags: t.Optional[dict[str, t.Any]] = None
-    ) -> None:
-        super().add_distribution_metric(metric_name, value, tags)
-        self._accumulated_metrics.append(
-            {"type": "distribution", "metric": metric_name, "value": value, "tags": dict(self._make_tags(tags))}
-        )
+        if self._writer_supports_intercept:
+            # Flush all accumulated telemetry.  Pass shutting_down=True so the writer
+            # adds app-closing to the batch.  Call periodic() directly — not
+            # app_shutdown() — because app_shutdown() guards on self.started which we
+            # reset above to re-arm app-started.
+            self.writer.periodic(force_flush=True, shutting_down=True)
+        else:
+            super().finish()
 
 
 @dataclasses.dataclass
