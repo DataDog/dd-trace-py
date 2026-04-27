@@ -2376,6 +2376,7 @@ class LLMObs(Service):
             span_kind = get_llmobs_span_kind(span)
             if _name is not None:
                 span.name = _name
+                _annotate_llmobs_span_data(span, name=str(_name))
             if prompt is not None:
                 try:
                     validated_prompt = _validate_prompt(prompt, strict_validation=False)
