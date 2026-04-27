@@ -425,6 +425,7 @@ class SessionManager:
             git = Git()
         except RuntimeError:
             log.warning("Error calling git binary, skipping metadata upload")
+            TelemetryAPI.get().record_error_log("Error calling git binary, skipping metadata upload")
             return
 
         latest_commits = git.get_latest_commits()

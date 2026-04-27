@@ -29,6 +29,8 @@ EXCEPTIONS = {
     "ddtrace/appsec/_iast/_taint_tracking/_taint_objects_base.py:74",
     # _safelog wrapper function dispatches to log methods with variable message
     "ddtrace/internal/writer/writer.py:103",
+    # record_error_log wrapper delegates to add_error_log with caller-validated constant message
+    "ddtrace/testing/internal/telemetry.py:98",
 }
 
 

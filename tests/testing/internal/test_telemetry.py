@@ -628,3 +628,24 @@ class TestTelemetry:
                 ),
             )
         ]
+
+    def test_record_error_log(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        mock_writer.add_error_log = Mock()
+        telemetry_api.record_error_log("Something went wrong", None)
+        mock_writer.add_error_log.assert_called_once_with("Something went wrong", None)
+
+    def test_record_error_log_with_exc_info(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        mock_writer.add_error_log = Mock()
+        try:
+            raise ValueError("test error")
+        except ValueError:
+            import sys
+
+            exc_info = sys.exc_info()
+            telemetry_api.record_error_log("Caught error", exc_info)
+            mock_writer.add_error_log.assert_called_once_with("Caught error", exc_info)
+
+    def test_record_error_log_noop_writer(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        """When writer doesn't support add_error_log (e.g., NoOp), call is silently ignored."""
+        del mock_writer.add_error_log  # Remove the attribute
+        telemetry_api.record_error_log("Something went wrong", None)  # Should not raise
