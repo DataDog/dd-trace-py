@@ -625,32 +625,28 @@ def expected_llmobs_span_event_with_reasoning(span):
     )
 
 
-class TestAPMShadowTagsGoogleGenAI:
+def test_shadow_tags_generate_when_llmobs_disabled(tracer):
     """Verify shadow tags are set on Google GenAI spans when LLMObs is disabled."""
+    from unittest.mock import MagicMock
 
-    def test_shadow_tags_generate(self, tracer):
-        from unittest.mock import MagicMock
+    from ddtrace.llmobs._integrations.google_genai import GoogleGenAIIntegration
 
-        from ddtrace.llmobs._integrations.google_genai import GoogleGenAIIntegration
+    integration = GoogleGenAIIntegration(MagicMock())
 
-        integration = GoogleGenAIIntegration(MagicMock())
+    response = MagicMock()
+    response.usage_metadata.prompt_token_count = 12
+    response.usage_metadata.candidates_token_count = 6
+    response.usage_metadata.thoughts_token_count = 0
+    response.usage_metadata.total_token_count = 18
+    response.model_version = "gemini-2.0-flash"
 
-        response = MagicMock()
-        response.usage_metadata.prompt_token_count = 12
-        response.usage_metadata.candidates_token_count = 6
-        response.usage_metadata.thoughts_token_count = 0
-        response.usage_metadata.total_token_count = 18
-        response.model_version = "gemini-2.0-flash"
+    with tracer.trace("google_genai.request") as span:
+        integration._set_apm_shadow_tags(span, [], {"model": "gemini-2.0-flash"}, response=response, operation="llm")
 
-        with tracer.trace("google_genai.request") as span:
-            integration._set_apm_shadow_tags(
-                span, [], {"model": "gemini-2.0-flash"}, response=response, operation="llm"
-            )
-
-        assert span.get_tag("_dd.llmobs.span_kind") == "llm"
-        assert span.get_tag("_dd.llmobs.model_name") == "gemini-2.0-flash"
-        assert span.get_tag("_dd.llmobs.model_provider") == "google"
-        assert span.get_metric("_dd.llmobs.enabled") == 0
-        assert span.get_metric("_dd.llmobs.input_tokens") == 12
-        assert span.get_metric("_dd.llmobs.output_tokens") == 6
-        assert span.get_metric("_dd.llmobs.total_tokens") == 18
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "gemini-2.0-flash"
+    assert span.get_tag("_dd.llmobs.model_provider") == "google"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+    assert span.get_metric("_dd.llmobs.input_tokens") == 12
+    assert span.get_metric("_dd.llmobs.output_tokens") == 6
+    assert span.get_metric("_dd.llmobs.total_tokens") == 18

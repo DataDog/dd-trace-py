@@ -2812,32 +2812,30 @@ def test_est_tokens():
     )  # oracle: 92
 
 
-class TestAPMShadowTagsOpenAI:
+def test_shadow_tags_chat_completion_when_llmobs_disabled(tracer):
     """Verify shadow tags are set on OpenAI spans when LLMObs is disabled."""
+    from unittest.mock import MagicMock
 
-    def test_shadow_tags_chat_completion(self, tracer):
-        from unittest.mock import MagicMock
+    from ddtrace.llmobs._integrations.openai import OpenAIIntegration
 
-        from ddtrace.llmobs._integrations.openai import OpenAIIntegration
+    mock_openai = MagicMock()
+    mock_openai.version.VERSION = "1.0.0"
+    integration = OpenAIIntegration(MagicMock(), mock_openai)
+    integration._client = MagicMock(_base_url="https://api.openai.com/v1")
 
-        mock_openai = MagicMock()
-        mock_openai.version.VERSION = "1.0.0"
-        integration = OpenAIIntegration(MagicMock(), mock_openai)
-        integration._client = MagicMock(_base_url="https://api.openai.com/v1")
+    response = MagicMock()
+    response.usage.prompt_tokens = 10
+    response.usage.completion_tokens = 5
+    response.usage.total_tokens = 15
 
-        response = MagicMock()
-        response.usage.prompt_tokens = 10
-        response.usage.completion_tokens = 5
-        response.usage.total_tokens = 15
+    with tracer.trace("openai.request") as span:
+        span._set_attribute("openai.response.model", "gpt-4o-mini")
+        integration._set_apm_shadow_tags(span, [], {}, response=response, operation="chat")
 
-        with tracer.trace("openai.request") as span:
-            span._set_attribute("openai.response.model", "gpt-4o-mini")
-            integration._set_apm_shadow_tags(span, [], {}, response=response, operation="chat")
-
-        assert span.get_tag("_dd.llmobs.span_kind") == "llm"
-        assert span.get_tag("_dd.llmobs.model_name") == "gpt-4o-mini"
-        assert span.get_tag("_dd.llmobs.model_provider") == "openai"
-        assert span.get_metric("_dd.llmobs.enabled") == 0
-        assert span.get_metric("_dd.llmobs.input_tokens") == 10
-        assert span.get_metric("_dd.llmobs.output_tokens") == 5
-        assert span.get_metric("_dd.llmobs.total_tokens") == 15
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "gpt-4o-mini"
+    assert span.get_tag("_dd.llmobs.model_provider") == "openai"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+    assert span.get_metric("_dd.llmobs.input_tokens") == 10
+    assert span.get_metric("_dd.llmobs.output_tokens") == 5
+    assert span.get_metric("_dd.llmobs.total_tokens") == 15

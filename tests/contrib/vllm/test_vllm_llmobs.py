@@ -286,28 +286,26 @@ def test_llmobs_score(llmobs_events, test_spans, bge_reranker_llm):
         assert event == expected
 
 
-class TestAPMShadowTagsVLLM:
+def test_shadow_tags_completion_when_llmobs_disabled(tracer):
     """Verify shadow tags are set on vLLM spans when LLMObs is disabled."""
+    from unittest.mock import MagicMock
 
-    def test_shadow_tags_completion(self, tracer):
-        from unittest.mock import MagicMock
+    from ddtrace.contrib.internal.vllm.extractors import RequestData
+    from ddtrace.llmobs._integrations.vllm import VLLMIntegration
 
-        from ddtrace.contrib.internal.vllm.extractors import RequestData
-        from ddtrace.llmobs._integrations.vllm import VLLMIntegration
+    integration = VLLMIntegration(MagicMock())
 
-        integration = VLLMIntegration(MagicMock())
+    data = RequestData(input_tokens=20, output_tokens=10)
 
-        data = RequestData(input_tokens=20, output_tokens=10)
+    with tracer.trace("vllm.request") as span:
+        span._set_attribute("vllm.request.model", "meta-llama/Llama-3-8B")
+        span._set_attribute("vllm.request.provider", "vllm")
+        integration._set_apm_shadow_tags(span, [], {"request_data": data}, response=None, operation="")
 
-        with tracer.trace("vllm.request") as span:
-            span._set_attribute("vllm.request.model", "meta-llama/Llama-3-8B")
-            span._set_attribute("vllm.request.provider", "vllm")
-            integration._set_apm_shadow_tags(span, [], {"request_data": data}, response=None, operation="")
-
-        assert span.get_tag("_dd.llmobs.span_kind") == "llm"
-        assert span.get_tag("_dd.llmobs.model_name") == "meta-llama/Llama-3-8B"
-        assert span.get_tag("_dd.llmobs.model_provider") == "vllm"
-        assert span.get_metric("_dd.llmobs.enabled") == 0
-        assert span.get_metric("_dd.llmobs.input_tokens") == 20
-        assert span.get_metric("_dd.llmobs.output_tokens") == 10
-        assert span.get_metric("_dd.llmobs.total_tokens") == 30
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "meta-llama/Llama-3-8B"
+    assert span.get_tag("_dd.llmobs.model_provider") == "vllm"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+    assert span.get_metric("_dd.llmobs.input_tokens") == 20
+    assert span.get_metric("_dd.llmobs.output_tokens") == 10
+    assert span.get_metric("_dd.llmobs.total_tokens") == 30
