@@ -1,25 +1,5 @@
 ---
 fixes:
   - |
-    Fixed a cross-thread import deadlock that caused Python pods to hang
-    indefinitely at startup when ``DD_TRACE_SNOWFLAKE_ENABLED=true`` and
-    ``snowflake-connector-python >= 4.4.0`` was installed.
-
-    ``snowflake-connector-python`` 4.4.0 introduced a background thread in
-    ``_utils._load()`` that calls ``importlib.files()`` during connector
-    initialization. That background thread re-entered ``ModuleWatchdog.find_spec()``
-    while the main thread still held the ``snowflake.connector`` import lock,
-    causing a classic A-B deadlock: the background thread was waiting for the
-    main thread's import lock, and the main thread was waiting for the background
-    thread to complete.
-
-    The root cause was that ``ModuleWatchdog.find_spec()`` was calling
-    ``importlib.util.find_spec()``, which re-enters Python's import machinery
-    and calls ``_lock_unlock_module()``, acquiring per-module import locks. The
-    fix iterates ``sys.meta_path`` finders directly instead, forwarding the
-    ``path`` and ``target`` arguments already computed by the caller, without
-    re-entering the import machinery or acquiring any module locks.
-
-    This fix is not specific to Snowflake—any library that spawns a thread
-    during module ``__init__`` that calls ``importlib.files()`` or
-    ``importlib.import_module()`` could trigger the same deadlock.
+    Fixed a startup deadlock when using ``snowflake-connector-python >= 4.4.0``
+    with ``DD_TRACE_SNOWFLAKE_ENABLED=true``.

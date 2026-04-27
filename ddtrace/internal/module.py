@@ -422,17 +422,7 @@ class BaseModuleWatchdog(abc.ABC):
         self._finding.add(fullname)
 
         try:
-            # Iterate sys.meta_path directly instead of calling
-            # importlib.util.find_spec(). The latter re-enters the import
-            # machinery and calls _lock_unlock_module(), which tries to acquire
-            # the per-module import lock. When a background thread spawned
-            # *during* a module's __init__ (e.g. snowflake-connector-python
-            # >= 4.4.0 spawns a thread in _utils._load() that calls
-            # importlib.files()) reaches this code path, it tries to acquire a
-            # lock already held by the main thread while the main thread waits
-            # for the background thread — a classic A-B deadlock.
-            # path and target are already correctly populated by the caller
-            # (Python's import machinery), so we can delegate directly.
+            # Iterate sys.meta_path directly to avoid re-entering the import machinery and acquiring per-module locks, which causes A-B deadlocks when a background thread calls importlib.files() during module __init__.
             spec = None
             for finder in sys.meta_path:
                 if finder is self:
@@ -453,12 +443,7 @@ class BaseModuleWatchdog(abc.ABC):
             loader = getattr(spec, "loader", None)
 
             if not isinstance(loader, _ImportHookChainedLoader):
-                # PathFinder always returns a fresh loader, but for modules
-                # already in sys.modules the existing loader may already have
-                # accumulated state (e.g. the _dd_get_code wrapper set by
-                # _exec_module). Reusing it avoids re-wrapping get_code on
-                # every reload, which would make the loader identity test in
-                # test_module_watchdog_does_not_rewrap_get_code fail.
+                # Reuse the existing module's loader to preserve accumulated state (e.g. _dd_get_code wrapper) and avoid re-wrapping on reload.
                 existing_module = sys.modules.get(fullname)
                 existing_loader = getattr(existing_module, "__loader__", None)
                 if existing_loader is not None and not isinstance(existing_loader, _ImportHookChainedLoader):
