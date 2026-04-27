@@ -73,7 +73,6 @@ class LLMObsSpanData(TypedDict, total=False):
     config: "ExperimentConfigType"
     is_evaluation_span: bool
     meta: _Meta
-    _dd: dict[str, str]
 
 
 class _LLMObsSpanEventOptional(TypedDict, total=False):

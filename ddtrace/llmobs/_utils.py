@@ -383,7 +383,7 @@ def _normalize_wire_trace_id_to_hex(value: Optional[str]) -> Optional[str]:
     """
     if value is None or value == "":
         return None
-    if _HEX_TRACE_ID_RE.match(value) and (value[0] == "0" or not value.isdigit()):
+    if _HEX_TRACE_ID_RE.match(value.lower()) and (value[0] == "0" or not value.isdigit()):
         return value
     if value.isdigit():
         try:
