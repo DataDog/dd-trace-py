@@ -422,11 +422,30 @@ class BaseModuleWatchdog(abc.ABC):
         self._finding.add(fullname)
 
         try:
-            try:
-                # Best effort
-                spec = find_spec(fullname)
-            except Exception:
-                return None
+            # Iterate sys.meta_path directly instead of calling
+            # importlib.util.find_spec(). The latter re-enters the import
+            # machinery and calls _lock_unlock_module(), which tries to acquire
+            # the per-module import lock. When a background thread spawned
+            # *during* a module's __init__ (e.g. snowflake-connector-python
+            # >= 4.4.0 spawns a thread in _utils._load() that calls
+            # importlib.files()) reaches this code path, it tries to acquire a
+            # lock already held by the main thread while the main thread waits
+            # for the background thread — a classic A-B deadlock.
+            # path and target are already correctly populated by the caller
+            # (Python's import machinery), so we can delegate directly.
+            spec = None
+            for finder in sys.meta_path:
+                if finder is self:
+                    continue
+                _find_spec = getattr(finder, "find_spec", None)
+                if _find_spec is None:
+                    continue
+                try:
+                    spec = _find_spec(fullname, path, target)
+                except Exception:
+                    spec = None
+                if spec is not None:
+                    break
 
             if spec is None:
                 return None

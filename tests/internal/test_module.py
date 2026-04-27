@@ -615,3 +615,53 @@ def test_lazy_decorator():
     import tests.internal.lazy as lazy
 
     assert lazy.new_value == 42
+
+
+@pytest.mark.subprocess(timeout=10)
+def test_module_watchdog_find_spec_no_cross_thread_deadlock():
+    """Regression test: ModuleWatchdog.find_spec must not re-enter the import
+    machinery via importlib.util.find_spec(), which acquires per-module import
+    locks and can deadlock when a background thread is spawned during a module's
+    __init__ (e.g. snowflake-connector-python >= 4.4.0 spawns a thread in
+    _utils._load() that calls importlib.files(), reproducing a classic A-B lock
+    deadlock against the main thread).
+    """
+    import importlib
+    import sys
+    import threading
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    ModuleWatchdog.install()
+
+    background_done = threading.Event()
+
+    def background_import(module_name):
+        # Simulate what snowflake-connector-python 4.4.0's _utils._load() thread
+        # does: call importlib.import_module() for a module that is currently
+        # being loaded by the main thread.  The old find_spec() called
+        # importlib.util.find_spec() which re-entered _find_and_load() and
+        # called _lock_unlock_module(), blocking on the lock held by the main
+        # thread while the main thread was waiting for this thread to finish.
+        try:
+            importlib.import_module(module_name)
+        except Exception:
+            pass
+        background_done.set()
+
+    def pre_exec_hook(loader, module):
+        t = threading.Thread(target=background_import, args=(module.__name__,))
+        t.start()
+        t.join(timeout=5)
+        if not background_done.is_set():
+            raise RuntimeError("Deadlock: background thread did not complete within 5 seconds")
+        loader.exec_module(module)
+
+    ModuleWatchdog.register_pre_exec_module_hook("tests.test_module", pre_exec_hook)
+
+    if "tests.test_module" in sys.modules:
+        del sys.modules["tests.test_module"]
+
+    importlib.import_module("tests.test_module")
+
+    assert background_done.is_set()
