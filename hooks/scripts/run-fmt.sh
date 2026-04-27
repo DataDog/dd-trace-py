@@ -33,7 +33,7 @@ fi
 # Check that all tracked-but-unstaged modified Python files are already formatted.
 # This catches the case where a file was edited but not staged — the hook above
 # would silently skip it, leaving unformatted code in the working tree.
-dirty_ruff=$(git diff --name-only | grep -E '\.(py|pyi)$' | tr '\n' ' ')
+dirty_ruff=$(git diff --name-only --diff-filter=ACMR | grep -E '\.(py|pyi)$' | tr '\n' ' ')
 if [ -n "$(printf '%s' "$dirty_ruff" | tr -d ' \t\n')" ]; then
     ruff_output=$(hatch -v run lint:ruff format --check --no-cache $dirty_ruff 2>&1)
     if [ $? -ne 0 ]; then
