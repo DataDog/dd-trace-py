@@ -389,7 +389,7 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
   aws_durable_execution_sdk_python:
-    parallelism: 1
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'

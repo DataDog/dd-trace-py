@@ -1,3 +1,8 @@
+from aws_durable_execution_sdk_python import execution
+from aws_durable_execution_sdk_python.context import DurableContext
+from aws_durable_execution_sdk_python.operation.base import OperationExecutor
+from aws_durable_execution_sdk_python.operation.step import StepOperationExecutor
+
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import get_version
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import patch
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import unpatch
@@ -11,52 +16,47 @@ class TestAwsDurableExecutionSdkPythonPatch(PatchTestCase.Base):
     __unpatch_func__ = unpatch
     __get_version__ = get_version
 
-    # Methods that may not exist in all SDK versions — checked conditionally
-    _OPTIONAL_METHODS = (
-        "wait",
-        "wait_for_condition",
-        "wait_for_callback",
-        "create_callback",
-        "map",
-        "parallel",
-        "run_in_child_context",
-    )
-
     def assert_module_patched(self, aws_durable_execution_sdk_python):
-        from aws_durable_execution_sdk_python.context import DurableContext
-        from aws_durable_execution_sdk_python.execution import durable_execution
-
-        self.assert_wrapped(durable_execution)
-        self.assert_wrapped(DurableContext.step)
+        self.assert_wrapped(aws_durable_execution_sdk_python.durable_execution)
+        self.assert_wrapped(execution.durable_execution)
         self.assert_wrapped(DurableContext.invoke)
-
-        for method_name in self._OPTIONAL_METHODS:
-            method = getattr(DurableContext, method_name, None)
-            if method is not None:
-                self.assert_wrapped(method)
+        self.assert_wrapped(DurableContext.step)
+        self.assert_wrapped(DurableContext.wait)
+        self.assert_wrapped(DurableContext.wait_for_condition)
+        self.assert_wrapped(DurableContext.wait_for_callback)
+        self.assert_wrapped(DurableContext.create_callback)
+        self.assert_wrapped(DurableContext.map)
+        self.assert_wrapped(DurableContext.parallel)
+        self.assert_wrapped(DurableContext.run_in_child_context)
+        self.assert_wrapped(OperationExecutor.process)
+        self.assert_wrapped(StepOperationExecutor.retry_handler)
 
     def assert_not_module_patched(self, aws_durable_execution_sdk_python):
-        from aws_durable_execution_sdk_python.context import DurableContext
-        from aws_durable_execution_sdk_python.execution import durable_execution
-
-        self.assert_not_wrapped(durable_execution)
-        self.assert_not_wrapped(DurableContext.step)
+        self.assert_not_wrapped(aws_durable_execution_sdk_python.durable_execution)
+        self.assert_not_wrapped(execution.durable_execution)
         self.assert_not_wrapped(DurableContext.invoke)
-
-        for method_name in self._OPTIONAL_METHODS:
-            method = getattr(DurableContext, method_name, None)
-            if method is not None:
-                self.assert_not_wrapped(method)
+        self.assert_not_wrapped(DurableContext.step)
+        self.assert_not_wrapped(DurableContext.wait)
+        self.assert_not_wrapped(DurableContext.wait_for_condition)
+        self.assert_not_wrapped(DurableContext.wait_for_callback)
+        self.assert_not_wrapped(DurableContext.create_callback)
+        self.assert_not_wrapped(DurableContext.map)
+        self.assert_not_wrapped(DurableContext.parallel)
+        self.assert_not_wrapped(DurableContext.run_in_child_context)
+        self.assert_not_wrapped(OperationExecutor.process)
+        self.assert_not_wrapped(StepOperationExecutor.retry_handler)
 
     def assert_not_module_double_patched(self, aws_durable_execution_sdk_python):
-        from aws_durable_execution_sdk_python.context import DurableContext
-        from aws_durable_execution_sdk_python.execution import durable_execution
-
-        self.assert_not_double_wrapped(durable_execution)
-        self.assert_not_double_wrapped(DurableContext.step)
+        self.assert_not_double_wrapped(aws_durable_execution_sdk_python.durable_execution)
+        self.assert_not_double_wrapped(execution.durable_execution)
         self.assert_not_double_wrapped(DurableContext.invoke)
-
-        for method_name in self._OPTIONAL_METHODS:
-            method = getattr(DurableContext, method_name, None)
-            if method is not None:
-                self.assert_not_double_wrapped(method)
+        self.assert_not_double_wrapped(DurableContext.step)
+        self.assert_not_double_wrapped(DurableContext.wait)
+        self.assert_not_double_wrapped(DurableContext.wait_for_condition)
+        self.assert_not_double_wrapped(DurableContext.wait_for_callback)
+        self.assert_not_double_wrapped(DurableContext.create_callback)
+        self.assert_not_double_wrapped(DurableContext.map)
+        self.assert_not_double_wrapped(DurableContext.parallel)
+        self.assert_not_double_wrapped(DurableContext.run_in_child_context)
+        self.assert_not_double_wrapped(OperationExecutor.process)
+        self.assert_not_double_wrapped(StepOperationExecutor.retry_handler)
