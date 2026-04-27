@@ -4,6 +4,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+import re
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Iterator
@@ -353,16 +354,61 @@ def get_llmobs_span_kind(span: Span) -> Optional[str]:
     return kind
 
 
-def get_llmobs_parent_id(span: Span) -> Optional[int]:
+def get_llmobs_parent_id(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
     return parent_id
 
 
-def get_llmobs_trace_id(span: Span) -> Optional[int]:
+def get_llmobs_trace_id(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
     return trace_id
+
+
+_HEX_TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _normalize_wire_trace_id_to_hex(value: Optional[str]) -> Optional[str]:
+    """Normalize a wire-format trace_id to hexadecimal string.
+
+    A 32-char all-digit value is ambiguous between hex and a decimal serialization
+    of a 128-bit int. Leading ``"0"`` or any ``a-f`` marks it as unambiguous hex;
+    otherwise interpret as decimal (as per the wire contract). Non-numeric custom IDs pass through unmodified.
+
+    Note: In the case of trace IDs being submitted on request headers as hex strings, some rare values (~ 1/3.78 M)
+    with 32-char all-[0-9] chars and no leading zero will be incorrectly interpreted as decimal. This is only a risk
+    for hand-crafted/forwarded headers.
+
+    """
+    if value is None or value == "":
+        return None
+    if _HEX_TRACE_ID_RE.match(value.lower()) and (value[0] == "0" or not value.isdigit()):
+        return value
+    if value.isdigit():
+        try:
+            return format_trace_id(int(value))
+        except (ValueError, TypeError):
+            pass
+    log.debug("LLMObs trace_id %r is not canonical hex or a decimal integer; storing as-is.", value)
+    return value
+
+
+def _trace_id_to_wire(value: Optional[str]) -> Optional[str]:
+    """Convert stored hex trace_id to decimal for the distributed header.
+
+    Older dd-trace-py versions parse this header with ``int(x)`` (no base arg),
+    which rejects ``a-f``, so the wire must stay decimal.
+    """
+    if not value:
+        return None
+    if _HEX_TRACE_ID_RE.match(value.lower()):
+        try:
+            return str(int(value, 16))
+        except ValueError:
+            log.debug("Failed to convert hex LLMObs trace_id %r to decimal; sending as-is.", value)
+            return value
+    return value
 
 
 def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
@@ -454,8 +500,8 @@ def _annotate_llmobs_span_data(
     experiment_input: Optional[str] = None,
     experiment_output: Optional[str] = None,
     intent: Optional[str] = None,
-    parent_id: Optional[int] = None,
-    trace_id: Optional[int] = None,
+    parent_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
 ) -> None:
     """Annotate llmobs data on span meta_struct field.
 
