@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import functools
 import inspect
 from inspect import iscoroutinefunction
+from inspect import unwrap
 from itertools import chain
 import logging
 import os
@@ -898,6 +899,8 @@ class Tracer(object):
                     # otherwise fallback to a default tracing
                     with self.trace(span_name, service=service, resource=resource, span_type=span_type):
                         return f(*args, **kwargs)
+
+            core.dispatch("tracer.wrap", (unwrap(f),))
 
             return func_wrapper
 
