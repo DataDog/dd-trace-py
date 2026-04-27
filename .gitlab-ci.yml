@@ -192,7 +192,7 @@ apm-sdk-benchmarks:
     - job: "upload all"
   trigger:
     project: DataDog/apm-reliability/apm-sdks-benchmarks
-    branch: main
+    branch: brettlangdon/native-span-writer
   variables:
     TARGET_REF: $CI_PIPELINE_ID
 

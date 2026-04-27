@@ -1490,9 +1490,7 @@ class NativeSpanWriterTests(BaseTestCase):
             for i in range(3):
                 writer.write([Span(name="op", trace_id=i + 1, span_id=1)])
 
-        statsd.distribution.assert_any_call(
-            "datadog.tracer.buffer.accepted.traces", 1, tags=None
-        )
+        statsd.distribution.assert_any_call("datadog.tracer.buffer.accepted.traces", 1, tags=None)
 
     def test_meta_struct_span_passed_to_send_trace_chunks(self):
         """flush_queue() passes spans with meta_struct set to send_trace_chunks."""
