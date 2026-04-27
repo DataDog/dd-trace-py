@@ -115,16 +115,20 @@ def _(asyncio: ModuleType) -> None:
 
         @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
         def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:
-            try:
-                return f(*args, **kwargs)
-            finally:
-                children = get_argument_value(args, kwargs, 1, "children")
-                assert children is not None  # nosec: assert is used for typing
+            f(*args, **kwargs)
+            children = get_argument_value(args, kwargs, 1, "children")
+            assert children is not None  # nosec: assert is used for typing
 
-                if globals()["get_running_loop"]() is not None:
-                    parent = globals()["current_task"]()
-                    for child in children:
-                        stack.link_tasks(parent, child)
+            # AIDEV-NOTE: current_task() raises RuntimeError on Python 3.15+ when there
+            # is no running event loop (e.g. asyncio.gather() called outside an async
+            # context to build a coroutine for later scheduling). In that case there is
+            # no parent task to link from, so we skip link_tasks entirely.
+            try:
+                parent = globals()["current_task"]()
+            except RuntimeError:
+                return
+            for child in children:
+                stack.link_tasks(parent, child)
 
         @partial(wrap, sys.modules["asyncio"].tasks._wait)
         def _(
@@ -132,15 +136,19 @@ def _(asyncio: ModuleType) -> None:
             args: tuple[typing.Any, ...],
             kwargs: dict[str, typing.Any],
         ) -> typing.Any:
-            try:
-                return f(*args, **kwargs)
-            finally:
-                futures = typing.cast(set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
+            result = f(*args, **kwargs)
+            futures = typing.cast(set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
 
-                if globals()["get_running_loop"]() is not None:
-                    parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"]())
-                    for future in futures:
-                        stack.link_tasks(parent, future)
+            # AIDEV-NOTE: same guard as the _GatheringFuture wrapper above — _wait may
+            # also be invoked outside a running loop. Skip link_tasks when current_task()
+            # raises.
+            try:
+                parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"]())
+            except RuntimeError:
+                return result
+            for future in futures:
+                stack.link_tasks(parent, future)
+            return result
 
         @partial(wrap, sys.modules["asyncio"].tasks.as_completed)
         def _(
