@@ -16,7 +16,7 @@ from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import Function
 from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import ToolCall
-from ddtrace.appsec.ai_guard.integrations.strands import _INVOCATION_TOKEN_KEY
+from ddtrace.appsec.ai_guard.integrations.strands import _INVOCATION_CTX_KEY
 from ddtrace.appsec.ai_guard.integrations.strands import AIGuardStrandsHookProvider
 from ddtrace.appsec.ai_guard.integrations.strands import AIGuardStrandsPlugin
 from ddtrace.appsec.ai_guard.integrations.strands import _convert_strands_messages
@@ -660,7 +660,7 @@ class TestInvocationLifecycle:
         ai_guard_strands_hook._on_before_invocation_base(event)
         try:
             assert is_aiguard_context_active() is True
-            assert _INVOCATION_TOKEN_KEY in invocation_state
+            assert _INVOCATION_CTX_KEY in invocation_state
         finally:
             ai_guard_strands_hook._on_after_invocation_base(after_invocation_event(invocation_state=invocation_state))
 
@@ -672,7 +672,7 @@ class TestInvocationLifecycle:
         ai_guard_strands_hook._on_after_invocation_base(after_invocation_event(invocation_state=invocation_state))
 
         assert is_aiguard_context_active() is False
-        assert _INVOCATION_TOKEN_KEY not in invocation_state
+        assert _INVOCATION_CTX_KEY not in invocation_state
 
     def test_after_invocation_without_before_is_noop(self, ai_guard_strands_hook):
         # Should not raise even if BeforeInvocation never ran.

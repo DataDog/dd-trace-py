@@ -76,7 +76,7 @@ logger = get_logger(__name__)
 _BLOCKED_MSG = "[DATADOG AI GUARD] has been canceled for security reasons"
 _BLOCKED_TOOL_MSG = "[DATADOG AI GUARD] '{}' has been canceled for security reasons"
 
-_INVOCATION_TOKEN_KEY = "_dd_ai_guard_token"
+_INVOCATION_CTX_KEY = "_dd_ai_guard_ctx"
 
 
 def _tool_result_text(tool_result: dict) -> str:
@@ -206,7 +206,7 @@ class AIGuardStrandsIntegration:
         on ``invocation_state`` so it is per-invocation and survives nested or
         concurrent agent calls that share a single plugin/hook instance.
         """
-        event.invocation_state[_INVOCATION_TOKEN_KEY] = set_aiguard_context_active()
+        event.invocation_state[_INVOCATION_CTX_KEY] = set_aiguard_context_active()
 
     def _on_after_invocation_base(self, event: _AfterInvocationEvent) -> None:
         """Reset the AI Guard context at the end of the agent invocation.
@@ -215,7 +215,7 @@ class AIGuardStrandsIntegration:
         ``finally`` block so it runs even when the model or tool hooks raised
         ``AIGuardAbortError``.
         """
-        token = event.invocation_state.pop(_INVOCATION_TOKEN_KEY, None)
+        token = event.invocation_state.pop(_INVOCATION_CTX_KEY, None)
         if token is not None:
             reset_aiguard_context_active(token)
 
