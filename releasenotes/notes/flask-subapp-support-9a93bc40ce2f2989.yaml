@@ -1,9 +1,29 @@
 ---
 features:
   - |
-    AAP: This adds Application Security support for Flask applications using sub-Flask-apps
-    mounted via ``werkzeug.middleware.dispatcher.DispatcherMiddleware``. API endpoint
-    discovery now walks the dispatcher tree (at middleware construction time and at the
-    first request reaching each app) and reports endpoints with their full mounted path.
-    The Flask request span resource and ``flask.url_rule`` tag are also prefixed with the
-    WSGI ``script_root`` so sub-app requests report the path the client actually hit.
+    AAP: This adds Application Security support for Flask applications using
+    sub-Flask-apps mounted via ``werkzeug.middleware.dispatcher.DispatcherMiddleware``.
+    API endpoint discovery now walks the dispatcher tree (at middleware construction
+    time and at the first request reaching each app) and reports endpoints with their
+    full mounted path.
+upgrade:
+  - |
+    flask: The Flask request span ``resource`` and ``flask.url_rule`` tag now
+    include the request's mount prefix (the WSGI ``SCRIPT_NAME``), so requests
+    served under a non-empty mount report the path the client actually hit
+    (e.g. ``/api/v2/users``) rather than the app-local rule (``/users``). This
+    affects any deployment where ``SCRIPT_NAME`` is set, including
+    ``DispatcherMiddleware`` mounts, reverse proxies that strip a path prefix
+    (e.g. nginx ``location /api/ { proxy_pass ... }``), and WSGI servers run with
+    ``--root-path`` / equivalent. Flat apps with empty ``SCRIPT_NAME`` are
+    unchanged. Dashboards or monitors grouping by ``flask.url_rule`` may need to
+    be updated to account for the prefix.
+  - |
+    flask: API endpoint discovery now reports every HTTP method the framework
+    actually responds to for a route — not just the methods explicitly listed
+    in the route declaration. Werkzeug auto-adds ``HEAD`` for any route that
+    accepts ``GET`` and Flask auto-handles ``OPTIONS`` for every route, and
+    both are now part of the reported endpoint surface. Previously only the
+    methods named in the user's ``methods=[...]`` argument were reported, so
+    ``HEAD`` and the auto-handled ``OPTIONS`` are new entries in the discovered
+    endpoint set.

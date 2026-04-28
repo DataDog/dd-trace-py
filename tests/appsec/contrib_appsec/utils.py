@@ -281,10 +281,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert isinstance(ep.path, str)
                 assert ep.resource_name
                 assert ep.operation_name
-                # Flask auto-registers /static/<path:filename> for every Flask app/sub-app,
-                # so a DispatcherMiddleware mount like /api/v2 exposes /api/v2/static/... too.
-                # The asset endpoint isn't user-defined and returns 404 for a fake filename,
-                # so skip any path that contains a /static/ segment (not only those that start with it).
+                # Skip Flask's per-app auto /static/<path:filename> rule (also exposed at /<mount>/static/...
+                # under DispatcherMiddleware) — not user-defined, 404s for fake filenames.
                 if ep.method not in ("GET", "*", "POST") or "/static/" in ep.path:
                     continue
                 found.add(ep.path)
