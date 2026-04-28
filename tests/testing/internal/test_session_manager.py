@@ -356,7 +356,7 @@ class TestSessionManagerGitHandling:
             mock_telemetry_cls.get.return_value = mock_telemetry_instance
             session_manager.upload_git_data()
 
-        mock_telemetry_instance.record_git_missing.assert_called_once_with()
+        mock_telemetry_instance.record_git_missing.assert_called_once()
 
     def test_upload_git_data_aborts_when_search_commits_fails(self) -> None:
         session_manager = SessionManager.__new__(SessionManager)
