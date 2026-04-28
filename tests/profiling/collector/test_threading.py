@@ -483,17 +483,17 @@ def test_reentrant_unsampled_acquire_asserts_for_rlock() -> None:
     from ddtrace.profiling.collector._lock import _ProfiledLock
 
     class RLock:  # class name must be exactly "RLock" to trigger the type check
-        def acquire(self, *args, **kwargs):
+        def acquire(self, *args: object, **kwargs: object) -> bool:
             return True
 
-        def __enter__(self, *args, **kwargs):
+        def __enter__(self, *args: object, **kwargs: object) -> bool:
             return True
 
-        def __exit__(self, *args, **kwargs):
+        def __exit__(self, *args: object, **kwargs: object) -> None:
             pass
 
-    sampler = collector.CaptureSampler(capture_pct=0)  # always unsampled
-    profiled = _ProfiledLock(wrapped=RLock(), tracer=None, capture_sampler=sampler)
+    sampler: collector.CaptureSampler = collector.CaptureSampler(capture_pct=0)  # always unsampled
+    profiled: _ProfiledLock = _ProfiledLock(wrapped=RLock(), tracer=None, capture_sampler=sampler)
     profiled.acquired_time = time.monotonic_ns()  # simulate a prior sampled hold in progress
 
     with pytest.raises(AssertionError, match="truncated hold-time sample"):
@@ -512,17 +512,17 @@ def test_reentrant_unsampled_acquire_no_assert_for_non_rlock() -> None:
     from ddtrace.profiling.collector._lock import _ProfiledLock
 
     class Lock:  # any name other than "RLock" — type check must be False
-        def acquire(self, *args, **kwargs):
+        def acquire(self, *args: object, **kwargs: object) -> bool:
             return True
 
-        def __enter__(self, *args, **kwargs):
+        def __enter__(self, *args: object, **kwargs: object) -> bool:
             return True
 
-        def __exit__(self, *args, **kwargs):
+        def __exit__(self, *args: object, **kwargs: object) -> None:
             pass
 
-    sampler = collector.CaptureSampler(capture_pct=0)  # always unsampled
-    profiled = _ProfiledLock(wrapped=Lock(), tracer=None, capture_sampler=sampler)
+    sampler: collector.CaptureSampler = collector.CaptureSampler(capture_pct=0)  # always unsampled
+    profiled: _ProfiledLock = _ProfiledLock(wrapped=Lock(), tracer=None, capture_sampler=sampler)
     profiled.acquired_time = time.monotonic_ns()  # simulate a prior sampled hold in progress
 
     # Must NOT raise — the assertion is RLock-specific
@@ -2085,9 +2085,9 @@ class BaseSemaphoreTest(LockCollectorTestBase):
         If someone refactors acquire/__enter__/__aenter__ back into a shared helper that calls
         _acquire unconditionally, this test will catch it.
         """
-        real_lock = self.lock_class()
-        capture_sampler = CaptureSampler(capture_pct=0)
-        profiled_lock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
+        real_lock: LockTypeInst = self.lock_class()
+        capture_sampler: CaptureSampler = CaptureSampler(capture_pct=0)
+        profiled_lock: _ProfiledLock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
 
         with mock.patch.object(type(profiled_lock), "_acquire", wraps=profiled_lock._acquire) as spy:
             for _ in range(5):
@@ -2106,9 +2106,9 @@ class BaseSemaphoreTest(LockCollectorTestBase):
         Counterpart to test_unsampled_acquire_bypasses_inner_acquire — ensures we don't accidentally
         drop the _acquire delegation on the sampled path either.
         """
-        real_lock = self.lock_class()
-        capture_sampler = CaptureSampler(capture_pct=100)
-        profiled_lock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
+        real_lock: LockTypeInst = self.lock_class()
+        capture_sampler: CaptureSampler = CaptureSampler(capture_pct=100)
+        profiled_lock: _ProfiledLock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
 
         with mock.patch.object(type(profiled_lock), "_acquire", wraps=profiled_lock._acquire) as spy:
             for _ in range(3):
@@ -2129,9 +2129,9 @@ class BaseSemaphoreTest(LockCollectorTestBase):
         If someone refactors release/__exit__/__aexit__ back into a shared helper that calls
         _release unconditionally, this test will catch it.
         """
-        real_lock = self.lock_class()
-        capture_sampler = CaptureSampler(capture_pct=0)
-        profiled_lock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
+        real_lock: LockTypeInst = self.lock_class()
+        capture_sampler: CaptureSampler = CaptureSampler(capture_pct=0)
+        profiled_lock: _ProfiledLock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
 
         # Acquire (unsampled — acquired_time stays None)
         profiled_lock.acquire()
@@ -2148,9 +2148,9 @@ class BaseSemaphoreTest(LockCollectorTestBase):
 
     def test_sampled_release_calls_inner_release(self) -> None:
         """Regression: on the sampled path, each release entry point must delegate to _release exactly once."""
-        real_lock = self.lock_class()
-        capture_sampler = CaptureSampler(capture_pct=100)
-        profiled_lock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
+        real_lock: LockTypeInst = self.lock_class()
+        capture_sampler: CaptureSampler = CaptureSampler(capture_pct=100)
+        profiled_lock: _ProfiledLock = _ProfiledLock(wrapped=real_lock, tracer=None, capture_sampler=capture_sampler)
 
         profiled_lock.acquire()
         assert profiled_lock.acquired_time is not None, "precondition: acquired_time must be set after sampled acquire"
