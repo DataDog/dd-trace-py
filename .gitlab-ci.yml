@@ -196,9 +196,7 @@ apm-sdk-benchmarks:
   variables:
     TARGET_REF: $CI_PIPELINE_ID
     BENCHMARK_LANGUAGES: python
-    # Forward upstream identity so apm-sdks-benchmarks attributes results,
-    # SLO state, Datadog tags and Slack messages to the dd-trace-py PR rather
-    # than to the apm-sdks-benchmarks child pipeline that runs the benchmarks.
+    # Forward upstream ci vars
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
