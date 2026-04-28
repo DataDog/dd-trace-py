@@ -23,7 +23,6 @@ from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.settings_data import TestProperties
-from ddtrace.testing.internal.telemetry import GitTelemetry
 from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import SuiteRef
@@ -427,9 +426,7 @@ class SessionManager:
         except RuntimeError:
             log.warning("Error calling git binary, skipping metadata upload")
             if TelemetryAPI._instance is not None:
-                TelemetryAPI.get().record_git_command(
-                    command=GitTelemetry.GET_REPOSITORY, elapsed_seconds=0, exit_code="missing"
-                )
+                TelemetryAPI.get().record_git_missing()
             return
 
         latest_commits = git.get_latest_commits()

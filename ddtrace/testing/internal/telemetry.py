@@ -50,6 +50,7 @@ class GitTelemetry(str, Enum):
     GET_LOCAL_COMMITS = "get_local_commits"
     GET_OBJECTS = "get_objects"
     PACK_OBJECTS = "pack_objects"
+    CHECK_GIT = "check_git"
 
 
 class TelemetryAPI:
@@ -182,13 +183,19 @@ class TelemetryAPI:
     def record_test_management_tests_count(self, count: int) -> None:
         self.add_distribution_metric("test_management_tests.response_tests", count)
 
-    def record_git_command(self, command: GitTelemetry, elapsed_seconds: float, exit_code: t.Union[int, str]) -> None:
+    def record_git_command(self, command: GitTelemetry, elapsed_seconds: float, exit_code: int) -> None:
         tags = {"command": command.value}
         self.add_count_metric("git.command", 1, tags)
         self.add_distribution_metric("git.command_ms", elapsed_seconds * 1000, tags)
 
         if exit_code:
             self.add_count_metric("git.command_errors", 1, {"command": command.value, "exit_code": str(exit_code)})
+
+    def record_git_missing(self) -> None:
+        """Record a telemetry error when the git binary is not found."""
+        self.add_count_metric(
+            "git.command_errors", 1, {"command": GitTelemetry.CHECK_GIT.value, "exit_code": "missing"}
+        )
 
     # Event payloads sent by writers.
 
