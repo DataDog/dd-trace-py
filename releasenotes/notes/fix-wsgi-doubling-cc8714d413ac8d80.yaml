@@ -1,12 +1,9 @@
 ---
 fixes:
   - |
-    tracing(wsgi): This fix resolves an issue where the ``http.url`` tag on inbound
-    request spans contained the mount prefix twice (for example ``/admin/admin/users``
-    instead of ``/admin/users``) when a WSGI application was served behind
-    ``werkzeug.middleware.dispatcher.DispatcherMiddleware`` or any other in-process mount
-    that preserves the original request URI in ``RAW_URI`` / ``REQUEST_URI`` while also
-    setting ``SCRIPT_NAME``. URL reconstruction now detects whether the raw request URI
-    already includes ``SCRIPT_NAME`` and prepends it only when a reverse proxy has
-    stripped the prefix, restoring correct URL reporting in both flows. Affects every
-    WSGI-based integration, not only Flask.
+    wsgi: This fix resolves an issue where the ``http.url`` tag on inbound request
+    spans contained the WSGI mount prefix twice (for example ``/admin/admin/users``
+    instead of ``/admin/users``) when the application was served behind
+    ``werkzeug.middleware.dispatcher.DispatcherMiddleware`` or any other in-process
+    mount that preserves the original request URI in ``RAW_URI`` / ``REQUEST_URI``
+    while also setting ``SCRIPT_NAME``.

@@ -249,19 +249,22 @@ def construct_url(environ):
     #   1. werkzeug DispatcherMiddleware (and similar in-process mounts) set
     #      SCRIPT_NAME to the mount prefix AND the original (pre-strip) request
     #      line is preserved in RAW_URI / REQUEST_URI. Prepending SCRIPT_NAME on
-    #      top of RAW_URI would double the mount prefix (e.g. /asm/asm/...).
+    #      top of RAW_URI would double the mount prefix (e.g. /admin/admin/...).
     #   2. A reverse proxy (or upstream WSGI server) strips a path prefix before
     #      handing the request off, exposing only the post-strip path in
     #      RAW_URI / REQUEST_URI while the prefix is reported in SCRIPT_NAME.
     #      Skipping SCRIPT_NAME would lose the prefix from the reported URL.
-    # Distinguish the two by checking whether the raw URI already starts with
-    # SCRIPT_NAME: case (1) starts with it (don't prepend), case (2) doesn't
-    # (prepend). On the PATH_INFO fallback we always prepend SCRIPT_NAME because
-    # PATH_INFO is the stripped value in both cases.
+    # Distinguish the two by checking whether the raw URI starts with SCRIPT_NAME
+    # *at a path boundary* — exact match, ``/``, ``?``, or ``#`` immediately
+    # after — so that ``SCRIPT_NAME=/api`` is not falsely matched against a
+    # ``RAW_URI=/apiary/...`` that just happens to share leading characters.
+    # Case (1) matches at a boundary (don't prepend); case (2) doesn't (prepend).
+    # On the PATH_INFO fallback we always prepend SCRIPT_NAME because PATH_INFO
+    # is the stripped value in both cases.
     script_name = environ.get("SCRIPT_NAME") or ""
     raw = environ.get("RAW_URI") or environ.get("REQUEST_URI") or ""
     if raw:
-        if script_name and not raw.startswith(script_name):
+        if script_name and not _raw_uri_starts_with_script_name(raw, script_name):
             url += quote(script_name)
         url += raw
         # on old versions of wsgi, the raw uri does not include the query string
@@ -274,6 +277,27 @@ def construct_url(environ):
             url += "?" + environ["QUERY_STRING"]
 
     return url
+
+
+def _raw_uri_starts_with_script_name(raw: str, script_name: str) -> bool:
+    """Return True iff ``raw`` begins with ``script_name`` followed by a path
+    boundary (end-of-string, ``/``, ``?``, or ``#``).
+
+    A naive ``raw.startswith(script_name)`` check would mis-classify an
+    in-process-mount setup where the public URL only *shares leading characters*
+    with the mount prefix (e.g. ``SCRIPT_NAME=/api`` vs ``RAW_URI=/apiary/x``)
+    as a doubled-prefix case, dropping the legitimate prefix.
+
+    When ``script_name`` itself ends in ``/`` (notably the root mount ``"/"``),
+    the trailing slash *is* the boundary — any chars after it are inside the
+    next path segment — so no additional boundary check is needed.
+    """
+    if not raw.startswith(script_name):
+        return False
+    if script_name.endswith("/"):
+        return True
+    rest = raw[len(script_name) :]
+    return rest == "" or rest[0] in ("/", "?", "#")
 
 
 def get_request_headers(environ: Mapping[str, str]) -> Mapping[str, str]:
