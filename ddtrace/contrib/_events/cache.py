@@ -8,7 +8,6 @@ from typing import Protocol
 from ddtrace._trace.events import TracingEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import memcached as memcachedx
 from ddtrace.ext import redis as redisx
 from ddtrace.ext import valkey as valkeyx
 from ddtrace.internal.core.events import event_field
@@ -63,10 +62,6 @@ class CacheCommandEvent(TracingEvent):
 # Events below are not redefining event_name on purpose.
 # They are specialization of the CacheCommandEvent but not
 # new events by themselves
-class PymemcacheCommandEvent(CacheCommandEvent):
-    raw_command_tag_name = memcachedx.QUERY
-
-
 class RedisCommandEvent(CacheCommandEvent):
     span_type = SpanTypes.REDIS
 
