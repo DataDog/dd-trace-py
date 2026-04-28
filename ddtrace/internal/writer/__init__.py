@@ -4,6 +4,7 @@ from .writer import AgentResponse
 from .writer import AgentWriterInterface
 from .writer import HTTPWriter
 from .writer import LogWriter
+from .writer import NativeSpanWriter
 from .writer import NativeWriter
 from .writer import Response
 from .writer import TraceWriter
@@ -19,6 +20,7 @@ __all__ = [
     "DEFAULT_SMA_WINDOW",
     "HTTPWriter",
     "LogWriter",
+    "NativeSpanWriter",
     "NativeWriter",
     "Response",
     "TraceWriter",

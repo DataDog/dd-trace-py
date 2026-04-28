@@ -192,9 +192,16 @@ apm-sdk-benchmarks:
     - job: "upload all"
   trigger:
     project: DataDog/apm-reliability/apm-sdks-benchmarks
-    branch: main
+    branch: brettlangdon/native-span-writer
   variables:
     TARGET_REF: $CI_PIPELINE_ID
+    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
+    UPSTREAM_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
+    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
+    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
+    UPSTREAM_TAG: $CI_COMMIT_TAG
+
 
 macrobenchmarks:
   stage: benchmarks

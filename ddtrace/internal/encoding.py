@@ -87,13 +87,13 @@ class _EncoderBase(object):
         if span.duration_ns:
             d["duration"] = span.duration_ns
 
-        _meta = span._get_str_attributes()
-        if _meta:
-            d["meta"] = _meta
+        span_meta = span._get_str_attributes()
+        if span_meta:
+            d["meta"] = span_meta
 
-        _metrics = span._get_numeric_attributes()
-        if _metrics:
-            d["metrics"] = _metrics
+        span_metrics = span._get_numeric_attributes()
+        if span_metrics:
+            d["metrics"] = span_metrics
 
         if span.span_type:
             d["type"] = span.span_type

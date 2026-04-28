@@ -1,0 +1,82 @@
+[[
+  {
+    "name": "op1",
+    "service": "svc",
+    "resource": "op1",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69ef90fd00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "key": "val1",
+      "language": "python",
+      "runtime-id": "d01a6252be3b4d699236889774365606"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 507.0
+    },
+    "duration": 66875,
+    "start": 1777307901915379180
+  },
+     {
+       "name": "child1",
+       "service": "svc",
+       "resource": "child1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "_dd.svc_src": "m"
+       },
+       "duration": 14250,
+       "start": 1777307901915422680
+     }],
+[
+  {
+    "name": "op2",
+    "service": "svc",
+    "resource": "op2",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69ef90fd00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "key": "val2",
+      "language": "python",
+      "runtime-id": "d01a6252be3b4d699236889774365606"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 507.0
+    },
+    "duration": 28125,
+    "start": 1777307901915600014
+  },
+     {
+       "name": "child2",
+       "service": "svc",
+       "resource": "child2",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "_dd.svc_src": "m"
+       },
+       "duration": 8333,
+       "start": 1777307901915615847
+     }]]

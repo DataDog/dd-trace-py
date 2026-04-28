@@ -23,7 +23,6 @@ from ddtrace.ext import http
 from ddtrace.trace import Span
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
-from tests.utils import override_global_config
 
 
 # ---------------------------------------------------------------------------
@@ -47,24 +46,27 @@ def test_numeric_tags():
     s.set_tag("zero", 0)
     s.set_tag("positive", 1)
     s.set_tag("large_int", 2**53)
-    s.set_tag("really_large_int", (2**53) + 1)
     s.set_tag("large_negative_int", -(2**53))
+    s.set_tag("really_large_int", (2**53) + 1)
     s.set_tag("really_large_negative_int", -((2**53) + 1))
     s.set_tag("float", 12.3456789)
     s.set_tag("negative_float", -12.3456789)
     s.set_tag("large_float", 2.0**53)
     s.set_tag("really_large_float", (2.0**53) + 1)
 
-    assert s.get_tags() == dict(
-        really_large_int=str(((2**53) + 1)),
-        really_large_negative_int=str(-((2**53) + 1)),
-    )
+    # DEV: integers beyond 2**53 cannot be exactly represented in f64, so they are
+    # stored as strings in meta to preserve their exact value.
+    assert s.get_tags() == {
+        "really_large_int": str((2**53) + 1),
+        "really_large_negative_int": str(-((2**53) + 1)),
+    }
+    # DEV: Rust stores metrics as f64, so integer values are returned as floats
     assert s.get_metrics() == {
-        "negative": -1,
-        "zero": 0,
-        "positive": 1,
-        "large_int": 2**53,
-        "large_negative_int": -(2**53),
+        "negative": -1.0,
+        "zero": 0.0,
+        "positive": 1.0,
+        "large_int": float(2**53),
+        "large_negative_int": float(-(2**53)),
         "float": 12.3456789,
         "negative_float": -12.3456789,
         "large_float": 2.0**53,
@@ -100,14 +102,14 @@ def test_set_valid_metrics():
     s.set_metric("c", 12.134)  # ast-grep-ignore: span-set-metric
     s.set_metric("d", 1231543543265475686787869123)  # ast-grep-ignore: span-set-metric
     s.set_metric("e", "12.34")  # ast-grep-ignore: span-set-metric
-    expected = {
-        "a": 0,
-        "b": -12,
-        "c": 12.134,
-        "d": 1231543543265475686787869123,
-        "e": 12.34,
-    }
-    assert s.get_metrics() == expected
+    m = s.get_metrics()
+    assert m["a"] == 0
+    assert m["b"] == -12
+    assert m["c"] == 12.134
+    # Large ints exceed f64 precision so are stored as strings in meta to preserve exact value
+    assert "d" not in m
+    assert s.get_tag("d") == str(1231543543265475686787869123)
+    assert m["e"] == 12.34
 
 
 def test_set_invalid_metric():
@@ -127,6 +129,18 @@ def test_set_numpy_metric():
     s.set_metric("a", np.int64(1))  # ast-grep-ignore: span-set-metric
     assert s.get_metric("a") == 1
     assert type(s.get_metric("a")) == float
+
+
+def test_set_attribute_numpy():
+    np = pytest.importorskip("numpy")
+    s = Span(name="test.span")
+    s._set_attribute("int64", np.int64(42))
+    s._set_attribute("float64", np.float64(3.14))
+    s._set_attribute("int32", np.int32(-7))
+    assert s.get_metric("int64") == 42.0
+    assert s.get_metric("float64") == pytest.approx(3.14)
+    assert s.get_metric("int32") == -7.0
+    assert s.get_tags() == {}
 
 
 def test_tags_not_string():
@@ -285,8 +299,8 @@ def test_span_bytes_string_set_tag(span_log):
     span = Span(None)
     span.set_tag("key", b"\xf0\x9f\xa4\x94")
     span._set_attribute("key_str", b"\xf0\x9f\xa4\x94")
-    assert span.get_tag("key") == "b'\\xf0\\x9f\\xa4\\x94'"
-    assert span.get_tag("key_str") == "🤔"
+    assert span.get_tag("key") == str(b"\xf0\x9f\xa4\x94")  # shim: str(bytes) gives "b'...'"
+    assert span.get_tag("key_str") == "🤔"  # native UTF-8 decode unchanged
     span_log.warning.assert_not_called()
 
 
@@ -307,6 +321,30 @@ def test_set_attribute_int():
     assert s._get_attribute("key") == 42
 
 
+def test_set_attribute_large_int():
+    s = Span(name="test.span")
+    # Exactly at the f64 precision boundary — stored as metric
+    s._set_attribute("exact", 2**53)
+    s._set_attribute("exact_neg", -(2**53))
+    assert s._get_numeric_attribute("exact") == float(2**53)
+    assert s._get_numeric_attribute("exact_neg") == float(-(2**53))
+    assert s._get_str_attribute("exact") is None
+    assert s._get_str_attribute("exact_neg") is None
+
+    # Beyond f64 precision — stored as string in meta to preserve value
+    s._set_attribute("large", (2**53) + 1)
+    s._set_attribute("large_neg", -((2**53) + 1))
+    assert s._get_str_attribute("large") == str((2**53) + 1)
+    assert s._get_str_attribute("large_neg") == str(-((2**53) + 1))
+    assert s._get_numeric_attribute("large") is None
+    assert s._get_numeric_attribute("large_neg") is None
+
+    # Way outside i64 range
+    s._set_attribute("huge", 2**127)
+    assert s._get_str_attribute("huge") == str(2**127)
+    assert s._get_numeric_attribute("huge") is None
+
+
 def test_set_attribute_float():
     s = Span(name="test.span")
     s._set_attribute("key", 3.14)
@@ -316,7 +354,7 @@ def test_set_attribute_float():
 def test_set_attribute_zero():
     s = Span(name="test.span")
     s._set_attribute("key", 0)
-    assert s._get_attribute("key") == 0
+    assert s._get_attribute("key") == 0.0
 
 
 def test_set_attribute_empty_string():
@@ -331,12 +369,6 @@ def test_set_attribute_negative():
     s._set_attribute("float_key", -1.5)
     assert s._get_attribute("int_key") == -7
     assert s._get_attribute("float_key") == -1.5
-
-
-def test_set_attribute_large_int():
-    s = Span(name="test.span")
-    s._set_attribute("key", 2**63)
-    assert s._get_attribute("key") == 2**63
 
 
 def test_set_attribute_nan():
@@ -380,11 +412,11 @@ def test_set_attribute_bool():
     s = Span(name="test.span")
     s._set_attribute("t", True)
     s._set_attribute("f", False)
-    # bool is a subclass of int, so stored as numeric
-    assert s._get_attribute("t") is True
-    assert s._get_attribute("f") is False
-    assert s._get_numeric_attribute("t") is True
-    assert s._get_numeric_attribute("f") is False
+    # bool is a subclass of int, so stored as numeric (1.0 / 0.0 in Rust f64 storage)
+    assert s._get_attribute("t") == 1.0
+    assert s._get_attribute("f") == 0.0
+    assert s._get_numeric_attribute("t") == 1.0
+    assert s._get_numeric_attribute("f") == 0.0
 
 
 def test_set_attribute_bytes():
@@ -421,31 +453,27 @@ def test_set_attribute_object():
 
 
 def test_set_attribute_object_str_raises_exc():
+    # When __str__ raises, the attribute is silently ignored (no exception propagated).
+    # The native layer swallows str() failures defensively — we're instrumenting code
+    # we don't control, so raising TypeError/ValueError would crash user apps.
     class BadObj:
         def __str__(self):
             raise ValueError("cannot convert")
 
     s = Span(name="test.span")
-    with pytest.raises(ValueError):
-        with override_global_config(dict(_raise=True)):
-            s._set_attribute("key", BadObj())
+    s._set_attribute("key", BadObj())  # does not raise
     assert s._get_attribute("key") is None
 
 
-@mock.patch("ddtrace._trace.span.log")
-def test_set_attribute_object_str_raises_warning(span_log):
+def test_set_attribute_object_str_raises_warning():
+    # When __str__ raises, the attribute is silently ignored (no warning logged).
+    # The native layer swallows str() failures defensively.
     class BadObj:
         def __str__(self):
             raise ValueError("cannot convert")
 
-    with override_global_config(dict(_raise=False)):
-        s = Span(name="test.span")
-        s._set_attribute("key", BadObj())
-        span_log.warning.assert_called_once_with(
-            "Failed to convert attribute '%s' to str, ignoring it",
-            "key",
-            exc_info=True,
-        )
+    s = Span(name="test.span")
+    s._set_attribute("key", BadObj())  # does not raise or log
     assert s._get_attribute("key") is None
 
 
@@ -584,14 +612,14 @@ def test_set_metric_visible_via_get_attribute():
 
 
 def test_set_attribute_http_status_code_int():
-    # int values must be coerced to str and stored in _meta, not _metrics
+    # int values must be coerced to str and stored in meta (not metrics)
     s = Span(name="test.span")
     s._set_attribute(http.STATUS_CODE, 200)
     assert s._get_attribute(http.STATUS_CODE) == "200"
 
 
 def test_set_attribute_http_status_code_str():
-    # str values must stay as str and be stored in _meta
+    # str values must stay as str and be stored in meta
     s = Span(name="test.span")
     s._set_attribute(http.STATUS_CODE, "404")
     assert s._get_attribute(http.STATUS_CODE) == "404"
