@@ -971,10 +971,18 @@ venv = Venv(
                 "redis": ">=2.10,<2.11",
                 "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django[testing]": "==3.10.0",
+                # pytest-asyncio is required so the async ASGI tests in
+                # tests/contrib/django/test_django.py (regression coverage
+                # for #17404 / #17728) actually execute instead of being
+                # silently skipped by pytest's "no async plugin installed".
+                "pytest-asyncio": latest,
+                # django-q's app config still imports `pkg_resources`, which
+                # setuptools 80 removed. Pin to a version that still ships it
+                # so the venv builds on Python 3.13+.
+                "setuptools": "<80",
                 "pylibmc": latest,
                 "python-memcached": latest,
                 "pytest-randomly": latest,
-                "django-q": latest,
                 "spyne": latest,
                 "zeep": latest,
                 "bcrypt": "==4.2.1",
@@ -996,6 +1004,7 @@ venv = Venv(
                     pkgs={
                         "django": ["~=2.2.0", "~=3.0.0", "~=4.0"],
                         "channels": latest,
+                        "django-q": latest,
                     },
                 ),
                 Venv(
@@ -1005,6 +1014,21 @@ venv = Venv(
                         "django": ["~=4.2"],
                         "psycopg": latest,
                         "channels": latest,
+                        "django-q": latest,
+                    },
+                ),
+                Venv(
+                    # django 5.x (`~=5.1` resolves to the latest 5.x; currently
+                    # 5.2). Covers the async middleware/view CancelledError
+                    # regression reported in #17728. Uses django-q2 (a community
+                    # fork of django-q) because upstream django-q still imports
+                    # django.utils.baseconv which Django 5.0 removed.
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={
+                        "django": ["~=5.1"],
+                        "psycopg": latest,
+                        "channels": latest,
+                        "django-q2": latest,
                     },
                 ),
             ],

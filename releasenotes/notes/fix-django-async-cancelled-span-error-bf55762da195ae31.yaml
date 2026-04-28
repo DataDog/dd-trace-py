@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    django: This fix resolves an issue where Django async request tracing — async
+    views and async middleware — caused routine ASGI cancellations such as client
+    disconnects on streaming responses to mark spans as errored with
+    ``error.type='asyncio.exceptions.CancelledError'``. The regression was
+    introduced in 4.8.0rc4. The async wrappers around the awaited view and
+    middleware now ignore ``asyncio.CancelledError`` when finishing the span, so
+    cancellation still propagates but the span finishes without being flagged as
+    errored.
