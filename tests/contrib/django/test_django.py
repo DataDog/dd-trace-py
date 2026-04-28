@@ -2828,10 +2828,7 @@ async def test_async_view_cancellation_does_not_tag_span_errored(test_spans):
 
     all_spans = test_spans.get_spans()
     view_spans = [s for s in all_spans if s.name == "django.view"]
-    assert view_spans, (
-        f"expected at least one django.view span; got spans: "
-        f"{sorted({s.name for s in all_spans})}"
-    )
+    assert view_spans, f"expected at least one django.view span; got spans: {sorted({s.name for s in all_spans})}"
     errored = [s for s in view_spans if s.error]
     assert not errored, (
         f"{len(errored)}/{len(view_spans)} django.view spans tagged errored on routine "
@@ -2860,9 +2857,7 @@ async def test_async_middleware_hook_cancellation_does_not_tag_span_errored(test
 
     from ddtrace.contrib.internal.django.middleware import _make_async_traced_middleware_hook
 
-    wrapper = _make_async_traced_middleware_hook(
-        "tests.contrib.django.middleware.AsyncCallMiddleware", "__call__"
-    )
+    wrapper = _make_async_traced_middleware_hook("tests.contrib.django.middleware.AsyncCallMiddleware", "__call__")
 
     class _Mw:
         """Stand-in for a class-level `async def __call__` middleware."""
