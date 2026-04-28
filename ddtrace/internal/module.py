@@ -422,7 +422,9 @@ class BaseModuleWatchdog(abc.ABC):
         self._finding.add(fullname)
 
         try:
-            # Iterate sys.meta_path directly to avoid re-entering the import machinery and acquiring per-module locks, which causes A-B deadlocks when a background thread calls importlib.files() during module __init__.
+            # Iterate sys.meta_path directly to avoid re-entering the import machinery
+            # and acquiring per-module locks (A-B deadlock risk when a background thread
+            # calls importlib.files() during module __init__).
             spec = None
             for finder in sys.meta_path:
                 if finder is self:
@@ -443,7 +445,8 @@ class BaseModuleWatchdog(abc.ABC):
             loader = getattr(spec, "loader", None)
 
             if not isinstance(loader, _ImportHookChainedLoader):
-                # Reuse the existing module's loader to preserve accumulated state (e.g. _dd_get_code wrapper) and avoid re-wrapping on reload.
+                # Reuse the existing loader to preserve accumulated state (e.g. _dd_get_code)
+                # and avoid re-wrapping on reload.
                 existing_module = sys.modules.get(fullname)
                 existing_loader = getattr(existing_module, "__loader__", None)
                 if existing_loader is not None and not isinstance(existing_loader, _ImportHookChainedLoader):
