@@ -1,0 +1,8 @@
+---
+other:
+  - |
+    profiling: Removes the ``VmReader`` alternative memory-copy backend (``pwritev``/mmap-based)
+    from the stack sampler. The sampler now uses ``process_vm_readv`` directly (or the
+    ``ECHION_USE_FAST_COPY_MEMORY`` memcpy path), and reports a fatal initialization failure
+    if ``process_vm_readv`` is unavailable. The ``ECHION_ALT_VM_READ_FORCE`` environment
+    variable is no longer recognized.
