@@ -63,8 +63,8 @@ class LLMObsSpanData(TypedDict, total=False):
     """Structure of LLMObs span data attached to APM spans."""
 
     name: str
-    parent_id: Optional[int]
-    trace_id: int
+    parent_id: str
+    trace_id: str
     ml_app: str
     session_id: str
     tags: dict[str, str]
@@ -625,7 +625,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "canonical_id": attrs.get("canonical_id"),
                     "input_data": attrs["input"],
                     "expected_output": attrs.get("expected_output"),
-                    "metadata": attrs.get("metadata", {}),
+                    "metadata": attrs.get("metadata") or {},
                     "tags": attrs.get("tags", []),
                 }
                 class_records.append(dataset_record)
