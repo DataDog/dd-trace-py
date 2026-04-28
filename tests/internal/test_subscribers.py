@@ -22,9 +22,11 @@ called = []
 @pytest.fixture(autouse=True)
 def reset_event_hub():
     """Reset event hub after each test to prevent listener leakage between tests."""
+    core._reset_context()
     yield
     event_hub.reset()
     called.clear()
+    core._reset_context()
 
 
 @dataclass

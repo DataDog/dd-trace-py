@@ -39,6 +39,7 @@ from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordNew
 from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentRun
 from ddtrace.llmobs._experiment import RemoteEvaluator
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
@@ -4795,3 +4796,34 @@ def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload):
         finally:
             if dataset_id:
                 llmobs._delete_dataset(dataset_id=dataset_id)
+
+
+def test_prepare_summary_evaluator_data_handles_none_metadata():
+    """Records with metadata=None (e.g. from API returning null) must not crash data prep."""
+    dataset = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hi"}, "expected_output": "hello", "metadata": None},
+        ]
+    )
+    exp = Experiment(
+        name="test",
+        task=dummy_task,
+        dataset=dataset,
+        evaluators=[dummy_evaluator],
+        project_name="test-project",
+        summary_evaluators=[dummy_summary_evaluator],
+    )
+    task_results = [
+        {
+            "idx": 0,
+            "span_id": "1",
+            "trace_id": "1",
+            "timestamp": 0,
+            "output": "hello",
+            "metadata": {},
+            "error": {"message": None, "type": None, "stack": None},
+        }
+    ]
+    eval_results = [{"idx": 0, "evaluations": {"dummy_evaluator": {"value": True, "error": None}}}]
+    _, _, _, metadata_list, _ = exp._prepare_summary_evaluator_data(task_results, eval_results)
+    assert metadata_list == [{"experiment_config": {}}]

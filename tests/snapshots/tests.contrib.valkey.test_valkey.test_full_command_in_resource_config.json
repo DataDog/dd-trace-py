@@ -11,14 +11,14 @@
     "meta": {
       "_dd.base_service": "tests.contrib.valkey",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dfb8d500000000",
+      "_dd.p.tid": "69e27a8f00000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.valkey",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "35e2707575884fceb6fb7614d8a38d61",
+      "runtime-id": "fed65df52b054628a4831772b2acd6e9",
       "server.address": "localhost",
       "span.kind": "client",
       "valkey.raw_command": "GET put_key_in_resource"
@@ -31,11 +31,11 @@
       "db.row_count": 0.0,
       "network.destination.port": 6379.0,
       "out.valkey_db": 0.0,
-      "process_id": 8239.0,
+      "process_id": 38006.0,
       "valkey.args_length": 2.0
     },
-    "duration": 498292,
-    "start": 1776269525927330711
+    "duration": 461958,
+    "start": 1776450191833469053
   }],
 [
   {
@@ -50,14 +50,14 @@
     "meta": {
       "_dd.base_service": "tests.contrib.valkey",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dfb8d500000000",
+      "_dd.p.tid": "69e27a8f00000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.valkey",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "35e2707575884fceb6fb7614d8a38d61",
+      "runtime-id": "fed65df52b054628a4831772b2acd6e9",
       "server.address": "localhost",
       "span.kind": "client",
       "valkey.raw_command": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2"
@@ -69,9 +69,9 @@
       "_sampling_priority_v1": 1.0,
       "network.destination.port": 6379.0,
       "out.valkey_db": 0.0,
-      "process_id": 8239.0,
+      "process_id": 38006.0,
       "valkey.pipeline_length": 2.0
     },
-    "duration": 188542,
-    "start": 1776269525928220086
+    "duration": 185375,
+    "start": 1776450191834302261
   }]]
