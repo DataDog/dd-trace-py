@@ -6,6 +6,7 @@ from webtest import TestApp
 from ddtrace import config
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
+from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
 from tests.utils import override_config
 from tests.utils import override_http_config
@@ -409,3 +410,265 @@ app.get("/")"""
         env["DD_SERVICE"] = service_name
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for construct_url SCRIPT_NAME composition.
+#
+# Two distinct WSGI flows leave a non-empty ``SCRIPT_NAME`` in ``environ``:
+#   1. In-process mounts (e.g. ``werkzeug.middleware.dispatcher.DispatcherMiddleware``)
+#      preserve the original request URI in ``RAW_URI`` / ``REQUEST_URI`` while
+#      also setting ``SCRIPT_NAME`` to the mount prefix. Naively prepending
+#      ``SCRIPT_NAME`` would double the prefix in ``http.url``.
+#   2. A reverse proxy strips a path prefix before forwarding, exposing only
+#      the post-strip path in ``RAW_URI`` while reporting the prefix via
+#      ``SCRIPT_NAME``. Skipping ``SCRIPT_NAME`` would lose the prefix.
+# ``construct_url`` distinguishes the two by checking whether the raw URI
+# already starts with ``SCRIPT_NAME``. These tests pin that behavior.
+# ---------------------------------------------------------------------------
+
+
+def test_construct_url_dispatcher_middleware_does_not_double_prefix():
+    """RAW_URI already includes the mount prefix → SCRIPT_NAME must NOT be prepended."""
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/admin",
+        "PATH_INFO": "/users",
+        "RAW_URI": "/admin/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/admin/users"
+
+
+def test_construct_url_reverse_proxy_prepends_script_name():
+    """RAW_URI lacks the prefix (proxy stripped it) → SCRIPT_NAME must be prepended."""
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/api/v2",
+        "PATH_INFO": "/users",
+        "RAW_URI": "/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/api/v2/users"
+
+
+def test_construct_url_request_uri_dispatcher_middleware_does_not_double_prefix():
+    """Same as the RAW_URI case but exercising the REQUEST_URI fallback (uWSGI)."""
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/admin",
+        "PATH_INFO": "/users",
+        "REQUEST_URI": "/admin/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/admin/users"
+
+
+def test_construct_url_path_info_fallback_uses_script_name():
+    """Without RAW_URI / REQUEST_URI, the fallback always composes SCRIPT_NAME + PATH_INFO."""
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/admin",
+        "PATH_INFO": "/users",
+        "QUERY_STRING": "x=1",
+    }
+    assert construct_url(environ) == "http://localhost:8000/admin/users?x=1"
+
+
+def test_construct_url_no_script_name_passthrough():
+    """Empty SCRIPT_NAME is the common case (flat apps): the raw URI is returned as-is."""
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "",
+        "PATH_INFO": "/users",
+        "RAW_URI": "/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/users"
+
+
+def test_construct_url_script_name_absent_from_environ():
+    """SCRIPT_NAME key not present at all (some WSGI servers omit it) is treated
+    as empty — no prefix prepended, raw URI returned as-is.
+    """
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "PATH_INFO": "/users",
+        "RAW_URI": "/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/users"
+
+
+def test_construct_url_script_name_none_passthrough():
+    """Defensive: a non-spec ``SCRIPT_NAME=None`` is normalized to empty rather
+    than blowing up on string concatenation.
+    """
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": None,
+        "PATH_INFO": "/users",
+        "RAW_URI": "/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/users"
+
+
+def test_construct_url_script_name_prefix_is_not_a_path_segment_match():
+    """``SCRIPT_NAME=/api`` must NOT be considered already-included when the raw
+    URI is ``/apiary/users`` — they share leading characters but the first path
+    segment is different. The reverse-proxy-strip prefix must still be prepended.
+    """
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/api",
+        "PATH_INFO": "/apiary/users",
+        "RAW_URI": "/apiary/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/api/apiary/users"
+
+
+def test_construct_url_dispatcher_middleware_with_percent_encoded_path():
+    """``RAW_URI`` is the original percent-encoded request line; ``PATH_INFO``
+    is the WSGI-decoded form. The DispatcherMiddleware-vs-reverse-proxy
+    disambiguation must not flip on benign encoding differences (here ``%20``
+    in the raw line vs a literal space in ``PATH_INFO``), which would
+    otherwise cause an accidental double-prefix on URLs containing percent-
+    encoded characters.
+    """
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/admin",
+        "PATH_INFO": "/foo bar",
+        "RAW_URI": "/admin/foo%20bar",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/admin/foo%20bar"
+
+
+def test_construct_url_reverse_proxy_strip_with_path_segment_collision():
+    """A reverse proxy strips a prefix from the public URL ``/api/api/users``
+    yielding ``RAW_URI=/api/users``, ``SCRIPT_NAME=/api``, ``PATH_INFO=/api/users``.
+    Distinguishable from the DispatcherMiddleware case (which would have
+    ``PATH_INFO=/users``) only by comparing the canonical concatenation
+    ``SCRIPT_NAME + PATH_INFO`` (``/api/api/users``) against ``RAW_URI``
+    (``/api/users``); the mismatch flags this as the proxy-strip flow and the
+    prefix must be prepended.
+    """
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/api",
+        "PATH_INFO": "/api/users",
+        "RAW_URI": "/api/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/api/api/users"
+
+
+def test_construct_url_root_script_name_does_not_inject_double_slash():
+    """``SCRIPT_NAME="/"`` (the root mount) must NOT cause a leading double
+    slash in the constructed URL. The trailing ``/`` of the script name itself
+    is the path boundary; we treat it as already-included regardless of the
+    next character in the raw URI.
+    """
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/",
+        "PATH_INFO": "/users",
+        "RAW_URI": "/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/users"
+
+
+def test_construct_url_script_name_exact_match_is_not_doubled():
+    """Edge of the boundary check: ``RAW_URI`` is *exactly* ``SCRIPT_NAME``
+    (request hit the bare mount prefix, no path beyond it). The match is at
+    end-of-string — still a path boundary, must not double.
+    """
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/admin",
+        "PATH_INFO": "",
+        "RAW_URI": "/admin",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/admin"
+
+
+def test_construct_url_raw_uri_takes_precedence_over_request_uri():
+    """When both keys are present, ``RAW_URI`` wins (gunicorn-style preference).
+    Codifies the read order ``RAW_URI`` first, ``REQUEST_URI`` second.
+    """
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "",
+        "PATH_INFO": "/users",
+        "RAW_URI": "/raw",
+        "REQUEST_URI": "/request",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/raw"
+
+
+def test_construct_url_query_string_already_in_raw_uri_is_not_duplicated():
+    """If the ``?`` is already in ``RAW_URI``, ``QUERY_STRING`` must not be
+    appended a second time. Pairs with the existing case where ``RAW_URI`` lacks
+    the query and ``QUERY_STRING`` is appended to backfill it.
+    """
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "",
+        "PATH_INFO": "/users",
+        "RAW_URI": "/users?a=1&b=2",
+        "QUERY_STRING": "a=1&b=2",
+    }
+    assert construct_url(environ) == "http://localhost:8000/users?a=1&b=2"
+
+
+def test_construct_url_matrix_params_in_raw_uri_treated_as_segment_data():
+    """Matrix-parameter syntax (``;``) is segment-internal data, not a path
+    boundary. With ``SCRIPT_NAME=/api`` and ``RAW_URI=/api;v=1`` (which can only
+    arise from the reverse-proxy-strip flow, since werkzeug DispatcherMiddleware
+    only splits on ``/``), the prefix must still be prepended — yielding the
+    public URL ``/api/api;v=1``.
+    """
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/api",
+        "PATH_INFO": "/api;v=1",
+        "RAW_URI": "/api;v=1",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/api/api;v=1"
+
+
+def test_construct_url_query_string_backfilled_when_raw_uri_lacks_it():
+    """Older WSGI servers may put just the path in ``RAW_URI`` and the query
+    separately in ``QUERY_STRING``. ``construct_url`` must compose them.
+    """
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "",
+        "PATH_INFO": "/users",
+        "RAW_URI": "/users",
+        "QUERY_STRING": "a=1&b=2",
+    }
+    assert construct_url(environ) == "http://localhost:8000/users?a=1&b=2"
