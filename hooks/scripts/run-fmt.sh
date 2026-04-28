@@ -29,3 +29,26 @@ if [ -n "$staged_files" ]; then
 else
     echo 'Format/lint skipped: No Python/stub files were found in `git diff --staged`'
 fi
+
+# Check that all tracked-but-unstaged modified Python files are already formatted.
+# This catches the case where a file was edited but not staged — the hook above
+# would silently skip it, leaving unformatted code in the working tree.
+dirty_ruff=$(git diff --name-only --diff-filter=ACMR | grep -E '\.(py|pyi)$' | tr '\n' ' ')
+if [ -n "$(printf '%s' "$dirty_ruff" | tr -d ' \t\n')" ]; then
+    ruff_output=$(hatch -v run lint:ruff format --check --no-cache $dirty_ruff 2>&1)
+    if [ $? -ne 0 ]; then
+        RED='\033[0;31m'
+        BOLD='\033[1m'
+        RESET='\033[0m'
+        printf "\n${BOLD}${RED}╔══ FORMAT ERROR ═══════════════════════════════════════════╗${RESET}\n"
+        printf "${BOLD}${RED}║  Unstaged file(s) have formatting issues:${RESET}\n"
+        echo "$ruff_output" | grep -E "^Would reformat" | while IFS= read -r line; do
+            printf "${RED}║    • %s${RESET}\n" "$line"
+        done
+        printf "${BOLD}${RED}║${RESET}\n"
+        printf "${BOLD}${RED}║  Fix: hatch run lint:fmt${RESET}\n"
+        printf "${BOLD}${RED}║  Or:  stage the files and let the hook auto-fix them.${RESET}\n"
+        printf "${BOLD}${RED}╚═══════════════════════════════════════════════════════════╝${RESET}\n\n"
+        exit 1
+    fi
+fi

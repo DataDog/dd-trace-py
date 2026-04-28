@@ -9,7 +9,9 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68cc71ba00000000",
+      "_dd.p.tid": "69e92e3100000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "eventhub",
       "aas.function.trigger": "EventHubs",
       "component": "azure_functions",
@@ -19,17 +21,17 @@
       "messaging.operation": "receive",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "08ce7f2846ee4ce4967a245a04a5097d",
+      "runtime-id": "9d966a84e5fe4bf6bc515968925d2958",
       "span.kind": "consumer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 32443
+      "_sampling_priority_v1": 1.0,
+      "process_id": 80630.0
     },
-    "duration": 154625,
-    "start": 1758228922795489297
+    "duration": 225000,
+    "start": 1776889393559806000
   }],
 [
   {
@@ -42,7 +44,9 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68cc71ba00000000",
+      "_dd.p.tid": "69e92e3000000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "send_batch",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -52,17 +56,17 @@
       "http.url": "http://0.0.0.0:7071/api/sendeventbatch",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "08ce7f2846ee4ce4967a245a04a5097d",
+      "runtime-id": "9d966a84e5fe4bf6bc515968925d2958",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 32443
+      "_sampling_priority_v1": 1.0,
+      "process_id": 80630.0
     },
-    "duration": 516742626,
-    "start": 1758228922146122255
+    "duration": 544564000,
+    "start": 1776889392966493000
   },
      {
        "name": "azure.eventhubs.create",
@@ -74,6 +78,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
+         "_dd.svc_src": "m",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
          "messaging.operation": "create",
@@ -82,10 +87,10 @@
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1
+         "_dd.top_level": 1.0
        },
-       "duration": 241583,
-       "start": 1758228922655677006
+       "duration": 306000,
+       "start": 1776889393495912000
      },
      {
        "name": "azure.eventhubs.create",
@@ -97,6 +102,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
+         "_dd.svc_src": "m",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
          "messaging.operation": "create",
@@ -105,10 +111,10 @@
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1
+         "_dd.top_level": 1.0
        },
-       "duration": 82041,
-       "start": 1758228922656586256
+       "duration": 100000,
+       "start": 1776889393496370000
      },
      {
        "name": "azure.eventhubs.send",
@@ -120,6 +126,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
+         "_dd.svc_src": "m",
          "component": "azure_eventhubs",
          "messaging.batch_count": "2",
          "messaging.destination.name": "eh1",
@@ -129,8 +136,8 @@
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1
+         "_dd.top_level": 1.0
        },
-       "duration": 4348667,
-       "start": 1758228922656758714
+       "duration": 13037000,
+       "start": 1776889393496653000
      }]]

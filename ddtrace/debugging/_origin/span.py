@@ -104,7 +104,11 @@ class EntrySpanWrappingContext(LazyWrappingContext):
             root = ddtrace.tracer.current_root_span()
             span = ddtrace.tracer.current_span()
             location = self.location
-            if root is None or span is None or root.get_tag("_dd.entry_location.file") is not None:
+            if root is None or span is None or root.get_tag("_dd.code_origin.type") == "entry":
+                # If the root span already has entry location tags, it means
+                # another entry span wrapping context has already been entered
+                # upstream, so we skip adding code origin tags to avoid
+                # overwriting the original entry point information
                 return self
 
             # Add tags to the local root
