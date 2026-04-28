@@ -60,7 +60,7 @@ class CacheCommandEvent(TracingEvent):
         self.operation_name = schematize_cache_operation(self.command_tag_name, cache_provider=self.cache_provider)
 
 
-# Events below are not redifining event_name on purpose.
+# Events below are not redefining event_name on purpose.
 # They are specialization of the CacheCommandEvent but not
 # new events by themselves
 class PymemcacheCommandEvent(CacheCommandEvent):

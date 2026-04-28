@@ -1,5 +1,7 @@
 from types import TracebackType
+from typing import Callable
 from typing import Optional
+from typing import cast
 
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib._events.cache import CacheCommandEvent
@@ -45,8 +47,8 @@ class CacheTracingSubscriber(TracingSubscriber):
             span._set_attribute(key, value)
 
         if event.query is not None and event.raw_command_tag_name is not None:
-            raw_command_tag = schematize_cache_operation(
-                event.raw_command_tag_name, cache_provider=event.cache_provider
+            raw_command_tag = cast(Callable[[str, Optional[str]], str], schematize_cache_operation)(
+                event.raw_command_tag_name, event.cache_provider
             )
             span._set_attribute(raw_command_tag, event.query)
 
