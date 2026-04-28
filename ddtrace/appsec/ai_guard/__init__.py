@@ -29,59 +29,52 @@ try:
 except PackageNotFoundError:
     _HAS_STRANDS = False
 
-# HookProvider and Plugin are imported independently so that a
-# missing Plugin API (strands-agents < 1.29.0) does not break the legacy
-# HookProvider import.
-_HAS_STRANDS_HOOK_PROVIDER = False
-_HAS_STRANDS_PLUGIN = False
 
-if _HAS_STRANDS:
+class _AIGuardStrandsMissingStub:
+    """Fallback used when strands-agents is not installed."""
+
+    _missing_message = (
+        "AIGuardStrandsPlugin could not be loaded. "
+        "Please install strands-agents>=1.29.0: pip install 'strands-agents>=1.29.0'"
+    )
+
+    def __init__(self, *args: typing.Any, **kwargs: typing.Any):
+        log.warning(self._missing_message)
+
+    def register_hooks(self, registry: typing.Any, **kwargs: typing.Any) -> None:
+        pass
+
+
+# AIDEV-NOTE: The Strands integration is loaded LAZILY (via module __getattr__)
+# rather than eagerly imported at module load time. Eager import here breaks
+# Strands hook dispatch under ddtrace.auto: importing
+# ``ddtrace.appsec.ai_guard.integrations.strands`` pulls in ``strands.hooks``
+# before ddtrace's ModuleWatchdog has registered for that package, and the
+# subsequent user-driven ``from strands import Agent`` re-creates the event
+# dataclasses with new class identities. The plugin's @hook callbacks would
+# end up registered against the *old* class identities while the agent
+# dispatches with the *new* ones, so no callback ever fires. Deferring the
+# import to first attribute access guarantees ``strands.hooks`` is already
+# fully loaded by the user's own ``import strands`` before our integration
+# binds its event-type references.
+def __getattr__(name: str) -> typing.Any:
+    if name not in ("AIGuardStrandsPlugin", "AIGuardStrandsHookProvider"):
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    if not _HAS_STRANDS:
+        globals()[name] = _AIGuardStrandsMissingStub
+        return _AIGuardStrandsMissingStub
+
     try:
-        from .integrations.strands import AIGuardStrandsHookProvider
-
-        _HAS_STRANDS_HOOK_PROVIDER = True
+        from .integrations import strands as _strands_integration
     except ImportError:
-        log.debug("Failed to import AIGuardStrandsHookProvider", exc_info=True)
+        log.debug("Failed to import %s", name, exc_info=True)
+        globals()[name] = _AIGuardStrandsMissingStub
+        return _AIGuardStrandsMissingStub
 
-    try:
-        from .integrations.strands import AIGuardStrandsPlugin
-
-        _HAS_STRANDS_PLUGIN = True
-    except ImportError:
-        log.debug("Failed to import AIGuardStrandsPlugin", exc_info=True)
-
-if not _HAS_STRANDS_PLUGIN:
-
-    class AIGuardStrandsPlugin:  # type: ignore[no-redef]
-        """Stub AIGuardStrandsPlugin when strands-agents is not installed.
-
-        Logs a warning when instantiated, informing users to install
-        strands-agents >= 1.29.0.
-        """
-
-        def __init__(self, *args: typing.Any, **kwargs: typing.Any):
-            log.warning(
-                "AIGuardStrandsPlugin could not be loaded. "
-                "Please install strands-agents>=1.29.0: pip install 'strands-agents>=1.29.0'"
-            )
-
-
-if not _HAS_STRANDS_HOOK_PROVIDER:
-
-    class AIGuardStrandsHookProvider:  # type: ignore[no-redef]
-        """Stub AIGuardStrandsHookProvider when strands-agents is not installed.
-
-        Logs a warning when instantiated, informing users to install the strands-agents package.
-        """
-
-        def __init__(self, *args: typing.Any, **kwargs: typing.Any):
-            log.warning(
-                "AIGuardStrandsHookProvider could not be loaded. "
-                "Please install strands-agents: pip install strands-agents"
-            )
-
-        def register_hooks(self, registry: typing.Any, **kwargs: typing.Any) -> None:
-            pass
+    obj = getattr(_strands_integration, name, _AIGuardStrandsMissingStub)
+    globals()[name] = obj
+    return obj
 
 
 __all__ = [

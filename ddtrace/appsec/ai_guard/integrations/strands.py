@@ -39,8 +39,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from strands.hooks import AfterInvocationEvent as _AfterInvocationEvent
 from strands.hooks import AfterModelCallEvent as _AfterModelCallEvent
 from strands.hooks import AfterToolCallEvent as _AfterToolCallEvent
+from strands.hooks import BeforeInvocationEvent as _BeforeInvocationEvent
 from strands.hooks import BeforeModelCallEvent as _BeforeModelCallEvent
 from strands.hooks import BeforeToolCallEvent as _BeforeToolCallEvent
 from strands.hooks import HookProvider as _StrandsHookProvider
@@ -73,6 +75,8 @@ logger = get_logger(__name__)
 
 _BLOCKED_MSG = "[DATADOG AI GUARD] has been canceled for security reasons"
 _BLOCKED_TOOL_MSG = "[DATADOG AI GUARD] '{}' has been canceled for security reasons"
+
+_INVOCATION_TOKEN_KEY = "_dd_ai_guard_token"
 
 
 def _tool_result_text(tool_result: dict) -> str:
@@ -193,15 +197,36 @@ class AIGuardStrandsIntegration:
             msg += f": {reason}"
         return msg
 
+    def _on_before_invocation_base(self, event: _BeforeInvocationEvent) -> None:
+        """Mark the AI Guard context active for the entire agent invocation.
+
+        Activating at invocation start (rather than per model call) guarantees
+        that provider-level integrations (e.g. OpenAI) consistently skip their
+        own evaluation while Strands owns the lifecycle. The token is stored
+        on ``invocation_state`` so it is per-invocation and survives nested or
+        concurrent agent calls that share a single plugin/hook instance.
+        """
+        event.invocation_state[_INVOCATION_TOKEN_KEY] = set_aiguard_context_active()
+
+    def _on_after_invocation_base(self, event: _AfterInvocationEvent) -> None:
+        """Reset the AI Guard context at the end of the agent invocation.
+
+        Paired with ``_on_before_invocation_base``. Strands fires this in a
+        ``finally`` block so it runs even when the model or tool hooks raised
+        ``AIGuardAbortError``.
+        """
+        token = event.invocation_state.pop(_INVOCATION_TOKEN_KEY, None)
+        if token is not None:
+            reset_aiguard_context_active(token)
+
     def _on_before_model_call_base(self, event: _BeforeModelCallEvent) -> None:
         """Evaluate prompt messages before sending to the model.
 
         Skips tool output messages (already processed in AfterToolCall).
-        On block: always raises ``AIGuardAbortError``.
-        Sets ``_ai_guard_active`` so provider-level integrations (e.g. OpenAI)
-        skip their own evaluation while Strands owns the lifecycle.
+        On block: always raises ``AIGuardAbortError``. The AI Guard context is
+        owned by ``_on_before_invocation_base`` / ``_on_after_invocation_base``
+        so this hook does not touch it.
         """
-        self._ai_guard_token = set_aiguard_context_active()
         try:
             logger.debug("AIGuard event: %s", event)
             messages = event.agent.messages
@@ -214,7 +239,6 @@ class AIGuardStrandsIntegration:
                 result = self._client.evaluate(ai_guard_messages, Options(block=ai_guard_config._ai_guard_block))
                 logger.debug("AIGuard client evaluate result: %s", result)
         except AIGuardAbortError:
-            reset_aiguard_context_active(self._ai_guard_token)
             raise
         except Exception:
             logger.debug("Failed to evaluate model invocation", exc_info=True)
@@ -225,7 +249,6 @@ class AIGuardStrandsIntegration:
         Only analyzes assistant text content (tool calls are analyzed
         individually in BeforeToolCall). On block: always raises
         ``AIGuardAbortError``.
-        Resets ``_ai_guard_active`` set in ``_on_before_model_call_base``.
         """
         try:
             logger.debug("AIGuard event: %s", event)
@@ -251,9 +274,6 @@ class AIGuardStrandsIntegration:
             raise
         except Exception:
             logger.debug("Failed to evaluate model invocation", exc_info=True)
-        finally:
-            if hasattr(self, "_ai_guard_token"):
-                reset_aiguard_context_active(self._ai_guard_token)
 
     def _build_tool_call_messages(self, event: _BeforeToolCallEvent | _AfterToolCallEvent) -> tuple[list[Message], str]:
         """Build AI Guard messages for a tool call event.
@@ -365,6 +385,14 @@ if _HAS_PLUGIN_API:
             )
 
         @hook
+        def on_before_invocation(self, event: _BeforeInvocationEvent) -> None:
+            self._on_before_invocation_base(event)
+
+        @hook
+        def on_after_invocation(self, event: _AfterInvocationEvent) -> None:
+            self._on_after_invocation_base(event)
+
+        @hook
         def on_before_model_call(self, event: _BeforeModelCallEvent) -> None:
             self._on_before_model_call_base(event)
 
@@ -395,6 +423,8 @@ class AIGuardStrandsHookProvider(AIGuardStrandsIntegration, _StrandsHookProvider
 
     def register_hooks(self, registry: _StrandsHookRegistry, **kwargs: Any) -> None:
         """Register AI Guard callbacks for agent lifecycle events."""
+        registry.add_callback(_BeforeInvocationEvent, self._on_before_invocation_base)
+        registry.add_callback(_AfterInvocationEvent, self._on_after_invocation_base)
         registry.add_callback(_BeforeModelCallEvent, self._on_before_model_call_base)
         registry.add_callback(_AfterModelCallEvent, self._on_after_model_call_base)
         registry.add_callback(_AfterToolCallEvent, self._on_after_tool_call_base)
