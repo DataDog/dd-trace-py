@@ -537,6 +537,45 @@ def test_construct_url_script_name_prefix_is_not_a_path_segment_match():
     assert construct_url(environ) == "http://localhost:8000/api/apiary/users"
 
 
+def test_construct_url_dispatcher_middleware_with_percent_encoded_path():
+    """``RAW_URI`` is the original percent-encoded request line; ``PATH_INFO``
+    is the WSGI-decoded form. The DispatcherMiddleware-vs-reverse-proxy
+    disambiguation must not flip on benign encoding differences (here ``%20``
+    in the raw line vs a literal space in ``PATH_INFO``), which would
+    otherwise cause an accidental double-prefix on URLs containing percent-
+    encoded characters.
+    """
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/admin",
+        "PATH_INFO": "/foo bar",
+        "RAW_URI": "/admin/foo%20bar",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/admin/foo%20bar"
+
+
+def test_construct_url_reverse_proxy_strip_with_path_segment_collision():
+    """A reverse proxy strips a prefix from the public URL ``/api/api/users``
+    yielding ``RAW_URI=/api/users``, ``SCRIPT_NAME=/api``, ``PATH_INFO=/api/users``.
+    Distinguishable from the DispatcherMiddleware case (which would have
+    ``PATH_INFO=/users``) only by comparing the canonical concatenation
+    ``SCRIPT_NAME + PATH_INFO`` (``/api/api/users``) against ``RAW_URI``
+    (``/api/users``); the mismatch flags this as the proxy-strip flow and the
+    prefix must be prepended.
+    """
+    environ = {
+        "wsgi.url_scheme": "http",
+        "HTTP_HOST": "localhost:8000",
+        "SCRIPT_NAME": "/api",
+        "PATH_INFO": "/api/users",
+        "RAW_URI": "/api/users",
+        "QUERY_STRING": "",
+    }
+    assert construct_url(environ) == "http://localhost:8000/api/api/users"
+
+
 def test_construct_url_root_script_name_does_not_inject_double_slash():
     """``SCRIPT_NAME="/"`` (the root mount) must NOT cause a leading double
     slash in the constructed URL. The trailing ``/`` of the script name itself
