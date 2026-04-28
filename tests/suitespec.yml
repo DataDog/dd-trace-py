@@ -29,7 +29,7 @@ components:
     - ddtrace/commands/*
     - ddtrace/auto.py
   crashtracker:
-    - ddtrace/internal/core/crashtracking.py
+    - ddtrace/internal/core/crashtracking/*
     - ddtrace/internal/settings/crashtracker.py
     - ddtrace/internal/native/_native.pyi
     - src/native/crashtracker.rs
