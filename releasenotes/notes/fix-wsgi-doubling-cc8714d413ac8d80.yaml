@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    wsgi: This fix resolves an issue where the ``http.url`` tag on inbound request
+    spans contained the WSGI mount prefix twice (for example ``/admin/admin/users``
+    instead of ``/admin/users``) when the application was served behind
+    ``werkzeug.middleware.dispatcher.DispatcherMiddleware`` or any other in-process
+    mount that preserves the original request URI in ``RAW_URI`` / ``REQUEST_URI``
+    while also setting ``SCRIPT_NAME``.
