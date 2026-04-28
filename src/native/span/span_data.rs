@@ -1,11 +1,36 @@
 use pyo3::{
     types::{
         PyAnyMethods as _, PyBool, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _,
-        PyFloat, PyInt, PyList, PyListMethods as _, PyMapping, PyMappingMethods as _, PyString,
-        PyTuple,
+        PyFloat, PyList, PyListMethods as _, PyMapping, PyMappingMethods as _, PyString, PyTuple,
     },
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
+
+/// Typed storage for a single span attribute value.
+///
+/// Variants map 1:1 to the Python types accepted by `_set_attribute`.
+/// Bool is intentionally absent — PyO3's `extract::<i64>()` succeeds for
+/// bool (True → 1, False → 0), so bool collapses into `Int` at write time.
+/// The `set_tag` Python shim converts bool to str before reaching Rust, so
+/// callers using the public API never see bool stored as Int here.
+pub enum AttributeValue {
+    Str(PyBackedString),
+    Int(i64),
+    Float(f64),
+}
+
+impl AttributeValue {
+    /// Return the natural Python object for this value (no v0.4 projection).
+    /// Str → str, Int → int, Float → float.
+    pub fn as_py<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
+        match self {
+            AttributeValue::Str(s) => s.as_py(py),
+            AttributeValue::Int(i) => i.into_pyobject(py).expect("i64 into_pyobject").into_any(),
+            AttributeValue::Float(f) => f.into_pyobject(py).expect("f64 into_pyobject").into_any(),
+        }
+    }
+}
+
 
 use crate::py_string::{PyBackedString, PyTraceData};
 use crate::utils::flatten_key_value_vec as flatten_key_value_vec_fn;
@@ -28,6 +53,11 @@ use super::{SpanEvent, SpanLink};
 pub struct SpanData {
     pub data: libdd_trace_utils::span::v04::Span<PyTraceData>,
     pub span_api: PyBackedString,
+    /// Unified attribute storage — source of truth for all tag/metric attributes.
+    /// `data.meta` and `data.metrics` are left empty; they are materialized from
+    /// this map at encode time (currently by the Python encoder via the bulk read
+    /// accessors `_get_str_attributes` / `_get_numeric_attributes`).
+    pub attributes: std::collections::HashMap<PyBackedString, AttributeValue>,
     /// Lazy Python int cache for the `trace_id` getter.
     /// Populated on first read; invalidated on every write to `data.trace_id`.
     /// `data.trace_id` is always the source of truth.
@@ -427,14 +457,14 @@ impl SpanData {
 
     // ── Attribute API (meta / metrics) ──────────────────────────────────────
 
-    /// Set a tag/metric on the span. Routes string values to meta, numeric values to
-    /// metrics, deleting the key from the other map to avoid duplicates.
+    /// Set a tag/metric on the span. Stores the value in the unified `attributes` map,
+    /// preserving the original Python type (str → Str, int/bool → Int, float → Float).
     ///
-    /// Special case: `http.status_code` is always stored as a string in meta,
-    /// regardless of the value type.
+    /// Special case: `http.status_code` is always coerced to a string so the trace agent
+    /// can compute HTTP metrics from the meta tag.
     ///
-    /// Supported value types: str, int, float. Unsupported types are coerced
-    /// on a best-effort basis and should not be relied upon.
+    /// Supported value types: str, int, float. Other types are coerced on a best-effort
+    /// basis (bytes → UTF-8 decoded str, oversized ints → str, arbitrary objects → str).
     #[pyo3(name = "_set_attribute")]
     fn set_attribute(
         &mut self,
@@ -445,74 +475,65 @@ impl SpanData {
             return Ok(());
         };
 
-        if let Ok(s) = value.cast::<PyString>() {
-            let Some(v) = PyBackedString::try_from(s.clone()).ok() else {
-                return Ok(());
-            };
-            self.data.metrics.remove(&*key_pbs);
-            self.data.meta.insert(key_pbs, v);
-        } else if &*key_pbs == HTTP_STATUS_CODE_KEY {
-            // Must be stored in meta (not metrics): the trace agent calculates HTTP metrics from it
+        // http.status_code must always be a string in meta.
+        if &*key_pbs == HTTP_STATUS_CODE_KEY {
             let Ok(s) = value.str() else {
                 return Ok(());
             };
             let Some(v) = PyBackedString::try_from(s.clone()).ok() else {
                 return Ok(());
             };
-            self.data.metrics.remove(&*key_pbs);
-            self.data.meta.insert(key_pbs, v);
-        } else if value.cast::<PyFloat>().is_ok() {
+            self.attributes.insert(key_pbs, AttributeValue::Str(v));
+            return Ok(());
+        }
+
+        // str → Str
+        if let Ok(s) = value.cast::<PyString>() {
+            if let Ok(v) = PyBackedString::try_from(s.clone()) {
+                self.attributes.insert(key_pbs, AttributeValue::Str(v));
+            }
+            return Ok(());
+        }
+
+        // float → Float (drop NaN/Inf)
+        // Check before int because some types (e.g. numpy.float64) implement __float__
+        // but not __index__, so PyFloat succeeds and PyInt would fail.
+        if value.cast::<PyFloat>().is_ok() {
             let Ok(n) = value.extract::<f64>() else {
                 return Ok(());
             };
             if n.is_nan() || n.is_infinite() {
                 return Ok(());
             }
-            self.data.meta.remove(&*key_pbs);
-            self.data.metrics.insert(key_pbs, n);
-        } else if value.cast::<PyInt>().is_ok() {
-            // Catches int and bool (PyBool subclasses PyInt); downcast (not downcast_exact)
-            // is used so subclasses are included.
-            //
-            // Only store as f64 metric when the value can be represented exactly (abs <= 2^53).
-            // Larger integers lose precision in f64, so they are stored as strings in meta to
-            // preserve their exact value for the wire format and for callers reading them back.
-            if let Ok(n) = value.extract::<i64>() {
-                if n.unsigned_abs() <= (1u64 << 53) {
-                    self.data.meta.remove(&*key_pbs);
-                    self.data.metrics.insert(key_pbs, n as f64);
-                    return Ok(());
-                }
-            }
-            // Value is too large for exact f64 representation — store as string.
-            let Ok(s) = value.str() else {
-                return Ok(());
-            };
-            let Some(v) = PyBackedString::try_from(s.clone()).ok() else {
-                return Ok(());
-            };
-            self.data.metrics.remove(&*key_pbs);
-            self.data.meta.insert(key_pbs, v);
-        } else if let Ok(b) = value.cast::<PyBytes>() {
-            // Decode bytes as UTF-8 (with U+FFFD replacements for invalid sequences).
+            self.attributes.insert(key_pbs, AttributeValue::Float(n));
+            return Ok(());
+        }
+
+        // int (catches bool and numpy.int* via __index__) → Int.
+        // extract::<i64>() succeeds for bool (True → 1, False → 0) and for any
+        // type implementing __index__. Python ints that overflow i64 fall through
+        // to the str() fallback below.
+        if let Ok(n) = value.extract::<i64>() {
+            self.attributes.insert(key_pbs, AttributeValue::Int(n));
+            return Ok(());
+        }
+
+        // bytes → UTF-8 decoded Str (with U+FFFD replacements for invalid sequences)
+        if let Ok(b) = value.cast::<PyBytes>() {
             let decoded = String::from_utf8_lossy(b.as_bytes());
-            let py = key.py();
-            let py_str = PyString::new(py, &decoded);
-            let Some(v) = PyBackedString::try_from(py_str).ok() else {
-                return Ok(());
-            };
-            self.data.metrics.remove(&*key_pbs);
-            self.data.meta.insert(key_pbs, v);
-        } else {
-            // Fallback: coerce to string via str(value). Swallow any Python exception.
-            let Ok(s) = value.str() else {
-                return Ok(());
-            };
-            let Some(v) = PyBackedString::try_from(s.clone()).ok() else {
-                return Ok(());
-            };
-            self.data.metrics.remove(&*key_pbs);
-            self.data.meta.insert(key_pbs, v);
+            let py_str = PyString::new(key.py(), &decoded);
+            if let Ok(v) = PyBackedString::try_from(py_str) {
+                self.attributes.insert(key_pbs, AttributeValue::Str(v));
+            }
+            return Ok(());
+        }
+
+        // Fallback: str(value) — covers Python ints that overflow i64, arbitrary objects, etc.
+        let Ok(s) = value.str() else {
+            return Ok(());
+        };
+        if let Ok(v) = PyBackedString::try_from(s.clone()) {
+            self.attributes.insert(key_pbs, AttributeValue::Str(v));
         }
         Ok(())
     }
@@ -549,27 +570,26 @@ impl SpanData {
         Ok(())
     }
 
-    /// Return True if the span has an attribute (string or numeric) with the given key.
+    /// Return True if the span has an attribute with the given key.
     #[pyo3(name = "_has_attribute")]
     fn has_attribute(&self, key: &Bound<'_, PyAny>) -> bool {
         let Some(k) = try_extract_backed_string(key) else {
             return false;
         };
-        self.data.meta.contains_key(&*k) || self.data.metrics.contains_key(&*k)
+        self.attributes.contains_key(&k)
     }
 
-    /// Remove an attribute (from both meta and metrics) by key.
+    /// Remove an attribute by key.
     #[pyo3(name = "_remove_attribute")]
     fn remove_attribute(&mut self, key: &Bound<'_, PyAny>) {
         let Some(k) = try_extract_backed_string(key) else {
             return;
         };
-        self.data.meta.remove(&*k);
-        self.data.metrics.remove(&*k);
+        self.attributes.remove(&k);
     }
 
-    /// Return the attribute value for the given key, or None if not found.
-    /// Meta and metrics are mutually exclusive per key; meta is checked first as the more common case.
+    /// Return the raw stored value for the given key, or None if not found.
+    /// Returns the natural Python type: str for Str, int for Int, float for Float.
     #[pyo3(name = "_get_attribute")]
     fn get_attribute<'py>(
         &self,
@@ -577,16 +597,10 @@ impl SpanData {
         key: &Bound<'_, PyAny>,
     ) -> Option<Bound<'py, PyAny>> {
         let k = try_extract_backed_string(key)?;
-        if let Some(v) = self.data.meta.get(&*k) {
-            Some(v.as_py(py))
-        } else if let Some(&n) = self.data.metrics.get(&*k) {
-            Some(n.into_pyobject(py).expect("f64 into_pyobject").into_any())
-        } else {
-            None
-        }
+        Some(self.attributes.get(&k)?.as_py(py))
     }
 
-    /// Return the string attribute for the given key, or None if not found.
+    /// Return the string attribute for the given key, or None if not a Str variant.
     #[pyo3(name = "_get_str_attribute")]
     fn get_str_attribute<'py>(
         &self,
@@ -594,47 +608,69 @@ impl SpanData {
         key: &Bound<'_, PyAny>,
     ) -> Option<Bound<'py, PyAny>> {
         let k = try_extract_backed_string(key)?;
-        self.data.meta.get(&*k).map(|v| v.as_py(py))
+        match self.attributes.get(&k)? {
+            AttributeValue::Str(s) => Some(s.as_py(py)),
+            _ => None,
+        }
     }
 
-    /// Return the numeric attribute for the given key, or None if not found.
+    /// Return the numeric attribute for the given key, or None if not a numeric variant.
+    /// Returns int for Int values and float for Float values, preserving the original type.
     #[pyo3(name = "_get_numeric_attribute")]
-    fn get_numeric_attribute(&self, key: &Bound<'_, PyAny>) -> Option<f64> {
+    fn get_numeric_attribute<'py>(
+        &self,
+        py: Python<'py>,
+        key: &Bound<'_, PyAny>,
+    ) -> Option<Bound<'py, PyAny>> {
         let k = try_extract_backed_string(key)?;
-        self.data.metrics.get(&*k).copied()
+        match self.attributes.get(&k)? {
+            AttributeValue::Int(i) => Some(i.into_pyobject(py).expect("i64 into_pyobject").into_any()),
+            AttributeValue::Float(f) => Some(f.into_pyobject(py).expect("f64 into_pyobject").into_any()),
+            AttributeValue::Str(_) => None,
+        }
     }
 
-    /// Return all attributes (both string and numeric) merged into a single dict.
-    /// Numeric attributes override string attributes for the same key (matches Python
-    /// `{**self._meta, **self._metrics}` semantics).
+    /// Return all attributes merged into a single dict.
+    /// Values are the natural Python type (str, int, or float).
+    /// Used by callers that propagate span attributes (e.g. parent-span copy).
     #[pyo3(name = "_get_attributes")]
     fn get_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
-        for (k, v) in &self.data.meta {
+        for (k, v) in &self.attributes {
             d.set_item(k.as_py(py), v.as_py(py))?;
-        }
-        for (k, &v) in &self.data.metrics {
-            d.set_item(k.as_py(py), v)?;
         }
         Ok(d)
     }
 
-    /// Return all string attributes as a Python dict snapshot.
+    /// Return all Str-variant attributes as a Python dict snapshot.
+    /// Used by the Python encoder to build the v0.4 `meta` dict.
+    /// Note: Int values with abs > 2^53 are NOT folded in here; the encoder
+    /// is responsible for moving them from metrics to meta at encode time.
     #[pyo3(name = "_get_str_attributes")]
     fn get_str_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
-        for (k, v) in &self.data.meta {
-            d.set_item(k.as_py(py), v.as_py(py))?;
+        for (k, v) in &self.attributes {
+            if let AttributeValue::Str(s) = v {
+                d.set_item(k.as_py(py), s.as_py(py))?;
+            }
         }
         Ok(d)
     }
 
-    /// Return all numeric attributes as a Python dict snapshot.
+    /// Return all numeric (Int and Float) attributes as a Python dict snapshot.
+    /// Int values are returned as Python int; Float values as Python float.
+    /// Used by the Python encoder to build the v0.4 `metrics` dict.
+    /// Note: the encoder is responsible for moving Int values with abs > 2^53
+    /// out of metrics and into meta as strings before serialization.
     #[pyo3(name = "_get_numeric_attributes")]
     fn get_numeric_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
-        for (k, &v) in &self.data.metrics {
-            d.set_item(k.as_py(py), v)?;
+        for (k, v) in &self.attributes {
+            match v {
+                AttributeValue::Int(i) => { d.set_item(k.as_py(py), *i)?; }
+                AttributeValue::Float(f) => { d.set_item(k.as_py(py), *f)?; }
+                AttributeValue::Str(_) => {}
+            }
         }
         Ok(d)
     }

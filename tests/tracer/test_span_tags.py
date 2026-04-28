@@ -54,19 +54,17 @@ def test_numeric_tags():
     s.set_tag("large_float", 2.0**53)
     s.set_tag("really_large_float", (2.0**53) + 1)
 
-    # DEV: integers beyond 2**53 cannot be exactly represented in f64, so they are
-    # stored as strings in meta to preserve their exact value.
-    assert s.get_tags() == {
-        "really_large_int": str((2**53) + 1),
-        "really_large_negative_int": str(-((2**53) + 1)),
-    }
-    # DEV: Rust stores metrics as f64, so integer values are returned as floats
+    # DEV: All non-string, non-bool values set via set_tag are stored as their
+    # natural numeric type (int or float) in unified attribute storage.
+    assert s.get_tags() == {}
     assert s.get_metrics() == {
-        "negative": -1.0,
-        "zero": 0.0,
-        "positive": 1.0,
-        "large_int": float(2**53),
-        "large_negative_int": float(-(2**53)),
+        "negative": -1,
+        "zero": 0,
+        "positive": 1,
+        "large_int": 2**53,
+        "large_negative_int": -(2**53),
+        "really_large_int": (2**53) + 1,
+        "really_large_negative_int": -((2**53) + 1),
         "float": 12.3456789,
         "negative_float": -12.3456789,
         "large_float": 2.0**53,
@@ -323,21 +321,21 @@ def test_set_attribute_int():
 
 def test_set_attribute_large_int():
     s = Span(name="test.span")
-    # Exactly at the f64 precision boundary — stored as metric
+    # Ints within i64 range — stored faithfully as int
     s._set_attribute("exact", 2**53)
     s._set_attribute("exact_neg", -(2**53))
-    assert s._get_numeric_attribute("exact") == float(2**53)
-    assert s._get_numeric_attribute("exact_neg") == float(-(2**53))
+    assert s._get_numeric_attribute("exact") == 2**53
+    assert s._get_numeric_attribute("exact_neg") == -(2**53)
     assert s._get_str_attribute("exact") is None
     assert s._get_str_attribute("exact_neg") is None
 
-    # Beyond f64 precision — stored as string in meta to preserve value
+    # Beyond f64 precision but within i64 range — stored faithfully as int
     s._set_attribute("large", (2**53) + 1)
     s._set_attribute("large_neg", -((2**53) + 1))
-    assert s._get_str_attribute("large") == str((2**53) + 1)
-    assert s._get_str_attribute("large_neg") == str(-((2**53) + 1))
-    assert s._get_numeric_attribute("large") is None
-    assert s._get_numeric_attribute("large_neg") is None
+    assert s._get_numeric_attribute("large") == (2**53) + 1
+    assert s._get_numeric_attribute("large_neg") == -((2**53) + 1)
+    assert s._get_str_attribute("large") is None
+    assert s._get_str_attribute("large_neg") is None
 
     # Way outside i64 range
     s._set_attribute("huge", 2**127)
