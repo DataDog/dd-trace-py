@@ -58,6 +58,26 @@ iswrapped = ddtrace.internal.utils.wrappers.iswrapped
 REQUEST = "request"
 RESPONSE = "response"
 
+SINGLE_KEY_COMMANDS = [
+    "GET",
+    "GETDEL",
+    "GETEX",
+    "GETRANGE",
+    "GETSET",
+    "LINDEX",
+    "LRANGE",
+    "RPOP",
+    "LPOP",
+    "HGET",
+    "HGETALL",
+    "HKEYS",
+    "HMGET",
+    "HRANDFIELD",
+    "HVALS",
+]
+MULTI_KEY_COMMANDS = ["MGET"]
+ROW_RETURNING_COMMANDS = SINGLE_KEY_COMMANDS + MULTI_KEY_COMMANDS
+
 # Tag normalization based on: https://docs.datadoghq.com/tagging/#defining-tags
 # With the exception of '.' in header names which are replaced with '_' to avoid
 # starting a "new object" on the UI.
@@ -707,3 +727,21 @@ def check_module_path(module, attr_path):
         # Some modules may raise ImportError when accessing attributes that require
         # additional dependencies (e.g., ContainerCodeExecutor requiring Docker for google-adk and an extra pkg install)
         return False
+
+
+def determine_kv_store_row_count(redis_command: str, result: Optional[Union[list, dict, str]]) -> int:
+    empty_results = [b"", [], {}, None]
+    # result can be an empty list / dict / string
+    if result not in empty_results:
+        if redis_command == "MGET":
+            # only include valid key results within count
+            result = [x for x in result if x not in empty_results]
+            return len(result)
+        elif redis_command == "HMGET":
+            # only include valid key results within count
+            result = [x for x in result if x not in empty_results]
+            return 1 if len(result) > 0 else 0
+        else:
+            return 1
+    else:
+        return 0

@@ -11,14 +11,14 @@
     "meta": {
       "_dd.base_service": "tests.contrib.valkey",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e27a8f00000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69f0b19800000000",
+      "_dd.svc_src": "valkey",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.valkey",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "fed65df52b054628a4831772b2acd6e9",
+      "runtime-id": "83e8352f8d944d38a67de76fb18e4e16",
       "server.address": "localhost",
       "span.kind": "client",
       "valkey.raw_command": "GET put_key_in_resource"
@@ -31,11 +31,11 @@
       "db.row_count": 0.0,
       "network.destination.port": 6379.0,
       "out.valkey_db": 0.0,
-      "process_id": 38006.0,
+      "process_id": 605.0,
       "valkey.args_length": 2.0
     },
-    "duration": 461958,
-    "start": 1776450191833469053
+    "duration": 634792,
+    "start": 1777381784201948179
   }],
 [
   {
@@ -50,14 +50,14 @@
     "meta": {
       "_dd.base_service": "tests.contrib.valkey",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e27a8f00000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69f0b19800000000",
+      "_dd.svc_src": "valkey",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.valkey",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "fed65df52b054628a4831772b2acd6e9",
+      "runtime-id": "83e8352f8d944d38a67de76fb18e4e16",
       "server.address": "localhost",
       "span.kind": "client",
       "valkey.raw_command": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2"
@@ -69,9 +69,9 @@
       "_sampling_priority_v1": 1.0,
       "network.destination.port": 6379.0,
       "out.valkey_db": 0.0,
-      "process_id": 38006.0,
+      "process_id": 605.0,
       "valkey.pipeline_length": 2.0
     },
-    "duration": 185375,
-    "start": 1776450191834302261
+    "duration": 233333,
+    "start": 1777381784202989096
   }]]

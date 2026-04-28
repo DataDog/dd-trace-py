@@ -5,7 +5,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.redis_utils import ROW_RETURNING_COMMANDS
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_cmd
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_execute_pipeline
-from ddtrace.contrib.internal.redis_utils import determine_row_count
+from ddtrace.contrib.internal.trace_utils import determine_kv_store_row_count
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
@@ -116,10 +116,10 @@ def _run_redis_command(ctx: core.ExecutionContext, func, args, kwargs):
         raise
     finally:
         if rowcount is None:
-            rowcount = determine_row_count(redis_command=redis_command, result=result)
+            rowcount = determine_kv_store_row_count(redis_command, result)
         if redis_command not in ROW_RETURNING_COMMANDS:
             rowcount = None
-        core.dispatch("redis.command.post", (ctx, rowcount))
+        ctx.event.rowcount = rowcount
 
 
 #

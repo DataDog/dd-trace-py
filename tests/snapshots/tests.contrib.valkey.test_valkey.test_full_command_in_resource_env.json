@@ -11,14 +11,14 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e27a9000000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69f0b19800000000",
+      "_dd.svc_src": "valkey",
       "_dd.tags.process": "entrypoint.basedir:project,entrypoint.name:python_-m_unittest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:python_-m_unittest",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "7a8a6747e9594f65be8a43150a05316e",
+      "runtime-id": "5e4d670418f24c3580dfad9906e8cb21",
       "server.address": "localhost",
       "span.kind": "client",
       "valkey.raw_command": "GET put_key_in_resource"
@@ -31,11 +31,11 @@
       "db.row_count": 0.0,
       "network.destination.port": 6379.0,
       "out.valkey_db": 0.0,
-      "process_id": 38421.0,
+      "process_id": 909.0,
       "valkey.args_length": 2.0
     },
-    "duration": 481667,
-    "start": 1776450192282397386
+    "duration": 612958,
+    "start": 1777381784138956638
   }],
 [
   {
@@ -50,14 +50,14 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e27a9000000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69f0b19800000000",
+      "_dd.svc_src": "valkey",
       "_dd.tags.process": "entrypoint.basedir:project,entrypoint.name:python_-m_unittest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:python_-m_unittest",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "7a8a6747e9594f65be8a43150a05316e",
+      "runtime-id": "5e4d670418f24c3580dfad9906e8cb21",
       "server.address": "localhost",
       "span.kind": "client",
       "valkey.raw_command": "SET pipeline-cmd1 1\nSET pipeline-cmd2 2"
@@ -69,9 +69,9 @@
       "_sampling_priority_v1": 1.0,
       "network.destination.port": 6379.0,
       "out.valkey_db": 0.0,
-      "process_id": 38421.0,
+      "process_id": 909.0,
       "valkey.pipeline_length": 2.0
     },
-    "duration": 149083,
-    "start": 1776450192283232511
+    "duration": 176750,
+    "start": 1777381784139921138
   }]]
