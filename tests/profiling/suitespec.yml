@@ -89,4 +89,3 @@ suites:
       - tests/profiling/*
     pattern: profile
     retry: 2
-    runner: riot

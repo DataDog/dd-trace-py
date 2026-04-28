@@ -1,6 +1,7 @@
 from psycopg.errors import DuplicateTable
 from psycopg.errors import InFailedSqlTransaction
 from psycopg.errors import QueryCanceled
+from psycopg.errors import UndefinedTable
 
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
@@ -21,7 +22,7 @@ def sqli_simple(table):
         # label test_sql_injection
         cur.execute("SELECT 1 FROM " + table)
         rows = cur.fetchone()
-    except (QueryCanceled, InFailedSqlTransaction) as e:
+    except (QueryCanceled, InFailedSqlTransaction, UndefinedTable) as e:
         print("DEBUG psycopg3 SELECT:", type(e).__name__, str(e))
         connection.rollback()
 

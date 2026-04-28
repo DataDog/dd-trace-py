@@ -148,7 +148,6 @@ suites:
       - 'conftest.py'
       - '**/conftest.py'
     pattern: meta-testing
-    runner: riot
     snapshot: false
   ddtracerun:
     parallelism: 3
@@ -158,7 +157,6 @@ suites:
       - '@core'
       - tests/commands/*
       - tests/ddtrace_run.py
-    runner: riot
     services:
       - redis
   integration_agent:
@@ -172,7 +170,6 @@ suites:
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
-    runner: riot
   integration_testagent:
     parallelism: 3
     paths:
@@ -184,14 +181,12 @@ suites:
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-snapshot*
-    runner: riot
     snapshot: true
   integration_registry:
     parallelism: 1
     paths:
       - '@contrib'
       - ddtrace/contrib/integration_registry/*
-    runner: riot
   internal:
     venvs_per_job: 2
     paths:
@@ -205,7 +200,6 @@ suites:
       - tests/submod/*
       - tests/cache/*
       - tests/snapshots/tests.internal.*
-    runner: riot
     snapshot: true
   lib_injection:
     paths:
@@ -215,7 +209,6 @@ suites:
       - '@contrib'
       - '@lib_injection'
     parallelism: 2
-    runner: riot
     pattern: ^lib_injection$
   runtime:
     paths:
@@ -224,7 +217,6 @@ suites:
       - '@runtime'
       - '@vendor'
       - tests/runtime/*
-    runner: riot
     skip: true
   openfeature:
     parallelism: 1
@@ -232,7 +224,6 @@ suites:
       - '@openfeature'
       - '@remoteconfig'
       - '@core'
-    runner: riot
     pattern: ^openfeature$
   telemetry:
     parallelism: 1
@@ -247,7 +238,6 @@ suites:
       - '@vendor'
       - tests/telemetry/*
       - tests/snapshots/tests.telemetry.*
-    runner: riot
     snapshot: true
   tracer:
     env:
@@ -268,11 +258,9 @@ suites:
       - tests/tracer/*
       - tests/snapshots/test_*
     retry: 2
-    runner: riot
     venvs_per_job: 1
   vendor:
     parallelism: 1
     paths:
       - '@vendor'
       - tests/vendor/*
-    runner: riot

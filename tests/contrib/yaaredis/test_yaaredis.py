@@ -173,12 +173,15 @@ if __name__ == "__main__":
         env["DD_SERVICE"] = service
     if schema:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    env["PYTHONWARNINGS"] = "ignore::UserWarning:ddtrace.internal.module"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 
 
-@pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
+@pytest.mark.subprocess(
+    env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false", PYTHONWARNINGS="ignore::UserWarning:ddtrace.internal.module")
+)
 @pytest.mark.snapshot
 def test_full_command_in_resource_env():
     import ddtrace.auto  # noqa
