@@ -502,25 +502,20 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
             meta[LLMOBS_STRUCT.METADATA].update(metadata)
-        if agent_manifest is not None:
-            metadata_dd = meta[LLMOBS_STRUCT.METADATA].get(LLMOBS_STRUCT.METADATA_DD)
-            if not isinstance(metadata_dd, dict):
-                metadata_dd = {}
-                meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.METADATA_DD] = metadata_dd
-            metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
+        if agent_manifest is not None or cost_tags is not None:
+            # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
+            metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
+            if agent_manifest is not None:
+                metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
+            if cost_tags is not None:
+                existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
+                for cost_tag in cost_tags:
+                    if cost_tag not in existing_cost_tags:
+                        existing_cost_tags.append(cost_tag)
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
         if tags is not None:
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
-        if cost_tags is not None:
-            metadata_dd = meta[LLMOBS_STRUCT.METADATA].get(LLMOBS_STRUCT.METADATA_DD)
-            if not isinstance(metadata_dd, dict):
-                metadata_dd = {}
-                meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.METADATA_DD] = metadata_dd
-            existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
-            for cost_tag in cost_tags:
-                if cost_tag not in existing_cost_tags:
-                    existing_cost_tags.append(cost_tag)
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
             span._set_ctx_item(SESSION_ID, session_id)
