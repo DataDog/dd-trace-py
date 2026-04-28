@@ -1,46 +1,9 @@
 #include <echion/vm.h>
 
-#include <algorithm>
-#include <array>
-#include <string>
-
-bool
-is_truthy(const char* s)
-{
-    const static std::array<std::string, 6> truthy_values = { "1", "true", "yes", "on", "enable", "enabled" };
-
-    return std::find(truthy_values.begin(), truthy_values.end(), s) != truthy_values.end();
-}
-
-bool
-use_alternative_copy_memory()
-{
-    const char* use_fast_copy_memory = std::getenv("ECHION_USE_FAST_COPY_MEMORY");
-    if (!use_fast_copy_memory) {
-        return false;
-    }
-
-    if (is_truthy(use_fast_copy_memory)) {
-        return true;
-    }
-
-    return false;
-}
-
 #if defined PL_LINUX
-__attribute__((constructor)) void
-init_safe_copy()
+static bool
+probe_process_vm_readv()
 {
-    if (use_alternative_copy_memory()) {
-        if (init_segv_catcher() == 0) {
-            safe_copy = safe_memcpy_wrapper;
-            fast_copy_active = true;
-            return;
-        }
-
-        std::cerr << "Failed to initialize segv catcher. Using process_vm_readv instead." << std::endl;
-    }
-
     char src[128];
     char dst[128];
     for (size_t i = 0; i < 128; i++) {
@@ -51,18 +14,57 @@ init_safe_copy()
     struct iovec iov_dst = { dst, sizeof(dst) };
     struct iovec iov_src = { src, sizeof(src) };
     ssize_t result = process_vm_readv(getpid(), &iov_dst, 1, &iov_src, 1, 0);
+    return result == static_cast<ssize_t>(sizeof(src));
+}
 
-    if (result == sizeof(src)) {
-        safe_copy = process_vm_readv;
-        return;
+__attribute__((constructor)) void
+init_safe_copy()
+{
+    // Try safe_memcpy (fast path) first.
+    if (init_segv_catcher() == 0) {
+        safe_copy = safe_memcpy_wrapper;
+        fast_copy_active = true;
+        safe_memcpy_initialized = true;
+    } else {
+        // std::cerr might not have been fully initialized at this point.
+        fprintf(stderr, "Failed to initialize segv catcher. Trying process_vm_readv.\n");
     }
 
-    // std::cerr might not have been fully initialized at this point, so use
-    // fprintf instead.
-    fprintf(stderr, "Failed to initialize safe copy interface\n");
-    failed_safe_copy = true;
+    // Always probe process_vm_readv so we know whether it is a valid fallback.
+    process_vm_readv_available = probe_process_vm_readv();
+
+    if (!safe_memcpy_initialized) {
+        if (process_vm_readv_available) {
+            safe_copy = process_vm_readv;
+        } else {
+            fprintf(stderr, "Failed to initialize safe copy interface\n");
+            failed_safe_copy = true;
+        }
+    }
 }
 #endif // PL_LINUX
+
+void
+set_fast_copy_enabled(bool enabled)
+{
+    if (enabled) {
+        if (safe_memcpy_initialized) {
+            safe_copy = safe_memcpy_wrapper;
+            fast_copy_active = true;
+        }
+    } else {
+#if defined PL_LINUX
+        safe_copy = process_vm_readv;
+        fast_copy_active = false;
+        if (!process_vm_readv_available) {
+            fprintf(stderr, "Warning: process_vm_readv was not verified during init\n");
+        }
+#elif defined PL_DARWIN
+        safe_copy = mach_vm_read_overwrite;
+        fast_copy_active = false;
+#endif
+    }
+}
 
 int
 copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)

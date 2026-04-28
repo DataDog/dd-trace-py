@@ -51,19 +51,18 @@ inline kern_return_t (*safe_copy)(vm_map_read_t,
 
 #endif
 
-bool
-is_truthy(const char* s);
-
-bool
-use_alternative_copy_memory();
-
-// Whether safe_copy was actually set to the memcpy-based wrapper.
-// This can be false even when use_alternative_copy_memory returns true,
-// e.g. when init_segv_catcher fails.
+// Whether safe_copy is currently set to the memcpy-based wrapper.
 inline bool fast_copy_active = false;
 
+// Whether init_segv_catcher succeeded at constructor time. Persists even if
+// fast_copy_active is later toggled off by set_fast_copy_enabled().
+inline bool safe_memcpy_initialized = false;
+
 #if defined PL_LINUX
-// Some checks are done at static initialization, so use this to read them at runtime
+// Whether the process_vm_readv probe succeeded at constructor time.
+inline bool process_vm_readv_available = false;
+
+// True when neither safe_memcpy nor process_vm_readv could be initialized.
 inline bool failed_safe_copy = false;
 
 inline ssize_t (*safe_copy)(pid_t,
@@ -84,22 +83,27 @@ init_safe_copy();
 /**
  * Initialize the safe copy operation on macOS
  *
- * This occurs at static init
+ * Tries safe_memcpy first, falls back to mach_vm_read_overwrite.
+ * This occurs at static init.
  */
 __attribute__((constructor)) inline void
 init_safe_copy()
 {
-    if (use_alternative_copy_memory()) {
-        if (init_segv_catcher() == 0) {
-            safe_copy = safe_memcpy_wrapper;
-            fast_copy_active = true;
-            return;
-        }
-
-        std::cerr << "Failed to initialize segv catcher. Using process_vm_readv instead." << std::endl;
+    if (init_segv_catcher() == 0) {
+        safe_copy = safe_memcpy_wrapper;
+        fast_copy_active = true;
+        safe_memcpy_initialized = true;
+        return;
     }
+
+    std::cerr << "Failed to initialize segv catcher. Using mach_vm_read_overwrite instead." << std::endl;
 }
-#endif // if defined PL_DARWIN
+#endif // PL_DARWIN
+
+// Switch the active copy method at runtime.  Must be called before the
+// sampling thread is started (i.e. before Sampler::start()).
+void
+set_fast_copy_enabled(bool enabled);
 
 /**
  * Copy a chunk of memory from a portion of the virtual memory of another
