@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
+import types
+
 import pytest
 import redis
 
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
+from ddtrace.contrib.internal.redis_utils import _build_tags
+from ddtrace.ext import net
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.config import REDISCLUSTER_CONFIG
@@ -54,6 +58,14 @@ class TestRedisClusterPatch(TracerTestCase):
         assert span.get_tag("db.system") == "redis"
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == "GET"
+
+    def test_connection_tags(self):
+        """RedisCluster spans must include out.host and server.address for inferred entity resolution."""
+        self.r.get("cheese")
+        span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET cheese")
+        assert span.get_tag("out.host") == self.TEST_HOST, span.get_tag("out.host")
+        assert span.get_tag("server.address") == self.TEST_HOST, span.get_tag("server.address")
+        assert span.get_metric(net.TARGET_PORT) is not None
 
     def test_unicode(self):
         us = self.r.get("😐")
@@ -194,3 +206,37 @@ class TestRedisClusterPatch(TracerTestCase):
         assert span.service == "myrediscluster"
 
         self.reset()
+
+
+_NODE = types.SimpleNamespace(host="redis-host", port=7000)
+
+
+class TestClusterConnTagsUnit:
+    """Unit tests for _build_tags cluster conn tag extraction — no live Redis required."""
+
+    def _make_instance(self, startup_nodes):
+        return types.SimpleNamespace(nodes_manager=types.SimpleNamespace(startup_nodes=startup_nodes))
+
+    @pytest.mark.parametrize(
+        "startup_nodes",
+        [
+            {"redis-host:7000": _NODE},  # redis-py 5.x dict
+            [_NODE],  # redis-py 4.x list
+        ],
+    )
+    def test_startup_nodes(self, startup_nodes):
+        tags = _build_tags(None, self._make_instance(startup_nodes), "redis")
+        assert tags[net.TARGET_HOST] == "redis-host"
+        assert tags[net.SERVER_ADDRESS] == "redis-host"
+        assert tags[net.TARGET_PORT] == 7000
+
+    @pytest.mark.parametrize("startup_nodes", [{}, []])
+    def test_empty_startup_nodes(self, startup_nodes):
+        tags = _build_tags(None, self._make_instance(startup_nodes), "redis")
+        assert net.TARGET_HOST not in tags
+        assert net.SERVER_ADDRESS not in tags
+
+    def test_missing_nodes_manager(self):
+        tags = _build_tags(None, types.SimpleNamespace(), "redis")
+        assert net.TARGET_HOST not in tags
+        assert net.SERVER_ADDRESS not in tags
