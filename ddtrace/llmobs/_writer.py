@@ -802,25 +802,29 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         description: Optional[str] = None,
         runs: Optional[int] = 1,
         ensure_unique: bool = True,
+        parent_experiment_id: Optional[str] = None,
     ) -> tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
+        attributes: dict[str, JSONType] = {
+            "name": name,
+            "description": description or "",
+            "dataset_id": dataset_id,
+            "project_id": project_id,
+            "dataset_version": dataset_version,
+            "config": exp_config or {},
+            "metadata": {"tags": tags or []},
+            "ensure_unique": ensure_unique,
+            "run_count": runs,
+        }
+        if parent_experiment_id is not None:
+            attributes["parent_experiment_id"] = parent_experiment_id
         resp = self.request(
             "POST",
             path,
             body={
                 "data": {
                     "type": "experiments",
-                    "attributes": {
-                        "name": name,
-                        "description": description or "",
-                        "dataset_id": dataset_id,
-                        "project_id": project_id,
-                        "dataset_version": dataset_version,
-                        "config": exp_config or {},
-                        "metadata": {"tags": tags or []},
-                        "ensure_unique": ensure_unique,
-                        "run_count": runs,
-                    },
+                    "attributes": attributes,
                 }
             },
         )
@@ -873,10 +877,12 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         }
         if spans:
             attributes["spans"] = cast(list[JSONType], spans)
+        body: dict[str, JSONType] = {"data": {"type": "experiments", "attributes": attributes}}
+        logger.debug("experiment_eval_post payload: %s", json.dumps(body))
         resp = self.request(
             "POST",
             path,
-            body={"data": {"type": "experiments", "attributes": attributes}},
+            body=body,
         )
         if resp.status not in (200, 202):
             raise ValueError(
@@ -900,9 +906,10 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         Response shape (JSON:API):
         ``{"data": {"id": "<uuid>", "type": "experiment_events", "attributes": {"spans": [...], "summary_metrics": []}}}``
 
-        Each span has ``span_id``, ``trace_id``, ``start_ns`` (nanoseconds), ``tags``, ``meta``
-        (with ``input``, ``output``, ``expected_output``, ``metadata``, ``error`` sub-keys),
-        and ``eval_metrics`` (populated when ``include_eval_metrics=True``).
+        Each span has ``span_id``, ``trace_id``, ``name``, ``start_ns`` (nanoseconds),
+        ``duration`` (nanoseconds), ``tags``, ``meta`` (with ``input``, ``output``,
+        ``expected_output``, ``metadata``, ``error`` sub-keys), and ``eval_metrics``
+        (populated when ``include_eval_metrics=True``).
         """
         if experiment_id:
             path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
