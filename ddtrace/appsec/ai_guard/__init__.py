@@ -82,8 +82,8 @@ __all__ = [
     "AIGuardClient",
     "AIGuardClientError",
     "AIGuardAbortError",
-    "AIGuardStrandsPlugin",
-    "AIGuardStrandsHookProvider",
+    "AIGuardStrandsPlugin",  # noqa: F822 -- resolved lazily via module __getattr__
+    "AIGuardStrandsHookProvider",  # noqa: F822 -- resolved lazily via module __getattr__
     "ContentPart",
     "Evaluation",
     "Function",

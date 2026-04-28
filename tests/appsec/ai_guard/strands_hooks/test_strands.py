@@ -16,9 +16,9 @@ from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import Function
 from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import ToolCall
+from ddtrace.appsec.ai_guard.integrations.strands import _INVOCATION_TOKEN_KEY
 from ddtrace.appsec.ai_guard.integrations.strands import AIGuardStrandsHookProvider
 from ddtrace.appsec.ai_guard.integrations.strands import AIGuardStrandsPlugin
-from ddtrace.appsec.ai_guard.integrations.strands import _INVOCATION_TOKEN_KEY
 from ddtrace.appsec.ai_guard.integrations.strands import _convert_strands_messages
 from ddtrace.appsec.ai_guard.integrations.strands import _tool_result_text
 from tests.appsec.ai_guard.strands_hooks.conftest import after_invocation_event
@@ -649,7 +649,8 @@ class TestLazyImport:
 class TestInvocationLifecycle:
     """The contextvar that gates provider-level integrations (OpenAI) is owned
     by the invocation-level hooks, not the per-model hooks. This guarantees
-    OpenAI consistently skips while Strands owns the agent invocation."""
+    OpenAI consistently skips while Strands owns the agent invocation.
+    """
 
     def test_before_invocation_marks_context_active(self, ai_guard_strands_hook):
         invocation_state = {}
@@ -694,7 +695,8 @@ class TestInvocationLifecycle:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_context_stays_active_when_model_call_blocks(self, mock_execute_request, ai_guard_strands_hook):
         """If BeforeModelCall raises an abort, the context remains active until
-        AfterInvocation resets it (Strands fires AfterInvocation in `finally`)."""
+        AfterInvocation resets it (Strands fires AfterInvocation in `finally`).
+        """
         invocation_state = {}
         ai_guard_strands_hook._on_before_invocation_base(before_invocation_event(invocation_state=invocation_state))
 
