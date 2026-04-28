@@ -29,6 +29,9 @@ class TracingEvent(Event):
 
     span_type: ClassVar[str]
     span_kind: ClassVar[str]
+    # When True, ExecutionContext also dispatches context.started.<event_name>.<component>
+    # so integrations can subscribe to scoped events without guards or subclasses.
+    _emit_scoped_event: ClassVar[bool] = False
 
     # These attributes are required but can be known only at instance-creation time.
     component: str = field()
@@ -40,6 +43,7 @@ class TracingEvent(Event):
     operation_name: str = field(init=False)
 
     tags: dict[str, str] = field(default_factory=dict)
+    metrics: dict[str, float] = field(default_factory=dict)
     # if False, handlers should not finish a span when the Context finishes.
     _end_span: bool = field(default=True, init=False)
 

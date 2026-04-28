@@ -70,6 +70,7 @@ PATCH_MODULES = {
     "sqlite3": True,
     "aiohttp": True,  # requires asyncio (Python 3.4+)
     "aiohttp_jinja2": True,
+    "aio_pika": True,
     "aiopg": True,
     "aiobotocore": False,
     "httplib": False,

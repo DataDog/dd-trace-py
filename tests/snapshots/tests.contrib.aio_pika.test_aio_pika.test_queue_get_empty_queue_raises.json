@@ -1,0 +1,36 @@
+[[
+  {
+    "name": "rabbitmq.get",
+    "service": "tests.contrib.aio_pika",
+    "resource": "rabbitmq.get",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69d3e41600000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aio_pika",
+      "component": "aio-pika",
+      "error.message": "",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/aio_pika/patch.py\", line 185, in traced_get\n    raise func_error\n  File \"/home/bits/project/ddtrace/contrib/internal/aio_pika/patch.py\", line 158, in traced_get\n    result = await func(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31311_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_pytest-randomly_aio-pika/lib/python3.13/site-packages/aio_pika/queue.py\", line 344, in get\n    raise QueueEmpty\naio_pika.exceptions.QueueEmpty\n",
+      "error.type": "aio_pika.exceptions.QueueEmpty",
+      "language": "python",
+      "messaging.destination.name": "test_queue_aiopika",
+      "messaging.operation": "receive",
+      "messaging.system": "rabbitmq",
+      "pathway.hash": "10173157285564988090",
+      "runtime-id": "5acce521d45c442f99f6864fe35228a6",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 1708125,
+    "start": 1775494166627826262
+  }]]

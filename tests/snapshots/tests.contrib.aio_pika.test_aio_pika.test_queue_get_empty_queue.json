@@ -1,0 +1,33 @@
+[[
+  {
+    "name": "rabbitmq.get",
+    "service": "tests.contrib.aio_pika",
+    "resource": "rabbitmq.get",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69d3e41800000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aio_pika",
+      "component": "aio-pika",
+      "language": "python",
+      "messaging.destination.name": "test_queue_aiopika",
+      "messaging.operation": "receive",
+      "messaging.system": "rabbitmq",
+      "pathway.hash": "10173157285564988090",
+      "runtime-id": "5acce521d45c442f99f6864fe35228a6",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 207167,
+    "start": 1775494168098355262
+  }]]

@@ -366,6 +366,21 @@ def int_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Op
     return default
 
 
+def decode_amqp_headers(headers: Mapping[str, Any]) -> dict[str, str]:
+    """Convert AMQP message headers (which may contain bytes values) to a plain string dict.
+
+    AMQP brokers may store header values as bytes. This helper decodes them so
+    they can be used with HTTP-style propagators that expect string dicts.
+    """
+    result: dict[str, str] = {}
+    for key, val in headers.items():
+        if isinstance(val, (bytes, bytearray)):
+            result[key] = val.decode("utf-8", errors="ignore")
+        elif val is not None:
+            result[key] = str(val)
+    return result
+
+
 def ext_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Optional[str] = None) -> Optional[str]:
     """Returns the service name for an integration which is external
     to the application. External meaning that the integration generates

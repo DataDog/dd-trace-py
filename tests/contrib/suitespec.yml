@@ -4,6 +4,8 @@ components:
     - ddtrace/contrib/internal/aiohttp/*
   aiohttp_jinja2:
     - ddtrace/contrib/internal/aiohttp_jinja2/*
+  aio_pika:
+    - ddtrace/contrib/internal/aio_pika/*
   aiopg:
     - ddtrace/contrib/internal/aiopg/*
   aiokafka:
@@ -271,6 +273,23 @@ suites:
       - tests/contrib/shared_tests_async.py
     services:
       - mysql
+    snapshot: true
+  aio_pika:
+    env:
+      TEST_RABBITMQ_HOST: rabbitmq
+      TEST_RABBITMQ_PORT: '5672'
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@aio_pika'
+      - '@datastreams'
+      - tests/contrib/aio_pika/*
+      - tests/snapshots/tests.contrib.aio_pika.*
+    services:
+      - rabbitmq
     snapshot: true
   aiokafka:
     env:
