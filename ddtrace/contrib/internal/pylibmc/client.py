@@ -7,10 +7,10 @@ from wrapt import ObjectProxy
 
 # project
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.pylibmc.addrs import parse_addresses
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -20,7 +20,6 @@ from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace.trace import tracer
 
 
@@ -34,7 +33,7 @@ log = get_logger(__name__)
 class TracedClient(ObjectProxy):
     """TracedClient is a proxy for a pylibmc.Client that times its network operations."""
 
-    def __init__(self, client=None, service=memcached.SERVICE, tracer=None, *args, **kwargs):
+    def __init__(self, client=None, service=None, tracer=None, *args, **kwargs):
         """Create a traced client that wraps the given memcached client."""
         # The client instance/service/tracer attributes are kept for compatibility
         # with the old interface: TracedClient(client=pylibmc.Client(['localhost:11211']))
@@ -44,17 +43,23 @@ class TracedClient(ObjectProxy):
             # Note that, in that case, client isn't a real client (just the first argument)
             client = _Client(kwargs.get("servers", client), **{k: v for k, v in kwargs.items() if k != "servers"})
         else:
-            log.warning(
-                "TracedClient instantiation is deprecated and will be remove "
-                "in future versions (0.6.0). Use patching instead (see the docs)."
-            )
+            raise TypeError("TracedClient instantiation is no longer supported.")
 
         super(TracedClient, self).__init__(client)
+        self._configure_client(client, service)
 
-        schematized_service = schematize_service_name(service)
-        pin = Pin(service=schematized_service)
+    @classmethod
+    def _from_client(cls, client, service=None):
+        traced_client = cls.__new__(cls)
+        ObjectProxy.__init__(traced_client, client)
+        traced_client._configure_client(client, service)
+        return traced_client
 
-        pin.onto(self)
+    def _configure_client(self, client, service):
+        # for API compatibility, callers can still override the service.
+        # When no override is provided, use the integration default service so
+        # v0 keeps the integration service while v1 follows DD_SERVICE.
+        self._service = service if service is not None else config.pylibmc._default_service
 
         # attempt to collect the pool of urls this client talks to
         try:
@@ -65,11 +70,7 @@ class TracedClient(ObjectProxy):
     def clone(self, *args, **kwargs):
         # rewrap new connections.
         cloned = self.__wrapped__.clone(*args, **kwargs)
-        traced_client = TracedClient(cloned)
-        pin = Pin.get_from(self)
-        if pin:
-            pin.clone().onto(traced_client)
-        return traced_client
+        return self._from_client(cloned, service=self._service)
 
     def add(self, *args, **kwargs):
         return self._trace_cmd("add", *args, **kwargs)
@@ -159,8 +160,8 @@ class TracedClient(ObjectProxy):
 
     def _span(self, cmd_name):
         """Return a span timing the given command."""
-        pin = Pin.get_from(self)
-        if not pin or not pin.enabled():
+        # TODO: remove when moving to core API
+        if not is_tracing_enabled():
             return self._no_span()
 
         span = tracer.trace(
@@ -168,7 +169,7 @@ class TracedClient(ObjectProxy):
             resource=cmd_name,
             span_type=SpanTypes.CACHE,
         )
-        set_service_and_source(span, pin.service, config.pylibmc)
+        set_service_and_source(span, self._service, config.pylibmc)
 
         span._set_attribute(COMPONENT, config.pylibmc.integration_name)
         span._set_attribute(db.SYSTEM, memcached.DBMS_NAME)
