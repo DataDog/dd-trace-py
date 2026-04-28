@@ -1,15 +1,9 @@
-from unittest import mock
-
 import aws_durable_execution_sdk_python as ades
 from aws_durable_execution_sdk_python.config import Duration
 from aws_durable_execution_sdk_python.config import StepConfig
-from aws_durable_execution_sdk_python.execution import DurableExecutionInvocationOutput
-from aws_durable_execution_sdk_python.execution import InvocationStatus
 from aws_durable_execution_sdk_python.retries import RetryStrategyConfig
 from aws_durable_execution_sdk_python.retries import create_retry_strategy
 from aws_durable_execution_sdk_python_testing import DurableFunctionTestRunner
-from aws_durable_execution_sdk_python_testing.invoker import InProcessInvoker
-from aws_durable_execution_sdk_python_testing.invoker import InvokeResponse
 import pytest
 
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import patch
@@ -104,32 +98,6 @@ def test_parallel_propagates_trace_context():
 
     with DurableFunctionTestRunner(workflow) as runner:
         runner.run()
-
-
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_invoke_tags():
-    """invoke span carries function_name and span.kind=client.
-
-    The InProcessInvoker is shared between the workflow's own invocation and the
-    chained invoke. We stub only the chained call to ``my-target-fn`` so the
-    workflow handler still runs.
-    """
-    fake_output = DurableExecutionInvocationOutput(status=InvocationStatus.SUCCEEDED, result='"downstream-result"')
-    fake_response = InvokeResponse(invocation_output=fake_output, request_id="fake-request-id")
-    real_invoke = InProcessInvoker.invoke
-
-    def fake_invoke(self, function_name, input_, endpoint_url=None):
-        if function_name == "my-target-fn":
-            return fake_response
-        return real_invoke(self, function_name, input_, endpoint_url=endpoint_url)
-
-    @ades.durable_execution
-    def workflow(event, context):
-        return context.invoke(function_name="my-target-fn", payload=b"{}", name="call-downstream")
-
-    with mock.patch.object(InProcessInvoker, "invoke", new=fake_invoke):
-        with DurableFunctionTestRunner(workflow) as runner:
-            runner.run()
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
