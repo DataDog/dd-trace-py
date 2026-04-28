@@ -373,7 +373,7 @@ def _build_llmobs_span(
     return llmobs_span, input_type, output_type
 
 
-def _finalize_meta_struct(
+def _normalize_llmobs_meta(
     span: Span,
     llmobs_span: LLMObsSpan,
     llmobs_meta: _Meta,
@@ -382,7 +382,7 @@ def _finalize_meta_struct(
     output_type: Literal["value", "messages", ""],
     export_to_llmobs: bool,
 ) -> None:
-    """Finalize the llmobs meta dict in place so `_llmobs_span_event()` can read it directly.
+    """Normalize the llmobs meta dict in place so `_llmobs_span_event()` can read it directly.
 
     Writes post-user-processor I/O back, inherits parent prompts for LLM spans, drops
     invalid prompts, populates the error field, normalizes model_provider, and removes
@@ -587,7 +587,7 @@ class LLMObs(Service):
             log.debug("LLMObs span %s dropped by user processor", span)
             return False
 
-        _finalize_meta_struct(
+        _normalize_llmobs_meta(
             span,
             user_processed_span,
             llmobs_meta,
