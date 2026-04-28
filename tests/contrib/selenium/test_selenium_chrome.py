@@ -1,15 +1,16 @@
 """Tests for selenium + RUM integration
 
-IMPORTANT NOTE: these tests only reliably work on Linux/x86_64 due to some annoyingly picky issues with installing
-Selenium and a working browser/webdriver combination on non-x86_64 architectures (at time of writing, at least,
-Selenium's webdriver-manager doesn't support Linux on non-x86_64).
+Uses a Selenium Grid (selenium/standalone-chrome, linux/amd64) via webdriver.Remote so that
+tests work on any host architecture including arm64. The grid URL is controlled by the
+SELENIUM_GRID_URL environment variable (default: http://localhost:4444 for local runs via
+docker-compose network_mode: host; set to http://selenium-chrome:4444 in CI).
 """
 
 import http.server
+import json
 import multiprocessing
 import os
 from pathlib import Path
-import platform
 import socketserver
 import subprocess
 import textwrap
@@ -44,6 +45,23 @@ SELENIUM_SNAPSHOT_IGNORES = [
     "start",
 ]
 
+# Selenium Grid endpoint — standalone-chrome runs with network_mode: host so it binds on localhost
+SELENIUM_GRID_URL = os.environ.get("SELENIUM_GRID_URL", "http://localhost:4444")
+
+_SELENIUM_DRIVER_SETUP = f"""\
+    from selenium import webdriver
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.chrome.options import Options
+
+    SELENIUM_GRID_URL = "{SELENIUM_GRID_URL}"
+
+    def _make_driver():
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--no-sandbox")
+        return webdriver.Remote(command_executor=SELENIUM_GRID_URL, options=options)
+"""
+
 
 @pytest.fixture
 def _http_server(scope="function"):
@@ -73,39 +91,29 @@ def _http_server(scope="function"):
 
 
 @snapshot(ignores=SELENIUM_SNAPSHOT_IGNORES)
-@pytest.mark.skipif(platform.machine() != "x86_64", reason="Selenium Chrome tests only run on x86_64")
 def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
     selenium_test_script = textwrap.dedent(
-        """
-            from pathlib import Path
+        _SELENIUM_DRIVER_SETUP
+        + """
+    def test_selenium_local_pass():
+        with _make_driver() as driver:
+            url = "http://localhost:8079/rum_enabled/page_1.html"
 
-            from selenium import webdriver
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.chrome.options import Options
+            driver.get(url)
 
-            def test_selenium_local_pass():
-                options = Options()
-                options.add_argument("--headless")
-                options.add_argument("--no-sandbox")
+            assert driver.title == "Page 1"
 
-                with webdriver.Chrome(options=options) as driver:
-                    url = "http://localhost:8079/rum_enabled/page_1.html"
+            link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
 
-                    driver.get(url)
+            link_2.click()
 
-                    assert driver.title == "Page 1"
+            assert driver.title == "Page 2"
 
-                    link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
+            link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
+            link_1.click()
 
-                    link_2.click()
-
-                    assert driver.title == "Page 2"
-
-                    link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
-                    link_1.click()
-
-                    assert driver.title == "Page 1"
-        """
+            assert driver.title == "Page 1"
+    """
     )
     testdir.makepyfile(test_selenium=selenium_test_script)
     subprocess.run(
@@ -118,6 +126,7 @@ def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                # Snapshot test expects traces from the agent; v3 plugin uses TestOptWriter and does not send them.
                 DD_PYTEST_USE_NEW_PLUGIN="false",
             )
         ),
@@ -125,39 +134,29 @@ def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
 
 
 @snapshot(ignores=SELENIUM_SNAPSHOT_IGNORES)
-@pytest.mark.skipif(platform.machine() != "x86_64", reason="Selenium Chrome tests only run on x86_64")
 def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
     selenium_test_script = textwrap.dedent(
-        """
-            from pathlib import Path
+        _SELENIUM_DRIVER_SETUP
+        + """
+    def test_selenium_local_pass():
+        with _make_driver() as driver:
+            url = "http://localhost:8079/rum_disabled/page_1.html"
 
-            from selenium import webdriver
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.chrome.options import Options
+            driver.get(url)
 
-            def test_selenium_local_pass():
-                options = Options()
-                options.add_argument("--headless")
-                options.add_argument("--no-sandbox")
+            assert driver.title == "Page 1"
 
-                with webdriver.Chrome(options=options) as driver:
-                    url = "http://localhost:8079/rum_disabled/page_1.html"
+            link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
 
-                    driver.get(url)
+            link_2.click()
 
-                    assert driver.title == "Page 1"
+            assert driver.title == "Page 2"
 
-                    link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
+            link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
+            link_1.click()
 
-                    link_2.click()
-
-                    assert driver.title == "Page 2"
-
-                    link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
-                    link_1.click()
-
-                    assert driver.title == "Page 1"
-        """
+            assert driver.title == "Page 1"
+    """
     )
     testdir.makepyfile(test_selenium=selenium_test_script)
     subprocess.run(
@@ -170,6 +169,7 @@ def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                # Snapshot test expects traces from the agent; v3 plugin uses TestOptWriter and does not send them.
                 DD_PYTEST_USE_NEW_PLUGIN="false",
             )
         ),
@@ -177,42 +177,32 @@ def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
 
 
 @snapshot(ignores=SELENIUM_SNAPSHOT_IGNORES)
-@pytest.mark.skipif(platform.machine() != "x86_64", reason="Selenium Chrome tests only run on x86_64")
 def test_selenium_chrome_pytest_unpatch_does_not_record_selenium_tags(_http_server, testdir, git_repo):
     selenium_test_script = textwrap.dedent(
-        """
-            from pathlib import Path
+        _SELENIUM_DRIVER_SETUP
+        + """
+    from ddtrace.contrib.internal.selenium.patch import unpatch
 
-            from selenium import webdriver
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.chrome.options import Options
+    def test_selenium_local_unpatch():
+        unpatch()
+        with _make_driver() as driver:
+            url = "http://localhost:8079/rum_disabled/page_1.html"
 
-            from ddtrace.contrib.internal.selenium.patch import unpatch
+            driver.get(url)
 
-            def test_selenium_local_unpatch():
-                unpatch()
-                options = Options()
-                options.add_argument("--headless")
-                options.add_argument("--no-sandbox")
+            assert driver.title == "Page 1"
 
-                with webdriver.Chrome(options=options) as driver:
-                    url = "http://localhost:8079/rum_disabled/page_1.html"
+            link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
 
-                    driver.get(url)
+            link_2.click()
 
-                    assert driver.title == "Page 1"
+            assert driver.title == "Page 2"
 
-                    link_2 = driver.find_element(By.LINK_TEXT, "Page 2")
+            link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
+            link_1.click()
 
-                    link_2.click()
-
-                    assert driver.title == "Page 2"
-
-                    link_1 = driver.find_element(By.LINK_TEXT, "Back to page 1.")
-                    link_1.click()
-
-                    assert driver.title == "Page 1"
-        """
+            assert driver.title == "Page 1"
+    """
     )
     testdir.makepyfile(test_selenium=selenium_test_script)
     subprocess.run(
@@ -225,7 +215,70 @@ def test_selenium_chrome_pytest_unpatch_does_not_record_selenium_tags(_http_serv
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                # Snapshot test expects traces from the agent; v3 plugin uses TestOptWriter and does not send them.
                 DD_PYTEST_USE_NEW_PLUGIN="false",
             )
         ),
     )
+
+
+def test_selenium_v3_plugin_tags(tmp_path, pytester, git_repo):
+    events_file = tmp_path / "events.json"
+
+    # conftest.py that captures events emitted by the v3 plugin to a JSON file
+    pytester.makeconftest(
+        f"""
+import json, atexit
+from ddtrace.testing.internal.writer import TestOptWriter
+
+_events = []
+_orig_put = TestOptWriter.put_event
+def _capture(self, event):
+    _events.append(event)
+    return _orig_put(self, event)
+TestOptWriter.put_event = _capture
+
+@atexit.register
+def _dump():
+    with open(r"{events_file}", "w") as f:
+        json.dump(_events, f, default=str)
+"""
+    )
+
+    pytester.makepyfile(
+        test_selenium="""
+from selenium.webdriver.remote.webdriver import WebDriver
+
+def test_selenium_browser_tags():
+    driver = WebDriver.__new__(WebDriver)
+    driver.caps = {"browserName": "chrome", "browserVersion": "120.0"}
+    driver.add_cookie = lambda cookie: None
+    driver.execute = lambda *a, **kw: None
+
+    driver.get("http://example.com")
+"""
+    )
+
+    subprocess.run(
+        ["pytest", "--ddtrace", "-v", "-s"],
+        cwd=str(pytester.path),
+        env=_get_default_ci_env_vars(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_CIVISIBILITY_ITR_ENABLED="false",
+                DD_PATCH_MODULES="sqlite3:false",
+                CI_PROJECT_DIR=str(pytester.path),
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                DD_PYTEST_USE_NEW_PLUGIN="true",
+            )
+        ),
+    )
+
+    events = json.loads(events_file.read_text())
+    test_events = [e for e in events if e["type"] == "test"]
+    meta = test_events[0]["content"]["meta"]
+    assert meta["test.is_browser"] == "true"
+    assert meta["test.browser.driver"] == "selenium"
+    assert meta["test.browser.name"] == "chrome"
+    assert meta["test.browser.version"] == "120.0"

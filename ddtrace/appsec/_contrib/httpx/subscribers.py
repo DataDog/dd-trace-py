@@ -81,7 +81,7 @@ class AppSecHttpxSingleRequestContextSubscriber(ContextSubscriber[HttpClientSend
             return
 
         addresses = {
-            EXPLOIT_PREVENTION.ADDRESS.SSRF: ctx.event.url,
+            EXPLOIT_PREVENTION.ADDRESS.SSRF: ctx.event.request_url,
             "DOWN_REQ_METHOD": ctx.event.request_method,
             "DOWN_REQ_HEADERS": ctx.event.request_headers,
         }
@@ -93,12 +93,13 @@ class AppSecHttpxSingleRequestContextSubscriber(ContextSubscriber[HttpClientSend
                 addresses["DOWN_REQ_BODY"] = json.loads(body())
         call_waf_callback(
             addresses,
+            crop_trace="_on_context_started",
             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
         )
         asm_context.downstream_requests += 1
         if blocking_config := get_blocked():
             raise BlockingException(
-                blocking_config, EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, ctx.event.url
+                blocking_config, EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, ctx.event.request_url
             )
 
     @classmethod

@@ -18,6 +18,7 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -26,7 +27,7 @@ _global_relative_file_paths_for_cov: dict[str, dict[str, str]] = {}
 
 # This feature-flags experimental collection of code coverage via our internal ModuleCodeCollector.
 # It is disabled by default because it is not production-ready.
-USE_DD_COVERAGE = asbool(os.environ.get("_DD_USE_INTERNAL_COVERAGE", "false"))
+USE_DD_COVERAGE = asbool(env.get("_DD_USE_INTERNAL_COVERAGE", "false"))
 
 try:
     from coverage import Coverage

@@ -17,7 +17,7 @@ integrations:
   tested_versions_by_dependency:
     aiohttp:
       min: 3.7.4.post0
-      max: 3.13.2
+      max: 3.13.4
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -51,7 +51,7 @@ integrations:
   tested_versions_by_dependency:
     aiomysql:
       min: 0.1.1
-      max: 0.2.0
+      max: 0.3.2
 
 - integration_name: aiopg
   is_external_package: true
@@ -109,7 +109,7 @@ integrations:
   tested_versions_by_dependency:
     asyncpg:
       min: 0.23.0
-      max: 0.30.0
+      max: 0.31.0
 
 - integration_name: avro
   is_external_package: true
@@ -118,8 +118,8 @@ integrations:
   - avro
   tested_versions_by_dependency:
     avro:
-      min: 1.12.0
-      max: 1.12.0
+      min: 1.12.1
+      max: 1.12.1
 
 - integration_name: aws_lambda
   is_external_package: true
@@ -135,6 +135,16 @@ integrations:
       min: 6.105.0
       max: 6.105.0
 
+- integration_name: azure_cosmos
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - azure-cosmos
+  tested_versions_by_dependency:
+    azure-cosmos:
+      min: 4.9.0
+      max: 4.15.0
+
 - integration_name: azure_durable_functions
   is_external_package: true
   is_tested: true
@@ -144,10 +154,10 @@ integrations:
   tested_versions_by_dependency:
     azure-functions:
       min: 1.10.1
-      max: 1.24.0
+      max: 2.0.0
     azure-functions-durable:
       min: 1.2.1
-      max: 1.4.0
+      max: 1.5.0
 
 - integration_name: azure_eventhubs
   is_external_package: true
@@ -167,7 +177,7 @@ integrations:
   tested_versions_by_dependency:
     azure-functions:
       min: 1.10.1
-      max: 1.24.0
+      max: 2.0.0
 
 - integration_name: azure_servicebus
   is_external_package: true
@@ -241,7 +251,7 @@ integrations:
   tested_versions_by_dependency:
     claude-agent-sdk:
       min: 0.0.23
-      max: 0.1.29
+      max: 0.1.49
 
 - integration_name: consul
   is_external_package: true
@@ -329,11 +339,11 @@ integrations:
   - opensearch-py
   tested_versions_by_dependency:
     elastic-transport:
-      min: 8.11.0
-      max: 9.1.0
+      min: 8.17.1
+      max: 9.2.1
     elasticsearch:
       min: 7.13.4
-      max: 9.1.0
+      max: 9.3.0
     elasticsearch1:
       min: 1.10.0
       max: 1.10.0
@@ -348,7 +358,7 @@ integrations:
       max: 6.8.2
     elasticsearch7:
       min: 7.13.4
-      max: 7.17.12
+      max: 7.17.13
     opensearch-py:
       min: 1.1.0
       max: 3.0.0
@@ -371,7 +381,7 @@ integrations:
   tested_versions_by_dependency:
     fastapi:
       min: 0.64.0
-      max: 0.124.4
+      max: 0.136.0
 
 - integration_name: flask
   is_external_package: true
@@ -419,7 +429,7 @@ integrations:
   tested_versions_by_dependency:
     google-adk:
       min: 1.0.0
-      max: 1.15.1
+      max: 1.28.1
 
 - integration_name: google_cloud_pubsub
   is_external_package: true
@@ -429,7 +439,7 @@ integrations:
   tested_versions_by_dependency:
     google-cloud-pubsub:
       min: 2.10.0
-      max: 2.36.0
+      max: 2.37.0
 
 - integration_name: google_genai
   is_external_package: true
@@ -513,7 +523,7 @@ integrations:
   tested_versions_by_dependency:
     kombu:
       min: 4.6.11
-      max: 5.5.4
+      max: 5.6.2
 
 - integration_name: langchain
   is_external_package: true
@@ -553,6 +563,24 @@ integrations:
       min: 1.65.4
       max: 1.80.16
 
+- integration_name: llama_index
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - llama-index
+  - llama-index-core
+  - llama_index
+  tested_versions_by_dependency:
+    llama-index:
+      min: 0.11.23
+      max: 0.14.18
+    llama-index-core:
+      min: 0.11.23
+      max: 0.14.18
+    llama_index:
+      min: 0.11.23
+      max: 0.14.18
+
 - integration_name: logbook
   is_external_package: true
   is_tested: true
@@ -561,7 +589,7 @@ integrations:
   tested_versions_by_dependency:
     logbook:
       min: 1.0.0
-      max: 1.8.2
+      max: 1.9.2
 
 - integration_name: logging
   is_external_package: false
@@ -595,7 +623,7 @@ integrations:
   tested_versions_by_dependency:
     mariadb:
       min: 1.0.11
-      max: 1.1.13
+      max: 1.1.14
 
 - integration_name: mcp
   is_external_package: true
@@ -605,7 +633,7 @@ integrations:
   tested_versions_by_dependency:
     mcp:
       min: 1.10.1
-      max: 1.16.0
+      max: 1.27.0
 
 - integration_name: mlflow
   is_external_package: true
@@ -617,13 +645,13 @@ integrations:
   tested_versions_by_dependency:
     mlflow:
       min: 2.11.4
-      max: 3.10.0
+      max: 3.10.1
     mlflow-skinny:
-      min: 3.9.0
-      max: 3.10.0
+      min: 3.10.1
+      max: 3.10.1
     mlflow-tracing:
-      min: 3.9.0
-      max: 3.10.0
+      min: 3.10.1
+      max: 3.10.1
 
 - integration_name: molten
   is_external_package: true
@@ -682,8 +710,8 @@ integrations:
   - protobuf
   tested_versions_by_dependency:
     protobuf:
-      min: 6.30.1
-      max: 6.32.0
+      min: 6.33.6
+      max: 7.34.1
 
 - integration_name: psycopg
   is_external_package: true
@@ -706,8 +734,8 @@ integrations:
   - pydantic-ai-slim
   tested_versions_by_dependency:
     pydantic-ai-slim:
-      min: 0.3.0
-      max: 0.8.1
+      min: 0.8.1
+      max: 1.63.0
 
 - integration_name: pylibmc
   is_external_package: true
@@ -737,7 +765,7 @@ integrations:
   tested_versions_by_dependency:
     pymongo:
       min: 3.8.0
-      max: 4.16.0
+      max: 4.17.0
 
 - integration_name: pymysql
   is_external_package: true
@@ -787,7 +815,7 @@ integrations:
   tested_versions_by_dependency:
     pytest:
       min: 6.2.5
-      max: 9.0.2
+      max: 9.0.3
 
 - integration_name: pytest_bdd
   is_external_package: true
@@ -853,7 +881,7 @@ integrations:
   tested_versions_by_dependency:
     rq:
       min: 1.8.1
-      max: 1.16.2
+      max: 2.0.0
 
 - integration_name: sanic
   is_external_package: true
@@ -863,7 +891,7 @@ integrations:
   tested_versions_by_dependency:
     sanic:
       min: 20.12.7
-      max: 24.6.0
+      max: 23.12.2
 
 - integration_name: selenium
   is_external_package: true
@@ -913,7 +941,7 @@ integrations:
   tested_versions_by_dependency:
     structlog:
       min: 20.2.0
-      max: 25.4.0
+      max: 25.5.0
 
 - integration_name: subprocess
   is_external_package: false
@@ -945,7 +973,7 @@ integrations:
   tested_versions_by_dependency:
     urllib3:
       min: 1.25.8
-      max: 2.5.0
+      max: 2.6.3
 
 - integration_name: valkey
   is_external_package: true

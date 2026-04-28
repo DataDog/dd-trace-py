@@ -1,5 +1,3 @@
-import os
-
 import aiobotocore.client
 import wrapt
 
@@ -9,6 +7,7 @@ from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -18,6 +17,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -35,15 +35,13 @@ if AIOBOTOCORE_VERSION <= (0, 10, 0):
 elif AIOBOTOCORE_VERSION >= (0, 11, 0) and AIOBOTOCORE_VERSION < (2, 3, 0):
     from aiobotocore._endpoint_helpers import ClientResponseContentProxy
 
-
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
-
 
 config._add(
     "aiobotocore",
     {
-        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
     },
 )
 
@@ -89,8 +87,10 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
             # inherit parent attributes
             span.resource = self._self_parent_span.resource
             span.span_type = self._self_parent_span.span_type
-            span._meta = dict(self._self_parent_span._meta)
-            span._metrics = dict(self._self_parent_span.metrics)
+            for _k, _v in self._self_parent_span._get_str_attributes().items():
+                span._set_attribute(_k, _v)
+            for _k, _v in self._self_parent_span._get_numeric_attributes().items():
+                span._set_attribute(_k, _v)
 
             result = await self.__wrapped__.read(*args, **kwargs)
             span.set_tag("Length", len(result))
@@ -121,9 +121,13 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         schematize_cloud_api_operation(
             "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
         ),
-        service=ext_service(pin, config.aiobotocore, default=schematize_service_name(fallback_service)),
         span_type=SpanTypes.HTTP,
     ) as span:
+        set_service_and_source(
+            span,
+            ext_service(pin, config.aiobotocore, default=schematize_service_name(fallback_service)),
+            config.aiobotocore,
+        )
         span._set_attribute(COMPONENT, config.aiobotocore.integration_name)
 
         # set span.kind tag equal to type of request
@@ -174,7 +178,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         response_meta = result["ResponseMetadata"]
         response_headers = response_meta["HTTPHeaders"]
 
-        span.set_tag(http.STATUS_CODE, response_meta["HTTPStatusCode"])
+        span._set_attribute(http.STATUS_CODE, response_meta["HTTPStatusCode"])
         if 500 <= response_meta["HTTPStatusCode"] < 600:
             span.error = 1
 

@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where deferred tools (``defer_loading=True``) in
+    Anthropic and OpenAI integrations caused LLMObs span payloads to include full tool
+    descriptions and JSON schemas for every tool in a large catalog. Deferred tool
+    definitions now have their description and schema stripped from span metadata, with
+    only the tool name preserved.

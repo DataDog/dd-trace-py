@@ -13,7 +13,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.elasticsearch.quantize import quantize
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import elasticsearch as metadata
@@ -138,10 +138,8 @@ def _get_perform_request_coro(transport):
             yield func(*args, **kwargs)
             return
 
-        with tracer.trace(
-            "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
-        ) as span:
-            maybe_set_service_source_tag(span, config.elasticsearch)
+        with tracer.trace("elasticsearch.query", span_type=SpanTypes.ELASTICSEARCH) as span:
+            set_service_and_source(span, ext_service(pin, config.elasticsearch), config.elasticsearch)
             if pin.tags:
                 span.set_tags(pin.tags)
 
@@ -209,7 +207,7 @@ def _get_perform_request_coro(transport):
             try:
                 result = yield func(*args, **kwargs)
             except transport.TransportError as e:
-                span.set_tag(http.STATUS_CODE, getattr(e, "status_code", 500))
+                span._set_attribute(http.STATUS_CODE, getattr(e, "status_code", 500))
                 span.error = 1
                 raise
 
@@ -235,7 +233,7 @@ def _get_perform_request_coro(transport):
                 log.debug("Unexpected exception", exc_info=True)
 
             if status:
-                span.set_tag(http.STATUS_CODE, status)
+                span._set_attribute(http.STATUS_CODE, status)
 
             return
 

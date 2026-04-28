@@ -4,6 +4,8 @@ import mock
 import pytest
 
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs.decorators import agent
 from ddtrace.llmobs.decorators import embedding
 from ddtrace.llmobs.decorators import llm
@@ -63,7 +65,12 @@ def test_llm_decorator(llmobs, llmobs_events, test_spans):
     f()
     span = test_spans.pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "llm", model_name="test_model", model_provider="test_provider", session_id="test_session_id"
+        span,
+        "llm",
+        model_name="test_model",
+        model_provider="test_provider",
+        session_id="test_session_id",
+        is_decorator=True,
     )
 
 
@@ -75,7 +82,12 @@ def test_llm_decorator_no_model_name_sets_default(llmobs, llmobs_events, test_sp
     f()
     span = test_spans.pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "llm", model_name="custom", model_provider="test_provider", session_id="test_session_id"
+        span,
+        "llm",
+        model_name=UNKNOWN_MODEL_NAME,
+        model_provider="test_provider",
+        session_id="test_session_id",
+        is_decorator=True,
     )
 
 
@@ -87,7 +99,7 @@ def test_llm_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
     f()
     span = test_spans.pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "llm", model_name="custom", model_provider="custom"
+        span, "llm", model_name=UNKNOWN_MODEL_NAME, model_provider=UNKNOWN_MODEL_PROVIDER, is_decorator=True
     )
 
 
@@ -101,7 +113,12 @@ def test_embedding_decorator(llmobs, llmobs_events, test_spans):
     f()
     span = test_spans.pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "embedding", model_name="test_model", model_provider="test_provider", session_id="test_session_id"
+        span,
+        "embedding",
+        model_name="test_model",
+        model_provider="test_provider",
+        session_id="test_session_id",
+        is_decorator=True,
     )
 
 
@@ -113,7 +130,12 @@ def test_embedding_decorator_no_model_name_sets_default(llmobs, llmobs_events, t
     f()
     span = test_spans.pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "embedding", model_name="custom", model_provider="test_provider", session_id="test_session_id"
+        span,
+        "embedding",
+        model_name=UNKNOWN_MODEL_NAME,
+        model_provider="test_provider",
+        session_id="test_session_id",
+        is_decorator=True,
     )
 
 
@@ -125,7 +147,7 @@ def test_embedding_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
     f()
     span = test_spans.pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "embedding", model_name="custom", model_provider="custom"
+        span, "embedding", model_name=UNKNOWN_MODEL_NAME, model_provider=UNKNOWN_MODEL_PROVIDER, is_decorator=True
     )
 
 
@@ -136,7 +158,9 @@ def test_retrieval_decorator(llmobs, llmobs_events, test_spans):
 
     f()
     span = test_spans.pop()[0]
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "retrieval", session_id="test_session_id")
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        span, "retrieval", session_id="test_session_id", is_decorator=True
+    )
 
 
 def test_retrieval_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
@@ -146,7 +170,7 @@ def test_retrieval_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
 
     f()
     span = test_spans.pop()[0]
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "retrieval")
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "retrieval", is_decorator=True)
 
 
 def test_task_decorator(llmobs, llmobs_events, test_spans):
@@ -156,7 +180,9 @@ def test_task_decorator(llmobs, llmobs_events, test_spans):
 
     f()
     span = test_spans.pop()[0]
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "task", session_id="test_session_id")
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        span, "task", session_id="test_session_id", is_decorator=True
+    )
 
 
 def test_task_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
@@ -166,7 +192,7 @@ def test_task_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
 
     f()
     span = test_spans.pop()[0]
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "task")
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "task", is_decorator=True)
 
 
 def test_tool_decorator(llmobs, llmobs_events, test_spans):
@@ -176,7 +202,9 @@ def test_tool_decorator(llmobs, llmobs_events, test_spans):
 
     f()
     span = test_spans.pop()[0]
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "tool", session_id="test_session_id")
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        span, "tool", session_id="test_session_id", is_decorator=True
+    )
 
 
 def test_tool_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
@@ -186,7 +214,7 @@ def test_tool_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
 
     f()
     span = test_spans.pop()[0]
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "tool")
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "tool", is_decorator=True)
 
 
 def test_workflow_decorator(llmobs, llmobs_events, test_spans):
@@ -196,7 +224,9 @@ def test_workflow_decorator(llmobs, llmobs_events, test_spans):
 
     f()
     span = test_spans.pop()[0]
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow", session_id="test_session_id")
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        span, "workflow", session_id="test_session_id", is_decorator=True
+    )
 
 
 def test_workflow_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
@@ -206,7 +236,7 @@ def test_workflow_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
 
     f()
     span = test_spans.pop()[0]
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow")
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow", is_decorator=True)
 
 
 def test_agent_decorator(llmobs, llmobs_events, test_spans):
@@ -216,7 +246,9 @@ def test_agent_decorator(llmobs, llmobs_events, test_spans):
 
     f()
     span = test_spans.pop()[0]
-    assert llmobs_events[0] == _expected_llmobs_llm_span_event(span, "agent", session_id="test_session_id")
+    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+        span, "agent", session_id="test_session_id", is_decorator=True
+    )
 
 
 def test_agent_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
@@ -226,7 +258,7 @@ def test_agent_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
 
     f()
     span = test_spans.pop()[0]
-    assert llmobs_events[0] == _expected_llmobs_llm_span_event(span, "agent")
+    assert llmobs_events[0] == _expected_llmobs_llm_span_event(span, "agent", is_decorator=True)
 
 
 def test_llm_decorator_with_error(llmobs, llmobs_events, test_spans):
@@ -246,6 +278,7 @@ def test_llm_decorator_with_error(llmobs, llmobs_events, test_spans):
         error=span.get_tag("error.type"),
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
+        is_decorator=True,
     )
 
 
@@ -266,6 +299,7 @@ def test_non_llm_decorators_with_error(llmobs, llmobs_events, test_spans):
             error=span.get_tag("error.type"),
             error_message=span.get_tag("error.message"),
             error_stack=span.get_tag("error.stack"),
+            is_decorator=True,
         )
 
 
@@ -284,6 +318,7 @@ def test_llm_decorator_automatic_output_annotation(llmobs, llmobs_events, test_s
         model_name="test_model",
         model_provider="test_provider",
         output_messages=[{"content": "test_response", "role": ""}],
+        is_decorator=True,
     )
 
 
@@ -302,6 +337,7 @@ async def test_llm_decorator_automatic_output_annotation_async(llmobs, llmobs_ev
         model_name="test_model",
         model_provider="test_provider",
         output_messages=[{"content": "test_response", "role": ""}],
+        is_decorator=True,
     )
 
 
@@ -358,6 +394,7 @@ def test_llm_decorator_manual_annotation_not_overridden(llmobs, llmobs_events, t
         model_name="test_model",
         model_provider="test_provider",
         output_messages=[{"content": "manual_response", "role": ""}],
+        is_decorator=True,
     )
 
 
@@ -385,6 +422,7 @@ def test_llm_annotate(llmobs, llmobs_events, test_spans):
         token_metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
         tags={"custom_tag": "tag_value"},
         session_id="test_session_id",
+        is_decorator=True,
     )
 
 
@@ -412,6 +450,7 @@ def test_llm_annotate_raw_string_io(llmobs, llmobs_events, test_spans):
         token_metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
         tags={"custom_tag": "tag_value"},
         session_id="test_session_id",
+        is_decorator=True,
     )
 
 
@@ -431,7 +470,7 @@ def test_non_llm_decorators_no_args(llmobs, llmobs_events, test_spans):
 
         f()
         span = test_spans.pop()[0]
-        assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(span, decorator_name)
+        assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(span, decorator_name, is_decorator=True)
 
 
 def test_agent_decorator_no_args(llmobs, llmobs_events, test_spans):
@@ -443,7 +482,7 @@ def test_agent_decorator_no_args(llmobs, llmobs_events, test_spans):
 
     f()
     span = test_spans.pop()[0]
-    assert llmobs_events[0] == _expected_llmobs_llm_span_event(span, "agent")
+    assert llmobs_events[0] == _expected_llmobs_llm_span_event(span, "agent", is_decorator=True)
 
 
 def test_ml_app_override(llmobs, llmobs_events, test_spans):
@@ -457,7 +496,7 @@ def test_ml_app_override(llmobs, llmobs_events, test_spans):
         f()
         span = test_spans.pop()[0]
         assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(
-            span, decorator_name, tags={"ml_app": "test_ml_app"}
+            span, decorator_name, tags={"ml_app": "test_ml_app"}, is_decorator=True
         )
 
     @llm(model_name="test_model", ml_app="test_ml_app")
@@ -467,7 +506,12 @@ def test_ml_app_override(llmobs, llmobs_events, test_spans):
     g()
     span = test_spans.pop()[0]
     assert llmobs_events[-1] == _expected_llmobs_llm_span_event(
-        span, "llm", model_name="test_model", model_provider="custom", tags={"ml_app": "test_ml_app"}
+        span,
+        "llm",
+        model_name="test_model",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_ml_app"},
+        is_decorator=True,
     )
 
     @embedding(model_name="test_model", ml_app="test_ml_app")
@@ -477,7 +521,12 @@ def test_ml_app_override(llmobs, llmobs_events, test_spans):
     h()
     span = test_spans.pop()[0]
     assert llmobs_events[-1] == _expected_llmobs_llm_span_event(
-        span, "embedding", model_name="test_model", model_provider="custom", tags={"ml_app": "test_ml_app"}
+        span,
+        "embedding",
+        model_name="test_model",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_ml_app"},
+        is_decorator=True,
     )
 
 
@@ -497,7 +546,7 @@ async def test_non_llm_async_decorators(llmobs, llmobs_events, test_spans):
 
         await f()
         span = test_spans.pop()[0]
-        assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(span, decorator_name)
+        assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(span, decorator_name, is_decorator=True)
 
 
 async def test_llm_async_decorators(llmobs, llmobs_events, test_spans):
@@ -511,7 +560,7 @@ async def test_llm_async_decorators(llmobs, llmobs_events, test_spans):
         await f()
         span = test_spans.pop()[0]
         assert llmobs_events[-1] == _expected_llmobs_llm_span_event(
-            span, decorator_name, model_name="test_model", model_provider="test_provider"
+            span, decorator_name, model_name="test_model", model_provider="test_provider", is_decorator=True
         )
 
 
@@ -531,6 +580,7 @@ def test_automatic_annotation_non_llm_decorators(llmobs, llmobs_events, test_spa
             input_value='{"arg_2": "arg_2", "kwarg_2": 12345, "prompt": "test_prompt"}',
             output_value="test_prompt",
             session_id="test_session_id",
+            is_decorator=True,
         )
 
 
@@ -548,6 +598,7 @@ def test_automatic_annotation_retrieval_decorator(llmobs, llmobs_events, test_sp
         "retrieval",
         input_value='{"arg_2": "arg_2", "kwarg_2": 12345, "query": "test_query"}',
         session_id="test_session_id",
+        is_decorator=True,
     )
 
 
@@ -568,7 +619,7 @@ def test_automatic_annotation_off_non_llm_decorators(llmobs, llmobs_events, test
         f("test_prompt", "arg_2", kwarg_2=12345)
         span = test_spans.pop()[0]
         assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(
-            span, decorator_name, session_id="test_session_id"
+            span, decorator_name, session_id="test_session_id", is_decorator=True
         )
 
 
@@ -589,6 +640,7 @@ def test_automatic_annotation_off_if_manually_annotated(llmobs, llmobs_events, t
             session_id="test_session_id",
             input_value="my custom input",
             output_value="my custom output",
+            is_decorator=True,
         )
 
 
@@ -629,8 +681,9 @@ def test_generator_sync(llmobs, llmobs_events, test_spans):
                 decorator_name,
                 input_messages=[{"content": "hello"}],
                 output_messages=[{"content": "world"}],
-                model_name="custom",
-                model_provider="custom",
+                model_name=UNKNOWN_MODEL_NAME,
+                model_provider=UNKNOWN_MODEL_PROVIDER,
+                is_decorator=True,
             )
         elif decorator_name == "embedding":
             expected_span_event = _expected_llmobs_llm_span_event(
@@ -638,16 +691,17 @@ def test_generator_sync(llmobs, llmobs_events, test_spans):
                 decorator_name,
                 input_documents=[{"text": "hello"}],
                 output_value="world",
-                model_name="custom",
-                model_provider="custom",
+                model_name=UNKNOWN_MODEL_NAME,
+                model_provider=UNKNOWN_MODEL_PROVIDER,
+                is_decorator=True,
             )
         elif decorator_name == "retrieval":
             expected_span_event = _expected_llmobs_non_llm_span_event(
-                span, decorator_name, input_value="hello", output_documents=[{"text": "world"}]
+                span, decorator_name, input_value="hello", output_documents=[{"text": "world"}], is_decorator=True
             )
         else:
             expected_span_event = _expected_llmobs_non_llm_span_event(
-                span, decorator_name, input_value="hello", output_value="world"
+                span, decorator_name, input_value="hello", output_value="world", is_decorator=True
             )
 
         assert llmobs_events[-1] == expected_span_event
@@ -690,8 +744,9 @@ async def test_generator_async(llmobs, llmobs_events, test_spans):
                 decorator_name,
                 input_messages=[{"content": "hello"}],
                 output_messages=[{"content": "world"}],
-                model_name="custom",
-                model_provider="custom",
+                model_name=UNKNOWN_MODEL_NAME,
+                model_provider=UNKNOWN_MODEL_PROVIDER,
+                is_decorator=True,
             )
         elif decorator_name == "embedding":
             expected_span_event = _expected_llmobs_llm_span_event(
@@ -699,16 +754,17 @@ async def test_generator_async(llmobs, llmobs_events, test_spans):
                 decorator_name,
                 input_documents=[{"text": "hello"}],
                 output_value="world",
-                model_name="custom",
-                model_provider="custom",
+                model_name=UNKNOWN_MODEL_NAME,
+                model_provider=UNKNOWN_MODEL_PROVIDER,
+                is_decorator=True,
             )
         elif decorator_name == "retrieval":
             expected_span_event = _expected_llmobs_non_llm_span_event(
-                span, decorator_name, input_value="hello", output_documents=[{"text": "world"}]
+                span, decorator_name, input_value="hello", output_documents=[{"text": "world"}], is_decorator=True
             )
         else:
             expected_span_event = _expected_llmobs_non_llm_span_event(
-                span, decorator_name, input_value="hello", output_value="world"
+                span, decorator_name, input_value="hello", output_value="world", is_decorator=True
             )
 
         assert llmobs_events[-1] == expected_span_event
@@ -793,6 +849,7 @@ def test_generator_sync_finishes_span_on_error(llmobs, llmobs_events, test_spans
         error=span.get_tag("error.type"),
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
+        is_decorator=True,
     )
 
 
@@ -815,6 +872,7 @@ async def test_generator_async_finishes_span_on_error(llmobs, llmobs_events, tes
         error=span.get_tag("error.type"),
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
+        is_decorator=True,
     )
 
 
@@ -835,7 +893,7 @@ def test_generator_sync_send(llmobs, llmobs_events, test_spans):
     gen.close()
 
     span = test_spans.pop()[0]
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow")
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow", is_decorator=True)
 
 
 async def test_generator_async_send(llmobs, llmobs_events, test_spans):
@@ -855,7 +913,7 @@ async def test_generator_async_send(llmobs, llmobs_events, test_spans):
     await gen.aclose()
 
     span = test_spans.pop()[0]
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow")
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow", is_decorator=True)
 
 
 def test_generator_sync_throw(llmobs, llmobs_events, test_spans):
@@ -876,6 +934,7 @@ def test_generator_sync_throw(llmobs, llmobs_events, test_spans):
         error=span.get_tag("error.type"),
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
+        is_decorator=True,
     )
 
 
@@ -897,6 +956,7 @@ async def test_generator_async_throw(llmobs, llmobs_events, test_spans):
         error=span.get_tag("error.type"),
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
+        is_decorator=True,
     )
 
 
@@ -921,6 +981,7 @@ def test_generator_exit_exception_sync(llmobs, llmobs_events, test_spans):
         error=span.get_tag("error.type"),
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
+        is_decorator=True,
     )
 
 

@@ -96,7 +96,7 @@ class DDTraceAPITestCase(TracerTestCase):
             except Exception:  # noqa
                 span.set_traceback()
         spans = self._assert_real_spans()
-        assert "error.stack" in spans[0]._meta
+        assert spans[0]._has_attribute("error.stack")
 
     @pytest.mark.snapshot(ignores=["meta.error.stack"])
     def test_set_exc_info(self):
@@ -106,9 +106,9 @@ class DDTraceAPITestCase(TracerTestCase):
             except Exception:  # noqa
                 span.set_exc_info(*sys.exc_info())
         spans = self._assert_real_spans()
-        assert "error.message" in spans[0]._meta
-        assert "error.stack" in spans[0]._meta
-        assert "error.type" in spans[0]._meta
+        assert spans[0]._has_attribute("error.message")
+        assert spans[0]._has_attribute("error.stack")
+        assert spans[0]._has_attribute("error.type")
 
     @pytest.mark.snapshot(ignores=["meta.error.stack"])
     def test_exc_info_caught(self):
@@ -118,22 +118,22 @@ class DDTraceAPITestCase(TracerTestCase):
         except Exception:  # noqa
             pass
         spans = self._assert_real_spans()
-        assert "error.message" in spans[0]._meta
-        assert "error.stack" in spans[0]._meta
-        assert "error.type" in spans[0]._meta
+        assert spans[0]._has_attribute("error.message")
+        assert spans[0]._has_attribute("error.stack")
+        assert spans[0]._has_attribute("error.type")
 
     @pytest.mark.snapshot()
     def test_set_tags(self):
         with ddtrace_api.tracer.trace("web.request") as span:
             span.set_tags({"tag1": "value1", "tag2": "value2"})
         spans = self._assert_real_spans()
-        assert spans[0]._meta["tag1"] == "value1", "Tag set via API should be applied to the real spans"
-        assert spans[0]._meta["tag2"] == "value2", "Tag set via API should be applied to the real spans"
+        assert spans[0]._get_str_attribute("tag1") == "value1", "Tag set via API should be applied to the real spans"
+        assert spans[0]._get_str_attribute("tag2") == "value2", "Tag set via API should be applied to the real spans"
 
     @pytest.mark.snapshot()
     def test_tracer_set_tags(self):
         ddtrace_api.tracer.set_tags({"tag1": "value1", "tag2": "value2"})
         ddtrace_api.tracer.trace("web.request").finish()
         spans = self._assert_real_spans()
-        assert spans[0]._meta["tag1"] == "value1", "Tag set via API should be applied to the real spans"
-        assert spans[0]._meta["tag2"] == "value2", "Tag set via API should be applied to the real spans"
+        assert spans[0]._get_str_attribute("tag1") == "value1", "Tag set via API should be applied to the real spans"
+        assert spans[0]._get_str_attribute("tag2") == "value2", "Tag set via API should be applied to the real spans"

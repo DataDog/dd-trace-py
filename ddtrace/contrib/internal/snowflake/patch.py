@@ -1,15 +1,13 @@
-import os
-
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -23,7 +21,7 @@ config._add(
         # `sql.query` whereas other dbapi-compliant integrations are set to
         # `<integration>.query`.
         _dbapi_span_name_prefix="sql",
-        trace_fetch_methods=asbool(os.getenv("DD_SNOWFLAKE_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(env.get("DD_SNOWFLAKE_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 
@@ -97,7 +95,4 @@ def patched_connect(connect_func, _, args, kwargs):
         "db.warehouse": conn.warehouse,
     }
 
-    pin = Pin(tags=tags)
-    traced_conn = TracedConnection(conn, pin=pin, cfg=config.snowflake, cursor_cls=_SFTracedCursor)
-    pin.onto(traced_conn)
-    return traced_conn
+    return TracedConnection(conn, cfg=config.snowflake, cursor_cls=_SFTracedCursor, db_tags=tags)

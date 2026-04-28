@@ -1,5 +1,4 @@
 from copy import deepcopy
-import os
 import re
 import sys
 from typing import Any  # noqa:F401
@@ -29,6 +28,7 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
+from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
@@ -112,6 +112,7 @@ INTEGRATION_CONFIGS = frozenset(
         "falcon",
         "langgraph",
         "litellm",
+        "llama_index",
         "test_visibility",
         "redis",
         "mako",
@@ -121,6 +122,7 @@ INTEGRATION_CONFIGS = frozenset(
         "sanic",
         "snowflake",
         "pymemcache",
+        "azure_cosmos",
         "azure_eventhubs",
         "azure_functions",
         "azure_servicebus",
@@ -214,7 +216,6 @@ def _parse_propagation_styles(styles_str: str) -> Optional[list[str]]:
 
         <style>[,<style>...]
 
-
     The allowed values are:
 
     - "datadog"
@@ -224,9 +225,7 @@ def _parse_propagation_styles(styles_str: str) -> Optional[list[str]]:
     - "baggage"
     - "none"
 
-
     The default value is ``"datadog,tracecontext,baggage"``.
-
 
     Examples::
 
@@ -391,6 +390,16 @@ def _default_config() -> dict[str, _ConfigItem]:
             envs=["DD_APPSEC_SCA_ENABLED"],
             modifier=asbool,
         ),
+        "_llmobs_enabled": _ConfigItem(
+            default=False,
+            envs=["DD_LLMOBS_ENABLED"],
+            modifier=asbool,
+        ),
+        "_llmobs_ml_app": _ConfigItem(
+            default=None,
+            envs=["DD_LLMOBS_ML_APP"],
+            modifier=lambda x: x,
+        ),
     }
 
 
@@ -480,9 +489,6 @@ class Config(object):
         )
         self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
 
-        # Use the NativeWriter instead of the AgentWriter
-        self._trace_writer_native = _get_config("_DD_TRACE_WRITER_NATIVE", True, asbool)
-
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
@@ -501,6 +507,8 @@ class Config(object):
 
         self._inferred_base_service = detect_service(sys.argv)
 
+        if self.service is None and in_aws_lambda():
+            self.service = _get_config("AWS_LAMBDA_FUNCTION_NAME", DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and in_gcp_function():
             self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and in_azure_function():
@@ -552,7 +560,7 @@ class Config(object):
         )
 
         # Emit deprecation warning if env var is set (still functional, removal in 5.0.0)
-        if "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in os.environ:
+        if "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in env:
             deprecate(
                 "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED is deprecated",
                 message="128-bit trace ID generation will become mandatory in version 5.0.0.",
@@ -654,7 +662,7 @@ class Config(object):
         if self._otel_trace_enabled or self._otel_logs_enabled or self._otel_metrics_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
-            os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
+            env["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._otel_enabled = self._otel_trace_enabled or self._otel_metrics_enabled or self._otel_logs_enabled
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
@@ -663,9 +671,7 @@ class Config(object):
         self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
-        self._llmobs_enabled = _get_config("DD_LLMOBS_ENABLED", False, asbool)
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
-        self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
         self._llmobs_instrumented_proxy_urls = _get_config(
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
@@ -681,8 +687,23 @@ class Config(object):
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
-        self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
+        if "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED" in env:
+            deprecate(
+                "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED is deprecated",
+                message="Please use DD_TRACE_INFERRED_SPANS_ENABLED instead.",
+                removal_version="5.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+        self._inferred_proxy_services_enabled = _get_config(
+            ["DD_TRACE_INFERRED_SPANS_ENABLED", "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED"], False, asbool
+        )
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
+
+        # When True, the default span name for @tracer.wrap() on methods includes the class name.
+        # Defaults to False to preserve backwards compatibility; will become True in 5.0.0.
+        self._trace_wrap_span_name_include_class = _get_config(
+            "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS", default=False, modifier=asbool
+        )
 
         # Resource renaming
         self._trace_resource_renaming_enabled = _get_config(

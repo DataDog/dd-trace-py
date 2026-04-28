@@ -13,6 +13,7 @@ from typing import Optional  # noqa:F401
 from ddtrace.ext import git
 from ddtrace.ext.ci import github_actions
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 
 
 # CI app dd_origin tag
@@ -96,13 +97,13 @@ def _get_runtime_and_os_metadata():
     }
 
 
-def tags(env: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] = None) -> dict[str, str]:
+def tags(environ: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] = None) -> dict[str, str]:
     """Extract and set tags from provider environ, as well as git metadata."""
-    env = os.environ if env is None else env
+    environ = env if environ is None else environ
     tags: dict[str, Optional[str]] = {}
     for key, extract in PROVIDERS:
-        if key in env:
-            tags = extract(env)
+        if key in environ:
+            tags = extract(environ)
             break
 
     git_info = git.extract_git_metadata(cwd=cwd)
@@ -129,14 +130,14 @@ def tags(env: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] = No
     # is None or "" should be overwritten.
     tags.update({k: v for k, v in git_info.items() if not tags.get(k)})
 
-    user_specified_git_info = git.extract_user_git_metadata(env)
+    user_specified_git_info = git.extract_user_git_metadata(environ)
 
     # Tags provided by the user take precedence over everything
     tags.update({k: v for k, v in user_specified_git_info.items() if v})
 
     # Allow JOB_ID environment variable to override job ID from any provider
-    if env.get("JOB_ID"):
-        tags[JOB_ID] = env.get("JOB_ID")
+    if environ.get("JOB_ID"):
+        tags[JOB_ID] = environ.get("JOB_ID")
 
     # if git.BRANCH is a tag, we associate its value to TAG instead of BRANCH
     if git.is_ref_a_tag(tags.get(git.BRANCH)):
@@ -149,6 +150,8 @@ def tags(env: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] = No
         tags[git.BRANCH] = git.normalize_ref(tags.get(git.BRANCH))
         tags[git.TAG] = git.normalize_ref(tags.get(git.TAG))
 
+    tags[git.PULL_REQUEST_BASE_BRANCH] = git.normalize_ref(tags.get(git.PULL_REQUEST_BASE_BRANCH))
+
     tags[git.REPOSITORY_URL] = _filter_sensitive_info(tags.get(git.REPOSITORY_URL))
 
     workspace_path = tags.get(WORKSPACE_PATH)
@@ -160,22 +163,25 @@ def tags(env: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] = No
     return {k: v for k, v in tags.items() if v is not None}
 
 
-def extract_appveyor(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_appveyor(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Appveyor environ."""
     url = "https://ci.appveyor.com/project/{0}/builds/{1}".format(
-        env.get("APPVEYOR_REPO_NAME"), env.get("APPVEYOR_BUILD_ID")
+        environ.get("APPVEYOR_REPO_NAME"), environ.get("APPVEYOR_BUILD_ID")
     )
-    if env.get("APPVEYOR_REPO_PROVIDER") == "github":
-        repository: Optional[str] = "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME"))
-        commit: Optional[str] = env.get("APPVEYOR_REPO_COMMIT")
-        branch: Optional[str] = env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH", env.get("APPVEYOR_REPO_BRANCH"))
-        tag: Optional[str] = env.get("APPVEYOR_REPO_TAG_NAME")
+    is_pull_request = bool(environ.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH"))
+    if environ.get("APPVEYOR_REPO_PROVIDER") == "github":
+        repository: Optional[str] = "https://github.com/{0}.git".format(environ.get("APPVEYOR_REPO_NAME"))
+        commit: Optional[str] = environ.get("APPVEYOR_REPO_COMMIT")
+        branch: Optional[str] = environ.get(
+            "APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH", environ.get("APPVEYOR_REPO_BRANCH")
+        )
+        tag: Optional[str] = environ.get("APPVEYOR_REPO_TAG_NAME")
     else:
         repository = commit = branch = tag = None
 
-    commit_message = env.get("APPVEYOR_REPO_COMMIT_MESSAGE")
+    commit_message = environ.get("APPVEYOR_REPO_COMMIT_MESSAGE")
     if commit_message:
-        extended = env.get("APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED")
+        extended = environ.get("APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED")
         if extended:
             commit_message += "\n" + extended
 
@@ -183,339 +189,380 @@ def extract_appveyor(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
         PROVIDER_NAME: "appveyor",
         git.REPOSITORY_URL: repository,
         git.COMMIT_SHA: commit,
-        WORKSPACE_PATH: env.get("APPVEYOR_BUILD_FOLDER"),
-        PIPELINE_ID: env.get("APPVEYOR_BUILD_ID"),
-        PIPELINE_NAME: env.get("APPVEYOR_REPO_NAME"),
-        PIPELINE_NUMBER: env.get("APPVEYOR_BUILD_NUMBER"),
+        git.COMMIT_HEAD_SHA: environ.get("APPVEYOR_PULL_REQUEST_HEAD_COMMIT"),
+        WORKSPACE_PATH: environ.get("APPVEYOR_BUILD_FOLDER"),
+        PIPELINE_ID: environ.get("APPVEYOR_BUILD_ID"),
+        PIPELINE_NAME: environ.get("APPVEYOR_REPO_NAME"),
+        PIPELINE_NUMBER: environ.get("APPVEYOR_BUILD_NUMBER"),
         PIPELINE_URL: url,
         JOB_URL: url,
         git.BRANCH: branch,
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("APPVEYOR_REPO_BRANCH") if is_pull_request else None,
         git.TAG: tag,
         git.COMMIT_MESSAGE: commit_message,
-        git.COMMIT_AUTHOR_NAME: env.get("APPVEYOR_REPO_COMMIT_AUTHOR"),
-        git.COMMIT_AUTHOR_EMAIL: env.get("APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL"),
+        git.COMMIT_AUTHOR_NAME: environ.get("APPVEYOR_REPO_COMMIT_AUTHOR"),
+        git.COMMIT_AUTHOR_EMAIL: environ.get("APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL"),
+        git.PULL_REQUEST_NUMBER: environ.get("APPVEYOR_PULL_REQUEST_NUMBER"),
     }
 
 
-def extract_azure_pipelines(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_azure_pipelines(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Azure pipelines environ."""
-    if env.get("SYSTEM_TEAMFOUNDATIONSERVERURI") and env.get("SYSTEM_TEAMPROJECTID") and env.get("BUILD_BUILDID"):
+    if (
+        environ.get("SYSTEM_TEAMFOUNDATIONSERVERURI")
+        and environ.get("SYSTEM_TEAMPROJECTID")
+        and environ.get("BUILD_BUILDID")
+    ):
         base_url = "{0}{1}/_build/results?buildId={2}".format(
-            env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECTID"), env.get("BUILD_BUILDID")
+            environ.get("SYSTEM_TEAMFOUNDATIONSERVERURI"),
+            environ.get("SYSTEM_TEAMPROJECTID"),
+            environ.get("BUILD_BUILDID"),
         )
         pipeline_url: Optional[str] = base_url
         job_url: Optional[str] = base_url + "&view=logs&j={0}&t={1}".format(
-            env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID")
+            environ.get("SYSTEM_JOBID"), environ.get("SYSTEM_TASKINSTANCEID")
         )
     else:
         pipeline_url = job_url = None
 
     return {
         PROVIDER_NAME: "azurepipelines",
-        WORKSPACE_PATH: env.get("BUILD_SOURCESDIRECTORY"),
-        PIPELINE_ID: env.get("BUILD_BUILDID"),
-        PIPELINE_NAME: env.get("BUILD_DEFINITIONNAME"),
-        PIPELINE_NUMBER: env.get("BUILD_BUILDID"),
+        WORKSPACE_PATH: environ.get("BUILD_SOURCESDIRECTORY"),
+        PIPELINE_ID: environ.get("BUILD_BUILDID"),
+        PIPELINE_NAME: environ.get("BUILD_DEFINITIONNAME"),
+        PIPELINE_NUMBER: environ.get("BUILD_BUILDID"),
         PIPELINE_URL: pipeline_url,
         JOB_URL: job_url,
-        git.REPOSITORY_URL: env.get("SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI") or env.get("BUILD_REPOSITORY_URI"),
-        git.COMMIT_SHA: env.get("SYSTEM_PULLREQUEST_SOURCECOMMITID") or env.get("BUILD_SOURCEVERSION"),
-        git.BRANCH: env.get("SYSTEM_PULLREQUEST_SOURCEBRANCH")
-        or env.get("BUILD_SOURCEBRANCH")
-        or env.get("BUILD_SOURCEBRANCHNAME"),
-        git.COMMIT_MESSAGE: env.get("BUILD_SOURCEVERSIONMESSAGE"),
-        git.COMMIT_AUTHOR_NAME: env.get("BUILD_REQUESTEDFORID"),
-        git.COMMIT_AUTHOR_EMAIL: env.get("BUILD_REQUESTEDFOREMAIL"),
-        STAGE_NAME: env.get("SYSTEM_STAGEDISPLAYNAME"),
-        JOB_ID: env.get("SYSTEM_JOBID"),
-        JOB_NAME: env.get("SYSTEM_JOBDISPLAYNAME"),
+        git.REPOSITORY_URL: environ.get("SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI")
+        or environ.get("BUILD_REPOSITORY_URI"),
+        git.COMMIT_SHA: environ.get("SYSTEM_PULLREQUEST_SOURCECOMMITID") or environ.get("BUILD_SOURCEVERSION"),
+        git.BRANCH: environ.get("SYSTEM_PULLREQUEST_SOURCEBRANCH")
+        or environ.get("BUILD_SOURCEBRANCH")
+        or environ.get("BUILD_SOURCEBRANCHNAME"),
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("SYSTEM_PULLREQUEST_TARGETBRANCH"),
+        git.COMMIT_MESSAGE: environ.get("BUILD_SOURCEVERSIONMESSAGE"),
+        git.COMMIT_AUTHOR_NAME: environ.get("BUILD_REQUESTEDFORID"),
+        git.COMMIT_AUTHOR_EMAIL: environ.get("BUILD_REQUESTEDFOREMAIL"),
+        STAGE_NAME: environ.get("SYSTEM_STAGEDISPLAYNAME"),
+        JOB_ID: environ.get("SYSTEM_JOBID"),
+        JOB_NAME: environ.get("SYSTEM_JOBDISPLAYNAME"),
         _CI_ENV_VARS: json.dumps(
             {
-                "SYSTEM_TEAMPROJECTID": env.get("SYSTEM_TEAMPROJECTID"),
-                "BUILD_BUILDID": env.get("BUILD_BUILDID"),
-                "SYSTEM_JOBID": env.get("SYSTEM_JOBID"),
+                "SYSTEM_TEAMPROJECTID": environ.get("SYSTEM_TEAMPROJECTID"),
+                "BUILD_BUILDID": environ.get("BUILD_BUILDID"),
+                "SYSTEM_JOBID": environ.get("SYSTEM_JOBID"),
             },
             separators=(",", ":"),
         ),
+        git.PULL_REQUEST_NUMBER: environ.get("SYSTEM_PULLREQUEST_PULLREQUESTNUMBER"),
     }
 
 
-def extract_bitbucket(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_bitbucket(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Bitbucket environ."""
     url = "https://bitbucket.org/{0}/addon/pipelines/home#!/results/{1}".format(
-        env.get("BITBUCKET_REPO_FULL_NAME"), env.get("BITBUCKET_BUILD_NUMBER")
+        environ.get("BITBUCKET_REPO_FULL_NAME"), environ.get("BITBUCKET_BUILD_NUMBER")
     )
     return {
-        git.BRANCH: env.get("BITBUCKET_BRANCH"),
-        git.COMMIT_SHA: env.get("BITBUCKET_COMMIT"),
-        git.REPOSITORY_URL: env.get("BITBUCKET_GIT_SSH_ORIGIN") or env.get("BITBUCKET_GIT_HTTP_ORIGIN"),
-        git.TAG: env.get("BITBUCKET_TAG"),
+        git.BRANCH: environ.get("BITBUCKET_BRANCH"),
+        git.COMMIT_SHA: environ.get("BITBUCKET_COMMIT"),
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("BITBUCKET_PR_DESTINATION_BRANCH"),
+        git.REPOSITORY_URL: environ.get("BITBUCKET_GIT_SSH_ORIGIN") or environ.get("BITBUCKET_GIT_HTTP_ORIGIN"),
+        git.TAG: environ.get("BITBUCKET_TAG"),
         JOB_URL: url,
-        PIPELINE_ID: env.get("BITBUCKET_PIPELINE_UUID", "").strip("{}}") or None,  # noqa: B005
-        PIPELINE_NAME: env.get("BITBUCKET_REPO_FULL_NAME"),
-        PIPELINE_NUMBER: env.get("BITBUCKET_BUILD_NUMBER"),
+        PIPELINE_ID: environ.get("BITBUCKET_PIPELINE_UUID", "").strip("{}}") or None,  # noqa: B005
+        PIPELINE_NAME: environ.get("BITBUCKET_REPO_FULL_NAME"),
+        PIPELINE_NUMBER: environ.get("BITBUCKET_BUILD_NUMBER"),
         PIPELINE_URL: url,
         PROVIDER_NAME: "bitbucket",
-        WORKSPACE_PATH: env.get("BITBUCKET_CLONE_DIR"),
+        WORKSPACE_PATH: environ.get("BITBUCKET_CLONE_DIR"),
+        git.PULL_REQUEST_NUMBER: environ.get("BITBUCKET_PR_ID"),
     }
 
 
-def extract_buildkite(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_buildkite(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Buildkite environ."""
     # Get all keys which start with BUILDKITE_AGENT_META_DATA_x
+    pull_request_number = environ.get("BUILDKITE_PULL_REQUEST")
+    is_pull_request = pull_request_number not in (None, "", "false")
     node_label_list: list[str] = []
     buildkite_agent_meta_data_prefix = "BUILDKITE_AGENT_META_DATA_"
-    for env_variable in env:
+    for env_variable in environ:
         if env_variable.startswith(buildkite_agent_meta_data_prefix):
             key = env_variable.replace(buildkite_agent_meta_data_prefix, "").lower()
-            value = env.get(env_variable)
+            value = environ.get(env_variable)
             node_label_list.append("{}:{}".format(key, value))
     return {
-        git.BRANCH: env.get("BUILDKITE_BRANCH"),
-        git.COMMIT_SHA: env.get("BUILDKITE_COMMIT"),
-        git.REPOSITORY_URL: env.get("BUILDKITE_REPO"),
-        git.TAG: env.get("BUILDKITE_TAG"),
-        PIPELINE_ID: env.get("BUILDKITE_BUILD_ID"),
-        PIPELINE_NAME: env.get("BUILDKITE_PIPELINE_SLUG"),
-        PIPELINE_NUMBER: env.get("BUILDKITE_BUILD_NUMBER"),
-        PIPELINE_URL: env.get("BUILDKITE_BUILD_URL"),
-        JOB_ID: env.get("BUILDKITE_JOB_ID"),
-        JOB_URL: "{0}#{1}".format(env.get("BUILDKITE_BUILD_URL"), env.get("BUILDKITE_JOB_ID")),
+        git.BRANCH: environ.get("BUILDKITE_BRANCH"),
+        git.COMMIT_SHA: environ.get("BUILDKITE_COMMIT"),
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("BUILDKITE_PULL_REQUEST_BASE_BRANCH") if is_pull_request else None,
+        git.REPOSITORY_URL: environ.get("BUILDKITE_REPO"),
+        git.TAG: environ.get("BUILDKITE_TAG"),
+        PIPELINE_ID: environ.get("BUILDKITE_BUILD_ID"),
+        PIPELINE_NAME: environ.get("BUILDKITE_PIPELINE_SLUG"),
+        PIPELINE_NUMBER: environ.get("BUILDKITE_BUILD_NUMBER"),
+        PIPELINE_URL: environ.get("BUILDKITE_BUILD_URL"),
+        JOB_ID: environ.get("BUILDKITE_JOB_ID"),
+        JOB_URL: "{0}#{1}".format(environ.get("BUILDKITE_BUILD_URL"), environ.get("BUILDKITE_JOB_ID")),
         PROVIDER_NAME: "buildkite",
-        WORKSPACE_PATH: env.get("BUILDKITE_BUILD_CHECKOUT_PATH"),
-        git.COMMIT_MESSAGE: env.get("BUILDKITE_MESSAGE"),
-        git.COMMIT_AUTHOR_NAME: env.get("BUILDKITE_BUILD_AUTHOR"),
-        git.COMMIT_AUTHOR_EMAIL: env.get("BUILDKITE_BUILD_AUTHOR_EMAIL"),
-        git.COMMIT_COMMITTER_NAME: env.get("BUILDKITE_BUILD_CREATOR"),
-        git.COMMIT_COMMITTER_EMAIL: env.get("BUILDKITE_BUILD_CREATOR_EMAIL"),
+        WORKSPACE_PATH: environ.get("BUILDKITE_BUILD_CHECKOUT_PATH"),
+        git.COMMIT_MESSAGE: environ.get("BUILDKITE_MESSAGE"),
+        git.COMMIT_AUTHOR_NAME: environ.get("BUILDKITE_BUILD_AUTHOR"),
+        git.COMMIT_AUTHOR_EMAIL: environ.get("BUILDKITE_BUILD_AUTHOR_EMAIL"),
+        git.COMMIT_COMMITTER_NAME: environ.get("BUILDKITE_BUILD_CREATOR"),
+        git.COMMIT_COMMITTER_EMAIL: environ.get("BUILDKITE_BUILD_CREATOR_EMAIL"),
         _CI_ENV_VARS: json.dumps(
             {
-                "BUILDKITE_BUILD_ID": env.get("BUILDKITE_BUILD_ID"),
-                "BUILDKITE_JOB_ID": env.get("BUILDKITE_JOB_ID"),
+                "BUILDKITE_BUILD_ID": environ.get("BUILDKITE_BUILD_ID"),
+                "BUILDKITE_JOB_ID": environ.get("BUILDKITE_JOB_ID"),
             },
             separators=(",", ":"),
         ),
         NODE_LABELS: json.dumps(node_label_list, separators=(",", ":")),
-        NODE_NAME: env.get("BUILDKITE_AGENT_ID"),
+        NODE_NAME: environ.get("BUILDKITE_AGENT_ID"),
+        git.PULL_REQUEST_NUMBER: pull_request_number if is_pull_request else None,
     }
 
 
-def extract_circle_ci(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_circle_ci(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from CircleCI environ."""
     return {
-        git.BRANCH: env.get("CIRCLE_BRANCH"),
-        git.COMMIT_SHA: env.get("CIRCLE_SHA1"),
-        git.REPOSITORY_URL: env.get("CIRCLE_REPOSITORY_URL"),
-        git.TAG: env.get("CIRCLE_TAG"),
-        PIPELINE_ID: env.get("CIRCLE_WORKFLOW_ID"),
-        PIPELINE_NAME: env.get("CIRCLE_PROJECT_REPONAME"),
-        PIPELINE_NUMBER: env.get("CIRCLE_BUILD_NUM"),
-        PIPELINE_URL: "https://app.circleci.com/pipelines/workflows/{0}".format(env.get("CIRCLE_WORKFLOW_ID")),
-        JOB_URL: env.get("CIRCLE_BUILD_URL"),
-        JOB_NAME: env.get("CIRCLE_JOB"),
+        git.BRANCH: environ.get("CIRCLE_BRANCH"),
+        git.COMMIT_SHA: environ.get("CIRCLE_SHA1"),
+        git.REPOSITORY_URL: environ.get("CIRCLE_REPOSITORY_URL"),
+        git.TAG: environ.get("CIRCLE_TAG"),
+        JOB_ID: environ.get("CIRCLE_BUILD_NUM"),
+        PIPELINE_ID: environ.get("CIRCLE_WORKFLOW_ID"),
+        PIPELINE_NAME: environ.get("CIRCLE_PROJECT_REPONAME"),
+        PIPELINE_NUMBER: environ.get("CIRCLE_BUILD_NUM"),
+        PIPELINE_URL: "https://app.circleci.com/pipelines/workflows/{0}".format(environ.get("CIRCLE_WORKFLOW_ID")),
+        JOB_URL: environ.get("CIRCLE_BUILD_URL"),
+        JOB_NAME: environ.get("CIRCLE_JOB"),
         PROVIDER_NAME: "circleci",
-        WORKSPACE_PATH: env.get("CIRCLE_WORKING_DIRECTORY"),
+        WORKSPACE_PATH: environ.get("CIRCLE_WORKING_DIRECTORY"),
+        git.PULL_REQUEST_NUMBER: environ.get("CIRCLE_PR_NUMBER"),
         _CI_ENV_VARS: json.dumps(
             {
-                "CIRCLE_WORKFLOW_ID": env.get("CIRCLE_WORKFLOW_ID"),
-                "CIRCLE_BUILD_NUM": env.get("CIRCLE_BUILD_NUM"),
+                "CIRCLE_WORKFLOW_ID": environ.get("CIRCLE_WORKFLOW_ID"),
+                "CIRCLE_BUILD_NUM": environ.get("CIRCLE_BUILD_NUM"),
             },
             separators=(",", ":"),
         ),
     }
 
 
-def extract_codefresh(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_codefresh(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Codefresh environ."""
-    build_id = env.get("CF_BUILD_ID")
+    build_id = environ.get("CF_BUILD_ID")
     return {
-        git.BRANCH: env.get("CF_BRANCH"),
+        git.BRANCH: environ.get("CF_BRANCH"),
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("CF_PULL_REQUEST_TARGET"),
         PIPELINE_ID: build_id,
-        PIPELINE_NAME: env.get("CF_PIPELINE_NAME"),
-        PIPELINE_URL: env.get("CF_BUILD_URL"),
-        JOB_NAME: env.get("CF_STEP_NAME"),
+        PIPELINE_NAME: environ.get("CF_PIPELINE_NAME"),
+        PIPELINE_URL: environ.get("CF_BUILD_URL"),
+        JOB_NAME: environ.get("CF_STEP_NAME"),
         PROVIDER_NAME: "codefresh",
         _CI_ENV_VARS: json.dumps(
             {"CF_BUILD_ID": build_id},
             separators=(",", ":"),
         ),
+        git.PULL_REQUEST_NUMBER: environ.get("CF_PULL_REQUEST_NUMBER"),
     }
 
 
-def extract_github_actions(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_github_actions(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Github Actions environment."""
-    return github_actions.extract_github_actions(env)
+    return github_actions.extract_github_actions(environ)
 
 
-def extract_gitlab(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_gitlab(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Gitlab environ."""
-    author = env.get("CI_COMMIT_AUTHOR")
+    author = environ.get("CI_COMMIT_AUTHOR")
     author_name: Optional[str] = None
     author_email: Optional[str] = None
     if author:
         # Extract name and email from `author` which is in the form "name <email>"
         author_name, author_email = author.strip("> ").split(" <")
-    commit_timestamp = env.get("CI_COMMIT_TIMESTAMP")
+    commit_timestamp = environ.get("CI_COMMIT_TIMESTAMP")
     return {
-        git.BRANCH: env.get("CI_COMMIT_REF_NAME"),
-        git.COMMIT_SHA: env.get("CI_COMMIT_SHA"),
-        git.REPOSITORY_URL: env.get("CI_REPOSITORY_URL"),
-        git.TAG: env.get("CI_COMMIT_TAG"),
-        STAGE_NAME: env.get("CI_JOB_STAGE"),
-        JOB_ID: env.get("CI_JOB_ID"),
-        JOB_NAME: env.get("CI_JOB_NAME"),
-        JOB_URL: env.get("CI_JOB_URL"),
-        PIPELINE_ID: env.get("CI_PIPELINE_ID"),
-        PIPELINE_NAME: env.get("CI_PROJECT_PATH"),
-        PIPELINE_NUMBER: env.get("CI_PIPELINE_IID"),
-        PIPELINE_URL: env.get("CI_PIPELINE_URL"),
+        git.BRANCH: environ.get("CI_COMMIT_REF_NAME"),
+        git.COMMIT_SHA: environ.get("CI_COMMIT_SHA"),
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"),
+        git.REPOSITORY_URL: environ.get("CI_REPOSITORY_URL"),
+        git.TAG: environ.get("CI_COMMIT_TAG"),
+        STAGE_NAME: environ.get("CI_JOB_STAGE"),
+        JOB_ID: environ.get("CI_JOB_ID"),
+        JOB_NAME: environ.get("CI_JOB_NAME"),
+        JOB_URL: environ.get("CI_JOB_URL"),
+        PIPELINE_ID: environ.get("CI_PIPELINE_ID"),
+        PIPELINE_NAME: environ.get("CI_PROJECT_PATH"),
+        PIPELINE_NUMBER: environ.get("CI_PIPELINE_IID"),
+        PIPELINE_URL: environ.get("CI_PIPELINE_URL"),
         PROVIDER_NAME: "gitlab",
-        WORKSPACE_PATH: env.get("CI_PROJECT_DIR"),
-        git.COMMIT_MESSAGE: env.get("CI_COMMIT_MESSAGE"),
+        WORKSPACE_PATH: environ.get("CI_PROJECT_DIR"),
+        git.COMMIT_MESSAGE: environ.get("CI_COMMIT_MESSAGE"),
         git.COMMIT_AUTHOR_NAME: author_name,
         git.COMMIT_AUTHOR_EMAIL: author_email,
         git.COMMIT_AUTHOR_DATE: commit_timestamp,
         _CI_ENV_VARS: json.dumps(
             {
-                "CI_PROJECT_URL": env.get("CI_PROJECT_URL"),
-                "CI_PIPELINE_ID": env.get("CI_PIPELINE_ID"),
-                "CI_JOB_ID": env.get("CI_JOB_ID"),
+                "CI_PROJECT_URL": environ.get("CI_PROJECT_URL"),
+                "CI_PIPELINE_ID": environ.get("CI_PIPELINE_ID"),
+                "CI_JOB_ID": environ.get("CI_JOB_ID"),
             },
             separators=(",", ":"),
         ),
-        NODE_LABELS: env.get("CI_RUNNER_TAGS"),
-        NODE_NAME: env.get("CI_RUNNER_ID"),
+        NODE_LABELS: environ.get("CI_RUNNER_TAGS"),
+        NODE_NAME: environ.get("CI_RUNNER_ID"),
+        git.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: environ.get("CI_MERGE_REQUEST_TARGET_BRANCH_SHA"),
+        git.PULL_REQUEST_BASE_BRANCH_SHA: environ.get("CI_MERGE_REQUEST_DIFF_BASE_SHA"),
+        git.COMMIT_HEAD_SHA: environ.get("CI_MERGE_REQUEST_SOURCE_BRANCH_SHA"),
+        git.PULL_REQUEST_NUMBER: environ.get("CI_MERGE_REQUEST_IID"),
     }
 
 
-def extract_jenkins(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_jenkins(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Jenkins environ."""
-    branch = env.get("GIT_BRANCH", "")
-    name = env.get("JOB_NAME")
+    branch = environ.get("GIT_BRANCH", "")
+    name = environ.get("JOB_NAME")
     if name and branch:
         name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
     if name:
         name = "/".join((v for v in name.split("/") if v and "=" not in v))
     node_labels_list: list[str] = []
-    node_labels_env: Optional[str] = env.get("NODE_LABELS")
+    node_labels_env: Optional[str] = environ.get("NODE_LABELS")
     if node_labels_env:
         node_labels_list = node_labels_env.split()
     return {
-        git.BRANCH: env.get("GIT_BRANCH"),
-        git.COMMIT_SHA: env.get("GIT_COMMIT"),
-        git.REPOSITORY_URL: env.get("GIT_URL", env.get("GIT_URL_1")),
-        PIPELINE_ID: env.get("BUILD_TAG"),
+        git.BRANCH: environ.get("GIT_BRANCH"),
+        git.COMMIT_SHA: environ.get("GIT_COMMIT"),
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("CHANGE_TARGET"),
+        git.REPOSITORY_URL: environ.get("GIT_URL", environ.get("GIT_URL_1")),
+        PIPELINE_ID: environ.get("BUILD_TAG"),
         PIPELINE_NAME: name,
-        PIPELINE_NUMBER: env.get("BUILD_NUMBER"),
-        PIPELINE_URL: env.get("BUILD_URL"),
+        PIPELINE_NUMBER: environ.get("BUILD_NUMBER"),
+        PIPELINE_URL: environ.get("BUILD_URL"),
         PROVIDER_NAME: "jenkins",
-        WORKSPACE_PATH: env.get("WORKSPACE"),
+        WORKSPACE_PATH: environ.get("WORKSPACE"),
         _CI_ENV_VARS: json.dumps(
             {
-                "DD_CUSTOM_TRACE_ID": env.get("DD_CUSTOM_TRACE_ID"),
+                "DD_CUSTOM_TRACE_ID": environ.get("DD_CUSTOM_TRACE_ID"),
             },
             separators=(",", ":"),
         ),
         NODE_LABELS: json.dumps(node_labels_list, separators=(",", ":")),
-        NODE_NAME: env.get("NODE_NAME"),
+        NODE_NAME: environ.get("NODE_NAME"),
+        git.PULL_REQUEST_NUMBER: environ.get("CHANGE_ID"),
     }
 
 
-def extract_teamcity(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_teamcity(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Teamcity environ."""
     return {
-        JOB_URL: env.get("BUILD_URL"),
-        JOB_NAME: env.get("TEAMCITY_BUILDCONF_NAME"),
+        JOB_URL: environ.get("BUILD_URL"),
+        JOB_NAME: environ.get("TEAMCITY_BUILDCONF_NAME"),
         PROVIDER_NAME: "teamcity",
+        git.PULL_REQUEST_NUMBER: environ.get("TEAMCITY_PULLREQUEST_NUMBER"),
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("TEAMCITY_PULLREQUEST_TARGET_BRANCH"),
     }
 
 
-def extract_travis(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_travis(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Travis environ."""
+    is_pull_request = environ.get("TRAVIS_EVENT_TYPE") == "pull_request"
     return {
-        git.BRANCH: env.get("TRAVIS_PULL_REQUEST_BRANCH") or env.get("TRAVIS_BRANCH"),
-        git.COMMIT_SHA: env.get("TRAVIS_COMMIT"),
-        git.REPOSITORY_URL: "https://github.com/{0}.git".format(env.get("TRAVIS_REPO_SLUG")),
-        git.TAG: env.get("TRAVIS_TAG"),
-        JOB_URL: env.get("TRAVIS_JOB_WEB_URL"),
-        PIPELINE_ID: env.get("TRAVIS_BUILD_ID"),
-        PIPELINE_NAME: env.get("TRAVIS_REPO_SLUG"),
-        PIPELINE_NUMBER: env.get("TRAVIS_BUILD_NUMBER"),
-        PIPELINE_URL: env.get("TRAVIS_BUILD_WEB_URL"),
+        git.BRANCH: environ.get("TRAVIS_PULL_REQUEST_BRANCH") or environ.get("TRAVIS_BRANCH"),
+        git.COMMIT_SHA: environ.get("TRAVIS_COMMIT"),
+        git.COMMIT_HEAD_SHA: environ.get("TRAVIS_PULL_REQUEST_SHA") if is_pull_request else None,
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("TRAVIS_BRANCH") if is_pull_request else None,
+        git.REPOSITORY_URL: "https://github.com/{0}.git".format(environ.get("TRAVIS_REPO_SLUG")),
+        git.TAG: environ.get("TRAVIS_TAG"),
+        JOB_URL: environ.get("TRAVIS_JOB_WEB_URL"),
+        PIPELINE_ID: environ.get("TRAVIS_BUILD_ID"),
+        PIPELINE_NAME: environ.get("TRAVIS_REPO_SLUG"),
+        PIPELINE_NUMBER: environ.get("TRAVIS_BUILD_NUMBER"),
+        PIPELINE_URL: environ.get("TRAVIS_BUILD_WEB_URL"),
         PROVIDER_NAME: "travisci",
-        WORKSPACE_PATH: env.get("TRAVIS_BUILD_DIR"),
-        git.COMMIT_MESSAGE: env.get("TRAVIS_COMMIT_MESSAGE"),
+        WORKSPACE_PATH: environ.get("TRAVIS_BUILD_DIR"),
+        git.COMMIT_MESSAGE: environ.get("TRAVIS_COMMIT_MESSAGE"),
+        git.PULL_REQUEST_NUMBER: environ.get("TRAVIS_PULL_REQUEST") if is_pull_request else None,
     }
 
 
-def extract_bitrise(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_bitrise(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Bitrise environ."""
-    commit = env.get("BITRISE_GIT_COMMIT") or env.get("GIT_CLONE_COMMIT_HASH")
-    branch = env.get("BITRISEIO_GIT_BRANCH_DEST") or env.get("BITRISE_GIT_BRANCH")
-    if env.get("BITRISE_GIT_MESSAGE"):
-        message: Optional[str] = env.get("BITRISE_GIT_MESSAGE")
-    elif env.get("GIT_CLONE_COMMIT_MESSAGE_SUBJECT") or env.get("GIT_CLONE_COMMIT_MESSAGE_BODY"):
+    commit = environ.get("BITRISE_GIT_COMMIT") or environ.get("GIT_CLONE_COMMIT_HASH")
+    branch = environ.get("BITRISEIO_PULL_REQUEST_HEAD_BRANCH") or environ.get("BITRISE_GIT_BRANCH")
+    if environ.get("BITRISE_GIT_MESSAGE"):
+        message: Optional[str] = environ.get("BITRISE_GIT_MESSAGE")
+    elif environ.get("GIT_CLONE_COMMIT_MESSAGE_SUBJECT") or environ.get("GIT_CLONE_COMMIT_MESSAGE_BODY"):
         message = "{0}:\n{1}".format(
-            env.get("GIT_CLONE_COMMIT_MESSAGE_SUBJECT"), env.get("GIT_CLONE_COMMIT_MESSAGE_BODY")
+            environ.get("GIT_CLONE_COMMIT_MESSAGE_SUBJECT"), environ.get("GIT_CLONE_COMMIT_MESSAGE_BODY")
         )
     else:
         message = None
 
     return {
         PROVIDER_NAME: "bitrise",
-        PIPELINE_ID: env.get("BITRISE_BUILD_SLUG"),
-        PIPELINE_NAME: env.get("BITRISE_TRIGGERED_WORKFLOW_ID"),
-        PIPELINE_NUMBER: env.get("BITRISE_BUILD_NUMBER"),
-        PIPELINE_URL: env.get("BITRISE_BUILD_URL"),
-        WORKSPACE_PATH: env.get("BITRISE_SOURCE_DIR"),
-        git.REPOSITORY_URL: env.get("GIT_REPOSITORY_URL"),
+        PIPELINE_ID: environ.get("BITRISE_BUILD_SLUG"),
+        PIPELINE_NAME: environ.get("BITRISE_TRIGGERED_WORKFLOW_ID"),
+        PIPELINE_NUMBER: environ.get("BITRISE_BUILD_NUMBER"),
+        PIPELINE_URL: environ.get("BITRISE_BUILD_URL"),
+        WORKSPACE_PATH: environ.get("BITRISE_SOURCE_DIR"),
+        git.REPOSITORY_URL: environ.get("GIT_REPOSITORY_URL"),
         git.COMMIT_SHA: commit,
         git.BRANCH: branch,
-        git.TAG: env.get("BITRISE_GIT_TAG"),
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("BITRISEIO_GIT_BRANCH_DEST"),
+        git.TAG: environ.get("BITRISE_GIT_TAG"),
         git.COMMIT_MESSAGE: message,
-        git.COMMIT_AUTHOR_NAME: env.get("GIT_CLONE_COMMIT_AUTHOR_NAME"),
-        git.COMMIT_AUTHOR_EMAIL: env.get("GIT_CLONE_COMMIT_AUTHOR_EMAIL"),
-        git.COMMIT_COMMITTER_NAME: env.get("GIT_CLONE_COMMIT_COMMITER_NAME"),
-        git.COMMIT_COMMITTER_EMAIL: env.get("GIT_CLONE_COMMIT_COMMITER_NAME"),
+        git.COMMIT_AUTHOR_NAME: environ.get("GIT_CLONE_COMMIT_AUTHOR_NAME"),
+        git.COMMIT_AUTHOR_EMAIL: environ.get("GIT_CLONE_COMMIT_AUTHOR_EMAIL"),
+        git.COMMIT_COMMITTER_NAME: environ.get("GIT_CLONE_COMMIT_COMMITER_NAME"),
+        git.COMMIT_COMMITTER_EMAIL: environ.get("GIT_CLONE_COMMIT_COMMITER_EMAIL")
+        or environ.get("GIT_CLONE_COMMIT_COMMITER_NAME"),
+        git.PULL_REQUEST_NUMBER: environ.get("BITRISE_PULL_REQUEST"),
     }
 
 
-def extract_buddy(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_buddy(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Buddy environ."""
     return {
         PROVIDER_NAME: "buddy",
-        PIPELINE_ID: "{0}/{1}".format(env.get("BUDDY_PIPELINE_ID"), env.get("BUDDY_EXECUTION_ID")),
-        PIPELINE_NAME: env.get("BUDDY_PIPELINE_NAME"),
-        PIPELINE_NUMBER: env.get("BUDDY_EXECUTION_ID"),
-        PIPELINE_URL: env.get("BUDDY_EXECUTION_URL"),
-        git.REPOSITORY_URL: env.get("BUDDY_SCM_URL"),
-        git.COMMIT_SHA: env.get("BUDDY_EXECUTION_REVISION"),
-        git.BRANCH: env.get("BUDDY_EXECUTION_BRANCH"),
-        git.TAG: env.get("BUDDY_EXECUTION_TAG"),
-        git.COMMIT_MESSAGE: env.get("BUDDY_EXECUTION_REVISION_MESSAGE"),
-        git.COMMIT_COMMITTER_NAME: env.get("BUDDY_EXECUTION_REVISION_COMMITTER_NAME"),
-        git.COMMIT_COMMITTER_EMAIL: env.get("BUDDY_EXECUTION_REVISION_COMMITTER_EMAIL"),
+        PIPELINE_ID: "{0}/{1}".format(environ.get("BUDDY_PIPELINE_ID"), environ.get("BUDDY_EXECUTION_ID")),
+        PIPELINE_NAME: environ.get("BUDDY_PIPELINE_NAME"),
+        PIPELINE_NUMBER: environ.get("BUDDY_EXECUTION_ID"),
+        PIPELINE_URL: environ.get("BUDDY_EXECUTION_URL"),
+        git.REPOSITORY_URL: environ.get("BUDDY_SCM_URL"),
+        git.COMMIT_SHA: environ.get("BUDDY_EXECUTION_REVISION"),
+        git.BRANCH: environ.get("BUDDY_EXECUTION_BRANCH"),
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("BUDDY_RUN_PR_BASE_BRANCH"),
+        git.TAG: environ.get("BUDDY_EXECUTION_TAG"),
+        git.COMMIT_MESSAGE: environ.get("BUDDY_EXECUTION_REVISION_MESSAGE"),
+        git.COMMIT_COMMITTER_NAME: environ.get("BUDDY_EXECUTION_REVISION_COMMITTER_NAME"),
+        git.COMMIT_COMMITTER_EMAIL: environ.get("BUDDY_EXECUTION_REVISION_COMMITTER_EMAIL"),
+        git.PULL_REQUEST_NUMBER: environ.get("BUDDY_RUN_PR_NO"),
     }
 
 
-def extract_codebuild(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_codebuild(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from codebuild environments."""
 
     tags = {}
 
     # AWS Codepipeline
-    if "CODEBUILD_INITIATOR" in env:
-        codebuild_initiator = env.get("CODEBUILD_INITIATOR")
+    if "CODEBUILD_INITIATOR" in environ:
+        codebuild_initiator = environ.get("CODEBUILD_INITIATOR")
         if codebuild_initiator and codebuild_initiator.startswith("codepipeline"):
             tags.update(
                 {
                     PROVIDER_NAME: "awscodepipeline",
-                    PIPELINE_ID: env.get("DD_PIPELINE_EXECUTION_ID"),
+                    JOB_ID: environ.get("DD_ACTION_EXECUTION_ID"),
+                    PIPELINE_ID: environ.get("DD_PIPELINE_EXECUTION_ID"),
                     _CI_ENV_VARS: json.dumps(
                         {
-                            "CODEBUILD_BUILD_ARN": env.get("CODEBUILD_BUILD_ARN"),
-                            "DD_PIPELINE_EXECUTION_ID": env.get("DD_PIPELINE_EXECUTION_ID"),
-                            "DD_ACTION_EXECUTION_ID": env.get("DD_ACTION_EXECUTION_ID"),
+                            "CODEBUILD_BUILD_ARN": environ.get("CODEBUILD_BUILD_ARN"),
+                            "DD_PIPELINE_EXECUTION_ID": environ.get("DD_PIPELINE_EXECUTION_ID"),
+                            "DD_ACTION_EXECUTION_ID": environ.get("DD_ACTION_EXECUTION_ID"),
                         },
                         separators=(",", ":"),
                     ),
@@ -523,6 +570,30 @@ def extract_codebuild(env: MutableMapping[str, str]) -> dict[str, Optional[str]]
             )
 
     return tags
+
+
+def extract_drone(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+    """Extract CI tags from Drone environ."""
+    repository = environ.get("DRONE_GIT_HTTP_URL")
+    if not repository and environ.get("DRONE_REPO"):
+        repository = "https://github.com/{0}.git".format(environ.get("DRONE_REPO"))
+    return {
+        PROVIDER_NAME: "drone",
+        STAGE_NAME: environ.get("DRONE_STAGE_NAME"),
+        JOB_NAME: environ.get("DRONE_STEP_NAME"),
+        PIPELINE_NUMBER: environ.get("DRONE_BUILD_NUMBER"),
+        PIPELINE_URL: environ.get("DRONE_BUILD_LINK"),
+        WORKSPACE_PATH: environ.get("DRONE_WORKSPACE"),
+        git.BRANCH: environ.get("DRONE_BRANCH") or environ.get("DRONE_COMMIT_BRANCH"),
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("DRONE_TARGET_BRANCH"),
+        git.COMMIT_SHA: environ.get("DRONE_COMMIT_SHA"),
+        git.REPOSITORY_URL: repository,
+        git.TAG: environ.get("DRONE_TAG"),
+        git.COMMIT_AUTHOR_NAME: environ.get("DRONE_COMMIT_AUTHOR_NAME"),
+        git.COMMIT_AUTHOR_EMAIL: environ.get("DRONE_COMMIT_AUTHOR_EMAIL"),
+        git.COMMIT_MESSAGE: environ.get("DRONE_COMMIT_MESSAGE"),
+        git.PULL_REQUEST_NUMBER: environ.get("DRONE_PULL_REQUEST"),
+    }
 
 
 PROVIDERS = (
@@ -540,4 +611,5 @@ PROVIDERS = (
     ("BITRISE_BUILD_SLUG", extract_bitrise),
     ("BUDDY", extract_buddy),
     ("CODEBUILD_INITIATOR", extract_codebuild),
+    ("DRONE", extract_drone),
 )

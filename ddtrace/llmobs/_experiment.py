@@ -1,6 +1,5 @@
 from abc import ABC
 from abc import abstractmethod
-import asyncio
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
@@ -40,9 +39,10 @@ except ImportError:
 
 try:
     from pydantic_evals.evaluators import Evaluator as PydanticEvaluator
+    from pydantic_evals.evaluators import ReportEvaluator as PydanticReportEvaluator
 except ImportError:
     PydanticEvaluator = None
-
+    PydanticReportEvaluator = None
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -50,16 +50,17 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
-from ddtrace.llmobs._constants import EXPERIMENT_CONFIG
-from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
-from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
+from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_tags_list
 from ddtrace.version import __version__
 
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._writer import LLMObsExperimentEvalMetricEvent
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
@@ -541,30 +542,58 @@ if PydanticEvaluator is not None:
     AsyncEvaluatorType = Union[AsyncEvaluatorType, PydanticEvaluator]  # type: ignore[misc]
 
 # Summary evaluator types
-SummaryEvaluatorType = Union[
-    Callable[
-        [
-            Sequence[JSONType],
-            Sequence[JSONType],
-            Sequence[JSONType],
-            dict[str, Sequence[JSONType]],
+if PydanticReportEvaluator is not None:
+    SummaryEvaluatorType = Union[
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            JSONType,
         ],
-        JSONType,
-    ],
-    BaseSummaryEvaluator,
-]
-AsyncSummaryEvaluatorType = Union[
-    Callable[
-        [
-            Sequence[JSONType],
-            Sequence[JSONType],
-            Sequence[JSONType],
-            dict[str, Sequence[JSONType]],
+        BaseSummaryEvaluator,
+        PydanticReportEvaluator,
+    ]
+    AsyncSummaryEvaluatorType = Union[
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            Awaitable[JSONType],
         ],
-        Awaitable[JSONType],
-    ],
-    BaseAsyncSummaryEvaluator,
-]
+        BaseAsyncSummaryEvaluator,
+        PydanticReportEvaluator,
+    ]
+else:
+    SummaryEvaluatorType = Union[  # type: ignore[misc]
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            JSONType,
+        ],
+        BaseSummaryEvaluator,
+    ]
+    AsyncSummaryEvaluatorType = Union[  # type: ignore[misc]
+        Callable[
+            [
+                Sequence[JSONType],
+                Sequence[JSONType],
+                Sequence[JSONType],
+                dict[str, Sequence[JSONType]],
+            ],
+            Awaitable[JSONType],
+        ],
+        BaseAsyncSummaryEvaluator,
+    ]
 
 
 def _is_class_evaluator(evaluator: Any) -> bool:
@@ -596,6 +625,16 @@ def _is_pydantic_evaluator(evaluator: Any) -> bool:
     if PydanticEvaluator is None:
         return False
     return isinstance(evaluator, PydanticEvaluator)
+
+
+def _is_pydantic_report_evaluator(evaluator: Any) -> bool:
+    """Check if an evaluator is a pydantic report evaluator (inherits from PydanticReportEvaluator).
+    :param evaluator: The evaluator to check
+    :return: True if it's a pydantic report evaluator with a scalar result, False otherwise
+    """
+    if PydanticReportEvaluator is None:
+        return False
+    return isinstance(evaluator, PydanticReportEvaluator)
 
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
@@ -715,8 +754,12 @@ if PydanticEvaluator is not None:
 
     from pydantic_evals.evaluators import EvaluatorContext as PydanticEvaluatorContext
     from pydantic_evals.evaluators import EvaluatorOutput as PydanticEvaluatorOutput
+    from pydantic_evals.evaluators import ReportEvaluatorContext as PydanticReportEvaluatorContext
     from pydantic_evals.evaluators.evaluator import EvaluationReason as PydanticEvaluationReason
     from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
+    from pydantic_evals.reporting import EvaluationReport as PydanticEvaluationReport
+    from pydantic_evals.reporting import ReportCase as PydanticReportCase
+    from pydantic_evals.reporting import ScalarResult as PydanticScalarResult
 
     def get_mapping_result(_eval_result: Mapping) -> EvaluatorResult:
         eval_result_list = list(_eval_result.values())
@@ -818,6 +861,7 @@ if PydanticEvaluator is not None:
             expected_output: Optional[JSONType] = None,
             duration: Optional[float] = None,
         ) -> EvaluatorResult:
+            asyncio = get_asyncio()
             evalContext = PydanticEvaluatorContext(
                 name="",
                 inputs=input_data,
@@ -851,6 +895,67 @@ if PydanticEvaluator is not None:
             wrapped_evaluator.__name__ = f"{eval_name}_{idx}"
         else:
             wrapped_evaluator.__name__ = eval_name
+        return wrapped_evaluator
+
+    def _pydantic_report_evaluator_wrapper(evaluator: Any) -> Any:
+        """Wrapper to run pydantic report evaluators and convert their result to an EvaluatorResult.
+        :param evaluator: The pydantic report evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+
+        # Note: duration and total duration are not available as of 4-1-2026 and are set to 0
+        def wrapped_evaluator(
+            eval_context: SummaryEvaluatorContext,
+        ) -> JSONType:
+            cases = []
+            eval_results = eval_context.evaluation_results
+            eval_names = eval_results.keys()
+            for idx, input_data in enumerate(eval_context.inputs):
+                assertions = dict()
+                scores = dict()
+                labels = dict()
+                for eval_name in eval_names:
+                    if isinstance(eval_results[eval_name][idx], bool):
+                        assertions[eval_name] = eval_results[eval_name][idx]
+                    elif isinstance(eval_results[eval_name][idx], float) or isinstance(
+                        eval_results[eval_name][idx], int
+                    ):
+                        scores[eval_name] = eval_results[eval_name][idx]
+                    else:
+                        labels[eval_name] = eval_results[eval_name][idx]
+                cases.append(
+                    PydanticReportCase(
+                        name=f"case_{idx}",
+                        inputs=input_data,
+                        metadata=eval_context.metadata[idx],
+                        expected_output=eval_context.expected_outputs[idx],
+                        output=eval_context.outputs[idx],
+                        assertions=assertions,
+                        scores=scores,
+                        labels=labels,
+                        task_duration=0,
+                        total_duration=0,
+                        attributes={},
+                        metrics={},
+                    )
+                )
+            report_eval_context = PydanticReportEvaluatorContext(
+                name="",
+                report=PydanticEvaluationReport(
+                    name=evaluator.get_serialization_name(),
+                    cases=cases,
+                    experiment_metadata=eval_context.metadata,
+                ),
+                experiment_metadata=eval_context.metadata,
+            )
+            result = evaluator.evaluate(report_eval_context)
+            if not isinstance(result, PydanticScalarResult):
+                raise TypeError(
+                    "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
+                )
+            return result.value
+
+        wrapped_evaluator.__name__ = evaluator.get_serialization_name()
         return wrapped_evaluator
 
     def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
@@ -888,6 +993,66 @@ if PydanticEvaluator is not None:
             wrapped_evaluator.__name__ = eval_name
         return wrapped_evaluator
 
+    def _pydantic_async_report_evaluator_wrapper(evaluator: Any) -> Any:
+        """Wrapper to run pydantic report evaluators and convert their result to an EvaluatorResult.
+        :param evaluator: The pydantic report evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+
+        # Note: duration and total duration are not available as of 4-1-2026 and are set to 0
+        async def wrapped_evaluator(
+            eval_context: SummaryEvaluatorContext,
+        ) -> JSONType:
+            cases = []
+            eval_results = eval_context.evaluation_results
+            eval_names = eval_results.keys()
+            for idx, input_data in enumerate(eval_context.inputs):
+                assertions = dict()
+                scores = dict()
+                labels = dict()
+                for eval_name in eval_names:
+                    if isinstance(eval_results[eval_name][idx], bool):
+                        assertions[eval_name] = eval_results[eval_name][idx]
+                    elif isinstance(eval_results[eval_name][idx], float) or isinstance(
+                        eval_results[eval_name][idx], int
+                    ):
+                        scores[eval_name] = eval_results[eval_name][idx]
+                    else:
+                        labels[eval_name] = eval_results[eval_name][idx]
+                cases.append(
+                    PydanticReportCase(
+                        name=f"case_{idx}",
+                        inputs=input_data,
+                        metadata=eval_context.metadata[idx],
+                        expected_output=eval_context.expected_outputs[idx],
+                        output=eval_context.outputs[idx],
+                        assertions=assertions,
+                        scores=scores,
+                        labels=labels,
+                        task_duration=0,
+                        total_duration=0,
+                        attributes={},
+                        metrics={},
+                    )
+                )
+            report_eval_context = PydanticReportEvaluatorContext(
+                name="",
+                report=PydanticEvaluationReport(
+                    name=evaluator.get_serialization_name(),
+                    cases=cases,
+                    experiment_metadata=eval_context.metadata,
+                ),
+                experiment_metadata=eval_context.metadata,
+            )
+            result = await evaluator.evaluate_async(report_eval_context)
+            if not isinstance(result, PydanticScalarResult):
+                raise TypeError(
+                    "Pydantic report evaluator returned a non-scalar result; only a scalar result is allowed"
+                )
+            return result.value
+
+        wrapped_evaluator.__name__ = evaluator.get_serialization_name()
+        return wrapped_evaluator
 else:
 
     def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
@@ -895,6 +1060,14 @@ else:
         return evaluator
 
     def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None, idx: int = 1) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
+
+    def _pydantic_report_evaluator_wrapper(evaluator: Any) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
+
+    def _pydantic_async_report_evaluator_wrapper(evaluator: Any) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
@@ -992,6 +1165,80 @@ class ExperimentRun:
         self.run_iteration = run._run_iteration
         self.summary_evaluations = summary_evaluations or {}
         self.rows = rows or []
+
+    def as_dataframe(self) -> "pd.DataFrame":
+        """Convert experiment run rows to a pandas DataFrame with MultiIndex columns.
+
+        Each top-level group (``input``, ``output``, ``expected_output``,
+        ``evaluations``, ``metadata``, ``error``, ``span_id``, ``trace_id``) becomes
+        the first level of the column MultiIndex.  Dict-valued fields are flattened
+        one level deep; scalar fields use an empty string as the sub-column name.
+
+        Evaluation cells contain the full evaluation dict
+        (``value``, ``type``, ``reasoning``, ``assessment``).
+
+        :raises ImportError: if ``pandas`` is not installed.
+        :return: ``pd.DataFrame`` with ``pd.MultiIndex`` columns.
+        """
+        try:
+            import pandas as pd
+        except ImportError as e:
+            raise ImportError(
+                "pandas is required to convert experiment results to a DataFrame. "
+                "Please install it via `pip install pandas`."
+            ) from e
+
+        column_tuples: set = set()
+        data_rows = []
+        for row in self.rows:
+            flat: dict = {}
+
+            input_data = row.get("input", {})
+            if isinstance(input_data, dict):
+                for k, v in input_data.items():
+                    flat[("input", k)] = v
+                    column_tuples.add(("input", k))
+            else:
+                flat[("input", "")] = input_data
+                column_tuples.add(("input", ""))
+
+            output_data = row.get("output")
+            if isinstance(output_data, dict):
+                for k, v in output_data.items():
+                    flat[("output", k)] = v
+                    column_tuples.add(("output", k))
+            else:
+                flat[("output", "")] = output_data
+                column_tuples.add(("output", ""))
+
+            expected = row.get("expected_output", {})
+            if isinstance(expected, dict):
+                for k, v in expected.items():
+                    flat[("expected_output", k)] = v
+                    column_tuples.add(("expected_output", k))
+            else:
+                flat[("expected_output", "")] = expected
+                column_tuples.add(("expected_output", ""))
+
+            metadata = row.get("metadata", {})
+            if isinstance(metadata, dict):
+                for k, v in metadata.items():
+                    flat[("metadata", k)] = v
+                    column_tuples.add(("metadata", k))
+
+            for eval_name, eval_data in (row.get("evaluations") or {}).items():
+                flat[("evaluations", eval_name)] = eval_data
+                column_tuples.add(("evaluations", eval_name))
+
+            flat[("error", "")] = row.get("error")
+            flat[("span_id", "")] = row.get("span_id")
+            flat[("trace_id", "")] = row.get("trace_id")
+            column_tuples.update([("error", ""), ("span_id", ""), ("trace_id", "")])
+
+            data_rows.append(flat)
+
+        records = [[flat.get(col) for col in column_tuples] for flat in data_rows]
+        return pd.DataFrame(data=records, columns=pd.MultiIndex.from_tuples(column_tuples))
 
 
 class ExperimentResult(TypedDict):
@@ -1753,7 +2000,7 @@ class Experiment:
             record: DatasetRecord = self._dataset[idx]
             inputs.append(record["input_data"])
             expected_outputs.append(record["expected_output"])
-            record_metadata = record.get("metadata", {})
+            record_metadata = record.get("metadata") or {}
             metadata_list.append({**record_metadata, "experiment_config": self._config})
 
             eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
@@ -1943,11 +2190,12 @@ class Experiment:
         self,
         idx_record: tuple[int, DatasetRecord],
         run: _ExperimentRunInfo,
-        semaphore: asyncio.Semaphore,
+        semaphore,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> Optional[TaskResult]:
         """Process single record asynchronously."""
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
         async with semaphore:
@@ -1989,14 +2237,14 @@ class Experiment:
                     tags["dataset_record_canonical_id"] = canonical_id
                 output_data = None
                 last_exc_info = None
-                record_metadata = record.get("metadata", {})
+                record_metadata = record.get("metadata") or {}
                 task_args: list = [input_data, self._config]
                 if self._task_accepts_metadata:
                     task_args.append(record_metadata)
                 for attempt in range(1 + max_retries):
                     try:
                         if asyncio.iscoroutinefunction(self._task):
-                            output_data = await self._task(*task_args)
+                            output_data = await self._task(*task_args)  # type: ignore[misc]
                         else:
                             output_data = await asyncio.to_thread(self._task, *task_args)
                         last_exc_info = None
@@ -2018,12 +2266,12 @@ class Experiment:
                     self._has_errors = True
                     span.set_exc_info(*last_exc_info)
                 self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
-
-                span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
-                if "metadata" in record:
-                    span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
-                if self._config:
-                    span._set_ctx_item(EXPERIMENT_CONFIG, self._config)
+                _annotate_llmobs_span_data(
+                    span,
+                    expected_output=record.get("expected_output"),
+                    metadata=record.get("metadata"),
+                    config=self._config or None,
+                )
 
                 return {
                     "idx": idx,
@@ -2063,6 +2311,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[TaskResult]:
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         subset_dataset = self._get_subset_dataset(sample_size)
@@ -2099,11 +2348,12 @@ class Experiment:
         self,
         record: DatasetRecord,
         task_result: TaskResult,
-        semaphore: asyncio.Semaphore,
+        semaphore,
         raise_errors: bool = False,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> EvaluationResult:
+        asyncio = get_asyncio()
         idx = task_result["idx"]
         input_data = record["input_data"]
         output_data = task_result["output"]
@@ -2139,8 +2389,8 @@ class Experiment:
                             )
                             eval_result = await evaluator.evaluate(context)
                         elif asyncio.iscoroutinefunction(evaluator):
-                            evaluator_name = evaluator.__name__
-                            eval_result = await evaluator(input_data, output_data, expected_output)
+                            evaluator_name = evaluator.__name__  # type: ignore[union-attr]
+                            eval_result = await evaluator(input_data, output_data, expected_output)  # type: ignore[misc, operator]
                         elif _is_class_evaluator(evaluator):
                             evaluator_name = evaluator.name  # type: ignore[union-attr]
                             combined_metadata = {
@@ -2162,7 +2412,7 @@ class Experiment:
                         elif _is_function_evaluator(evaluator):
                             evaluator_name = evaluator.__name__  # type: ignore[union-attr]
                             eval_result = await asyncio.to_thread(
-                                evaluator,  # type: ignore[arg-type]
+                                evaluator,
                                 input_data,
                                 output_data,
                                 expected_output,
@@ -2226,6 +2476,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
+        asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
         coros = [
             self._evaluate_record(self._dataset[idx], task_result, semaphore, raise_errors, max_retries, retry_delay)
@@ -2242,6 +2493,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> tuple[list[TaskResult], list[EvaluationResult]]:
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return [], []
         subset_dataset = self._get_subset_dataset(sample_size)
@@ -2330,7 +2582,7 @@ class Experiment:
             metadata_list,
             eval_results_by_name,
         ) = self._prepare_summary_evaluator_data(task_results, eval_results)
-
+        asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
 
         async def _evaluate_summary_single(
@@ -2354,7 +2606,20 @@ class Experiment:
                         eval_result = await summary_evaluator.evaluate(context)
                     elif asyncio.iscoroutinefunction(summary_evaluator):
                         evaluator_name = summary_evaluator.__name__
-                        eval_result = await summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
+                        signature = inspect.signature(summary_evaluator)
+                        if len(signature.parameters) == 1:
+                            context = SummaryEvaluatorContext(
+                                inputs=inputs,
+                                outputs=outputs,
+                                expected_outputs=expected_outputs,
+                                evaluation_results=eval_results_by_name,
+                                metadata=metadata_list,
+                            )
+                            eval_result = await summary_evaluator(context)
+                        else:
+                            eval_result = await summary_evaluator(
+                                inputs, outputs, expected_outputs, eval_results_by_name
+                            )
                     elif _is_class_summary_evaluator(summary_evaluator):
                         evaluator_name = summary_evaluator.name
                         context = SummaryEvaluatorContext(
@@ -2367,13 +2632,24 @@ class Experiment:
                         eval_result = await asyncio.to_thread(summary_evaluator.evaluate, context)
                     else:
                         evaluator_name = summary_evaluator.__name__
-                        eval_result = await asyncio.to_thread(
-                            summary_evaluator,
-                            inputs,
-                            outputs,
-                            expected_outputs,
-                            eval_results_by_name,
-                        )
+                        signature = inspect.signature(summary_evaluator)
+                        if len(signature.parameters) == 1:
+                            context = SummaryEvaluatorContext(
+                                inputs=inputs,
+                                outputs=outputs,
+                                expected_outputs=expected_outputs,
+                                evaluation_results=eval_results_by_name,
+                                metadata=metadata_list,
+                            )
+                            eval_result = summary_evaluator(context)
+                        else:
+                            eval_result = await asyncio.to_thread(
+                                summary_evaluator,
+                                inputs,
+                                outputs,
+                                expected_outputs,
+                                eval_results_by_name,
+                            )
                     eval_result_value = eval_result
                 except Exception as e:
                     self._has_errors = True
@@ -2538,6 +2814,7 @@ class SyncExperiment:
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
     ) -> None:
+        self.result: Optional[ExperimentResult] = None
         self._experiment = Experiment(
             name=name,
             task=task,
@@ -2571,6 +2848,7 @@ class SyncExperiment:
                             in seconds before the next retry. Default: ``0.1 * (attempt + 1)``
         :return: ExperimentResult containing evaluation results and metadata
         """
+        asyncio = get_asyncio()
         coro = self._experiment.run(
             jobs=jobs,
             raise_errors=raise_errors,
@@ -2581,13 +2859,59 @@ class SyncExperiment:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(coro)
+            result = asyncio.run(coro)
         else:
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
+                result = pool.submit(asyncio.run, coro).result()
+        self.result = result
+        return result
+
+    def as_dataframe(self) -> "pd.DataFrame":
+        r"""Return all runs stacked into a single MultiIndex DataFrame.
+
+        Rows from every run in ``self.result["runs"]`` are concatenated in
+        run-iteration order. Two extra top-level column groups are prepended:
+
+        - ``("run_id", "")``        — UUID of the run (str)
+        - ``("run_iteration", "")`` — 1-based run counter (int)
+
+        These columns let callers filter or group by run:
+
+        .. code-block:: python
+
+            df = experiment.as_dataframe()
+            run1 = df[df[("run_iteration", "")] == 1]
+            df.groupby(("run_iteration", ""))[(\"evaluations\", \"exact_match\")].apply(...)
+
+        :raises ValueError: if ``self.result`` is ``None`` (experiment not yet run).
+        :raises ImportError: if ``pandas`` is not installed.
+        :return: ``pd.DataFrame`` with ``pd.MultiIndex`` columns and a reset integer index.
+        """
+        try:
+            import pandas as pd
+        except ImportError as e:
+            raise ImportError(
+                "pandas is required to convert experiment results to a DataFrame. "
+                "Please install it via `pip install pandas`."
+            ) from e
+
+        if self.result is None:
+            raise ValueError("No result found. Call run() before as_dataframe().")
+
+        frames = []
+        for run in self.result.get("runs", []):
+            df = run.as_dataframe()
+            df.insert(0, ("run_id", ""), str(run.run_id))
+            df.insert(1, ("run_iteration", ""), run.run_iteration)
+            df.columns = pd.MultiIndex.from_tuples(df.columns)
+            frames.append(df)
+
+        if not frames:
+            return pd.DataFrame()
+
+        return pd.concat(frames, ignore_index=True)
 
     @property
     def url(self) -> str:

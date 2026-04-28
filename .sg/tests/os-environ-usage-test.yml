@@ -6,12 +6,11 @@ valid:
   - import sys; sys.path
 
 invalid:
-  # These should trigger the rule (errors)
-  - os.environ["HOME"]
-  - os.environ.get("DEBUG", "false")
-  - os.getenv("DEBUG")
-  - from os import environ
-  - from os import getenv
-  - value = os.environ.get("KEY", "default")
-  - os.putenv("KEY", "value")
-  - os.unsetenv("KEY")
+  # Aliased imports
+  - from os import environ as env
+  - from os import getenv as genv
+  # Comma-separated imports
+  - from os import path, environ
+  - from os import environ, path
+  - from os import path, getenv
+  - from os import getenv, path

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: Adds support for exporting traces in OTLP HTTP/JSON format via libdatadog.
+    Set ``OTEL_TRACES_EXPORTER=otlp`` to send spans to an OTLP endpoint instead of the
+    Datadog Agent.

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import itertools
 import math
-import os
 import typing as t
 
 from envier import Env
@@ -14,6 +13,7 @@ from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._core import ValueSource
 from ddtrace.internal.telemetry import report_configuration
@@ -74,7 +74,7 @@ def _check_for_stack_available():
 
 def _injection_enabled_has_profiler() -> bool:
     """Return True if DD_INJECTION_ENABLED contains the 'profiler' token."""
-    injection_enabled = os.environ.get("DD_INJECTION_ENABLED")
+    injection_enabled = env.get("DD_INJECTION_ENABLED")
     if injection_enabled is None:
         return False
 
@@ -110,7 +110,7 @@ def _enrich_tags(tags) -> dict[str, str]:
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
-            _update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
+            _update_git_metadata_tags(parse_tags_str(env.get("DD_TAGS"))).items(),
             tags.items(),
         )
     }
@@ -313,6 +313,16 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    max_threads = DDConfig.v(
+        int,
+        "max_threads",
+        default=25,
+        validator=validators.range(0, 1000),
+        help_type="Integer",
+        help="Maximum number of threads to sample per cycle. Uses reservoir sampling when exceeded. 0 = unlimited.",
+        private=True,
+    )
+
     uvloop = DDConfig.v(
         bool,
         "uvloop",
@@ -475,7 +485,8 @@ ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 # We need to check if ddup is available, and turn off profiling if it is not.
 if not ddup_is_available:
     msg = ddup_failure_msg or "libdd not available"
-    logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
+    if config.enabled:
+        logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
     telemetry_writer.add_log(
         TELEMETRY_LOG_LEVEL.ERROR,
         f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
@@ -485,13 +496,15 @@ if not ddup_is_available:
 # We also need to check if stack module is available, and turn if off
 # if it s not.
 stack_failure_msg, stack_is_available = _check_for_stack_available()
-if config.stack.enabled and not stack_is_available:  # pyright: ignore[reportAttributeAccessIssue]
+if not stack_is_available:
     msg = stack_failure_msg or "stack not available"
-    logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
-    telemetry_writer.add_log(
-        TELEMETRY_LOG_LEVEL.ERROR,
-        "Failed to load stack module (%s), disabling stack profiling" % msg,
-    )
+    if config.stack.enabled:
+        if config.enabled:
+            logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
+        telemetry_writer.add_log(
+            TELEMETRY_LOG_LEVEL.ERROR,
+            "Failed to load stack module (%s), disabling stack profiling" % msg,
+        )
     config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # Enrich tags with git metadata and DD_TAGS

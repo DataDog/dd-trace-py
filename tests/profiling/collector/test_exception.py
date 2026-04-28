@@ -6,6 +6,7 @@ import sys
 import threading
 import time
 from typing import TYPE_CHECKING
+from unittest import mock
 
 import pytest
 
@@ -642,3 +643,32 @@ def test_exception_in_callable_instance(tmp_path: Path) -> None:
         ),
         print_samples_on_failure=True,
     )
+
+
+def test_exception_uses_push_monotonic_ns() -> None:
+    """Verify the exception collector calls push_monotonic_ns with a timestamp in [before, after]."""
+    import ddtrace.profiling.collector._exception as _exception_module
+    from ddtrace.profiling.collector.exception import ExceptionCollector
+
+    mock_handle: mock.MagicMock = mock.MagicMock()
+
+    before: int = time.monotonic_ns()
+    with (
+        mock.patch.object(_exception_module, "ddup") as mock_ddup,
+        ExceptionCollector(sampling_interval=1),
+    ):
+        mock_ddup.SampleHandle.return_value = mock_handle
+
+        for _ in range(10):
+            try:
+                raise ValueError("test")
+            except ValueError:
+                pass
+    after: int = time.monotonic_ns()
+
+    assert mock_handle.push_monotonic_ns.called, "push_monotonic_ns should be called"
+    assert not mock_handle.push_absolute_ns.called, "push_absolute_ns should not be called"
+    for call in mock_handle.push_monotonic_ns.call_args_list:
+        ts: int = call[0][0]
+        assert isinstance(ts, int), f"Expected int timestamp, got {type(ts)}"
+        assert before <= ts <= after, f"Expected monotonic timestamp in [{before}, {after}], got {ts}"

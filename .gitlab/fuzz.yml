@@ -2,7 +2,7 @@ variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
   FUZZ_IMAGE: registry.ddbuild.io/dd-trace-py-fuzz
   FUZZYDOG_VERSION: "0.27.1"
-  FUZZ_BASE_IMAGE: registry.ddbuild.io/dd-trace-py:v104604389-11e1de9-fuzz_base
+  FUZZ_BASE_IMAGE: registry.ddbuild.io/dd-trace-py:v105197721-08581d9-fuzz_base
   # CI_DEBUG_SERVICES: "true"
 
 fuzz_infra:

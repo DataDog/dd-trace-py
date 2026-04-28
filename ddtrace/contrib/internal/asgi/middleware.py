@@ -1,5 +1,4 @@
 from functools import wraps
-import os
 import sys
 from typing import Any
 from typing import Callable
@@ -23,6 +22,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
@@ -35,7 +35,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 log = get_logger(__name__)
 
-if os.getenv("DD_ASGI_TRACE_WEBSOCKET") is not None:
+if env.get("DD_ASGI_TRACE_WEBSOCKET") is not None:
     log.warning(
         "DD_ASGI_TRACE_WEBSOCKET is deprecated and will be removed in a future version. "
         "Use DD_TRACE_WEBSOCKET_MESSAGES_ENABLED instead."
@@ -195,6 +195,28 @@ class TraceMiddleware:
             - HTTP: asgi.request spans with HTTP metadata
             - websocket: websocket.receive, websocket.send, websocket.close spans
         """
+        # Track whether this is a sub-app middleware (parent already set up tracing).
+        # Sub-app middlewares still create spans for visibility, but skip body parsing,
+        # distributed tracing activation, HTTP meta, and WAF dispatch to avoid duplicates.
+        is_subapp = "datadog" in scope
+
+        # On the first request to the root app, walk the route tree to register all
+        # endpoints (including those in mounted sub-apps) for API endpoint discovery.
+        # Only do this for the root app's middleware, not sub-app middlewares.
+        # scope["app"] is set by Starlette before its middleware stack runs.
+        if not is_subapp:
+            root_app = scope.get("app")
+            if root_app is not None and not getattr(root_app, "_datadog_endpoints_collected", False):
+                # Set the flag before attempting collection to avoid retrying on every request
+                # if the import or walk fails (e.g., starlette not patched, pure ASGI app).
+                root_app._datadog_endpoints_collected = True
+                try:
+                    from ddtrace.contrib.internal.starlette.patch import _collect_routes_from_app
+
+                    _collect_routes_from_app(root_app)
+                except Exception:
+                    log.debug("failed to collect routes from app for endpoint discovery", exc_info=True)
+
         if scope["type"] == "http":
             method = scope["method"]
         elif scope["type"] == "websocket" and self.integration_config.trace_asgi_websocket_messages:
@@ -207,9 +229,10 @@ class TraceMiddleware:
             log.warning("failed to decode headers for distributed tracing", exc_info=True)
             headers = {}
         else:
-            trace_utils.activate_distributed_headers(
-                tracer, int_config=self.integration_config, request_headers=headers
-            )
+            if not is_subapp:
+                trace_utils.activate_distributed_headers(
+                    tracer, int_config=self.integration_config, request_headers=headers
+                )
         resource = " ".join([method, scope["path"]])
 
         # in the case of websockets we don't currently schematize the operation names
@@ -233,6 +256,7 @@ class TraceMiddleware:
                 activate_distributed_headers=True,
                 scope=scope,
                 integration_config=self.integration_config,
+                is_subapp=is_subapp,
             ) as ctx,
             ctx.span as span,
         ):
@@ -255,34 +279,51 @@ class TraceMiddleware:
 
             parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
             full_path = scope.get("path", "")
+            # Use raw_path for WAF evaluation — scope["path"] may have path
+            # traversal sequences resolved (e.g. /waf/../ becomes /) which
+            # prevents LFI detection. raw_path preserves the original URI.
+            raw_path = scope.get("raw_path")
+            raw_path_str = bytes_to_str(raw_path) if raw_path else full_path
             if host_header:
                 url = "{}://{}{}".format(scheme, host_header, full_path)
+                raw_url = "{}://{}{}".format(scheme, host_header, raw_path_str)
             elif server and len(server) == 2:
                 port = server[1]
                 default_port = self.default_ports.get(scheme, None)
                 server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
                 url = "{}://{}{}".format(scheme, server_host, full_path)
+                raw_url = "{}://{}{}".format(scheme, server_host, raw_path_str)
             else:
                 url = None
+                raw_url = None
             query_string = scope.get("query_string")
             if query_string:
                 query_string = bytes_to_str(query_string)
                 if url:
                     url = f"{url}?{query_string}"
+                if raw_url:
+                    raw_url = f"{raw_url}?{query_string}"
             if not self.integration_config.trace_query_string:
                 query_string = None
+            # Sub-app middlewares skip body parsing since it's already handled
+            # by the parent app's middleware. HTTP meta and version tags are still
+            # set on the child span for visibility.
             body = None
-            result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
-                "asgi.request.parse.body", (receive, headers)
-            ).await_receive_and_body
-            if result:
-                receive, body = await result.value
+            peer_ip = None
+            if not is_subapp:
+                result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
+                    "asgi.request.parse.body", (receive, headers)
+                ).await_receive_and_body
+                if result:
+                    receive, body = await result.value
 
-            client = scope.get("client")
-            if isinstance(client, list) and len(client) and is_valid_ip(client[0]):
-                peer_ip = client[0]
-            else:
-                peer_ip = None
+                client = scope.get("client")
+                # Both list and tuple must be supported for scope["client"].
+                # In Startlette's ASGI implementation, it is a 2-item tuple (host, port). Other implementations
+                # may use a list, and Starlette's own testing code often uses a 2-item list here.
+                if isinstance(client, (list, tuple)) and len(client) and is_valid_ip(client[0]):
+                    peer_ip = client[0]
+
             trace_utils.set_http_meta(
                 span,
                 self.integration_config,
@@ -290,8 +331,8 @@ class TraceMiddleware:
                 url=url,
                 query=query_string,
                 request_headers=headers,
-                raw_uri=url,
-                parsed_query=parsed_query,
+                raw_uri=raw_url if not is_subapp else None,
+                parsed_query=parsed_query if not is_subapp else None,
                 request_body=body,
                 peer_ip=peer_ip,
                 headers_are_case_sensitive=True,
@@ -461,7 +502,8 @@ class TraceMiddleware:
 
             wrapped_recv = wrapped_receive if scope["type"] == "websocket" else receive
             try:
-                core.dispatch("asgi.start_request", ("asgi",))
+                if not is_subapp:
+                    core.dispatch("asgi.start_request", ("asgi",))
                 # Do not block right here. Wait for route to be resolved in starlette/patch.py
                 return await self.app(scope, wrapped_recv, wrapped_send)
             except BlockingException as e:

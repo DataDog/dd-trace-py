@@ -1,0 +1,19 @@
+id: os-environ-fix-access
+valid:
+  - env["HOME"]
+  - env.get("DEBUG", "false")
+  - env["KEY"] = "value"
+  - del env["KEY"]
+  - from ddtrace.internal.settings import env
+
+invalid:
+  - os.environ["HOME"]
+  - os.environ.get("DEBUG", "false")
+  - value = os.environ.get("KEY", "default")
+  - os.environ.keys()
+  - os.environ["KEY"] = "value"
+  - del os.environ["KEY"]
+  - os.environ.pop("KEY")
+  - os.environ.pop("KEY", None)
+  - 'os.environ.update({"K": "V"})'
+  - os.environ.setdefault("K", "V")

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security (IAST): This fix resolves a thread-safety issue in the IAST taint tracking context
+    that could cause vulnerability detection to silently stop working under high concurrency in
+    multi-threaded applications.

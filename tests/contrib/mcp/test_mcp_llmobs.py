@@ -73,9 +73,11 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
-            "mcp_server_name": "TestServer",
+            "integration": "mcp",
             "mcp_tool_kind": "client",
+            "mcp_server_name": "TestServer",
         },
+        name="MCP Client Tool Call: calculator",
     )
 
     expected_params = {
@@ -85,6 +87,7 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
         "arguments": {"operation": "add", "a": 20, "b": 22},
     }
 
+    assert server_events[0]["parent_id"] == client_events[0]["span_id"]
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,
         span_kind="tool",
@@ -109,10 +112,13 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
+            "integration": "mcp",
             "mcp_method": "tools/call",
             "mcp_tool": "calculator",
             "mcp_tool_kind": "server",
         },
+        name="calculator",
+        parent_id=mock.ANY,
     )
 
     # asserting the remaining spans
@@ -123,15 +129,21 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
+            "integration": "mcp",
             "mcp_server_name": "TestServer",
             "mcp_server_version": importlib.metadata.version("mcp"),
             "mcp_server_title": None,
         },
+        name="MCP Client Session",
         metadata=mock.ANY,
     )
 
     assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
-        all_spans[1], span_kind="task", output_value=mock.ANY, tags={"service": "mcptest", "ml_app": "<ml-app-name>"}
+        all_spans[1],
+        span_kind="task",
+        output_value=mock.ANY,
+        tags={"service": "mcptest", "ml_app": "<ml-app-name>", "integration": "mcp"},
+        name="MCP Client Initialize",
     )
 
     # server initialize
@@ -143,10 +155,12 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
+            "integration": "mcp",
             "mcp_method": "initialize",
             "client_name": "mcp",
             "client_version": "mcp_0.1.0",
         },
+        name="mcp.initialize",
     )
 
     # tools/list call
@@ -155,7 +169,8 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, llmobs_events, mc
         span_kind="task",
         input_value=mock.ANY,
         output_value=mock.ANY,
-        tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
+        tags={"service": "mcptest", "ml_app": "<ml-app-name>", "integration": "mcp"},
+        name="MCP Client list Tools",
     )
 
 
@@ -205,6 +220,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
         "arguments": {"param": "value"},
     }
 
+    assert server_events[0]["parent_id"] == client_events[0]["span_id"]
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,
         span_kind="tool",
@@ -236,6 +252,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
+            "integration": "mcp",
             "mcp_method": "tools/call",
             "mcp_tool": "failing_tool",
             "mcp_tool_kind": "server",
@@ -243,6 +260,8 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, llmobs_events, m
         error="ToolError",
         error_message="tool resulted in an error",
         error_stack="",
+        name="failing_tool",
+        parent_id=mock.ANY,
     )
 
 
@@ -268,6 +287,7 @@ def test_server_initialization_span_created(mcp_setup, test_spans, llmobs_events
         tags={
             "service": "mcptest",
             "ml_app": "<ml-app-name>",
+            "integration": "mcp",
             "mcp_method": "initialize",
             "client_name": "test-client",
             "client_version": "test-client_1.2.3",

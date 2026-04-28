@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from unittest.mock import patch
+
 import pytest
 
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
@@ -54,6 +56,28 @@ def test_connector_multiple_reads_different_data():
     assert connector.read()[0].content == {"c": "d"}
     connector.write(any_product({"a": "b"}))
     assert connector.read()[0].content == {"a": "b"}
+
+
+def test_connector_fallback_on_array_creation_failure():
+    """PublisherSubscriberConnector degrades when multiprocessing.Array fails."""
+    from ddtrace.internal.remoteconfig._connectors import _DummySharedArray
+
+    with patch("ddtrace.internal.remoteconfig._connectors.get_mp_context") as mock_context:
+        mock_context.return_value.Array.side_effect = ImportError("No module named '_ctypes'")
+        connector = PublisherSubscriberConnector()
+        assert isinstance(connector.data, _DummySharedArray)
+
+
+def test_connector_uses_dummy_shared_array_in_aws_lambda(monkeypatch):
+    """In AWS Lambda, shared memory (/dev/shm) is unavailable. The connector
+    should skip the allocation attempt entirely and use _DummySharedArray
+    without logging a warning.
+    """
+    from ddtrace.internal.remoteconfig._connectors import _DummySharedArray
+
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-function")
+    connector = PublisherSubscriberConnector()
+    assert isinstance(connector.data, _DummySharedArray)
 
 
 global_connector = PublisherSubscriberConnector()

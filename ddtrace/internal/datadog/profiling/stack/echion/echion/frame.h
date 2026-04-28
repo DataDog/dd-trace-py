@@ -55,10 +55,6 @@ class Frame
     int lasti = -1;            // Last bytecode offset in _Py_CODEUNIT units
     int first_lineno = 0;      // co_firstlineno, used to detect code object address reuse
 
-#if PY_VERSION_HEX >= 0x030b0000
-    bool is_entry = false;
-#endif
-
     // ------------------------------------------------------------------------
     Frame(StringTable::Key filename, StringTable::Key name)
       : filename(filename)

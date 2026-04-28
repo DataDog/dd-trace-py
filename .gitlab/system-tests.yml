@@ -1,0 +1,92 @@
+# System tests - migrated from .github/workflows/system-tests.yml
+# See: https://github.com/DataDog/system-tests
+
+.system-tests-base:
+  image: registry.ddbuild.io/images/docker:27.3.1
+  tags: ["docker-in-docker:amd64"]
+  stage: system-tests
+  id_tokens:
+    DD_STS_OIDC_TOKEN:
+      aud: rapid-seceng-sit
+  variables:
+    TEST_LIBRARY: python
+    KUBERNETES_CPU_REQUEST: "4"
+    KUBERNETES_CPU_LIMIT: "4"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
+  needs:
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG:
+              - "cp39-cp39"
+              - "cp310-cp310"
+              - "cp311-cp311"
+              - "cp312-cp312"
+              - "cp313-cp313"
+              - "cp314-cp314"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+  before_script:
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:system_deps\r\e[0KInstalling system dependencies"
+      # build-essential needed for C extensions like zstandard
+      apt-get update && apt-get install -y --no-install-recommends patchelf build-essential
+      # Install up to date node.js
+      curl --output - "https://nodejs.org/dist/v24.14.1/node-v24.14.1-linux-x64.tar.xz" | tar -xJ --strip-components 1 -C /usr/local/
+      npm install -g @datadog/datadog-ci
+      echo -e "\e[0Ksection_end:`date +%s`:system_deps\r\e[0K"
+
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:install_uv_python\r\e[0KInstalling uv and Python 3.12"
+      curl -LsSf https://astral.sh/uv/install.sh | sh
+      export PATH="$HOME/.local/bin:$PATH"
+      uv python install 3.12
+      echo -e "\e[0Ksection_end:`date +%s`:install_uv_python\r\e[0K"
+
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:checkout_system_tests\r\e[0KChecking out system-tests @ ${SYSTEM_TESTS_REF}"
+      git clone https://github.com/DataDog/system-tests.git ${CI_PROJECT_DIR}/system-tests
+      cd ${CI_PROJECT_DIR}/system-tests && git checkout ${SYSTEM_TESTS_REF}
+      echo -e "\e[0Ksection_end:`date +%s`:checkout_system_tests\r\e[0K"
+
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:setup_binaries\r\e[0KCopying ddtrace wheels to binaries/"
+      mkdir -p ${CI_PROJECT_DIR}/system-tests/binaries
+      cp ${CI_PROJECT_DIR}/pywheels/*.whl ${CI_PROJECT_DIR}/system-tests/binaries/ || true
+      ls -la ${CI_PROJECT_DIR}/system-tests/binaries/
+      echo -e "\e[0Ksection_end:`date +%s`:setup_binaries\r\e[0K"
+
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:build_runner\r\e[0KBuilding system-tests runner venv"
+      uv venv ${CI_PROJECT_DIR}/system-tests/venv --python 3.12
+      source ${CI_PROJECT_DIR}/system-tests/venv/bin/activate
+      uv pip install --upgrade pip "setuptools==75.8.0"
+      uv pip install -e ${CI_PROJECT_DIR}/system-tests
+      echo -e "\e[0Ksection_end:`date +%s`:build_runner\r\e[0K"
+  after_script:
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:dd_sts\r\e[0KFetch dd-sts token"
+      DD_STS_API_KEY=$(curl -sS -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab")
+      export DD_API_KEY=$(echo "$DD_STS_API_KEY" | jq -re '.api_key')
+      echo -e "\e[0Ksection_end:`date +%s`:dd_sts\r\e[0K"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:upload_junit\r\e[0KUpload junit xml results"
+      datadog-ci junit upload ${CI_PROJECT_DIR}/system-tests/logs*/reportJunit.xml --service system-tests --env ci --verbose --xpath-tag "test.codeowners=/testcase/properties/property[@name='test.codeowners']"
+      echo -e "\e[0Ksection_end:`date +%s`:upload_junit\r\e[0K"
+
+system-tests parametric:
+  extends: .system-tests-base
+  script:
+    - echo -e "\e[0Ksection_start:`date +%s`:run_parametric\r\e[0KRunning PARAMETRIC scenario"
+    - cd ${CI_PROJECT_DIR}/system-tests
+    - source venv/bin/activate
+    - ./run.sh PARAMETRIC
+    - echo -e "\e[0Ksection_end:`date +%s`:run_parametric\r\e[0K"
+  variables:
+    PYTEST_XDIST_AUTO_NUM_WORKERS: "8"
+  artifacts:
+    when: always
+    paths:
+      - system-tests/logs*

@@ -6,6 +6,8 @@ from typing import Mapping
 from typing import Optional
 from typing import TypeVar
 
+from ddtrace._trace.types import _AttributeValueType
+
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
 class DDSketch:
@@ -76,8 +78,9 @@ class CrashtrackerConfiguration:
         use_alt_stack: bool,
         timeout_ms: int,
         resolve_frames: StacktraceCollection,
-        endpoint: Optional[str],
-        unix_socket_path: Optional[str],
+        endpoint: Optional[str] = None,
+        unix_socket_path: Optional[str] = None,
+        test_token: Optional[str] = None,
     ): ...
 
 class CrashtrackerReceiverConfig:
@@ -257,6 +260,12 @@ class TraceExporterBuilder:
         :param git_commit_sha: The git commit SHA of the current code version.
         """
         ...
+    def set_process_tags(self, process_tags: str) -> TraceExporterBuilder:
+        """
+        Set the process tags to be included in the stats payload.
+        :param process_tags: Comma-separated list of key:value process tags (e.g., "key1:val1,key2:val2").
+        """
+        ...
     def set_tracer_version(self, version: str) -> TraceExporterBuilder:
         """
         Set the tracer version of the TraceExporter.
@@ -339,6 +348,27 @@ class TraceExporterBuilder:
     def enable_health_metrics(self) -> TraceExporterBuilder:
         """
         Enable health metrics in the TraceExporter
+        """
+        ...
+    def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
+        """
+        Set the OTLP HTTP/JSON endpoint for trace export.
+        When set, traces are sent to this endpoint instead of the Datadog agent.
+        The host language is responsible for resolving the endpoint from its own
+        configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
+        :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        """
+        ...
+    def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
+        """
+        Set additional HTTP headers for OTLP trace export requests.
+        :param headers: A list of (key, value) header pairs.
+        """
+        ...
+    def set_connection_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
+        """
+        Set the connection timeout in milliseconds for trace export requests.
+        :param timeout_ms: Timeout in milliseconds.
         """
         ...
     def build(self) -> TraceExporter:
@@ -566,32 +596,71 @@ class SpanData:
         context: Optional[Any] = None,  # placeholder for Span.__init__
         on_finish: Optional[Any] = None,  # placeholder for Span.__init__
         span_api: Optional[str] = None,
+        links: Optional[list[SpanLink]] = None,  # placeholder for Span.__init__
     ) -> _SpanDataT: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
+    def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
+    def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
+    def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
+    def _has_meta_structs(self) -> bool: ...
+    def _get_meta_structs(self) -> dict[str, Any]: ...
+    def _set_link(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str] = None,
+        flags: Optional[int] = None,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
+    ) -> None: ...
+    def _add_event(
+        self,
+        name: str,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
+        time_unix_nano: Optional[int] = None,
+    ) -> None: ...
+    def _get_links(self) -> list["SpanLink"]: ...
+    def _get_events(self) -> list["SpanEvent"]: ...
+    def _has_links(self) -> bool: ...
+    def _has_events(self) -> bool: ...
 
 class SpanEvent:
     name: str
-    time_unix_nano: int
+    time_unix_nano: int  # u64 in Rust; always non-negative
     attributes: dict[str, Any]
     def __init__(
-        self, name: str, attributes: Optional[Mapping[str, Any]] = None, time_unix_nano: Optional[int] = None
+        self,
+        name: str,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
+        time_unix_nano: Optional[int] = None,
     ): ...
     def __repr__(self) -> str: ...
     def __iter__(self) -> Iterator[tuple[str, Any]]: ...
     def __reduce__(self) -> tuple: ...
 
-class SpanLinkData:
+class SpanLink:
+    trace_id: int
+    span_id: int
+    tracestate: Optional[str]
+    flags: Optional[int]
+    attributes: dict[str, Any]
+
     def __init__(
         self,
         trace_id: int,
         span_id: int,
         tracestate: Optional[str] = None,
         flags: Optional[int] = None,
-        attributes: Optional[dict[str, str]] = None,
-        _dropped_attributes: int = 0,
-    ): ...
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
+        _skip_validation: bool = False,
+    ) -> None: ...
+    def to_dict(self) -> dict[str, Any]: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __repr__(self) -> str: ...
+    def __reduce__(self) -> tuple: ...
 
+def flatten_key_value(root_key: str, value: Any) -> dict[str, Any]: ...
+def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...

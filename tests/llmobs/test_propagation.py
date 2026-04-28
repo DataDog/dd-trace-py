@@ -7,12 +7,13 @@ from ddtrace.contrib.internal.asyncio.patch import patch as patch_asyncio
 from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
-from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
-from ddtrace.llmobs._constants import ML_APP
-from ddtrace.llmobs._constants import PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_trace_id
 
 
 @pytest.fixture
@@ -100,7 +101,7 @@ print(json.dumps(headers))
     llmobs.activate_distributed_headers(headers)
     with llmobs.workflow("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
-        assert span._get_ctx_item(PARENT_ID_KEY) == headers["_DD_LLMOBS_SPAN_ID"]
+        assert get_llmobs_parent_id(span) == headers["_DD_LLMOBS_SPAN_ID"]
 
 
 def test_propagate_llmobs_parent_id_complex(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -133,8 +134,8 @@ print(json.dumps(headers))
     with llmobs._instance.tracer.trace("Non-LLMObs span") as span:
         with llmobs.llm(model_name="llm_model", name="LLMObs span") as llm_span:
             assert str(span.parent_id) == headers["x-datadog-parent-id"]
-            assert span._get_ctx_item(PARENT_ID_KEY) is None
-            assert llm_span._get_ctx_item(PARENT_ID_KEY) == headers["_DD_LLMOBS_SPAN_ID"]
+            assert get_llmobs_parent_id(span) is None
+            assert get_llmobs_parent_id(llm_span) == headers["_DD_LLMOBS_SPAN_ID"]
 
 
 def test_no_llmobs_parent_id_propagated_if_no_llmobs_spans(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -166,7 +167,7 @@ print(json.dumps(headers))
     llmobs.activate_distributed_headers(headers)
     with llmobs.workflow("LLMObs span") as span:
         assert str(span.parent_id) == headers.get("x-datadog-parent-id")
-        assert span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID
+        assert get_llmobs_parent_id(span) == ROOT_PARENT_ID
 
 
 def test_inject_distributed_headers_simple(llmobs):
@@ -208,6 +209,7 @@ import json
 
 from ddtrace import tracer
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._utils import get_llmobs_trace_id
 
 LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
 
@@ -215,7 +217,7 @@ with LLMObs.workflow("LLMObs span") as root_span:
     with tracer.trace("Non-LLMObs span") as child_span:
         headers = {
             "_DD_LLMOBS_SPAN_ID": str(root_span.span_id),
-            "_DD_LLMOBS_TRACE_ID": str(root_span._get_ctx_item("_ml_obs.llmobs_trace_id"))
+            "_DD_LLMOBS_TRACE_ID": get_llmobs_trace_id(root_span)
         }
         headers = LLMObs.inject_distributed_headers(headers, span=child_span)
 
@@ -230,9 +232,9 @@ print(json.dumps(headers))
     llmobs_no_ml_app.activate_distributed_headers(headers)
     with llmobs_no_ml_app.workflow("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
-        assert span._get_ctx_item(PARENT_ID_KEY) == headers["_DD_LLMOBS_SPAN_ID"]
-        assert span._get_ctx_item(ML_APP) == "test-app"  # should have been propagated
-        assert span._get_ctx_item(LLMOBS_TRACE_ID) == int(headers["_DD_LLMOBS_TRACE_ID"])
+        assert get_llmobs_parent_id(span) == headers["_DD_LLMOBS_SPAN_ID"]
+        assert get_llmobs_ml_app(span) == "test-app"  # should have been propagated
+        assert get_llmobs_trace_id(span) == headers["_DD_LLMOBS_TRACE_ID"]
 
 
 def test_activate_distributed_headers_propagate_complex(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -266,9 +268,9 @@ print(json.dumps(headers))
     with llmobs._instance.tracer.trace("Non-LLMObs span") as span:
         with llmobs.llm(model_name="llm_model", name="LLMObs span") as llm_span:
             assert str(span.parent_id) == headers["x-datadog-parent-id"]
-            assert span._get_ctx_item(PARENT_ID_KEY) is None
-            assert llm_span._get_ctx_item(PARENT_ID_KEY) == headers["_DD_LLMOBS_SPAN_ID"]
-            assert llm_span._get_ctx_item(ML_APP) == "test-app"  # should be the one set by `llmobs` fixture
+            assert get_llmobs_parent_id(span) is None
+            assert get_llmobs_parent_id(llm_span) == headers["_DD_LLMOBS_SPAN_ID"]
+            assert get_llmobs_ml_app(llm_span) == "test-app"  # should be the one set by `llmobs` fixture
 
 
 def test_activate_distributed_headers_for_local_ml_app(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -299,7 +301,7 @@ print(json.dumps(headers))
     headers = json.loads(stdout.decode())
     llmobs.activate_distributed_headers(headers)
     with llmobs.llm(name="llm_model") as llm_span:
-        assert llm_span._get_ctx_item(ML_APP) == "local-ml-app"
+        assert get_llmobs_ml_app(llm_span) == "local-ml-app"
 
 
 def test_activate_distributed_headers_for_twice_propagated_ml_app(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -333,7 +335,7 @@ print(json.dumps(headers))
 
     llmobs.activate_distributed_headers(headers)
     with llmobs.llm(name="llm_model") as llm_span:
-        assert llm_span._get_ctx_item(ML_APP) == "twice-propagated-ml-app"
+        assert get_llmobs_ml_app(llm_span) == "twice-propagated-ml-app"
 
 
 def test_activate_distributed_headers_does_not_propagate_if_no_llmobs_spans(
@@ -365,8 +367,8 @@ print(json.dumps(headers))
     llmobs.activate_distributed_headers(headers)
     with llmobs.task("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
-        assert span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID
-        assert span._get_ctx_item(ML_APP) == "test-app"
+        assert get_llmobs_parent_id(span) == ROOT_PARENT_ID
+        assert get_llmobs_ml_app(span) == "test-app"
 
 
 def test_threading_submit_propagation(llmobs, llmobs_events, patched_futures):
@@ -446,3 +448,87 @@ async def test_asyncio_create_task(llmobs, llmobs_events, patched_asyncio):
     assert main_task_span["trace_id"] == side_task_span["trace_id"]
     assert main_task_span["_dd"]["apm_trace_id"] == side_task_span["_dd"]["apm_trace_id"]
     assert main_task_span["trace_id"] != main_task_span["_dd"]["apm_trace_id"]
+
+
+_HEX_TRACE_ID = "ef017ddb6db557ea44fb6ce732fd0687"
+_DECIMAL_TRACE_ID = str(int(_HEX_TRACE_ID, 16))
+
+
+def _make_upstream_llmobs_context(trace_id_value, parent_id="987654321"):
+    from ddtrace.trace import Context
+
+    ctx = Context(trace_id=123456789, span_id=int(parent_id))
+    ctx._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = trace_id_value
+    ctx._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
+    return ctx
+
+
+def test_injected_trace_id_is_decimal_on_the_wire(llmobs):
+    """Wire must stay decimal so older SDKs that do int(header) keep working."""
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    wire_value = span.context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+    assert wire_value and wire_value.isdigit()
+
+
+def test_activate_decimal_header_stores_canonical_hex(llmobs):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_trace_id(span) == _HEX_TRACE_ID
+
+
+def test_activate_hex_header_stores_canonical_hex(llmobs):
+    ctx = _make_upstream_llmobs_context(_HEX_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_trace_id(span) == _HEX_TRACE_ID
+
+
+def test_activate_non_numeric_header_passthrough_does_not_raise(llmobs):
+    custom_tid = "my-custom-trace-id-not-numeric"
+    ctx = _make_upstream_llmobs_context(custom_tid)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_trace_id(span) == custom_tid
+
+
+def test_submitted_event_trace_id_is_hex_when_upstream_sent_decimal(llmobs, llmobs_events):
+    """Backend must always see hex so trace joining works even across mixed-version upstreams."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w"):
+        pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["trace_id"] == _HEX_TRACE_ID
+
+
+def test_inject_skips_header_when_trace_id_is_empty(llmobs, monkeypatch):
+    monkeypatch.setattr("ddtrace.llmobs._llmobs._trace_id_to_wire", lambda _v: None)
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+        assert PROPAGATED_LLMOBS_TRACE_ID_KEY not in span.context._meta
+
+
+# Ambiguous trace_id class: 32-char hex composed only of [0-9] with no leading zero.
+# Indistinguishable by shape from a 32-digit decimal, which is why
+# _normalize_wire_trace_id_to_hex is non-idempotent on these values and must only ever be
+# called on wire-sourced inputs. The wire-decimal form is the int's decimal representation
+# (~38 digits for 128-bit), so wire-in/hex-out round-trips cleanly.
+_AMBIGUOUS_HEX_TRACE_ID = "12345678901234567890123456789012"
+_AMBIGUOUS_WIRE_TRACE_ID = str(int(_AMBIGUOUS_HEX_TRACE_ID, 16))
+
+
+def test_submitted_event_trace_id_matches_stored_for_ambiguous_hex(llmobs, llmobs_events):
+    """Regression: submit must not re-normalize the stored hex. A trace_id whose 32-char hex
+    form is all-[0-9] with no leading zero would otherwise be mangled by
+    _normalize_wire_trace_id_to_hex reinterpreting it as decimal.
+    """
+    ctx = _make_upstream_llmobs_context(_AMBIGUOUS_WIRE_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        stored = get_llmobs_trace_id(span)
+    assert stored == _AMBIGUOUS_HEX_TRACE_ID
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["trace_id"] == _AMBIGUOUS_HEX_TRACE_ID
+    assert llmobs_events[0]["trace_id"] == stored

@@ -10,7 +10,7 @@ from typing import Optional
 from typing import TypedDict
 from typing import Union
 
-from ddtrace._trace._inferred_proxy import SUPPORTED_PROXY_SPAN_NAMES
+from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
@@ -438,4 +438,4 @@ def unpatching_popen() -> typing.Iterator[None]:
 
 
 def is_inferred_span(span: Span) -> bool:
-    return span.name in SUPPORTED_PROXY_SPAN_NAMES
+    return span.name in INFERRED_SPAN_NAMES

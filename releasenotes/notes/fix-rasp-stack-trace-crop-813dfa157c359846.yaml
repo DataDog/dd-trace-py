@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    AAP: This fix resolves an issue where RASP exploit prevention stack traces
+    incorrectly included ddtrace internal frames at the top. Stack traces now
+    correctly show only user and library frames.

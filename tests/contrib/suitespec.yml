@@ -1,8 +1,8 @@
----
 components:
   aiohttp:
     - ddtrace/contrib/aiohttp.py
     - ddtrace/contrib/internal/aiohttp/*
+  aiohttp_jinja2:
     - ddtrace/contrib/internal/aiohttp_jinja2/*
   aiopg:
     - ddtrace/contrib/internal/aiopg/*
@@ -21,6 +21,8 @@ components:
   aws_lambda:
     - ddtrace/contrib/internal/aws_lambda/*
     - ddtrace/ext/aws.py
+  azure_cosmos:
+    - ddtrace/contrib/internal/azure_cosmos/*
   azure_durable_functions:
     - ddtrace/contrib/internal/azure_durable_functions/*
   azure_eventhubs:
@@ -204,7 +206,6 @@ components:
   valkey:
     - ddtrace/contrib/internal/valkey/*
     - ddtrace/contrib/internal/valkey_utils.py
-    - ddtrace/contrib/valkey.py
     - ddtrace/_trace/utils_valkey.py
     - ddtrace/ext/valkey.py
   vertica:
@@ -228,7 +229,8 @@ suites:
     snapshot: true
     venvs_per_job: 2
   aiohttp:
-    parallelism: 3
+    pattern: ^aiohttp$
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -236,8 +238,21 @@ suites:
       - '@tracing'
       - '@aiohttp'
       - tests/contrib/aiohttp/*
+      - tests/snapshots/tests.{suite}.*
+    services:
+      - httpbin
+    snapshot: true
+  aiohttp_jinja2:
+    venvs_per_job: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@aiohttp'
+      - '@aiohttp_jinja2'
+      - tests/contrib/aiohttp/*
       - tests/contrib/aiohttp_jinja2/*
-      - tests/snapshots/tests.contrib.aiohttp_jinja2.*
       - tests/snapshots/tests.{suite}.*
     services:
       - httpbin
@@ -261,7 +276,7 @@ suites:
     env:
       TEST_KAFKA_HOST: kafka
       TEST_KAFKA_PORT: '29092'
-    parallelism: 2
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -370,6 +385,20 @@ suites:
       - tests/contrib/aws_lambda/*
       - tests/snapshots/tests.{suite}.*
     snapshot: true
+  azure_cosmos:
+    venvs_per_job: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_cosmos'
+      - tests/contrib/azure_cosmos/*
+      - tests/snapshots/tests.contrib.azure_cosmos.*
+    snapshot: true
+    services:
+      - azurite
+      - azurecosmosemulator
   azure_eventhubs:
     parallelism: 4
     paths:
@@ -397,6 +426,9 @@ suites:
     snapshot: true
     services:
       - azurite
+  # the azure_functions suites don't work in the arm64 testrunner container
+  # (the one that runs from scripts/ddtest on Mac OS)
+  # they can be run on OSX bare metal after `brew tap azure/functions && brew install azure-functions-core-tools@4`
   azure_functions:
     parallelism: 4
     paths:
@@ -411,6 +443,22 @@ suites:
     snapshot: true
     services:
       - azurite
+  azure_functions:cosmos:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_functions'
+      - '@azure_cosmos'
+      - tests/contrib/azure_functions_cosmos/*
+      - tests/snapshots/tests.contrib.azure_functions_cosmos.*
+    pattern: azure_functions:cosmos
+    snapshot: true
+    services:
+      - azurite
+      - azurecosmosemulator
   azure_functions:eventhubs:
     parallelism: 4
     paths:
@@ -887,7 +935,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
   mlflow:
-    parallelism: 2
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'

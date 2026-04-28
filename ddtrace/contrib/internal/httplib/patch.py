@@ -1,6 +1,5 @@
 import functools
 import http.client as httplib
-import os
 import sys
 from urllib import parse
 
@@ -18,6 +17,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
@@ -29,11 +29,10 @@ span_name = schematize_url_operation(span_name, protocol="http", direction=SpanD
 
 log = get_logger(__name__)
 
-
 config._add(
     "httplib",
     {
-        "distributed_tracing": asbool(os.getenv("DD_HTTPLIB_DISTRIBUTED_TRACING", default=True)),
+        "distributed_tracing": asbool(env.get("DD_HTTPLIB_DISTRIBUTED_TRACING", default=True)),
         "default_http_tag_query_string": config._http_client_tag_query_string,
     },
 )
@@ -69,7 +68,7 @@ def _wrap_getresponse(func, instance, args, kwargs):
             if span:
                 if resp:
                     trace_utils.set_http_meta(
-                        span, config.httplib, status_code=resp.status, response_headers=dict(resp.getheaders())
+                        span, config.httplib, status_code=resp.status, response_headers=resp.getheaders()
                     )
 
                 span.finish()

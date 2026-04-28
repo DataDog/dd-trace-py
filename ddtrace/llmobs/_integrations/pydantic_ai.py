@@ -4,17 +4,11 @@ from typing import Sequence
 
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import NAME
-from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
@@ -32,12 +26,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
     _latest_agent = None  # str representing the span ID of the latest agent that was started
     _run_stream_active = False  # bool indicating if the latest agent span was generated from run_stream
 
-    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> Span:
         span = super().trace(operation_id, submit_to_llmobs, **kwargs)
         kind = kwargs.get("kind", None)
         if kind:
             self._register_span(span, kind)
-            span._set_ctx_item(SPAN_KIND, kind)
+            _annotate_llmobs_span_data(span, kind=kind)
         return span
 
     def _set_base_span_tags(self, span: Span, model: Optional[Any] = None, **kwargs) -> None:
@@ -62,19 +56,18 @@ class PydanticAIIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        span_kind = span._get_ctx_item(SPAN_KIND)
+        span_kind = get_llmobs_span_kind(span)
 
         if span_kind == "agent":
             self._llmobs_set_tags_agent(span, args, kwargs, response)
         elif span_kind == "tool":
             self._llmobs_set_tags_tool(span, args, kwargs, response)
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: span_kind,
-                MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "",
-                MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "",
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind=span_kind,
+            model_name=span.get_tag("pydantic_ai.request.model") or "",
+            model_provider=span.get_tag("pydantic_ai.request.provider") or "",
         )
 
     def _llmobs_set_tags_agent(
@@ -102,12 +95,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
                     result += part.content
                 elif hasattr(part, "args_as_json_str"):
                     result += part.args_as_json_str()
-        span._set_ctx_items(
-            {
-                NAME: agent_name or "PydanticAI Agent",
-                INPUT_VALUE: user_prompt,
-                OUTPUT_VALUE: result,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            name=agent_name or "PydanticAI Agent",
+            input_value=user_prompt,
+            output_value=result,
         )
 
     @staticmethod
@@ -128,9 +120,18 @@ class PydanticAIIntegration(BaseLLMIntegration):
         self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
-        tool_call = get_argument_value(args, kwargs, 0, "call", optional=True) or get_argument_value(
-            args, kwargs, 0, "message", optional=True
+        raw_call = (
+            get_argument_value(args, kwargs, 0, "call", optional=True)
+            or get_argument_value(args, kwargs, 0, "message", optional=True)
+            or get_argument_value(args, kwargs, 0, "validated", optional=True)
         )
+        # unwrap ValidatedToolCall into tool_instance and tool_call for newer versions of Pydantic AI
+        if raw_call is not None and hasattr(raw_call, "args_valid"):
+            if tool_instance is None:
+                tool_instance = getattr(raw_call, "tool", None)
+            tool_call = getattr(raw_call, "call", raw_call)
+        else:
+            tool_call = raw_call
         tool_name = "PydanticAI Tool"
         tool_input: Any = {}
         tool_id = ""
@@ -142,17 +143,19 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tool_description = (
             _get_attr(tool_def, "description", "") if tool_def else _get_attr(tool_instance, "description", "")
         )
-        span._set_ctx_items(
-            {
-                NAME: tool_name,
-                METADATA: {"description": tool_description},
-                INPUT_VALUE: tool_input,
-            }
-        )
+
+        output_val = None
         if not span.error:
             # depending on the version, the output may be a ToolReturnPart or the raw response
-            output_content = getattr(response, "content", "") or response
-            span._set_ctx_item(OUTPUT_VALUE, output_content)
+            output_val = getattr(response, "content", "") or response
+
+        _annotate_llmobs_span_data(
+            span,
+            name=tool_name,
+            metadata={"description": tool_description},
+            input_value=tool_input,
+            output_value=output_val,
+        )
 
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
@@ -180,12 +183,17 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if hasattr(agent, "model_settings"):
             manifest["model_settings"] = agent.model_settings
         if hasattr(agent, "_instructions"):
-            manifest["instructions"] = agent._instructions
+            instructions = agent._instructions
+            if isinstance(instructions, list):
+                instructions = (
+                    " ".join(instructions) if instructions and all(isinstance(i, str) for i in instructions) else None
+                )
+            manifest["instructions"] = instructions
         if hasattr(agent, "_system_prompts"):
             manifest["system_prompts"] = agent._system_prompts
         manifest["tools"] = self._get_agent_tools(agent)
 
-        span._set_ctx_item(AGENT_MANIFEST, manifest)
+        _annotate_llmobs_span_data(span, agent_manifest=manifest)
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
         """

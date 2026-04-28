@@ -29,11 +29,13 @@ from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnect
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.utils.version import _pep440_to_semver
 
@@ -212,7 +214,7 @@ class RemoteConfigClient:
         self.agent_url = agent_config.trace_agent_url
 
         self._headers = {"content-type": "application/json"}
-        additional_header_str = os.environ.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")
+        additional_header_str = env.get("_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             self._headers.update(parse_tags_str(additional_header_str))
 
@@ -444,6 +446,18 @@ class RemoteConfigClient:
         self._enabled_products = set()
 
     def _send_request(self, payload: str) -> Optional[Mapping[str, Any]]:
+        try:
+            return self._send_request_with_retry(payload)
+        except OSError as e:
+            log.debug("Unexpected connection error in remote config client request: %s", str(e))
+            return None
+
+    @fibonacci_backoff_with_jitter(
+        attempts=3,
+        initial_wait=0.2,
+        until=lambda result: isinstance(result, Mapping) or result is None,
+    )
+    def _send_request_with_retry(self, payload: str) -> Optional[Mapping[str, Any]]:
         conn = None
         try:
             if config.log_payloads:
@@ -460,9 +474,6 @@ class RemoteConfigClient:
 
             if config.log_payloads:
                 log.debug("[%s][P: %s] RC response payload: %s", os.getpid(), os.getppid(), data.decode("utf-8"))
-        except OSError as e:
-            log.debug("Unexpected connection error in remote config client request: %s", str(e))
-            return None
         finally:
             if conn is not None:
                 conn.close()

@@ -1,8 +1,8 @@
 [[
   {
-    "name": "gcp.pubsub.send",
+    "name": "gcp.pubsub.request",
     "service": "tests.contrib.google_cloud_pubsub",
-    "resource": "test-topic",
+    "resource": "createTopic projects/test-project/topics/test-topic",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,16 +10,81 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69ba78c100000000",
+      "_dd.p.tid": "69e1290900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "pubsub.method": "createTopic",
+      "runtime-id": "fe9b80a3add542f88afaea8a3946d7a9",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 21973.0
+    },
+    "duration": 7252875,
+    "start": 1776363785487982220
+  }],
+[
+  {
+    "name": "gcp.pubsub.request",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "createSubscription projects/test-project/subscriptions/test-subscription",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69e1290900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "pubsub.method": "createSubscription",
+      "runtime-id": "fe9b80a3add542f88afaea8a3946d7a9",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 21973.0
+    },
+    "duration": 4224541,
+    "start": 1776363785496389595
+  }],
+[
+  {
+    "name": "gcp.pubsub.send",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "test-topic",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69e1290900000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",
       "language": "python",
       "messaging.destination.name": "test-topic",
-      "messaging.message_id": "1",
+      "messaging.message_id": "11",
       "messaging.operation": "send",
       "messaging.system": "pubsub",
-      "runtime-id": "a74e0ffe8ca74e9ba8a91a01cd47a44e",
+      "runtime-id": "fe9b80a3add542f88afaea8a3946d7a9",
       "span.kind": "producer"
     },
     "metrics": {
@@ -27,57 +92,123 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 488.0
+      "process_id": 21973.0
     },
-    "duration": 25044292,
-    "start": 1773828289176783090
+    "duration": 17435333,
+    "start": 1776363785503178095
   },
      {
        "name": "gcp.pubsub.receive",
        "service": "tests.contrib.google_cloud_pubsub",
        "resource": "test-subscription",
-       "trace_id": 0,
+       "trace_id": 2,
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
        "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
-         "_dd.p.tid": "69ba78c100000000",
+         "_dd.p.tid": "69e1290900000000",
+         "_dd.svc_src": "m",
          "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
          "component": "google_cloud_pubsub",
          "gcloud.project_id": "test-project",
          "language": "python",
          "messaging.destination.name": "test-subscription",
-         "messaging.message_id": "1",
+         "messaging.message_id": "11",
          "messaging.operation": "receive",
          "messaging.system": "pubsub",
-         "runtime-id": "a74e0ffe8ca74e9ba8a91a01cd47a44e",
+         "runtime-id": "fe9b80a3add542f88afaea8a3946d7a9",
          "span.kind": "consumer",
-         "tracestate": "dd=p:955d118c283c57da;t.tid:69ba78c100000000"
+         "tracestate": "dd=p:843e783b293afcbe;t.tid:69e1290900000000"
        },
        "metrics": {
          "_dd.measured": 1.0,
          "_dd.top_level": 1.0,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1.0,
-         "process_id": 488.0
+         "process_id": 21973.0
        },
-       "duration": 1717250,
-       "start": 1773828289262536465
+       "duration": 223833,
+       "start": 1776363785566385303
      },
         {
           "name": "subscriber.span",
           "service": "tests.contrib.google_cloud_pubsub",
           "resource": "subscriber.span",
-          "trace_id": 0,
+          "trace_id": 2,
           "span_id": 3,
           "parent_id": 2,
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.p.tid": "69ba78c100000000"
+            "_dd.p.tid": "69e1290900000000",
+            "_dd.svc_src": "m"
           },
-          "duration": 135333,
-          "start": 1773828289264058965
-        }]]
+          "duration": 63500,
+          "start": 1776363785566501303
+        }],
+[
+  {
+    "name": "gcp.pubsub.request",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "deleteSubscription projects/test-project/subscriptions/test-subscription",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69e1290900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "pubsub.method": "deleteSubscription",
+      "runtime-id": "fe9b80a3add542f88afaea8a3946d7a9",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 21973.0
+    },
+    "duration": 3091625,
+    "start": 1776363785582812761
+  }],
+[
+  {
+    "name": "gcp.pubsub.request",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "deleteTopic projects/test-project/topics/test-topic",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69e1290900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "pubsub.method": "deleteTopic",
+      "runtime-id": "fe9b80a3add542f88afaea8a3946d7a9",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 21973.0
+    },
+    "duration": 3114875,
+    "start": 1776363785586209095
+  }]]

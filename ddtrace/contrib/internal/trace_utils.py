@@ -11,6 +11,7 @@ from typing import Callable  # noqa:F401
 from typing import Generator  # noqa:F401
 from typing import Iterator  # noqa:F401
 from typing import Mapping  # noqa:F401
+from typing import MutableMapping  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
@@ -32,6 +33,7 @@ from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
+from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
@@ -384,11 +386,30 @@ def ext_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Op
     return default
 
 
-def maybe_set_service_source_tag(span: Span, int_config: Union["IntegrationConfig", dict]) -> None:
-    if span.service == int_config.get("_default_service"):
-        span.set_tag("_dd.svc_src", getattr(int_config, "integration_name", "true"))
+def set_service_and_source(
+    span: Span,
+    service: str,
+    int_config: Union["IntegrationConfig", dict],
+    default_service_key: str = "_default_service",
+) -> None:
+    mapped_service = config.service_mapping.get(service, service)
+    if service != mapped_service:
+        span.set_tag(_SERVICE_SOURCE, "opt.service_mapping")
+        service = mapped_service
     elif int_config.get("split_by_domain", False):
-        span.set_tag("_dd.svc_src", "opt.split_by_domain")
+        span.set_tag(_SERVICE_SOURCE, "opt.split_by_domain")
+    # NB "not service" here makes svc_src make sense in cases of service inheritance
+    elif not service or service == int_config.get(default_service_key):
+        span.set_tag(
+            _SERVICE_SOURCE,
+            getattr(
+                int_config,
+                "integration_name",
+                int_config.get("integration_name", "m") if hasattr(int_config, "get") else "m",
+            ),
+        )
+    if service:
+        span.service = service
 
 
 def set_http_meta(
@@ -470,27 +491,25 @@ def set_http_meta(
         if referrer_host:
             span._set_attribute(http.REFERRER_HOSTNAME, referrer_host)
 
-        # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
-        # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-        if asm_config._asm_enabled or config._retrieve_client_ip:
-            # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-            request_ip = core.find_item("http.request.remote_ip")
-
-            if not request_ip:
-                # Not calculated: framework does not support IP blocking or testing env
-                request_ip = (
-                    _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
-                )
-
-            if request_ip:
-                span._set_attribute(http.CLIENT_IP, request_ip)
-                span._set_attribute("network.client.ip", request_ip)
-
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
             http.<key>. The last one
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
+
+    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+    if asm_config._asm_enabled or config._retrieve_client_ip:
+        # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
+        request_ip = core.find_item("http.request.remote_ip")
+
+        if not request_ip:
+            # Not calculated: framework does not support IP blocking or testing env
+            request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
+
+        if request_ip:
+            span._set_attribute(http.CLIENT_IP, request_ip)
+            span._set_attribute("network.client.ip", request_ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(response_headers, span, integration_config)
@@ -514,6 +533,8 @@ def set_http_meta(
             status_code,
             response_headers,
             response_cookies,
+            peer_ip,
+            headers_are_case_sensitive,
         ],
     )
 
@@ -524,7 +545,7 @@ def set_http_meta(
 def activate_distributed_headers(
     tracer: "Tracer",
     int_config: Optional["IntegrationConfig"] = None,
-    request_headers: Optional[dict[str, str]] = None,
+    request_headers: Optional[MutableMapping[str, str]] = None,
     override: Optional[bool] = None,
 ) -> None:
     """
@@ -623,7 +644,10 @@ def set_flattened_tags(
 ) -> None:
     for prefix, value in items:
         for tag, v in _flatten(value, sep, prefix, exclude_policy):
-            span.set_tag(tag, processor(v) if processor is not None else v)
+            v = processor(v) if processor is not None else v
+            if isinstance(v, bool):
+                v = str(v)
+            span.set_tag(tag, v)
 
 
 def extract_netloc_and_query_info_from_url(url: str) -> tuple[str, str]:

@@ -134,7 +134,7 @@ def test_coverage_concurrent_futures_threadpool_context():
     with ModuleCodeCollector.CollectInContext() as context_collector:
         from tests.coverage.included_path.callee import called_in_context_main
 
-        with concurrent.futures.ProcessPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(called_in_context_main, 1, 2)
             future.result()
 

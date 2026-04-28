@@ -6,6 +6,7 @@ components:
     - '!ddtrace/appsec/_ai_guard/*'
     - '!ddtrace/appsec/iast/*'
     - '!ddtrace/appsec/_iast/*'
+    - '!ddtrace/appsec/sca/*'
     - ddtrace/internal/settings/asm.py
   appsec_iast:
     - ddtrace/appsec/iast/*
@@ -16,6 +17,8 @@ components:
     - ddtrace/contrib/internal/webbrowser/*
   ai_guard:
     - ddtrace/appsec/ai_guard/*
+  sca:
+    - ddtrace/appsec/sca/*
 suites:
   appsec:
     parallelism: 4
@@ -137,6 +140,19 @@ suites:
       - tests/appsec/integrations/langchain_tests/*
     retry: 2
   appsec_integrations_flask:
+    pattern: appsec_integrations_flask$
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - tests/appsec/integrations/flask_tests/test_iast_flask.py
+      - tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
+    retry: 2
+    timeout: 15m
+  appsec_integrations_flask_testagent:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -397,5 +413,23 @@ suites:
       - '@tracing'
       - '@ai_guard'
       - tests/appsec/ai_guard/strands_hooks/*
+    retry: 2
+    venvs_per_job: 1
+  ai_guard_litellm_guardrail:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/appsec/ai_guard/litellm_guardrail/*
+    retry: 2
+    venvs_per_job: 2
+  sca:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@sca'
+      - tests/appsec/sca/*
     retry: 2
     venvs_per_job: 1

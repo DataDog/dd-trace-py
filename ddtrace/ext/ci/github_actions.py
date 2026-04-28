@@ -10,6 +10,7 @@ from typing import Optional
 
 from ddtrace.ext import git
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
@@ -58,7 +59,7 @@ def _get_diag_dirs() -> list[str]:
     system = platform.system()
     if system == "Windows":
         candidates = []
-        program_files = os.environ.get("ProgramFiles")
+        program_files = env.get("ProgramFiles")
         if program_files:
             candidates.extend(
                 [
@@ -66,7 +67,7 @@ def _get_diag_dirs() -> list[str]:
                     os.path.join(program_files, "actions-runner", "_diag"),
                 ]
             )
-        program_files_x86 = os.environ.get("ProgramFiles(x86)")
+        program_files_x86 = env.get("ProgramFiles(x86)")
         if program_files_x86:
             candidates.extend(
                 [
@@ -159,12 +160,12 @@ def _try_extract_job_id_from_diag(diag_dirs: list[str]) -> Optional[str]:
     return None
 
 
-def _get_job_id(env: MutableMapping[str, str]) -> Optional[str]:
+def _get_job_id(environ: MutableMapping[str, str]) -> Optional[str]:
     """Get the numeric job ID for GitHub Actions.
 
     Checks JOB_CHECK_RUN_ID env var first, then falls back to diagnostics files.
     """
-    job_id = env.get(JOB_CHECK_RUN_ID_ENV, "").strip()
+    job_id = environ.get(JOB_CHECK_RUN_ID_ENV, "").strip()
     if job_id and job_id.isdigit():
         return job_id
 
@@ -175,13 +176,13 @@ def _get_job_id(env: MutableMapping[str, str]) -> Optional[str]:
     return None
 
 
-def extract_github_actions(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_github_actions(environ: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Github Actions environment."""
-    github_server_url = _filter_sensitive_info(env.get("GITHUB_SERVER_URL"))
-    github_repository = env.get("GITHUB_REPOSITORY")
-    git_commit_sha = env.get("GITHUB_SHA")
-    github_run_id = env.get("GITHUB_RUN_ID")
-    run_attempt = env.get("GITHUB_RUN_ATTEMPT")
+    github_server_url = _filter_sensitive_info(environ.get("GITHUB_SERVER_URL"))
+    github_repository = environ.get("GITHUB_REPOSITORY")
+    git_commit_sha = environ.get("GITHUB_SHA")
+    github_run_id = environ.get("GITHUB_RUN_ID")
+    run_attempt = environ.get("GITHUB_RUN_ATTEMPT")
 
     pipeline_url = "{0}/{1}/actions/runs/{2}".format(
         github_server_url,
@@ -190,11 +191,17 @@ def extract_github_actions(env: MutableMapping[str, str]) -> dict[str, Optional[
     )
 
     git_commit_head_sha = None
-    if "GITHUB_EVENT_PATH" in env:
+    git_pr_base_branch_head_sha = None
+    if "GITHUB_EVENT_PATH" in environ:
         try:
-            with open(env["GITHUB_EVENT_PATH"]) as f:
+            with open(environ["GITHUB_EVENT_PATH"]) as f:
                 github_event_data = json.load(f)
-                git_commit_head_sha = github_event_data.get("pull_request", {}).get("head", {}).get("sha")
+                pr_data = github_event_data.get("pull_request", {})
+                git_commit_head_sha = pr_data.get("head", {}).get("sha")
+                # pull_request.base.sha points to the HEAD of the base branch, not the merge base commit.
+                # Store it as base_branch_head_sha; the actual merge base (base_branch_sha) must be
+                # computed separately via `git merge-base`.
+                git_pr_base_branch_head_sha = pr_data.get("base", {}).get("sha")
         except Exception as e:
             log.error("Failed to read or parse GITHUB_EVENT_PATH: %s", e)
 
@@ -209,21 +216,23 @@ def extract_github_actions(env: MutableMapping[str, str]) -> dict[str, Optional[
 
     # Resolve job ID and URL
     # Priority: JOB_CHECK_RUN_ID env var > diagnostics files
-    job_name = env.get("GITHUB_JOB")
-    numeric_job_id = _get_job_id(env)
+    job_name = environ.get("GITHUB_JOB")
+    numeric_job_id = _get_job_id(environ)
 
     tags = {
-        git.BRANCH: env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF"),
+        git.BRANCH: environ.get("GITHUB_HEAD_REF") or environ.get("GITHUB_REF"),
         git.COMMIT_SHA: git_commit_sha,
+        git.PULL_REQUEST_BASE_BRANCH: environ.get("GITHUB_BASE_REF"),
         git.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
         git.COMMIT_HEAD_SHA: git_commit_head_sha,
+        git.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: git_pr_base_branch_head_sha,
         _PIPELINE_ID: github_run_id,
-        _PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
-        _PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
+        _PIPELINE_NAME: environ.get("GITHUB_WORKFLOW"),
+        _PIPELINE_NUMBER: environ.get("GITHUB_RUN_NUMBER"),
         _PIPELINE_URL: pipeline_url,
         _JOB_NAME: job_name,
         _PROVIDER_NAME: "github",
-        _WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
+        _WORKSPACE_PATH: environ.get("GITHUB_WORKSPACE"),
         _CI_ENV_VARS: json.dumps(env_vars, separators=(",", ":")),
     }
 

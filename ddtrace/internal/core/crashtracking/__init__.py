@@ -1,5 +1,4 @@
 import importlib.util
-import os
 import platform
 import sys
 from typing import Optional
@@ -10,6 +9,7 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 from ddtrace.internal.settings.profiling import config as profiling_config
@@ -17,7 +17,6 @@ from ddtrace.internal.settings.profiling import config_str
 
 
 log = get_logger(__name__)
-
 
 is_available = True
 try:
@@ -122,13 +121,14 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         stacktrace_resolver,
         crashtracker_config.debug_url or agent_config.trace_agent_url,
         None,  # unix_socket_path
+        crashtracker_config._test_token,
     )
 
     receiver_env = {}
 
     # Don't pass all env vars to the receiver process, because there are
     # conflicts with export location derivation
-    crashtracking_enabled = os.environ.get("DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED")
+    crashtracking_enabled = env.get("DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED")
     if crashtracking_enabled is not None:
         receiver_env["DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"] = crashtracking_enabled
 
@@ -141,7 +141,7 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         "PYTHONPATH",  # for loading Python, for the receiver script
     ]
     for env_var in inherited_env_vars:
-        env_value = os.environ.get(env_var)
+        env_value = env.get(env_var)
         if env_value is not None:
             receiver_env[env_var] = env_value
 

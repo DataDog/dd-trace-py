@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '(\.cmake$|CMakeLists\.txt$)')
+if [ -n "$staged_files" ]; then
+    # Capture files with unstaged changes before formatting; we skip re-adding these to preserve partial staging.
+    unstaged_before=$(git diff --name-only)
+
+    # Format staged CMake files in-place.
+    hatch run lint:cmakeformat_fix $staged_files || exit $?
+
+    # Re-stage only files that had no unstaged changes before formatting (preserves partial staging).
+    echo "$staged_files" | while read -r f; do
+        [ -n "$f" ] || continue
+        echo "$unstaged_before" | grep -qFx "$f" || git add "$f"
+    done
+else
+    echo 'Run cmake-format skipped: No CMake files were found in `git diff --staged`'
+fi

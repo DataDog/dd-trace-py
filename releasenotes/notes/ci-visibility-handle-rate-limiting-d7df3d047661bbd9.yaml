@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where HTTP 429 (Too Many Requests) responses from the Datadog
+    backend were treated as non-retriable errors, causing CI visibility data to be dropped when
+    the backend applied rate limiting. The backend connector now retries on 429 responses and
+    respects the ``X-RateLimit-Reset`` header when present to determine the retry delay.

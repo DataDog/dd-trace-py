@@ -9,6 +9,7 @@ from azure.storage.blob import BlobServiceClient
 from azure.storage.queue import QueueServiceClient
 from cassandra.cluster import Cluster
 from cassandra.cluster import NoHostAvailable
+from contrib.config import AZURE_COSMOS_EMULATOR_CONFIG
 from contrib.config import AZURE_EVENT_HUBS_EMULATOR_CONFIG
 from contrib.config import AZURE_SERVICE_BUS_EMULATOR_CONFIG
 from contrib.config import AZURE_SQL_EDGE_CONFIG
@@ -159,6 +160,16 @@ def check_moto(url):
     Exception,
     tries=120,
     timeout=1,
+    args={"url": "http://{host}:{port}/alive".format(**AZURE_COSMOS_EMULATOR_CONFIG)},
+)
+def check_azurecosmosemulator(url):
+    requests.get(url).raise_for_status()
+
+
+@try_until_timeout(
+    Exception,
+    tries=120,
+    timeout=1,
     args={"url": "http://{host}:{port}/health".format(**AZURE_EVENT_HUBS_EMULATOR_CONFIG)},
 )
 def check_azureeventhubsemulator(url):
@@ -227,6 +238,7 @@ if __name__ == "__main__":
         "redis": check_redis,
         "testagent": check_agent,
         "vertica": check_vertica,
+        "azurecosmosemulator": check_azurecosmosemulator,
         "azureeventhubsemulator": check_azureeventhubsemulator,
         "azureservicebusemulator": check_azureservicebusemulator,
         "azuresqledge": check_azuresqledge,

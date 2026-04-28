@@ -95,6 +95,13 @@ Azure Functions
 .. automodule:: ddtrace.contrib.internal.azure_functions
 
 
+.. _azure_cosmos:
+
+Azure CosmosDB
+^^^^^^^^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.azure_cosmos
+
+
 .. _azure_durable_functions:
 
 Azure Durable Functions
@@ -334,6 +341,12 @@ LangGraph
 LiteLLM
 ^^^^^^^
 .. automodule:: ddtrace.contrib.internal.litellm
+
+.. _llama_index:
+
+LlamaIndex
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.llama_index
 
 .. _logbook:
 
@@ -621,7 +634,7 @@ urllib3
 
 valkey
 ^^^^^^
-.. automodule:: ddtrace.contrib.valkey
+.. automodule:: ddtrace.contrib.internal.valkey
 
 
 .. _vertexai:

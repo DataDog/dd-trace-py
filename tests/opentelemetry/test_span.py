@@ -201,9 +201,9 @@ def test_otel_span_exception_handling(oteltracer):
             raise Exception("Sorry Friend, I failed you")
 
     assert span._ddspan.error == 1
-    assert span._ddspan._meta["error.message"] == "Sorry Friend, I failed you"
-    assert span._ddspan._meta["error.type"] == "builtins.Exception"
-    assert span._ddspan._meta["error.stack"] is not None
+    assert span._ddspan._get_str_attribute("error.message") == "Sorry Friend, I failed you"
+    assert span._ddspan._get_str_attribute("error.type") == "builtins.Exception"
+    assert span._ddspan._get_str_attribute("error.stack") is not None
 
 
 def test_otel_get_span_context(oteltracer):

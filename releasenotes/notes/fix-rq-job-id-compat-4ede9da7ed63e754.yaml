@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    rq: Fixes compatibility with `RQ 2.0 <https://github.com/rq/rq/releases/tag/v2.0>`_.
+    Replaces the removed ``Job.get_id()`` with the ``job.id`` property, and handles
+    ``Job.get_status()`` now raising ``InvalidJobOperation`` for expired jobs (e.g.
+    ``result_ttl=0``) instead of returning ``None``. #16682

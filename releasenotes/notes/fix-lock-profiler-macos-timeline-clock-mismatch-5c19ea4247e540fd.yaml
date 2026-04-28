@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes lock profiling samples not appearing in the Thread Timeline
+    view for events collected on macOS.

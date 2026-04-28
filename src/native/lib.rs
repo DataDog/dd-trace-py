@@ -14,6 +14,7 @@ mod py_string;
 mod rand;
 mod span;
 mod tracer_flare;
+mod utils;
 
 use pyo3::prelude::*;
 
@@ -49,6 +50,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     data_pipeline::register_data_pipeline(m)?;
     span::register_native_span(m)?;
     rand::register_rand(m)?;
+    m.add_function(wrap_pyfunction!(utils::flatten_key_value, m)?)?;
+    m.add_function(wrap_pyfunction!(utils::is_sequence, m)?)?;
     m.add_wrapped(pyo3::wrap_pymodule!(config::config_module))?;
 
     // Add FFE submodule

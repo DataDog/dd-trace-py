@@ -43,7 +43,6 @@ from ddtrace.internal.settings._database_monitoring import dbm_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
@@ -112,7 +111,7 @@ def override_env(env, replace_os_env=False):
 
 
 @contextlib.contextmanager
-def override_global_config(values):
+def override_global_config(values: dict[str, Any]):
     """
     Temporarily override an global configuration::
 
@@ -175,6 +174,7 @@ def override_global_config(values):
         "_inferred_proxy_services_enabled",
         "_lib_was_injected",
         "_model_lab_enabled",
+        "_trace_wrap_span_name_include_class",
     ]
 
     asm_config_keys = asm_config._asm_config_keys
@@ -607,15 +607,9 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         # DEV: We don't want to do anything with the response callback
         # so we set it to a no-op lambda function
         kwargs["response_callback"] = lambda *args, **kwargs: None
-        if dd_config._trace_writer_native:
-            kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
-            kwargs["stats_opt_out"] = asm_config._apm_opt_out
-            self._inner_writer = NativeWriter(*args, **kwargs)
-        else:
-            if dd_config._trace_compute_stats or asm_config._apm_opt_out:
-                kwargs["headers"] = {"Datadog-Client-Computed-Stats": "yes"}
-            self._inner_writer = AgentWriter(*args, **kwargs)
-
+        kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
+        kwargs["stats_opt_out"] = asm_config._apm_opt_out
+        self._inner_writer = NativeWriter(*args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
 
     def write(self, spans=None):
@@ -818,7 +812,7 @@ class TestSpan(Span):
             return self.get_tags() == meta
 
         for key, value in meta.items():
-            if key not in self._meta:
+            if not self._has_attribute(key):
                 return False
             if self.get_tag(key) != value:
                 return False
@@ -868,7 +862,7 @@ class TestSpan(Span):
             assert self.get_tags() == meta
         else:
             for key, value in meta.items():
-                assert key in self._meta, "{0} meta does not have property {1!r}".format(self, key)
+                assert self._has_attribute(key), "{0} meta does not have property {1!r}".format(self, key)
                 assert self.get_tag(key) == value, "{0} meta property {1!r}: {2!r} != {3!r}".format(
                     self, key, self.get_tag(key), value
                 )
@@ -889,17 +883,17 @@ class TestSpan(Span):
         :raises: AssertionError
         """
         if exact:
-            assert self._metrics == metrics
+            assert self._get_numeric_attributes() == metrics
         else:
             for key, value in metrics.items():
-                assert key in self._metrics, "{0} metrics does not have property {1!r}".format(self, key)
-                assert self._metrics[key] == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self._metrics[key], value
+                assert self._has_attribute(key), "{0} metrics does not have property {1!r}".format(self, key)
+                assert self._get_numeric_attribute(key) == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
+                    self, key, self._get_numeric_attribute(key), value
                 )
 
     def assert_span_event_count(self, count):
         """Assert this span has the expected number of span_events"""
-        assert len(self._events) == count, "Span event count {0} != {1}".format(len(self._events), count)
+        assert len(self._get_events()) == count, "Span event count {0} != {1}".format(len(self._get_events()), count)
 
     def assert_span_event_attributes(self, event_idx, attrs):
         """
@@ -913,7 +907,7 @@ class TestSpan(Span):
         :param event_idx: id of the span event
         :type event_idx: integer
         """
-        span_event_attrs = self._events[event_idx].attributes
+        span_event_attrs = self._get_events()[event_idx].attributes
         for name, value in attrs.items():
             assert name in span_event_attrs, "{0!r} does not have property {1!r}".format(span_event_attrs, name)
             assert span_event_attrs[name] == value, "{0!r} property {1}: {2!r} != {3!r}".format(
@@ -1151,7 +1145,7 @@ class TestAgentClient:
         status, resp = self._request("GET", self._url("/test/session/requests"))
         assert status == 200, "Failed to get test session requests"
         data = json.loads(resp)
-        return cast(list[dict[str, Any]], data)
+        return cast(list[TestAgentRequest], data)
 
     def telemetry_requests(self, telemetry_type: Optional[str] = None) -> list[TestAgentRequest]:
         reqs = []
@@ -1197,9 +1191,11 @@ class SnapshotTest:
     _client: TestAgentClient
 
     def __init__(self, token: str):
-        self._client = TestAgentClient(base_url=ddtrace.tracer.agent_trace_url, token=token)
+        base_url = ddtrace.tracer.agent_trace_url
+        assert base_url is not None, "agent_trace_url must be set for SnapshotTest"
+        self._client = TestAgentClient(base_url=base_url, token=token)
 
-    def requests(self) -> list[dict[str, Any]]:
+    def requests(self) -> list[TestAgentRequest]:
         return self._client.requests()
 
     def clear(self):
@@ -1549,17 +1545,17 @@ def remote_config_build_payload(product, data, path, sha_hash=None, id_based_on_
 @contextmanager
 def override_third_party_packages(packages: list[str]):
     try:
-        original_callonce = _third_party_packages.__wrapped__.__callonce_result__
+        original_callonce = _third_party_packages.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
     except AttributeError:
         original_callonce = None
 
     try:
-        original_mapping = _package_for_root_module_mapping.__wrapped__.__callonce_result__
+        original_mapping = _package_for_root_module_mapping.__wrapped__.__callonce_result__  # type: ignore
     except AttributeError:
         original_mapping = None
 
-    _third_party_packages.__wrapped__.__callonce_result__ = (packages, None)
-    _package_for_root_module_mapping.__wrapped__.__callonce_result__ = (
+    _third_party_packages.__wrapped__.__callonce_result__ = (packages, None)  # type: ignore[attr-defined]
+    _package_for_root_module_mapping.__wrapped__.__callonce_result__ = (  # type: ignore[attr-defined]
         {p: Distribution(p, "0.0.0") for p in packages},
         None,
     )
@@ -1570,14 +1566,14 @@ def override_third_party_packages(packages: list[str]):
         yield
     finally:
         if original_callonce is not None:
-            _third_party_packages.__wrapped__.__callonce_result__ = original_callonce
+            _third_party_packages.__wrapped__.__callonce_result__ = original_callonce  # type: ignore[attr-defined]
         else:
-            del _third_party_packages.__wrapped__.__callonce_result__
+            del _third_party_packages.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
 
         if original_mapping is not None:
-            _package_for_root_module_mapping.__wrapped__.__callonce_result__ = original_mapping
+            _package_for_root_module_mapping.__wrapped__.__callonce_result__ = original_mapping  # type: ignore
         else:
-            del _package_for_root_module_mapping.__wrapped__.__callonce_result__
+            del _package_for_root_module_mapping.__wrapped__.__callonce_result__  # type: ignore[attr-defined]
 
         filename_to_package.cache_clear()
         is_third_party.cache_clear()

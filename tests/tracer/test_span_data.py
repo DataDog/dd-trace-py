@@ -1043,3 +1043,94 @@ def test_span_api_invalid_utf8_falls_back_to_empty_string(invalid_bytes):
     span = SpanData(name="test")
     span._span_api = invalid_bytes
     assert span._span_api == ""
+
+
+# =============================================================================
+# meta_struct API tests
+# =============================================================================
+
+
+def test_meta_struct_initially_empty():
+    """A new SpanData has no meta_struct entries."""
+    span = SpanData(name="test")
+    assert not span._has_meta_structs()
+    assert span._get_meta_structs() == {}
+
+
+def test_set_and_get_struct_tag():
+    """_set_struct_tag stores a value retrievable by _get_struct_tag."""
+    span = SpanData(name="test")
+    value = {"a": 1, "b": "hello"}
+    span._set_struct_tag("mykey", value)
+    assert span._get_struct_tag("mykey") == value
+
+
+def test_get_struct_tag_missing_key_returns_none():
+    """_get_struct_tag returns None for a key that was never set."""
+    span = SpanData(name="test")
+    assert span._get_struct_tag("nosuchkey") is None
+
+
+def test_has_meta_structs_true_after_set():
+    """_has_meta_structs returns True once a value is set."""
+    span = SpanData(name="test")
+    assert not span._has_meta_structs()
+    span._set_struct_tag("k", {"x": 1})
+    assert span._has_meta_structs()
+
+
+def test_get_meta_structs_returns_all_entries():
+    """_get_meta_structs returns a dict of all set entries."""
+    span = SpanData(name="test")
+    span._set_struct_tag("k1", {"a": 1})
+    span._set_struct_tag("k2", {"b": 2})
+    result = span._get_meta_structs()
+    assert result == {"k1": {"a": 1}, "k2": {"b": 2}}
+
+
+def test_set_struct_tag_overwrites_existing_key():
+    """Setting a key twice keeps the latest value."""
+    span = SpanData(name="test")
+    span._set_struct_tag("k", {"v": 1})
+    span._set_struct_tag("k", {"v": 2})
+    assert span._get_struct_tag("k") == {"v": 2}
+    assert len(span._get_meta_structs()) == 1
+
+
+def test_remove_struct_tag_returns_value_and_deletes():
+    """_remove_struct_tag returns the stored value and removes the key."""
+    span = SpanData(name="test")
+    span._set_struct_tag("k", {"data": 42})
+    removed = span._remove_struct_tag("k")
+    assert removed == {"data": 42}
+    assert span._get_struct_tag("k") is None
+    assert not span._has_meta_structs()
+
+
+def test_remove_struct_tag_missing_key_returns_none():
+    """_remove_struct_tag returns None when the key does not exist."""
+    span = SpanData(name="test")
+    assert span._remove_struct_tag("nosuchkey") is None
+
+
+def test_meta_struct_lazy_init():
+    """meta_struct storage is not allocated until first write."""
+    span = SpanData(name="test")
+    # Reads on an uninitialised meta_struct should not raise
+    assert span._get_struct_tag("k") is None
+    assert not span._has_meta_structs()
+    assert span._get_meta_structs() == {}
+    assert span._remove_struct_tag("k") is None
+    # First write triggers allocation
+    span._set_struct_tag("k", {"v": 1})
+    assert span._get_struct_tag("k") == {"v": 1}
+
+
+def test_span_repr_metastruct():
+    """Span __repr__ includes meta_struct key names."""
+    from ddtrace._trace.span import Span
+
+    span = Span("span_test")
+    assert "metastruct={}" in repr(span)
+    span._set_struct_tag("key1", {"a": 1, "b": 2})
+    assert "metastruct={'key1': dict_keys(['a', 'b'])}" in repr(span)

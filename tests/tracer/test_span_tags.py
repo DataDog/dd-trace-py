@@ -19,6 +19,7 @@ from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
+from ddtrace.ext import http
 from ddtrace.trace import Span
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
@@ -287,14 +288,6 @@ def test_span_bytes_string_set_tag(span_log):
     assert span.get_tag("key") == "b'\\xf0\\x9f\\xa4\\x94'"
     assert span.get_tag("key_str") == "🤔"
     span_log.warning.assert_not_called()
-
-
-def test_span_repr_metastruct():
-    span = Span("span_test")
-    assert "metastruct={}" in repr(span)
-    span._set_struct_tag("key1", {"a": 1, "b": 2})
-    span._set_struct_tag("key2", ["bad item"])  # type: ignore
-    assert "metastruct={'key1': dict_keys(['a', 'b']), 'key2': 'wrong type [list]'}" in repr(span)
 
 
 # ---------------------------------------------------------------------------
@@ -583,3 +576,29 @@ def test_set_metric_visible_via_get_attribute():
     s = Span(name="test.span")
     s._set_attribute("key", 3.14)
     assert s._get_attribute("key") == 3.14
+
+
+# ---------------------------------------------------------------------------
+# http.STATUS_CODE coercion tests
+# ---------------------------------------------------------------------------
+
+
+def test_set_attribute_http_status_code_int():
+    # int values must be coerced to str and stored in _meta, not _metrics
+    s = Span(name="test.span")
+    s._set_attribute(http.STATUS_CODE, 200)
+    assert s._get_attribute(http.STATUS_CODE) == "200"
+
+
+def test_set_attribute_http_status_code_str():
+    # str values must stay as str and be stored in _meta
+    s = Span(name="test.span")
+    s._set_attribute(http.STATUS_CODE, "404")
+    assert s._get_attribute(http.STATUS_CODE) == "404"
+
+
+def test_set_attribute_http_status_code_readable_via_get_tag():
+    # must remain accessible through the public get_tag API
+    s = Span(name="test.span")
+    s._set_attribute(http.STATUS_CODE, 500)
+    assert s.get_tag(http.STATUS_CODE) == "500"

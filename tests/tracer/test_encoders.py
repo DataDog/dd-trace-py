@@ -600,7 +600,6 @@ def test_span_link_v04_encoding():
                     "someval": 1,
                     "key_other": [True, 2, ["hello", 4, {"5"}]],
                 },
-                _dropped_attributes=1,
             ),
         ],
     )
@@ -610,7 +609,7 @@ def test_span_link_v04_encoding():
         pointer_hash="some-hash",
         extra_attributes={"some": "extra"},
     )
-    assert span._links
+    assert span._get_links()
     # Finish the span to ensure a duration exists.
     span.finish()
 
@@ -649,7 +648,6 @@ def test_span_link_v04_encoding():
                 b"key_other.2.1": b"4",
                 b"key_other.2.2.0": b"5",
             },
-            b"dropped_attributes_count": 1,
             b"tracestate": b"congo=t61rcWkgMzE",
             b"flags": 1 | (1 << 31),
             b"trace_id_high": 123,
@@ -672,6 +670,7 @@ def test_span_link_v04_encoding():
     parametrize={"DD_TRACE_API_VERSION": ["v0.4", "v0.5"], "DD_TRACE_NATIVE_SPAN_EVENTS": ["True", "False"]}, err=None
 )
 def test_span_event_encoding_msgpack():
+    import json
     import os
 
     from ddtrace.internal.encoding import MSGPACK_ENCODERS
@@ -712,7 +711,7 @@ def test_span_event_encoding_msgpack():
         {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
         17353464354546,
     )
-    span._add_event("We are going to the moon", timestamp=2234567890123456)
+    span._add_event("We are going to the moon", time_unix_nano=2234567890123456)
 
     # Get test parameters from environment variables
     version = os.getenv("DD_TRACE_API_VERSION")
@@ -729,16 +728,21 @@ def test_span_event_encoding_msgpack():
     # ensure trace has one span
     assert len(decoded_trace[0]) == 1
 
+    expected_events_json = [
+        {"name": "Something went so wrong", "time_unix_nano": 1, "attributes": {"type": "error"}},
+        {
+            "name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx",
+            "time_unix_nano": 17353464354546,
+            "attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
+        },
+        {"name": "We are going to the moon", "time_unix_nano": 2234567890123456},
+    ]
+
     if version == "v0.5":
         encoded_span_meta = decoded_trace[0][0][9]
         assert b"events" in encoded_span_meta
-        assert (
-            encoded_span_meta[b"events"]
-            == b'[{"name": "Something went so wrong", "time_unix_nano": 1, "attributes": {"type": "error"}}, '
-            b'{"name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx", "time_unix_nano": 17353464354546, '
-            b'"attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": false}}, '
-            b'{"name": "We are going to the moon", "time_unix_nano": 2234567890123456}]'
-        )
+        decoded_events = json.loads(encoded_span_meta[b"events"])
+        assert decoded_events == expected_events_json
     elif trace_native_span_events:
         encoded_span_meta = decoded_trace[0][0]
         assert b"span_events" in encoded_span_meta
@@ -746,13 +750,8 @@ def test_span_event_encoding_msgpack():
     else:
         encoded_span_meta = decoded_trace[0][0][b"meta"]
         assert b"events" in encoded_span_meta
-        assert (
-            encoded_span_meta[b"events"]
-            == b'[{"name": "Something went so wrong", "time_unix_nano": 1, "attributes": {"type": "error"}}, '
-            b'{"name": "I can sing!!! acbdefggnmdfsdv k 2e2ev;!|=xxx", "time_unix_nano": 17353464354546, '
-            b'"attributes": {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": false}}, '
-            b'{"name": "We are going to the moon", "time_unix_nano": 2234567890123456}]'
-        )
+        decoded_events = json.loads(encoded_span_meta[b"events"])
+        assert decoded_events == expected_events_json
 
 
 def test_span_link_v05_encoding():
@@ -774,7 +773,6 @@ def test_span_link_v05_encoding():
                     "link.kind": "link_kind",
                     "key2": ["false", 2, ["hello", 4, {"5"}]],
                 },
-                _dropped_attributes=1,
             ),
         ],
     )
@@ -784,7 +782,7 @@ def test_span_link_v05_encoding():
         pointer_hash="some-hash",
     )
 
-    assert len(span._links) == 3
+    assert len(span._get_links()) == 3
 
     # Finish the span to ensure a duration exists.
     span.finish()
@@ -798,18 +796,38 @@ def test_span_link_v05_encoding():
 
     encoded_span_meta = decoded_trace[0][0][9]
     assert b"_dd.span_links" in encoded_span_meta
-    assert (
-        encoded_span_meta[b"_dd.span_links"] == b"["
-        b'{"trace_id": "00000000000000000000000000000010", "span_id": "0000000000000011"}, '
-        b'{"trace_id": "7fffffffffffffffffffffffffffffff", "span_id": "ffffffffffffffff", '
-        b'"attributes": {"moon": "ears", "link.name": "link_name", "link.kind": "link_kind", '
-        b'"key2.0": "false", "key2.1": "2", "key2.2.0": "hello", "key2.2.1": "4", "key2.2.2.0": "5"}, '
-        b'"dropped_attributes_count": 1, "tracestate": "congo=t61rcWkgMzE", "flags": 0}, '
-        b'{"trace_id": "00000000000000000000000000000000", "span_id": "0000000000000000", '
-        b'"attributes": {"ptr.kind": "some-kind", "ptr.dir": "u", "ptr.hash": "some-hash", '
-        b'"link.kind": "span-pointer"}}'
-        b"]"
-    )
+    # Parse the JSON so the comparison is order-independent for attribute keys
+    # (HashMap iteration order in Rust is non-deterministic).
+    decoded_links = json.loads(encoded_span_meta[b"_dd.span_links"])
+    assert decoded_links == [
+        {"trace_id": "00000000000000000000000000000010", "span_id": "0000000000000011"},
+        {
+            "trace_id": "7fffffffffffffffffffffffffffffff",
+            "span_id": "ffffffffffffffff",
+            "attributes": {
+                "key2.0": "false",
+                "key2.1": "2",
+                "key2.2.0": "hello",
+                "key2.2.1": "4",
+                "key2.2.2.0": "5",
+                "link.kind": "link_kind",
+                "link.name": "link_name",
+                "moon": "ears",
+            },
+            "tracestate": "congo=t61rcWkgMzE",
+            "flags": 0,
+        },
+        {
+            "trace_id": "00000000000000000000000000000000",
+            "span_id": "0000000000000000",
+            "attributes": {
+                "link.kind": "span-pointer",
+                "ptr.dir": "u",
+                "ptr.hash": "some-hash",
+                "ptr.kind": "some-kind",
+            },
+        },
+    ]
 
 
 @pytest.mark.parametrize(
@@ -1046,8 +1064,8 @@ def test_encoding_invalid_data_ok(meta: dict[str, Any], metrics: dict[str, Any])
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
     span = Span(name="test")
-    span._meta = meta  # type: ignore
-    span._metrics = metrics  # type: ignore
+    span._meta = meta  # type: ignore  # ast-grep-ignore: span-meta-access
+    span._metrics = metrics  # type: ignore  # ast-grep-ignore: span-metrics-access
 
     trace = [span]
     encoder.put(trace)

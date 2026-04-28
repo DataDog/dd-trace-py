@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    apm: Fixed an issue where ``network.client.ip`` and ``http.client_ip`` span tags were missing when client IP collection was enabled and request had no headers.

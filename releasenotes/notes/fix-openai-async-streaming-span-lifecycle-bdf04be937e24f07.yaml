@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    openai: Fixes async streaming spans never being finished when using ``AsyncAPIResponse``
+    (e.g. ``responses.create(stream=True)``). The sync ``handle_request`` hook called
+    ``resp.parse()`` without awaiting the coroutine, preventing the stream from being
+    wrapped in ``TracedAsyncStream``. This caused disconnected LLM Observability traces
+    for streamed sub-agent calls via the OpenAI Agents SDK.

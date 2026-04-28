@@ -1,0 +1,42 @@
+[[
+  {
+    "name": "parent",
+    "service": "foobar",
+    "resource": "parent",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69e27b5d00000000",
+      "_dd.svc_src": "foobar",
+      "_dd.tags.process": "entrypoint.basedir:to,entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir,svc.user:true",
+      "language": "python",
+      "runtime-id": "d94f2167c02940579ea2b541901f8fee"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 42058.0
+    },
+    "duration": 96875,
+    "start": 1776450397969580301
+  },
+     {
+       "name": "child",
+       "service": "foobar",
+       "resource": "child",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.svc_src": "foobar"
+       },
+       "duration": 18167,
+       "start": 1776450397969645759
+     }]]
