@@ -196,6 +196,15 @@ apm-sdk-benchmarks:
   variables:
     TARGET_REF: $CI_PIPELINE_ID
     BENCHMARK_LANGUAGES: python
+    # Forward upstream identity so apm-sdks-benchmarks attributes results,
+    # SLO state, Datadog tags and Slack messages to the dd-trace-py PR rather
+    # than to the apm-sdks-benchmarks child pipeline that runs the benchmarks.
+    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
+    UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
+    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
+    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
+    UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA
   rules:
     # Always run on nightly schedule or API triggered pipelines
     - if: $NIGHTLY_BUILD == "true"
