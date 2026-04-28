@@ -1566,8 +1566,9 @@ class LLMObs(Service):
 
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
-        :param cost_tags: List of tag keys to propagate to LLMObs cost and token metrics (LLM/embedding spans only).
-                          Keys must already exist on the span (from `tags`, a prior annotation, or by an integration).
+        :param cost_tags: List of tag keys to propagate to LLMObs cost and token metrics (LLM/embedding spans only),
+                          emitted based on this span. Each key must already exist on the span—via the `tags` argument
+                          in this call, a prior annotation on the same span, or an integration.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
                         `{
                             "id": "...",
@@ -2270,8 +2271,9 @@ class LLMObs(Service):
                          described by the LLMObs span.
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
-        :param cost_tags: List of tag keys to propagate to LLMObs cost and token metrics (LLM/embedding spans only).
-                          Keys must already exist on the span (from `tags`, a prior annotation, or by an integration).
+        :param cost_tags: List of tag keys to propagate to LLMObs cost and token metrics (LLM/embedding spans only),
+                          emitted based on this span. Each key must already exist on the span—via the `tags` argument
+                          in this call, a prior annotation on the same span, or an integration.
         :param tool_definitions: list of tool definition dictionaries for tool calling scenarios.
                             - This argument is only applicable to LLM spans.
                             - Each tool definition is a dictionary containing a required "name" (string),
