@@ -1023,7 +1023,24 @@ venv = Venv(
                     # regression reported in #17728. Uses django-q2 (a community
                     # fork of django-q) because upstream django-q still imports
                     # django.utils.baseconv which Django 5.0 removed.
+                    #
+                    # Django 5.0 dropped Postgres 12 support; the suite's
+                    # docker-compose.yml runs `postgres:12-alpine`, so the
+                    # Postgres-touching tests fail with NotSupportedError.
+                    # Bumping the Postgres image is cross-cutting and belongs
+                    # in its own PR — for now we run everything except the
+                    # Postgres-using files and tests. test_cached_view also
+                    # hard-codes a request fingerprint specific to Django
+                    # 4.2's cache-key algorithm.
                     pys=select_pys(min_version="3.10", max_version="3.13"),
+                    command=(
+                        "pytest {cmdargs} "
+                        "--ignore=tests/contrib/django/test_django_dbm.py "
+                        "--ignore=tests/contrib/django/test_django_snapshots.py "
+                        "-k 'not test_user_name_included and not test_user_name_excluded "
+                        "and not test_cached_view' "
+                        "tests/contrib/django"
+                    ),
                     pkgs={
                         "django": ["~=5.1"],
                         "psycopg": latest,
