@@ -191,7 +191,8 @@ apm-sdk-benchmarks:
     - job: "upload all"
   trigger:
     project: DataDog/apm-reliability/apm-sdks-benchmarks
-    branch: main
+    # TODO: revert to `main` before merging — pinned to test branch end-to-end.
+    branch: fayssal/adapt-py-scenarios
   variables:
     TARGET_REF: $CI_PIPELINE_ID
     BENCHMARK_LANGUAGES: python
