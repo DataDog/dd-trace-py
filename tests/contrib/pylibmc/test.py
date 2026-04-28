@@ -4,11 +4,14 @@ from unittest.case import SkipTest
 
 # 3p
 import pylibmc
+import pytest
 
-# project
 from ddtrace.contrib.internal.pylibmc.client import TracedClient
 from ddtrace.contrib.internal.pylibmc.patch import patch
 from ddtrace.contrib.internal.pylibmc.patch import unpatch
+
+# project
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from tests.contrib.config import MEMCACHED_CONFIG as cfg
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -252,18 +255,6 @@ class PylibmcCore(object):
             self.tracer.enabled = True
 
 
-class TestPylibmcLegacy(TracerTestCase, PylibmcCore):
-    """Test suite for the tracing of pylibmc with the legacy TracedClient interface"""
-
-    def get_client(self):
-        url = "%s:%s" % (cfg["host"], cfg["port"])
-        raw_client = pylibmc.Client([url])
-        raw_client.flush_all()
-
-        client = TracedClient(raw_client, tracer=self.tracer)
-        return client
-
-
 class TestPylibmcPatchDefault(TracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the default lib patching"""
 
@@ -346,6 +337,28 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         patch()
         client = pylibmc.Client([url])
         assert client.addresses[0] is url
+        client.set("a", 1)
+        spans = self.pop_spans()
+        assert spans, spans
+        assert len(spans) == 1
+
+    def test_traced_client_instantiation_with_client_deprecation(self):
+        """
+        Ensure the legacy interface still works while emitting a deprecation warning.
+        """
+        url = "%s:%s" % (cfg["host"], cfg["port"])
+        unpatch()
+
+        raw_client = pylibmc.Client([url])
+        with pytest.warns(
+            DDTraceDeprecationWarning,
+            match=(
+                "TracedClient instantiation is deprecated and will be removed in version '5.0.0': "
+                "Use ddtrace.patch\\(pylibmc=True\\) or ddtrace.patch_all\\(\\) instead."
+            ),
+        ):
+            client = TracedClient(raw_client)
+
         client.set("a", 1)
         spans = self.pop_spans()
         assert spans, spans
