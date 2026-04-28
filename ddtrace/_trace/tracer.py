@@ -506,7 +506,7 @@ class Tracer(object):
                 service = parent.service
                 service_source = parent.get_tag(_SERVICE_SOURCE) or ""
             else:
-                service = service_source = config.service
+                service = config.service
         else:
             if service in [
                 getattr(conf, "_default_service", None) for conf in config._integration_configs.values() if conf
