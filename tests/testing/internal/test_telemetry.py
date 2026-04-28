@@ -594,3 +594,37 @@ class TestTelemetry:
             call(CIVISIBILITY, "git_requests.objects_pack_files", 5, ()),
             call(CIVISIBILITY, "git_requests.objects_pack_bytes", 200, ()),
         ]
+
+    def test_record_commit_sha_match_true(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_commit_sha_match(matched=True)
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "git.commit_sha_match", 1, (("matched", "true"),))
+        ]
+
+    def test_record_commit_sha_match_false(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_commit_sha_match(matched=False)
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "git.commit_sha_match", 1, (("matched", "false"),))
+        ]
+
+    def test_record_commit_sha_discrepancy(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_commit_sha_discrepancy(
+            expected_provider="ci_provider",
+            discrepant_provider="local_git",
+            discrepancy_type="commit_discrepancy",
+        )
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(
+                CIVISIBILITY,
+                "git.commit_sha_discrepancy",
+                1,
+                (
+                    ("expected_provider", "ci_provider"),
+                    ("discrepant_provider", "local_git"),
+                    ("type", "commit_discrepancy"),
+                ),
+            )
+        ]

@@ -9,7 +9,9 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67ec4e5e00000000",
+      "_dd.p.tid": "69e7b36600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "http_get_trigger_arg",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -19,15 +21,15 @@
       "http.url": "http://0.0.0.0:7071/api/httpgettriggerarg",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "8d8fe775192b47b6b8cc67c801687aef",
+      "runtime-id": "01ff9928a0a94a5db54feed3d4c1cb62",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 66098
+      "_sampling_priority_v1": 1.0,
+      "process_id": 74356.0
     },
-    "duration": 282750,
-    "start": 1743539806219103595
+    "duration": 176000,
+    "start": 1776792422762918000
   }]]

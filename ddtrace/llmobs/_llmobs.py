@@ -75,6 +75,8 @@ from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
@@ -123,6 +125,8 @@ from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
+from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
@@ -368,8 +372,10 @@ def _build_span_meta(
         metadata=llmobs_meta.get(LLMOBS_STRUCT.METADATA) or {},
     )
     if span_kind in ("llm", "embedding"):
-        meta[LLMOBS_STRUCT.MODEL_NAME] = llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME) or ""
-        meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER) or "custom").lower()
+        meta[LLMOBS_STRUCT.MODEL_NAME] = llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME) or UNKNOWN_MODEL_NAME
+        meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (
+            llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER) or UNKNOWN_MODEL_PROVIDER
+        ).lower()
     tool_definitions = llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS)
     if tool_definitions:
         meta[LLMOBS_STRUCT.TOOL_DEFINITIONS] = tool_definitions
@@ -542,8 +548,8 @@ class LLMObs(Service):
         if not span_kind:
             raise KeyError("Span kind not found in span context")
 
-        raw_parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
-        parent_id = str(raw_parent_id) if raw_parent_id is not None else ROOT_PARENT_ID
+        parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID) or ROOT_PARENT_ID
+
         llmobs_trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
         if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
@@ -572,7 +578,7 @@ class LLMObs(Service):
             _dd_attrs["scope"] = "experiments"
 
         llmobs_span_event: LLMObsSpanEvent = {
-            "trace_id": format_trace_id(llmobs_trace_id),
+            "trace_id": llmobs_trace_id,
             "span_id": str(span.span_id),
             "parent_id": parent_id,
             "name": _get_span_name(span),
@@ -825,6 +831,11 @@ class LLMObs(Service):
             cls._instance.tracer._span_aggregator.dd_processors.append(apm_filter)
 
             cls.enabled = True
+            # Align config._llmobs_enabled with effective state for user-initiated calls.
+            # When _auto=True, the caller (RC handler, env-var auto-start) has already
+            # written the appropriate source; stamping "code" would mask it on precedence.
+            if not _auto:
+                config._llmobs_enabled = True
             cls._instance.start()
 
             # Register hooks for span events
@@ -1537,7 +1548,7 @@ class LLMObs(Service):
         return module_name in ddtrace._monkey._get_patched_modules()
 
     @classmethod
-    def disable(cls) -> None:
+    def disable(cls, _auto: bool = False) -> None:
         if not cls.enabled:
             log.debug("%s not enabled", cls.__name__)
             return
@@ -1546,6 +1557,11 @@ class LLMObs(Service):
 
         cls._instance.stop()
         cls.enabled = False
+        # Align config._llmobs_enabled with effective state for user-initiated calls.
+        # When _auto=True, the caller (RC handler) has already written _rc_value;
+        # stamping "code" here would mask env/code state when _rc_value later clears.
+        if not _auto:
+            config._llmobs_enabled = False
         cls._prompt_manager = None
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
@@ -1834,7 +1850,7 @@ class LLMObs(Service):
                 raise LLMObsExportSpanError("Span must be an LLMObs-generated span.")
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
-                trace_id=format_trace_id(get_llmobs_trace_id(span) or span.trace_id),
+                trace_id=get_llmobs_trace_id(span) or format_trace_id(span.trace_id),
             )
         except (TypeError, AttributeError):
             error = "invalid_span"
@@ -1856,8 +1872,10 @@ class LLMObs(Service):
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
+            # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
             context = active.context
-            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(get_llmobs_trace_id(active) or active.trace_id)
+            wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
+            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
             return context
         return None
 
@@ -1868,25 +1886,21 @@ class LLMObs(Service):
         """
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
-            parent_id = llmobs_parent.span_id
-            parent_llmobs_trace_id = (
-                get_llmobs_trace_id(llmobs_parent)
-                if isinstance(llmobs_parent, Span)
-                # ast-grep-ignore: span-meta-access
-                else llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
-            )
-            llmobs_trace_id = (
-                int(parent_llmobs_trace_id) if parent_llmobs_trace_id is not None else llmobs_parent.trace_id
-            )
+            parent_id = str(llmobs_parent.span_id)
             if isinstance(llmobs_parent, Span):
+                llmobs_trace_id = get_llmobs_trace_id(llmobs_parent)
                 ml_app = llmobs_parent._get_ctx_item(ML_APP)
                 session_id = llmobs_parent._get_ctx_item(SESSION_ID)
             else:
-                ml_app = llmobs_parent._meta.get(PROPAGATED_ML_APP_KEY)  # ast-grep-ignore: span-meta-access
+                parent_ctx = llmobs_parent
+                # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
+                llmobs_trace_id = _normalize_wire_trace_id_to_hex(parent_ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY))
+                ml_app = parent_ctx._meta.get(PROPAGATED_ML_APP_KEY)
                 session_id = None
         else:
-            llmobs_trace_id = generate_128bit_trace_id()
-            parent_id, ml_app, session_id = None, None, None
+            parent_id = ROOT_PARENT_ID
+            llmobs_trace_id, ml_app, session_id = None, None, None
+        llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
         _annotate_llmobs_span_data(
             span, parent_id=parent_id, trace_id=llmobs_trace_id, ml_app=ml_app, session_id=session_id
@@ -1894,7 +1908,7 @@ class LLMObs(Service):
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
         # to this LLMObs trace
         if span._local_root.get_tag("llmobs_trace_id") is None:
-            span._local_root.set_tag("llmobs_trace_id", format_trace_id(llmobs_trace_id))  # type: ignore[arg-type]
+            span._local_root.set_tag("llmobs_trace_id", llmobs_trace_id)
             span._local_root.set_tag("llmobs_parent_id", str(span.span_id))
         self._llmobs_context_provider.activate(span)
 
@@ -1946,10 +1960,10 @@ class LLMObs(Service):
         """
         Trace an invocation call to an LLM where inputs and outputs are represented as text.
 
-        :param str model_name: The name of the invoked LLM. If not provided, a default value of "custom" will be set.
+        :param str model_name: The name of the invoked LLM. If not provided, a default value of "unknown" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "llm" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
-                                   If not provided, a default value of "custom" will be set.
+                                   If not provided, a default value of "unknown" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
                            value will be set to the value of `DD_LLMOBS_ML_APP`.
@@ -1959,9 +1973,9 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         if model_name is None:
-            model_name = "custom"
+            model_name = UNKNOWN_MODEL_NAME
         if model_provider is None:
-            model_provider = "custom"
+            model_provider = UNKNOWN_MODEL_PROVIDER
         return cls._instance._start_span(
             "llm",
             name,
@@ -2098,10 +2112,10 @@ class LLMObs(Service):
         Trace a call to an embedding model or function to create an embedding.
 
         :param str model_name: The name of the invoked embedding model.
-                               If not provided, a default value of "custom" will be set.
+                               If not provided, a default value of "unknown" will be set.
         :param str name: The name of the traced operation. If not provided, a default value of "embedding" will be set.
         :param str model_provider: The name of the invoked LLM provider (ex: openai, bedrock).
-                                   If not provided, a default value of "custom" will be set.
+                                   If not provided, a default value of "unknown" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
                            value will be set to the value of `DD_LLMOBS_ML_APP`.
@@ -2111,9 +2125,9 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         if model_name is None:
-            model_name = "custom"
+            model_name = UNKNOWN_MODEL_NAME
         if model_provider is None:
-            model_provider = "custom"
+            model_provider = UNKNOWN_MODEL_PROVIDER
         return cls._instance._start_span(
             "embedding",
             name,
@@ -2719,20 +2733,20 @@ class LLMObs(Service):
 
         ml_app = None
         if isinstance(active_span, Span):
+            # meta_struct holds canonical hex so have to convert to decimal wire format
             ml_app = get_llmobs_ml_app(active_span)
-            llmobs_trace_id = get_llmobs_trace_id(active_span)
+            wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active_span))
         elif active_context is not None:
+            # Context._meta always holds decimal wire format so we can read directly
             ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))
-            _propagated_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or None
-            llmobs_trace_id = (
-                int(_propagated_trace_id) if _propagated_trace_id is not None else generate_128bit_trace_id()
-            )
+            wire_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or str(generate_128bit_trace_id())
         else:
             ml_app = resolve_ml_app()
-            llmobs_trace_id = generate_128bit_trace_id()
+            wire_trace_id = str(generate_128bit_trace_id())
 
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
-        span_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(llmobs_trace_id)
+        if wire_trace_id:
+            span_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
 
         if ml_app is not None:
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
@@ -2797,6 +2811,10 @@ class LLMObs(Service):
                 log.warning("Failed to parse LLMObs parent ID from request headers.")
                 return
             parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+            # `PROPAGATED_LLMOBS_TRACE_ID_KEY` on `Context._meta` is wire-format (decimal).
+            # Store the inbound value as-is and defer normalization to the reader
+            # (`_activate_llmobs_span`, Context-parent branch) so we never apply
+            # `_normalize_wire_trace_id_to_hex` more than once on the same value.
             if parent_llmobs_trace_id is None:
                 log.debug(
                     "Failed to extract LLMObs trace ID from request headers. Expected string, got None. "

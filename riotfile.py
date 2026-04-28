@@ -533,7 +533,7 @@ venv = Venv(
         Venv(
             name="dd_coverage",
             command="pytest --no-cov {cmdargs} tests/coverage -s",
-            pys=select_pys(max_version="3.12"),
+            pys=select_pys(),
         ),
         Venv(
             name="detect_global_locks",
@@ -1855,7 +1855,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.12"),
                     pkgs={
                         "pytest-randomly": latest,
-                        "pytest-asyncio": "==0.21.1",
+                        "pytest-asyncio": "==0.23.7",
                         "aiomysql": ["~=0.1.0", latest],
                     },
                 ),
@@ -3959,6 +3959,12 @@ venv = Venv(
                         "django": "~=5.1",
                     },
                 ),
+                Venv(
+                    pys=["3.12", "3.14"],
+                    pkgs={
+                        "django": "~=6.0",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -4004,6 +4010,12 @@ venv = Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "django": "~=5.1",
+                    },
+                ),
+                Venv(
+                    pys=["3.12", "3.14"],
+                    pkgs={
+                        "django": "~=6.0",
                     },
                 ),
             ],

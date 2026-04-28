@@ -38,7 +38,7 @@
         "dependency": "aiomysql",
         "integration": "aiomysql",
         "minimum_tracer_supported": "0.1.1",
-        "max_tracer_supported": "0.2.0",
+        "max_tracer_supported": "0.3.2",
         "auto-instrumented": true
     },
     {
@@ -468,7 +468,7 @@
         "dependency": "logbook",
         "integration": "logbook",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.8.2",
+        "max_tracer_supported": "1.9.2",
         "auto-instrumented": true
     },
     {
@@ -496,7 +496,7 @@
         "dependency": "mcp",
         "integration": "mcp",
         "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "1.16.0",
+        "max_tracer_supported": "1.27.0",
         "auto-instrumented": true
     },
     {
@@ -602,7 +602,7 @@
         "dependency": "pymongo",
         "integration": "pymongo",
         "minimum_tracer_supported": "3.8.0",
-        "max_tracer_supported": "4.16.0",
+        "max_tracer_supported": "4.17.0",
         "auto-instrumented": true
     },
     {
@@ -682,7 +682,7 @@
         "dependency": "rq",
         "integration": "rq",
         "minimum_tracer_supported": "1.8.1",
-        "max_tracer_supported": "1.16.2",
+        "max_tracer_supported": "2.0.0",
         "auto-instrumented": true
     },
     {
