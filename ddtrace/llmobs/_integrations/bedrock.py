@@ -169,7 +169,10 @@ class BedrockIntegration(BaseLLMIntegration):
                 trace, trace_step_id, translated_span_event, root_span, self._spans
             )
         for _, span_event in self._spans.items():
-            LLMObs._instance._llmobs_span_writer.enqueue(span_event)
+            # TODO(agentless-via-apm): non-root bedrock agent spans are synthesized from agent traces
+            # and have no backing APM span, so they get dropped when the LLMObs writer is disabled.
+            if LLMObs._instance._llmobs_span_writer is not None:
+                LLMObs._instance._llmobs_span_writer.enqueue(span_event)
             record_bedrock_agent_span_event_created(span_event)
         self._spans.clear()
         self._active_span_by_step_id.clear()
