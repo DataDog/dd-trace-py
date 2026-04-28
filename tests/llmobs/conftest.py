@@ -222,12 +222,19 @@ def llmobs_backend(_llmobs_backend):
 
         def wait_for_num_events(self, num, attempts=1000):
             for _ in range(attempts):
-                if len(reqs) == num:
-                    return [json.loads(r["body"]) for r in reqs]
+                # Filter to only LLMObs events to ignore other requests
+                # (e.g. telemetry heartbeats from the native TraceExporter).
+                llmobs_reqs = [r for r in reqs if "/evp_proxy/" in r["path"] or "/api/v2/llmobs" in r["path"]]
+                if len(llmobs_reqs) == num:
+                    return [json.loads(r["body"]) for r in llmobs_reqs]
                 # time.sleep will yield the GIL so the server can process the request
                 time.sleep(0.001)
             else:
-                raise TimeoutError(f"Expected {num} events, got {len(reqs)}: {pprint.pprint(reqs)}")
+                llmobs_reqs = [r for r in reqs if "/evp_proxy/" in r["path"] or "/api/v2/llmobs" in r["path"]]
+                raise TimeoutError(
+                    f"Expected {num} LLMObs events, got {len(llmobs_reqs)} "
+                    f"({len(reqs)} total requests): {pprint.pformat(reqs)}"
+                )
 
     return _LLMObsBackend()
 
