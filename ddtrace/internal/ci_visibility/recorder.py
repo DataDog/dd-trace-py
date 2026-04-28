@@ -695,15 +695,9 @@ class CIVisibility(Service):
     @classmethod
     def disable(cls) -> None:
         if cls._instance is None:
-            try:
-                log.debug("%s not enabled", cls.__name__)
-            except Exception:  # nosec: B110
-                pass
+            log.debug("%s not enabled", cls.__name__)
             return
-        try:
-            log.debug("Disabling %s", cls.__name__)
-        except Exception:  # nosec: B110
-            pass
+        log.debug("Disabling %s", cls.__name__)
         atexit.unregister(cls.disable)
 
         # Unregister from service registry first
@@ -715,10 +709,7 @@ class CIVisibility(Service):
 
         telemetry.telemetry_writer.periodic(force_flush=True)
 
-        try:
-            log.debug("%s disabled", cls.__name__)
-        except Exception:  # nosec: B110
-            pass
+        log.debug("%s disabled", cls.__name__)
 
     def _start_service(self) -> None:
         tracer_filters = self.tracer._span_aggregator.user_processors

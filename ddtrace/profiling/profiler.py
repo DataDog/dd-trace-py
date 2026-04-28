@@ -339,10 +339,7 @@ class _ProfilerInstance(service.Service):
 
         :param flush: Flush a last profile.
         """
-        try:
-            LOG.debug("Stopping profiler")
-        except Exception:  # nosec: B110
-            pass
+        LOG.debug("Stopping profiler")
 
         # Prevent doing more initialisation now that we are shutting down.
         if self._collectors_on_import:
