@@ -15,6 +15,7 @@ def _wrap_lock_ctor(func, instance, args, kwargs):
     ori_backend_fetcher = instance.value_and_created_fn
 
     def wrapped_backend_fetcher():
+        # TODO: remove when switching to core API
         if not is_tracing_enabled():
             return ori_backend_fetcher()
         hit = False
