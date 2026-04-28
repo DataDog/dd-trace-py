@@ -11,23 +11,25 @@
     "meta": {
       "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69b9302f00000000",
+      "_dd.p.tid": "69ea217700000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
       "job.id": "my-custom-job-id",
       "language": "python",
       "queue.name": "sync-q",
-      "runtime-id": "12d8cd5abfbf4a28a28c9b236f8c6064",
+      "runtime-id": "ccbfb0988dad482897d1eb4f74c5e585",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 605.0
+      "process_id": 1066.0
     },
-    "duration": 10206459,
-    "start": 1773744175382465041
+    "duration": 3309875,
+    "start": 1776951671477092138
   },
      {
        "name": "rq.job.perform",
@@ -44,6 +46,6 @@
          "component": "rq",
          "job.id": "my-custom-job-id"
        },
-       "duration": 614250,
-       "start": 1773744175390601000
+       "duration": 290750,
+       "start": 1776951671479177555
      }]]
