@@ -77,11 +77,24 @@ def _get_entrypoint_name() -> str:
         main_module = sys.modules.get("__main__")
         return getattr(main_module, __name__, "__main__")
 
+    # Handle compound command strings (e.g. "python -m unittest") passed as a
+    # single sys.argv[0] by Docker ENTRYPOINT, subprocess, or process managers.
+    if " " in argv0:
+        parts = argv0.split()
+        for i, part in enumerate(parts[:-1]):
+            if part == "-m" and parts[i + 1]:
+                return parts[i + 1]
+        non_flags = [p for p in parts if not p.startswith("-")]
+        if len(non_flags) > 1:  # skip the interpreter itself (first non-flag)
+            return os.path.splitext(os.path.basename(non_flags[-1]))[0]
+
     return os.path.splitext(os.path.basename(argv0))[0]
 
 
 def _get_entrypoint_type() -> str:
     if sys.argv and sys.argv[0] == "-m":
+        return ENTRYPOINT_TYPE_MODULE
+    if sys.argv and " " in sys.argv[0] and "-m" in sys.argv[0].split():
         return ENTRYPOINT_TYPE_MODULE
     return ENTRYPOINT_TYPE_SCRIPT
 
