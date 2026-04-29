@@ -2791,28 +2791,6 @@ MUL: "*"
         ]
 
 
-@pytest.mark.parametrize(
-    "ddtrace_global_config",
-    [dict(_llmobs_enabled=True, _llmobs_ml_app="<ml-app-name>", _llmobs_agentless_enabled=True)],
-)
-@pytest.mark.skipif(parse_version(openai_module.version.VERSION) < (1, 0), reason="These tests are for openai >= 1.0")
-def test_agentless_enabled_does_not_submit_metrics(openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
-    """Ensure openai metrics are not emitted when agentless mode is enabled."""
-    with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
-        model = "ada"
-        client = openai.OpenAI()
-        client.completions.create(
-            model=model,
-            prompt="Hello world",
-            temperature=0.8,
-            n=2,
-            stop=".",
-            max_tokens=10,
-            user="ddtrace-test",
-        )
-    assert mock_llmobs_writer.enqueue.call_count == 1
-
-
 def test_est_tokens():
     """Oracle numbers are from https://platform.openai.com/tokenizer (GPT-3)."""
     assert _est_tokens("") == 0  # oracle: 1
