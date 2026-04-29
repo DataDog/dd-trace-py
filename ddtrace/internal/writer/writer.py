@@ -4,6 +4,7 @@ from collections import defaultdict
 import gzip
 import sys
 import threading
+import time
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -781,10 +782,15 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         """
         self._test_session_token = token
         try:
-            self._shutdown_exporter()  # 3 seconds timeout
+            self._shutdown_exporter()
         except RuntimeError:
-            # If the exporter is in use, skip the exporter's worker cleanup.
-            pass
+            # Sleep to wait for the periodic flush to be over before retrying shutdown.
+            time.sleep(1)
+            try:
+                self._shutdown_exporter()
+            except RuntimeError:
+                # If the exporter is still in use after one retry, skip worker cleanup.
+                pass
         self._exporter = self._create_exporter()
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
