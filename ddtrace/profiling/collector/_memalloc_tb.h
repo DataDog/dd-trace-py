@@ -13,6 +13,10 @@ class traceback_t
   public:
     /* Sample object storing the stacktrace */
     Datadog::Sample sample;
+    /* Weighted size for heap accounting (tcmalloc-style: bytes allocated since
+     * last sample). Stored here so heap_tracker_t can decrement live_heap_bytes
+     * on free without a parallel map lookup. */
+    uint64_t weighted_size{ 0 };
 
     /* Constructor - also collects frames from the current Python frame chain. */
     traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe);

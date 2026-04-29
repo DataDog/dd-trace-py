@@ -124,6 +124,7 @@ traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe)
     double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
     size_t count = (size_t)scaled_count;
 
+    this->weighted_size = weighted_size;
     sample.push_alloc(weighted_size, count);
     push_threadinfo_to_sample(sample);
     push_stacktrace_to_sample_no_refcount(sample, max_nframe);

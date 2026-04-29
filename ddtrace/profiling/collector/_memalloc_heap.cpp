@@ -152,9 +152,7 @@ class heap_tracker_t
     uint64_t current_sample_size;
     /* Tracked allocations - using unique_ptr for automatic memory management */
     HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
-    /* Per-allocation weighted sizes, parallel to allocs_m, used to maintain live_heap_bytes */
-    HeapMapType<void*, uint64_t> alloc_weights_m;
-    /* Running estimate of live heap bytes (sum of weighted sizes of tracked allocations) */
+    /* Running estimate of live heap bytes (sum of traceback_t::weighted_size for live samples) */
     uint64_t live_heap_bytes{ 0 };
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
@@ -234,12 +232,8 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 
     auto node = allocs_m.extract(ptr);
     if (!node.empty()) {
+        live_heap_bytes -= node.mapped()->weighted_size;
         pool_put_no_cpython(std::move(node.mapped()));
-    }
-
-    auto weight_node = alloc_weights_m.extract(ptr);
-    if (!weight_node.empty()) {
-        live_heap_bytes -= weight_node.mapped();
     }
 }
 
@@ -279,7 +273,6 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
 
     live_heap_bytes += weighted_size;
-    alloc_weights_m.insert_or_assign(ptr, weighted_size);
 
     // Get ready for the next sample
     reset_sampling_state_no_cpython();
@@ -323,7 +316,6 @@ heap_tracker_t::postfork_child()
     // Allocations map may contain data from the parent process, and also
     // traceback_t objects may reference invalid Profile state.
     allocs_m.clear();
-    alloc_weights_m.clear();
     live_heap_bytes = 0;
 
     // Reset the sampling state to start fresh after fork.
