@@ -102,6 +102,7 @@ def test_module_getattr_raises_attribute_error_for_unknown_process_tags_name():
         ("python3 -m myapp", "myapp"),
         ("python3.11 -W ignore -m mypackage.submodule", "mypackage.submodule"),
         ("python /path/to/my_script.py", "my_script"),
+        ("python /srv/app.py --tenant acme", "app"),
     ],
 )
 def test_get_entrypoint_name_compound_argv0(argv0, expected):
@@ -114,6 +115,7 @@ def test_get_entrypoint_name_compound_argv0(argv0, expected):
     [
         ("python -m unittest", ENTRYPOINT_TYPE_MODULE),
         ("python /path/to/script.py", ENTRYPOINT_TYPE_SCRIPT),
+        ("python /srv/app.py -m prod", ENTRYPOINT_TYPE_SCRIPT),
     ],
 )
 def test_get_entrypoint_type_compound_argv0(argv0, expected_type):

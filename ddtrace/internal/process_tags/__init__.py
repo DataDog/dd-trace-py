@@ -85,8 +85,8 @@ def _get_entrypoint_name() -> str:
             if part == "-m" and parts[i + 1]:
                 return parts[i + 1]
         non_flags = [p for p in parts if not p.startswith("-")]
-        if len(non_flags) > 1:  # skip the interpreter itself (first non-flag)
-            return os.path.splitext(os.path.basename(non_flags[-1]))[0]
+        if len(non_flags) > 1:  # non_flags[0] is the interpreter; [1] is the script
+            return os.path.splitext(os.path.basename(non_flags[1]))[0]
 
     return os.path.splitext(os.path.basename(argv0))[0]
 
@@ -94,8 +94,13 @@ def _get_entrypoint_name() -> str:
 def _get_entrypoint_type() -> str:
     if sys.argv and sys.argv[0] == "-m":
         return ENTRYPOINT_TYPE_MODULE
-    if sys.argv and " " in sys.argv[0] and "-m" in sys.argv[0].split():
-        return ENTRYPOINT_TYPE_MODULE
+    if sys.argv and " " in sys.argv[0]:
+        parts = sys.argv[0].split()
+        for part in parts[1:]:  # skip interpreter at index 0
+            if part == "-m":
+                return ENTRYPOINT_TYPE_MODULE
+            if not part.startswith("-"):
+                break  # reached the script target before seeing -m
     return ENTRYPOINT_TYPE_SCRIPT
 
 
