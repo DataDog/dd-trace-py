@@ -32,7 +32,7 @@ django,django,2.2.28,5.2,True
 dogpile-cache,dogpile_cache,0.6.8,1.4.0,True
 dogpile.cache,dogpile_cache,0.6.8,1.4.0,True
 dogpile_cache,dogpile_cache,0.6.8,1.4.0,True
-dramatiq,dramatiq,1.10.0,1.17.0,True
+dramatiq,dramatiq,1.10.0,2.1.0,True
 elastic-transport,elasticsearch,8.17.1,9.2.1,True
 elasticsearch,elasticsearch,7.13.4,9.3.0,True
 elasticsearch1,elasticsearch,1.10.0,1.10.0,True
