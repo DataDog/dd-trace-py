@@ -2436,7 +2436,6 @@ class LLMObs(Service):
                     validated_cost_tags.append(cost_tag)
             return validated_cost_tags or None
         finally:
-            telemetry.record_cost_tags_annotated(span, source=source)
             if non_string_entries:
                 telemetry.record_cost_tags_submitted(
                     span, count=non_string_entries, source=source, state="error", reason="non_string_entry"
