@@ -90,6 +90,7 @@ _base_env = {
     "DD_TESTING_RAISE": "1",
     "DD_REMOTE_CONFIGURATION_ENABLED": "false",
     "DD_INJECTION_ENABLED": "1",
+    "DD_AGENTLESS_LOG_SUBMISSION_ENABLED": "1",
     "DD_LOGS_INJECTION": "1",
     "DD_INJECT_FORCE": "1",
     "DD_PATCH_MODULES": "unittest:false",
