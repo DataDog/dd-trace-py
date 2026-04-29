@@ -48,17 +48,19 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
     # DSM aggregates into 10s wall-clock buckets; produce and consume checkpoints
     # can land in different buckets when the test straddles a boundary. Iterate
     # all buckets and assert each recorded sketch matches expected_payload_size.
+    # Hold _lock so the periodic flusher can't mutate _buckets mid-iteration.
     expected_sketch = DDSketch()
     expected_sketch.add(expected_payload_size)
     expected_proto = expected_sketch.to_proto()
 
     pathway_stats_count = 0
-    for bucket in dsm_processor._buckets.values():
-        for stats in bucket.pathway_stats.values():
-            pathway_stats_count += 1
-            assert stats.payload_size.count >= 1
-            assert stats.payload_size.to_proto() == expected_proto
-    assert pathway_stats_count >= 1, "no DSM checkpoints recorded for produce/consume"
+    with dsm_processor._lock:
+        for bucket in dsm_processor._buckets.values():
+            for stats in bucket.pathway_stats.values():
+                pathway_stats_count += 1
+                assert stats.payload_size.count >= 1
+                assert stats.payload_size.to_proto() == expected_proto
+    assert pathway_stats_count >= 1, "no DSM pathway stats recorded for produce/consume"
 
 
 def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):
