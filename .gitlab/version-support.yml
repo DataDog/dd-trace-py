@@ -1,0 +1,4 @@
+# Version-support child pipeline. It runs only jobs necessary to test integration specific versions.
+# This pipeline is meant to be used by the Integration Portal only.
+#
+# Triggered automatically when VERSION_SUPPORT_SPEC_JSON  is set.
