@@ -2413,7 +2413,7 @@ class LLMObs(Service):
         telemetry.record_cost_tags_annotated(span, source=source)
         if not isinstance(cost_tags, list):
             log.warning("cost_tags must be a list of strings. Ignoring value.")
-            telemetry.record_cost_tags_submitted(span, count=1, source=source, state="error", reason="none")
+            telemetry.record_cost_tags_submitted(span, count=1, source=source, state="error", reason="non_list")
             return None
 
         validated_cost_tags: list[str] = []

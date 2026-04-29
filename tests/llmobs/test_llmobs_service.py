@@ -1473,7 +1473,7 @@ def test_annotation_context_modifies_cost_tags(llmobs):
 def test_annotation_context_cost_tags_are_not_retained_for_tags_added_later(llmobs):
     with llmobs.annotation_context(cost_tags=["feature"]):
         with llmobs.agent(name="test_agent") as span:
-            _annotate_llmobs_span_data(span, tags={"feature": "chatbot"})
+            llmobs.annotate(span=span, tags={"feature": "chatbot"})
             assert get_llmobs_tags(span) == {"feature": "chatbot"}
             assert get_llmobs_cost_tags(span) is None
 
