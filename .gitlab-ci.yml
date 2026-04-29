@@ -186,15 +186,38 @@ microbenchmarks:
 
 apm-sdk-benchmarks:
   stage: benchmarks
-  when: manual
   allow_failure: true
   needs:
     - job: "upload all"
   trigger:
     project: DataDog/apm-reliability/apm-sdks-benchmarks
-    branch: main
+    # TODO: revert to `main` before merging — pinned to test branch end-to-end.
+    branch: fayssal/adapt-py-scenarios
   variables:
     TARGET_REF: $CI_PIPELINE_ID
+    BENCHMARK_LANGUAGES: python
+    # Forward upstream ci vars
+    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
+    UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
+    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
+    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
+    UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA
+  rules:
+    # Always run on nightly schedule or API triggered pipelines
+    - if: $NIGHTLY_BUILD == "true"
+      when: always
+    # Allow failures if explicitly asked
+    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+      allow_failure: true
+    # Always run on tagged releases and release branches
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+      when: always
+    - if: !reference [.is_release]
+      when: always
+    # Otherwise, run manually
+    - when: manual
+      allow_failure: true
 
 macrobenchmarks:
   stage: benchmarks
