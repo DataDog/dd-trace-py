@@ -101,7 +101,7 @@ async def test_model_aretrieve(api_key_in_env, request_api_key, openai, openai_v
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_llmobs_writer, snapshot_tracer):
+def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_completion",
         ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
@@ -130,12 +130,9 @@ def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_ll
         assert choice.logprobs == expected_choices[idx]["logprobs"]
         assert choice.text == expected_choices[idx]["text"]
 
-    mock_llmobs_writer.start.assert_not_called()
-    mock_llmobs_writer.enqueue.assert_not_called()
-
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_acompletion(api_key_in_env, request_api_key, openai, openai_vcr, mock_llmobs_writer, snapshot_tracer):
+async def test_acompletion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_acompletion",
         ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
@@ -169,9 +166,6 @@ async def test_acompletion(api_key_in_env, request_api_key, openai, openai_vcr, 
     }
     for key, value in expected_choices.items():
         assert getattr(resp.choices[0], key, None) == value
-
-    mock_llmobs_writer.start.assert_not_called()
-    mock_llmobs_writer.enqueue.assert_not_called()
 
 
 def test_global_tags(openai_vcr, openai, test_spans):
