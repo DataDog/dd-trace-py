@@ -461,6 +461,29 @@ def test_set_attribute_object_str_raises():
     assert s._get_attribute("key") is None
 
 
+@pytest.mark.parametrize("bad_key", [123, b"bytes_key", None, ("a", "b"), ["a"], 1.5])
+def test_set_attribute_non_string_key_silently_dropped(bad_key):
+    s = Span(name="test.span")
+    s._set_attribute(bad_key, "val")
+    assert s._get_attribute(bad_key) is None
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ([1, 2, 3], "[1, 2, 3]"),
+        ({"a": 1}, "{'a': 1}"),
+        ((1, 2), "(1, 2)"),
+        (set(), "set()"),
+    ],
+)
+def test_set_attribute_container_values_fallthrough_to_str(value, expected):
+    s = Span(name="test.span")
+    s._set_attribute("key", value)
+    assert s._get_attribute("key") == expected
+    assert s._get_str_attribute("key") == expected
+
+
 # _has_attribute tests
 
 
