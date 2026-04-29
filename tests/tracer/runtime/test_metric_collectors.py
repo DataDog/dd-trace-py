@@ -3,10 +3,13 @@ from unittest import mock
 from ddtrace.internal.runtime.constants import CPU_PERCENT
 from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
 from ddtrace.internal.runtime.constants import GC_RUNTIME_METRICS
+from ddtrace.internal.runtime.constants import MEM_HEAP
 from ddtrace.internal.runtime.constants import MEM_RSS
+from ddtrace.internal.runtime.constants import MEMALLOC_RUNTIME_METRICS
 from ddtrace.internal.runtime.constants import PSUTIL_RUNTIME_METRICS
 from ddtrace.internal.runtime.constants import THREAD_COUNT
 from ddtrace.internal.runtime.metric_collectors import GCRuntimeMetricCollector
+from ddtrace.internal.runtime.metric_collectors import MemallocRuntimeMetricCollector
 from ddtrace.internal.runtime.metric_collectors import PSUtilRuntimeMetricCollector
 from ddtrace.internal.runtime.metric_collectors import RuntimeMetricCollector
 from ddtrace.vendor import psutil
@@ -78,6 +81,55 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
             mock_cpu_percent,
             "CPU percent should match mocked value",
         )
+
+
+class TestMemallocRuntimeMetricCollector(BaseTestCase):
+    _MODULE_PATH = "ddtrace.profiling.collector._memalloc"
+
+    def _make_collector(self, heap_live_bytes=0):
+        """Construct a MemallocRuntimeMetricCollector with a mocked _memalloc module."""
+        mock_memalloc = mock.Mock()
+        mock_memalloc.heap_live_bytes.return_value = heap_live_bytes
+        # Patch sys.modules so importlib.import_module finds the mock during __init__.
+        # After construction the module object is stored in self.modules, so collect_fn
+        # works correctly even after the patch exits.
+        with mock.patch.dict("sys.modules", {self._MODULE_PATH: mock_memalloc}):
+            return MemallocRuntimeMetricCollector()
+
+    def test_disabled_gracefully_when_module_unavailable(self):
+        """When _memalloc cannot be imported the collector disables itself and returns []."""
+        with mock.patch.dict("sys.modules", {self._MODULE_PATH: None}):
+            collector = MemallocRuntimeMetricCollector()
+        self.assertFalse(collector.enabled)
+        self.assertEqual(collector.collect(MEMALLOC_RUNTIME_METRICS), [])
+
+    def test_returns_empty_when_profiler_not_started(self):
+        """Returns no metrics when heap_live_bytes() == 0 (profiler not started)."""
+        collector = self._make_collector(heap_live_bytes=0)
+        self.assertEqual(collector.collect_fn(None), [])
+
+    def test_reports_heap_metric_when_profiler_active(self):
+        """Returns (MEM_HEAP, bytes) when the memory profiler is running."""
+        fifty_mb = 50 * 1024 * 1024
+        collector = self._make_collector(heap_live_bytes=fifty_mb)
+        result = dict(collector.collect_fn(None))
+        self.assertIn(MEM_HEAP, result)
+        self.assertEqual(result[MEM_HEAP], fifty_mb)
+
+    def test_collect_filters_to_requested_keys(self):
+        """collect() honours the keys filter like other collectors."""
+        fifty_mb = 50 * 1024 * 1024
+        collector = self._make_collector(heap_live_bytes=fifty_mb)
+        # Requesting only MEMALLOC_RUNTIME_METRICS should include MEM_HEAP
+        result = dict(collector.collect(MEMALLOC_RUNTIME_METRICS))
+        self.assertIn(MEM_HEAP, result)
+        # Requesting an unrelated key set should return nothing
+        result_empty = collector.collect({"runtime.python.mem.rss"})
+        self.assertEqual(result_empty, [])
+
+    def test_metric_name_follows_convention(self):
+        """MEM_HEAP name belongs to the runtime.python.* namespace."""
+        self.assertRegex(MEM_HEAP, r"^runtime\.python\..*")
 
 
 class TestGCRuntimeMetricCollector(BaseTestCase):

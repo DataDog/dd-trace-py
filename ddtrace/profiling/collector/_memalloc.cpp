@@ -310,15 +310,14 @@ memalloc_heap_live_bytes(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     return PyLong_FromUnsignedLongLong(memalloc_heap_get_live_bytes_no_cpython());
 }
 
-static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
-                                        { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
-                                        { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
-                                        { "heap_live_bytes",
-                                          (PyCFunction)memalloc_heap_live_bytes,
-                                          METH_NOARGS,
-                                          memalloc_heap_live_bytes__doc__ },
-                                        /* sentinel */
-                                        { NULL, NULL, 0, NULL } };
+static PyMethodDef module_methods[] = {
+    { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
+    { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
+    { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
+    { "heap_live_bytes", (PyCFunction)memalloc_heap_live_bytes, METH_NOARGS, memalloc_heap_live_bytes__doc__ },
+    /* sentinel */
+    { NULL, NULL, 0, NULL }
+};
 
 PyDoc_STRVAR(module_doc, "Module to trace memory blocks allocated by Python.");
 
