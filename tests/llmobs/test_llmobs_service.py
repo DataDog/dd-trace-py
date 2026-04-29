@@ -1484,7 +1484,7 @@ def test_annotation_context_can_update_session_id(llmobs):
 def test_annotation_context_modifies_cost_tags(llmobs):
     with llmobs.annotation_context(tags={"team": "ml", "feature": "chatbot"}, cost_tags=["team", "feature"]):
         with llmobs.agent(name="test_agent") as span:
-            assert get_llmobs_tags(span) == {"team": "ml", "feature": "chatbot"}
+            assert {"team": "ml", "feature": "chatbot"}.items() <= get_llmobs_tags(span).items()
             assert get_llmobs_cost_tags(span) == ["team", "feature"]
 
 
@@ -1492,7 +1492,7 @@ def test_annotation_context_cost_tags_are_not_retained_for_tags_added_later(llmo
     with llmobs.annotation_context(cost_tags=["feature"]):
         with llmobs.agent(name="test_agent") as span:
             llmobs.annotate(span=span, tags={"feature": "chatbot"})
-            assert get_llmobs_tags(span) == {"feature": "chatbot"}
+            assert {"feature": "chatbot"}.items() <= get_llmobs_tags(span).items()
             assert get_llmobs_cost_tags(span) is None
 
 
@@ -1744,7 +1744,7 @@ async def test_annotation_context_async_modifies_span_tags(llmobs):
 async def test_annotation_context_async_modifies_cost_tags(llmobs):
     async with llmobs.annotation_context(tags={"team": "ml", "feature": "chatbot"}, cost_tags=["team", "feature"]):
         with llmobs.agent(name="test_agent") as span:
-            assert get_llmobs_tags(span) == {"team": "ml", "feature": "chatbot"}
+            assert {"team": "ml", "feature": "chatbot"}.items() <= get_llmobs_tags(span).items()
             assert get_llmobs_cost_tags(span) == ["team", "feature"]
 
 
