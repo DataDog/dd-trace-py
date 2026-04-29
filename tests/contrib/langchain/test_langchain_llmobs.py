@@ -1245,3 +1245,29 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         self._call_anthropic_chat(ChatAnthropic)
         self._assert_trace_structure_from_writer_call_args(["llm"])
+
+
+def test_shadow_tags_chat_when_llmobs_disabled(tracer):
+    """Verify shadow tags are set on LangChain spans when LLMObs is disabled."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.langchain import LangChainIntegration
+
+    integration = LangChainIntegration(MagicMock())
+
+    response = MagicMock()
+    response.llm_output = {"token_usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8}}
+    response.generations = [[MagicMock()]]
+
+    with tracer.trace("langchain.request") as span:
+        span._set_attribute("langchain.request.model", "gpt-4o-mini")
+        span._set_attribute("langchain.request.provider", "openai")
+        integration._set_apm_shadow_tags(span, [], {}, response=response, operation="chat")
+
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "gpt-4o-mini"
+    assert span.get_tag("_dd.llmobs.model_provider") == "openai"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+    assert span.get_metric("_dd.llmobs.input_tokens") == 5
+    assert span.get_metric("_dd.llmobs.output_tokens") == 3
+    assert span.get_metric("_dd.llmobs.total_tokens") == 8

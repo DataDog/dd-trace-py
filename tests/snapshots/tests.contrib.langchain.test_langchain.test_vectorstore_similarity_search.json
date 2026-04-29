@@ -9,24 +9,28 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "text-embedding-ada-002",
+      "_dd.llmobs.model_provider": "openai",
+      "_dd.llmobs.span_kind": "embedding",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de49c500000000",
+      "_dd.p.tid": "69e91e3d00000000",
       "_dd.svc_src": "tests.contrib.langchain",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
       "langchain.request.model": "text-embedding-ada-002",
       "langchain.request.provider": "openai",
       "language": "python",
-      "runtime-id": "7dc4cd5b529f415b831ffb034ebc6ed5"
+      "runtime-id": "d7ad066befb447f5b032e61e42823050"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 70110.0
+      "process_id": 488.0
     },
-    "duration": 4818417,
-    "start": 1776175557045695092
+    "duration": 2072513251,
+    "start": 1776885309322221050
   }],
 [
   {
@@ -39,23 +43,26 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_provider": "inmemoryvectorstore",
+      "_dd.llmobs.span_kind": "retrieval",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de49c500000000",
+      "_dd.p.tid": "69e91e3f00000000",
       "_dd.svc_src": "tests.contrib.langchain",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
       "langchain.request.provider": "inmemoryvectorstore",
       "language": "python",
-      "runtime-id": "7dc4cd5b529f415b831ffb034ebc6ed5"
+      "runtime-id": "d7ad066befb447f5b032e61e42823050"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 70110.0
+      "process_id": 488.0
     },
-    "duration": 3843209,
-    "start": 1776175557051219050
+    "duration": 4265750,
+    "start": 1776885311395511301
   },
      {
        "name": "langchain.request",
@@ -67,13 +74,17 @@
        "type": "",
        "error": 0,
        "meta": {
+         "_dd.llmobs.model_name": "text-embedding-ada-002",
+         "_dd.llmobs.model_provider": "openai",
+         "_dd.llmobs.span_kind": "embedding",
          "_dd.svc_src": "tests.contrib.langchain",
          "langchain.request.model": "text-embedding-ada-002",
          "langchain.request.provider": "openai"
        },
        "metrics": {
+         "_dd.llmobs.enabled": 0.0,
          "_dd.measured": 1.0
        },
-       "duration": 3322541,
-       "start": 1776175557051320509
+       "duration": 2871208,
+       "start": 1776885311395609968
      }]]
