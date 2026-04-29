@@ -1,7 +1,8 @@
 use pyo3::{
     types::{
         PyAnyMethods as _, PyBool, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _,
-        PyFloat, PyList, PyListMethods as _, PyMapping, PyMappingMethods as _, PyString, PyTuple,
+        PyFloat, PyFloatMethods as _, PyList, PyListMethods as _, PyMapping, PyMappingMethods as _,
+        PyString, PyTuple,
     },
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
@@ -476,14 +477,20 @@ impl SpanData {
         };
 
         // http.status_code must always be a string in meta.
+        // Fast path: typed contract is `str`, so most callers already pass a PyString.
+        // Only fall back to str() for non-string inputs (e.g. an int 200).
         if &*key_pbs == HTTP_STATUS_CODE_KEY {
-            let Ok(s) = value.str() else {
-                return Ok(());
+            let s = if let Ok(s) = value.cast::<PyString>() {
+                s.clone()
+            } else {
+                let Ok(s) = value.str() else {
+                    return Ok(());
+                };
+                s
             };
-            let Some(v) = PyBackedString::try_from(s.clone()).ok() else {
-                return Ok(());
-            };
-            self.attributes.insert(key_pbs, AttributeValue::Str(v));
+            if let Ok(v) = PyBackedString::try_from(s) {
+                self.attributes.insert(key_pbs, AttributeValue::Str(v));
+            }
             return Ok(());
         }
 
@@ -498,10 +505,8 @@ impl SpanData {
         // float → Float (drop NaN/Inf)
         // Check before int because some types (e.g. numpy.float64) implement __float__
         // but not __index__, so PyFloat succeeds and PyInt would fail.
-        if value.cast::<PyFloat>().is_ok() {
-            let Ok(n) = value.extract::<f64>() else {
-                return Ok(());
-            };
+        if let Ok(f) = value.cast::<PyFloat>() {
+            let n = f.value();
             if n.is_nan() || n.is_infinite() {
                 return Ok(());
             }
@@ -546,7 +551,7 @@ impl SpanData {
     /// `_set_attribute`.
     #[pyo3(name = "_set_attributes")]
     fn set_attributes(&mut self, attrs: &Bound<'_, PyAny>) -> pyo3::PyResult<()> {
-        if let Ok(d) = attrs.cast::<PyDict>() {
+        if let Ok(d) = attrs.cast_exact::<PyDict>() {
             for (k, v) in d.iter() {
                 let _ = self.set_attribute(&k, &v);
             }
@@ -684,7 +689,7 @@ impl SpanData {
     /// Callers handle any locking on the source dict themselves.
     #[pyo3(name = "_set_default_attributes")]
     fn set_default_attributes(&mut self, values: &Bound<'_, PyAny>) -> pyo3::PyResult<()> {
-        if let Ok(d) = values.cast::<PyDict>() {
+        if let Ok(d) = values.cast_exact::<PyDict>() {
             for (k, v) in d.iter() {
                 self.set_default_attribute_entry(&k, &v);
             }
