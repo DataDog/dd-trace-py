@@ -14,8 +14,8 @@
         "TopLevelHits": 1,
         "Duration": 999999999,
         "Errors": 0,
-        "OkSummary": 1046,
-        "ErrorSummary": 15
+        "OkSummary": 37,
+        "ErrorSummary": 24
       },
       {
         "Name": "diff-op",
@@ -28,22 +28,8 @@
         "TopLevelHits": 1,
         "Duration": 999999999,
         "Errors": 0,
-        "OkSummary": 1046,
-        "ErrorSummary": 15
-      },
-      {
-        "Name": "op",
-        "Resource": "/users/list",
-        "Service": "my-svc",
-        "Type": "web",
-        "HTTPStatusCode": 0,
-        "Synthetics": false,
-        "Hits": 1,
-        "TopLevelHits": 1,
-        "Duration": 999999999,
-        "Errors": 0,
-        "OkSummary": 1046,
-        "ErrorSummary": 15
+        "OkSummary": 37,
+        "ErrorSummary": 24
       },
       {
         "Name": "op",
@@ -56,8 +42,22 @@
         "TopLevelHits": 1,
         "Duration": 999999999,
         "Errors": 0,
-        "OkSummary": 1046,
-        "ErrorSummary": 15
+        "OkSummary": 37,
+        "ErrorSummary": 24
+      },
+      {
+        "Name": "op",
+        "Resource": "/users/list",
+        "Service": "my-svc",
+        "Type": "web",
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 999999999,
+        "Errors": 0,
+        "OkSummary": 37,
+        "ErrorSummary": 24
       },
       {
         "Name": "op",
@@ -70,8 +70,8 @@
         "TopLevelHits": 1,
         "Duration": 999999999,
         "Errors": 0,
-        "OkSummary": 1046,
-        "ErrorSummary": 15
+        "OkSummary": 37,
+        "ErrorSummary": 24
       },
       {
         "Name": "op",
@@ -84,8 +84,8 @@
         "TopLevelHits": 1,
         "Duration": 999999999,
         "Errors": 0,
-        "OkSummary": 1046,
-        "ErrorSummary": 15
+        "OkSummary": 37,
+        "ErrorSummary": 24
       },
       {
         "Name": "op",
@@ -98,8 +98,8 @@
         "TopLevelHits": 1,
         "Duration": 999999999,
         "Errors": 0,
-        "OkSummary": 1046,
-        "ErrorSummary": 15
+        "OkSummary": 37,
+        "ErrorSummary": 24
       }
     ]
   }

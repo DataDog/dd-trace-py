@@ -10,20 +10,22 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69dea41b00000000",
+      "_dd.svc_src": "tests.contrib.aws_lambda",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aws_lambda",
       "error.message": "Datadog detected an Impending Timeout",
       "error.type": "Impending Timeout",
       "language": "python",
-      "runtime-id": "93982c58c4fb4e3f83fa0f20f5b23229"
+      "runtime-id": "a684e05d0a384664989624077f99be0b"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 9688
+      "_sampling_priority_v1": 1.0,
+      "process_id": 88660.0
     },
-    "duration": 200772280,
-    "start": 1691161771833030263
+    "duration": 207480917,
+    "start": 1776198683212460005
   },
      {
        "name": "timeout",
@@ -34,6 +36,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 200258517,
-       "start": 1691161771833341867
+       "meta": {
+         "_dd.svc_src": "tests.contrib.aws_lambda"
+       },
+       "duration": 207097584,
+       "start": 1776198683212727172
      }]]

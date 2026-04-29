@@ -79,23 +79,30 @@ main() {
         if [[ $number_of_symlinks -gt 0 ]]
         then
             hook_exit_code=0
+            failed_scripts=()
             for file in "${files[@]}"
             do
                 scriptname=$(basename $file)
                 echo "BEGIN $scriptname"
-                eval "\"$file\""
+                "$file" "$@"
                 script_exit_code="$?"
                 if [[ "$script_exit_code" != 0 ]]
                 then
-                  hook_exit_code=$script_exit_code
+                    hook_exit_code=$script_exit_code
+                    failed_scripts+=("$scriptname (exit $script_exit_code)")
+                    echo "FAILED $scriptname — exited with code $script_exit_code"
                 fi
                 echo "FINISH $scriptname"
             done
             if [[ $hook_exit_code != 0 ]]
             then
-              if [[ $hook_type == "pre-commit" ]]
+              if [[ $hook_type == "pre-commit" || $hook_type == "commit-msg" ]]
               then
-                echo "A $hook_type script exited with non-zero code $hook_exit_code — aborting commit."
+                echo ""
+                echo "The following $hook_type hooks failed — aborting commit:"
+                for s in "${failed_scripts[@]}"; do
+                    echo "  x $s"
+                done
                 exit $hook_exit_code
               else
                 echo "A $hook_type script exited with non-zero code $hook_exit_code (non-blocking, continuing)."
