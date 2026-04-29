@@ -1518,14 +1518,14 @@ def test_manual_keep(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_KEEP_KEY)  # ast-grep-ignore: span-set-tag-manual-keep
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == USER_KEEP
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_KEEP_KEY)  # ast-grep-ignore: span-set-tag-manual-keep
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == USER_KEEP
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
 
 def test_manual_keep_then_drop(tracer, test_spans):
@@ -1535,7 +1535,7 @@ def test_manual_keep_then_drop(tracer, test_spans):
             child.set_tag(MANUAL_KEEP_KEY)  # ast-grep-ignore: span-set-tag-manual-keep
         root.set_tag(MANUAL_DROP_KEY)  # ast-grep-ignore: span-set-tag-manual-drop
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == USER_REJECT
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
 
 def test_manual_drop(tracer, test_spans):
@@ -1543,14 +1543,14 @@ def test_manual_drop(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_DROP_KEY)  # ast-grep-ignore: span-set-tag-manual-drop
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == USER_REJECT
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_DROP_KEY)  # ast-grep-ignore: span-set-tag-manual-drop
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == USER_REJECT
+    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")

@@ -250,7 +250,7 @@ class Span(SpanData):
                 self.set_tag(k, v)
 
     def set_metric(self, key: str, value: NumericType) -> None:
-        """Set a numeric tag value for the given key."""
+        """This method sets a numeric tag value for the given key."""
         # Enforce a specific constant for `_dd.measured`
         if key == _SPAN_MEASURED_KEY:
             try:
