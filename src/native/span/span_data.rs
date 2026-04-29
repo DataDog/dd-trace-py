@@ -32,7 +32,6 @@ impl AttributeValue {
     }
 }
 
-
 use crate::py_string::{PyBackedString, PyTraceData};
 use crate::utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use libdd_trace_utils::span::{
@@ -629,8 +628,12 @@ impl SpanData {
     ) -> Option<Bound<'py, PyAny>> {
         let k = try_extract_backed_string(key)?;
         match self.attributes.get(&k)? {
-            AttributeValue::Int(i) => Some(i.into_pyobject(py).expect("i64 into_pyobject").into_any()),
-            AttributeValue::Float(f) => Some(f.into_pyobject(py).expect("f64 into_pyobject").into_any()),
+            AttributeValue::Int(i) => {
+                Some(i.into_pyobject(py).expect("i64 into_pyobject").into_any())
+            }
+            AttributeValue::Float(f) => {
+                Some(f.into_pyobject(py).expect("f64 into_pyobject").into_any())
+            }
             AttributeValue::Str(_) => None,
         }
     }
@@ -672,8 +675,12 @@ impl SpanData {
         let d = PyDict::new(py);
         for (k, v) in &self.attributes {
             match v {
-                AttributeValue::Int(i) => { d.set_item(k.as_py(py), *i)?; }
-                AttributeValue::Float(f) => { d.set_item(k.as_py(py), *f)?; }
+                AttributeValue::Int(i) => {
+                    d.set_item(k.as_py(py), *i)?;
+                }
+                AttributeValue::Float(f) => {
+                    d.set_item(k.as_py(py), *f)?;
+                }
                 AttributeValue::Str(_) => {}
             }
         }
