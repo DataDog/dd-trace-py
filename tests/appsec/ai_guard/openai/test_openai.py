@@ -289,6 +289,35 @@ def test_chat_sync_block(mock_execute_request, openai_client, decision):
     mock_execute_request.assert_called_once()
 
 
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_sync_block_is_openai_compatible_exception(mock_execute_request, openai_client):
+    """A blocked request raises an exception that satisfies BOTH the OpenAI
+    SDK error hierarchy (``openai.APIError`` / ``openai.UnprocessableEntityError``,
+    HTTP 422) and the Datadog ``AIGuardAbortError`` interface.
+
+    Pins the dual-handler contract: existing ``except openai.APIError`` blocks
+    keep working unchanged, AND advanced users can branch on
+    ``isinstance(e, AIGuardAbortError)`` to read ``action`` / ``reason``.
+    """
+    import openai
+
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    with pytest.raises(openai.UnprocessableEntityError) as exc_info:
+        openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    err = exc_info.value
+    assert isinstance(err, openai.APIError)
+    assert isinstance(err, openai.UnprocessableEntityError)
+    assert isinstance(err, AIGuardAbortError)
+    assert err.status_code == 422
+    assert err.action == "DENY"
+    # ``reason`` is mirrored from the AI Guard response (may be empty in mocks).
+    assert hasattr(err, "reason")
+    # __cause__ chains the original AIGuardAbortError so it shows up in tracebacks.
+    assert isinstance(err.__cause__, AIGuardAbortError)
+
+
 # ---------------------------------------------------------------------------
 # Chat completions (async) — before-model allow / block
 # ---------------------------------------------------------------------------

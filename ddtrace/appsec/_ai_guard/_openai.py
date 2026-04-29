@@ -13,6 +13,14 @@ Collision handling:
     If a framework integration (LangChain, Strands) has already set
     ``_ai_guard_active`` in the current context, these listeners skip
     evaluation to avoid double-scanning.
+
+Block error type:
+    When AI Guard blocks a request, the listeners raise
+    ``OpenAIAIGuardAbortError`` — a subclass of both
+    ``openai.UnprocessableEntityError`` (HTTP 422) and ``AIGuardAbortError``.
+    This lets callers handle a block via either standard OpenAI error
+    handling (``except openai.APIError``) or the Datadog-specific exception
+    (``except AIGuardAbortError``).
 """
 
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
@@ -26,6 +34,91 @@ from ddtrace.internal.settings.asm import ai_guard_config
 
 
 logger = ddlogger.get_logger(__name__)
+
+
+# AIDEV-NOTE: The compound ``OpenAIAIGuardAbortError`` class is built lazily on
+# first block. ``_openai.py`` is imported unconditionally by the AI Guard
+# listener (see ``_listener.py``), but the OpenAI SDK is an optional runtime
+# dependency — eagerly importing ``openai`` here would break AI Guard
+# initialization in environments that only use a different provider.
+_openai_abort_error_cls = None
+
+
+def _get_openai_abort_error_cls():
+    """Return ``OpenAIAIGuardAbortError`` (cached), or ``None`` if openai is not importable.
+
+    The class inherits from ``openai.UnprocessableEntityError`` (status 422 —
+    the "policy rejection" semantics used by AI Gateway) and from
+    ``AIGuardAbortError`` so existing Datadog-specific handlers keep working.
+    """
+    global _openai_abort_error_cls
+    if _openai_abort_error_cls is not None:
+        return _openai_abort_error_cls
+
+    try:
+        import openai
+    except ImportError:
+        return None
+
+    class OpenAIAIGuardAbortError(openai.UnprocessableEntityError, AIGuardAbortError):
+        """AI Guard abort error compatible with the OpenAI SDK error hierarchy.
+
+        Catchable as either ``openai.APIError`` / ``openai.UnprocessableEntityError``
+        (idiomatic OpenAI error handling, no retry on 422) or
+        ``AIGuardAbortError`` (Datadog-specific, exposes ``action`` / ``reason``).
+        """
+
+        def __init__(self, action, reason, tags=None, sds=None, tag_probs=None):
+            self.action = action
+            self.reason = reason
+            self.tags = tags
+            self.sds = sds or []
+            self.tag_probs = tag_probs
+
+            message = f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')"
+            # AIDEV-NOTE: We can't call ``openai.UnprocessableEntityError.__init__``
+            # here — its MRO super() chain ends up at ``AIGuardAbortError.__init__``
+            # (which requires ``(action, reason)``), not ``Exception.__init__``,
+            # so the ``super().__init__(message)`` deep in ``APIError`` raises
+            # ``TypeError: missing 'reason'``. Initialize the OpenAI-side
+            # attributes directly instead. The block originates from AI Guard,
+            # not an OpenAI HTTP call, so ``response`` / ``request`` / ``request_id``
+            # are ``None``; only ``status_code`` (422) and ``body`` (the AI Guard
+            # decision payload) carry semantic meaning.
+            self.message = message
+            self.request = None
+            self.body = {"action": action, "reason": reason, "source": "datadog_ai_guard"}
+            self.code = "ai_guard_block"
+            self.param = None
+            self.type = "ai_guard_abort"
+            self.response = None
+            self.status_code = 422
+            self.request_id = None
+            Exception.__init__(self, message)
+
+    _openai_abort_error_cls = OpenAIAIGuardAbortError
+    return _openai_abort_error_cls
+
+
+def _wrap_abort_error(cause):
+    """Wrap an ``AIGuardAbortError`` into the OpenAI-compatible variant.
+
+    Falls back to returning the original ``cause`` when the OpenAI SDK is not
+    importable — the listener still surfaces a block, just without OpenAI
+    exception-hierarchy compatibility.
+    """
+    cls = _get_openai_abort_error_cls()
+    if cls is None:
+        return cause
+    wrapped = cls(
+        action=cause.action,
+        reason=cause.reason,
+        tags=cause.tags,
+        sds=cause.sds,
+        tag_probs=cause.tag_probs,
+    )
+    wrapped.__cause__ = cause
+    return wrapped
 
 
 def _get(obj, key, default=None):
@@ -119,8 +212,9 @@ def _openai_chat_completion_before(client, kwargs):
     Evaluates the request messages before the LLM call.  Skips when a
     framework-level evaluation is already in progress (collision avoidance).
 
-    Returns ``AIGuardAbortError`` on block (for ``_raising_dispatch`` to
-    re-raise), or ``None`` on allow / skip.
+    Returns ``OpenAIAIGuardAbortError`` (or plain ``AIGuardAbortError`` if
+    openai is not importable) on block — for ``_raising_dispatch`` to re-raise
+    — or ``None`` on allow / skip.
     """
     if is_aiguard_context_active():
         return None
@@ -148,7 +242,7 @@ def _openai_chat_completion_before(client, kwargs):
     try:
         client.evaluate(ai_guard_messages, Options(block=ai_guard_config._ai_guard_block))
     except AIGuardAbortError as e:
-        return e
+        return _wrap_abort_error(e)
     except Exception:
         logger.debug("Failed to evaluate OpenAI chat completion request", exc_info=True)
     return None
@@ -161,7 +255,8 @@ def _openai_chat_completion_after(client, kwargs, resp):
     returns.  Skips streaming responses (handled separately) and when a
     framework evaluation is already active.
 
-    Returns ``AIGuardAbortError`` on block, or ``None`` on allow / skip.
+    Returns ``OpenAIAIGuardAbortError`` (or plain ``AIGuardAbortError`` if
+    openai is not importable) on block, or ``None`` on allow / skip.
     """
     if is_aiguard_context_active():
         return None
@@ -177,7 +272,7 @@ def _openai_chat_completion_after(client, kwargs, resp):
     try:
         client.evaluate(all_messages, Options(block=ai_guard_config._ai_guard_block))
     except AIGuardAbortError as e:
-        return e
+        return _wrap_abort_error(e)
     except Exception:
         logger.debug("Failed to evaluate OpenAI chat completion response", exc_info=True)
     return None
