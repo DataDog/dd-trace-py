@@ -102,9 +102,9 @@ class MemallocRuntimeMetricCollector(RuntimeMetricCollector):
 
     required_modules = ["ddtrace.profiling.collector._memalloc"]
 
-    def collect_fn(self, keys):
+    def collect_fn(self, keys: set) -> list:
         _memalloc = self.modules.get("ddtrace.profiling.collector._memalloc")
-        live_bytes = _memalloc.heap_live_bytes()
+        live_bytes: int = _memalloc.heap_live_bytes()
         if live_bytes == 0:
             return []
         return [(MEM_HEAP, live_bytes)]
