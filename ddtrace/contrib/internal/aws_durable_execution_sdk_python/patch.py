@@ -40,6 +40,10 @@ _TAG_INVOKE_FUNCTION_NAME = "aws.durable.invoke.function_name"
 
 _SUSPEND_CAUSE_KEY = "aws_durable.suspend_cause"
 
+# Span names whose direct children should not set a resource.
+# Children of map/parallel can have unbounded names, increasing cardinality.
+_DYNAMIC_PARENT_SPAN_NAMES = frozenset({"aws.durable.map", "aws.durable.parallel"})
+
 
 def get_version() -> str:
     return getattr(aws_durable_execution_sdk_python, "__version__", "")
@@ -169,13 +173,19 @@ def _traced_context(method: _ContextMethod, wrapped: Callable, instance: Any, ar
     if is_invoke:
         tags[_TAG_INVOKE_FUNCTION_NAME] = get_argument_value(args, kwargs, 0, "function_name")
 
+    parent = tracer.current_span()
+    if parent is not None and parent.name in _DYNAMIC_PARENT_SPAN_NAMES:
+        resource = None
+    else:
+        resource = get_argument_value(args, kwargs, method.name_pos, "name", optional=True)
+
     event = TracingEvent.create(
         component=config.aws_durable_execution_sdk_python.integration_name,
         integration_config=config.aws_durable_execution_sdk_python,
         operation_name=method.span_name,
         span_type="serverless",
         span_kind="client" if is_invoke else "internal",
-        resource=get_argument_value(args, kwargs, method.name_pos, "name", optional=True),
+        resource=resource,
         tags=tags,
     )
 
