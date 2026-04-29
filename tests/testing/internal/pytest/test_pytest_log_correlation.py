@@ -312,6 +312,7 @@ class TestAgentlessLogSubmission:
         """DD_AGENTLESS_LOG_SUBMISSION_ENABLED without DD_CIVISIBILITY_AGENTLESS_ENABLED must not install
         LogsHandler.
         """
+        monkeypatch.delenv("DD_LOGS_INJECTION", raising=False)
         monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", "true")
 
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
@@ -320,10 +321,11 @@ class TestAgentlessLogSubmission:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    def test_no_handler_without_flag(self, pytester: Pytester) -> None:
+    def test_no_handler_without_flag(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """Without DD_AGENTLESS_LOG_SUBMISSION_ENABLED or DD_LOGS_INJECTION, LogsHandler must not be installed."""
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
         pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_FLAG)
+        monkeypatch.delenv("DD_LOGS_INJECTION", raising=False)
 
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
