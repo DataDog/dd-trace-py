@@ -18,7 +18,6 @@ from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal import process_tags
 from ddtrace.internal._encoding import BufferFull
-from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import format_trace_id
@@ -98,14 +97,12 @@ def add_tags(payload: dict[str, Any]) -> None:
 def _build_log_track_payload(
     service: str,
     signal: LogSignal,
-    host: Optional[str],
 ) -> dict[str, Any]:
     context = signal.trace_context
 
     payload = {
         "service": service,
         "debugger": {"snapshot": signal.snapshot},
-        "host": host,
         "logger": _logs_track_logger_details(signal.thread, signal.frame),
         "ddsource": "dd_debugger",
         "message": signal.message,
@@ -254,10 +251,9 @@ class LogSignalJsonEncoder(Encoder):
 
     def __init__(self, service: str) -> None:
         self._service = service
-        self._host = get_hostname()
 
     def _encode(self, item: LogSignal) -> str:
-        return json.dumps(_build_log_track_payload(self._service, item, self._host))
+        return json.dumps(_build_log_track_payload(self._service, item))
 
     def encode(self, item: LogSignal) -> bytes:
         return self._encode(item).encode("utf-8")
