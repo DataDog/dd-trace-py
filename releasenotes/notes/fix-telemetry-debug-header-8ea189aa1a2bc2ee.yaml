@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    tracing: This fix resolves an issue where telemetry payloads emitted by
-    the native trace exporter always reported ``debug_enabled`` as ``true``
-    regardless of configuration. The debug header now correctly reflects the
-    ``DD_TRACE_DEBUG`` environment variable.
