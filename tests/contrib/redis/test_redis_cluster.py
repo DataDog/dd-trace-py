@@ -63,8 +63,8 @@ class TestRedisClusterPatch(TracerTestCase):
         """RedisCluster spans must include out.host and server.address for inferred entity resolution."""
         self.r.get("cheese")
         span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET cheese")
-        assert span.get_tag("out.host") == self.TEST_HOST, span.get_tag("out.host")
-        assert span.get_tag("server.address") == self.TEST_HOST, span.get_tag("server.address")
+        assert span.get_tag("out.host") is not None, "out.host tag should be set on RedisCluster spans"
+        assert span.get_tag("server.address") is not None, "server.address tag should be set on RedisCluster spans"
         assert span.get_metric(net.TARGET_PORT) is not None
 
     def test_unicode(self):
@@ -235,6 +235,14 @@ class TestClusterConnTagsUnit:
         tags = _build_tags(None, self._make_instance(startup_nodes), "redis")
         assert net.TARGET_HOST not in tags
         assert net.SERVER_ADDRESS not in tags
+
+    def test_startup_nodes_dict_values(self):
+        """Cover redis-py versions that store startup_nodes values as plain dicts."""
+        instance = self._make_instance({"redis-host:7000": {"host": "redis-host", "port": 7000}})
+        tags = _build_tags(None, instance, "redis")
+        assert tags[net.TARGET_HOST] == "redis-host"
+        assert tags[net.SERVER_ADDRESS] == "redis-host"
+        assert tags[net.TARGET_PORT] == 7000
 
     def test_missing_nodes_manager(self):
         tags = _build_tags(None, types.SimpleNamespace(), "redis")

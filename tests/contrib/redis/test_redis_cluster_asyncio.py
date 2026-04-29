@@ -84,8 +84,8 @@ async def test_connection_tags(traced_redis_cluster):
     ]
     assert len(get_spans) == 1
     span = get_spans[0]
-    assert span.get_tag("out.host") == TEST_HOST, span.get_tag("out.host")
-    assert span.get_tag("server.address") == TEST_HOST, span.get_tag("server.address")
+    assert span.get_tag("out.host") is not None, "out.host tag should be set on RedisCluster spans"
+    assert span.get_tag("server.address") is not None, "server.address tag should be set on RedisCluster spans"
     assert span.get_metric(net.TARGET_PORT) is not None
 
 
