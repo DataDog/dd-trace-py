@@ -86,7 +86,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_input_snapshot: Optional[list[Message]] = None  # input captured before llm extension
         self._accumulated_input_messages: Optional[list[Message]] = None
         self._create_step_span()
-    
+
     async def process_chunk(self, chunk, iterator=None):
         self.chunks.append(chunk)
         chunk_type = type(chunk).__name__
