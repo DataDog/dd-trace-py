@@ -173,6 +173,7 @@ class SessionManagerMockBuilder:
         mock_manager.writer = Mock()
         mock_manager.coverage_writer = Mock()
         mock_manager.telemetry_api = Mock()
+        mock_manager.connector_setup = Mock()
 
         return mock_manager
 
