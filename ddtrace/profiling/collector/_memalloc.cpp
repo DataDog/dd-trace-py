@@ -297,9 +297,26 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     Py_RETURN_NONE;
 }
 
+PyDoc_STRVAR(memalloc_heap_live_bytes__doc__,
+             "heap_live_bytes($module, /)\n"
+             "--\n"
+             "\n"
+             "Return the estimated live heap bytes tracked by the memory profiler.\n"
+             "\n"
+             "Returns 0 if the memory profiler is not started.\n");
+static PyObject*
+memalloc_heap_live_bytes(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    return PyLong_FromUnsignedLongLong(memalloc_heap_get_live_bytes_no_cpython());
+}
+
 static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
                                         { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
                                         { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
+                                        { "heap_live_bytes",
+                                          (PyCFunction)memalloc_heap_live_bytes,
+                                          METH_NOARGS,
+                                          memalloc_heap_live_bytes__doc__ },
                                         /* sentinel */
                                         { NULL, NULL, 0, NULL } };
 

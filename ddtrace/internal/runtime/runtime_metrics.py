@@ -14,6 +14,7 @@ from ..logger import get_logger
 from .constants import DEFAULT_RUNTIME_METRICS
 from .constants import DEFAULT_RUNTIME_METRICS_INTERVAL
 from .metric_collectors import GCRuntimeMetricCollector
+from .metric_collectors import MemallocRuntimeMetricCollector
 from .metric_collectors import PSUtilRuntimeMetricCollector
 from .tag_collectors import PlatformTagCollector
 from .tag_collectors import PlatformTagCollectorV2
@@ -70,6 +71,7 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     COLLECTORS = [
         GCRuntimeMetricCollector,
         PSUtilRuntimeMetricCollector,
+        MemallocRuntimeMetricCollector,
     ]
 
 

@@ -4,6 +4,7 @@ GC_COUNT_GEN2 = "runtime.python.gc.count.gen2"
 
 THREAD_COUNT = "runtime.python.thread_count"
 MEM_RSS = "runtime.python.mem.rss"
+MEM_HEAP = "runtime.python.mem.heap"
 # `runtime.python.cpu.time.sys` metric is used to auto-enable runtime metrics dashboards in DD backend
 CPU_TIME_SYS = "runtime.python.cpu.time.sys"
 CPU_TIME_USER = "runtime.python.cpu.time.user"
@@ -17,7 +18,9 @@ PSUTIL_RUNTIME_METRICS = set(
     [THREAD_COUNT, MEM_RSS, CTX_SWITCH_VOLUNTARY, CTX_SWITCH_INVOLUNTARY, CPU_TIME_SYS, CPU_TIME_USER, CPU_PERCENT]
 )
 
-DEFAULT_RUNTIME_METRICS = GC_RUNTIME_METRICS | PSUTIL_RUNTIME_METRICS
+MEMALLOC_RUNTIME_METRICS = set([MEM_HEAP])
+
+DEFAULT_RUNTIME_METRICS = GC_RUNTIME_METRICS | PSUTIL_RUNTIME_METRICS | MEMALLOC_RUNTIME_METRICS
 DEFAULT_RUNTIME_METRICS_INTERVAL = 10
 
 SERVICE = "service"

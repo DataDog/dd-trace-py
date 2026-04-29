@@ -24,3 +24,6 @@ memalloc_heap_untrack_no_cpython(void* ptr);
 
 void
 memalloc_heap_postfork_child(void);
+
+uint64_t
+memalloc_heap_get_live_bytes_no_cpython(void);

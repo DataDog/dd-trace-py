@@ -110,8 +110,12 @@ class heap_tracker_t
     /* Track an allocation that we decided to sample. This updates shared state and
      * must be called with the GIL held and without making any C Python API calls.
      * If an allocation at the same address is already tracked, the old traceback
-     * is deleted internally. */
-    void add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb);
+     * is deleted internally. weighted_size is added to live_heap_bytes. */
+    void add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb, uint64_t weighted_size);
+
+    /* Return the current estimated live heap bytes (sum of weighted sizes of tracked allocations).
+     * Must be called with the GIL held. */
+    uint64_t get_live_heap_bytes_no_cpython() const { return live_heap_bytes; }
 
     void export_heap_no_cpython();
 
@@ -148,6 +152,10 @@ class heap_tracker_t
     uint64_t current_sample_size;
     /* Tracked allocations - using unique_ptr for automatic memory management */
     HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
+    /* Per-allocation weighted sizes, parallel to allocs_m, used to maintain live_heap_bytes */
+    HeapMapType<void*, uint64_t> alloc_weights_m;
+    /* Running estimate of live heap bytes (sum of weighted sizes of tracked allocations) */
+    uint64_t live_heap_bytes{ 0 };
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
 
@@ -228,6 +236,11 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     if (!node.empty()) {
         pool_put_no_cpython(std::move(node.mapped()));
     }
+
+    auto weight_node = alloc_weights_m.extract(ptr);
+    if (!weight_node.empty()) {
+        live_heap_bytes -= weight_node.mapped();
+    }
 }
 
 bool
@@ -255,7 +268,7 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
 }
 
 void
-heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb)
+heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb, uint64_t weighted_size)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
@@ -264,6 +277,9 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
 
     /* This should always be a new insertion. If not, we failed to properly untrack a previous allocation. */
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
+
+    live_heap_bytes += weighted_size;
+    alloc_weights_m.insert_or_assign(ptr, weighted_size);
 
     // Get ready for the next sample
     reset_sampling_state_no_cpython();
@@ -307,6 +323,8 @@ heap_tracker_t::postfork_child()
     // Allocations map may contain data from the parent process, and also
     // traceback_t objects may reference invalid Profile state.
     allocs_m.clear();
+    alloc_weights_m.clear();
+    live_heap_bytes = 0;
 
     // Reset the sampling state to start fresh after fork.
     reset_sampling_state_no_cpython();
@@ -417,7 +435,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->add_sample_no_cpython(ptr, std::move(tb));
+        heap_tracker_t::instance->add_sample_no_cpython(ptr, std::move(tb), allocated_memory_val);
     }
     // If instance is gone, tb's unique_ptr automatically deletes the traceback
 }
@@ -436,4 +454,13 @@ memalloc_heap_postfork_child(void)
     if (heap_tracker_t::instance) {
         heap_tracker_t::instance->postfork_child();
     }
+}
+
+uint64_t
+memalloc_heap_get_live_bytes_no_cpython(void)
+{
+    if (heap_tracker_t::instance) {
+        return heap_tracker_t::instance->get_live_heap_bytes_no_cpython();
+    }
+    return 0;
 }

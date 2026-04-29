@@ -9,6 +9,7 @@ from .constants import CTX_SWITCH_VOLUNTARY
 from .constants import GC_COUNT_GEN0
 from .constants import GC_COUNT_GEN1
 from .constants import GC_COUNT_GEN2
+from .constants import MEM_HEAP
 from .constants import MEM_RSS
 from .constants import THREAD_COUNT
 
@@ -89,3 +90,21 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
                 metrics[metric] = value
 
             return list(metrics.items())
+
+
+class MemallocRuntimeMetricCollector(RuntimeMetricCollector):
+    """Collector for memory profiler live heap estimate.
+
+    Reports the live heap tracked by ddtrace's memory profiler (sampled OBJ-domain
+    allocations today; expands as more domains are added). Returns nothing when the
+    memory profiler is not started, so runtime metrics work independently of profiling.
+    """
+
+    required_modules = ["ddtrace.profiling.collector._memalloc"]
+
+    def collect_fn(self, keys):
+        _memalloc = self.modules.get("ddtrace.profiling.collector._memalloc")
+        live_bytes = _memalloc.heap_live_bytes()
+        if live_bytes == 0:
+            return []
+        return [(MEM_HEAP, live_bytes)]
