@@ -20,6 +20,9 @@ probe_process_vm_readv()
 __attribute__((constructor)) void
 init_safe_copy()
 {
+    // Always probe process_vm_readv so we know whether it is a valid fallback.
+    process_vm_readv_available = probe_process_vm_readv();
+
     // Try safe_memcpy (fast path) first.
     if (init_segv_catcher() == 0) {
         safe_copy = safe_memcpy_wrapper;
@@ -28,12 +31,6 @@ init_safe_copy()
     } else {
         // std::cerr might not have been fully initialized at this point.
         fprintf(stderr, "Failed to initialize segv catcher. Trying process_vm_readv.\n");
-    }
-
-    // Always probe process_vm_readv so we know whether it is a valid fallback.
-    process_vm_readv_available = probe_process_vm_readv();
-
-    if (!safe_memcpy_initialized) {
         if (process_vm_readv_available) {
             safe_copy = process_vm_readv;
         } else {
@@ -51,6 +48,8 @@ set_fast_copy_enabled(bool enabled)
         if (safe_memcpy_initialized) {
             safe_copy = safe_memcpy_wrapper;
             fast_copy_active = true;
+        } else {
+            fprintf(stderr, "Warning: fast copy requested but safe_memcpy was not initialized\n");
         }
     } else {
 #if defined PL_LINUX

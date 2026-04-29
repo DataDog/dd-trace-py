@@ -55,7 +55,7 @@ inline kern_return_t (*safe_copy)(vm_map_read_t,
 inline bool fast_copy_active = false;
 
 // Whether init_segv_catcher succeeded at constructor time. Persists even if
-// fast_copy_active is later toggled off by set_fast_copy_enabled().
+// fast_copy_active is later toggled off by set_fast_copy_enabled.
 inline bool safe_memcpy_initialized = false;
 
 #if defined PL_LINUX
@@ -101,7 +101,7 @@ init_safe_copy()
 #endif // PL_DARWIN
 
 // Switch the active copy method at runtime.  Must be called before the
-// sampling thread is started (i.e. before Sampler::start()).
+// sampling thread is started.
 void
 set_fast_copy_enabled(bool enabled);
 

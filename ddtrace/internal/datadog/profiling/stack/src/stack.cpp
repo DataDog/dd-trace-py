@@ -684,9 +684,14 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 static PyObject*
 stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
 {
-    int enabled = true;
+    int enabled = 1;
 
     if (!PyArg_ParseTuple(args, "|p", &enabled)) {
+        return NULL;
+    }
+
+    if (Sampler::get().is_running()) {
+        PyErr_SetString(PyExc_RuntimeError, "set_fast_copy must be called before the sampler is started");
         return NULL;
     }
 
