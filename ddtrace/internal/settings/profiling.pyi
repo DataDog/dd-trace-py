@@ -37,6 +37,7 @@ class ProfilingConfigLock(DDConfig):
     enabled: bool
     name_inspect_dir: bool
     exclude_modules: frozenset[str]
+    primitives: frozenset[str]
 
 class ProfilingConfigMemory(DDConfig):
     enabled: bool

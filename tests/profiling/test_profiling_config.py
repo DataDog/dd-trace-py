@@ -61,7 +61,7 @@ class TestExcludeModulesConfig:
         cfg = ProfilingConfigLock()
         assert isinstance(cfg.exclude_modules, frozenset)
 
-    def test_parsed_value_is_frozenset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_parsed_value_is_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A non-empty env var must produce a frozenset[str], not a raw string."""
         monkeypatch.setenv("DD_PROFILING_LOCK_EXCLUDE_MODULES", "uvicorn,asyncio,sqlalchemy.pool")
         from ddtrace.internal.settings.profiling import ProfilingConfigLock
@@ -77,3 +77,24 @@ class TestExcludeModulesConfig:
 
         cfg = ProfilingConfigLock()
         assert cfg.exclude_modules == frozenset({"uvicorn", "asyncio"})
+
+
+class TestLockConfig:
+    def test_primitives_defaults(self) -> None:
+        config = ProfilingConfig()
+        assert config.lock.primitives == frozenset({"threading.Lock", "threading.RLock", "asyncio.Lock"})
+
+    def test_primitives_custom(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(
+            "DD_PROFILING_LOCK_PRIMITIVES",
+            "threading.Lock,threading.Semaphore,asyncio.BoundedSemaphore",
+        )
+        config = ProfilingConfig()
+        assert config.lock.primitives == frozenset(
+            {"threading.Lock", "threading.Semaphore", "asyncio.BoundedSemaphore"}
+        )
+
+    def test_primitives_whitespace_trimmed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_LOCK_PRIMITIVES", " threading.Lock , threading.RLock ")
+        config = ProfilingConfig()
+        assert config.lock.primitives == frozenset({"threading.Lock", "threading.RLock"})

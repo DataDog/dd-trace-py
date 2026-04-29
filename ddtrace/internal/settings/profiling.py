@@ -375,6 +375,26 @@ class ProfilingConfigLock(DDConfig):
         ),
     )
 
+    primitives = DDConfig.v(
+        frozenset,
+        "primitives",
+        parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
+        # Deliberately conservative default. After new lock types were added in
+        # v3.5.x, customers with heavy async workloads (many Condition/Semaphore
+        # acquisitions) saw significant latency regressions (SCP-1121). We default
+        # to the original core primitives plus RLock, and let users opt in to
+        # broader coverage via this config.
+        default=frozenset({"threading.Lock", "threading.RLock", "asyncio.Lock"}),
+        help_type="String",
+        help=(
+            "Comma-separated list of lock primitive types to profile. "
+            "Default: ``threading.Lock,threading.RLock,asyncio.Lock``. "
+            "Available primitives: ``threading.Lock``, ``threading.RLock``, ``threading.Semaphore``, "
+            "``threading.BoundedSemaphore``, ``threading.Condition``, ``asyncio.Lock``, "
+            "``asyncio.Semaphore``, ``asyncio.BoundedSemaphore``, ``asyncio.Condition``."
+        ),
+    )
+
 
 class ProfilingConfigMemory(DDConfig):
     __item__ = __prefix__ = "memory"

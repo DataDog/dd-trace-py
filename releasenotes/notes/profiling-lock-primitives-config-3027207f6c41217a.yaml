@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    profiling: Adds ``DD_PROFILING_LOCK_PRIMITIVES`` to control which lock types are profiled.
+    The default is ``threading.Lock,threading.RLock,asyncio.Lock``, which reduces overhead.
+    Other available primitives are:
+    ``threading.Semaphore``, ``threading.BoundedSemaphore``, ``threading.Condition``,
+    ``asyncio.Semaphore``, ``asyncio.BoundedSemaphore``, or ``asyncio.Condition``.
