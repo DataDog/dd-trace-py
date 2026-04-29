@@ -23,27 +23,23 @@ def ddtrace_global_config():
 
 
 @pytest.fixture
-def test_spans(ddtrace_global_config, test_spans):
+def test_spans(ddtrace_global_config, test_spans, monkeypatch):
     try:
         if ddtrace_global_config.get("_llmobs_enabled", False):
+            # Preserve meta_struct["_llmobs"] on spans so tests can assert against
+            # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it
+            # after enqueueing to LLMObsSpanWriter.
+            monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
             # Have to disable and re-enable LLMObs to use to mock tracer.
             LLMObs.disable()
             LLMObs.enable(integrations_enabled=False)
+            # Replace the real LLMObsSpanWriter with a mock so we don't keep a
+            # background flush thread alive trying to ship spans during the test.
+            LLMObs._instance._llmobs_span_writer.stop()
+            LLMObs._instance._llmobs_span_writer = mock.MagicMock()
         yield test_spans
     finally:
         LLMObs.disable()
-
-
-@pytest.fixture
-def mock_llmobs_writer(scope="session"):
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    try:
-        LLMObsSpanWriterMock = patcher.start()
-        m = mock.MagicMock()
-        LLMObsSpanWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
 
 
 def default_global_config():
