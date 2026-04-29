@@ -39,6 +39,14 @@ REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
 CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
 
+LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.input_tokens"
+LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY = "_dd.llmobs.output_tokens"
+LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY = "_dd.llmobs.total_tokens"
+LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY = "_dd.llmobs.span_kind"
+LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
+LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"
+LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
+
 TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
 TIME_IN_MODEL_PREFILL_METRIC_KEY = "time_in_model_prefill"
@@ -134,6 +142,7 @@ class LLMOBS_STRUCT:
     ML_APP: Final = "ml_app"
     SESSION_ID: Final = "session_id"
     TAGS: Final = "tags"
+    COST_TAGS: Final = "cost_tags"
     INTEGRATION: Final = "integration"
     PROMPT: Final = "prompt"
     METRICS: Final = "metrics"

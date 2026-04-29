@@ -34,6 +34,8 @@ class LLMObsTelemetryMetrics:
     USER_PROCESSOR_CALLED = "user_processor_called"
     PROMPT_SOURCE = "prompt.source"
     PROMPT_FETCH_ERROR = "prompt.fetch.error"
+    COST_TAGS_ANNOTATED = "cost_tags.annotated"
+    COST_TAGS_SUBMITTED = "cost_tags.submitted"
 
 
 def _find_tag_value_from_tags(tags, tag_key):
@@ -184,6 +186,38 @@ def record_llmobs_annotate(span: Optional[Span], error: Optional[str]):
     tags.extend([("span_kind", span_kind), ("is_root_span", is_root_span)])
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.ANNOTATIONS, value=1, tags=tuple(tags)
+    )
+
+
+def record_cost_tags_annotated(span: Span, source: str) -> None:
+    tags = [
+        ("span_kind", get_llmobs_span_kind(span) or "N/A"),
+        ("source", source),
+        ("ml_app", get_llmobs_ml_app(span) or "N/A"),
+        ("model_provider", get_llmobs_model_provider(span) or "N/A"),
+    ]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.COST_TAGS_ANNOTATED,
+        value=1,
+        tags=tuple(tags),
+    )
+
+
+def record_cost_tags_submitted(span: Span, count: int, source: str, state: str, reason: str = "none") -> None:
+    tags = [
+        ("span_kind", get_llmobs_span_kind(span) or "N/A"),
+        ("source", source),
+        ("ml_app", get_llmobs_ml_app(span) or "N/A"),
+        ("model_provider", get_llmobs_model_provider(span) or "N/A"),
+        ("state", state),
+        ("reason", reason),
+    ]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.COST_TAGS_SUBMITTED,
+        value=count,
+        tags=tuple(tags),
     )
 
 

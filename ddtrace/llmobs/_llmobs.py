@@ -1573,6 +1573,7 @@ class LLMObs(Service):
         tags: Optional[dict[str, Any]] = None,
         prompt: Optional[Union[dict, Prompt]] = None,
         name: Optional[str] = None,
+        cost_tags: Optional[list[str]] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
         """
@@ -1581,6 +1582,9 @@ class LLMObs(Service):
 
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
+        :param cost_tags: List of tag keys to propagate to LLMObs cost and token metrics (LLM/embedding spans only),
+                          emitted based on this span. Each key must already exist on the span—via the `tags` argument
+                          in this call, a prior annotation on the same span, or an integration.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
                         `{
                             "id": "...",
@@ -1632,9 +1636,11 @@ class LLMObs(Service):
                         ctx_id,
                         {
                             "tags": tags,
+                            "cost_tags": cost_tags,
                             "prompt": prompt,
                             "_name": name,
                             "_linked_spans": _linked_spans,
+                            "_telemetry_source": "annotation_context",
                         },
                     )
                 )
@@ -2228,9 +2234,11 @@ class LLMObs(Service):
         metrics: Optional[dict[str, Any]] = None,
         tags: Optional[dict[str, Any]] = None,
         tool_definitions: Optional[list[dict[str, Any]]] = None,
+        cost_tags: Optional[list[str]] = None,
         _name: Optional[str] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
         _suppress_span_kind_error: bool = False,
+        _telemetry_source: str = "annotate",
     ) -> None:
         """
         Sets metadata, inputs, outputs, tags, and metrics as provided for a given LLMObs span.
@@ -2277,6 +2285,9 @@ class LLMObs(Service):
                          described by the LLMObs span.
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
+        :param cost_tags: List of tag keys to propagate to LLMObs cost and token metrics (LLM/embedding spans only),
+                          emitted based on this span. Each key must already exist on the span—via the `tags` argument
+                          in this call, a prior annotation on the same span, or an integration.
         :param tool_definitions: list of tool definition dictionaries for tool calling scenarios.
                             - This argument is only applicable to LLM spans.
                             - Each tool definition is a dictionary containing a required "name" (string),
@@ -2324,6 +2335,9 @@ class LLMObs(Service):
                     if session_id:
                         _annotate_llmobs_span_data(span, session_id=str(session_id))
                     _annotate_llmobs_span_data(span, tags=tags)
+            validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
+            if validated_cost_tags:
+                _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)
             if tool_definitions is not None:
                 validated_tool_definitions = extract_tool_definitions(tool_definitions)
                 if validated_tool_definitions:
@@ -2404,6 +2418,50 @@ class LLMObs(Service):
         except TypeError:
             return "Failed to parse output messages.", "invalid_io_messages"
         return None, None
+
+    @classmethod
+    def _validate_cost_tags(cls, span: Span, cost_tags: Any, source: str = "annotate") -> Optional[list[str]]:
+        if cost_tags is None:
+            return None
+
+        telemetry.record_cost_tags_annotated(span, source=source)
+        if not isinstance(cost_tags, list):
+            log.warning("cost_tags must be a list of strings. Ignoring value.")
+            telemetry.record_cost_tags_submitted(span, count=1, source=source, state="error", reason="non_list")
+            return None
+
+        validated_cost_tags: list[str] = []
+        non_string_entries = 0
+        missing_span_tags = 0
+        try:
+            span_tags = get_llmobs_tags(span) or {}
+            for cost_tag in cost_tags:
+                if not isinstance(cost_tag, str):
+                    log.warning("cost_tags entries must be strings. Skipping entry %r.", cost_tag)
+                    non_string_entries += 1
+                    continue
+                if cost_tag not in span_tags:
+                    log.warning(
+                        "cost_tags entry %r must reference a key present in span tags. Skipping entry.", cost_tag
+                    )
+                    missing_span_tags += 1
+                    continue
+                if cost_tag not in validated_cost_tags:
+                    validated_cost_tags.append(cost_tag)
+            return validated_cost_tags or None
+        finally:
+            if non_string_entries:
+                telemetry.record_cost_tags_submitted(
+                    span, count=non_string_entries, source=source, state="error", reason="non_string_entry"
+                )
+            if missing_span_tags:
+                telemetry.record_cost_tags_submitted(
+                    span, count=missing_span_tags, source=source, state="error", reason="missing_span_tag"
+                )
+            if validated_cost_tags:
+                telemetry.record_cost_tags_submitted(
+                    span, count=len(validated_cost_tags), source=source, state="success"
+                )
 
     @classmethod
     def _tag_embedding_io(cls, span, input_documents=None, output_text=None) -> tuple[Optional[str], Optional[str]]:
