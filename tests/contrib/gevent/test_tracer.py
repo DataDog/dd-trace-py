@@ -148,7 +148,7 @@ class TestGeventTracer(TracerTestCase):
         worker_1 = spans[1]
         worker_2 = spans[2]
         # check sampling priority
-        assert int(parent_span.get_metric(_SAMPLING_PRIORITY_KEY)) is USER_KEEP
+        assert parent_span.get_metric(_SAMPLING_PRIORITY_KEY) == USER_KEEP
         assert worker_1.get_metric(_SAMPLING_PRIORITY_KEY) is None
         assert worker_2.get_metric(_SAMPLING_PRIORITY_KEY) is None
 

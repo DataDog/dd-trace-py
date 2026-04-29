@@ -60,7 +60,7 @@ class TestLongRunningSpan(TracerTestCase):
 
         time.sleep(1.5)
 
-        self.assertTrue(span._has_attribute("_dd.partial_version"))
+        self.assertGreater(span.get_metric("_dd.partial_version"), 0)
         self.assertEqual(span.get_tag("ray.job.status"), "RUNNING")
 
         stop_long_running_span(span)
@@ -69,7 +69,7 @@ class TestLongRunningSpan(TracerTestCase):
             job_spans = _ray_span_manager._job_spans.get(submission_id, {})
             self.assertNotIn((span.trace_id, span.span_id), job_spans)
 
-        self.assertFalse(span._has_attribute("_dd.partial_version"))
+        self.assertIsNone(span.get_metric("_dd.partial_version"))
         self.assertEqual(span.get_metric("_dd.was_long_running"), 1)
         self.assertTrue(span.finished)
 
@@ -85,7 +85,7 @@ class TestLongRunningSpan(TracerTestCase):
             self.assertIn(submission_id, _ray_span_manager._job_spans)
             self.assertIn((span.trace_id, span.span_id), _ray_span_manager._job_spans[submission_id])
 
-        self.assertFalse(span._has_attribute("_dd.partial_version"))
+        self.assertIsNone(span.get_metric("_dd.partial_version"))
         self.assertIsNone(span.get_tag("ray.job.status"))
 
         stop_long_running_span(span)
@@ -94,7 +94,7 @@ class TestLongRunningSpan(TracerTestCase):
             job_spans = _ray_span_manager._job_spans.get(submission_id, {})
             self.assertNotIn((span.trace_id, span.span_id), job_spans)
 
-        self.assertFalse(span._has_attribute("_dd.partial_version"))
+        self.assertIsNone(span.get_metric("_dd.partial_version"))
         self.assertIsNone(span.get_metric("_dd.was_long_running"))
         self.assertTrue(span.finished)
 
@@ -118,10 +118,10 @@ class TestLongRunningSpan(TracerTestCase):
 
         time.sleep(2)
 
-        self.assertTrue(span1._has_attribute("_dd.partial_version"))
+        self.assertGreater(span1.get_metric("_dd.partial_version"), 0)
         self.assertEqual(span1.get_tag("ray.job.status"), "RUNNING")
 
-        self.assertTrue(span2._has_attribute("_dd.partial_version"))
+        self.assertGreater(span2.get_metric("_dd.partial_version"), 0)
         self.assertEqual(span2.get_tag("ray.job.status"), "RUNNING")
 
         stop_long_running_span(span1)
@@ -151,7 +151,7 @@ class TestLongRunningSpan(TracerTestCase):
         child2 = self.tracer.start_span(name="test.child2.short", service="test-service", child_of=parent_span)
         child2.finish()
         self.assertTrue(child2.finished)
-        self.assertFalse(child2._has_attribute("_dd.partial_version"))
+        self.assertIsNone(child2.get_metric("_dd.partial_version"))
 
         child3 = self.tracer.start_span(name="test.child3.long", service="test-service", child_of=parent_span)
         child3._set_attribute("ray.submission_id", submission_id)
@@ -166,9 +166,9 @@ class TestLongRunningSpan(TracerTestCase):
 
         time.sleep(1.5)
 
-        self.assertTrue(parent_span._has_attribute("_dd.partial_version"))
+        self.assertGreater(parent_span.get_metric("_dd.partial_version"), 0)
         self.assertEqual(parent_span.get_tag("ray.job.status"), "RUNNING")
-        self.assertTrue(child3._has_attribute("_dd.partial_version"))
+        self.assertGreater(child3.get_metric("_dd.partial_version"), 0)
         self.assertEqual(child3.get_tag("ray.job.status"), "RUNNING")
 
         stop_long_running_span(child3)

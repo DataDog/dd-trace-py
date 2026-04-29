@@ -60,7 +60,7 @@ def test_appsec_iast_processor_ensure_span_is_manual_keep(iast_context_defaults,
         result = load_iast_report(span)
         assert result is not None
         assert len(result["vulnerabilities"]) == 1
-        assert int(span.get_metric(_SAMPLING_PRIORITY_KEY)) is USER_KEEP
+        assert span.get_metric(_SAMPLING_PRIORITY_KEY) == USER_KEEP
 
 
 @pytest.mark.parametrize("sampling_rate", ["0.0", "100"])
@@ -84,11 +84,11 @@ def test_appsec_iast_processor_ensure_span_is_sampled(iast_context_defaults, sam
         result = load_iast_report(span)
         if sampling_rate == "0.0":
             assert result is None
-            assert int(span.get_metric(_SAMPLING_PRIORITY_KEY)) is AUTO_KEEP
+            assert span.get_metric(_SAMPLING_PRIORITY_KEY) == AUTO_KEEP
             assert span.get_metric(IAST.ENABLED) == 0.0
         else:
             assert result is not None
             assert len(result["vulnerabilities"]) == 1
-            assert int(span.get_metric(_SAMPLING_PRIORITY_KEY)) is USER_KEEP
+            assert span.get_metric(_SAMPLING_PRIORITY_KEY) == USER_KEEP
             assert span.get_metric(IAST.ENABLED) == 1.0
         assert get_hash_object_tracking_len() == 0
