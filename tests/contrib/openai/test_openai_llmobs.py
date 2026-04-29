@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.utils import _est_tokens
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.openai.utils import assert_prompt_tracking
 from tests.contrib.openai.utils import chat_completion_custom_functions
@@ -20,8 +21,7 @@ from tests.contrib.openai.utils import response_tool_function_expected_output
 from tests.contrib.openai.utils import response_tool_function_expected_output_streamed
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import DEEP_TOOL_SCHEMA
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import assert_llmobs_span_data
 
 
 EXPECTED_TOOL_DEFINITIONS = [
@@ -59,9 +59,7 @@ EXPECTED_TOOL_DEFINITIONS = [
 )
 class TestLLMObsOpenaiV1:
     @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_completion_proxy(
-        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_completion_proxy(self, mock_completions_post, openai, ddtrace_global_config, test_spans):
         # mock out the completions response
         mock_completions_post.return_value = mock_openai_completions_response
         model = "gpt-3.5-turbo"
@@ -75,30 +73,28 @@ class TestLLMObsOpenaiV1:
             max_tokens=10,
             user="ddtrace-test",
         )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_non_llm_span_event(
-                span,
-                "workflow",
-                name="OpenAI.createCompletion",
-                input_value=safe_json([{"content": "Hello world"}], ensure_ascii=False),
-                output_value=safe_json(
-                    [
-                        {"content": "Hello! How can I assist you today?"},
-                        {"content": "Hello! How can I assist you today?"},
-                    ],
-                    ensure_ascii=False,
-                ),
-                metadata={
-                    "temperature": 0.8,
-                    "n": 2,
-                    "stop": ".",
-                    "max_tokens": 10,
-                    "user": "ddtrace-test",
-                },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="workflow",
+            name="OpenAI.createCompletion",
+            input_value=safe_json([{"content": "Hello world"}], ensure_ascii=False),
+            output_value=safe_json(
+                [
+                    {"content": "Hello! How can I assist you today?"},
+                    {"content": "Hello! How can I assist you today?"},
+                ],
+                ensure_ascii=False,
+            ),
+            metadata={
+                "temperature": 0.8,
+                "n": 2,
+                "stop": ".",
+                "max_tokens": 10,
+                "user": "ddtrace-test",
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
         # span created from request with non-proxy URL should result in an LLM span
@@ -112,22 +108,21 @@ class TestLLMObsOpenaiV1:
             max_tokens=10,
             user="ddtrace-test",
         )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 2
-        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
 
     @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_chat_completion_unknown_provider(
-        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_chat_completion_unknown_provider(self, mock_completions_post, openai, ddtrace_global_config, test_spans):
         """Ensure model_provider is set to 'unknown' for chat completions with unknown base_url."""
         mock_completions_post.return_value = mock_openai_chat_completions_response
         client = openai.OpenAI(base_url="http://localhost:8000")
         client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        assert mock_llmobs_writer.enqueue.call_args.args[0]["meta"]["model_provider"] == "unknown"
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert _get_llmobs_data_metastruct(spans[0])["meta"]["model_provider"] == "unknown"
 
-    def test_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_completion(self, openai, ddtrace_global_config, test_spans):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -144,20 +139,19 @@ class TestLLMObsOpenaiV1:
                 max_tokens=10,
                 user="ddtrace-test",
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createCompletion",
-                model_name=model,
-                model_provider="openai",
-                input_messages=[{"content": "Hello world"}],
-                output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
-                metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
-                token_metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createCompletion",
+            model_name=model,
+            model_provider="openai",
+            input_messages=[{"content": "Hello world"}],
+            output_messages=[{"content": ", relax!” I said to my laptop"}, {"content": " (1"}],
+            metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
+            metrics={"input_tokens": 2, "output_tokens": 12, "total_tokens": 14},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
@@ -166,7 +160,7 @@ class TestLLMObsOpenaiV1:
     )
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_completion_azure_proxy(
-        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans
+        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, test_spans
     ):
         prompt = "Hello world"
         mock_completions_post.return_value = mock_openai_completions_response
@@ -178,29 +172,27 @@ class TestLLMObsOpenaiV1:
         azure_client.completions.create(
             model="gpt-3.5-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_non_llm_span_event(
-                span,
-                "workflow",
-                name="OpenAI.createCompletion",
-                input_value=safe_json([{"content": "Hello world"}], ensure_ascii=False),
-                output_value=safe_json(
-                    [
-                        {"content": "Hello! How can I assist you today?"},
-                        {"content": "Hello! How can I assist you today?"},
-                    ],
-                    ensure_ascii=False,
-                ),
-                metadata={
-                    "temperature": 0,
-                    "n": 1,
-                    "max_tokens": 20,
-                    "user": "ddtrace-test",
-                },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="workflow",
+            name="OpenAI.createCompletion",
+            input_value=safe_json([{"content": "Hello world"}], ensure_ascii=False),
+            output_value=safe_json(
+                [
+                    {"content": "Hello! How can I assist you today?"},
+                    {"content": "Hello! How can I assist you today?"},
+                ],
+                ensure_ascii=False,
+            ),
+            metadata={
+                "temperature": 0,
+                "n": 1,
+                "max_tokens": 20,
+                "user": "ddtrace-test",
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
         # span created from request with non-proxy URL should result in an LLM span
@@ -212,15 +204,15 @@ class TestLLMObsOpenaiV1:
         azure_client.completions.create(
             model="gpt-3.5-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 2
-        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    def test_completion_azure(self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_completion_azure(self, openai, azure_openai_config, ddtrace_global_config, test_spans):
         prompt = "why do some languages have words that can't directly be translated to other languages?"
         expected_output = (
             '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
@@ -235,29 +227,26 @@ class TestLLMObsOpenaiV1:
             resp = azure_client.completions.create(
                 model="gpt-35-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="AzureOpenAI.createCompletion",
-                model_name=resp.model,
-                model_provider="azure_openai",
-                input_messages=[{"content": prompt}],
-                output_messages=[{"content": expected_output}],
-                metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
-                token_metrics={"input_tokens": 16, "output_tokens": 20, "total_tokens": 36},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="AzureOpenAI.createCompletion",
+            model_name=resp.model,
+            model_provider="azure_openai",
+            input_messages=[{"content": prompt}],
+            output_messages=[{"content": expected_output}],
+            metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
+            metrics={"input_tokens": 16, "output_tokens": 20, "total_tokens": 36},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    async def test_completion_azure_async(
-        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    async def test_completion_azure_async(self, openai, azure_openai_config, ddtrace_global_config, test_spans):
         prompt = "why do some languages have words that can't directly be translated to other languages?"
         expected_output = (
             '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
@@ -272,23 +261,22 @@ class TestLLMObsOpenaiV1:
             resp = await azure_client.completions.create(
                 model="gpt-35-turbo", prompt=prompt, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="AzureOpenAI.createCompletion",
-                model_name=resp.model,
-                model_provider="azure_openai",
-                input_messages=[{"content": prompt}],
-                output_messages=[{"content": expected_output}],
-                metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
-                token_metrics={"input_tokens": 16, "output_tokens": 20, "total_tokens": 36},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="AzureOpenAI.createCompletion",
+            model_name=resp.model,
+            model_provider="azure_openai",
+            input_messages=[{"content": prompt}],
+            output_messages=[{"content": expected_output}],
+            metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
+            metrics={"input_tokens": 16, "output_tokens": 20, "total_tokens": 36},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_completion_stream(self, openai, ddtrace_global_config, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_streamed.yaml"):
             with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
                 mock_est.return_value = 2
@@ -298,69 +286,64 @@ class TestLLMObsOpenaiV1:
                 resp = client.completions.create(model=model, prompt="Hello world", stream=True)
                 for _ in resp:
                     pass
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createCompletion",
-                model_name=model,
-                model_provider="openai",
-                input_messages=[{"content": "Hello world"}],
-                output_messages=[{"content": expected_completion}],
-                metadata={"stream": True},
-                token_metrics={"input_tokens": 2, "output_tokens": 2, "total_tokens": 4},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            ),
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createCompletion",
+            model_name=model,
+            model_provider="openai",
+            input_messages=[{"content": "Hello world"}],
+            output_messages=[{"content": expected_completion}],
+            metadata={"stream": True},
+            metrics={"input_tokens": 2, "output_tokens": 2, "total_tokens": 4},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_chat_completion_proxy(
-        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_chat_completion_proxy(self, mock_completions_post, openai, ddtrace_global_config, test_spans):
         mock_completions_post.return_value = mock_openai_chat_completions_response
         model = "gpt-3.5-turbo"
         input_messages = multi_message_input
         client = openai.OpenAI(base_url="http://localhost:4000")
         client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_non_llm_span_event(
-                span,
-                "workflow",
-                name="OpenAI.createChatCompletion",
-                input_value=safe_json(input_messages, ensure_ascii=False),
-                output_value=safe_json(
-                    [
-                        {
-                            "content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
-                            "role": "assistant",
-                        },
-                        {
-                            "content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
-                            "role": "assistant",
-                        },
-                    ],
-                    ensure_ascii=False,
-                ),
-                metadata={
-                    "top_p": 0.9,
-                    "n": 2,
-                    "user": "ddtrace-test",
-                },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="workflow",
+            name="OpenAI.createChatCompletion",
+            input_value=safe_json(input_messages, ensure_ascii=False),
+            output_value=safe_json(
+                [
+                    {
+                        "content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+                        "role": "assistant",
+                    },
+                    {
+                        "content": "The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+                        "role": "assistant",
+                    },
+                ],
+                ensure_ascii=False,
+            ),
+            metadata={
+                "top_p": 0.9,
+                "n": 2,
+                "user": "ddtrace-test",
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
         # span created from request with non-proxy URL should result in an LLM span
         client = openai.OpenAI(base_url="http://localhost:8000")
         client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 2
-        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
 
-    def test_chat_completion(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_chat_completion(self, openai, ddtrace_global_config, test_spans):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -372,23 +355,22 @@ class TestLLMObsOpenaiV1:
             resp = client.chat.completions.create(
                 model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test"
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createChatCompletion",
-                model_name=resp.model,
-                model_provider="openai",
-                input_messages=input_messages,
-                output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
-                metadata={"top_p": 0.9, "n": 2, "user": "ddtrace-test"},
-                token_metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=input_messages,
+            output_messages=[{"role": "assistant", "content": choice.message.content} for choice in resp.choices],
+            metadata={"top_p": 0.9, "n": 2, "user": "ddtrace-test"},
+            metrics={"input_tokens": 57, "output_tokens": 34, "total_tokens": 91},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_chat_completion_multimodal_content(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_chat_completion_multimodal_content(self, openai, ddtrace_global_config, test_spans):
         """Test that multimodal content (text + image_url + audio) is rendered as readable text."""
         image_url = (
             "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
@@ -409,25 +391,22 @@ class TestLLMObsOpenaiV1:
                     }
                 ],
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createChatCompletion",
-                model_name=resp.model,
-                model_provider="openai",
-                input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
-                output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
-                metadata={},
-                token_metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
+            output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
+            metadata={},
+            metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_chat_completion_multimodal_lazy_iterator(
-        self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_chat_completion_multimodal_lazy_iterator(self, openai, ddtrace_global_config, test_spans):
         """Test that iterable message content is materialized to a list before the SDK
         consumes it, so post-call tag extraction still sees the content.
         """
@@ -464,20 +443,19 @@ class TestLLMObsOpenaiV1:
                 model="gpt-4-vision-preview",
                 messages=[{"role": "user", "content": LazyIterator(content_parts)}],
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createChatCompletion",
-                model_name=resp.model,
-                model_provider="openai",
-                input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
-                output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
-                metadata={},
-                token_metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
+            output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
+            metadata={},
+            metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
@@ -486,7 +464,7 @@ class TestLLMObsOpenaiV1:
     )
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_chat_completion_azure_proxy(
-        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans
+        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, test_spans
     ):
         input_messages = [
             {"content": "Where did the Los Angeles Dodgers play to win the world series in 2020?", "role": "user"}
@@ -500,11 +478,11 @@ class TestLLMObsOpenaiV1:
         azure_client.chat.completions.create(
             model="gpt-3.5-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        expected_event = _expected_llmobs_non_llm_span_event(
-            span,
-            "workflow",
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="workflow",
             name="OpenAI.createChatCompletion",
             input_value=safe_json(input_messages, ensure_ascii=False),
             output_value=safe_json(
@@ -528,7 +506,6 @@ class TestLLMObsOpenaiV1:
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
-        mock_llmobs_writer.enqueue.assert_called_with(expected_event)
 
         # span created from request with non-proxy URL should result in an LLM span
         azure_client = openai.AzureOpenAI(
@@ -539,17 +516,15 @@ class TestLLMObsOpenaiV1:
         azure_client.chat.completions.create(
             model="gpt-3.5-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
         )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 2
-        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span"]["kind"] == "llm"
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    def test_chat_completion_azure(
-        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_chat_completion_azure(self, openai, azure_openai_config, ddtrace_global_config, test_spans):
         input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
         expected_output = "I'm sorry, as an AI language model, I do not have real-time information. Please check"
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_chat_completion.yaml"):
@@ -562,29 +537,26 @@ class TestLLMObsOpenaiV1:
             resp = azure_client.chat.completions.create(
                 model="gpt-35-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="AzureOpenAI.createChatCompletion",
-                model_name=resp.model,
-                model_provider="azure_openai",
-                input_messages=input_messages,
-                output_messages=[{"role": "assistant", "content": expected_output}],
-                metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
-                token_metrics={"input_tokens": 18, "output_tokens": 20, "total_tokens": 38},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="AzureOpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="azure_openai",
+            input_messages=input_messages,
+            output_messages=[{"role": "assistant", "content": expected_output}],
+            metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
+            metrics={"input_tokens": 18, "output_tokens": 20, "total_tokens": 38},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    def test_chat_completion_azure_streamed(
-        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_chat_completion_azure_streamed(self, openai, azure_openai_config, ddtrace_global_config, test_spans):
         input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
         expected_output = (
             "I'm unable to provide real-time weather updates. To find the current weather in New York City, "
@@ -608,8 +580,8 @@ class TestLLMObsOpenaiV1:
             )
             for chunk in resp:
                 pass
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
 
         expected_metadata = {
             "stream": True,
@@ -621,28 +593,25 @@ class TestLLMObsOpenaiV1:
         if parse_version(openai_module.version.VERSION) >= (1, 26):
             expected_metadata["stream_options"] = {"include_usage": True}
 
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="AzureOpenAI.createChatCompletion",
-                model_name="gpt-4o-mini-2024-07-18",
-                model_provider="azure_openai",
-                input_messages=input_messages,
-                # note: investigate why role is empty; in the streamed chunks there is no role returned.
-                output_messages=[{"content": expected_output, "role": ""}],
-                metadata=expected_metadata,
-                token_metrics={"input_tokens": 9, "output_tokens": 45, "total_tokens": 54},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="AzureOpenAI.createChatCompletion",
+            model_name="gpt-4o-mini-2024-07-18",
+            model_provider="azure_openai",
+            input_messages=input_messages,
+            # note: investigate why role is empty; in the streamed chunks there is no role returned.
+            output_messages=[{"content": expected_output, "role": ""}],
+            metadata=expected_metadata,
+            metrics={"input_tokens": 9, "output_tokens": 45, "total_tokens": 54},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    async def test_chat_completion_azure_async(
-        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    async def test_chat_completion_azure_async(self, openai, azure_openai_config, ddtrace_global_config, test_spans):
         input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
         expected_output = "I'm sorry, as an AI language model, I do not have real-time information. Please check"
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_chat_completion.yaml"):
@@ -655,28 +624,25 @@ class TestLLMObsOpenaiV1:
             resp = await azure_client.chat.completions.create(
                 model="gpt-35-turbo", messages=input_messages, temperature=0, n=1, max_tokens=20, user="ddtrace-test"
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="AzureOpenAI.createChatCompletion",
-                model_name=resp.model,
-                model_provider="azure_openai",
-                input_messages=input_messages,
-                output_messages=[{"role": "assistant", "content": expected_output}],
-                metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
-                token_metrics={"input_tokens": 18, "output_tokens": 20, "total_tokens": 38},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="AzureOpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="azure_openai",
+            input_messages=input_messages,
+            output_messages=[{"role": "assistant", "content": expected_output}],
+            metadata={"temperature": 0, "max_tokens": 20, "n": 1, "user": "ddtrace-test"},
+            metrics={"input_tokens": 18, "output_tokens": 20, "total_tokens": 38},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
-    def test_chat_completion_stream_explicit_no_tokens(
-        self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_chat_completion_stream_explicit_no_tokens(self, openai, ddtrace_global_config, test_spans):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -699,26 +665,25 @@ class TestLLMObsOpenaiV1:
                 )
                 for chunk in resp:
                     resp_model = chunk.model
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createChatCompletion",
-                model_name=resp_model,
-                model_provider="openai",
-                input_messages=input_messages,
-                output_messages=[{"content": expected_completion, "role": "assistant"}],
-                metadata={"stream": True, "stream_options": {"include_usage": False}, "user": "ddtrace-test"},
-                token_metrics={"input_tokens": 8, "output_tokens": 8, "total_tokens": 16},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=input_messages,
+            output_messages=[{"content": expected_completion, "role": "assistant"}],
+            metadata={"stream": True, "stream_options": {"include_usage": False}, "user": "ddtrace-test"},
+            metrics={"input_tokens": 8, "output_tokens": 8, "total_tokens": 16},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
     )
-    def test_chat_completion_stream_tokens(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_chat_completion_stream_tokens(self, openai, ddtrace_global_config, test_spans):
         """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed_tokens.yaml"):
             model = "gpt-3.5-turbo"
@@ -729,27 +694,26 @@ class TestLLMObsOpenaiV1:
             resp = client.chat.completions.create(model=model, messages=input_messages, stream=True)
             for chunk in resp:
                 resp_model = chunk.model
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createChatCompletion",
-                model_name=resp_model,
-                model_provider="openai",
-                input_messages=input_messages,
-                output_messages=[{"content": expected_completion, "role": "assistant"}],
-                metadata={"stream": True, "stream_options": {"include_usage": True}},
-                token_metrics={"input_tokens": 17, "output_tokens": 19, "total_tokens": 36},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=input_messages,
+            output_messages=[{"content": expected_completion, "role": "assistant"}],
+            metadata={"stream": True, "stream_options": {"include_usage": True}},
+            metrics={"input_tokens": 17, "output_tokens": 19, "total_tokens": 36},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 40, 0),
         reason="`client.beta.chat.completions.stream` available in 1.40.0+",
     )
-    def test_chat_completion_stream_tokens_beta(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_chat_completion_stream_tokens_beta(self, openai, ddtrace_global_config, test_spans):
         """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed_tokens.yaml"):
             model = "gpt-3.5-turbo"
@@ -761,25 +725,24 @@ class TestLLMObsOpenaiV1:
                 for chunk in stream:
                     if hasattr(chunk, "chunk") and hasattr(chunk.chunk, "model"):
                         resp_model = chunk.chunk.model
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        llmobs_span_event = mock_llmobs_writer.enqueue.call_args_list[0][0][0]
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        llmobs_span_event = _get_llmobs_data_metastruct(spans[0])
         assert llmobs_span_event["meta"]["metadata"]["stream_options"]["include_usage"] is True
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createChatCompletion",
-                model_name=resp_model,
-                model_provider="openai",
-                input_messages=input_messages,
-                output_messages=[{"content": expected_completion, "role": "assistant"}],
-                metadata=mock.ANY,
-                token_metrics={"input_tokens": 17, "output_tokens": 19, "total_tokens": 36},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=input_messages,
+            output_messages=[{"content": expected_completion, "role": "assistant"}],
+            metadata=mock.ANY,
+            metrics={"input_tokens": 17, "output_tokens": 19, "total_tokens": 36},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_chat_completion_function_call(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_chat_completion_function_call(self, openai, ddtrace_global_config, test_spans):
         """Test that function call chat completion calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_function_call.yaml"):
             model = "gpt-3.5-turbo"
@@ -807,27 +770,26 @@ class TestLLMObsOpenaiV1:
                 }
             ],
         }
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createChatCompletion",
-                model_name=resp.model,
-                model_provider="openai",
-                input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-                output_messages=[expected_output],
-                metadata={"function_call": "auto", "user": "ddtrace-test"},
-                token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
-                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[{"content": chat_completion_input_description, "role": "user"}],
+            output_messages=[expected_output],
+            metadata={"function_call": "auto", "user": "ddtrace-test"},
+            metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
+            tool_definitions=EXPECTED_TOOL_DEFINITIONS,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
-    def test_chat_completion_tool_call(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_chat_completion_tool_call(self, openai, ddtrace_global_config, test_spans):
         """Test that tool call chat completion calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call.yaml"):
             model = "gpt-3.5-turbo"
@@ -838,29 +800,26 @@ class TestLLMObsOpenaiV1:
                 messages=[{"role": "user", "content": chat_completion_input_description}],
                 user="ddtrace-test",
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createChatCompletion",
-                model_name=resp.model,
-                model_provider="openai",
-                input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-                output_messages=[tool_call_expected_output],
-                metadata={"user": "ddtrace-test"},
-                token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
-                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[{"content": chat_completion_input_description, "role": "user"}],
+            output_messages=[tool_call_expected_output],
+            metadata={"user": "ddtrace-test"},
+            metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
+            tool_definitions=EXPECTED_TOOL_DEFINITIONS,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
-    def test_chat_completion_tool_call_with_follow_up(
-        self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_chat_completion_tool_call_with_follow_up(self, openai, ddtrace_global_config, test_spans):
         """Test a conversation flow where a tool call response is used in a follow-up message."""
         model = "gpt-3.5-turbo"
         messages = [{"role": "user", "content": chat_completion_input_description}]
@@ -893,121 +852,114 @@ class TestLLMObsOpenaiV1:
                 user="ddtrace-test",
             )
 
-        spans = test_spans.pop_traces()
-        span1, span2 = spans[0][0], spans[1][0]
-        assert mock_llmobs_writer.enqueue.call_count == 2
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 2
 
-        mock_llmobs_writer.enqueue.assert_has_calls(
-            [
-                mock.call(
-                    _expected_llmobs_llm_span_event(
-                        span1,
-                        name="OpenAI.createChatCompletion",
-                        model_name=first_resp.model,
-                        model_provider="openai",
-                        input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-                        output_messages=[
-                            {
-                                "content": "",
-                                "role": "assistant",
-                                "tool_calls": [
-                                    {
-                                        "name": tool_name,
-                                        "arguments": json.loads(tool_arguments_str),
-                                        "tool_id": tool_call_id,
-                                        "type": "function",
-                                    }
-                                ],
-                            }
-                        ],
-                        metadata={"user": "ddtrace-test"},
-                        token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
-                        tool_definitions=[
-                            {
-                                "name": "extract_student_info",
-                                "description": "Get the student information from the body of the input text",
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "name": {"type": "string", "description": "Name of the person"},
-                                        "major": {"type": "string", "description": "Major subject."},
-                                        "school": {"type": "string", "description": "The university name."},
-                                        "grades": {"type": "integer", "description": "GPA of the student."},
-                                        "clubs": {
-                                            "type": "array",
-                                            "description": "School clubs for extracurricular activities. ",
-                                            "items": {"type": "string", "description": "Name of School Club"},
-                                        },
-                                    },
-                                },
-                            }
-                        ],
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-                    )
-                ),
-                mock.call(
-                    _expected_llmobs_llm_span_event(
-                        span2,
-                        name="OpenAI.createChatCompletion",
-                        model_name=second_resp.model,
-                        model_provider="openai",
-                        input_messages=[
-                            {"content": chat_completion_input_description, "role": "user"},
-                            {
-                                "content": "",
-                                "role": "assistant",
-                                "tool_calls": [
-                                    {
-                                        "name": tool_name,
-                                        "arguments": json.loads(tool_arguments_str),
-                                        "tool_id": tool_call_id,
-                                        "type": "function",
-                                    }
-                                ],
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=first_resp.model,
+            model_provider="openai",
+            input_messages=[{"content": chat_completion_input_description, "role": "user"}],
+            output_messages=[
+                {
+                    "content": "",
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "name": tool_name,
+                            "arguments": json.loads(tool_arguments_str),
+                            "tool_id": tool_call_id,
+                            "type": "function",
+                        }
+                    ],
+                }
+            ],
+            metadata={"user": "ddtrace-test"},
+            metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
+            tool_definitions=[
+                {
+                    "name": "extract_student_info",
+                    "description": "Get the student information from the body of the input text",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Name of the person"},
+                            "major": {"type": "string", "description": "Major subject."},
+                            "school": {"type": "string", "description": "The university name."},
+                            "grades": {"type": "integer", "description": "GPA of the student."},
+                            "clubs": {
+                                "type": "array",
+                                "description": "School clubs for extracurricular activities. ",
+                                "items": {"type": "string", "description": "Name of School Club"},
                             },
-                            {
-                                "content": "",
-                                "role": "tool",
-                                "tool_results": [
-                                    {
-                                        "name": "",
-                                        "result": json.dumps(tool_result),
-                                        "tool_id": tool_call_id,
-                                        "type": "tool_result",
-                                    }
-                                ],
-                            },
-                            {"content": "Can you summarize the student's academic performance?", "role": "user"},
-                        ],
-                        output_messages=[
-                            {
-                                "content": (
-                                    "David Nguyen is a sophomore majoring in computer science at Stanford "
-                                    "University with a GPA of 3.8. His academic performance is impressive "
-                                    "and he is excelling in his studies."
-                                ),
-                                "role": "assistant",
-                            }
-                        ],
-                        metadata={"user": "ddtrace-test"},
-                        token_metrics={
-                            "input_tokens": 143,
-                            "output_tokens": 36,
-                            "total_tokens": 179,
-                            "cache_read_input_tokens": 0,
-                            "reasoning_output_tokens": 0,
                         },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-                    )
-                ),
-            ]
+                    },
+                }
+            ],
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[1]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=second_resp.model,
+            model_provider="openai",
+            input_messages=[
+                {"content": chat_completion_input_description, "role": "user"},
+                {
+                    "content": "",
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "name": tool_name,
+                            "arguments": json.loads(tool_arguments_str),
+                            "tool_id": tool_call_id,
+                            "type": "function",
+                        }
+                    ],
+                },
+                {
+                    "content": "",
+                    "role": "tool",
+                    "tool_results": [
+                        {
+                            "name": "",
+                            "result": json.dumps(tool_result),
+                            "tool_id": tool_call_id,
+                            "type": "tool_result",
+                        }
+                    ],
+                },
+                {"content": "Can you summarize the student's academic performance?", "role": "user"},
+            ],
+            output_messages=[
+                {
+                    "content": (
+                        "David Nguyen is a sophomore majoring in computer science at Stanford "
+                        "University with a GPA of 3.8. His academic performance is impressive "
+                        "and he is excelling in his studies."
+                    ),
+                    "role": "assistant",
+                }
+            ],
+            metadata={"user": "ddtrace-test"},
+            metrics={
+                "input_tokens": 143,
+                "output_tokens": 36,
+                "total_tokens": 179,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66),
         reason="Responses API with custom tools available after v1.66.0",
     )
-    def test_response_custom_tool_call(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_response_custom_tool_call(self, openai, ddtrace_global_config, test_spans):
         """Test that custom tool calls in responses API are recorded as LLMObs events correctly."""
         grammar = """
         start: expr
@@ -1040,66 +992,65 @@ class TestLLMObsOpenaiV1:
                 ],
             )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createResponse",
-                model_name=resp.model,
-                model_provider="openai",
-                input_messages=[{"role": "user", "content": "Use the math_exp tool to add four plus four."}],
-                output_messages=[
-                    {
-                        "role": "reasoning",
-                        "content": mock.ANY,  # reasoning content unstable
-                    },
-                    {
-                        "tool_calls": [
-                            {
-                                "tool_id": "call_H8YsBUDPYjNHSq9fWOzwetxr",
-                                "arguments": {"value": "4 + 4"},
-                                "name": "math_exp",
-                                "type": "custom_tool_call",
-                            }
-                        ],
-                        "role": "assistant",
-                    },
-                ],
-                token_metrics={
-                    "input_tokens": 159,
-                    "output_tokens": 275,
-                    "total_tokens": 434,
-                    "cache_read_input_tokens": 0,
-                    "reasoning_output_tokens": 256,
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": "Use the math_exp tool to add four plus four."}],
+            output_messages=[
+                {
+                    "role": "reasoning",
+                    "content": mock.ANY,  # reasoning content unstable
                 },
-                tool_definitions=[
-                    {
-                        "name": "math_exp",
-                        "description": "Creates valid mathematical expressions",
-                        "schema": {
-                            "type": "grammar",
-                            "syntax": "lark",
-                            "definition": grammar,
-                        },
-                    }
-                ],
-                metadata={
-                    "temperature": 1.0,
-                    "top_p": 1.0,
-                    "tool_choice": "auto",
-                    "truncation": "disabled",
-                    "text": {"format": {"type": "text"}, "verbosity": "medium"},
+                {
+                    "tool_calls": [
+                        {
+                            "tool_id": "call_H8YsBUDPYjNHSq9fWOzwetxr",
+                            "arguments": {"value": "4 + 4"},
+                            "name": "math_exp",
+                            "type": "custom_tool_call",
+                        }
+                    ],
+                    "role": "assistant",
                 },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+            ],
+            metrics={
+                "input_tokens": 159,
+                "output_tokens": 275,
+                "total_tokens": 434,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 256,
+            },
+            tool_definitions=[
+                {
+                    "name": "math_exp",
+                    "description": "Creates valid mathematical expressions",
+                    "schema": {
+                        "type": "grammar",
+                        "syntax": "lark",
+                        "definition": grammar,
+                    },
+                }
+            ],
+            metadata={
+                "temperature": 1.0,
+                "top_p": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}, "verbosity": "medium"},
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1),
         reason="Tool calls available after v1.1.0",
     )
-    def test_chat_completion_custom_tool_call(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_chat_completion_custom_tool_call(self, openai, ddtrace_global_config, test_spans):
         """Test that custom tool calls in chat completions API are recorded as LLMObs events correctly."""
         grammar = """
 start: expr
@@ -1133,51 +1084,50 @@ MUL: "*"
                 ],
             )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createChatCompletion",
-                model_name=resp.model,
-                model_provider="openai",
-                input_messages=[{"content": "Use the math_exp tool to add four plus four.", "role": "user"}],
-                output_messages=[
-                    {
-                        "content": "",
-                        "role": "assistant",
-                        "tool_calls": [
-                            {
-                                "name": "math_exp",
-                                "arguments": {"value": "4 + 4"},
-                                "tool_id": mock.ANY,
-                                "type": "custom",
-                            }
-                        ],
-                    }
-                ],
-                token_metrics={
-                    "input_tokens": 241,
-                    "output_tokens": 214,
-                    "total_tokens": 455,
-                    "cache_read_input_tokens": 0,
-                    "reasoning_output_tokens": 192,
-                },
-                tool_definitions=[
-                    {
-                        "name": "math_exp",
-                        "description": "Creates valid mathematical expressions",
-                        "schema": {"type": "grammar", "grammar": {"syntax": "lark", "definition": grammar}},
-                    }
-                ],
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[{"content": "Use the math_exp tool to add four plus four.", "role": "user"}],
+            output_messages=[
+                {
+                    "content": "",
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "name": "math_exp",
+                            "arguments": {"value": "4 + 4"},
+                            "tool_id": mock.ANY,
+                            "type": "custom",
+                        }
+                    ],
+                }
+            ],
+            metrics={
+                "input_tokens": 241,
+                "output_tokens": 214,
+                "total_tokens": 455,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 192,
+            },
+            tool_definitions=[
+                {
+                    "name": "math_exp",
+                    "description": "Creates valid mathematical expressions",
+                    "schema": {"type": "grammar", "grammar": {"syntax": "lark", "definition": grammar}},
+                }
+            ],
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
     )
-    def test_chat_completion_tool_call_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_chat_completion_tool_call_stream(self, openai, ddtrace_global_config, test_spans):
         """Test that tool call chat completion calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call_streamed.yaml"):
             model = "gpt-3.5-turbo"
@@ -1191,24 +1141,23 @@ MUL: "*"
             )
             for chunk in resp:
                 resp_model = chunk.model
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createChatCompletion",
-                model_name=resp_model,
-                model_provider="openai",
-                input_messages=[{"content": chat_completion_input_description, "role": "user"}],
-                output_messages=[tool_call_expected_output],
-                metadata={"user": "ddtrace-test", "stream": True, "stream_options": {"include_usage": True}},
-                token_metrics={"input_tokens": 166, "output_tokens": 43, "total_tokens": 209},
-                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=[{"content": chat_completion_input_description, "role": "user"}],
+            output_messages=[tool_call_expected_output],
+            metadata={"user": "ddtrace-test", "stream": True, "stream_options": {"include_usage": True}},
+            metrics={"input_tokens": 166, "output_tokens": 43, "total_tokens": 209},
+            tool_definitions=EXPECTED_TOOL_DEFINITIONS,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_completion_error(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_completion_error(self, openai, ddtrace_global_config, test_spans):
         """Ensure erroneous llmobs records are emitted for completion endpoints when configured."""
         with pytest.raises(Exception):
             with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_error.yaml"):
@@ -1223,26 +1172,27 @@ MUL: "*"
                     max_tokens=10,
                     user="ddtrace-test",
                 )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createCompletion",
-                model_name=model,
-                model_provider="openai",
-                input_messages=[{"content": "Hello world"}],
-                output_messages=[{"content": ""}],
-                metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
-                token_metrics={},
-                error="openai.AuthenticationError",
-                error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
-                error_stack=span.get_tag("error.stack"),
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createCompletion",
+            model_name=model,
+            model_provider="openai",
+            input_messages=[{"content": "Hello world"}],
+            output_messages=[{"content": ""}],
+            metadata={"temperature": 0.8, "max_tokens": 10, "n": 2, "stop": ".", "user": "ddtrace-test"},
+            metrics={},
+            error={
+                "type": "openai.AuthenticationError",
+                "message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                "stack": spans[0].get_tag("error.stack"),
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_chat_completion_error(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_chat_completion_error(self, openai, ddtrace_global_config, test_spans):
         """Ensure erroneous llmobs records are emitted for chat completion endpoints when configured."""
         with pytest.raises(Exception):
             with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_error.yaml"):
@@ -1252,26 +1202,27 @@ MUL: "*"
                 client.chat.completions.create(
                     model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test"
                 )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createChatCompletion",
-                model_name=model,
-                model_provider="openai",
-                input_messages=input_messages,
-                output_messages=[{"content": ""}],
-                metadata={"n": 2, "top_p": 0.9, "user": "ddtrace-test"},
-                token_metrics={},
-                error="openai.AuthenticationError",
-                error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
-                error_stack=span.get_tag("error.stack"),
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=model,
+            model_provider="openai",
+            input_messages=input_messages,
+            output_messages=[{"content": ""}],
+            metadata={"n": 2, "top_p": 0.9, "user": "ddtrace-test"},
+            metrics={},
+            error={
+                "type": "openai.AuthenticationError",
+                "message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                "stack": spans[0].get_tag("error.stack"),
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_chat_completion_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_chat_completion_prompt_caching(self, openai, ddtrace_global_config, test_spans):
         """Test that prompt caching metrics are properly captured"""
         model = "gpt-4o"
         client = openai.OpenAI()
@@ -1290,172 +1241,153 @@ MUL: "*"
                 max_tokens=100,
                 temperature=0.1,
             )
-        spans = test_spans.pop_traces()
-        span1, span2 = spans[0][0], spans[1][0]
-        assert mock_llmobs_writer.enqueue.call_count == 2
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 2
 
-        mock_llmobs_writer.enqueue.assert_has_calls(
-            [
-                mock.call(
-                    _expected_llmobs_llm_span_event(
-                        span1,
-                        name="OpenAI.createChatCompletion",
-                        model_name=resp1.model,
-                        model_provider="openai",
-                        input_messages=base_messages
-                        + [{"role": "user", "content": "What are the best practices for API design?"}],
-                        output_messages=[{"role": "assistant", "content": mock.ANY}],
-                        metadata={"max_tokens": 100, "temperature": 0.1},
-                        token_metrics={
-                            "input_tokens": 1221,
-                            "output_tokens": 100,
-                            "total_tokens": 1321,
-                            "cache_read_input_tokens": 0,
-                            "reasoning_output_tokens": 0,
-                        },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-                    )
-                ),
-                mock.call(
-                    _expected_llmobs_llm_span_event(
-                        span2,
-                        name="OpenAI.createChatCompletion",
-                        model_name=resp2.model,
-                        model_provider="openai",
-                        input_messages=base_messages
-                        + [{"role": "user", "content": "How should I structure my database schema?"}],
-                        output_messages=[{"role": "assistant", "content": mock.ANY}],
-                        metadata={"max_tokens": 100, "temperature": 0.1},
-                        token_metrics={
-                            "input_tokens": 1220,
-                            "output_tokens": 100,
-                            "total_tokens": 1320,
-                            "cache_read_input_tokens": 1152,
-                            "reasoning_output_tokens": 0,
-                        },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-                    )
-                ),
-            ]
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp1.model,
+            model_provider="openai",
+            input_messages=base_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
+            output_messages=[{"role": "assistant", "content": mock.ANY}],
+            metadata={"max_tokens": 100, "temperature": 0.1},
+            metrics={
+                "input_tokens": 1221,
+                "output_tokens": 100,
+                "total_tokens": 1321,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[1]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp2.model,
+            model_provider="openai",
+            input_messages=base_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
+            output_messages=[{"role": "assistant", "content": mock.ANY}],
+            metadata={"max_tokens": 100, "temperature": 0.1},
+            metrics={
+                "input_tokens": 1220,
+                "output_tokens": 100,
+                "total_tokens": 1320,
+                "cache_read_input_tokens": 1152,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_embedding_string(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_embedding_string(self, openai, ddtrace_global_config, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(input="hello world", model="text-embedding-ada-002")
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createEmbedding",
-                span_kind="embedding",
-                model_name=resp.model,
-                model_provider="openai",
-                metadata={"encoding_format": "float"},
-                input_documents=[{"text": "hello world"}],
-                output_value="[1 embedding(s) returned with size 1536]",
-                token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            name="OpenAI.createEmbedding",
+            span_kind="embedding",
+            model_name=resp.model,
+            model_provider="openai",
+            metadata={"encoding_format": "float"},
+            input_documents=[{"text": "hello world"}],
+            output_value="[1 embedding(s) returned with size 1536]",
+            metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_embedding_string_array(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_embedding_string_array(self, openai, ddtrace_global_config, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_string_array.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(input=["hello world", "hello again"], model="text-embedding-ada-002")
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createEmbedding",
-                span_kind="embedding",
-                model_name=resp.model,
-                model_provider="openai",
-                metadata={"encoding_format": "float"},
-                input_documents=[{"text": "hello world"}, {"text": "hello again"}],
-                output_value="[2 embedding(s) returned with size 1536]",
-                token_metrics={"input_tokens": 4, "output_tokens": 0, "total_tokens": 4},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            name="OpenAI.createEmbedding",
+            span_kind="embedding",
+            model_name=resp.model,
+            model_provider="openai",
+            metadata={"encoding_format": "float"},
+            input_documents=[{"text": "hello world"}, {"text": "hello again"}],
+            output_value="[2 embedding(s) returned with size 1536]",
+            metrics={"input_tokens": 4, "output_tokens": 0, "total_tokens": 4},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_embedding_token_array(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_embedding_token_array(self, openai, ddtrace_global_config, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_token_array.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(input=[1111, 2222, 3333], model="text-embedding-ada-002")
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createEmbedding",
-                span_kind="embedding",
-                model_name=resp.model,
-                model_provider="openai",
-                metadata={"encoding_format": "float"},
-                input_documents=[{"text": "[1111, 2222, 3333]"}],
-                output_value="[1 embedding(s) returned with size 1536]",
-                token_metrics={"input_tokens": 3, "output_tokens": 0, "total_tokens": 3},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            name="OpenAI.createEmbedding",
+            span_kind="embedding",
+            model_name=resp.model,
+            model_provider="openai",
+            metadata={"encoding_format": "float"},
+            input_documents=[{"text": "[1111, 2222, 3333]"}],
+            output_value="[1 embedding(s) returned with size 1536]",
+            metrics={"input_tokens": 3, "output_tokens": 0, "total_tokens": 3},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_embedding_array_of_token_arrays(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_embedding_array_of_token_arrays(self, openai, ddtrace_global_config, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_array_of_token_arrays.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(
                 input=[[1111, 2222, 3333], [4444, 5555, 6666], [7777, 8888, 9999]], model="text-embedding-ada-002"
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createEmbedding",
-                span_kind="embedding",
-                model_name=resp.model,
-                model_provider="openai",
-                metadata={"encoding_format": "float"},
-                input_documents=[
-                    {"text": "[1111, 2222, 3333]"},
-                    {"text": "[4444, 5555, 6666]"},
-                    {"text": "[7777, 8888, 9999]"},
-                ],
-                output_value="[3 embedding(s) returned with size 1536]",
-                token_metrics={"input_tokens": 9, "output_tokens": 0, "total_tokens": 9},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            name="OpenAI.createEmbedding",
+            span_kind="embedding",
+            model_name=resp.model,
+            model_provider="openai",
+            metadata={"encoding_format": "float"},
+            input_documents=[
+                {"text": "[1111, 2222, 3333]"},
+                {"text": "[4444, 5555, 6666]"},
+                {"text": "[7777, 8888, 9999]"},
+            ],
+            output_value="[3 embedding(s) returned with size 1536]",
+            metrics={"input_tokens": 9, "output_tokens": 0, "total_tokens": 9},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 10, 0), reason="Embedding dimensions available in 1.10.0+"
     )
-    def test_embedding_string_base64(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_embedding_string_base64(self, openai, ddtrace_global_config, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_b64.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(
                 input="hello world", model="text-embedding-3-small", encoding_format="base64", dimensions=512
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createEmbedding",
-                span_kind="embedding",
-                model_name=resp.model,
-                model_provider="openai",
-                metadata={"encoding_format": "base64", "dimensions": 512},
-                input_documents=[{"text": "hello world"}],
-                output_value="[1 embedding(s) returned]",
-                token_metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            name="OpenAI.createEmbedding",
+            span_kind="embedding",
+            model_name=resp.model,
+            model_provider="openai",
+            metadata={"encoding_format": "base64", "dimensions": 512},
+            input_documents=[{"text": "hello world"}],
+            output_value="[1 embedding(s) returned]",
+            metrics={"input_tokens": 2, "output_tokens": 0, "total_tokens": 2},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_deepseek_as_provider(self, openai, mock_llmobs_writer, test_spans):
+    def test_deepseek_as_provider(self, openai, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("deepseek_completion.yaml"):
             client = openai.OpenAI(api_key="<not-a-real-key>", base_url="https://api.deepseek.com")
 
@@ -1467,8 +1399,9 @@ MUL: "*"
                 ],
             )
 
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        span_event = mock_llmobs_writer.enqueue._mock_call_args[0][0]
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span_event = _get_llmobs_data_metastruct(spans[0])
 
         assert span_event["name"] == "Deepseek.createChatCompletion"
         assert span_event["meta"]["model_provider"] == "deepseek"
@@ -1477,7 +1410,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
-    def test_completion_stream_no_resp(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_completion_stream_no_resp(self, openai, ddtrace_global_config, test_spans):
         """Test that None responses from streamed chat completions results in a finished span regardless."""
         client = openai.OpenAI()
         with mock.patch.object(client.completions, "_post", return_value=None):
@@ -1485,25 +1418,24 @@ MUL: "*"
             resp_model = model
             resp = client.completions.create(model=model, prompt="Hello world", stream=True)
             assert resp is None
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createCompletion",
-                model_name=resp_model,
-                model_provider="openai",
-                input_messages=[{"content": "Hello world"}],
-                output_messages=[{"content": ""}],
-                metadata={"stream": True},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createCompletion",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=[{"content": "Hello world"}],
+            output_messages=[{"content": ""}],
+            metadata={"stream": True},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
-    def test_chat_completion_stream_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_chat_completion_stream_prompt_caching(self, openai, ddtrace_global_config, test_spans):
         client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for streamed chat completions."""
         input_messages = [
@@ -1540,68 +1472,60 @@ MUL: "*"
                 if hasattr(chunk, "model"):
                     resp_model = chunk.model
 
-        spans = test_spans.pop_traces()
-        span1, span2 = spans[0][0], spans[1][0]
-        assert mock_llmobs_writer.enqueue.call_count == 2
-        mock_llmobs_writer.enqueue.assert_has_calls(
-            [
-                mock.call(
-                    _expected_llmobs_llm_span_event(
-                        span1,
-                        name="OpenAI.createChatCompletion",
-                        model_name=resp_model,
-                        model_provider="openai",
-                        input_messages=input_messages
-                        + [{"role": "user", "content": "What are the best practices for API design?"}],
-                        output_messages=[{"role": "assistant", "content": mock.ANY}],
-                        metadata={
-                            "max_tokens": 100,
-                            "temperature": 0.1,
-                            "stream": True,
-                            "stream_options": {"include_usage": True},
-                        },
-                        token_metrics={
-                            "input_tokens": 1421,
-                            "output_tokens": 100,
-                            "total_tokens": 1521,
-                            "cache_read_input_tokens": 0,
-                            "reasoning_output_tokens": 0,
-                        },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-                    )
-                ),
-                mock.call(
-                    _expected_llmobs_llm_span_event(
-                        span2,
-                        name="OpenAI.createChatCompletion",
-                        model_name=resp_model,
-                        model_provider="openai",
-                        input_messages=input_messages
-                        + [{"role": "user", "content": "How should I structure my database schema?"}],
-                        output_messages=[{"role": "assistant", "content": mock.ANY}],
-                        metadata={
-                            "max_tokens": 100,
-                            "temperature": 0.1,
-                            "stream": True,
-                            "stream_options": {"include_usage": True},
-                        },
-                        token_metrics={
-                            "input_tokens": 1420,
-                            "output_tokens": 100,
-                            "total_tokens": 1520,
-                            "cache_read_input_tokens": 1280,
-                            "reasoning_output_tokens": 0,
-                        },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-                    )
-                ),
-            ]
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 2
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=input_messages
+            + [{"role": "user", "content": "What are the best practices for API design?"}],
+            output_messages=[{"role": "assistant", "content": mock.ANY}],
+            metadata={
+                "max_tokens": 100,
+                "temperature": 0.1,
+                "stream": True,
+                "stream_options": {"include_usage": True},
+            },
+            metrics={
+                "input_tokens": 1421,
+                "output_tokens": 100,
+                "total_tokens": 1521,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[1]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=input_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
+            output_messages=[{"role": "assistant", "content": mock.ANY}],
+            metadata={
+                "max_tokens": 100,
+                "temperature": 0.1,
+                "stream": True,
+                "stream_options": {"include_usage": True},
+            },
+            metrics={
+                "input_tokens": 1420,
+                "output_tokens": 100,
+                "total_tokens": 1520,
+                "cache_read_input_tokens": 1280,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
-    def test_chat_stream_no_resp(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_chat_stream_no_resp(self, openai, ddtrace_global_config, test_spans):
         """Test that None responses from streamed chat completions results in a finished span regardless."""
         client = openai.OpenAI()
         with mock.patch.object(client.chat.completions, "_post", return_value=None):
@@ -1616,25 +1540,24 @@ MUL: "*"
                 stream_options={"include_usage": False},
             )
             assert resp is None
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createChatCompletion",
-                model_name=resp_model,
-                model_provider="openai",
-                input_messages=input_messages,
-                output_messages=[{"content": ""}],
-                metadata={"stream": True, "stream_options": {"include_usage": False}, "user": "ddtrace-test"},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=input_messages,
+            output_messages=[{"content": ""}],
+            metadata={"stream": True, "stream_options": {"include_usage": False}, "user": "ddtrace-test"},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response(self, openai, mock_llmobs_writer, test_spans):
+    def test_response(self, openai, test_spans):
         """Ensure llmobs records are emitted for response endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -1646,40 +1569,39 @@ MUL: "*"
             resp = client.responses.create(
                 model=model, input=input_messages, top_p=0.9, max_output_tokens=100, user="ddtrace-test"
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createResponse",
-                model_name=resp.model,
-                model_provider="openai",
-                input_messages=input_messages,
-                output_messages=[{"role": "assistant", "content": output.content[0].text} for output in resp.output],
-                metadata={
-                    "top_p": 0.9,
-                    "max_output_tokens": 100,
-                    "user": "ddtrace-test",
-                    "temperature": 1.0,
-                    "tool_choice": "auto",
-                    "truncation": "disabled",
-                    "text": {"format": {"type": "text"}},
-                },
-                token_metrics={
-                    "input_tokens": 53,
-                    "output_tokens": 40,
-                    "total_tokens": 93,
-                    "cache_read_input_tokens": 0,
-                    "reasoning_output_tokens": 0,
-                },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=input_messages,
+            output_messages=[{"role": "assistant", "content": output.content[0].text} for output in resp.output],
+            metadata={
+                "top_p": 0.9,
+                "max_output_tokens": 100,
+                "user": "ddtrace-test",
+                "temperature": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}},
+            },
+            metrics={
+                "input_tokens": 53,
+                "output_tokens": 40,
+                "total_tokens": 93,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_stream_tokens(self, openai, mock_llmobs_writer, test_spans):
+    def test_response_stream_tokens(self, openai, test_spans):
         """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_stream.yaml"):
             model = "gpt-4.1"
@@ -1691,39 +1613,38 @@ MUL: "*"
             for chunk in resp:
                 resp_response = getattr(chunk, "response", {})
                 resp_model = getattr(resp_response, "model", "")
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createResponse",
-                model_name=resp_model,
-                model_provider="openai",
-                input_messages=[{"content": input_messages, "role": "user"}],
-                output_messages=[{"role": "assistant", "content": expected_completion}],
-                metadata={
-                    "stream": True,
-                    "temperature": 1.0,
-                    "top_p": 1.0,
-                    "tool_choice": "auto",
-                    "truncation": "disabled",
-                    "text": {"format": {"type": "text"}},
-                },
-                token_metrics={
-                    "input_tokens": 9,
-                    "output_tokens": 12,
-                    "total_tokens": 21,
-                    "cache_read_input_tokens": 0,
-                    "reasoning_output_tokens": 0,
-                },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=[{"content": input_messages, "role": "user"}],
+            output_messages=[{"role": "assistant", "content": expected_completion}],
+            metadata={
+                "stream": True,
+                "temperature": 1.0,
+                "top_p": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}},
+            },
+            metrics={
+                "input_tokens": 9,
+                "output_tokens": 12,
+                "total_tokens": 21,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_stream_incomplete(self, openai, mock_llmobs_writer, test_spans):
+    def test_response_stream_incomplete(self, openai, test_spans):
         client = openai.OpenAI()
         request_args = {
             "model": "gpt-4o",
@@ -1739,47 +1660,44 @@ MUL: "*"
             for chunk in resp1:
                 if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
                     resp_model = chunk.response.model
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createResponse",
-                model_name=resp_model,
-                model_provider="openai",
-                input_messages=[
-                    {"content": "Give me a multi paragraph narrative on the life of a car", "role": "user"}
-                ],
-                output_messages=[
-                    {
-                        "role": "assistant",
-                        "content": "In the bustling city of Detroit, a sleek, metallic blue sedan rolled off the",
-                    }
-                ],
-                metadata={
-                    "max_output_tokens": 16,
-                    "temperature": 0.1,
-                    "stream": True,
-                    "top_p": 1.0,
-                    "tool_choice": "auto",
-                    "truncation": "disabled",
-                    "text": {"format": {"type": "text"}},
-                },
-                token_metrics={
-                    "input_tokens": 0,
-                    "output_tokens": 0,
-                    "total_tokens": 0,
-                    "cache_read_input_tokens": 0,
-                    "reasoning_output_tokens": 0,
-                },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=[{"content": "Give me a multi paragraph narrative on the life of a car", "role": "user"}],
+            output_messages=[
+                {
+                    "role": "assistant",
+                    "content": "In the bustling city of Detroit, a sleek, metallic blue sedan rolled off the",
+                }
+            ],
+            metadata={
+                "max_output_tokens": 16,
+                "temperature": 0.1,
+                "stream": True,
+                "top_p": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}},
+            },
+            metrics={
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_function_call(self, openai, mock_llmobs_writer, test_spans, snapshot_tracer):
+    def test_response_function_call(self, openai, test_spans, snapshot_tracer):
         """Test that function call response calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call.yaml"):
             model = "gpt-4.1"
@@ -1788,55 +1706,54 @@ MUL: "*"
             resp = client.responses.create(
                 tools=response_tool_function, model=model, input=input_messages, tool_choice="auto"
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createResponse",
-                model_name=resp.model,
-                model_provider="openai",
-                input_messages=[{"role": "user", "content": input_messages}],
-                output_messages=response_tool_function_expected_output,
-                metadata={
-                    "tool_choice": "auto",
-                    "temperature": 1.0,
-                    "top_p": 1.0,
-                    "truncation": "disabled",
-                    "text": {"format": {"type": "text"}},
-                },
-                token_metrics={
-                    "input_tokens": 75,
-                    "output_tokens": 23,
-                    "total_tokens": 98,
-                    "cache_read_input_tokens": 0,
-                    "reasoning_output_tokens": 0,
-                },
-                tool_definitions=[
-                    {
-                        "name": "get_current_weather",
-                        "description": "Get the current weather in a given location",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "location": {
-                                    "type": "string",
-                                    "description": "The city and state, e.g. San Francisco, CA",
-                                },
-                                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": input_messages}],
+            output_messages=response_tool_function_expected_output,
+            metadata={
+                "tool_choice": "auto",
+                "temperature": 1.0,
+                "top_p": 1.0,
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}},
+            },
+            metrics={
+                "input_tokens": 75,
+                "output_tokens": 23,
+                "total_tokens": 98,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tool_definitions=[
+                {
+                    "name": "get_current_weather",
+                    "description": "Get the current weather in a given location",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "location": {
+                                "type": "string",
+                                "description": "The city and state, e.g. San Francisco, CA",
                             },
-                            "required": ["location", "unit"],
+                            "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
                         },
-                    }
-                ],
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+                        "required": ["location", "unit"],
+                    },
+                }
+            ],
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_function_call_stream(self, openai, mock_llmobs_writer, test_spans, snapshot_tracer):
+    def test_response_function_call_stream(self, openai, test_spans, snapshot_tracer):
         """Test that Response tool calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call_streamed.yaml"):
             model = "gpt-4.1"
@@ -1852,57 +1769,56 @@ MUL: "*"
             for chunk in resp:
                 if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
                     resp_model = chunk.response.model
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createResponse",
-                model_name=resp_model,
-                model_provider="openai",
-                input_messages=[{"role": "user", "content": input_messages}],
-                output_messages=response_tool_function_expected_output_streamed,
-                metadata={
-                    "temperature": 1.0,
-                    "top_p": 1.0,
-                    "user": "ddtrace-test",
-                    "stream": True,
-                    "tool_choice": "auto",
-                    "truncation": "disabled",
-                    "text": {"format": {"type": "text"}},
-                },
-                tool_definitions=[
-                    {
-                        "name": "get_current_weather",
-                        "description": "Get the current weather in a given location",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "location": {
-                                    "type": "string",
-                                    "description": "The city and state, e.g. San Francisco, CA",
-                                },
-                                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": input_messages}],
+            output_messages=response_tool_function_expected_output_streamed,
+            metadata={
+                "temperature": 1.0,
+                "top_p": 1.0,
+                "user": "ddtrace-test",
+                "stream": True,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}},
+            },
+            tool_definitions=[
+                {
+                    "name": "get_current_weather",
+                    "description": "Get the current weather in a given location",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "location": {
+                                "type": "string",
+                                "description": "The city and state, e.g. San Francisco, CA",
                             },
-                            "required": ["location", "unit"],
+                            "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
                         },
-                    }
-                ],
-                token_metrics={
-                    "input_tokens": 75,
-                    "output_tokens": 23,
-                    "total_tokens": 98,
-                    "cache_read_input_tokens": 0,
-                    "reasoning_output_tokens": 0,
-                },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+                        "required": ["location", "unit"],
+                    },
+                }
+            ],
+            metrics={
+                "input_tokens": 75,
+                "output_tokens": 23,
+                "total_tokens": 98,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_error(self, openai, mock_llmobs_writer, test_spans, snapshot_tracer):
+    def test_response_error(self, openai, test_spans, snapshot_tracer):
         """Ensure erroneous llmobs records are emitted for response function call stream endpoints when configured."""
         with pytest.raises(Exception):
             with get_openai_vcr(subdirectory_name="v1").use_cassette("response_error.yaml"):
@@ -1910,29 +1826,30 @@ MUL: "*"
                 client = openai.OpenAI()
                 input_messages = "Hello world"
                 client.responses.create(model=model, input=input_messages, user="ddtrace-test")
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createResponse",
-                model_name=model,
-                model_provider="openai",
-                input_messages=[{"content": input_messages, "role": "user"}],
-                output_messages=[{"content": ""}],
-                metadata={"user": "ddtrace-test"},
-                token_metrics={},
-                error="openai.AuthenticationError",
-                error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
-                error_stack=span.get_tag("error.stack"),
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=model,
+            model_provider="openai",
+            input_messages=[{"content": input_messages, "role": "user"}],
+            output_messages=[{"content": ""}],
+            metadata={"user": "ddtrace-test"},
+            metrics={},
+            error={
+                "type": "openai.AuthenticationError",
+                "message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
+                "stack": spans[0].get_tag("error.stack"),
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    async def test_response_async(self, openai, mock_llmobs_writer, test_spans):
+    async def test_response_async(self, openai, test_spans):
         input_messages = multi_message_input
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response.yaml"):
             model = "gpt-4.1"
@@ -1940,40 +1857,39 @@ MUL: "*"
             client = openai.AsyncOpenAI()
             resp = await client.responses.create(model=model, input=input_messages, top_p=0.9, max_output_tokens=100)
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createResponse",
-                model_name=resp.model,
-                model_provider="openai",
-                input_messages=input_messages,
-                output_messages=[{"role": "assistant", "content": output.content[0].text} for output in resp.output],
-                metadata={
-                    "temperature": 1.0,
-                    "max_output_tokens": 100,
-                    "top_p": 0.9,
-                    "tool_choice": "auto",
-                    "truncation": "disabled",
-                    "text": {"format": {"type": "text"}},
-                    "user": "ddtrace-test",
-                },
-                token_metrics={
-                    "input_tokens": 53,
-                    "output_tokens": 40,
-                    "total_tokens": 93,
-                    "cache_read_input_tokens": 0,
-                    "reasoning_output_tokens": 0,
-                },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=input_messages,
+            output_messages=[{"role": "assistant", "content": output.content[0].text} for output in resp.output],
+            metadata={
+                "temperature": 1.0,
+                "max_output_tokens": 100,
+                "top_p": 0.9,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}},
+                "user": "ddtrace-test",
+            },
+            metrics={
+                "input_tokens": 53,
+                "output_tokens": 40,
+                "total_tokens": 93,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_responses_prompt_caching(self, openai, ddtrace_global_config, test_spans):
         client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for responses API"""
         model = "gpt-4o"
@@ -1994,73 +1910,66 @@ MUL: "*"
                 temperature=0.1,
                 user="ddtrace-test",
             )
-        spans = test_spans.pop_traces()
-        span1, span2 = spans[0][0], spans[1][0]
-        assert mock_llmobs_writer.enqueue.call_count == 2
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 2
 
-        mock_llmobs_writer.enqueue.assert_has_calls(
-            [
-                mock.call(
-                    _expected_llmobs_llm_span_event(
-                        span1,
-                        name="OpenAI.createResponse",
-                        model_name=resp1.model,
-                        model_provider="openai",
-                        input_messages=[{"role": "user", "content": base_input + " count from 1 to 3"}],
-                        output_messages=[{"role": "assistant", "content": mock.ANY}],
-                        metadata={
-                            "max_output_tokens": 100,
-                            "temperature": 0.1,
-                            "top_p": 1.0,
-                            "tool_choice": "auto",
-                            "truncation": "disabled",
-                            "text": {"format": {"type": "text"}},
-                            "user": "ddtrace-test",
-                        },
-                        token_metrics={
-                            "input_tokens": 1515,
-                            "output_tokens": 14,
-                            "total_tokens": 1529,
-                            "cache_read_input_tokens": 0,
-                            "reasoning_output_tokens": 0,
-                        },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-                    )
-                ),
-                mock.call(
-                    _expected_llmobs_llm_span_event(
-                        span2,
-                        name="OpenAI.createResponse",
-                        model_name=resp2.model,
-                        model_provider="openai",
-                        input_messages=[{"role": "user", "content": base_input + " count from 2 to 4"}],
-                        output_messages=[{"role": "assistant", "content": mock.ANY}],
-                        metadata={
-                            "max_output_tokens": 100,
-                            "temperature": 0.1,
-                            "top_p": 1.0,
-                            "tool_choice": "auto",
-                            "truncation": "disabled",
-                            "text": {"format": {"type": "text"}},
-                            "user": "ddtrace-test",
-                        },
-                        token_metrics={
-                            "input_tokens": 1515,
-                            "output_tokens": 8,
-                            "total_tokens": 1523,
-                            "cache_read_input_tokens": 1390,
-                            "reasoning_output_tokens": 0,
-                        },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-                    )
-                ),
-            ],
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp1.model,
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": base_input + " count from 1 to 3"}],
+            output_messages=[{"role": "assistant", "content": mock.ANY}],
+            metadata={
+                "max_output_tokens": 100,
+                "temperature": 0.1,
+                "top_p": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}},
+                "user": "ddtrace-test",
+            },
+            metrics={
+                "input_tokens": 1515,
+                "output_tokens": 14,
+                "total_tokens": 1529,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[1]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp2.model,
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": base_input + " count from 2 to 4"}],
+            output_messages=[{"role": "assistant", "content": mock.ANY}],
+            metadata={
+                "max_output_tokens": 100,
+                "temperature": 0.1,
+                "top_p": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}},
+                "user": "ddtrace-test",
+            },
+            metrics={
+                "input_tokens": 1515,
+                "output_tokens": 8,
+                "total_tokens": 1523,
+                "cache_read_input_tokens": 1390,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_stream_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_responses_stream_prompt_caching(self, openai, ddtrace_global_config, test_spans):
         client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for streamed responses API"""
         base_input = "hello " * 1500
@@ -2087,72 +1996,65 @@ MUL: "*"
                 if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
                     resp_model = chunk.response.model
 
-        spans = test_spans.pop_traces()
-        span1, span2 = spans[0][0], spans[1][0]
-        assert mock_llmobs_writer.enqueue.call_count == 2
-        mock_llmobs_writer.enqueue.assert_has_calls(
-            [
-                mock.call(
-                    _expected_llmobs_llm_span_event(
-                        span1,
-                        name="OpenAI.createResponse",
-                        model_name=resp_model,
-                        model_provider="openai",
-                        input_messages=[{"role": "user", "content": base_input + " count from 1 to 3"}],
-                        output_messages=[{"role": "assistant", "content": mock.ANY}],
-                        metadata={
-                            "max_output_tokens": 100,
-                            "temperature": 0.1,
-                            "top_p": 1.0,
-                            "tool_choice": "auto",
-                            "truncation": "disabled",
-                            "text": {"format": {"type": "text"}},
-                            "stream": True,
-                        },
-                        token_metrics={
-                            "input_tokens": 1515,
-                            "output_tokens": 14,
-                            "total_tokens": 1529,
-                            "cache_read_input_tokens": 0,
-                            "reasoning_output_tokens": 0,
-                        },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-                    )
-                ),
-                mock.call(
-                    _expected_llmobs_llm_span_event(
-                        span2,
-                        name="OpenAI.createResponse",
-                        model_name=resp_model,
-                        model_provider="openai",
-                        input_messages=[{"role": "user", "content": base_input + " count from 2 to 4"}],
-                        output_messages=[{"role": "assistant", "content": mock.ANY}],
-                        metadata={
-                            "max_output_tokens": 100,
-                            "temperature": 0.1,
-                            "top_p": 1.0,
-                            "tool_choice": "auto",
-                            "truncation": "disabled",
-                            "text": {"format": {"type": "text"}},
-                            "stream": True,
-                        },
-                        token_metrics={
-                            "input_tokens": 1515,
-                            "output_tokens": 8,
-                            "total_tokens": 1523,
-                            "cache_read_input_tokens": 1390,
-                            "reasoning_output_tokens": 0,
-                        },
-                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-                    )
-                ),
-            ],
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 2
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": base_input + " count from 1 to 3"}],
+            output_messages=[{"role": "assistant", "content": mock.ANY}],
+            metadata={
+                "max_output_tokens": 100,
+                "temperature": 0.1,
+                "top_p": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}},
+                "stream": True,
+            },
+            metrics={
+                "input_tokens": 1515,
+                "output_tokens": 14,
+                "total_tokens": 1529,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[1]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": base_input + " count from 2 to 4"}],
+            output_messages=[{"role": "assistant", "content": mock.ANY}],
+            metadata={
+                "max_output_tokens": 100,
+                "temperature": 0.1,
+                "top_p": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}},
+                "stream": True,
+            },
+            metrics={
+                "input_tokens": 1515,
+                "output_tokens": 8,
+                "total_tokens": 1523,
+                "cache_read_input_tokens": 1390,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_reasoning_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_responses_reasoning_stream(self, openai, ddtrace_global_config, test_spans):
         client = openai.OpenAI(base_url="http://127.0.0.1:9126/vcr/openai")
 
         stream = client.responses.create(
@@ -2166,7 +2068,8 @@ MUL: "*"
             pass
 
         # special assertion on rough reasoning content
-        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        span_event = _get_llmobs_data_metastruct(spans[0])
         reasoning_content = json.loads(span_event["meta"]["output"]["messages"][0]["content"])
         assistant_content = span_event["meta"]["output"]["messages"][1]["content"]
         assert reasoning_content["summary"] is not None
@@ -2175,7 +2078,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_tool_message_input(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_responses_tool_message_input(self, openai, ddtrace_global_config, test_spans):
         client = openai.OpenAI(base_url="http://127.0.0.1:9126/vcr/openai")
 
         client.responses.create(
@@ -2197,8 +2100,9 @@ MUL: "*"
             temperature=0,
         )
 
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span_event = _get_llmobs_data_metastruct(spans[0])
         assert (
             span_event["meta"]["input"]["messages"][2]["tool_results"][0]["result"]
             == '{"temperature": "72°F", "conditions": "sunny", "humidity": "65%"}'
@@ -2207,7 +2111,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
     )
-    def test_chat_completion_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_chat_completion_parse(self, openai, ddtrace_global_config, test_spans):
         from pydantic import BaseModel
 
         class Step(BaseModel):
@@ -2228,35 +2132,34 @@ MUL: "*"
                 ],
                 response_format=MathResponse,
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.parseChatCompletion",
-                model_name=resp.model,
-                model_provider="openai",
-                input_messages=[
-                    {"role": "system", "content": "You are a helpful math tutor."},
-                    {"role": "user", "content": "solve 8x + 31 = 2"},
-                ],
-                output_messages=[{"role": "assistant", "content": mock.ANY}],
-                metadata={"response_format": "MathResponse"},
-                token_metrics={
-                    "input_tokens": 127,
-                    "output_tokens": 93,
-                    "total_tokens": 220,
-                    "cache_read_input_tokens": 0,
-                    "reasoning_output_tokens": 0,
-                },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.parseChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[
+                {"role": "system", "content": "You are a helpful math tutor."},
+                {"role": "user", "content": "solve 8x + 31 = 2"},
+            ],
+            output_messages=[{"role": "assistant", "content": mock.ANY}],
+            metadata={"response_format": "MathResponse"},
+            metrics={
+                "input_tokens": 127,
+                "output_tokens": 93,
+                "total_tokens": 220,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
     )
-    def test_response_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_response_parse(self, openai, ddtrace_global_config, test_spans):
         from pydantic import BaseModel
 
         class Step(BaseModel):
@@ -2274,42 +2177,41 @@ MUL: "*"
                 input="solve 8x + 31 = 2",
                 text_format=MathResponse,
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.parseResponse",
-                model_name=resp.model,
-                model_provider="openai",
-                input_messages=[
-                    {"role": "user", "content": "solve 8x + 31 = 2"},
-                ],
-                output_messages=[{"role": "assistant", "content": mock.ANY}],
-                metadata={
-                    "temperature": 1.0,
-                    "top_p": 1.0,
-                    "tool_choice": "auto",
-                    "truncation": "disabled",
-                    "text": {
-                        "format": {
-                            "name": "MathResponse",
-                            "schema_": mock.ANY,
-                            "type": "json_schema",
-                            "strict": True,
-                        },
-                        "verbosity": "medium",
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.parseResponse",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[
+                {"role": "user", "content": "solve 8x + 31 = 2"},
+            ],
+            output_messages=[{"role": "assistant", "content": mock.ANY}],
+            metadata={
+                "temperature": 1.0,
+                "top_p": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {
+                    "format": {
+                        "name": "MathResponse",
+                        "schema_": mock.ANY,
+                        "type": "json_schema",
+                        "strict": True,
                     },
+                    "verbosity": "medium",
                 },
-                token_metrics={
-                    "input_tokens": 113,
-                    "output_tokens": 99,
-                    "total_tokens": 212,
-                    "cache_read_input_tokens": 0,
-                    "reasoning_output_tokens": 0,
-                },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+            },
+            metrics={
+                "input_tokens": 113,
+                "output_tokens": 99,
+                "total_tokens": 212,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 0,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
@@ -2317,9 +2219,7 @@ MUL: "*"
         reason="Full OpenAI MCP support only available with openai >= 1.80",
     )
     @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_response_mcp_tool_call(
-        self, mock_response_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_response_mcp_tool_call(self, mock_response_post, openai, ddtrace_global_config, test_spans):
         mock_response_post.return_value = mock_response_mcp_tool_call()
 
         client = openai.OpenAI()
@@ -2337,17 +2237,15 @@ MUL: "*"
             input="Roll 2d4+1",
         )
 
-        traces = test_spans.pop_traces()
-        assert len(traces[0]) == 2
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 2
 
-        response_span = traces[0][0]
-        tool_span = traces[0][1]
+        response_span = spans[0]
+        tool_span = spans[1]
 
-        assert mock_llmobs_writer.enqueue.call_count == 2
-
-        assert mock_llmobs_writer.enqueue.call_args_list[0][0][0] == _expected_llmobs_non_llm_span_event(
-            tool_span,
-            "tool",
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(tool_span),
+            span_kind="tool",
             name="MCP Client Tool Call: dice_roll",
             input_value=safe_json(
                 {"notation": "2d4+1", "label": "2d4+1 roll", "verbose": True},
@@ -2359,8 +2257,9 @@ MUL: "*"
         )
         assert tool_span.parent_id == response_span.span_id
 
-        assert mock_llmobs_writer.enqueue.call_args_list[1][0][0] == _expected_llmobs_llm_span_event(
-            response_span,
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(response_span),
+            span_kind="llm",
             name="OpenAI.createResponse",
             model_name="gpt-5-2025-08-07",
             model_provider="openai",
@@ -2402,7 +2301,7 @@ MUL: "*"
                 "truncation": "disabled",
                 "text": {"format": {"type": "text"}, "verbosity": "medium"},
             },
-            token_metrics={
+            metrics={
                 "input_tokens": 642,
                 "output_tokens": 206,
                 "total_tokens": 848,
@@ -2448,7 +2347,7 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (1, 87),
         reason="Reusable prompts only available in openai >= 1.87",
     )
-    def test_response_with_prompt_tracking(self, openai, mock_llmobs_writer, test_spans):
+    def test_response_with_prompt_tracking(self, openai, test_spans):
         """Test that prompt metadata (id, version, variables) is captured for reusable prompts."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_prompt.yaml"):
             client = openai.OpenAI()
@@ -2459,11 +2358,11 @@ MUL: "*"
                     "variables": {"question": "What is machine learning?"},
                 }
             )
-        test_spans.pop_traces()
-        assert mock_llmobs_writer.enqueue.call_count == 1
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
 
         assert_prompt_tracking(
-            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            span_event=_get_llmobs_data_metastruct(spans[0]),
             prompt_id="pmpt_690b24669d8c81948acc0e98da10e6490190feb3a62eee0b",
             prompt_version="4",
             variables={"question": "What is machine learning?"},
@@ -2484,7 +2383,7 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (1, 87),
         reason="Reusable prompts only available in openai >= 1.87",
     )
-    def test_response_with_mixed_input_prompt_tracking_url_stripped(self, openai, mock_llmobs_writer, test_spans):
+    def test_response_with_mixed_input_prompt_tracking_url_stripped(self, openai, test_spans):
         """Test default behavior: image_url is stripped, file_id is preserved."""
         from openai.types.responses import ResponseInputFile
         from openai.types.responses import ResponseInputImage
@@ -2515,11 +2414,11 @@ MUL: "*"
                     },
                 },
             )
-        test_spans.pop_traces()
-        assert mock_llmobs_writer.enqueue.call_count == 1
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
 
         assert_prompt_tracking(
-            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            span_event=_get_llmobs_data_metastruct(spans[0]),
             prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
             prompt_version="2",
             variables={
@@ -2561,7 +2460,7 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (1, 87),
         reason="Reusable prompts only available in openai >= 1.87",
     )
-    def test_response_with_mixed_input_prompt_tracking_url_preserved(self, openai, mock_llmobs_writer, test_spans):
+    def test_response_with_mixed_input_prompt_tracking_url_preserved(self, openai, test_spans):
         """Test with include parameter: image_url is preserved."""
         from openai.types.responses import ResponseInputFile
         from openai.types.responses import ResponseInputImage
@@ -2593,11 +2492,11 @@ MUL: "*"
                     },
                 },
             )
-        test_spans.pop_traces()
-        assert mock_llmobs_writer.enqueue.call_count == 1
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
 
         assert_prompt_tracking(
-            span_event=mock_llmobs_writer.enqueue.call_args[0][0],
+            span_event=_get_llmobs_data_metastruct(spans[0]),
             prompt_id="pmpt_69201db75c4c81959c01ea6987ab023c070192cd2843dec0",
             prompt_version="2",
             variables={
@@ -2639,7 +2538,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_reasoning_tokens(self, openai, mock_llmobs_writer, test_spans):
+    def test_response_reasoning_tokens(self, openai, test_spans):
         """Test that reasoning tokens are captured in response endpoints."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_reasoning_tokens.yaml"):
             model = "gpt-5-mini"
@@ -2648,8 +2547,8 @@ MUL: "*"
             resp = client.responses.create(
                 model=model, input=input_messages, max_output_tokens=500, user="ddtrace-test"
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
 
         # Extract output messages including reasoning items
         output_messages = []
@@ -2665,38 +2564,37 @@ MUL: "*"
             elif output.type == "message":
                 output_messages.append({"role": "assistant", "content": output.content[0].text})
 
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                name="OpenAI.createResponse",
-                model_name=resp.model,
-                model_provider="openai",
-                input_messages=input_messages,
-                output_messages=output_messages,
-                metadata={
-                    "max_output_tokens": 500,
-                    "user": "ddtrace-test",
-                    "temperature": 1.0,
-                    "top_p": 1.0,
-                    "tool_choice": "auto",
-                    "truncation": "disabled",
-                    "text": {"format": {"type": "text"}, "verbosity": "medium"},
-                },
-                token_metrics={
-                    "input_tokens": 54,
-                    "output_tokens": 164,
-                    "total_tokens": 218,
-                    "cache_read_input_tokens": 0,
-                    "reasoning_output_tokens": 128,
-                },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
-            )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createResponse",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=input_messages,
+            output_messages=output_messages,
+            metadata={
+                "max_output_tokens": 500,
+                "user": "ddtrace-test",
+                "temperature": 1.0,
+                "top_p": 1.0,
+                "tool_choice": "auto",
+                "truncation": "disabled",
+                "text": {"format": {"type": "text"}, "verbosity": "medium"},
+            },
+            metrics={
+                "input_tokens": 54,
+                "output_tokens": 164,
+                "total_tokens": 218,
+                "cache_read_input_tokens": 0,
+                "reasoning_output_tokens": 128,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
-    def test_deferred_tool_schema_stripped_in_span(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+    def test_deferred_tool_schema_stripped_in_span(self, openai, ddtrace_global_config, test_spans):
         """Regression test: deferred tools (defer_loading=True) should have description and schema
         stripped from LLMObs spans to avoid inflating payload size. Non-deferred tools keep their
         full definitions.
@@ -2723,8 +2621,9 @@ MUL: "*"
                 messages=[{"role": "user", "content": chat_completion_input_description}],
                 user="ddtrace-test",
             )
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span_event = _get_llmobs_data_metastruct(spans[0])
         assert span_event["meta"]["tool_definitions"] == [
             EXPECTED_TOOL_DEFINITIONS[0],
             {"name": "search_logs", "description": "", "schema": {}},
@@ -2733,9 +2632,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
-    def test_tool_with_deep_schema_has_schema_truncated(
-        self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_tool_with_deep_schema_has_schema_truncated(self, openai, ddtrace_global_config, test_spans):
         """Tool schemas exceeding MAX_TOOL_SCHEMA_DEPTH should be truncated at the depth limit,
         replacing over-limit containers with empty containers while preserving name, description,
         and all fields within the limit. Tools with shallow schemas are unaffected.
@@ -2756,8 +2653,9 @@ MUL: "*"
                 messages=[{"role": "user", "content": chat_completion_input_description}],
                 user="ddtrace-test",
             )
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span_event = _get_llmobs_data_metastruct(spans[0])
         assert span_event["meta"]["tool_definitions"] == [
             EXPECTED_TOOL_DEFINITIONS[0],
             {
@@ -2796,7 +2694,7 @@ MUL: "*"
     [dict(_llmobs_enabled=True, _llmobs_ml_app="<ml-app-name>", _llmobs_agentless_enabled=True)],
 )
 @pytest.mark.skipif(parse_version(openai_module.version.VERSION) < (1, 0), reason="These tests are for openai >= 1.0")
-def test_agentless_enabled_does_not_submit_metrics(openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+def test_agentless_enabled_does_not_submit_metrics(openai, ddtrace_global_config, test_spans):
     """Ensure openai metrics are not emitted when agentless mode is enabled."""
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         model = "ada"
@@ -2810,7 +2708,8 @@ def test_agentless_enabled_does_not_submit_metrics(openai, ddtrace_global_config
             max_tokens=10,
             user="ddtrace-test",
         )
-    assert mock_llmobs_writer.enqueue.call_count == 1
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
 
 
 def test_est_tokens():

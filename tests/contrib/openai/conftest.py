@@ -81,18 +81,6 @@ class FilterOrg(TraceFilter):
         return trace
 
 
-@pytest.fixture()
-def mock_llmobs_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    try:
-        LLMObsSpanWriterMock = patcher.start()
-        m = mock.MagicMock()
-        LLMObsSpanWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
-
-
 @pytest.fixture
 def ddtrace_config_openai():
     config = {}
@@ -132,11 +120,19 @@ def snapshot_tracer(tracer, openai, patch_openai):
 
 
 @pytest.fixture
-def test_spans(ddtrace_global_config, test_spans, snapshot_tracer):
+def test_spans(ddtrace_global_config, test_spans, snapshot_tracer, monkeypatch):
     if ddtrace_global_config.get("_llmobs_enabled", False):
+        # Preserve meta_struct["_llmobs"] on spans so tests can assert against
+        # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it
+        # after enqueueing to LLMObsSpanWriter.
+        monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
         # Have to disable and re-enable LLMObs to use to mock tracer.
         LLMObs.disable()
         LLMObs.enable(_tracer=snapshot_tracer, integrations_enabled=False)
+        # Replace the real LLMObsSpanWriter with a mock so we don't keep a
+        # background flush thread alive trying to ship spans during the test.
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
 
     yield test_spans
 
