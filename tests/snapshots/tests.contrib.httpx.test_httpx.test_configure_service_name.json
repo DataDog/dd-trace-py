@@ -11,8 +11,8 @@
     "meta": {
       "_dd.base_service": "tests.contrib.httpx",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de7a6200000000",
-      "_dd.svc_src": "httpx",
+      "_dd.p.tid": "69f1eb8900000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.httpx",
       "component": "httpx",
       "http.method": "GET",
@@ -21,7 +21,7 @@
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "af89a2fe1f1e4e77a6315c42a0dcc771",
+      "runtime-id": "dc8bdd4fe1924cfd831ff74b68b1835d",
       "span.kind": "client"
     },
     "metrics": {
@@ -29,8 +29,8 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 40316.0
+      "process_id": 605.0
     },
-    "duration": 2091417,
-    "start": 1776188002010222637
+    "duration": 2648792,
+    "start": 1777462153735872251
   }]]

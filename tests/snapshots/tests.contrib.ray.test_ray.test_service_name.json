@@ -10,8 +10,8 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd0cf100000000",
-      "_dd.svc_src": "ray",
+      "_dd.p.tid": "69f1ec0300000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:dashboard,entrypoint.name:agent,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "ray",
       "language": "python",
@@ -22,10 +22,10 @@
       "ray.job.status": "SUCCEEDED",
       "ray.job.submit_status": "success",
       "ray.job_id": "01000000",
-      "ray.node_id": "7a90c5bc6e41d4b21af78410697b957ae5a8683ca3e2059529868080",
-      "ray.submission_id": "raysubmit_VngeD3xwbmHzbyZT",
+      "ray.node_id": "81f5a52258f4829da665964e5fdb733057d84af124545c147d575351",
+      "ray.submission_id": "raysubmit_TsXBMHkg2mFW43Je",
       "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
-      "runtime-id": "286a1bf7380948bd812d0ced4283134a",
+      "runtime-id": "27453278a1454ea8b923edf27d670df8",
       "span.kind": "producer"
     },
     "metrics": {
@@ -36,10 +36,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2.0,
-      "process_id": 6439.0
+      "process_id": 2807.0
     },
-    "duration": 4122090169,
-    "start": 1776094449783004168
+    "duration": 4376630544,
+    "start": 1777462275606442377
   },
      {
        "name": "actor_method.execute",
@@ -51,23 +51,23 @@
        "type": "ray",
        "error": 0,
        "meta": {
-         "_dd.p.tid": "69dd0cf100000000",
-         "_dd.parent_id": "ccb9a352f21daae9",
-         "_dd.svc_src": "ray",
+         "_dd.p.tid": "69f1ec0300000000",
+         "_dd.parent_id": "41e913cb78e67d17",
+         "_dd.svc_src": "m",
          "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
          "component": "ray",
          "language": "python",
-         "ray.actor_id": "b5d212716eca7267fb228aee01000000",
+         "ray.actor_id": "79c7c8bec71849346dd9a43d01000000",
          "ray.hostname": "docker-desktop",
          "ray.job_id": "01000000",
-         "ray.node_id": "7a90c5bc6e41d4b21af78410697b957ae5a8683ca3e2059529868080",
-         "ray.submission_id": "raysubmit_VngeD3xwbmHzbyZT",
-         "ray.task_id": "16310a0f0a45af5cb5d212716eca7267fb228aee01000000",
-         "ray.worker_id": "9365ab37bd2829a399a256a2c4e7e82a43ab8045fcac48b66292ddbf",
-         "runtime-id": "1e59304c32594e34a0b6f5e4e0888c02",
+         "ray.node_id": "81f5a52258f4829da665964e5fdb733057d84af124545c147d575351",
+         "ray.submission_id": "raysubmit_TsXBMHkg2mFW43Je",
+         "ray.task_id": "16310a0f0a45af5c79c7c8bec71849346dd9a43d01000000",
+         "ray.worker_id": "9a38de31526023e0a7ed78f48775b90f8cbf28dc52535b84ed49af81",
+         "runtime-id": "e33ce81ffdda44ecb19009268006c47c",
          "span.kind": "consumer",
-         "traceparent": "00-69dd0cf100000000177d920a0c4c7d97-ccb9a352f21daae9-00",
-         "tracestate": "dd=p:ccb9a352f21daae9"
+         "traceparent": "00-69f1ec0300000000a0d70ee0571cb234-41e913cb78e67d17-00",
+         "tracestate": "dd=p:41e913cb78e67d17"
        },
        "metrics": {
          "_dd.ai_obs.enabled": 1.0,
@@ -77,10 +77,10 @@
          "_dd.top_level": 1.0,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 2.0,
-         "process_id": 6626.0
+         "process_id": 2981.0
        },
-       "duration": 2232413626,
-       "start": 1776094450885990127
+       "duration": 2941274835,
+       "start": 1777462276964016211
      },
         {
           "name": "actor_method.execute",
@@ -92,15 +92,15 @@
           "type": "ray",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "ray",
+            "_dd.svc_src": "m",
             "component": "ray",
-            "ray.actor_id": "b5d212716eca7267fb228aee01000000",
+            "ray.actor_id": "79c7c8bec71849346dd9a43d01000000",
             "ray.hostname": "docker-desktop",
             "ray.job_id": "01000000",
-            "ray.node_id": "7a90c5bc6e41d4b21af78410697b957ae5a8683ca3e2059529868080",
-            "ray.submission_id": "raysubmit_VngeD3xwbmHzbyZT",
-            "ray.task_id": "16310a0f0a45af5cb5d212716eca7267fb228aee01000000",
-            "ray.worker_id": "9365ab37bd2829a399a256a2c4e7e82a43ab8045fcac48b66292ddbf",
+            "ray.node_id": "81f5a52258f4829da665964e5fdb733057d84af124545c147d575351",
+            "ray.submission_id": "raysubmit_TsXBMHkg2mFW43Je",
+            "ray.task_id": "16310a0f0a45af5c79c7c8bec71849346dd9a43d01000000",
+            "ray.worker_id": "9a38de31526023e0a7ed78f48775b90f8cbf28dc52535b84ed49af81",
             "span.kind": "consumer"
           },
           "metrics": {
@@ -110,8 +110,8 @@
             "_dd.measured": 1.0,
             "_sampling_priority_v1": 2.0
           },
-          "duration": 4293916,
-          "start": 1776094450887695294
+          "duration": 2542458,
+          "start": 1777462276966029169
         },
            {
              "name": "actor_method.execute",
@@ -123,15 +123,15 @@
              "type": "ray",
              "error": 0,
              "meta": {
-               "_dd.svc_src": "ray",
+               "_dd.svc_src": "m",
                "component": "ray",
-               "ray.actor_id": "b5d212716eca7267fb228aee01000000",
+               "ray.actor_id": "79c7c8bec71849346dd9a43d01000000",
                "ray.hostname": "docker-desktop",
                "ray.job_id": "01000000",
-               "ray.node_id": "7a90c5bc6e41d4b21af78410697b957ae5a8683ca3e2059529868080",
-               "ray.submission_id": "raysubmit_VngeD3xwbmHzbyZT",
-               "ray.task_id": "16310a0f0a45af5cb5d212716eca7267fb228aee01000000",
-               "ray.worker_id": "9365ab37bd2829a399a256a2c4e7e82a43ab8045fcac48b66292ddbf",
+               "ray.node_id": "81f5a52258f4829da665964e5fdb733057d84af124545c147d575351",
+               "ray.submission_id": "raysubmit_TsXBMHkg2mFW43Je",
+               "ray.task_id": "16310a0f0a45af5c79c7c8bec71849346dd9a43d01000000",
+               "ray.worker_id": "9a38de31526023e0a7ed78f48775b90f8cbf28dc52535b84ed49af81",
                "span.kind": "consumer"
              },
              "metrics": {
@@ -141,8 +141,8 @@
                "_dd.measured": 1.0,
                "_sampling_priority_v1": 2.0
              },
-             "duration": 106916,
-             "start": 1776094450891850919
+             "duration": 83833,
+             "start": 1777462276968447336
            },
         {
           "name": "actor_method.execute",
@@ -154,15 +154,15 @@
           "type": "ray",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "ray",
+            "_dd.svc_src": "m",
             "component": "ray",
-            "ray.actor_id": "b5d212716eca7267fb228aee01000000",
+            "ray.actor_id": "79c7c8bec71849346dd9a43d01000000",
             "ray.hostname": "docker-desktop",
             "ray.job_id": "01000000",
-            "ray.node_id": "7a90c5bc6e41d4b21af78410697b957ae5a8683ca3e2059529868080",
-            "ray.submission_id": "raysubmit_VngeD3xwbmHzbyZT",
-            "ray.task_id": "16310a0f0a45af5cb5d212716eca7267fb228aee01000000",
-            "ray.worker_id": "9365ab37bd2829a399a256a2c4e7e82a43ab8045fcac48b66292ddbf",
+            "ray.node_id": "81f5a52258f4829da665964e5fdb733057d84af124545c147d575351",
+            "ray.submission_id": "raysubmit_TsXBMHkg2mFW43Je",
+            "ray.task_id": "16310a0f0a45af5c79c7c8bec71849346dd9a43d01000000",
+            "ray.worker_id": "9a38de31526023e0a7ed78f48775b90f8cbf28dc52535b84ed49af81",
             "span.kind": "consumer"
           },
           "metrics": {
@@ -172,8 +172,8 @@
             "_dd.measured": 1.0,
             "_sampling_priority_v1": 2.0
           },
-          "duration": 615125,
-          "start": 1776094450892185127
+          "duration": 619875,
+          "start": 1777462276968767461
         },
         {
           "name": "task.execute",
@@ -185,22 +185,22 @@
           "type": "ray",
           "error": 0,
           "meta": {
-            "_dd.p.tid": "69dd0cf100000000",
-            "_dd.parent_id": "a9a5f451e402f82a",
-            "_dd.svc_src": "ray",
+            "_dd.p.tid": "69f1ec0300000000",
+            "_dd.parent_id": "c88b5025a4821cc9",
+            "_dd.svc_src": "m",
             "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
             "component": "ray",
             "language": "python",
             "ray.hostname": "docker-desktop",
             "ray.job_id": "02000000",
-            "ray.node_id": "7a90c5bc6e41d4b21af78410697b957ae5a8683ca3e2059529868080",
-            "ray.submission_id": "raysubmit_VngeD3xwbmHzbyZT",
+            "ray.node_id": "81f5a52258f4829da665964e5fdb733057d84af124545c147d575351",
+            "ray.submission_id": "raysubmit_TsXBMHkg2mFW43Je",
             "ray.task_id": "67a2e8cfa5a06db3ffffffffffffffffffffffff02000000",
-            "ray.worker_id": "0dbc8d7dcaf5b721a1308b87fc61a941ba56064091cd0a53d749fd68",
-            "runtime-id": "82477b021009431a9224471459df9e85",
+            "ray.worker_id": "80478e952a0f132563354de613ddd1cf46039280f6d8d7e197072e79",
+            "runtime-id": "8976d9cc7ee04904a09d5ec7bfc6dccf",
             "span.kind": "consumer",
-            "traceparent": "00-69dd0cf100000000177d920a0c4c7d97-a9a5f451e402f82a-00",
-            "tracestate": "dd=p:a9a5f451e402f82a;s:0"
+            "traceparent": "00-69f1ec0300000000a0d70ee0571cb234-c88b5025a4821cc9-00",
+            "tracestate": "dd=p:c88b5025a4821cc9;s:0"
           },
           "metrics": {
             "_dd.ai_obs.enabled": 1.0,
@@ -210,8 +210,8 @@
             "_dd.top_level": 1.0,
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 2.0,
-            "process_id": 6750.0
+            "process_id": 3106.0
           },
-          "duration": 295250,
-          "start": 1776094452403039253
+          "duration": 343875,
+          "start": 1777462278847626712
         }]]
