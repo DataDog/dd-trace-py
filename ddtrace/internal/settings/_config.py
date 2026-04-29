@@ -489,9 +489,6 @@ class Config(object):
         )
         self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
 
-        # Use the NativeWriter instead of the AgentWriter
-        self._trace_writer_native = _get_config("_DD_TRACE_WRITER_NATIVE", True, asbool)
-
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
         self._agent_timeout_seconds = _get_config("DD_TRACE_AGENT_TIMEOUT_SECONDS", DEFAULT_TIMEOUT, float)
@@ -700,6 +697,12 @@ class Config(object):
             ["DD_TRACE_INFERRED_SPANS_ENABLED", "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED"], False, asbool
         )
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
+
+        # When True, the default span name for @tracer.wrap() on methods includes the class name.
+        # Defaults to False to preserve backwards compatibility; will become True in 5.0.0.
+        self._trace_wrap_span_name_include_class = _get_config(
+            "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS", default=False, modifier=asbool
+        )
 
         # Resource renaming
         self._trace_resource_renaming_enabled = _get_config(

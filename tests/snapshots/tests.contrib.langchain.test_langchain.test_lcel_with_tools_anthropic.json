@@ -10,19 +10,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "687509d000000000",
-      "langchain.request.model": "claude-3-opus-20240229",
+      "_dd.p.tid": "69ea86d900000000",
+      "_dd.svc_src": "tests.contrib.langchain",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
+      "langchain.request.model": "claude-sonnet-4-5-20250929",
       "langchain.request.provider": "anthropic",
       "language": "python",
-      "runtime-id": "0e0fcbcf2970484e9ac7faed7e74ab0e"
+      "runtime-id": "476526c794934f3eb682e3e6b36806e3"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 23889
+      "_sampling_priority_v1": 1.0,
+      "process_id": 488.0
     },
-    "duration": 6462000,
-    "start": 1752500688632148000
+    "duration": 42223208,
+    "start": 1776977625623872926
   }]]

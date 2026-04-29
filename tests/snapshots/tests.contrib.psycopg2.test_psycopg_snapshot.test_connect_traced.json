@@ -11,20 +11,22 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69dd784200000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpu2ukylf3,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "psycopg",
       "db.system": "postgresql",
       "language": "python",
-      "runtime-id": "5e80c5a691c84329bbe0464d28854fae",
+      "runtime-id": "f641f8e775104c49b6b16e8f16e66681",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 75387
+      "_sampling_priority_v1": 1.0,
+      "process_id": 59863.0
     },
-    "duration": 3607708,
-    "start": 1692712154644657553
+    "duration": 3543167,
+    "start": 1776121922149705882
   }]]

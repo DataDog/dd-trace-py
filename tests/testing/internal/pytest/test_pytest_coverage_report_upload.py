@@ -441,8 +441,8 @@ class TestCoverageReportGeneration:
 class TestCoverageReportUploadSettings:
     """Tests for backend settings vs environment variable precedence."""
 
-    def test_backend_enabled_env_var_disabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
-        """Test that backend setting overrides disabled env var."""
+    def test_env_var_kill_switch_overrides_backend(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """Test that setting the env var to 0 disables upload even when the backend has it enabled."""
         pytester.makepyfile(
             test_sample="""
             def test_ok():
@@ -451,7 +451,7 @@ class TestCoverageReportUploadSettings:
         )
 
         with CoverageReportUploadCapture.capture() as upload_capture:
-            # Backend says enabled, env var says disabled
+            # Backend says enabled, env var kill switch says disabled
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
             )
@@ -467,9 +467,9 @@ class TestCoverageReportUploadSettings:
 
         assert result.ret == 0
 
-        # Backend setting should override env var - upload should occur
+        # Env var kill switch takes precedence over backend - no upload should occur
         coverage_uploads = upload_capture.get_coverage_report_uploads()
-        assert len(coverage_uploads) == 1
+        assert len(coverage_uploads) == 0
 
     def test_backend_disabled_env_var_enabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
         """Test behavior when backend setting is disabled but env var is enabled."""

@@ -9,6 +9,10 @@ import pytest
 
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.session_manager import SessionManager
+from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
+from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
+from ddtrace.testing.internal.settings_data import Settings
+from ddtrace.testing.internal.settings_data import TestManagementSettings
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -269,6 +273,63 @@ class TestSessionManagerEnvVarOverrides:
             session_manager = SessionManager(self.session)
             assert session_manager.settings.coverage_enabled is expected_setting
 
+    @pytest.mark.parametrize(
+        "env_var, env_value, setting_attr, expected",
+        [
+            ("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false", "coverage_report_upload_enabled", False),
+            ("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "false", "early_flake_detection.enabled", False),
+            ("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "false", "auto_test_retries.enabled", False),
+            ("DD_CIVISIBILITY_ITR_ENABLED", "false", "itr_enabled", False),
+        ],
+    )
+    def test_kill_switches_honored_after_require_git_refetch(
+        self, monkeypatch, env_var, env_value, setting_attr, expected
+    ):
+        """Regression test: when require_git=True the session manager fetches settings twice.
+        Kill switch env vars must be re-applied after the second fetch so they are not silently
+        overwritten by the backend response.
+        """
+        backend_settings = Settings(
+            coverage_report_upload_enabled=True,
+            itr_enabled=True,
+            require_git=True,
+            early_flake_detection=EarlyFlakeDetectionSettings(enabled=True),
+            auto_test_retries=AutoTestRetriesSettings(enabled=True),
+            test_management=TestManagementSettings(enabled=False),
+        )
+        # Second fetch (after git upload) returns the same backend-enabled values but
+        # without require_git, simulating the normal post-git-upload response.
+        backend_settings_after_git = Settings(
+            coverage_report_upload_enabled=True,
+            itr_enabled=True,
+            require_git=False,
+            early_flake_detection=EarlyFlakeDetectionSettings(enabled=True),
+            auto_test_retries=AutoTestRetriesSettings(enabled=True),
+            test_management=TestManagementSettings(enabled=False),
+        )
+
+        mock_client = Mock()
+        mock_client.get_settings.side_effect = [backend_settings, backend_settings_after_git]
+        mock_client.get_known_tests.return_value = set()
+        mock_client.get_test_management_properties.return_value = {}
+        mock_client.get_known_commits.return_value = []
+        mock_client.send_git_pack_file.return_value = None
+        mock_client.get_skippable_tests.return_value = (set(), None)
+        mock_client.close.return_value = None
+        mock_client.configuration_errors = {}
+
+        monkeypatch.setenv(env_var, env_value)
+
+        with patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client):
+            with setup_standard_mocks():
+                session_manager = SessionManager(self.session)
+
+        # Navigate dotted attribute path (e.g. "early_flake_detection.enabled")
+        obj = session_manager.settings
+        for attr in setting_attr.split("."):
+            obj = getattr(obj, attr)
+        assert obj is expected
+
 
 class TestSessionManagerGitHandling:
     def test_upload_git_data_skips_when_git_missing(self) -> None:
@@ -281,6 +342,21 @@ class TestSessionManagerGitHandling:
             session_manager.upload_git_data()
 
         mock_warning.assert_any_call("Error calling git binary, skipping metadata upload")
+
+    def test_upload_git_data_records_telemetry_when_git_missing(self) -> None:
+        session_manager = SessionManager.__new__(SessionManager)
+        mock_telemetry_instance = Mock()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", side_effect=RuntimeError("`git` command not found")),
+            patch("ddtrace.testing.internal.session_manager.log"),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI") as mock_telemetry_cls,
+        ):
+            mock_telemetry_cls._instance = Mock()
+            mock_telemetry_cls.get.return_value = mock_telemetry_instance
+            session_manager.upload_git_data()
+
+        mock_telemetry_instance.record_git_missing.assert_called_once()
 
     def test_upload_git_data_aborts_when_search_commits_fails(self) -> None:
         session_manager = SessionManager.__new__(SessionManager)

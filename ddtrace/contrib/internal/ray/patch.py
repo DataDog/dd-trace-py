@@ -1,3 +1,7 @@
+from collections.abc import Mapping
+import json
+from typing import Any
+
 import ray
 from wrapt import wrap_function_wrapper as _w
 
@@ -31,6 +35,45 @@ _job_context_lock = Lock()
 _job_contexts = {}
 
 
+def _parse_ignored_actors(value: Any) -> dict[str, frozenset[str]]:
+    if not value:
+        return {}
+
+    if isinstance(value, str):
+        try:
+            parsed_value = json.loads(value)
+        except ValueError:
+            log.warning("Invalid DD_TRACE_RAY_IGNORED_ACTORS value. Expected a JSON object.")
+            return {}
+    else:
+        parsed_value = value
+
+    if not isinstance(parsed_value, Mapping):
+        log.warning("Invalid DD_TRACE_RAY_IGNORED_ACTORS value. Expected a JSON object.")
+        return {}
+
+    ignored_actors = {}
+    for actor_name, ignored_methods in parsed_value.items():
+        if not isinstance(actor_name, str) or not actor_name.strip():
+            log.warning("Invalid DD_TRACE_RAY_IGNORED_ACTORS actor name. Expected a non-empty string.")
+            continue
+
+        actor_name = actor_name.strip()
+        if ignored_methods == "*":
+            ignored_actors[actor_name] = frozenset({"*"})
+            continue
+
+        if not isinstance(ignored_methods, (list, tuple, set, frozenset)):
+            log.warning("Invalid DD_TRACE_RAY_IGNORED_ACTORS methods for actor %s. Expected a list.", actor_name)
+            continue
+
+        methods = frozenset(method.strip() for method in ignored_methods if isinstance(method, str) and method.strip())
+        if methods:
+            ignored_actors[actor_name] = methods
+
+    return ignored_actors
+
+
 config._add(
     "ray",
     dict(
@@ -38,6 +81,8 @@ config._add(
         redact_entrypoint_paths=asbool(env.get("DD_TRACE_RAY_REDACT_ENTRYPOINT_PATHS", default=True)),
         trace_core_api=_get_config("DD_TRACE_RAY_CORE_API", default=False, modifier=asbool),
         trace_args_kwargs=_get_config("DD_TRACE_RAY_ARGS_KWARGS", default=False, modifier=asbool),
+        submission_spans=_get_config("DD_TRACE_RAY_SUBMISSION_SPANS_ENABLED", default=False, modifier=asbool),
+        ignored_actors=_get_config("DD_TRACE_RAY_IGNORED_ACTORS", default={}, modifier=_parse_ignored_actors),
     ),
 )
 

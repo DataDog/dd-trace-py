@@ -10,16 +10,17 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69cd565900000000",
+      "_dd.p.tid": "69e7a31000000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
       "db.name": "db.azure_cosmos_error",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.72-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "cba51c2d660145559dd1504546a00e69",
+      "runtime-id": "8b998d8f904644d898b523907d4d2beb",
       "span.kind": "client"
     },
     "metrics": {
@@ -28,8 +29,8 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 557.0
     },
-    "duration": 2054416,
-    "start": 1775064665378299139
+    "duration": 2107416,
+    "start": 1776788240627206713
   }],
 [
   {
@@ -43,16 +44,17 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69cd565900000000",
+      "_dd.p.tid": "69e7a31000000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
       "db.name": "db.azure_cosmos_error",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.72-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "cba51c2d660145559dd1504546a00e69",
+      "runtime-id": "8b998d8f904644d898b523907d4d2beb",
       "span.kind": "client"
     },
     "metrics": {
@@ -61,8 +63,8 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 557.0
     },
-    "duration": 9247667,
-    "start": 1775064665380638347
+    "duration": 13302542,
+    "start": 1776788240629624296
   }],
 [
   {
@@ -76,17 +78,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69cd565900000000",
+      "_dd.p.tid": "69e7a31000000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
       "cosmosdb.container": "container.azure_cosmos_error",
       "db.name": "db.azure_cosmos_error",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.72-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "cba51c2d660145559dd1504546a00e69",
+      "runtime-id": "8b998d8f904644d898b523907d4d2beb",
       "span.kind": "client"
     },
     "metrics": {
@@ -95,8 +98,8 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 557.0
     },
-    "duration": 3835291,
-    "start": 1775064665390229889
+    "duration": 3312458,
+    "start": 1776788240643252296
   }],
 [
   {
@@ -110,7 +113,8 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69cd565900000000",
+      "_dd.p.tid": "69e7a31000000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
@@ -118,13 +122,13 @@
       "db.name": "db.azure_cosmos_error",
       "db.system": "cosmosdb",
       "error.message": "(None) The document already exists in the collection.\nCode: None\nMessage: The document already exists in the collection.",
-      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/azure_cosmos/patch.py\", line 86, in _patched_synchronized_request\n    raise e\n  File \"/home/bits/project/ddtrace/contrib/internal/azure_cosmos/patch.py\", line 76, in _patched_synchronized_request\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~490_pytest-asyncio0237_aiohttp_six/lib/python3.9/site-packages/azure/cosmos/_synchronized_request.py\", line 214, in SynchronizedRequest\n    return _retry_utility.Execute(\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~490_pytest-asyncio0237_aiohttp_six/lib/python3.9/site-packages/azure/cosmos/_retry_utility.py\", line 97, in Execute\n    result = ExecuteFunction(function, global_endpoint_manager, *args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~490_pytest-asyncio0237_aiohttp_six/lib/python3.9/site-packages/azure/cosmos/_retry_utility.py\", line 199, in ExecuteFunction\n    return function(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~490_pytest-asyncio0237_aiohttp_six/lib/python3.9/site-packages/azure/cosmos/_synchronized_request.py\", line 150, in _Request\n    raise exceptions.CosmosResourceExistsError(message=data, response=response)\nazure.cosmos.exceptions.CosmosResourceExistsError: (None) The document already exists in the collection.\nCode: None\nMessage: The document already exists in the collection.\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/azure_cosmos/patch.py\", line 69, in _patched_synchronized_request\n    result = wrapped(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~490_pytest-asyncio0237_aiohttp_six/lib/python3.9/site-packages/azure/cosmos/_synchronized_request.py\", line 214, in SynchronizedRequest\n    return _retry_utility.Execute(\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~490_pytest-asyncio0237_aiohttp_six/lib/python3.9/site-packages/azure/cosmos/_retry_utility.py\", line 97, in Execute\n    result = ExecuteFunction(function, global_endpoint_manager, *args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~490_pytest-asyncio0237_aiohttp_six/lib/python3.9/site-packages/azure/cosmos/_retry_utility.py\", line 199, in ExecuteFunction\n    return function(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~490_pytest-asyncio0237_aiohttp_six/lib/python3.9/site-packages/azure/cosmos/_synchronized_request.py\", line 150, in _Request\n    raise exceptions.CosmosResourceExistsError(message=data, response=response)\nazure.cosmos.exceptions.CosmosResourceExistsError: (None) The document already exists in the collection.\nCode: None\nMessage: The document already exists in the collection.\n",
       "error.type": "azure.cosmos.exceptions.CosmosResourceExistsError",
       "http.status_code": "409",
-      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.72-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "cba51c2d660145559dd1504546a00e69",
+      "runtime-id": "8b998d8f904644d898b523907d4d2beb",
       "span.kind": "client"
     },
     "metrics": {
@@ -133,8 +137,8 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 557.0
     },
-    "duration": 3402000,
-    "start": 1775064665394311180
+    "duration": 3100542,
+    "start": 1776788240646809504
   }],
 [
   {
@@ -148,17 +152,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69cd565900000000",
+      "_dd.p.tid": "69e7a31000000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
       "cosmosdb.container": "container.azure_cosmos_error",
       "db.name": "db.azure_cosmos_error",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.72-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "cba51c2d660145559dd1504546a00e69",
+      "runtime-id": "8b998d8f904644d898b523907d4d2beb",
       "span.kind": "client"
     },
     "metrics": {
@@ -167,8 +172,8 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 557.0
     },
-    "duration": 1814958,
-    "start": 1775064665397982639
+    "duration": 1694875,
+    "start": 1776788240650194254
   }],
 [
   {
@@ -182,17 +187,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69cd565900000000",
+      "_dd.p.tid": "69e7a31000000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
       "cosmosdb.container": "container.azure_cosmos_error",
       "db.name": "db.azure_cosmos_error",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.72-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "cba51c2d660145559dd1504546a00e69",
+      "runtime-id": "8b998d8f904644d898b523907d4d2beb",
       "span.kind": "client"
     },
     "metrics": {
@@ -201,8 +207,8 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 557.0
     },
-    "duration": 1754583,
-    "start": 1775064665400097014
+    "duration": 1565959,
+    "start": 1776788240652152879
   }],
 [
   {
@@ -216,16 +222,17 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69cd565900000000",
+      "_dd.p.tid": "69e7a31000000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_cosmos",
       "component": "azure_cosmos",
       "cosmosdb.connection.mode": "gateway",
       "db.name": "db.azure_cosmos_error",
       "db.system": "cosmosdb",
-      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.67-linuxkit-aarch64-with-glibc2.41)",
+      "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.9.25 (Linux-6.12.72-linuxkit-aarch64-with-glibc2.41)",
       "language": "python",
       "out.host": "http://localhost:8081/",
-      "runtime-id": "cba51c2d660145559dd1504546a00e69",
+      "runtime-id": "8b998d8f904644d898b523907d4d2beb",
       "span.kind": "client"
     },
     "metrics": {
@@ -234,6 +241,6 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 557.0
     },
-    "duration": 3606416,
-    "start": 1775064665402050889
+    "duration": 3659541,
+    "start": 1776788240653922213
   }]]

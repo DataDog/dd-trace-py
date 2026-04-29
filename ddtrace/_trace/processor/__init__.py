@@ -164,24 +164,15 @@ class TraceSamplingProcessor(TraceProcessor):
                     return trace
 
             # single span sampling rules are applied if the trace is about to be dropped
+            # DEV: the dropping is handled by the native trace exporter
             if self.single_span_rules and chunk_root.context.sampling_priority <= 0:
-                single_spans = []
-                # When stats computation is enabled in the tracer then we can safely drop the traces.
-                # When using the NativeWriter this is handled by native code.
-                can_drop_trace = (
-                    not config._trace_writer_native and self._compute_stats_enabled and not self.apm_opt_out
-                )
                 for span in trace:
                     for rule in self.single_span_rules:
                         if rule.match(span):
                             # Sampling a span here does NOT effect the sampling priotiy. This operation
                             # simply marks a span as single-span sampled.
                             rule.sample(span)
-                            if can_drop_trace:
-                                single_spans.append(span)
                             break
-                if can_drop_trace:
-                    return single_spans
             return trace
         return None
 
@@ -239,7 +230,7 @@ class TraceTagsProcessor(TraceProcessor):
         # Thus trace tags are applied to a root span which may be dropped by sampling, even though
         # some spans of the chunk are sampled. We prevent it by adding trace tags to the first
         # single-sampled span of the chunk.
-        if config._trace_compute_stats and config._trace_writer_native:
+        if config._trace_compute_stats:
             for span in trace:
                 if span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE:
                     spans_to_tag.append(span)

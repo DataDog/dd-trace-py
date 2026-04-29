@@ -5,7 +5,12 @@
     EXT_CACHE_VENV: '${{CI_PROJECT_DIR}}/.cache/ext_cache_venv${{PYTHON_VERSION}}'
   before_script: |
     ulimit -c unlimited
-    pyenv global 3.12 3.9 3.10 3.11 3.13 3.14
+    # 3.15 is shipped as the pyenv version "3.15-dev" until
+    # upstream CPython 3.15 is released. The shim is the usual "python3.15"
+    # (no -dev suffix on the binary), so build_base_venvs' `python$PYTHON_VERSION`
+    # works once 3.15-dev is on the `pyenv global` list. 
+    # TODO(vlad): Drop the -dev suffix once the testrunner image installs a GA 3.15.
+    pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 3.15-dev
     export _CI_DD_AGENT_URL=http://${{HOST_IP}}:8126/
     set -e -o pipefail
     if [ ! -d $EXT_CACHE_VENV ]; then

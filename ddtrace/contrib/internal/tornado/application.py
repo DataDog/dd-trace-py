@@ -1,12 +1,14 @@
 from urllib.parse import urlparse
 
 from tornado import template
+from tornado.routing import PathMatches
 import tornado.web
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.tornado import decorators
 from ddtrace.contrib.internal.tornado.constants import CONFIG_KEY
+from ddtrace.contrib.internal.tornado.handlers import _path_for_path_match
 from ddtrace.contrib.internal.tornado.stack_context import context_provider
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.schema import schematize_service_name
@@ -33,8 +35,7 @@ def _collect_endpoints(app):
     while rules:
         rule = rules.pop()
         matcher = getattr(rule, "matcher", None)
-        regex = getattr(matcher, "regex", None) if matcher is not None else None
-        path = regex.pattern if regex is not None else None
+        path = _path_for_path_match(matcher) if isinstance(matcher, PathMatches) else None
         target = getattr(rule, "target", None)
 
         if path is not None and isinstance(target, type) and issubclass(target, tornado.web.RequestHandler):

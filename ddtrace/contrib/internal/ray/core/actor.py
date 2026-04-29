@@ -61,6 +61,9 @@ def traced_actor_method_submission(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     ray_config = _get_ray_integration_config()
+    if not ray_config.submission_spans:
+        core.dispatch_event(RayContextInjectionEvent(kwargs=kwargs))
+        return wrapped(*args, **kwargs)
 
     parent_context = _get_active_context() or _extract_tracing_context_from_env()
 
@@ -205,6 +208,7 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
     cls = wrapped(*args, **kwargs)
     module_name = str(cls.__module__)
     class_name = str(cls.__name__)
+    ignored_actor_methods = _get_ray_integration_config().ignored_actors.get(class_name, frozenset())
 
     # Skip tracing for certain ray modules
     if any(module_name.startswith(denied_module) for denied_module in RAY_ACTOR_MODULE_DENYLIST):
@@ -214,6 +218,10 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
     if class_name.startswith("_"):
         return cls
 
+    # Allow users to skip instrumentation for specific actor class names.
+    if "*" in ignored_actor_methods:
+        return cls
+
     # Determine if the class is a JobSupervisor
     is_job_supervisor = f"{module_name}.{class_name}" == "ray.dashboard.modules.job.job_supervisor.JobSupervisor"
     # We do not want to instrument ping and polling to remove noise
@@ -221,7 +229,7 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
 
     methods = inspect.getmembers(cls, is_function_or_method)
     for name, method in methods:
-        if name in methods_to_ignore:
+        if name in methods_to_ignore or name in ignored_actor_methods:
             continue
 
         if (

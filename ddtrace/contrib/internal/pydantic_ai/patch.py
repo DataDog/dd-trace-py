@@ -65,6 +65,20 @@ async def traced_tool_manager_call(func, instance, args, kwargs):
     return await traced_tool_run(func, tool_instance, args, kwargs, tool_name)
 
 
+async def traced_execute_tool_call(func, instance, args, kwargs):
+    validated = get_argument_value(args, kwargs, 0, "validated", True)
+    if validated is None:
+        return await func(*args, **kwargs)
+    # skip output tools — they are used for structured output, not user-defined function tools
+    tool_instance = getattr(validated, "tool", None)
+    tool_def = getattr(tool_instance, "tool_def", None)
+    if tool_def and getattr(tool_def, "kind", None) == "output":
+        return await func(*args, **kwargs)
+    tool_call_part = getattr(validated, "call", None)
+    tool_name = getattr(tool_call_part, "tool_name", None) or "Pydantic Tool"
+    return await traced_tool_run(func, tool_instance, args, kwargs, tool_name)
+
+
 async def traced_tool_call(func, instance, args, kwargs):
     tool_name = getattr(instance, "name", None) or "Pydantic Tool"
     return await traced_tool_run(func, instance, args, kwargs, tool_name)
@@ -97,7 +111,9 @@ def patch():
 
     wrap(pydantic_ai, "agent.Agent.iter", traced_agent_iter)
     wrap(pydantic_ai, "agent.Agent.run_stream", traced_agent_run_stream)
-    if PYDANTIC_AI_VERSION >= (0, 4, 4):
+    if PYDANTIC_AI_VERSION >= (1, 63, 0):
+        wrap(pydantic_ai, "agent.ToolManager.execute_tool_call", traced_execute_tool_call)
+    elif PYDANTIC_AI_VERSION >= (0, 4, 4):
         wrap(pydantic_ai, "agent.ToolManager.handle_call", traced_tool_manager_call)
     else:
         wrap(pydantic_ai, "tools.Tool.run", traced_tool_call)
@@ -113,7 +129,9 @@ def unpatch():
 
     unwrap(pydantic_ai.agent.Agent, "iter")
     unwrap(pydantic_ai.agent.Agent, "run_stream")
-    if PYDANTIC_AI_VERSION >= (0, 4, 4):
+    if PYDANTIC_AI_VERSION >= (1, 63, 0):
+        unwrap(pydantic_ai.agent.ToolManager, "execute_tool_call")
+    elif PYDANTIC_AI_VERSION >= (0, 4, 4):
         unwrap(pydantic_ai.agent.ToolManager, "handle_call")
     else:
         unwrap(pydantic_ai.tools.Tool, "run")

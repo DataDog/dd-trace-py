@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    django: API endpoint discovery now supports Django sub-applications
+    mounted with ``django.urls.include(...)``. Endpoints are reported with
+    their full URL path including the parent prefix — for example, a view
+    served at ``/api/users/`` is now reported as ``/api/users/`` instead of
+    losing the ``/api/`` prefix.
+  - |
+    django: API endpoint discovery now reports the correct HTTP methods for
+    views decorated with ``@require_http_methods`` combined with another
+    decorator such as ``@csrf_exempt``; the declared methods are reported
+    instead of a generic wildcard entry.
