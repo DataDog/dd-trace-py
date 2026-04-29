@@ -1,6 +1,6 @@
 [[
   {
-    "name": "should_send3",
+    "name": "should_not_send",
     "service": "ddtrace_subprocess_dir",
     "resource": "mycoolre$ource",
     "trace_id": 0,
@@ -9,26 +9,30 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "65ca9a0600000000",
-      "banana": "True",
+      "_dd.p.dm": "-3",
+      "_dd.p.ksr": "0",
+      "_dd.p.tid": "69dfabcf00000000",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp9_ngssjz,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4"
+      "runtime-id": "3a96f1a8276248bf80824a26cd2aa1be",
+      "tag1": "mycooltag"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.rule_psr": 0.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 70612
+      "_sampling_priority_v1": -1.0,
+      "process_id": 4355.0
     },
-    "duration": 47000,
-    "start": 1707776518730636000
+    "duration": 62792,
+    "start": 1776266191059230679
   }],
 [
   {
-    "name": "should_send1",
+    "name": "should_send2",
     "service": "ddtrace_subprocess_dir",
-    "resource": "should_send1",
+    "resource": "banana",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
@@ -36,25 +40,27 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65ca9a0600000000",
-      "banana": "True",
+      "_dd.p.tid": "69dfabcf00000000",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp9_ngssjz,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4"
+      "runtime-id": "3a96f1a8276248bf80824a26cd2aa1be",
+      "tag1": "mycooltag"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 70612
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4355.0
     },
-    "duration": 48000,
-    "start": 1707776518728822000
+    "duration": 16125,
+    "start": 1776266191059652137
   }],
 [
   {
-    "name": "should_send2",
+    "name": "should_send1",
     "service": "ddtrace_subprocess_dir",
-    "resource": "banana",
+    "resource": "should_send1",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
@@ -62,23 +68,25 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65ca9a0600000000",
+      "_dd.p.tid": "69dfabcf00000000",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp9_ngssjz,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "banana": "True",
       "language": "python",
-      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4",
-      "tag1": "mycooltag"
+      "runtime-id": "3a96f1a8276248bf80824a26cd2aa1be"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 70612
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4355.0
     },
-    "duration": 64000,
-    "start": 1707776518727081000
+    "duration": 9041,
+    "start": 1776266191059754846
   }],
 [
   {
-    "name": "should_not_send",
+    "name": "should_send3",
     "service": "ddtrace_subprocess_dir",
     "resource": "mycoolre$ource",
     "trace_id": 3,
@@ -87,20 +95,20 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.p.dm": "-3",
-      "_dd.p.ksr": "0",
-      "_dd.p.tid": "65ca9a0600000000",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69dfabcf00000000",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp9_ngssjz,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "banana": "True",
       "language": "python",
-      "runtime-id": "45b9ec5ab8354bbcafce88b29abcb7a4",
-      "tag1": "mycooltag"
+      "runtime-id": "3a96f1a8276248bf80824a26cd2aa1be"
     },
     "metrics": {
-      "_dd.rule_psr": 0,
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": -1,
-      "process_id": 70612
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4355.0
     },
-    "duration": 238000,
-    "start": 1707776518725139000
+    "duration": 7458,
+    "start": 1776266191059800179
   }]]

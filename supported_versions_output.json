@@ -411,7 +411,7 @@
         "dependency": "langchain-core",
         "integration": "langchain",
         "minimum_tracer_supported": "0.1.53",
-        "max_tracer_supported": "0.3.76",
+        "max_tracer_supported": "1.2.31",
         "auto-instrumented": true
     },
     {
@@ -496,28 +496,28 @@
         "dependency": "mcp",
         "integration": "mcp",
         "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "1.16.0",
+        "max_tracer_supported": "1.27.0",
         "auto-instrumented": true
     },
     {
         "dependency": "mlflow",
         "integration": "mlflow",
         "minimum_tracer_supported": "2.11.4",
-        "max_tracer_supported": "3.10.1",
+        "max_tracer_supported": "3.11.1",
         "auto-instrumented": false
     },
     {
         "dependency": "mlflow-skinny",
         "integration": "mlflow",
-        "minimum_tracer_supported": "3.10.1",
-        "max_tracer_supported": "3.10.1",
+        "minimum_tracer_supported": "3.11.1",
+        "max_tracer_supported": "3.11.1",
         "auto-instrumented": false
     },
     {
         "dependency": "mlflow-tracing",
         "integration": "mlflow",
-        "minimum_tracer_supported": "3.10.1",
-        "max_tracer_supported": "3.10.1",
+        "minimum_tracer_supported": "3.11.1",
+        "max_tracer_supported": "3.11.1",
         "auto-instrumented": false
     },
     {

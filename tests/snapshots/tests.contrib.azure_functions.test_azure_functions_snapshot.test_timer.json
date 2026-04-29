@@ -9,20 +9,22 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67ed8ced00000000",
+      "_dd.p.tid": "69e7b38600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "timer",
       "aas.function.trigger": "Timer",
       "component": "azure_functions",
       "language": "python",
-      "runtime-id": "c20075ab351244ed9d9d5e688777e0b1",
+      "runtime-id": "1a1bb8a423544f12a9506c23dbee81dd",
       "span.kind": "internal"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 30417
+      "_sampling_priority_v1": 1.0,
+      "process_id": 74610.0
     },
-    "duration": 548917,
-    "start": 1743621357729982629
+    "duration": 179000,
+    "start": 1776792454288123000
   }]]

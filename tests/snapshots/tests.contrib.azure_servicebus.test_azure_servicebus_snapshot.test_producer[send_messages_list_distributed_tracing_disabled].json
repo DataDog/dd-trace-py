@@ -11,7 +11,9 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68c1d77000000000",
+      "_dd.p.tid": "69e92bc500000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_servicebus",
       "language": "python",
       "messaging.batch_count": "2",
@@ -19,17 +21,17 @@
       "messaging.operation": "send",
       "messaging.system": "servicebus",
       "network.destination.name": "localhost",
-      "runtime-id": "523e462b378b4ecc851933bb5a7ae315",
+      "runtime-id": "fb8f5a6612c5493cb3ab12cbfe9ba665",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 16512
+      "_sampling_priority_v1": 1.0,
+      "process_id": 67155.0
     },
-    "duration": 546131542,
-    "start": 1757534064710902010
+    "duration": 527592000,
+    "start": 1776888773260036000
   }],
 [
   {
@@ -44,7 +46,9 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68c1d77100000000",
+      "_dd.p.tid": "69e92bc500000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_servicebus",
       "language": "python",
       "messaging.batch_count": "2",
@@ -52,15 +56,15 @@
       "messaging.operation": "send",
       "messaging.system": "servicebus",
       "network.destination.name": "localhost",
-      "runtime-id": "523e462b378b4ecc851933bb5a7ae315",
+      "runtime-id": "fb8f5a6612c5493cb3ab12cbfe9ba665",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 16512
+      "_sampling_priority_v1": 1.0,
+      "process_id": 67155.0
     },
-    "duration": 7704042,
-    "start": 1757534065263791260
+    "duration": 6370000,
+    "start": 1776888773787963000
   }]]
