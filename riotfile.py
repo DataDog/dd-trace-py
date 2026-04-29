@@ -971,14 +971,9 @@ venv = Venv(
                 "redis": ">=2.10,<2.11",
                 "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django[testing]": "==3.10.0",
-                # pytest-asyncio is required so the async ASGI tests in
-                # tests/contrib/django/test_django.py (regression coverage
-                # for #17404 / #17728) actually execute instead of being
-                # silently skipped by pytest's "no async plugin installed".
+                # async ASGI tests (#17404 / #17728) silently skip without it.
                 "pytest-asyncio": latest,
-                # django-q's app config still imports `pkg_resources`, which
-                # setuptools 80 removed. Pin to a version that still ships it
-                # so the venv builds on Python 3.13+.
+                # setuptools 80 removed `pkg_resources`, still imported by django-q[2].
                 "setuptools": "<80",
                 "pylibmc": latest,
                 "python-memcached": latest,
@@ -1018,20 +1013,10 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # django 5.x (`~=5.1` resolves to the latest 5.x; currently
-                    # 5.2). Covers the async middleware/view CancelledError
-                    # regression reported in #17728. Uses django-q2 (a community
-                    # fork of django-q) because upstream django-q still imports
-                    # django.utils.baseconv which Django 5.0 removed.
-                    #
-                    # Django 5.0 dropped Postgres 12 support; the suite's
-                    # docker-compose.yml runs `postgres:12-alpine`, so the
-                    # Postgres-touching tests fail with NotSupportedError.
-                    # Bumping the Postgres image is cross-cutting and belongs
-                    # in its own PR — for now we run everything except the
-                    # Postgres-using files and tests. test_cached_view also
-                    # hard-codes a request fingerprint specific to Django
-                    # 4.2's cache-key algorithm.
+                    # django 5.x (#17728 coverage). Uses django-q2 because django-q imports
+                    # django.utils.baseconv (removed in Django 5.0). Postgres-touching tests
+                    # and Django-4.2-specific test_cached_view are skipped because Django 5.0
+                    # dropped Postgres 12, but the suite's docker-compose still runs Postgres 12.
                     pys=select_pys(min_version="3.10", max_version="3.13"),
                     command=(
                         "pytest {cmdargs} "

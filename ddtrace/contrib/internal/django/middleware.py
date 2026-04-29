@@ -155,8 +155,7 @@ def traced_middleware_factory(func: FunctionType, args: tuple[Any], kwargs: dict
                 },
                 request=request,
             ) as ctx:
-                # See _make_async_traced_middleware_hook / traced_func._async()
-                # for the same guard. #17728.
+                # Don't flag the span as errored on routine ASGI cancellation (#17728).
                 ctx.span._ignore_exception(asyncio.CancelledError)
                 return await middleware(*args, **kwargs)
 
@@ -205,9 +204,7 @@ def _make_async_traced_middleware_hook(mw_path: str, hook: str) -> Any:
             tags={COMPONENT: config_django.integration_name},
             request=request,
         ) as ctx:
-            # Mirror the patch.py traced_func._async() guard: routine ASGI
-            # cancellation surfaces as asyncio.CancelledError; don't tag the
-            # middleware span as errored on it. See #17728.
+            # Don't flag the span as errored on routine ASGI cancellation (#17728).
             ctx.span._ignore_exception(asyncio.CancelledError)
             return await func(*args, **kwargs)
 

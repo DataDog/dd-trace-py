@@ -204,9 +204,7 @@ async def async_function_view(request):
     return HttpResponse("async function response")
 
 
-# Sleeps long enough that a simulated http.disconnect mid-request cancels the
-# task while it is suspended on this await. Used by the regression test for
-# issue #17728.
+# Used by the #17728 regression test: long enough to cancel via http.disconnect mid-request.
 async def async_view_sleep(request):
     await asyncio.sleep(1.0)
     return HttpResponse("ok")

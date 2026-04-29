@@ -196,14 +196,7 @@ def traced_func(django, name, resource=None, ignored_excs=None):
                     ) as ctx,
                     ctx.span,
                 ):
-                    # Routine ASGI cancellation (e.g. client disconnect on a
-                    # streaming response, or a parent timeout) surfaces as
-                    # asyncio.CancelledError on the awaited coroutine. The
-                    # 4.1.1-shape sync wrapper exited the span before the
-                    # await, so this never reached the span; #17404's async
-                    # wrapper now brackets the await, so without this guard
-                    # every cancelled request tags django.view as errored.
-                    # See #17728.
+                    # Don't flag the span as errored on routine ASGI cancellation (#17728).
                     ctx.span._ignore_exception(asyncio.CancelledError)
                     core.dispatch(
                         "django.func.wrapped",
