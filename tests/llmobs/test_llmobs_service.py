@@ -21,6 +21,7 @@ from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import get_llmobs_cost_tags
 from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
@@ -521,6 +522,57 @@ def test_annotate_tag_can_set_session_id(llmobs):
         llmobs.annotate(span=span, tags={"session_id": "1234567890"})
         assert get_llmobs_tags(span) == {"session_id": "1234567890"}
         assert get_llmobs_session_id(span) == "1234567890"
+
+
+def test_annotate_cost_tags(llmobs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(
+            span=span,
+            tags={"team": "ml", "feature": "chatbot", "debug_id": "abc"},
+            cost_tags=["team", "feature"],
+        )
+        assert get_llmobs_cost_tags(span) == ["team", "feature"]
+
+
+def test_annotate_cost_tags_dedupes_across_annotations(llmobs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, tags={"team": "ml", "feature": "chatbot"}, cost_tags=["team", "feature", "team"])
+        llmobs.annotate(span=span, tags={"project": "alpha"}, cost_tags=["feature", "project"])
+        assert get_llmobs_cost_tags(span) == ["team", "feature", "project"]
+
+
+def test_annotate_cost_tags_invalid_entries_are_skipped(llmobs, mock_llmobs_logs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, tags={"team": "ml"}, cost_tags=["team", "missing", 123])
+        assert get_llmobs_cost_tags(span) == ["team"]
+
+    mock_llmobs_logs.warning.assert_has_calls(
+        [
+            mock.call("cost_tags entry %r must reference a key present in span tags. Skipping entry.", "missing"),
+            mock.call("cost_tags entries must be strings. Skipping entry %r.", 123),
+        ]
+    )
+
+
+def test_annotate_cost_tags_non_list_is_rejected(llmobs, mock_llmobs_logs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, tags={"team": "ml"}, cost_tags="team")
+        assert get_llmobs_cost_tags(span) is None
+
+    mock_llmobs_logs.warning.assert_any_call("cost_tags must be a list of strings. Ignoring value.")
+
+
+def test_annotate_cost_tags_references_existing_span_tags(llmobs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, tags={"team": "ml"})
+        llmobs.annotate(span=span, cost_tags=["team"])
+        assert get_llmobs_cost_tags(span) == ["team"]
+
+
+def test_annotate_cost_tags_empty_list_is_ignored(llmobs):
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.annotate(span=span, tags={"team": "ml"}, cost_tags=[])
+        assert get_llmobs_cost_tags(span) is None
 
 
 def test_annotate_tag_wrong_type(llmobs):
@@ -1425,6 +1477,21 @@ def test_annotation_context_can_update_session_id(llmobs):
             assert get_llmobs_session_id(span) == "1234567890"
 
 
+def test_annotation_context_modifies_cost_tags(llmobs):
+    with llmobs.annotation_context(tags={"team": "ml", "feature": "chatbot"}, cost_tags=["team", "feature"]):
+        with llmobs.agent(name="test_agent") as span:
+            assert get_llmobs_tags(span) == {"team": "ml", "feature": "chatbot"}
+            assert get_llmobs_cost_tags(span) == ["team", "feature"]
+
+
+def test_annotation_context_cost_tags_are_not_retained_for_tags_added_later(llmobs):
+    with llmobs.annotation_context(cost_tags=["feature"]):
+        with llmobs.agent(name="test_agent") as span:
+            llmobs.annotate(span=span, tags={"feature": "chatbot"})
+            assert get_llmobs_tags(span) == {"feature": "chatbot"}
+            assert get_llmobs_cost_tags(span) is None
+
+
 def test_annotation_context_modifies_prompt(llmobs):
     prompt = {"template": "test_template"}
     with llmobs.annotation_context(prompt=prompt):
@@ -1668,6 +1735,13 @@ async def test_annotation_context_async_modifies_span_tags(llmobs):
     async with llmobs.annotation_context(tags={"foo": "bar"}):
         with llmobs.agent(name="test_agent") as span:
             assert get_llmobs_tags(span) == {"foo": "bar"}
+
+
+async def test_annotation_context_async_modifies_cost_tags(llmobs):
+    async with llmobs.annotation_context(tags={"team": "ml", "feature": "chatbot"}, cost_tags=["team", "feature"]):
+        with llmobs.agent(name="test_agent") as span:
+            assert get_llmobs_tags(span) == {"team": "ml", "feature": "chatbot"}
+            assert get_llmobs_cost_tags(span) == ["team", "feature"]
 
 
 async def test_annotation_context_async_modifies_prompt(llmobs):

@@ -134,6 +134,7 @@ class LLMOBS_STRUCT:
     ML_APP: Final = "ml_app"
     SESSION_ID: Final = "session_id"
     TAGS: Final = "tags"
+    COST_TAGS: Final = "cost_tags"
     INTEGRATION: Final = "integration"
     PROMPT: Final = "prompt"
     METRICS: Final = "metrics"
