@@ -34,7 +34,7 @@
       {
         "Name": "op",
         "Resource": "/users/list",
-        "Service": "diff-svc",
+        "Service": "my-svc",
         "Type": "web",
         "HTTPStatusCode": 0,
         "Synthetics": false,
@@ -48,7 +48,7 @@
       {
         "Name": "op",
         "Resource": "/users/list",
-        "Service": "my-svc",
+        "Service": "diff-svc",
         "Type": "web",
         "HTTPStatusCode": 0,
         "Synthetics": false,

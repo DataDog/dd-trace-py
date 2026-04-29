@@ -12,7 +12,6 @@
       "_dd.base_service": "tests.contrib.graphql",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69de9e4000000000",
-      "_dd.svc_src": "graphql",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.graphql",
       "component": "graphql",
       "language": "python",
@@ -39,7 +38,6 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.graphql",
-         "_dd.svc_src": "graphql",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
@@ -57,7 +55,6 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.graphql",
-         "_dd.svc_src": "graphql",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
@@ -75,7 +72,6 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.graphql",
-         "_dd.svc_src": "graphql",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
@@ -98,7 +94,6 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.graphql",
-            "_dd.svc_src": "graphql",
             "component": "graphql"
           },
           "duration": 24875,

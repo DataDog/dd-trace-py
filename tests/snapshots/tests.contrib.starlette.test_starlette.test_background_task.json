@@ -12,7 +12,6 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69de489300000000",
       "_dd.span_links": "[{\"trace_id\": \"69de489100000000c8bf589d76690f34\", \"span_id\": \"3d60173af9c958c9\", \"tracestate\": \"dd=s:1;t.dm:-0\", \"flags\": 1}]",
-      "_dd.svc_src": "tests.contrib.starlette",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.starlette",
       "language": "python",
       "runtime-id": "9eac92ecb9a14bb6b604bc96c8646a58"
@@ -40,7 +39,6 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69de489100000000",
       "_dd.span_links": "[{\"trace_id\": \"69de489100000000c8bf589d76690f34\", \"span_id\": \"3d60173af9c958c9\", \"tracestate\": \"dd=s:1;t.dm:-0\", \"flags\": 1}]",
-      "_dd.svc_src": "tests.contrib.starlette",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.starlette",
       "language": "python",
       "runtime-id": "9eac92ecb9a14bb6b604bc96c8646a58"
@@ -68,7 +66,6 @@
       "_dd.base_service": "tests.contrib.starlette",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69de489100000000",
-      "_dd.svc_src": "starlette",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.starlette",
       "component": "starlette",
       "http.method": "GET",

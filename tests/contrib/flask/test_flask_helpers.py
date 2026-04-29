@@ -54,7 +54,6 @@ class FlaskHelpersTestCase(BaseFlaskTestCase):
         assert set(spans[0].get_tags().keys()) == {
             "runtime-id",
             "_dd.p.dm",
-            "_dd.svc_src",
             "_dd.p.tid",
             "component",
             "language",

@@ -11,11 +11,10 @@
     "meta": {
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "69dfabcf00000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp9_ngssjz,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f22b9b00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmppwwptlac,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "3a96f1a8276248bf80824a26cd2aa1be",
+      "runtime-id": "0437ebe2c442407e909762c6308974aa",
       "tag1": "mycooltag"
     },
     "metrics": {
@@ -23,10 +22,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1.0,
-      "process_id": 4355.0
+      "process_id": 761.0
     },
-    "duration": 62792,
-    "start": 1776266191059230679
+    "duration": 40667,
+    "start": 1777478555837357469
   }],
 [
   {
@@ -40,21 +39,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dfabcf00000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp9_ngssjz,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f22b9b00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmppwwptlac,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "3a96f1a8276248bf80824a26cd2aa1be",
+      "runtime-id": "0437ebe2c442407e909762c6308974aa",
       "tag1": "mycooltag"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 4355.0
+      "process_id": 761.0
     },
-    "duration": 16125,
-    "start": 1776266191059652137
+    "duration": 17833,
+    "start": 1777478555837696261
   }],
 [
   {
@@ -68,21 +66,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dfabcf00000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp9_ngssjz,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f22b9b00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmppwwptlac,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "banana": "True",
       "language": "python",
-      "runtime-id": "3a96f1a8276248bf80824a26cd2aa1be"
+      "runtime-id": "0437ebe2c442407e909762c6308974aa"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 4355.0
+      "process_id": 761.0
     },
-    "duration": 9041,
-    "start": 1776266191059754846
+    "duration": 8833,
+    "start": 1777478555837769719
   }],
 [
   {
@@ -96,19 +93,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dfabcf00000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp9_ngssjz,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f22b9b00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmppwwptlac,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "banana": "True",
       "language": "python",
-      "runtime-id": "3a96f1a8276248bf80824a26cd2aa1be"
+      "runtime-id": "0437ebe2c442407e909762c6308974aa"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 4355.0
+      "process_id": 761.0
     },
-    "duration": 7458,
-    "start": 1776266191059800179
+    "duration": 6583,
+    "start": 1777478555837813261
   }]]

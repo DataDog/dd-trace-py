@@ -11,7 +11,6 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69e6434a00000000",
-      "_dd.svc_src": "tests.contrib.litellm",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.litellm",
       "language": "python",
       "litellm.request.model": "gpt-3.5-turbo",
@@ -37,7 +36,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "tests.contrib.litellm",
          "litellm.request.model": "gpt-3.5-turbo"
        },
        "metrics": {

@@ -11,7 +11,6 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69e27b5d00000000",
-      "_dd.svc_src": "foobar",
       "_dd.tags.process": "entrypoint.basedir:to,entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir,svc.user:true",
       "language": "python",
       "runtime-id": "d94f2167c02940579ea2b541901f8fee"
@@ -34,9 +33,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "_dd.svc_src": "foobar"
-       },
        "duration": 18167,
        "start": 1776450397969645759
      }]]

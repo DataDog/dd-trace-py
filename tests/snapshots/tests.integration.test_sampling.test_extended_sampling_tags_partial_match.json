@@ -11,21 +11,20 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dfabd300000000",
-      "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpbf5or_kx,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f22b9700000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmphlvfwcjn,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "93266dc1765f4279ab25c2374e726fcb",
+      "runtime-id": "fec0036f38d04fc88c8e08bc5d390050",
       "tag1": "monkey"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 4462.0
+      "process_id": 657.0
     },
-    "duration": 49875,
-    "start": 1776266195630399542
+    "duration": 45458,
+    "start": 1777478551129618092
   }],
 [
   {
@@ -41,11 +40,10 @@
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "69dfabd300000000",
-      "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpbf5or_kx,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f22b9700000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmphlvfwcjn,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "93266dc1765f4279ab25c2374e726fcb",
+      "runtime-id": "fec0036f38d04fc88c8e08bc5d390050",
       "tag1": "monkey",
       "tag2": "banana"
     },
@@ -54,8 +52,8 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1.0,
-      "process_id": 4462.0
+      "process_id": 657.0
     },
-    "duration": 31041,
-    "start": 1776266195631170334
+    "duration": 23292,
+    "start": 1777478551129937383
   }]]

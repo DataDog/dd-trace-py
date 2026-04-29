@@ -11,7 +11,6 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69eb932a00000000",
-      "_dd.svc_src": "tests.opentelemetry",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "error.message": "Sorry Otel Span, I failed you",
       "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/tests/opentelemetry/test_trace.py\", line 37, in test_otel_start_span_record_exception\n    raise Exception(\"Sorry Otel Span, I failed you\")\nException: Sorry Otel Span, I failed you\n",
@@ -42,7 +41,6 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69eb932a00000000",
-      "_dd.svc_src": "tests.opentelemetry",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "error.message": "MoonEar Fire!!!",
       "error.stack": "Fake traceback",

@@ -11,7 +11,6 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69eb932d00000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp4ejitoql,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
       "runtime-id": "f6ae49f975d04d8e842d66081e297208"
@@ -38,7 +37,6 @@
          "_dd.p.dm": "-0",
          "_dd.p.tid": "69eb932d00000000",
          "_dd.parent_id": "d497fad7daf2d62e",
-         "_dd.svc_src": "ddtrace_subprocess_dir",
          "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp4ejitoql,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
          "language": "python",
          "runtime-id": "a9a2fc22850e4af2b91782b813256db8",

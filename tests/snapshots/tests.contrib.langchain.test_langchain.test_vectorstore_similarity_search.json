@@ -11,7 +11,6 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69de49c500000000",
-      "_dd.svc_src": "tests.contrib.langchain",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
       "langchain.request.model": "text-embedding-ada-002",
       "langchain.request.provider": "openai",
@@ -41,7 +40,6 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69de49c500000000",
-      "_dd.svc_src": "tests.contrib.langchain",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
       "langchain.request.provider": "inmemoryvectorstore",
       "language": "python",
@@ -67,7 +65,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "tests.contrib.langchain",
          "langchain.request.model": "text-embedding-ada-002",
          "langchain.request.provider": "openai"
        },

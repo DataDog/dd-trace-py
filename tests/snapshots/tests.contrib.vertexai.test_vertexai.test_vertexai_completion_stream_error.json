@@ -11,7 +11,6 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69e6470300000000",
-      "_dd.svc_src": "tests.contrib.vertexai",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.vertexai",
       "error.message": "_GenerativeModel.generate_content() got an unexpected keyword argument 'candidate_count'",
       "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/vertexai/patch.py\", line 59, in _traced_generate\n    generations = func(*args, **kwargs)\n                  ^^^^^^^^^^^^^^^^^^^^^\nTypeError: _GenerativeModel.generate_content() got an unexpected keyword argument 'candidate_count'\n",

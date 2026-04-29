@@ -11,22 +11,21 @@
     "meta": {
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "69dfabd200000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp5ua_xa0r,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f22b9c00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp_p2rvd06,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "aa87d6639b6a4a94863e0e9a0f977f17"
+      "runtime-id": "42e389cea6314a1db6ce8b47dcfd8b83"
     },
     "metrics": {
       "_dd.rule_psr": 0.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1.0,
-      "process_id": 4439.0,
+      "process_id": 803.0,
       "tag": 20.1
     },
-    "duration": 70958,
-    "start": 1776266194872602375
+    "duration": 40292,
+    "start": 1777478556954470136
   }],
 [
   {
@@ -41,22 +40,21 @@
     "meta": {
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "69dfabd200000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp5ua_xa0r,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f22b9c00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp_p2rvd06,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "aa87d6639b6a4a94863e0e9a0f977f17"
+      "runtime-id": "42e389cea6314a1db6ce8b47dcfd8b83"
     },
     "metrics": {
       "_dd.rule_psr": 0.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1.0,
-      "process_id": 4439.0,
+      "process_id": 803.0,
       "tag2": 22.2
     },
-    "duration": 32375,
-    "start": 1776266194873040208
+    "duration": 21375,
+    "start": 1777478556954797761
   }],
 [
   {
@@ -71,20 +69,19 @@
     "meta": {
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "69dfabd200000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp5ua_xa0r,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f22b9c00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp_p2rvd06,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "aa87d6639b6a4a94863e0e9a0f977f17"
+      "runtime-id": "42e389cea6314a1db6ce8b47dcfd8b83"
     },
     "metrics": {
       "_dd.rule_psr": 0.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1.0,
-      "process_id": 4439.0,
+      "process_id": 803.0,
       "tag3": 3333333.33333
     },
-    "duration": 12625,
-    "start": 1776266194873169750
+    "duration": 10042,
+    "start": 1777478556954890636
   }]]
