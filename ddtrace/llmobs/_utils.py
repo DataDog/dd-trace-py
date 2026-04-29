@@ -17,21 +17,14 @@ from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
-from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
-from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
-from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
-from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
-from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import SESSION_ID
-from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
@@ -50,15 +43,6 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 ValidatedPromptDict = dict[str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message]]]
-
-STANDARD_INTEGRATION_SPAN_NAMES = (
-    CLAUDE_AGENT_SDK_APM_SPAN_NAME,
-    CREWAI_APM_SPAN_NAME,
-    GEMINI_APM_SPAN_NAME,
-    LANGCHAIN_APM_SPAN_NAME,
-    LITELLM_APM_SPAN_NAME,
-    VERTEXAI_APM_SPAN_NAME,
-)
 
 
 def get_asyncio():
@@ -220,16 +204,6 @@ def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
     return None
 
 
-def _get_span_name(span: Span) -> str:
-    if span.name in STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":
-        return span.resource
-    elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
-        client_name = span.get_tag("openai.request.provider") or "OpenAI"
-        return "{}.{}".format(client_name, span.resource)
-    llmobs_data = _get_llmobs_data_metastruct(span)
-    return llmobs_data.get(LLMOBS_STRUCT.NAME) or span.name
-
-
 def _unserializable_default_repr(obj):
     try:
         # Pydantic v2
@@ -330,6 +304,11 @@ def _get_parent_prompt(span: Span) -> Optional[Prompt]:
 def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     """Get the llmobs data from span._meta_struct or return empty dict."""
     return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
+
+
+def get_llmobs_span_name(span: Span) -> Optional[str]:
+    """Return the span name stored on a span's meta_struct."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.NAME)
 
 
 def resolve_ml_app(ml_app: Optional[str] = None) -> str:
@@ -511,6 +490,7 @@ def _annotate_llmobs_span_data(
     intent: Optional[str] = None,
     parent_id: Optional[str] = None,
     trace_id: Optional[str] = None,
+    dd_scope: Optional[str] = None,
 ) -> None:
     """Annotate llmobs data on span meta_struct field.
 
@@ -530,11 +510,13 @@ def _annotate_llmobs_span_data(
         meta.setdefault(LLMOBS_STRUCT.METADATA, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.TAGS, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.METRICS, {})
+        llmobs_span_data.setdefault(LLMOBS_STRUCT.DD, {})
 
         if name is not None:
             llmobs_span_data[LLMOBS_STRUCT.NAME] = name
         if ml_app is not None:
             llmobs_span_data[LLMOBS_STRUCT.ML_APP] = ml_app
+            llmobs_span_data[LLMOBS_STRUCT.TAGS]["ml_app"] = ml_app
             span._set_ctx_item(ML_APP, ml_app)
         if parent_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = parent_id
@@ -564,6 +546,7 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
+            llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = session_id
             span._set_ctx_item(SESSION_ID, session_id)
         if span_links is not None:
             llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
@@ -603,6 +586,8 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.OUTPUT] = experiment_output  # type: ignore[typeddict-item]
         if intent is not None:
             meta[LLMOBS_STRUCT.INTENT] = intent
+        if dd_scope is not None:
+            llmobs_span_data[LLMOBS_STRUCT.DD][LLMOBS_STRUCT.SCOPE] = dd_scope
     except Exception as e:
         log.warning("Error auto-annotating llmobs data: %s", e)
     finally:
