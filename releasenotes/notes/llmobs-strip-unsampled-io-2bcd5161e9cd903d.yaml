@@ -1,0 +1,9 @@
+---
+other:
+  - |
+    LLM Observability: When the APM head-based sampler has rejected a trace
+    (sampling priority < 1), large input/output payloads are now stripped from
+    the LLMObs data attached to the APM span before submission. This avoids
+    shipping full prompt history, messages, documents, tool definitions, and
+    expected outputs on the unsampled-spans metrics path, where those payloads
+    would otherwise add bandwidth without being indexed.
