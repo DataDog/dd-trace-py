@@ -33,7 +33,7 @@ pub struct SpanData {
     /// `data.meta` and `data.metrics` are left empty; they are materialized from
     /// this map at encode time (currently by the Python encoder via the bulk read
     /// accessors `_get_str_attributes` / `_get_numeric_attributes`).
-    pub attributes: AttributeMap,
+    pub(crate) attributes: AttributeMap,
     /// Lazy Python int cache for the `trace_id` getter.
     /// Populated on first read; invalidated on every write to `data.trace_id`.
     /// `data.trace_id` is always the source of truth.
