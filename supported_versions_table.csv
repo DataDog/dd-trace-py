@@ -28,7 +28,7 @@ cherrypy,cherrypy,17.0.0,18.10.0,False
 claude-agent-sdk,claude_agent_sdk,0.0.23,0.1.49,True
 python-consul,consul,1.1.0,1.1.0,True
 crewai,crewai,0.102.0,0.157.0,True
-django,django,2.2.28,5.2,True
+django,django,2.2.28,5.2.13,True
 dogpile-cache,dogpile_cache,0.6.8,1.4.0,True
 dogpile.cache,dogpile_cache,0.6.8,1.4.0,True
 dogpile_cache,dogpile_cache,0.6.8,1.4.0,True
@@ -41,7 +41,7 @@ elasticsearch5,elasticsearch,5.5.6,5.5.6,True
 elasticsearch6,elasticsearch,6.8.2,6.8.2,True
 elasticsearch7,elasticsearch,7.13.4,7.17.13,True
 opensearch-py,elasticsearch,1.1.0,3.0.0,True
-falcon,falcon,3.0.1,4.1.0,True
+falcon,falcon,3.0.1,4.2.0,True
 fastapi,fastapi,0.64.0,0.136.0,True
 flask,flask,1.1.4,3.1.2,True
 flask-cache,flask_cache,0.13.1,0.13.1,False
