@@ -1,11 +1,12 @@
+from unittest import mock
+
 import pytest
 
 from ddtrace.contrib.internal.litellm.patch import patch
 from ddtrace.contrib.internal.litellm.patch import unpatch
-from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs import LLMObs
 from tests.contrib.litellm.utils import get_request_vcr
 from tests.contrib.litellm.utils import model_list
-from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import override_global_config
 
 
@@ -19,13 +20,26 @@ def ddtrace_global_config():
 
 
 @pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(is_agentless=True, interval=1.0, timeout=1.0)
-
-
-@pytest.fixture
-def llmobs_events(litellm_llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events
+def test_spans(ddtrace_global_config, test_spans, monkeypatch):
+    try:
+        if ddtrace_global_config.get("_llmobs_enabled", False):
+            # Preserve meta_struct["_llmobs"] on spans so tests can assert against
+            # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it
+            # after enqueueing to LLMObsSpanWriter.
+            monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+            with override_global_config(ddtrace_global_config):
+                # Have to disable and re-enable LLMObs to use the mock tracer.
+                LLMObs.disable()
+                LLMObs.enable(_tracer=test_spans.tracer, integrations_enabled=False)
+                # Replace the real LLMObsSpanWriter with a mock so we don't keep a
+                # background flush thread alive trying to ship spans during the test.
+                LLMObs._instance._llmobs_span_writer.stop()
+                LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+                yield test_spans
+        else:
+            yield test_spans
+    finally:
+        LLMObs.disable()
 
 
 @pytest.fixture
@@ -41,21 +55,6 @@ def litellm(ddtrace_global_config, monkeypatch):
 
         yield litellm
         unpatch()
-
-
-@pytest.fixture
-def litellm_llmobs(tracer, llmobs_span_writer):
-    llmobs_service.disable()
-    with override_global_config(
-        {
-            "_llmobs_ml_app": "<ml-app-name>",
-            "_dd_api_key": "<not-a-real-key>",
-        }
-    ):
-        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-        yield llmobs_service
-    llmobs_service.disable()
 
 
 @pytest.fixture
