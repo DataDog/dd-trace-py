@@ -6,9 +6,18 @@ from tests.contrib.botocore.bedrock_utils import AGENT_INPUT
 from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
 
 
-pytestmark = pytest.mark.skipif(
-    BOTO_VERSION < (1, 38, 0), reason="LLMObs bedrock agent traces are only supported for boto3 > 1.36.0"
-)
+pytestmark = [
+    pytest.mark.skipif(
+        BOTO_VERSION < (1, 38, 0), reason="LLMObs bedrock agent traces are only supported for boto3 > 1.36.0"
+    ),
+    # Bedrock agent traces are synthesized into wire-format LLMObsSpanEvents (no
+    # backing APM span), so these tests still read events out of the writer via
+    # the ``llmobs_events`` fixture rather than asserting on ``meta_struct``.
+    pytest.mark.parametrize(
+        "ddtrace_global_config",
+        [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")],
+    ),
+]
 
 EXPECTED_OUTPUT = (
     "Based on your preferences for a beach vacation with nature and outdoor adventures, I recommend a "
@@ -97,7 +106,7 @@ def _assert_inner_spans(inner_spans, trace_step_spans):
         assert len(inner_spans_by_trace_step[trace_step_span["span_id"]]) == expected_inner_spans_per_step[i]
 
 
-def test_agent_invoke(bedrock_agent_client, request_vcr, llmobs_events):
+def test_agent_invoke(ddtrace_global_config, bedrock_agent_client, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("agent_invoke.yaml"):
         response = bedrock_agent_client.invoke_agent(
             agentAliasId=AGENT_ALIAS_ID,
@@ -119,7 +128,7 @@ def test_agent_invoke(bedrock_agent_client, request_vcr, llmobs_events):
     _assert_inner_spans(inner_spans, trace_step_spans)
 
 
-def test_agent_invoke_stream(bedrock_agent_client, request_vcr, llmobs_events):
+def test_agent_invoke_stream(ddtrace_global_config, bedrock_agent_client, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("agent_invoke.yaml"):
         response = bedrock_agent_client.invoke_agent(
             agentAliasId=AGENT_ALIAS_ID,
@@ -142,7 +151,9 @@ def test_agent_invoke_stream(bedrock_agent_client, request_vcr, llmobs_events):
     _assert_inner_spans(inner_spans, trace_step_spans)
 
 
-def test_agent_invoke_trace_disabled(bedrock_agent_client, request_vcr, llmobs_events):
+def test_agent_invoke_trace_disabled(
+    ddtrace_global_config, bedrock_agent_client, request_vcr, test_spans, llmobs_events
+):
     """Test that we only get the agent span when enableTrace is set to False."""
     with request_vcr.use_cassette("agent_invoke_trace_disabled.yaml"):
         response = bedrock_agent_client.invoke_agent(
@@ -158,7 +169,9 @@ def test_agent_invoke_trace_disabled(bedrock_agent_client, request_vcr, llmobs_e
     assert llmobs_events[0]["name"] == "Bedrock Agent {}".format(AGENT_ID)
 
 
-def test_agent_invoke_stream_trace_disabled(bedrock_agent_client, request_vcr, llmobs_events):
+def test_agent_invoke_stream_trace_disabled(
+    ddtrace_global_config, bedrock_agent_client, request_vcr, test_spans, llmobs_events
+):
     """Test that we only get the agent span when enableTrace is set to False."""
     with request_vcr.use_cassette("agent_invoke_trace_disabled.yaml"):
         response = bedrock_agent_client.invoke_agent(
