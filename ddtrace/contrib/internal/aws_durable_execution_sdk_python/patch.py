@@ -18,6 +18,9 @@ from aws_durable_execution_sdk_python.operation.step import StepOperationExecuto
 from ddtrace import config
 from ddtrace import tracer
 from ddtrace._trace.events import TracingEvent
+from ddtrace.contrib.internal.aws_durable_execution_sdk_python.trace_checkpoint import (
+    maybe_save_trace_context_checkpoint,
+)
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
@@ -116,7 +119,13 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
             try:
                 result = user_func(*inner_args, **inner_kwargs)
             except SuspendExecution:
+                # Workflow is pausing; another invocation will resume it.  This
+                # is the only branch where it's worth persisting trace context
+                # — the success and exception branches both end the workflow,
+                # so a checkpoint there would never be read.
                 ctx.span.set_tag(_TAG_INVOCATION_STATUS, "pending")
+                if ctx.span is not None:
+                    maybe_save_trace_context_checkpoint(durable_context, ctx.span)
                 ctx.dispatch_ended_event()
                 raise
             except BaseException:

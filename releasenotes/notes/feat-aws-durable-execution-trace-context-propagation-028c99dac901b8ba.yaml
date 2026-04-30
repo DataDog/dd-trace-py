@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    aws_durable_execution_sdk_python: Propagate trace context across durable execution
+    suspend/resume cycles. When a workflow suspends (``SuspendExecution``), the
+    integration appends a single ``_datadog_{N}`` STEP operation containing the
+    current trace's propagation headers; on the next invocation the headers are
+    read back so the trace continues across replays. No checkpoint is written for
+    workflows that complete or fail terminally.
