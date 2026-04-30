@@ -704,7 +704,7 @@ def expected_llmobs_span_data():
         span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
-        input_messages=[{"content": "Why do bears hibernate?"}],
+        input_messages=[{"content": "Why do bears hibernate?", "role": ""}],
         output_messages=[
             {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
@@ -719,8 +719,8 @@ def expected_llmobs_error_span_data(span):
         span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
-        input_messages=[{"content": "Why do bears hibernate?"}],
-        output_messages=[{"content": ""}],
+        input_messages=[{"content": "Why do bears hibernate?", "role": ""}],
+        output_messages=[{"content": "", "role": ""}],
         error={
             "type": "builtins.TypeError",
             "message": span.get_tag("error.message"),
@@ -736,7 +736,7 @@ def expected_llmobs_tool_span_data():
         span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
-        input_messages=[{"content": "What is the weather like in New York City?"}],
+        input_messages=[{"content": "What is the weather like in New York City?", "role": ""}],
         output_messages=[
             {
                 "content": "",
@@ -785,7 +785,7 @@ def expected_llmobs_stream_span_data():
         span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
-        input_messages=[{"content": "How big is the solar system?"}],
+        input_messages=[{"content": "How big is the solar system?", "role": ""}],
         output_messages=[
             {"content": "".join([chunk["text"] for chunk in MOCK_COMPLETION_STREAM_CHUNKS]), "role": "model"},
         ],
@@ -800,8 +800,8 @@ def expected_llmobs_stream_error_span_data(span):
         span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
-        input_messages=[{"content": "How big is the solar system?"}],
-        output_messages=[{"content": ""}],
+        input_messages=[{"content": "How big is the solar system?", "role": ""}],
+        output_messages=[{"content": "", "role": ""}],
         error={
             "type": "builtins.TypeError",
             "message": span.get_tag("error.message"),
@@ -820,7 +820,7 @@ def expected_llmobs_history_span_data():
         input_messages=[
             {"content": "Hello World!", "role": "user"},
             {"content": "Great to meet you. What would you like to know?", "role": "model"},
-            {"content": "Why do bears hibernate?"},
+            {"content": "Why do bears hibernate?", "role": ""},
         ],
         output_messages=[
             {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
@@ -838,7 +838,7 @@ def expected_llmobs_system_prompt_span_data():
         model_provider="google",
         input_messages=[
             {"content": "You are required to insist that bears do not hibernate.", "role": "system"},
-            {"content": "Why do bears hibernate?"},
+            {"content": "Why do bears hibernate?", "role": ""},
         ],
         output_messages=[
             {"content": MOCK_COMPLETION_SIMPLE_2["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
@@ -854,7 +854,7 @@ def expected_llmobs_no_generation_config_span_data():
         span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
-        input_messages=[{"content": "Why do bears hibernate?"}],
+        input_messages=[{"content": "Why do bears hibernate?", "role": ""}],
         output_messages=[
             {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
@@ -918,7 +918,7 @@ def expected_llmobs_reasoning_span_data():
         span_kind="llm",
         model_name="gemini-2.5-pro",
         model_provider="google",
-        input_messages=[{"content": "What is the sum of the first 50 prime numbers?"}],
+        input_messages=[{"content": "What is the sum of the first 50 prime numbers?", "role": ""}],
         output_messages=[
             {"content": MOCK_COMPLETION_REASONING["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
