@@ -3622,10 +3622,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # process_vm_readv fallback (safe_memcpy is now default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "0",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3678,10 +3678,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # process_vm_readv fallback (safe_memcpy is now default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "0",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3720,10 +3720,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # process_vm_readv fallback (safe_memcpy is now default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "0",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3763,10 +3763,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # process_vm_readv fallback (safe_memcpy is now default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "0",
                             },
                             pkgs={
                                 "protobuf": latest,
