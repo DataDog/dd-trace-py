@@ -2085,7 +2085,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_IAST_DEDUPLICATE_ENABLED": [
@@ -2134,14 +2134,14 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_IAST_PROPAGATION_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_IAST_REDACTION_ENABLED": [
@@ -2190,7 +2190,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_IAST_STACK_TRACE_ENABLED": [
@@ -2470,7 +2470,7 @@
       {
         "implementation": "A",
         "type": "int",
-        "default": null
+        "default": "5000000"
       }
     ],
     "DD_LLMOBS_INSTRUMENTED_PROXY_URLS": [
@@ -2498,7 +2498,7 @@
       {
         "implementation": "A",
         "type": "int",
-        "default": null
+        "default": "5242880"
       }
     ],
     "DD_LLMOBS_PROJECT_NAME": [
@@ -4023,7 +4023,7 @@
       {
         "implementation": "A",
         "type": "decimal",
-        "default": null
+        "default": "2.0"
       }
     ],
     "DD_TRACE_AGENT_URL": [
@@ -4037,7 +4037,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_TRACE_AIOHTTP_CLIENT_ENABLED": [
@@ -4051,42 +4051,42 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_AIOHTTP_JINJA2_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_AIOKAFKA_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_AIOMYSQL_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_AIOPG_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_ALGOLIASEARCH_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_ANTHROPIC_ENABLED": [
@@ -4100,14 +4100,14 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": ""
       }
     ],
     "DD_TRACE_AREDIS_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_ASGI_ENABLED": [
@@ -4121,14 +4121,14 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_ASYNCPG_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_AVRO_ENABLED": [
@@ -4156,7 +4156,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_AZURE_EVENTHUBS_BATCH_LINKS_ENABLED": [
@@ -4170,7 +4170,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_AZURE_FUNCTIONS_ENABLED": [
@@ -4191,7 +4191,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_BAGGAGE_TAG_KEYS": [
@@ -4205,28 +4205,28 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_BOTO_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_BOTTLE_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_CELERY_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_CHERRYPY_ENABLED": [
@@ -4306,21 +4306,21 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_COVERAGE_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_TRACE_CREWAI_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_DBAPI2_ENABLED": [
@@ -4341,21 +4341,21 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_DOGPILE_CACHE_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_DRAMATIQ_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_ELASTICSEARCH_ENABLED": [
@@ -4410,14 +4410,14 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_FASTAPI_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_FLASK_CACHE_ENABLED": [
@@ -4431,14 +4431,14 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_FUTURES_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_GENAI_ENABLED": [
@@ -4452,7 +4452,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_GIT_METADATA_ENABLED": [
@@ -4466,7 +4466,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_GOOGLE_CLOUD_PUBSUB_ENABLED": [
@@ -4557,14 +4557,14 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_TRACE_HTTPX_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING": [
@@ -4599,7 +4599,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_KAFKA_ENABLED": [
@@ -4613,7 +4613,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_TRACE_LANGCHAIN_ENABLED": [
@@ -4648,14 +4648,14 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_LOGGING_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_LOGGING_RATE": [
@@ -4676,7 +4676,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_LOG_FILE": [
@@ -4718,7 +4718,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_MARIADB_ENABLED": [
@@ -4732,7 +4732,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_MEMCACHED_COMMAND_ENABLED": [
@@ -4774,7 +4774,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_MONGODB_OBFUSCATION": [
@@ -4788,7 +4788,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_MYSQL_ENABLED": [
@@ -4913,63 +4913,63 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_PYDANTIC_AI_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_PYLIBMC_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_PYMEMCACHE_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_PYMONGO_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_PYMYSQL_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_PYNAMODB_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_PYODBC_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_PYRAMID_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_PYTEST_BDD_ENABLED": [
@@ -5011,7 +5011,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_TRACE_RAY_IGNORED_ACTORS": [
@@ -5046,7 +5046,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_REDIS_ENABLED": [
@@ -5074,7 +5074,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_RESOURCE_RENAMING_ALWAYS_SIMPLIFIED_ENDPOINT": [
@@ -5095,7 +5095,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_RQ_WORKER_ENABLED": [
@@ -5130,7 +5130,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_SELENIUM_ENABLED": [
@@ -5144,7 +5144,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": [
@@ -5165,7 +5165,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_TRACE_SQLITE3_ENABLED": [
@@ -5186,7 +5186,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_STARTUP_LOGS": [
@@ -5200,14 +5200,14 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_SUBPROCESS_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_TEST_VISIBILITY_ENABLED": [
@@ -5221,21 +5221,21 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_TRACE_UNITTEST_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_URLLIB3_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_TRACE_VALKEY_ENABLED": [
@@ -5249,21 +5249,21 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_VERTICA_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_VLLM_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED": [
@@ -5298,28 +5298,28 @@
       {
         "implementation": "A",
         "type": "int",
-        "default": null
+        "default": "20971520"
       }
     ],
     "DD_TRACE_WRITER_INTERVAL_SECONDS": [
       {
         "implementation": "A",
         "type": "decimal",
-        "default": null
+        "default": "1.0"
       }
     ],
     "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES": [
       {
         "implementation": "A",
         "type": "int",
-        "default": null
+        "default": "20971520"
       }
     ],
     "DD_TRACE_WRITER_REUSE_CONNECTIONS": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_TRACE_WSGI_ENABLED": [
@@ -5340,7 +5340,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_UNITTEST_OPERATION_NAME": [
