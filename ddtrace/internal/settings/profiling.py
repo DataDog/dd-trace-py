@@ -394,7 +394,7 @@ class ProfilingConfigLock(DDConfig):
                 # Stdlib high-frequency lock creators
                 "asyncio",
                 "concurrent",
-                "queue",
+                # "queue",
                 "threading",
                 "logging",
                 "http",
