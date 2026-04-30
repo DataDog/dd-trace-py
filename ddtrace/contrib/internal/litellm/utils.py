@@ -37,10 +37,9 @@ class BaseLiteLLMStreamHandler:
         for span, kwargs in self.spans:
             if not formatted_completions:
                 formatted_completions = self._process_finished_stream(span)
-            if self.integration.is_pc_sampled_llmobs(span):
-                self.integration.llmobs_set_tags(
-                    span, args=[], kwargs=kwargs, response=formatted_completions, operation=span.resource
-                )
+            self.integration.llmobs_set_tags(
+                span, args=[], kwargs=kwargs, response=formatted_completions, operation=span.resource
+            )
             span.finish()
 
     def _process_finished_stream(self, span):
