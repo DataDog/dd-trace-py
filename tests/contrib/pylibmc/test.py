@@ -4,6 +4,7 @@ from unittest.case import SkipTest
 
 # 3p
 import pylibmc
+import pytest
 
 # project
 from ddtrace.contrib.internal.pylibmc.client import TracedClient
@@ -252,18 +253,6 @@ class PylibmcCore(object):
             self.tracer.enabled = True
 
 
-class TestPylibmcLegacy(TracerTestCase, PylibmcCore):
-    """Test suite for the tracing of pylibmc with the legacy TracedClient interface"""
-
-    def get_client(self):
-        url = "%s:%s" % (cfg["host"], cfg["port"])
-        raw_client = pylibmc.Client([url])
-        raw_client.flush_all()
-
-        client = TracedClient(raw_client, tracer=self.tracer)
-        return client
-
-
 class TestPylibmcPatchDefault(TracerTestCase, PylibmcCore):
     """Test suite for the tracing of pylibmc with the default lib patching"""
 
@@ -350,6 +339,17 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
         spans = self.pop_spans()
         assert spans, spans
         assert len(spans) == 1
+
+    def test_traced_client_instantiation_with_client_raises(self):
+        """
+        Ensure the removed legacy interface does not affect patched clone behavior.
+        """
+        url = "%s:%s" % (cfg["host"], cfg["port"])
+        unpatch()
+
+        raw_client = pylibmc.Client([url])
+        with pytest.raises(TypeError, match="TracedClient no longer supports"):
+            TracedClient(raw_client)
 
 
 class TestPylibmcPatchSchematization(TestPylibmcPatchDefault):

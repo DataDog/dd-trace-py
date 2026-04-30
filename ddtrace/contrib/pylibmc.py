@@ -15,8 +15,3 @@
     client = pylibmc.Client(["localhost:11211"]
     client.set("key1", "value1")
 """
-
-from ddtrace.contrib.internal.pylibmc.client import TracedClient
-
-
-__all__ = ["TracedClient"]
