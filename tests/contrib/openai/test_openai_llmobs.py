@@ -1,9 +1,12 @@
 import json
+from types import SimpleNamespace
 
 import mock
 import openai as openai_module
 import pytest
 
+from ddtrace.contrib.internal.openai.utils import _loop_handler
+from ddtrace.contrib.internal.openai.utils import _process_finished_stream
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._utils import safe_json
@@ -44,6 +47,60 @@ EXPECTED_TOOL_DEFINITIONS = [
         },
     }
 ]
+
+
+def test_loop_handler_handles_dict_choices():
+    span = mock.Mock()
+    span.get_tag.return_value = "gpt-test"
+    choice = {"index": 0, "delta": {"content": "hello"}}
+    chunk = SimpleNamespace(choices=[choice])
+    streamed_chunks = [[]]
+
+    _loop_handler(span, chunk, streamed_chunks)
+
+    assert streamed_chunks == [[choice]]
+
+
+def test_process_finished_stream_handles_dict_streamed_chat_choices():
+    integration = mock.Mock()
+    span = mock.Mock()
+    streamed_chunks = {
+        0: [
+            {"index": 0, "delta": {"role": "assistant", "content": "hello"}},
+            {"index": 0, "delta": {"content": " world"}, "finish_reason": "stop"},
+        ]
+    }
+
+    _process_finished_stream(integration, span, {}, streamed_chunks, operation_type="chat")
+
+    integration.llmobs_set_tags.assert_called_once_with(
+        span,
+        args=[],
+        kwargs={},
+        response=[{"content": "hello world", "role": "assistant", "finish_reason": "stop", "index": 0}],
+        operation="chat",
+    )
+
+
+def test_process_finished_stream_handles_dict_streamed_completion_choices():
+    integration = mock.Mock()
+    span = mock.Mock()
+    streamed_chunks = {
+        0: [
+            {"index": 0, "text": "hello"},
+            {"index": 0, "text": " world", "finish_reason": "stop"},
+        ]
+    }
+
+    _process_finished_stream(integration, span, {}, streamed_chunks, operation_type="completion")
+
+    integration.llmobs_set_tags.assert_called_once_with(
+        span,
+        args=[],
+        kwargs={},
+        response=[{"text": "hello world", "finish_reason": "stop"}],
+        operation="completion",
+    )
 
 
 @pytest.mark.parametrize(
