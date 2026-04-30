@@ -2,6 +2,7 @@
 Class based views used for Django tests.
 """
 
+import asyncio
 from functools import partial
 
 from django.contrib.auth.models import User
@@ -201,3 +202,9 @@ class AsyncView(View):
 
 async def async_function_view(request):
     return HttpResponse("async function response")
+
+
+# Used by the #17728 regression test: long enough to cancel via http.disconnect mid-request.
+async def async_view_sleep(request):
+    await asyncio.sleep(1.0)
+    return HttpResponse("ok")

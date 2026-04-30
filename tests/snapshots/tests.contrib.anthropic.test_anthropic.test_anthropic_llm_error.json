@@ -9,24 +9,28 @@
     "type": "",
     "error": 1,
     "meta": {
+      "_dd.llmobs.model_name": "claude-3-opus-20240229",
+      "_dd.llmobs.model_provider": "anthropic",
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e6416600000000",
+      "_dd.p.tid": "69e9203400000000",
       "_dd.svc_src": "anthropic",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.anthropic",
       "anthropic.request.model": "claude-3-opus-20240229",
       "error.message": "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'messages.0: Input does not match the expected shape.'}}",
-      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/anthropic/patch.py\", line 57, in traced_chat_model_generate\n    resp = func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic~0280_httpx~0270/lib/python3.12/site-packages/anthropic/_utils/_utils.py\", line 277, in wrapper\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic~0280_httpx~0270/lib/python3.12/site-packages/anthropic/resources/messages.py\", line 899, in create\n    return self._post(\n           ^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic~0280_httpx~0270/lib/python3.12/site-packages/anthropic/_base_client.py\", line 1239, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic~0280_httpx~0270/lib/python3.12/site-packages/anthropic/_base_client.py\", line 921, in request\n    return self._request(\n           ^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic~0280_httpx~0270/lib/python3.12/site-packages/anthropic/_base_client.py\", line 1019, in _request\n    raise self._make_status_error_from_response(err.response) from None\nanthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'messages.0: Input does not match the expected shape.'}}\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/anthropic/patch.py\", line 57, in traced_chat_model_generate\n    resp = func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3142_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic_httpx0280/lib/python3.14/site-packages/anthropic/_utils/_utils.py\", line 282, in wrapper\n    return func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3142_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic_httpx0280/lib/python3.14/site-packages/anthropic/resources/messages/messages.py\", line 930, in create\n    return self._post(\n           ~~~~~~~~~~^\n        \"/v1/messages\",\n        ^^^^^^^^^^^^^^^\n    ...<26 lines>...\n        stream_cls=Stream[RawMessageStreamEvent],\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/home/bits/project/.riot/venv_py3142_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic_httpx0280/lib/python3.14/site-packages/anthropic/_base_client.py\", line 1326, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py3142_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_vcrpy_anthropic_httpx0280/lib/python3.14/site-packages/anthropic/_base_client.py\", line 1114, in request\n    raise self._make_status_error_from_response(err.response) from None\nanthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'messages.0: Input does not match the expected shape.'}}\n",
       "error.type": "anthropic.BadRequestError",
       "language": "python",
-      "runtime-id": "d72eb18bfc1f477fb469813cc481e1bc"
+      "runtime-id": "4a62431cb71240c88eda83587cf3fe4c"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 45.0
+      "process_id": 621.0
     },
-    "duration": 3366833,
-    "start": 1776697702460603383
+    "duration": 2823166,
+    "start": 1776885812761009256
   }]]

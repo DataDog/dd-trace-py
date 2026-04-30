@@ -623,22 +623,13 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
                 self._inner_writer.write(spans)
 
     def pop(self):
-        spans = DummyWriterMixin.pop(self)
-        # Stop the writer threads in case the writer is no longer used.
-        # Otherwise we risk accumulating threads and file descriptors causing crashes
-        # In case the writer is used again it will be restarted by native side.
-        if isinstance(self._inner_writer, NativeWriter):
-            self._inner_writer._exporter.stop_worker()
-        return spans
+        return DummyWriterMixin.pop(self)
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
         return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
         return self._inner_writer.flush_queue(raise_exc)
-
-    def before_fork(self) -> None:
-        return self._inner_writer.before_fork()
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         return self._inner_writer.set_test_session_token(token)
