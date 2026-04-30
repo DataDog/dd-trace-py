@@ -5101,6 +5101,77 @@ def test_parse_experiment_result_new_format():
     assert row1["evaluations"] == {}
 
 
+def test_parse_experiment_result_all_metric_types():
+    """_parse_experiment_result correctly reads score, boolean, categorical, and json metric values."""
+    from ddtrace.llmobs._experiment import _parse_experiment_result
+
+    def _span(span_id, eval_metrics):
+        return {
+            "span_id": span_id,
+            "trace_id": "trace-x",
+            "name": "task",
+            "start_ns": 0,
+            "duration": 1,
+            "meta": {"input": {}, "output": "out", "expected_output": None, "metadata": {}, "error": {}},
+            "tags": [],
+            "eval_metrics": eval_metrics,
+        }
+
+    response = {
+        "data": {
+            "id": "exp-1",
+            "type": "experiment_events",
+            "attributes": {
+                "spans": [
+                    _span(
+                        "s1",
+                        [
+                            {"label": "score_metric", "metric_type": "score", "score_value": 0.95},
+                            {"label": "bool_metric", "metric_type": "boolean", "boolean_value": False},
+                            {"label": "cat_metric", "metric_type": "categorical", "categorical_value": "good"},
+                            {"label": "json_metric", "metric_type": "json", "json_value": {"k": "v"}},
+                        ],
+                    )
+                ],
+                "summary_metrics": [],
+            },
+        }
+    }
+
+    result = _parse_experiment_result(response)
+    evals = result["runs"][0].rows[0]["evaluations"]
+    assert evals["score_metric"] == {"value": 0.95, "type": "score", "reasoning": None, "assessment": None}
+    assert evals["bool_metric"] == {"value": False, "type": "boolean", "reasoning": None, "assessment": None}
+    assert evals["cat_metric"] == {"value": "good", "type": "categorical", "reasoning": None, "assessment": None}
+    assert evals["json_metric"] == {"value": {"k": "v"}, "type": "json", "reasoning": None, "assessment": None}
+
+
+def test_parse_experiment_result_summary_metrics():
+    """_parse_experiment_result populates summary_evaluations from attributes.summary_metrics."""
+    from ddtrace.llmobs._experiment import _parse_experiment_result
+
+    response = {
+        "data": {
+            "id": "exp-1",
+            "type": "experiment_events",
+            "attributes": {
+                "spans": [],
+                "summary_metrics": [
+                    {"label": "overall_score", "metric_type": "score", "score_value": 0.88},
+                    {"label": "overall_pass", "metric_type": "boolean", "boolean_value": True},
+                    {"label": "quality", "metric_type": "categorical", "categorical_value": "high"},
+                ],
+            },
+        }
+    }
+
+    result = _parse_experiment_result(response)
+    summary_evals = result["runs"][0].summary_evaluations
+    assert summary_evals["overall_score"] == {"value": 0.88, "type": "score", "reasoning": None, "assessment": None}
+    assert summary_evals["overall_pass"] == {"value": True, "type": "boolean", "reasoning": None, "assessment": None}
+    assert summary_evals["quality"] == {"value": "high", "type": "categorical", "reasoning": None, "assessment": None}
+
+
 def test_prepare_summary_evaluator_data_handles_none_metadata():
     """Records with metadata=None (e.g. from API returning null) must not crash data prep."""
     dataset = _make_dataset_with_records(

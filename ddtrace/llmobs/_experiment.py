@@ -1301,7 +1301,7 @@ def _parse_experiment_result(response: dict) -> "ExperimentResult":
                 continue
             latest_ts[label] = ts
             metric_type = em.get("metric_type", "score")
-            value = em.get("score_value") if metric_type == "score" else em.get("boolean_value")
+            value = em.get(f"{metric_type}_value")
             evaluations[label] = {
                 "value": value,
                 "type": metric_type,
@@ -1344,8 +1344,21 @@ def _parse_experiment_result(response: dict) -> "ExperimentResult":
 
     rows.sort(key=lambda r: r["idx"])
 
+    summary_evaluations: dict[str, dict[str, JSONType]] = {}
+    for sm in attributes.get("summary_metrics") or []:
+        label = sm.get("label", "")
+        if not label:
+            continue
+        metric_type = sm.get("metric_type", "score")
+        summary_evaluations[label] = {
+            "value": sm.get(f"{metric_type}_value"),
+            "type": metric_type,
+            "reasoning": sm.get("reasoning"),
+            "assessment": sm.get("assessment"),
+        }
+
     run_info = _ExperimentRunInfo(run_interation=0)
-    experiment_run = ExperimentRun(run_info, summary_evaluations={}, rows=rows)
+    experiment_run = ExperimentRun(run_info, summary_evaluations=summary_evaluations, rows=rows)
     return Experiment._build_result([experiment_run])
 
 

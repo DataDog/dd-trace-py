@@ -882,7 +882,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if spans:
             attributes["spans"] = cast(list[JSONType], spans)
         body: dict[str, JSONType] = {"data": {"type": "experiments", "attributes": attributes}}
-        logger.debug("experiment_eval_post payload: %s", json.dumps(body))
+        logger.debug("experiment_eval_post payload: %s", body)
         resp = self.request(
             "POST",
             path,
