@@ -164,6 +164,19 @@ class LiteLLMIntegration(BaseLLMIntegration):
         is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
         return is_openai_model and not stream and LLMObs._integration_is_enabled("openai")
 
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
+        model_name, model_provider = self._model_map.get(model_name, (model_name, UNKNOWN_MODEL_PROVIDER))
+        span_kind = self._get_span_kind(span, kwargs, model_name, operation)
+        metrics = self._extract_llmobs_metrics(response, span_kind)
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            span_kind,
+            model_name=model_name,
+            model_provider=model_provider,
+        )
+
     def _get_span_kind(
         self, span: Span, kwargs: dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None
     ) -> str:

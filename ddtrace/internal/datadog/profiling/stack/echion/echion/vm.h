@@ -11,9 +11,6 @@
 #include <echion/danger.h>
 
 #if defined PL_LINUX
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
@@ -75,60 +72,6 @@ inline ssize_t (*safe_copy)(pid_t,
                             const struct iovec*,
                             unsigned long,
                             unsigned long) = process_vm_readv;
-
-class VmReader
-{
-    void* buffer{ nullptr };
-    size_t sz{ 0 };
-    int fd{ -1 };
-    inline static VmReader* instance{ nullptr }; // Prevents having to set this in implementation
-
-    VmReader(size_t _sz, void* _buffer, int _fd)
-      : buffer(_buffer)
-      , sz{ _sz }
-      , fd{ _fd }
-    {
-    }
-
-    static VmReader* create(size_t sz);
-
-    bool is_valid() const { return buffer != nullptr; }
-
-  public:
-    static VmReader* get_instance();
-
-    ssize_t safe_copy(pid_t pid,
-                      const struct iovec* local_iov,
-                      unsigned long liovcnt,
-                      const struct iovec* remote_iov,
-                      unsigned long riovcnt,
-                      unsigned long flags);
-
-    ~VmReader()
-    {
-        if (buffer) {
-            munmap(buffer, sz);
-        }
-        if (fd != -1) {
-            close(fd);
-        }
-        instance = nullptr;
-    }
-};
-
-/**
- * Initialize the safe copy operation on Linux
- */
-bool
-read_process_vm_init();
-
-ssize_t
-vmreader_safe_copy(pid_t pid,
-                   const struct iovec* local_iov,
-                   unsigned long liovcnt,
-                   const struct iovec* remote_iov,
-                   unsigned long riovcnt,
-                   unsigned long flags);
 
 /**
  * Initialize the safe copy operation on Linux
