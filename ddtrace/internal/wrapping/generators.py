@@ -34,7 +34,15 @@ GENERATOR_ASSEMBLY = Assembly()
 GENERATOR_HEAD_ASSEMBLY = None
 
 if PY >= (3, 15):
-    raise NotImplementedError("This version of CPython is not supported yet")
+    # AIDEV-NOTE: On Python 3.15+, generator function wrapping is handled
+    # by the closure-trampoline path in `ddtrace/internal/wrapping/__init__.py`
+    # (no `bytecode` lib dependency). This module is only used for 3.9-3.14
+    # and is never imported on 3.15+ via the public API.
+    raise NotImplementedError(
+        "ddtrace.internal.wrapping.generators is not used on Python 3.15+. "
+        "The closure-trampoline backend in ddtrace.internal.wrapping handles "
+        "all wrapping flavors directly."
+    )
 
 elif PY >= (3, 14):
     GENERATOR_HEAD_ASSEMBLY = Assembly()
