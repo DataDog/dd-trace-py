@@ -92,6 +92,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=14,
                 compressed_response=False,
+                compressed_request=False,
                 error=None,
                 request_bytes=len(b'{"question": 1}'),
             )
@@ -139,6 +140,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=0,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -146,6 +148,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=14,
                 compressed_response=False,
+                compressed_request=False,
                 error=None,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -193,6 +196,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=0,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -200,6 +204,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=0,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -207,6 +212,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=0,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -214,6 +220,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=0,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -221,6 +228,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=0,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.CODE_5XX,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -264,6 +272,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=14,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.BAD_JSON,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -271,6 +280,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=14,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.BAD_JSON,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -278,6 +288,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=14,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.BAD_JSON,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -285,6 +296,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=14,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.BAD_JSON,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -292,6 +304,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=14,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.BAD_JSON,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -334,6 +347,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=0,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.CODE_4XX,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -391,6 +405,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=None,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.NETWORK,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -398,6 +413,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=None,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.NETWORK,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -405,6 +421,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=None,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.NETWORK,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -412,6 +429,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=None,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.NETWORK,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -419,6 +437,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=None,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.NETWORK,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -459,6 +478,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=None,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.TIMEOUT,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -466,6 +486,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=None,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.TIMEOUT,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -473,6 +494,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=None,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.TIMEOUT,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -480,6 +502,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=None,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.TIMEOUT,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -487,6 +510,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=None,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.TIMEOUT,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -523,6 +547,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=None,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.UNKNOWN,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -568,6 +593,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=0,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -575,6 +601,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=14,
                 compressed_response=False,
+                compressed_request=False,
                 error=None,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -618,6 +645,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=0,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -625,6 +653,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=0,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -632,6 +661,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=0,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -639,6 +669,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=0,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -646,6 +677,7 @@ class TestBackendConnector:
                 seconds=0.0,
                 response_bytes=0,
                 compressed_response=False,
+                compressed_request=False,
                 error=ErrorType.RATE_LIMITED,
                 request_bytes=len(b'{"question": 1}'),
             ),
@@ -838,6 +870,80 @@ class TestBackendConnector:
         assert b"content1" in body
         assert b"content2" in body
         assert body.count(b"--boundary123") == 3  # 2 file separators + 1 end
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_gzip_request(self, mock_time: Mock, mock_https_connection: Mock) -> None:
+        """Test that is_gzip_request is set when the request body is compressed."""
+        mock_response = Mock()
+        mock_response.headers = {"Content-Length": 14}
+        mock_response.read.return_value = b'{"answer": 42}'
+        mock_response.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_https_connection.return_value = mock_conn
+
+        mock_telemetry = Mock()
+
+        connector = BackendConnector(url="https://api.example.com", use_gzip=True)
+
+        result = connector.post_json(
+            "/v1/some-endpoint", data={"question": 1}, send_gzip=True, telemetry=mock_telemetry
+        )
+
+        assert result.error_type is None
+        assert result.is_gzip_request is True
+        assert result.is_gzip_response is False
+
+        assert mock_telemetry.record_request.call_args_list == [
+            call(
+                seconds=0.0,
+                response_bytes=14,
+                compressed_response=False,
+                compressed_request=True,
+                error=None,
+                request_bytes=result.request_length,
+            )
+        ]
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_no_gzip_request_when_use_gzip_false(self, mock_time: Mock, mock_https_connection: Mock) -> None:
+        """Test that is_gzip_request is False when use_gzip is False on the connector."""
+        mock_response = Mock()
+        mock_response.headers = {"Content-Length": 14}
+        mock_response.read.return_value = b'{"answer": 42}'
+        mock_response.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com", use_gzip=False)
+
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, send_gzip=True)
+
+        assert result.is_gzip_request is False
+
+    @patch("http.client.HTTPSConnection")
+    @patch("time.perf_counter", return_value=0.0)
+    def test_post_json_no_gzip_request_when_send_gzip_false(self, mock_time: Mock, mock_https_connection: Mock) -> None:
+        """Test that is_gzip_request is False when send_gzip is False."""
+        mock_response = Mock()
+        mock_response.headers = {"Content-Length": 14}
+        mock_response.read.return_value = b'{"answer": 42}'
+        mock_response.status = 200
+
+        mock_conn = Mock()
+        mock_conn.getresponse.return_value = mock_response
+        mock_https_connection.return_value = mock_conn
+
+        connector = BackendConnector(url="https://api.example.com", use_gzip=True)
+
+        result = connector.post_json("/v1/some-endpoint", data={"question": 1}, send_gzip=False)
+
+        assert result.is_gzip_request is False
 
 
 class TestBackendConnectorSetup:

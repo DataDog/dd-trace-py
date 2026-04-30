@@ -192,6 +192,89 @@ class TestTelemetry:
             call(CIVISIBILITY, "known_tests.response_bytes", 42, ()),
         ]
 
+    def test_record_request_with_both_compression_tags(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        request_telemetry = telemetry_api.with_request_metric_names(
+            count="git_requests.search_commits",
+            duration="git_requests.search_commits_ms",
+            response_bytes=None,
+            error="git_requests.search_commits_errors",
+        )
+
+        request_telemetry.record_request(
+            seconds=0.5,
+            response_bytes=None,
+            compressed_response=True,
+            compressed_request=True,
+            error=None,
+        )
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(
+                CIVISIBILITY,
+                "git_requests.search_commits",
+                1,
+                (("rq_compressed", "true"), ("rs_compressed", "true")),
+            ),
+        ]
+
+    def test_record_request_with_only_request_compression(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        request_telemetry = telemetry_api.with_request_metric_names(
+            count="endpoint_payload.requests",
+            duration="endpoint_payload.requests_ms",
+            response_bytes="endpoint_payload.response_bytes",
+            error="endpoint_payload.requests_errors",
+        )
+
+        request_telemetry.record_request(
+            seconds=0.5,
+            response_bytes=100,
+            compressed_response=False,
+            compressed_request=True,
+            error=None,
+        )
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(
+                CIVISIBILITY,
+                "endpoint_payload.requests",
+                1,
+                (("rq_compressed", "true"),),
+            ),
+        ]
+
+    def test_record_request_with_only_response_compression(
+        self, telemetry_api: TelemetryAPI, mock_writer: Mock
+    ) -> None:
+        request_telemetry = telemetry_api.with_request_metric_names(
+            count="git_requests.settings",
+            duration="git_requests.settings_ms",
+            response_bytes="git_requests.settings_response_bytes",
+            error="git_requests.settings_errors",
+        )
+
+        request_telemetry.record_request(
+            seconds=0.5,
+            response_bytes=200,
+            compressed_response=True,
+            compressed_request=False,
+            error=None,
+        )
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(
+                CIVISIBILITY,
+                "git_requests.settings",
+                1,
+                (("rs_compressed", "true"),),
+            ),
+        ]
+
+        # Verify response_bytes distribution metric also gets rs_compressed tag
+        assert mock_writer.add_distribution_metric.call_args_list == [
+            call(CIVISIBILITY, "git_requests.settings_ms", 0.5, ()),
+            call(CIVISIBILITY, "git_requests.settings_response_bytes", 200, (("rs_compressed", "true"),)),
+        ]
+
     def test_record_coverage_started(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_coverage_started(test_framework="pytest", coverage_library="ddtrace")
 
