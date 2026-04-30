@@ -729,9 +729,12 @@ def gen_build_base_venvs() -> None:
         f.write(
             template(
                 "build-base-venvs",
+                stage="setup",
+                needs="[]",
                 python_versions=python_versions_str,
                 unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false") or "false",
                 nightly_build=os.getenv("NIGHTLY_BUILD", "false"),
+                riotfile_args="",
             )
         )
 

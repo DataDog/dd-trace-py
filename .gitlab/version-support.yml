@@ -21,10 +21,15 @@ version_support:
   needs:
     - job: version_support_generate
       artifacts: true
+  variables:
+    VERSION_SUPPORT_SPEC_JSON: $VERSION_SUPPORT_SPEC_JSON
   rules:
     - if: $VERSION_SUPPORT_SPEC_JSON
   trigger:
     include:
       - artifact: version-support-pipeline.yml
         job: version_support_generate
+    forward:
+      pipeline_variables: true
+      yaml_variables: true
     strategy: depend
