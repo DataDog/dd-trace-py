@@ -135,7 +135,6 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, mcp_call_tool):
             "mcp_server_title": None,
         },
         name="MCP Client Session",
-        metadata=mock.ANY,
     )
 
     assert_llmobs_span_data(
