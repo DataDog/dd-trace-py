@@ -1955,7 +1955,7 @@ class Experiment:
         evaluations: list[EvaluationResult],
         summary_evaluations: Optional[list[EvaluationResult]],
     ) -> ExperimentRun:
-        assert self._dataset is not None
+        assert self._dataset is not None  # nosec B101
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
@@ -2133,7 +2133,7 @@ class Experiment:
 
     def _get_subset_dataset(self, sample_size: Optional[int]) -> Dataset:
         """Get dataset containing the first sample_size records of the original dataset."""
-        assert self._dataset is not None
+        assert self._dataset is not None  # nosec B101
         if sample_size is not None and sample_size < len(self._dataset):
             subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
             subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
@@ -2193,7 +2193,7 @@ class Experiment:
         list[dict[str, Any]],
         dict[str, list[JSONType]],
     ]:
-        assert self._dataset is not None
+        assert self._dataset is not None  # nosec B101
         inputs: list[JSONType] = []
         outputs: list[JSONType] = []
         expected_outputs: list[JSONType] = []
@@ -2232,7 +2232,7 @@ class Experiment:
         self._project_id = project.get("_id", "")
         self._tags["project_id"] = self._project_id
 
-        assert self._dataset is not None
+        assert self._dataset is not None  # nosec B101
         (
             experiment_id,
             experiment_run_name,
@@ -2264,7 +2264,7 @@ class Experiment:
                             or if dataset information cannot be resolved from the loaded
                             dataset or span tags from a prior pull().
         """
-        assert self._llmobs_instance is not None and self._llmobs_instance.enabled
+        assert self._llmobs_instance is not None and self._llmobs_instance.enabled  # nosec B101
 
         # Resolve project_id lazily — not set if the experiment was never run() in this session
         if not self._project_id:
@@ -2455,8 +2455,8 @@ class Experiment:
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> Optional[TaskResult]:
         """Process single record asynchronously."""
-        assert self._task is not None
-        assert self._dataset is not None
+        assert self._task is not None  # nosec B101
+        assert self._dataset is not None  # nosec B101
         asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
@@ -2743,7 +2743,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
-        assert self._dataset is not None
+        assert self._dataset is not None  # nosec B101
         asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
         coros = [
