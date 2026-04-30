@@ -310,7 +310,7 @@ class TestFinalStatusAttemptToFix(PytestTestCaseBase):
         """Attempt to Fix: Quarantined test fails all attempts → final_status:fail"""
         self.testdir.makepyfile(test_quarantined=_TEST_FAIL)
         rec = self.inline_run("--ddtrace", "-v")
-        assert rec.ret == 0  # Quarantined failures don't fail CI
+        assert rec.ret == 1
 
         spans = self.pop_spans()
         test_spans = _get_spans_from_list(spans, "test", "test_fail")
@@ -357,7 +357,7 @@ def test_flaky():
 """
         self.testdir.makepyfile(test_quarantined=test_content)
         rec = self.inline_run("--ddtrace", "-v")
-        assert rec.ret == 0  # Quarantined
+        assert rec.ret == 1
 
         spans = self.pop_spans()
         test_spans = _get_spans_from_list(spans, "test", "test_flaky")
@@ -395,7 +395,7 @@ def test_flaky():
         """Attempt to Fix: Disabled test fails all attempts → final_status:fail"""
         self.testdir.makepyfile(test_disabled=_TEST_FAIL)
         rec = self.inline_run("--ddtrace", "-v")
-        assert rec.ret == 0  # Disabled tests don't fail CI
+        assert rec.ret == 1
 
         spans = self.pop_spans()
         test_spans = _get_spans_from_list(spans, "test", "test_fail")

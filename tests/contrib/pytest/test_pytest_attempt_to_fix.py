@@ -109,7 +109,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_quarantined=_TEST_PASS)
         rec = self.inline_run("--ddtrace", "-q")
         assert rec.ret == 0
-        assert_stats(rec, quarantined=1, passed=0, failed=0)
+        assert_stats(rec, quarantined=0, passed=1, failed=0)
 
         spans = self.pop_spans()
         [session_span] = _get_spans_from_list(spans, "session")
@@ -128,8 +128,8 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
     def test_attempt_to_fix_quarantined_test_fail(self):
         self.testdir.makepyfile(test_quarantined=_TEST_FAIL)
         rec = self.inline_run("--ddtrace", "-q")
-        assert rec.ret == 0
-        assert_stats(rec, quarantined=1, passed=0, failed=0)
+        assert rec.ret == 1
+        assert_stats(rec, quarantined=0, passed=0, failed=1)
 
         spans = self.pop_spans()
         [session_span] = _get_spans_from_list(spans, "session")
@@ -148,8 +148,8 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
     def test_attempt_to_fix_quarantined_test_flaky(self):
         self.testdir.makepyfile(test_quarantined=_TEST_FLAKY)
         rec = self.inline_run("--ddtrace", "-q")
-        assert rec.ret == 0
-        assert_stats(rec, quarantined=1, passed=0, failed=0)
+        assert rec.ret == 1
+        assert_stats(rec, quarantined=0, passed=0, failed=1)
 
         spans = self.pop_spans()
         [session_span] = _get_spans_from_list(spans, "session")
@@ -169,7 +169,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_disabled=_TEST_PASS)
         rec = self.inline_run("--ddtrace", "-q")
         assert rec.ret == 0
-        assert_stats(rec, quarantined=1, passed=0, failed=0)
+        assert_stats(rec, quarantined=0, passed=1, failed=0)
 
         spans = self.pop_spans()
         [session_span] = _get_spans_from_list(spans, "session")
@@ -265,11 +265,11 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(test_quarantined=_TEST_PASS + _TEST_FAIL + _TEST_SKIP)
 
         rec = self.inline_run("--ddtrace", "--junit-xml=out.xml", "-v", "-s")
-        assert rec.ret == 0
+        assert rec.ret == 1
 
         test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
-        assert test_suite.attrib["tests"] == "3"  # we currently get "2"
-        assert test_suite.attrib["failures"] == "0"
+        assert test_suite.attrib["tests"] == "3"
+        assert test_suite.attrib["failures"] == "1"
         assert test_suite.attrib["skipped"] == "1"
         assert test_suite.attrib["errors"] == "0"
 
@@ -306,8 +306,8 @@ class PytestAttemptToFixITRTestCase(PytestTestCaseBase):
     def test_attempt_to_fix_itr_skipped_test(self):
         self.testdir.makepyfile(test_skippable=_TEST_PASS + _TEST_FAIL)
         rec = self.inline_run("--ddtrace", "-q")
-        assert rec.ret == 0
-        assert_stats(rec, quarantined=1, passed=0, failed=0, skipped=1)
+        assert rec.ret == 1
+        assert_stats(rec, quarantined=0, passed=0, failed=1, skipped=1)
 
         spans = self.pop_spans()
         [session_span] = _get_spans_from_list(spans, "session")

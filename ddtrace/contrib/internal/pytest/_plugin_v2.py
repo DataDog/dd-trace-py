@@ -215,7 +215,9 @@ def _handle_test_management(item, test_id):
         # A test that is both disabled and quarantined should be skipped just like a regular disabled test.
         # It should still have both disabled and quarantined event tags, though.
         item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
-    elif is_quarantined or (is_disabled and is_attempt_to_fix):
+    elif is_attempt_to_fix:
+        return
+    elif is_quarantined:
         # We add this information to user_properties to have it available in pytest_runtest_makereport().
         item.user_properties += [USER_PROPERTY_QUARANTINED]
 
@@ -785,7 +787,7 @@ def _pytest_run_one_test(item, nextitem):
             setup_or_teardown_failed = True
 
         if report.when == TestPhase.CALL or "failed" in report.outcome:
-            if is_quarantined or is_disabled:
+            if (is_quarantined or is_disabled) and not is_attempt_to_fix:
                 # Ensure test doesn't count as failed for pytest's exit status logic
                 # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
                 report.outcome = OUTCOME_QUARANTINED
