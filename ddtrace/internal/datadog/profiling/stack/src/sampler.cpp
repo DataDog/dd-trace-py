@@ -329,21 +329,16 @@ Sampler::sampling_thread(const uint64_t seq_num)
             }
         }
 
-        Sample::profile_borrow().stats().increment_sampling_event_count();
-        Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
-        Sample::profile_borrow().stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
-        Sample::profile_borrow().stats().set_fast_copy_memory_enabled(fast_copy_active);
-        Sample::profile_borrow().stats().set_asyncio_task_count(echion->asyncio_task_count());
+        // Collect greenlet count before acquiring the profile lock to avoid
+        // holding two locks simultaneously (greenlet lock then profile lock).
+        size_t greenlet_count;
         {
             const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
-            Sample::profile_borrow().stats().set_greenlet_count(echion->greenlet_info_map().size());
+            greenlet_count = echion->greenlet_info_map().size();
         }
 
-        // Drain copy_memory errors accumulated since the last sampling cycle into ProfilerStats
+        // Drain copy_memory errors accumulated since the last sampling cycle.
         auto copy_errors = g_copy_memory_error_count.exchange(0, std::memory_order_relaxed);
-        if (copy_errors > 0) {
-            Sample::profile_borrow().stats().add_copy_memory_error_count(copy_errors);
-        }
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
@@ -353,16 +348,36 @@ Sampler::sampling_thread(const uint64_t seq_num)
             }
         }
 
+        // Measure CPU time before acquiring the profile lock so lock-wait time is
+        // not counted as sampling overhead.
+        auto sample_capture_cpu_after = get_thread_cpu_time_us();
+
+        // Update all end-of-cycle stats under a single borrow so they always land in
+        // the same upload window as the samples they describe. Without this, the uploader
+        // could swap cur_profiler_stats between two separate borrow calls, silently
+        // shifting some counters (including sample_capture_cpu_time_us) into the next window.
+        {
+            auto borrow = Sample::profile_borrow();
+
+            borrow.stats().increment_sampling_event_count();
+            borrow.stats().set_string_table_count(echion->string_table().size());
+            borrow.stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
+            borrow.stats().set_fast_copy_memory_enabled(fast_copy_active);
+            borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
+            borrow.stats().set_greenlet_count(greenlet_count);
+
+            if (copy_errors > 0) {
+                borrow.stats().add_copy_memory_error_count(copy_errors);
+            }
+
+            if (sample_capture_cpu_after > sample_capture_cpu_before) {
+                borrow.stats().add_sample_capture_cpu_time_us(sample_capture_cpu_after - sample_capture_cpu_before);
+            }
+        }
+
         // Before sleeping, check whether the user has called for this thread to die.
         if (seq_num != thread_seq_num.load()) {
             break;
-        }
-
-        // Report the CPU time spent capturing samples
-        auto sample_capture_cpu_after = get_thread_cpu_time_us();
-        if (sample_capture_cpu_after > sample_capture_cpu_before) {
-            auto elapsed = sample_capture_cpu_after - sample_capture_cpu_before;
-            Sample::profile_borrow().stats().add_sample_capture_cpu_time_us(elapsed);
         }
 
         // Sleep for the remainder of the interval, get it atomically
