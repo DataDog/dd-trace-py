@@ -8,13 +8,49 @@ REQUIREMENTS_PATH="${REPO_ROOT}/${REQUIREMENTS_IN}"
 
 if [[ $# -lt 1 ]]; then
   echo "Usage: $0 <PIPELINE_ID_OR_COMMIT_SHA>"
-  echo "  PIPELINE_ID_OR_COMMIT_SHA: pipeline ID or commit SHA of the build"
-  echo "  e.g. 123567890 or abc12345612378127839987"
+  echo "  PIPELINE_ID_OR_COMMIT_SHA: pipeline ID, full 40-char commit SHA, or"
+  echo "  abbreviated commit SHA (>=4 hex chars; resolved against the S3 bucket)"
+  echo "  e.g. 110616709, 2c9ea00a672e91cf812b59d123a3924ac06c0564, or 2c9ea00a67"
   exit 1
 fi
 
-PIPELINE_ID_OR_COMMIT_SHA="${1%/}"
-BASE_URL="https://dd-trace-py-builds.s3.amazonaws.com/${PIPELINE_ID_OR_COMMIT_SHA}"
+INPUT_REF="${1%/}"
+BUCKET_URL="https://dd-trace-py-builds.s3.amazonaws.com"
+
+# The S3 bucket stores wheels under both pipeline-ID prefixes
+# (e.g. 110616709/) and full 40-char commit SHA prefixes (e.g.
+# 2c9ea00a67...0564/). It does NOT recognize abbreviated commit SHAs.
+# To stay user-friendly, accept short SHAs and resolve them to the unique
+# bucket prefix via an unauthenticated S3 ListObjects call. Pure-numeric
+# inputs are treated as pipeline IDs (no resolution).
+if [[ "$INPUT_REF" =~ ^[0-9]+$ ]]; then
+  RESOLVED_REF="$INPUT_REF"
+elif [[ "$INPUT_REF" =~ ^[0-9a-f]{40}$ ]]; then
+  RESOLVED_REF="$INPUT_REF"
+elif [[ "$INPUT_REF" =~ ^[0-9a-f]{4,39}$ ]]; then
+  echo "Resolving short commit SHA '${INPUT_REF}' against ${BUCKET_URL} ..."
+  LIST_RESP=$(curl -fsSL "${BUCKET_URL}/?prefix=${INPUT_REF}&delimiter=/&max-keys=10")
+  MATCHES=$(echo "$LIST_RESP" | grep -oE '<Prefix>[0-9a-f]{40}/</Prefix>' | sed -E 's|<Prefix>([0-9a-f]{40})/</Prefix>|\1|' | sort -u)
+  N_MATCHES=$(echo -n "$MATCHES" | grep -c '^' || true)
+  if [[ "$N_MATCHES" -eq 0 ]]; then
+    echo "ERROR: no S3 prefix matches commit '${INPUT_REF}'."
+    echo "  Wheels may not be uploaded yet (check the GitLab pipeline status),"
+    echo "  or the SHA prefix is wrong. You can also pass the pipeline ID directly."
+    exit 1
+  elif [[ "$N_MATCHES" -gt 1 ]]; then
+    echo "ERROR: multiple S3 prefixes match commit '${INPUT_REF}':"
+    echo "$MATCHES" | sed 's/^/  /'
+    echo "Pass a longer SHA prefix to disambiguate."
+    exit 1
+  fi
+  RESOLVED_REF="$MATCHES"
+  echo "Resolved to ${RESOLVED_REF}"
+else
+  echo "ERROR: '${INPUT_REF}' is neither a numeric pipeline ID nor a hex commit SHA."
+  exit 1
+fi
+
+BASE_URL="${BUCKET_URL}/${RESOLVED_REF}"
 INDEX_URL="${BASE_URL}/index-manylinux2014.html"
 
 git fetch origin apm-sdk-py-smoke-tests-staging > /dev/null 2>&1
