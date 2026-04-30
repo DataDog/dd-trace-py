@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from unittest import mock
+
 from fastapi.testclient import TestClient
 import pytest
 
 from ddtrace import tracer as ddtracer
-from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.propagation.http import HTTPPropagator
-from tests.utils import override_global_config
+from tests.llmobs._utils import assert_llmobs_span_data
 
 from .api_app import app
 
@@ -21,88 +23,112 @@ IGNORE_FIELDS = [
 ]
 
 
+LLMOBS_GLOBAL_CONFIG = dict(
+    _llmobs_enabled=True,
+    _llmobs_sample_rate=1.0,
+    _llmobs_ml_app="<ml-app-name>",
+    service="tests.contrib.vllm",
+)
+
+
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_rag_parent_child(vllm, llmobs_span_writer):
+@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
+def test_rag_parent_child(vllm, test_spans):
     """Test RAG endpoint with parent-child span relationships and LLMObs event capture."""
-    # Enable LLMObs on ddtracer with integrations enabled and use test writer
-    llmobs_service.disable()
-    with override_global_config({"_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"}):
-        llmobs_service.enable(_tracer=ddtracer, integrations_enabled=False)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+    # Create a parent span and inject context into headers. ``ddtracer`` is the same
+    # global tracer wrapped by ``test_spans``; spans land in the same container.
+    with ddtracer.trace("api.rag") as parent_span:
+        headers = {}
+        HTTPPropagator.inject(parent_span.context, headers)
 
-        # Create a parent span and inject context into headers
-        with ddtracer.trace("api.rag") as parent_span:
-            headers = {}
-            HTTPPropagator.inject(parent_span.context, headers)
+        client = TestClient(app)
+        payload = {
+            "query": "What is the capital of France?",
+            "documents": [
+                "Paris is the capital and most populous city of France.",
+                "Berlin is Germany's capital.",
+            ],
+        }
 
-            client = TestClient(app)
-            payload = {
-                "query": "What is the capital of France?",
-                "documents": [
-                    "Paris is the capital and most populous city of France.",
-                    "Berlin is Germany's capital.",
-                ],
-            }
+        res = client.post("/rag", json=payload, headers=headers)
+        assert res.status_code == 200
 
-            res = client.post("/rag", json=payload, headers=headers)
-            assert res.status_code == 200
+    # Should have spans for: embed doc1, embed doc2, embed query, generate text (4 LLMObs spans),
+    # plus the parent ``api.rag`` span which is not an LLMObs span.
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
 
-        llmobs_service.disable()
+    llmobs_spans = [s for s in spans if _get_llmobs_data_metastruct(s)]
+    assert len(llmobs_spans) == 4
 
-    # Verify LLMObs events were captured
-    # Should have events for: embed doc1, embed doc2, embed query, generate text
-    llmobs_events = llmobs_span_writer.events
-    assert len(llmobs_events) == 4
+    def _kind(span):
+        return _get_llmobs_data_metastruct(span).get("meta", {}).get("span", {}).get("kind")
 
-    # Verify we have both embedding and completion operations
-    span_kinds = [event["meta"]["span"]["kind"] for event in llmobs_events]
-    assert span_kinds.count("embedding") == 3  # 2 docs + 1 query
-    assert span_kinds.count("llm") == 1  # 1 generation
+    embedding_spans = [s for s in llmobs_spans if _kind(s) == "embedding"]
+    generation_spans = [s for s in llmobs_spans if _kind(s) == "llm"]
 
-    # Check embedding events (order may vary)
-    embedding_docs = {
+    assert len(embedding_spans) == 3  # 2 docs + 1 query
+    assert len(generation_spans) == 1
+
+    expected_embedding_docs = {
         "Paris is the capital and most populous city of France.",
         "Berlin is Germany's capital.",
         "What is the capital of France?",
     }
+    captured_docs = set()
+    for span in embedding_spans:
+        meta_struct = _get_llmobs_data_metastruct(span)
+        documents = meta_struct.get("meta", {}).get("input", {}).get("documents", [])
+        assert len(documents) == 1
+        captured_docs.add(documents[0]["text"])
+    assert captured_docs == expected_embedding_docs
 
-    embedding_events = [e for e in llmobs_events if e["meta"]["span"]["kind"] == "embedding"]
-    generation_events = [e for e in llmobs_events if e["meta"]["span"]["kind"] == "llm"]
+    # Verify all embedding spans have correct structure. Distributed-context propagation
+    # via HTTPPropagator places the request-side spans on the same APM trace as ``api.rag``.
+    for span in embedding_spans:
+        assert span.trace_id == parent_span.trace_id
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(span),
+            span_kind="embedding",
+            model_name="intfloat/e5-small-v2",
+            model_provider="vllm",
+            metadata={"embedding_dim": 384, "num_cached_tokens": 0},
+            metrics={
+                "output_tokens": 0,
+                "time_to_first_token": mock.ANY,
+                "time_in_queue": mock.ANY,
+                "time_in_model_prefill": mock.ANY,
+                "time_in_model_inference": mock.ANY,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm", "integration": "vllm"},
+        )
+        # input_tokens > 0 sanity check
+        metrics = _get_llmobs_data_metastruct(span).get("metrics", {})
+        assert metrics.get("input_tokens", 0) > 0
 
-    captured_docs = {e["meta"]["input"]["documents"][0]["text"] for e in embedding_events}
-    assert captured_docs == embedding_docs
-
-    # Verify all embedding events have correct structure
-    for event in embedding_events:
-        assert event["meta"]["model_name"] == "intfloat/e5-small-v2"
-        assert event["meta"]["model_provider"] == "vllm"
-        assert event["meta"]["metadata"]["embedding_dim"] == 384
-        assert event["meta"]["metadata"]["num_cached_tokens"] == 0
-        assert event["metrics"]["input_tokens"] > 0
-        assert event["metrics"]["output_tokens"] == 0
-        assert "time_to_first_token" in event["metrics"]
-        assert "time_in_queue" in event["metrics"]
-        assert "time_in_model_prefill" in event["metrics"]
-        assert "time_in_model_inference" in event["metrics"]
-        assert "ml_app:<ml-app-name>" in event["tags"]
-        assert "service:tests.contrib.vllm" in event["tags"]
-
-    # Verify generation event has correct structure
-    assert len(generation_events) == 1
-    gen_event = generation_events[0]
-    assert gen_event["meta"]["model_name"] == "facebook/opt-125m"
-    assert gen_event["meta"]["model_provider"] == "vllm"
-    assert gen_event["meta"]["metadata"]["temperature"] == 0.8
-    assert gen_event["meta"]["metadata"]["top_p"] == 0.95
-    assert gen_event["meta"]["metadata"]["max_tokens"] == 64
-    assert gen_event["meta"]["metadata"]["n"] == 1
-    assert gen_event["meta"]["metadata"]["num_cached_tokens"] == 0
-    assert gen_event["metrics"]["input_tokens"] == 27
-    assert gen_event["metrics"]["output_tokens"] > 0
-    assert "time_to_first_token" in gen_event["metrics"]
-    assert "time_in_queue" in gen_event["metrics"]
-    assert "time_in_model_prefill" in gen_event["metrics"]
-    assert "time_in_model_decode" in gen_event["metrics"]
-    assert "time_in_model_inference" in gen_event["metrics"]
-    assert "ml_app:<ml-app-name>" in gen_event["tags"]
-    assert "service:tests.contrib.vllm" in gen_event["tags"]
+    # Verify generation span has correct structure
+    gen_span = generation_spans[0]
+    assert gen_span.trace_id == parent_span.trace_id
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(gen_span),
+        span_kind="llm",
+        model_name="facebook/opt-125m",
+        model_provider="vllm",
+        metadata={
+            "temperature": 0.8,
+            "top_p": 0.95,
+            "max_tokens": 64,
+            "n": 1,
+            "num_cached_tokens": 0,
+        },
+        metrics={
+            "input_tokens": 27,
+            "time_to_first_token": mock.ANY,
+            "time_in_queue": mock.ANY,
+            "time_in_model_prefill": mock.ANY,
+            "time_in_model_decode": mock.ANY,
+            "time_in_model_inference": mock.ANY,
+        },
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm", "integration": "vllm"},
+    )
+    gen_metrics = _get_llmobs_data_metastruct(gen_span).get("metrics", {})
+    assert gen_metrics.get("output_tokens", 0) > 0
