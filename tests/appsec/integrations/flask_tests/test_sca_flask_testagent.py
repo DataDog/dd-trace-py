@@ -377,19 +377,25 @@ def _collect_all_deps_extended(events):
 
 
 def _find_dep_with_cve_in_extended(events, dep_name, cve_id):
-    """Find a dependency carrying a specific CVE in any extended-heartbeat event."""
-    for dep in _collect_all_deps_extended(events):
-        if dep.get("name") != dep_name:
-            continue
-        for meta_entry in dep.get("metadata", []):
-            if meta_entry.get("type") != "reachability":
+    """Find a dependency carrying a specific CVE in the most recent extended-heartbeat event.
+
+    Iterates events newest-first so an early heartbeat that snapshots the CVE
+    pre-vulnerable-call (with reached=[]) does not shadow a later heartbeat
+    that captured the populated reached entry.
+    """
+    for event in reversed(events):
+        for dep in event.get("payload", {}).get("dependencies", []):
+            if dep.get("name") != dep_name:
                 continue
-            try:
-                value = json.loads(meta_entry["value"])
-            except (json.JSONDecodeError, KeyError, TypeError):
-                continue
-            if value.get("id") == cve_id:
-                return dep, value
+            for meta_entry in dep.get("metadata", []):
+                if meta_entry.get("type") != "reachability":
+                    continue
+                try:
+                    value = json.loads(meta_entry["value"])
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    continue
+                if value.get("id") == cve_id:
+                    return dep, value
     return None, None
 
 
@@ -486,10 +492,13 @@ class TestSCAFlaskExtendedHeartbeat:
         """The extended-heartbeat dependency list must be a full snapshot, not a delta.
 
         Compares the union of dependencies seen across app-dependencies-loaded
-        (the per-tick delta) against the list emitted in app-extended-heartbeat.
-        Every dep ever reported via the delta channel must show up at least once
-        in an extended-heartbeat snapshot, since the snapshot is meant to let the
-        backend reconcile state without relying on every delta being received.
+        (the per-tick delta) against a single app-extended-heartbeat payload
+        (the latest one received). The contract is that one extended-heartbeat
+        event re-sends the *full* dependency snapshot, so the backend can
+        reconcile state from any single such payload without needing to
+        accumulate prior deltas. Asserting against the aggregate of all
+        extended events would mask the exact regression we want to catch:
+        per-event partial slices would still union to the full set.
         """
         with flask_server(
             appsec_enabled="false",
@@ -517,15 +526,16 @@ class TestSCAFlaskExtendedHeartbeat:
         assert len(extended_events) > 0, "No app-extended-heartbeat events found"
 
         delta_names = {d["name"] for d in _collect_all_deps(delta_events) if d.get("name")}
-        snapshot_names = {d["name"] for d in _collect_all_deps_extended(extended_events) if d.get("name")}
 
-        # The latest extended heartbeat is meant to be a complete snapshot.
-        # The delta channel may include deps the snapshot also includes, but
-        # the snapshot must cover the union of what was reported, so any delta
-        # name absent from every snapshot is a contract violation.
-        missing = delta_names - snapshot_names
+        # Pick the latest extended heartbeat — by contract, it alone must be a
+        # complete snapshot of what was reported via the delta channel.
+        latest_snapshot = extended_events[-1]
+        latest_snapshot_deps = latest_snapshot.get("payload", {}).get("dependencies", [])
+        latest_snapshot_names = {d["name"] for d in latest_snapshot_deps if d.get("name")}
+
+        missing = delta_names - latest_snapshot_names
         assert not missing, (
-            f"Dependencies reported via app-dependencies-loaded are missing from every "
-            f"app-extended-heartbeat snapshot — extended heartbeat is not a full snapshot. "
+            f"Dependencies reported via app-dependencies-loaded are missing from the latest "
+            f"app-extended-heartbeat payload — extended heartbeat is not a full snapshot. "
             f"Missing: {sorted(missing)[:20]}"
         )
