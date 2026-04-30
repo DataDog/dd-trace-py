@@ -95,7 +95,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'baa899e768859fce1be7e98cc2518d810745d65a'
+          ref: '3740959f9fc4feddbff60da6e8218e96786f7793'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -148,7 +148,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'baa899e768859fce1be7e98cc2518d810745d65a'
+          ref: '3740959f9fc4feddbff60da6e8218e96786f7793'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -194,6 +194,10 @@ jobs:
       - name: Run RUNTIME_METRICS_ENABLED
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh RUNTIME_METRICS_ENABLED
+
+      - name: Run AI_GUARD
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other' && matrix.weblog-variant == 'flask-poc'
+        run: ./run.sh AI_GUARD
 
       - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
@@ -335,7 +339,7 @@ jobs:
 
       - name: Upload test results to Test Optimization
         if: always() && steps.docker_load.outcome == 'success'
-        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
+        uses: DataDog/system-tests/.github/actions/push_to_test_optim@1e5d6b7096279ca43ce4826fda3cc805635b63c1
         with:
           datadog_api_key: ${{ steps.dd-sts.outputs.api_key }}
 
@@ -353,60 +357,6 @@ jobs:
           path: artifact.tar.gz
 
 
-  parametric:
-    needs:
-      - download-s3-wheels
-    runs-on: ubuntu-latest
-    env:
-      TEST_LIBRARY: python
-    steps:
-      - name: Install Dependencies
-        run: sudo apt-get install -y patchelf
-
-      - name: Checkout system tests
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          repository: 'DataDog/system-tests'
-          # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'baa899e768859fce1be7e98cc2518d810745d65a'
-      - name: Download wheels to binaries directory
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: wheels-*
-          path: binaries/
-          merge-multiple: true
-
-      - name: Build runner
-        id: build_runner
-        uses: ./.github/actions/install_runner
-
-      - name: Run
-        if: always() && steps.build_runner.outcome == 'success'
-        run: ./run.sh PARAMETRIC
-
-      - name: Get Datadog credentials
-        id: dd-sts
-        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75 # v1.0.0
-        with:
-          policy: dd-trace-py-github
-
-      - name: Upload test results to Test Optimization
-        if: always() && steps.build_runner.outcome == 'success'
-        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
-        with:
-          datadog_api_key: ${{ steps.dd-sts.outputs.api_key }}
-
-      - name: Compress artifact
-        if: always() && steps.build_runner.outcome == 'success'
-        run: tar -czvf artifact.tar.gz $(ls | grep logs)
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        if: always() && steps.build_runner.outcome == 'success'
-        with:
-          name: logs_parametric
-          path: artifact.tar.gz
 
   serverless-system-tests-build-layer:
     runs-on: ubuntu-latest
@@ -438,13 +388,14 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@9b8c686e5301c1b2d6f8530cd119256470d53f08
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@23941ab6de4122b7d0ca2b0d4aa7818def68a0d5
     secrets: inherit
     with:
       library: python_lambda
       binaries_artifact: serverless_system_tests_binaries
       scenarios_groups: lambda_end_to_end
       skip_empty_scenarios: true
+      push_to_test_optimization: true
 
   integration-frameworks-combine-wheels:
     runs-on: ubuntu-latest
@@ -467,20 +418,17 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@9b8c686e5301c1b2d6f8530cd119256470d53f08
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@23941ab6de4122b7d0ca2b0d4aa7818def68a0d5
     secrets: inherit
     with:
       library: python
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: integration-frameworks-wheels
+      push_to_test_optimization: true
 
   tracer-release:
-    # TODO: re-enable once DataDog/system-tests reusable workflow supports dd-sts
-    if: false
+    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
-    secrets:
-      DD_API_KEY: ${{ secrets.DD_API_KEY }}
-      TEST_OPTIMIZATION_API_KEY: ${{ secrets.DD_API_KEY }}
     with:
       library: python
       ref: main
@@ -491,20 +439,17 @@ jobs:
   finished:
     name: system-tests finished
     runs-on: ubuntu-latest
-    needs: [parametric, system-tests, serverless-system-tests, integration-frameworks-system-tests, tracer-release]
+    needs: [system-tests, serverless-system-tests, integration-frameworks-system-tests, tracer-release]
     if: always()
     steps:
       - name: Print results
         run: |
-          echo "parametric: ${{ needs.parametric.result }}"
           echo "system-tests: ${{ needs.system-tests.result }}"
           echo "serverless-system-tests: ${{ needs.serverless-system-tests.result }}"
           echo "integration-frameworks-system-tests: ${{ needs.integration-frameworks-system-tests.result }}"
           echo "tracer-release: ${{ needs.tracer-release.result }}"
       - name: Fail if any dependency failed or was cancelled
         if: |
-          needs.parametric.result == 'failure' ||
-          needs.parametric.result == 'cancelled' ||
           needs.system-tests.result == 'failure' ||
           needs.system-tests.result == 'cancelled' ||
           needs.serverless-system-tests.result == 'failure' ||

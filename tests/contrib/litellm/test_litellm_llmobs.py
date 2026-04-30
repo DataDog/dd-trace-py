@@ -611,6 +611,154 @@ class TestLLMObsLiteLLM:
         assert event_metrics["reasoning_output_tokens"] == 15
 
 
+_OPENAI_ENABLED = "ddtrace.llmobs._integrations.litellm.LLMObs._integration_is_enabled"
+
+
+def test_completion_litellm_proxy_model_not_suppressed_when_openai_enabled(
+    litellm, request_vcr_include_localhost, llmobs_events, test_spans
+):
+    """Regression: model='litellm_proxy/<gpt-model>' with OpenAI integration enabled must still produce LLMObs spans."""
+    messages = [{"content": "Hey, what is up?", "role": "user"}]
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        with request_vcr_include_localhost.use_cassette(get_cassette_name(False, 1, proxy=True)):
+            litellm.completion(
+                model="litellm_proxy/gpt-3.5-turbo",
+                messages=messages,
+                api_base="http://localhost:4000",
+                api_key="<not-a-real-key>",
+            )
+    assert len(llmobs_events) == 1
+    event = llmobs_events[0]
+    assert event["meta"]["input"]["messages"] == messages
+    assert event["meta"]["output"]["messages"]
+
+
+def test_completion_use_litellm_proxy_kwarg_not_suppressed_when_openai_enabled(
+    litellm, request_vcr_include_localhost, llmobs_events, test_spans
+):
+    """Regression: use_litellm_proxy=True with an OpenAI model name must still produce LLMObs spans."""
+    messages = [{"content": "Hey, what is up?", "role": "user"}]
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        with request_vcr_include_localhost.use_cassette(get_cassette_name(False, 1, proxy=True)):
+            litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                api_base="http://localhost:4000",
+                api_key="<not-a-real-key>",
+                use_litellm_proxy=True,
+            )
+    assert len(llmobs_events) == 1
+    event = llmobs_events[0]
+    assert event["meta"]["input"]["messages"] == messages
+    assert event["meta"]["output"]["messages"]
+
+
+def test_completion_use_litellm_proxy_module_flag_not_suppressed_when_openai_enabled(
+    litellm, request_vcr_include_localhost, llmobs_events, test_spans
+):
+    """Regression: litellm.use_litellm_proxy = True with an OpenAI model name must still produce LLMObs spans."""
+    messages = [{"content": "Hey, what is up?", "role": "user"}]
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        with mock.patch.object(litellm, "use_litellm_proxy", True, create=True):
+            with request_vcr_include_localhost.use_cassette(get_cassette_name(False, 1, proxy=True)):
+                litellm.completion(
+                    model="gpt-3.5-turbo",
+                    messages=messages,
+                    api_base="http://localhost:4000",
+                    api_key="<not-a-real-key>",
+                )
+    assert len(llmobs_events) == 1
+    event = llmobs_events[0]
+    assert event["meta"]["input"]["messages"] == messages
+    assert event["meta"]["output"]["messages"]
+
+
+def test_completion_use_litellm_proxy_env_var_not_suppressed_when_openai_enabled(
+    litellm, request_vcr_include_localhost, llmobs_events, test_spans, monkeypatch
+):
+    """Regression: USE_LITELLM_PROXY=true env var with an OpenAI model name must still produce LLMObs spans."""
+    monkeypatch.setenv("USE_LITELLM_PROXY", "true")
+    messages = [{"content": "Hey, what is up?", "role": "user"}]
+    with mock.patch(_OPENAI_ENABLED, return_value=True):
+        with request_vcr_include_localhost.use_cassette(get_cassette_name(False, 1, proxy=True)):
+            litellm.completion(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                api_base="http://localhost:4000",
+                api_key="<not-a-real-key>",
+            )
+    assert len(llmobs_events) == 1
+    event = llmobs_events[0]
+    assert event["meta"]["input"]["messages"] == messages
+    assert event["meta"]["output"]["messages"]
+
+
+@pytest.mark.parametrize(
+    "model,stream,openai_enabled,expected",
+    [
+        # litellm_proxy/ prefix always suppresses downstream check regardless of model name or OpenAI enabled
+        ("litellm_proxy/azure-gpt-5-nano", False, True, False),
+        ("litellm_proxy/gpt-4o", False, True, False),
+        ("litellm_proxy/openai/gpt-4", False, True, False),
+        # normal OpenAI/Azure models with OpenAI integration enabled (non-streamed) should return True
+        ("gpt-4o", False, True, True),
+        ("azure/gpt-4", False, True, True),
+        ("openai/gpt-4", False, True, True),
+        # streaming disables downstream check
+        ("gpt-4o", True, True, False),
+        # OpenAI integration disabled disables downstream check
+        ("gpt-4o", False, False, False),
+        # non-OpenAI models are unaffected
+        ("anthropic/claude-3", False, True, False),
+    ],
+)
+def test_has_downstream_openai_span(model, stream, openai_enabled, expected):
+    from ddtrace import config
+    from ddtrace.llmobs._integrations import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(integration_config=config.litellm)
+    kwargs = {"stream": stream}
+    with mock.patch("ddtrace.llmobs._integrations.litellm.LLMObs._integration_is_enabled", return_value=openai_enabled):
+        assert integration._has_downstream_openai_span(kwargs, model) is expected
+
+
+def test_has_downstream_openai_span_use_litellm_proxy_kwarg():
+    """use_litellm_proxy=True in kwargs suppresses downstream check regardless of model name."""
+    from ddtrace import config
+    from ddtrace.llmobs._integrations import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(integration_config=config.litellm)
+    kwargs = {"stream": False, "use_litellm_proxy": True}
+    with mock.patch("ddtrace.llmobs._integrations.litellm.LLMObs._integration_is_enabled", return_value=True):
+        assert integration._has_downstream_openai_span(kwargs, "gpt-4o") is False
+
+
+def test_has_downstream_openai_span_use_litellm_proxy_module_flag():
+    """litellm.use_litellm_proxy = True suppresses downstream check regardless of model name."""
+    import litellm
+
+    from ddtrace import config
+    from ddtrace.llmobs._integrations import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(integration_config=config.litellm)
+    kwargs = {"stream": False}
+    with mock.patch("ddtrace.llmobs._integrations.litellm.LLMObs._integration_is_enabled", return_value=True):
+        with mock.patch.object(litellm, "use_litellm_proxy", True, create=True):
+            assert integration._has_downstream_openai_span(kwargs, "gpt-4o") is False
+
+
+def test_has_downstream_openai_span_use_litellm_proxy_env_var(monkeypatch):
+    """USE_LITELLM_PROXY=true env var suppresses downstream check regardless of model name."""
+    from ddtrace import config
+    from ddtrace.llmobs._integrations import LiteLLMIntegration
+
+    monkeypatch.setenv("USE_LITELLM_PROXY", "true")
+    integration = LiteLLMIntegration(integration_config=config.litellm)
+    kwargs = {"stream": False}
+    with mock.patch("ddtrace.llmobs._integrations.litellm.LLMObs._integration_is_enabled", return_value=True):
+        assert integration._has_downstream_openai_span(kwargs, "gpt-4o") is False
+
+
 def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):
     """
     Test that LLMObs.enable() logs a warning if litellm is imported before LLMObs.enable() is called.
@@ -643,3 +791,27 @@ LLMObs.disable()
     )
 
     assert ("LLMObs.enable() called after litellm was imported but before it was patched") not in err.decode()
+
+
+def test_shadow_tags_completion_when_llmobs_disabled(tracer):
+    """Verify shadow tags are set on LiteLLM spans when LLMObs is disabled."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.litellm import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(MagicMock())
+
+    response = MagicMock()
+    response.usage.prompt_tokens = 7
+    response.usage.completion_tokens = 3
+    response.usage.total_tokens = 10
+
+    with tracer.trace("litellm.request") as span:
+        integration._set_apm_shadow_tags(span, ["gpt-3.5-turbo"], {}, response=response, operation="chat")
+
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "gpt-3.5-turbo"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+    assert span.get_metric("_dd.llmobs.input_tokens") == 7
+    assert span.get_metric("_dd.llmobs.output_tokens") == 3
+    assert span.get_metric("_dd.llmobs.total_tokens") == 10

@@ -1,6 +1,7 @@
 stages:
   - package
   - tests
+  - system-tests
   - fuzz
   - shared-pipeline
   - benchmarks
@@ -15,7 +16,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "baa899e768859fce1be7e98cc2518d810745d65a"
+  SYSTEM_TESTS_REF: "3740959f9fc4feddbff60da6e8218e96786f7793"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -32,6 +33,7 @@ default:
 
 .is_main: $CI_COMMIT_REF_NAME == "main"
 .is_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+.is_non_rc_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
 .is_release_branch: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
 .is_gh_merge_queue: $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/
 .is_devflow_merge_queue: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
@@ -60,6 +62,7 @@ include:
   - local: ".gitlab/multi-os-tests.yml"
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
+  - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
 
 "pipeline variables":
@@ -125,7 +128,7 @@ serverless lambda tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
-    branch: main 
+    branch: main
   needs:
     - job: "upload serverless"
   variables:
@@ -292,6 +295,16 @@ check_requirements_lockfiles:
   stage: tests
   needs: []
   extends: .testrunner
+  variables:
+    # DD_DISABLE_VPA is required: without it VPA overrides KUBERNETES_MEMORY_*
+    # (see "overridden by VPA" in runner logs) and clamps the build container
+    # down to ~4 GiB based on its learned model. compile-and-prune-test-
+    # requirements pip-compiles every riot lockfile sequentially and peaks
+    # above that when resolving the full venv matrix (including 3.15 venvs),
+    # causing OOMKilled (exit 137).
+    DD_DISABLE_VPA: "true"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
   script:
     - pip install toml==0.10.2
     - scripts/compile-and-prune-test-requirements
@@ -394,7 +407,7 @@ package-oci:
 promote-oci-to-prod:
   stage: release
   rules:
-    - if: !reference [.is_release]
+    - if: !reference [.is_non_rc_release]
       when: on_success
     - when: never
   needs:
@@ -423,7 +436,7 @@ promote-oci-to-staging:
 publish-lib-init-pinned-tags:
   stage: release
   rules:
-    - if: !reference [.is_release]
+    - if: !reference [.is_non_rc_release]
       when: on_success
     - when: never
   needs:
@@ -509,19 +522,20 @@ lib_injection_tests:
   needs: []
   stage: tests
   tags: [ "arch:amd64" ]
-  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
-  parallel:
-    matrix:
-      - PYTHON: [ "2.7", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15-dev" ]
-  script:
-    - export PYENV_ROOT="${HOME}/.pyenv"
-    - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
-    - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl git -y
-    - for i in 1 2 3; do PYENV_GIT_TAG=v2.6.17 curl -sSf https://pyenv.run | bash && break; echo "pyenv install attempt $i failed, retrying..."; sleep 5; [ "$i" -eq 3 ] && { echo "Failed to install pyenv after 3 attempts"; exit 1; }; done
-    - pyenv --version
-    - pyenv install ${PYTHON} && pyenv global ${PYTHON}
-    - python --version
-    - python lib-injection/sources/sitecustomize.py
+  image: registry.ddbuild.io/dd-trace-py:v106957811-b912d74-lib_injection@sha256:d381042ec0c5d8ba617453feec7ccdffefca8ef0e3011d980728fe1a7a9425eb
+  script: |
+    echo -e "\e[0Ksection_start:`date +%s`:info[collapsed=true]\r\e[0KPython versions"
+    pyenv --version
+    pyenv versions --bare
+    echo -e "\e[0Ksection_end:`date +%s`:info\r\e[0K"
+
+    for python_version in $(pyenv versions --bare); do
+      echo -e "\e[0Ksection_start:`date +%s`:test_${python_version}[collapsed=true]\r\e[0KTesting with Python ${python_version}"
+      pyenv global "${python_version}"
+      pyenv exec python --version
+      pyenv exec python lib-injection/sources/sitecustomize.py
+      echo -e "\e[0Ksection_end:`date +%s`:test_${python_version}\r\e[0K"
+    done
 
 # Profiling native tests with sanitizers
 # Uses dedicated profiling-native image with Python, Rust, valgrind, and clang pre-installed
@@ -542,7 +556,6 @@ lib_injection_tests:
     - export PYENV_VERSION=${PYTHON_VERSION}
   script:
     - python --version
-    - if [ "${MEMCPY_MODE}" == "fast" ]; then export ECHION_USE_FAST_COPY_MEMORY=1; else export ECHION_USE_FAST_COPY_MEMORY=0; fi
     # All profiling tests use EXPECT_EXIT (death tests) which fork child processes.
     # LSAN's signal handler in forked children conflicts with gtest, causing spurious crashes.
     # Disable leak detection for "safety" - Valgrind jobs already cover leak detection.
@@ -590,15 +603,25 @@ profiling_native:
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-        MEMCPY_MODE: ["default"]
         SANITIZER: ["safety", "thread", ""]
       # Valgrind on subset only: ASAN/LSAN (in "safety") already cover leaks, buffer overflows,
       # and use-after-free. Valgrind's main added value is detecting uninitialized memory usage,
       # which is worth checking on a few versions without the slowdown on all runs.
       # If needed, please add more versions to the list.
       - PYTHON_VERSION: ["3.12", "3.14"]
-        MEMCPY_MODE: ["default"]
         SANITIZER: ["valgrind"]
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-        MEMCPY_MODE: ["fast"]
-        SANITIZER: ["safety", "thread"]
+
+test-dd-sts:
+  stage: tests
+  needs: []
+  tags: ["arch:amd64"]
+  when: manual
+  allow_failure: true
+  image: registry.ddbuild.io/images/mirror/ubuntu:24.04
+  id_tokens:
+    DD_STS_OIDC_TOKEN:
+      aud: rapid-seceng-sit
+  script:
+    - apt-get update && apt-get install -y curl
+    - 'curl -s -o /dev/null -w "API key request http status code: %{http_code}\n" -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab"'
+    - 'curl -s -o /dev/null -w "APP key request http status code: %{http_code}\n" -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab-app-key"'

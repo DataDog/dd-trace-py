@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    AAP: This fix resolves an issue where Application and API Protection (AAP) was incorrectly reported as an enabled
+    product in internal telemetry for all services by default. Previously, registering remote configuration listeners
+    caused AAP to be reported as activated even when it was not actually enabled. This had no impact on customers as it
+    only affected internal telemetry data. AAP is now only reported as activated when it is explicitly enabled or enabled
+    through remote configuration.

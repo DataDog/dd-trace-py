@@ -11,29 +11,31 @@
     "meta": {
       "_dd.base_service": "tests.contrib.mariadb",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de45e300000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mariadb",
       "component": "mariadb",
       "db.name": "test",
       "db.system": "mariadb",
       "db.user": "test",
       "error.message": "You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELEC 1' at line 1",
-      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/dbapi/__init__.py\", line 124, in _trace_method\n    return method(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_mariadb~10/lib/python3.9/site-packages/mariadb/cursors.py\", line 312, in execute\n    self._readresponse()\nmariadb.ProgrammingError: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELEC 1' at line 1\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/dbapi.py\", line 136, in _trace_method\n    return method(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-randomly_mariadb~112/lib/python3.12/site-packages/mariadb/cursors.py\", line 351, in execute\n    self._readresponse()\nmariadb.ProgrammingError: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELEC 1' at line 1\n",
       "error.type": "mariadb.ProgrammingError",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "b6892bcaa1ca4405a344e37f07fe8a18",
+      "runtime-id": "a1beec7d092b490b94db1a7fa9b813f4",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": -1,
-      "network.destination.port": 3306,
-      "process_id": 19671
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": -1.0,
+      "network.destination.port": 3306.0,
+      "process_id": 61364.0
     },
-    "duration": 2299125,
-    "start": 1692647311188173302
+    "duration": 1338625,
+    "start": 1776174563594583424
   }]]

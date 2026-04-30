@@ -9,27 +9,29 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68cc71d000000000",
+      "_dd.p.tid": "69e92e4700000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "eventhub",
       "aas.function.trigger": "EventHubs",
       "component": "azure_functions",
       "language": "python",
       "messaging.destination.name": "eh1",
-      "messaging.message_id": "e2534dce-cda6-4aeb-bd58-234f88525668",
+      "messaging.message_id": "f86653a1-613d-42c1-b384-1fd2575b1f73",
       "messaging.operation": "receive",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "bc64747faba64415bc5f36887dc6fc6c",
+      "runtime-id": "f471827456444119981b3549b4c39919",
       "span.kind": "consumer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 33235
+      "_sampling_priority_v1": 1.0,
+      "process_id": 83581.0
     },
-    "duration": 128875,
-    "start": 1758228944939108418
+    "duration": 163000,
+    "start": 1776889415697240000
   }],
 [
   {
@@ -42,7 +44,9 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68cc71d000000000",
+      "_dd.p.tid": "69e92e4700000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "send_event",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -52,17 +56,17 @@
       "http.url": "http://0.0.0.0:7071/api/sendeventsingle",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "bc64747faba64415bc5f36887dc6fc6c",
+      "runtime-id": "f471827456444119981b3549b4c39919",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 33235
+      "_sampling_priority_v1": 1.0,
+      "process_id": 83581.0
     },
-    "duration": 533302667,
-    "start": 1758228944299295668
+    "duration": 520211000,
+    "start": 1776889415155242000
   },
      {
        "name": "azure.eventhubs.send",
@@ -74,17 +78,18 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
+         "_dd.svc_src": "m",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
-         "messaging.message_id": "e2534dce-cda6-4aeb-bd58-234f88525668",
+         "messaging.message_id": "f86653a1-613d-42c1-b384-1fd2575b1f73",
          "messaging.operation": "send",
          "messaging.system": "eventhubs",
          "network.destination.name": "localhost",
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1
+         "_dd.top_level": 1.0
        },
-       "duration": 529696375,
-       "start": 1758228944299968460
+       "duration": 518835000,
+       "start": 1776889415155587000
      }]]

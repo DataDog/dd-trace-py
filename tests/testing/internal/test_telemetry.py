@@ -22,17 +22,19 @@ CIVISIBILITY = TELEMETRY_NAMESPACE.CIVISIBILITY
 
 
 @pytest.fixture
-def telemetry_api() -> t.Generator[TelemetryAPI, None, None]:
+def mock_writer() -> Mock:
+    return Mock()
+
+
+@pytest.fixture
+def telemetry_api(mock_writer: Mock) -> t.Generator[TelemetryAPI, None, None]:
     api = TelemetryAPI(connector_setup=Mock())
-
-    mock_writer = Mock()
-    api.writer = mock_writer  # type: ignore[assignment]
-
-    yield api  # type: ignore[misc]
+    api.writer = mock_writer
+    yield api
 
 
 class TestTelemetry:
-    def test_record_request(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_request(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         request_telemetry = telemetry_api.with_request_metric_names(
             count="known_tests.request",
             duration="known_tests.request_ms",
@@ -47,7 +49,7 @@ class TestTelemetry:
             error=ErrorType.CODE_4XX,
         )
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "known_tests.request", 1, ()),
             call(
                 CIVISIBILITY,
@@ -57,12 +59,12 @@ class TestTelemetry:
             ),
         ]
 
-        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
+        assert mock_writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "known_tests.request_ms", 1.41, ()),
             call(CIVISIBILITY, "known_tests.response_bytes", 42, ()),
         ]
 
-    def test_record_request_without_response_bytes(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_request_without_response_bytes(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         request_telemetry = telemetry_api.with_request_metric_names(
             count="known_tests.request",
             duration="known_tests.request_ms",
@@ -77,7 +79,7 @@ class TestTelemetry:
             error=ErrorType.CODE_4XX,
         )
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "known_tests.request", 1, ()),
             call(
                 CIVISIBILITY,
@@ -87,11 +89,11 @@ class TestTelemetry:
             ),
         ]
 
-        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
+        assert mock_writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "known_tests.request_ms", 1.41, ()),
         ]
 
-    def test_record_request_rate_limited_maps_to_4xx(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_request_rate_limited_maps_to_4xx(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         """RATE_LIMITED is emitted as status_code_4xx_response for cross-language consistency."""
         request_telemetry = telemetry_api.with_request_metric_names(
             count="known_tests.request",
@@ -107,7 +109,7 @@ class TestTelemetry:
             error=ErrorType.RATE_LIMITED,
         )
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "known_tests.request", 1, ()),
             call(
                 CIVISIBILITY,
@@ -117,7 +119,56 @@ class TestTelemetry:
             ),
         ]
 
-    def test_record_request_without_error(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_request_with_request_bytes(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        request_telemetry = telemetry_api.with_request_metric_names(
+            count="coverage_upload.request",
+            duration="coverage_upload.request_ms",
+            response_bytes=None,
+            error="coverage_upload.request_errors",
+            request_bytes="coverage_upload.request_bytes",
+        )
+
+        request_telemetry.record_request(
+            seconds=0.5,
+            response_bytes=None,
+            compressed_response=False,
+            error=None,
+            request_bytes=1024,
+        )
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "coverage_upload.request", 1, ()),
+        ]
+
+        assert mock_writer.add_distribution_metric.call_args_list == [
+            call(CIVISIBILITY, "coverage_upload.request_ms", 0.5, ()),
+            call(CIVISIBILITY, "coverage_upload.request_bytes", 1024, ()),
+        ]
+
+    def test_record_request_without_request_bytes_metric_name(
+        self, telemetry_api: TelemetryAPI, mock_writer: Mock
+    ) -> None:
+        """When request_bytes metric name is not set, request size is not recorded."""
+        request_telemetry = telemetry_api.with_request_metric_names(
+            count="known_tests.request",
+            duration="known_tests.request_ms",
+            response_bytes=None,
+            error="known_tests.request_errors",
+        )
+
+        request_telemetry.record_request(
+            seconds=1.0,
+            response_bytes=None,
+            compressed_response=False,
+            error=None,
+            request_bytes=512,
+        )
+
+        assert mock_writer.add_distribution_metric.call_args_list == [
+            call(CIVISIBILITY, "known_tests.request_ms", 1.0, ()),
+        ]
+
+    def test_record_request_without_error(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         request_telemetry = telemetry_api.with_request_metric_names(
             count="known_tests.request",
             duration="known_tests.request_ms",
@@ -132,19 +183,19 @@ class TestTelemetry:
             error=None,
         )
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "known_tests.request", 1, ()),
         ]
 
-        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
+        assert mock_writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "known_tests.request_ms", 1.41, ()),
             call(CIVISIBILITY, "known_tests.response_bytes", 42, ()),
         ]
 
-    def test_record_coverage_started(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_coverage_started(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_coverage_started(test_framework="pytest", coverage_library="ddtrace")
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(
                 CIVISIBILITY,
                 "code_coverage_started",
@@ -153,10 +204,10 @@ class TestTelemetry:
             )
         ]
 
-    def test_record_coverage_finished(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_coverage_finished(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_coverage_finished(test_framework="pytest", coverage_library="ddtrace")
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(
                 CIVISIBILITY,
                 "code_coverage_finished",
@@ -165,65 +216,61 @@ class TestTelemetry:
             )
         ]
 
-    def test_record_coverage_is_empty(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_coverage_is_empty(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_coverage_is_empty()
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
-            call(CIVISIBILITY, "code_coverage.is_empty", 1, ())
-        ]
+        assert mock_writer.add_count_metric.call_args_list == [call(CIVISIBILITY, "code_coverage.is_empty", 1, ())]
 
-    def test_record_coverage_files(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_coverage_files(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_coverage_files(42)
 
-        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
-            call(CIVISIBILITY, "code_coverage.files", 42, ())
-        ]
+        assert mock_writer.add_distribution_metric.call_args_list == [call(CIVISIBILITY, "code_coverage.files", 42, ())]
 
-    def test_record_known_tests_count(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_known_tests_count(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_known_tests_count(42)
 
-        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
+        assert mock_writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "known_tests.response_tests", 42, ())
         ]
 
-    def test_record_skippable_tests_count(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_skippable_tests_count(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_skippable_count(42, ITRSkippingLevel.TEST)
 
         # count metric, not distribution metric, for inexplicable reasons
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "itr_skippable_tests.response_tests", 42, ())
         ]
 
-    def test_record_skippable_suites_count(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_skippable_suites_count(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_skippable_count(42, ITRSkippingLevel.SUITE)
 
         # count metric, not distribution metric, for inexplicable reasons
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "itr_skippable_tests.response_suites", 42, ())
         ]
 
-    def test_record_itr_skipped(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_itr_skipped(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_itr_skipped(EventType.TEST)
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "itr_skipped", 1, (("event_type", "test"),))
         ]
 
-    def test_record_itr_unskippable(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_itr_unskippable(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_itr_unskippable(EventType.TEST)
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "itr_unskippable", 1, (("event_type", "test"),))
         ]
 
-    def test_record_itr_forced_run(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_itr_forced_run(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_itr_forced_run(EventType.TEST)
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "itr_forced_run", 1, (("event_type", "test"),))
         ]
 
-    def test_record_settings_all_enabled(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_settings_all_enabled(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         settings = Settings(
             early_flake_detection=EarlyFlakeDetectionSettings(enabled=True),
             auto_test_retries=AutoTestRetriesSettings(enabled=True),
@@ -236,7 +283,7 @@ class TestTelemetry:
         )
         telemetry_api.record_settings(settings)
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(
                 CIVISIBILITY,
                 "git_requests.settings_response",
@@ -254,7 +301,7 @@ class TestTelemetry:
             )
         ]
 
-    def test_record_settings_some_enabled(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_settings_some_enabled(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         settings = Settings(
             early_flake_detection=EarlyFlakeDetectionSettings(enabled=False),
             auto_test_retries=AutoTestRetriesSettings(enabled=True),
@@ -267,7 +314,7 @@ class TestTelemetry:
         )
         telemetry_api.record_settings(settings)
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(
                 CIVISIBILITY,
                 "git_requests.settings_response",
@@ -280,27 +327,27 @@ class TestTelemetry:
             )
         ]
 
-    def test_record_test_management_tests_count(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_test_management_tests_count(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_test_management_tests_count(42)
 
-        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
+        assert mock_writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "test_management_tests.response_tests", 42, ())
         ]
 
-    def test_record_git_command_ok(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_git_command_ok(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_git_command(command=GitTelemetry.GET_REPOSITORY, elapsed_seconds=1.2, exit_code=0)
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "git.command", 1, (("command", "get_repository"),))
         ]
-        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
+        assert mock_writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "git.command_ms", 1200, (("command", "get_repository"),))
         ]
 
-    def test_record_git_command_error(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_git_command_error(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_git_command(command=GitTelemetry.GET_REPOSITORY, elapsed_seconds=1.2, exit_code=4)
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "git.command", 1, (("command", "get_repository"),)),
             call(
                 CIVISIBILITY,
@@ -312,11 +359,27 @@ class TestTelemetry:
                 ),
             ),
         ]
-        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
+        assert mock_writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "git.command_ms", 1200, (("command", "get_repository"),))
         ]
 
-    def test_record_event_payload_ok(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_git_missing(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_git_missing()
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(
+                CIVISIBILITY,
+                "git.command_errors",
+                1,
+                (
+                    ("command", "check_git"),
+                    ("exit_code", "missing"),
+                ),
+            ),
+        ]
+        assert mock_writer.add_distribution_metric.call_args_list == []
+
+    def test_record_event_payload_ok(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_event_payload(
             endpoint="test_cycle",
             payload_size=613,
@@ -325,10 +388,10 @@ class TestTelemetry:
             error=None,
         )
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "endpoint_payload.requests", 1, (("endpoint", "test_cycle"),))
         ]
-        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
+        assert mock_writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "endpoint_payload.bytes", 613, (("endpoint", "test_cycle"),)),
             call(CIVISIBILITY, "endpoint_payload.requests_ms", 3140, (("endpoint", "test_cycle"),)),
             call(CIVISIBILITY, "endpoint_payload.events_count", 42, (("endpoint", "test_cycle"),)),
@@ -347,7 +410,7 @@ class TestTelemetry:
         ],
     )
     def test_record_event_payload_error(
-        self, telemetry_api: TelemetryAPI, http_error_type: ErrorType, telemetry_error_type: str
+        self, telemetry_api: TelemetryAPI, mock_writer: Mock, http_error_type: ErrorType, telemetry_error_type: str
     ) -> None:
         telemetry_api.record_event_payload(
             endpoint="test_cycle",
@@ -357,7 +420,7 @@ class TestTelemetry:
             error=http_error_type,
         )
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "endpoint_payload.requests", 1, (("endpoint", "test_cycle"),)),
             call(
                 CIVISIBILITY,
@@ -369,20 +432,20 @@ class TestTelemetry:
                 ),
             ),
         ]
-        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
+        assert mock_writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "endpoint_payload.bytes", 613, (("endpoint", "test_cycle"),)),
             call(CIVISIBILITY, "endpoint_payload.requests_ms", 3140, (("endpoint", "test_cycle"),)),
             call(CIVISIBILITY, "endpoint_payload.events_count", 42, (("endpoint", "test_cycle"),)),
         ]
 
-    def test_record_event_payload_serialization_seconds(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_event_payload_serialization_seconds(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_event_payload_serialization_seconds("test_cycle", 0.5)
 
-        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
+        assert mock_writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "endpoint_payload.events_serialization_ms", 500, (("endpoint", "test_cycle"),)),
         ]
 
-    def test_record_test_created(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_test_created(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         session = TestSession("pytest")
         module, _ = session.get_or_create_child("module")
         suite, _ = module.get_or_create_child("suite")
@@ -391,7 +454,7 @@ class TestTelemetry:
 
         telemetry_api.record_test_created(test_framework="pytest", test_run=test_run)
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(
                 CIVISIBILITY,
                 "event_created",
@@ -403,7 +466,7 @@ class TestTelemetry:
             )
         ]
 
-    def test_record_test_finished(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_test_finished(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         session = TestSession("pytest")
         module, _ = session.get_or_create_child("module")
         suite, _ = module.get_or_create_child("suite")
@@ -414,7 +477,7 @@ class TestTelemetry:
             test_framework="pytest", test_run=test_run, ci_provider_name="gitlab", is_auto_injected=True
         )
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(
                 CIVISIBILITY,
                 "event_finished",
@@ -428,7 +491,7 @@ class TestTelemetry:
             )
         ]
 
-    def test_record_test_finished_all_the_tags(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_test_finished_all_the_tags(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         session = TestSession("pytest")
         module, _ = session.get_or_create_child("module")
         suite, _ = module.get_or_create_child("suite")
@@ -442,7 +505,7 @@ class TestTelemetry:
         test.set_early_flake_detection_abort_reason("slow")
         _initial_test_run = test.make_test_run()
         retry_test_run = test.make_test_run()
-        retry_test_run.is_benchmark = lambda: True
+        retry_test_run.is_benchmark = lambda: True  # type: ignore[method-assign]
         retry_test_run.tags[TestTag.IS_RUM_ACTIVE] = "true"
         retry_test_run.tags[TestTag.BROWSER_DRIVER] = "selenium"
         retry_test_run.tags[TestTag.HAS_FAILED_ALL_RETRIES] = "true"
@@ -451,7 +514,7 @@ class TestTelemetry:
             test_framework="pytest", test_run=retry_test_run, ci_provider_name="gitlab", is_auto_injected=True
         )
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(
                 CIVISIBILITY,
                 "event_finished",
@@ -475,38 +538,38 @@ class TestTelemetry:
             )
         ]
 
-    def test_record_suite_created(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_suite_created(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_suite_created(test_framework="pytest")
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "event_created", 1, (("event_type", "suite"), ("test_framework", "pytest")))
         ]
 
-    def test_record_suite_finished(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_suite_finished(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_suite_finished(test_framework="pytest")
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "event_finished", 1, (("event_type", "suite"), ("test_framework", "pytest")))
         ]
 
-    def test_record_module_created(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_module_created(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_module_created(test_framework="pytest")
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "event_created", 1, (("event_type", "module"), ("test_framework", "pytest")))
         ]
 
-    def test_record_module_finished(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_module_finished(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_module_finished(test_framework="pytest")
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(CIVISIBILITY, "event_finished", 1, (("event_type", "module"), ("test_framework", "pytest")))
         ]
 
-    def test_record_session_created(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_session_created(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_session_created(test_framework="pytest", has_codeowners=True, is_unsupported_ci=True)
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(
                 CIVISIBILITY,
                 "event_created",
@@ -520,12 +583,12 @@ class TestTelemetry:
             )
         ]
 
-    def test_record_session_finished(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_session_finished(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_session_finished(
             test_framework="pytest", has_codeowners=True, is_unsupported_ci=True, efd_abort_reason="faulty"
         )
 
-        assert telemetry_api.writer.add_count_metric.call_args_list == [
+        assert mock_writer.add_count_metric.call_args_list == [
             call(
                 CIVISIBILITY,
                 "event_finished",
@@ -540,10 +603,44 @@ class TestTelemetry:
             )
         ]
 
-    def test_record_git_pack_data(self, telemetry_api: TelemetryAPI) -> None:
+    def test_record_git_pack_data(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_git_pack_data(uploaded_files=5, uploaded_bytes=200)
 
-        assert telemetry_api.writer.add_distribution_metric.call_args_list == [
+        assert mock_writer.add_distribution_metric.call_args_list == [
             call(CIVISIBILITY, "git_requests.objects_pack_files", 5, ()),
             call(CIVISIBILITY, "git_requests.objects_pack_bytes", 200, ()),
+        ]
+
+    def test_record_commit_sha_match_true(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_commit_sha_match(matched=True)
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "git.commit_sha_match", 1, (("matched", "true"),))
+        ]
+
+    def test_record_commit_sha_match_false(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_commit_sha_match(matched=False)
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(CIVISIBILITY, "git.commit_sha_match", 1, (("matched", "false"),))
+        ]
+
+    def test_record_commit_sha_discrepancy(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_commit_sha_discrepancy(
+            expected_provider="ci_provider",
+            discrepant_provider="local_git",
+            discrepancy_type="commit_discrepancy",
+        )
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(
+                CIVISIBILITY,
+                "git.commit_sha_discrepancy",
+                1,
+                (
+                    ("expected_provider", "ci_provider"),
+                    ("discrepant_provider", "local_git"),
+                    ("type", "commit_discrepancy"),
+                ),
+            )
         ]

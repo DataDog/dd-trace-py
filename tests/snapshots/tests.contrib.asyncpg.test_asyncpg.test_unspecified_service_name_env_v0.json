@@ -11,15 +11,16 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a5ec6700000000",
+      "_dd.p.tid": "69e127cf00000000",
       "_dd.svc_src": "asyncpg",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "asyncpg",
       "db.name": "postgres",
       "db.system": "postgresql",
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "2c06330a0b484e97b42b8cd1031ac246",
+      "runtime-id": "df5e5a510dbf4656a416d0a9ce0d67f2",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
@@ -28,10 +29,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
       "network.destination.port": 5432.0,
-      "process_id": 28517.0
+      "process_id": 16497.0
     },
-    "duration": 41314917,
-    "start": 1772481639263138845
+    "duration": 3178000,
+    "start": 1776363471917870630
   }],
 [
   {
@@ -46,14 +47,16 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a5ec6700000000",
+      "_dd.p.tid": "69e127cf00000000",
+      "_dd.svc_src": "asyncpg",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "asyncpg",
       "db.name": "postgres",
       "db.system": "postgresql",
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "2c06330a0b484e97b42b8cd1031ac246",
+      "runtime-id": "df5e5a510dbf4656a416d0a9ce0d67f2",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
@@ -63,8 +66,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
       "network.destination.port": 5432.0,
-      "process_id": 28517.0
+      "process_id": 16497.0
     },
-    "duration": 1808916,
-    "start": 1772481639308221137
+    "duration": 340250,
+    "start": 1776363471921335380
   }]]

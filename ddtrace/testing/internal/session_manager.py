@@ -6,6 +6,8 @@ import typing as t
 
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.api_client import APIClient
+from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
+from ddtrace.testing.internal.cached_file_provider import TestOptDataProvider
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
@@ -13,12 +15,15 @@ from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.git import Git
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
+from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
+from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.platform import get_platform_tags
 from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.settings_data import TestProperties
+from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
@@ -29,6 +34,8 @@ from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api import Codeowners
 from ddtrace.testing.internal.utils import asbool
+from ddtrace.testing.internal.writer import PayloadFileCoverageWriter
+from ddtrace.testing.internal.writer import PayloadFileTestOptWriter
 from ddtrace.testing.internal.writer import TestCoverageWriter
 from ddtrace.testing.internal.writer import TestOptWriter
 
@@ -36,10 +43,32 @@ from ddtrace.testing.internal.writer import TestOptWriter
 log = logging.getLogger(__name__)
 
 
+def _parse_line_number(value: str) -> t.Optional[int]:
+    """Return the integer value of a source line tag, or None if it is not numeric."""
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
 class SessionManager:
     def __init__(self, session: TestSession) -> None:
-        self.connector_setup = BackendConnectorSetup.detect_setup()
-        self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
+        offline = get_offline_mode()
+        # NOTE: In manifest mode the sandbox has no network. Use a no-op connector so
+        # that writers and telemetry don't attempt to connect; the data provider reads
+        # from files instead of HTTP (see CachedFileDataProvider below).
+        if offline.manifest_enabled:
+            self.connector_setup: BackendConnectorSetup = NoOpBackendConnectorSetup()
+        else:
+            self.connector_setup = BackendConnectorSetup.detect_setup()
+
+        telemetry_output_dir = offline.payload_output_dir("telemetry")
+        if telemetry_output_dir is not None:
+            self.telemetry_api: TelemetryAPI = PayloadFileTelemetryAPI(
+                connector_setup=self.connector_setup, output_dir=telemetry_output_dir
+            )
+        else:
+            self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
 
         self.env_tags = get_env_tags()
         if workspace_path := self.env_tags.get(CITag.WORKSPACE_PATH):
@@ -69,17 +98,36 @@ class SessionManager:
         if self.env is None:
             self.env = self.connector_setup.default_env()
 
-        self.api_client = APIClient(
-            service=self.service,
-            env=self.env,
-            env_tags=self.env_tags,
-            itr_skipping_level=self.itr_skipping_level,
-            configurations=self.platform_tags,
-            connector_setup=self.connector_setup,
-            telemetry_api=self.telemetry_api,
-        )
+        self.api_client: TestOptDataProvider
+        if offline.manifest_enabled:
+            if offline.test_optimization_dir is None:  # pragma: no cover — invariant: always set with manifest_enabled
+                raise RuntimeError("manifest_enabled is True but test_optimization_dir is None")
+            self.api_client = CachedFileDataProvider(
+                test_optimization_dir=offline.test_optimization_dir,
+                itr_skipping_level=self.itr_skipping_level,
+                telemetry_api=self.telemetry_api,
+            )
+        else:
+            self.api_client = APIClient(
+                service=self.service,
+                env=self.env,
+                env_tags=self.env_tags,
+                itr_skipping_level=self.itr_skipping_level,
+                configurations=self.platform_tags,
+                connector_setup=self.connector_setup,
+                telemetry_api=self.telemetry_api,
+            )
         self.settings = self.api_client.get_settings()
         self.override_settings_with_env_vars()
+
+        # Manifest mode disables test skipping: cached skippable decisions should not
+        # be applied in hermetic Bazel runs.  Matches Go's post-read override.
+        if offline.manifest_enabled:
+            if self.settings.skipping_enabled:
+                log.debug("Test skipping disabled in manifest mode")
+            self.settings.skipping_enabled = False
+            self.settings.itr_enabled = False
+
         self.show_settings()
 
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
@@ -96,14 +144,31 @@ class SessionManager:
         if self.settings.require_git:
             # Fetch settings again after uploading git data, as it may change ITR settings.
             self.settings = self.api_client.get_settings()
+            self.override_settings_with_env_vars()
+
+        # Snapshot configuration errors before closing the client.
+        self.configuration_errors = dict(self.api_client.configuration_errors)
 
         self.api_client.close()
 
         # Retry handlers must be set up after collection phase for EFD faulty session logic to work.
         self.retry_handlers: list[RetryHandler] = []
 
-        self.writer = TestOptWriter(connector_setup=self.connector_setup)
-        self.coverage_writer = TestCoverageWriter(connector_setup=self.connector_setup)
+        tests_output_dir = offline.payload_output_dir("tests")
+        if tests_output_dir is not None:
+            self.writer: TestOptWriter = PayloadFileTestOptWriter(
+                connector_setup=self.connector_setup, output_dir=tests_output_dir
+            )
+        else:
+            self.writer = TestOptWriter(connector_setup=self.connector_setup)
+
+        coverage_output_dir = offline.payload_output_dir("coverage")
+        if coverage_output_dir is not None:
+            self.coverage_writer: TestCoverageWriter = PayloadFileCoverageWriter(
+                connector_setup=self.connector_setup, output_dir=coverage_output_dir
+            )
+        else:
+            self.coverage_writer = TestCoverageWriter(connector_setup=self.connector_setup)
         self.session = session
         self.session.set_service(self.service)
         self.session.set_itr_attributes(
@@ -111,6 +176,11 @@ class SessionManager:
             skipping_enabled=self.settings.skipping_enabled,
             skipping_level=self.itr_skipping_level,
         )
+
+        # Propagate configuration errors to the session event and all child events.
+        if self.configuration_errors:
+            self.session.configuration_errors = self.configuration_errors
+            self.session.set_tags(self.configuration_errors)
 
         self.writer.add_metadata("*", self.env_tags)
         self.writer.add_metadata("*", self.platform_tags)
@@ -123,6 +193,9 @@ class SessionManager:
                 TestTag.TEST_SESSION_NAME: self._get_test_session_name(),
                 TestTag.COMPONENT: self.session.test_framework,
                 TestTag.ENV: self.env,
+                # Ensure service.name is present in metadata["*"] so the uploader
+                # does not overwrite it with values from the Bazel context.json.
+                "service.name": self.service,
             },
         )
 
@@ -229,6 +302,8 @@ class SessionManager:
         """
         test_module, created = self.session.get_or_create_child(test_ref.suite.module.name)
         if created:
+            if self.configuration_errors:
+                test_module.set_tags(self.configuration_errors)
             try:
                 on_new_module(test_module)
             except Exception:
@@ -236,6 +311,8 @@ class SessionManager:
 
         test_suite, created = test_module.get_or_create_child(test_ref.suite.name)
         if created:
+            if self.configuration_errors:
+                test_suite.set_tags(self.configuration_errors)
             try:
                 on_new_suite(test_suite)
             except Exception:
@@ -293,6 +370,38 @@ class SessionManager:
         codeowners = self.codeowners.of(repo_relative_path)
         test.set_codeowners(codeowners)
 
+    def _set_suite_source_location(self, suite: TestSuite) -> None:
+        """Set test.source.file and test.source.start on a suite span.
+
+        In pytest every suite maps to a single source file, so we only set these tags when all
+        tests in the suite share the same file.  The start line is the minimum across all tests
+        (i.e. the first test in the file); when no test carries a start line we fall back to 1
+        so the UI can still link to the top of the file.
+        """
+        source_files = {sf for test in suite.children.values() if (sf := test.get_source_file())}
+        if len(source_files) != 1:
+            return
+
+        (source_file,) = source_files
+        suite.tags[TestTag.SOURCE_FILE] = source_file
+
+        start_lines = [
+            v
+            for test in suite.children.values()
+            if TestTag.SOURCE_START in test.tags
+            if (v := _parse_line_number(test.tags[TestTag.SOURCE_START])) is not None
+        ]
+        suite.tags[TestTag.SOURCE_START] = str(min(start_lines)) if start_lines else "1"
+
+        end_lines = [
+            v
+            for test in suite.children.values()
+            if TestTag.SOURCE_END in test.tags
+            if (v := _parse_line_number(test.tags[TestTag.SOURCE_END])) is not None
+        ]
+        if end_lines:
+            suite.tags[TestTag.SOURCE_END] = str(max(end_lines))
+
     def _get_test_session_name(self) -> str:
         if session_name := env.get("DD_TEST_SESSION_NAME"):
             return session_name
@@ -303,16 +412,30 @@ class SessionManager:
         return self.session.test_command
 
     def upload_git_data(self) -> None:
+        # NOTE: In manifest mode (Bazel sandbox), git commands are unavailable
+        # and the external tool has already uploaded git pack data before the sandbox
+        # was created. Skip unconditionally to avoid subprocess failures.
+        offline = get_offline_mode()
+        if offline.manifest_enabled or offline.payload_files_enabled:
+            log.debug("Skipping git data upload in offline/payload-files mode")
+            return
+
         # Missing `git` in minimal containers should not abort pytest startup.
         try:
             git = Git()
         except RuntimeError:
             log.warning("Error calling git binary, skipping metadata upload")
+            if TelemetryAPI._instance is not None:
+                TelemetryAPI.get().record_git_missing()
             return
 
         latest_commits = git.get_latest_commits()
         backend_commits = self.api_client.get_known_commits(latest_commits)
-        # TODO: ddtrace has a "backend_commits is None" logic here with early return (is it correct?).
+        if backend_commits is None:
+            log.warning("search_commits failed, aborting git metadata upload")
+            TelemetryAPI.get().record_git_pack_data(0, 0)
+            return
+
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
         if len(commits_not_in_backend) == 0:
@@ -326,7 +449,11 @@ class SessionManager:
                 log.debug("Unshallow successful, getting latest commits from backend based on unshallowed commits")
                 latest_commits = git.get_latest_commits()
                 backend_commits = self.api_client.get_known_commits(latest_commits)
-                # TODO: ddtrace has a "backend_commits is None" logic here with early return (is it correct?).
+                if backend_commits is None:
+                    log.warning("search_commits failed after unshallow, aborting git metadata upload")
+                    TelemetryAPI.get().record_git_pack_data(0, 0)
+                    return
+
                 commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
             else:
                 log.warning("Failed to unshallow repository, continuing to send pack data")
@@ -369,6 +496,15 @@ class SessionManager:
         if not asbool(env.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")):
             log.debug("Auto Test Retries is disabled by environment variable")
             self.settings.auto_test_retries.enabled = False
+
+        if not asbool(env.get("DD_TEST_MANAGEMENT_ENABLED", "true")):
+            log.debug("Test Management is disabled by environment variable")
+            self.settings.test_management.enabled = False
+
+        _coverage_upload_env = env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "")
+        if _coverage_upload_env.lower() in ("false", "0"):
+            log.debug("Coverage report upload is disabled by environment variable")
+            self.settings.coverage_report_upload_enabled = False
 
         # "Reverse" kill switches.
         # These variables default to false, and if explicitly given a true value, disable a feature.

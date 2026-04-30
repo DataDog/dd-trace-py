@@ -54,6 +54,7 @@ from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
+from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_tags_list
 from ddtrace.version import __version__
@@ -862,6 +863,7 @@ if PydanticEvaluator is not None:
             expected_output: Optional[JSONType] = None,
             duration: Optional[float] = None,
         ) -> EvaluatorResult:
+            asyncio = get_asyncio()
             evalContext = PydanticEvaluatorContext(
                 name="",
                 inputs=input_data,
@@ -1213,8 +1215,14 @@ class ExperimentRun:
                 flat[("input", "")] = input_data
                 column_tuples.add(("input", ""))
 
-            flat[("output", "")] = row.get("output")
-            column_tuples.add(("output", ""))
+            output_data = row.get("output")
+            if isinstance(output_data, dict):
+                for k, v in output_data.items():
+                    flat[("output", k)] = v
+                    column_tuples.add(("output", k))
+            else:
+                flat[("output", "")] = output_data
+                column_tuples.add(("output", ""))
 
             expected = row.get("expected_output", {})
             if isinstance(expected, dict):
@@ -2196,7 +2204,7 @@ class Experiment:
             record: DatasetRecord = self._dataset[idx]
             inputs.append(record["input_data"])
             expected_outputs.append(record["expected_output"])
-            record_metadata = record.get("metadata", {})
+            record_metadata = record.get("metadata") or {}
             metadata_list.append({**record_metadata, "experiment_config": self._config})
 
             eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
@@ -2445,11 +2453,12 @@ class Experiment:
         self,
         idx_record: tuple[int, DatasetRecord],
         run: _ExperimentRunInfo,
-        semaphore: asyncio.Semaphore,
+        semaphore,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> Optional[TaskResult]:
         """Process single record asynchronously."""
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
         async with semaphore:
@@ -2491,14 +2500,14 @@ class Experiment:
                     tags["dataset_record_canonical_id"] = canonical_id
                 output_data = None
                 last_exc_info = None
-                record_metadata = record.get("metadata", {})
+                record_metadata = record.get("metadata") or {}
                 task_args: list = [input_data, self._config]
                 if self._task_accepts_metadata:
                     task_args.append(record_metadata)
                 for attempt in range(1 + max_retries):
                     try:
                         if asyncio.iscoroutinefunction(self._task):
-                            output_data = await self._task(*task_args)
+                            output_data = await self._task(*task_args)  # type: ignore[misc]
                         else:
                             output_data = await asyncio.to_thread(self._task, *task_args)
                         last_exc_info = None
@@ -2568,6 +2577,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[TaskResult]:
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         subset_dataset = self._get_subset_dataset(sample_size)
@@ -2604,12 +2614,13 @@ class Experiment:
         self,
         record: DatasetRecord,
         task_result: TaskResult,
-        semaphore: asyncio.Semaphore,
+        semaphore,
         raise_errors: bool = False,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
         _override_evaluators: Optional[Sequence[Union[EvaluatorType, AsyncEvaluatorType]]] = None,
     ) -> EvaluationResult:
+        asyncio = get_asyncio()
         idx = task_result["idx"]
         input_data = record["input_data"]
         output_data = task_result["output"]
@@ -2645,8 +2656,8 @@ class Experiment:
                             )
                             eval_result = await evaluator.evaluate(context)
                         elif asyncio.iscoroutinefunction(evaluator):
-                            evaluator_name = evaluator.__name__
-                            eval_result = await evaluator(input_data, output_data, expected_output)
+                            evaluator_name = evaluator.__name__  # type: ignore[union-attr]
+                            eval_result = await evaluator(input_data, output_data, expected_output)  # type: ignore[misc, operator]
                         elif _is_class_evaluator(evaluator):
                             evaluator_name = evaluator.name  # type: ignore[union-attr]
                             combined_metadata = {
@@ -2668,7 +2679,7 @@ class Experiment:
                         elif _is_function_evaluator(evaluator):
                             evaluator_name = evaluator.__name__  # type: ignore[union-attr]
                             eval_result = await asyncio.to_thread(
-                                evaluator,  # type: ignore[arg-type]
+                                evaluator,
                                 input_data,
                                 output_data,
                                 expected_output,
@@ -2733,6 +2744,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
+        asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
         coros = [
             self._evaluate_record(self._dataset[idx], task_result, semaphore, raise_errors, max_retries, retry_delay)
@@ -2749,6 +2761,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> tuple[list[TaskResult], list[EvaluationResult]]:
+        asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return [], []
         subset_dataset = self._get_subset_dataset(sample_size)
@@ -2839,7 +2852,7 @@ class Experiment:
             metadata_list,
             eval_results_by_name,
         ) = self._prepare_summary_evaluator_data(task_results, eval_results)
-
+        asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
 
         async def _evaluate_summary_single(
@@ -3071,6 +3084,7 @@ class SyncExperiment:
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
     ) -> None:
+        self.result: Optional[ExperimentResult] = None
         self._experiment = Experiment(
             name=name,
             task=task,
@@ -3140,6 +3154,7 @@ class SyncExperiment:
         :return: ExperimentResult containing evaluation results and metadata. Also stored on
                  ``self.result``.
         """
+        asyncio = get_asyncio()
         coro = self._experiment.run(
             jobs=jobs,
             raise_errors=raise_errors,

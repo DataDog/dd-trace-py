@@ -39,6 +39,7 @@ from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordNew
 from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentRun
 from ddtrace.llmobs._experiment import RemoteEvaluator
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
@@ -5165,9 +5166,9 @@ def test_experiment_as_dataframe_multi_run():
     assert len(df) == 6
     assert list(df[("run_iteration", "")]) == [1, 1, 2, 2, 3, 3]
     run_ids = df[("run_id", "")].tolist()
-    assert run_ids[0] == run_ids[1]   # same run
-    assert run_ids[2] == run_ids[3]   # same run
-    assert run_ids[0] != run_ids[2]   # different runs
+    assert run_ids[0] == run_ids[1]  # same run
+    assert run_ids[2] == run_ids[3]  # same run
+    assert run_ids[0] != run_ids[2]  # different runs
 
 
 def test_experiment_as_dataframe_raises_without_result():
@@ -5312,6 +5313,34 @@ def test_experiment_run_as_dataframe_scalar_expected_output():
     assert df[("expected_output", "")].iloc[0] == "world"
 
 
+def test_experiment_run_as_dataframe_dict_output():
+    """output dict is flattened into sub-columns just like input/expected_output."""
+    rows = [
+        {
+            "idx": 0,
+            "record_id": None,
+            "span_id": "s",
+            "trace_id": "t",
+            "timestamp": 0,
+            "input": {"question": "What is 2+2?"},
+            "output": {"answer": "4", "confidence": 0.99},
+            "expected_output": {"answer": "4"},
+            "evaluations": {},
+            "metadata": {},
+            "error": None,
+        }
+    ]
+    run = _make_experiment_run(rows)
+    pytest.importorskip("pandas")
+    df = run.as_dataframe()
+
+    assert ("output", "answer") in df.columns
+    assert ("output", "confidence") in df.columns
+    assert ("output", "") not in df.columns
+    assert df[("output", "answer")].iloc[0] == "4"
+    assert df[("output", "confidence")].iloc[0] == 0.99
+
+
 def test_experiment_run_as_dataframe_no_pandas(monkeypatch):
     import sys
 
@@ -5336,6 +5365,9 @@ def test_experiment_run_as_dataframe_no_pandas(monkeypatch):
     monkeypatch.setitem(sys.modules, "pandas", None)
     with pytest.raises(ImportError, match="pandas is required"):
         run.as_dataframe()
+
+
+
 # --- User-defined record ID unit tests ---
 
 
@@ -5640,3 +5672,34 @@ def test_rerun_preserves_all_span_fields(llmobs):
     span_copy = posted_spans[0]
     assert "parent_experiment_span_id:original-span" in span_copy["tags"]
     assert span_copy["meta"]["parent_experiment_span_id"] == "original-span"
+
+
+def test_prepare_summary_evaluator_data_handles_none_metadata():
+    """Records with metadata=None (e.g. from API returning null) must not crash data prep."""
+    dataset = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hi"}, "expected_output": "hello", "metadata": None},
+        ]
+    )
+    exp = Experiment(
+        name="test",
+        task=dummy_task,
+        dataset=dataset,
+        evaluators=[dummy_evaluator],
+        project_name="test-project",
+        summary_evaluators=[dummy_summary_evaluator],
+    )
+    task_results = [
+        {
+            "idx": 0,
+            "span_id": "1",
+            "trace_id": "1",
+            "timestamp": 0,
+            "output": "hello",
+            "metadata": {},
+            "error": {"message": None, "type": None, "stack": None},
+        }
+    ]
+    eval_results = [{"idx": 0, "evaluations": {"dummy_evaluator": {"value": True, "error": None}}}]
+    _, _, _, metadata_list, _ = exp._prepare_summary_evaluator_data(task_results, eval_results)
+    assert metadata_list == [{"experiment_config": {}}]

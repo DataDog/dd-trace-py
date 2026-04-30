@@ -1,6 +1,6 @@
 [[
   {
-    "name": "claude_agent_sdk.request",
+    "name": "claude_agent_sdk.ClaudeSDKClient.query",
     "service": "tests.contrib.claude_agent_sdk",
     "resource": "claude_agent_sdk.ClaudeSDKClient.query",
     "trace_id": 0,
@@ -10,20 +10,22 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6983c18400000000",
+      "_dd.p.tid": "69e690d800000000",
+      "_dd.svc_src": "tests.contrib.claude_agent_sdk",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.claude_agent_sdk",
       "error.message": "Mocked transport error for testing",
-      "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/claude_agent_sdk/patch.py\", line 75, in traced_client_query\n    return await func(*args, **kwargs)\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31015_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_claude-agent-sdk_pytest-asyncio/lib/python3.10/site-packages/claude_agent_sdk/client.py\", line 201, in query\n    await self._transport.write(json.dumps(message) + \"\\n\")\n  File \"/Users/nicole.cybul/.pyenv/versions/3.10.15/lib/python3.10/unittest/mock.py\", line 2234, in _execute_mock_call\n    raise effect\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/claude_agent_sdk/utils.py\", line 13, in _retrieve_context\n    await instance.query(\"/context\")\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/claude_agent_sdk/patch.py\", line 58, in traced_client_query\n    return await func(*args, **kwargs)\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31015_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_claude-agent-sdk_pytest-asyncio/lib/python3.10/site-packages/claude_agent_sdk/client.py\", line 201, in query\n    await self._transport.write(json.dumps(message) + \"\\n\")\n  File \"/Users/nicole.cybul/.pyenv/versions/3.10.15/lib/python3.10/unittest/mock.py\", line 2234, in _execute_mock_call\n    raise effect\nValueError: Mocked transport error for testing\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/claude_agent_sdk/patch.py\", line 84, in traced_client_query\n    return await func(*wrapped_args, **wrapped_kwargs)\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31015_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_claude-agent-sdk0023_pytest-asyncio/lib/python3.10/site-packages/claude_agent_sdk/client.py\", line 181, in query\n    await self._transport.write(json.dumps(message) + \"\\n\")\n  File \"/Users/nicole.cybul/.pyenv/versions/3.10.15/lib/python3.10/unittest/mock.py\", line 2234, in _execute_mock_call\n    raise effect\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/claude_agent_sdk/utils.py\", line 16, in _retrieve_context\n    await instance.query(\"/context\")\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/claude_agent_sdk/patch.py\", line 58, in traced_client_query\n    return await func(*args, **kwargs)\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31015_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_claude-agent-sdk0023_pytest-asyncio/lib/python3.10/site-packages/claude_agent_sdk/client.py\", line 181, in query\n    await self._transport.write(json.dumps(message) + \"\\n\")\n  File \"/Users/nicole.cybul/.pyenv/versions/3.10.15/lib/python3.10/unittest/mock.py\", line 2234, in _execute_mock_call\n    raise effect\nValueError: Mocked transport error for testing\n",
       "error.type": "builtins.ValueError",
       "language": "python",
-      "runtime-id": "6d8b44096ea1434e9a4bb9ea70ad6407"
+      "runtime-id": "ee93196fd08745c8b6c4d78d839fa8b9"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 57618.0
+      "process_id": 36593.0
     },
-    "duration": 2685000,
-    "start": 1770242436568661000
+    "duration": 2910000,
+    "start": 1776718040231932000
   }]]

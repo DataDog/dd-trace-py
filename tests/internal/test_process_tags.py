@@ -1,9 +1,14 @@
+import sys
 from unittest.mock import patch
 
 import pytest
 
 from ddtrace.internal import process_tags
+from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_MODULE
+from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_SCRIPT
 from ddtrace.internal.process_tags import _compute_process_tag
+from ddtrace.internal.process_tags import _get_entrypoint_name
+from ddtrace.internal.process_tags import _get_entrypoint_type
 from ddtrace.internal.process_tags import normalize_tag_value
 from tests.utils import override_global_config
 from tests.utils import process_tag_reload
@@ -85,6 +90,59 @@ def test_compute_process_tag_excluded_values(excluded_value):
     assert result is None
 
 
+def test_module_getattr_raises_attribute_error_for_unknown_process_tags_name():
+    with pytest.raises(AttributeError):
+        getattr(process_tags, "process_tags_unknown")
+
+
+@pytest.mark.parametrize(
+    "argv0,expected",
+    [
+        ("python -m unittest", "unittest"),
+        ("python3 -m myapp", "myapp"),
+        ("python3.11 -W ignore -m mypackage.submodule", "mypackage.submodule"),
+        ("python /path/to/my_script.py", "my_script"),
+        ("python /srv/app.py --tenant acme", "app"),
+    ],
+)
+def test_get_entrypoint_name_compound_argv0(argv0, expected):
+    with patch("sys.argv", [argv0]):
+        assert _get_entrypoint_name() == expected
+
+
+@pytest.mark.parametrize(
+    "argv0,expected_type",
+    [
+        ("python -m unittest", ENTRYPOINT_TYPE_MODULE),
+        ("python /path/to/script.py", ENTRYPOINT_TYPE_SCRIPT),
+        ("python /srv/app.py -m prod", ENTRYPOINT_TYPE_SCRIPT),
+    ],
+)
+def test_get_entrypoint_type_compound_argv0(argv0, expected_type):
+    with patch("sys.argv", [argv0]):
+        assert _get_entrypoint_type() == expected_type
+
+
+def test_svc_auto_compound_argv0_produces_module_name(tracer):
+    with patch("sys.argv", ["python -m unittest"]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
+        process_tag_reload()
+        assert "svc.auto:unittest" in process_tags.process_tags
+
+
+@pytest.mark.skipif(sys.version_info[:2] == (3, 9), reason="sys.orig_argv is not available on Python 3.9")
+def test_get_entrypoint_name_module_mode_uses_orig_argv_when_sys_argv_is_incomplete():
+    with patch("sys.argv", ["-m"]), patch("sys.orig_argv", ["python", "-m", "myapp"]):
+        assert _get_entrypoint_name() == "myapp"
+        assert _get_entrypoint_type() == ENTRYPOINT_TYPE_MODULE
+
+
+@pytest.mark.skipif(sys.version_info[:2] != (3, 9), reason="sys.orig_argv fallback behavior is specific to Python 3.9")
+def test_get_entrypoint_name_module_mode_falls_back_to_main_module_on_py39():
+    with patch("sys.argv", ["-m"]):
+        assert _get_entrypoint_name() == "__main__"
+        assert _get_entrypoint_type() == ENTRYPOINT_TYPE_MODULE
+
+
 @pytest.mark.snapshot
 def test_process_tags_activated(tracer):
     with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
@@ -131,19 +189,13 @@ def test_process_tags_error(tracer):
                 with tracer.trace("span"):
                     pass
 
-                assert mock_log.debug.call_count == 2
-                call_args1 = mock_log.debug.call_args_list[0][0]
-                call_args2 = mock_log.debug.call_args_list[1][0]
-
-                assert "failed to get process tag" in call_args1[0], (
-                    f"Expected error message not found. Got: {call_args1[0]}"
-                )
-                assert call_args1[1] == "entrypoint.basedir", f"Expected tag key not found. Got: {call_args1[1]}"
-
-                assert "failed to get process tag" in call_args2[0], (
-                    f"Expected error message not found. Got: {call_args2[0]}"
-                )
-                assert call_args2[1] == "entrypoint.name", f"Expected tag key not found. Got: {call_args2[1]}"
+                # entrypoint.basedir, entrypoint.name, and svc.auto all fail
+                # when sys.argv is empty (IndexError on sys.argv[0])
+                assert mock_log.debug.call_count == 3
+                failed_tags = {args[0][1] for args in mock_log.debug.call_args_list}
+                assert "entrypoint.basedir" in failed_tags
+                assert "entrypoint.name" in failed_tags
+                assert "svc.auto" in failed_tags
 
 
 @pytest.mark.snapshot

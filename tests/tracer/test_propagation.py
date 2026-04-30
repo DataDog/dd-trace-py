@@ -2802,7 +2802,7 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, fastapi_tracer, f
         f"Expected root span 'fastapi.request', got '{root_span.name}'. "
         f"Trace has {len(spans[0])} spans: {[s.name for s in spans[0]]}"
     )
-    assert [link for link in root_span._links if link.span_id == 67667974448284343] == [
+    assert [link for link in root_span._get_links() if link.span_id == 67667974448284343] == [
         SpanLink(
             trace_id=171395628812617415352188477958425669623,
             span_id=67667974448284343,
@@ -2811,7 +2811,7 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, fastapi_tracer, f
             attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
         )
     ]
-    assert spans[0][1]._links == []
+    assert spans[0][1]._get_links() == []
     assert spans[0][1].context._span_links == []
 
 

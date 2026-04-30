@@ -1,43 +1,77 @@
 [[
   {
+    "name": "gcp.pubsub.request",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "createTopic projects/test-project/topics/test-topic",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69e1290900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "pubsub.method": "createTopic",
+      "runtime-id": "fe9b80a3add542f88afaea8a3946d7a9",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 21973.0
+    },
+    "duration": 13165625,
+    "start": 1776363785291604095
+  }],
+[
+  {
     "name": "parent.span",
     "service": "tests.contrib.google_cloud_pubsub",
     "resource": "parent.span",
-    "trace_id": 0,
+    "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
     "type": "",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69b8219200000000",
+      "_dd.p.tid": "69e1290900000000",
+      "_dd.svc_src": "tests.contrib.google_cloud_pubsub",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "language": "python",
-      "runtime-id": "e735c3e6bf4246318b1df56072757ba2"
+      "runtime-id": "fe9b80a3add542f88afaea8a3946d7a9"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 605.0
+      "process_id": 21973.0
     },
-    "duration": 26726875,
-    "start": 1773674898570164003
+    "duration": 17729459,
+    "start": 1776363785306119886
   },
      {
        "name": "gcp.pubsub.send",
        "service": "tests.contrib.google_cloud_pubsub",
        "resource": "test-topic",
-       "trace_id": 0,
+       "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
        "error": 0,
        "meta": {
+         "_dd.svc_src": "m",
          "component": "google_cloud_pubsub",
          "gcloud.project_id": "test-project",
          "messaging.destination.name": "test-topic",
-         "messaging.message_id": "1",
+         "messaging.message_id": "8",
          "messaging.operation": "send",
          "messaging.system": "pubsub",
          "span.kind": "producer"
@@ -45,6 +79,38 @@
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 26062500,
-       "start": 1773674898570682044
-     }]]
+       "duration": 17492708,
+       "start": 1776363785306209095
+     }],
+[
+  {
+    "name": "gcp.pubsub.request",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "deleteTopic projects/test-project/topics/test-topic",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69e1290900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
+      "component": "google_cloud_pubsub",
+      "gcloud.project_id": "test-project",
+      "language": "python",
+      "pubsub.method": "deleteTopic",
+      "runtime-id": "fe9b80a3add542f88afaea8a3946d7a9",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 21973.0
+    },
+    "duration": 2253209,
+    "start": 1776363785324981886
+  }]]

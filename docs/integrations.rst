@@ -342,6 +342,12 @@ LiteLLM
 ^^^^^^^
 .. automodule:: ddtrace.contrib.internal.litellm
 
+.. _llama_index:
+
+LlamaIndex
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.llama_index
+
 .. _logbook:
 
 Logbook
@@ -628,7 +634,7 @@ urllib3
 
 valkey
 ^^^^^^
-.. automodule:: ddtrace.contrib.valkey
+.. automodule:: ddtrace.contrib.internal.valkey
 
 
 .. _vertexai:

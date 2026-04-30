@@ -659,10 +659,11 @@ def test_exception_uses_push_monotonic_ns() -> None:
     ):
         mock_ddup.SampleHandle.return_value = mock_handle
 
-        try:
-            raise ValueError("test")
-        except ValueError:
-            pass
+        for _ in range(10):
+            try:
+                raise ValueError("test")
+            except ValueError:
+                pass
     after: int = time.monotonic_ns()
 
     assert mock_handle.push_monotonic_ns.called, "push_monotonic_ns should be called"

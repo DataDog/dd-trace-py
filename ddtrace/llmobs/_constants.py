@@ -8,8 +8,10 @@ PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
 LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
+LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
+UNKNOWN_MODEL_NAME = "unknown"
 
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
 
@@ -36,6 +38,14 @@ BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
 CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
+
+LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.input_tokens"
+LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY = "_dd.llmobs.output_tokens"
+LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY = "_dd.llmobs.total_tokens"
+LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY = "_dd.llmobs.span_kind"
+LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
+LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"
+LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
 
 TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
@@ -132,11 +142,14 @@ class LLMOBS_STRUCT:
     ML_APP: Final = "ml_app"
     SESSION_ID: Final = "session_id"
     TAGS: Final = "tags"
+    COST_TAGS: Final = "cost_tags"
     INTEGRATION: Final = "integration"
     PROMPT: Final = "prompt"
     METRICS: Final = "metrics"
     METADATA: Final = "metadata"
     METADATA_DD: Final = "_dd"
+    DD: Final = "_dd"
+    SCOPE: Final = "scope"
     SPAN_LINKS: Final = "span_links"
     META: Final = "meta"
     ERROR: Final = "error"
@@ -154,3 +167,26 @@ class LLMOBS_STRUCT:
     MODEL_PROVIDER: Final = "model_provider"
     INTENT: Final = "intent"
     CONFIG: Final = "config"
+
+
+SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
+    "anthropic": "anthropic",
+    "bedrock": "botocore",
+    "openai": "openai",
+    "langchain": "langchain",
+    "google_adk": "google_adk",
+    "google_genai": "google_genai",
+    "vertexai": "vertexai",
+    "langgraph": "langgraph",
+    "litellm": "litellm",
+    "crewai": "crewai",
+    "openai_agents": "openai_agents",
+    "mcp": "mcp",
+    "pydantic_ai": "pydantic_ai",
+    "claude_agent_sdk": "claude_agent_sdk",
+}
+
+# Deprecated constants kept for backwards compatibility with downstream consumers of ddtrace internals.
+# These were removed in the span._store -> span._meta_struct migration (PR #16774).
+EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
+EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"

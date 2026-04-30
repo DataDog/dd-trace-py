@@ -9,14 +9,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.8.0rc1"
+version = "4.9.0rc1"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
 # ddtrace has many sub-components which can break when CPython internals
-# change over versions, .e.g. profiling. So we explicitly mark incompatibility
+# change over versions, e.g. profiling. So we explicitly mark incompatibility
 # with versions we don't support yet.
-requires-python = ">=3.9,<3.15"
+requires-python = ">=3.9,<3.16"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -66,6 +66,7 @@ datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"
+"llmobs" = "ddtrace.llmobs._product"
 "code-origin-for-spans" = "ddtrace.debugging._products.code_origin.span"
 "dynamic-instrumentation" = "ddtrace.debugging._products.dynamic_instrumentation"
 "exception-replay" = "ddtrace.debugging._products.exception_replay"
@@ -76,6 +77,7 @@ datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 "symbol-database" = "ddtrace.internal.symbol_db.product"
 "appsec" = "ddtrace.internal.appsec.product"
 "iast" = "ddtrace.internal.iast.product"
+"sca" = "ddtrace.internal.sca.product"
 "tracer" = "ddtrace._trace.product"
 
 [project.urls]
@@ -123,10 +125,11 @@ exclude_dirs = [
   "ddtrace/ext/test.py",
   "ddtrace/internal/datadog/profiling/ddup/test/interface.py",
   "ddtrace/internal/module.py",
-  "ddtrace/internal/processor/stats.py",
   "ddtrace/internal/rate_limiter.py",
   "ddtrace/internal/uwsgi.py",
   "ddtrace/sourcecode/_utils.py",
+  "scripts/ext_cache.py",
+  "setup.py",
 ]
 
 [tool.ruff]

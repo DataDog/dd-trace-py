@@ -539,7 +539,7 @@ def _default_span_link(span: Span) -> _SpanLink:
     """
     parent_id = get_llmobs_parent_id(span)
     return _SpanLink(
-        span_id=str(parent_id) if parent_id is not None else ROOT_PARENT_ID,
+        span_id=parent_id or ROOT_PARENT_ID,
         trace_id=format_trace_id(span.trace_id),
         attributes={"from": "input", "to": "input"},
     )

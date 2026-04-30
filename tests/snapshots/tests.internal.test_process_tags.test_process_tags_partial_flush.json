@@ -10,19 +10,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69ce908c00000000",
-      "_dd.tags.process": "entrypoint.basedir:to,entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69dfaa2c00000000",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:to,entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir,svc.auto:test_script",
       "language": "python",
-      "runtime-id": "e31f05f8aa6e4061be6ae8c53af19683"
+      "runtime-id": "82acd9a760a645cf99764e13ea7b00fc"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 773.0
+      "process_id": 1760.0
     },
-    "duration": 438166,
-    "start": 1775145100076659175
+    "duration": 492791,
+    "start": 1776265772603387972
   },
      {
        "name": "child1",
@@ -35,8 +36,9 @@
        "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
-         "_dd.p.tid": "69ce908c00000000",
-         "_dd.tags.process": "entrypoint.basedir:to,entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir,svc.auto:ddtrace_subprocess_dir",
+         "_dd.p.tid": "69dfaa2c00000000",
+         "_dd.svc_src": "ddtrace_subprocess_dir",
+         "_dd.tags.process": "entrypoint.basedir:to,entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir,svc.auto:test_script",
          "language": "python"
        },
        "metrics": {
@@ -44,8 +46,8 @@
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1.0
        },
-       "duration": 18667,
-       "start": 1775145100076718258
+       "duration": 19333,
+       "start": 1776265772603463847
      },
      {
        "name": "child2",
@@ -56,6 +58,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 7167,
-       "start": 1775145100076749966
+       "meta": {
+         "_dd.svc_src": "ddtrace_subprocess_dir"
+       },
+       "duration": 12666,
+       "start": 1776265772603498597
      }]]

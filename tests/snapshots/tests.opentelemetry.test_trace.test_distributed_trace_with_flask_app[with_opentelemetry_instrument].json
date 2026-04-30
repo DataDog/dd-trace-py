@@ -10,18 +10,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "66a666b600000000",
+      "_dd.p.tid": "69de9f3800000000",
+      "_dd.svc_src": "tests.opentelemetry",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "language": "python",
-      "runtime-id": "4fe738d296c04c00aff7eb2a66389ad4"
+      "runtime-id": "f64bcf1c53f24bb89c2b358e89b14ff7"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 75526
+      "_sampling_priority_v1": 1.0,
+      "process_id": 86094.0
     },
-    "duration": 3561000,
-    "start": 1722181302828129000
+    "duration": 3288500,
+    "start": 1776197432384893052
   },
      {
        "name": "server",
@@ -34,8 +36,9 @@
        "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
-         "_dd.p.tid": "66a666b600000000",
-         "_dd.parent_id": "ae6e2bf21738f62f",
+         "_dd.p.tid": "69de9f3800000000",
+         "_dd.parent_id": "cd075330734c078b",
+         "_dd.tags.process": "entrypoint.name:flask,entrypoint.type:script,entrypoint.workdir:project,svc.auto:flask",
          "http.flavor": "1.1",
          "http.host": "0.0.0.0:8011",
          "http.method": "GET",
@@ -48,20 +51,20 @@
          "language": "python",
          "net.host.name": "0.0.0.0:8011",
          "net.peer.ip": "127.0.0.1",
-         "runtime-id": "0dacca250fe4471094dc593f4892b91f",
+         "runtime-id": "971c971b1c2e4fd5a1fe97b0438a289f",
          "span.kind": "server",
-         "tracestate": "dd=p:ae6e2bf21738f62f;s:1;t.dm:-0"
+         "tracestate": "dd=p:cd075330734c078b;s:1;t.dm:-0"
        },
        "metrics": {
-         "_dd.top_level": 1,
+         "_dd.top_level": 1.0,
          "_dd.tracer_kr": 1.0,
-         "_sampling_priority_v1": 1,
-         "net.host.port": 8011,
-         "net.peer.port": 62683,
-         "process_id": 75530
+         "_sampling_priority_v1": 1.0,
+         "net.host.port": 8011.0,
+         "net.peer.port": 58840.0,
+         "process_id": 86099.0
        },
-       "duration": 515000,
-       "start": 1722181302830460000
+       "duration": 706125,
+       "start": 1776197432386783552
      },
         {
           "name": "internal",
@@ -72,6 +75,6 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "duration": 16000,
-          "start": 1722181302830847000
+          "duration": 33375,
+          "start": 1776197432387362593
         }]]
