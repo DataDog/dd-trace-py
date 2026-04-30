@@ -3918,7 +3918,7 @@
       {
         "implementation": "B",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_TEST_SESSION_NAME": [
@@ -4634,14 +4634,14 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_LLAMA_INDEX_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_LOGBOOK_ENABLED": [
@@ -5018,7 +5018,7 @@
       {
         "implementation": "A",
         "type": "json",
-        "default": null
+        "default": "{}"
       }
     ],
     "DD_TRACE_RAY_REDACT_ENTRYPOINT_PATHS": [
