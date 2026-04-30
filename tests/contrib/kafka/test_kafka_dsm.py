@@ -363,17 +363,16 @@ def test_data_streams_kafka_enabled():
         producer.flush()
 
         # subscribe() defers partition assignment until the first poll triggers a
-        # group join/rebalance, so a single poll has to cover both the rebalance
-        # and the fetch. On loaded CI runners that combined cost can exceed 5s,
-        # which manifested as Timeout/Network flakes. Loop until a real message
-        # arrives or a generous deadline is hit.
-        deadline = time.time() + 30
+        # group rebalance, so the first poll pays both rebalance and fetch costs.
+        # Loop with a deadline to tolerate slow rebalances on loaded CI.
+        deadline = time.time() + 60
         message = None
         while time.time() < deadline:
-            message = consumer.poll(timeout=1.0)
-            if message is not None and not message.error():
+            candidate = consumer.poll(timeout=1.0)
+            if candidate is not None and not candidate.error():
+                message = candidate
                 break
-        assert message is not None and not message.error(), "consumer did not receive message within 30s"
+        assert message is not None, "consumer did not receive message within 60s"
         assert "dd-pathway-ctx-base64" in [h[0] for h in message.headers()]
 
     finally:
