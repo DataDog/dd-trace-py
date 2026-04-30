@@ -91,7 +91,6 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
 EXPECTED_SPAN_KWARGS = {
     "input_value": mock.ANY,
     "output_value": mock.ANY,
-    "metadata": mock.ANY,
     "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
     "parent_id": mock.ANY,
 }
@@ -111,7 +110,6 @@ def _expected_tool_kwargs():
     return {
         "input_value": mock.ANY,
         "output_value": mock.ANY,
-        "metadata": mock.ANY,
         "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
     }
 
