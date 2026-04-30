@@ -220,7 +220,7 @@ class _ProfilerInstance(service.Service):
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
             # if their import is detected at runtime.
-            def start_lock_collector(collector_class: type[collector.Collector]) -> None:
+            def start_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
                     if any(type(c) is collector_class for c in self._collectors):
                         return
@@ -257,7 +257,7 @@ class _ProfilerInstance(service.Service):
 
         if self._pytorch_collector_enabled:
 
-            def start_pytorch_collector(collector_class: type[collector.Collector]) -> None:
+            def start_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
                     if any(type(c) is collector_class for c in self._collectors):
                         return
@@ -281,7 +281,7 @@ class _ProfilerInstance(service.Service):
                 self._collectors_on_import = []
 
             torch_hooks: list[tuple[str, Callable[[Any], None]]] = [
-                ("torch", lambda _: start_pytorch_collector(pytorch.TorchProfilerCollector)),
+                ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
             ]
             self._collectors_on_import.extend(torch_hooks)
 
@@ -347,10 +347,7 @@ class _ProfilerInstance(service.Service):
         # Prevent doing more initialisation now that we are shutting down.
         if self._collectors_on_import:
             for module, hook in self._collectors_on_import:
-                try:
-                    ModuleWatchdog.unregister_module_hook(module, hook)
-                except (ValueError, Exception):
-                    pass
+                ModuleWatchdog.unregister_module_hook(module, hook)
             self._collectors_on_import = None
 
         if self._scheduler is not None:
