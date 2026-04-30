@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where the ``svc.auto`` process tag produced garbled values
+    such as ``python_-m_unittest`` when a process was launched with the full command as
+    a single ``sys.argv[0]`` string (e.g. from a Docker ``ENTRYPOINT``, a process manager,
+    or a subprocess call with an unsplit command). The correct module or script name is
+    now extracted in these cases. #17764
