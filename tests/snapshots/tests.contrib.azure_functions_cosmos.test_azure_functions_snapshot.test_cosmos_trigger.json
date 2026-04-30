@@ -8,26 +8,26 @@
     "parent_id": 0,
     "type": "serverless",
     "meta": {
-      "_dd.base_service": "x64",
+      "_dd.base_service": "arm64",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e922f700000000",
+      "_dd.p.tid": "69f3999a00000000",
       "_dd.svc_src": "azure_functions",
-      "_dd.tags.process": "entrypoint.basedir:x64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:x64",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "cosmosdbtrigger",
       "aas.function.trigger": "CosmosDB",
       "component": "azure_functions",
       "language": "python",
-      "runtime-id": "7afbf223626040978acf659312ae2ecd",
+      "runtime-id": "be586c83128d40dfa892219e036314ed",
       "span.kind": "internal"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 50064.0
+      "process_id": 32085.0
     },
-    "duration": 107000,
-    "start": 1776886519462165000
+    "duration": 212000,
+    "start": 1777572250578360000
   }],
 [
   {
@@ -39,11 +39,11 @@
     "parent_id": 0,
     "type": "serverless",
     "meta": {
-      "_dd.base_service": "x64",
+      "_dd.base_service": "arm64",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e922f300000000",
+      "_dd.p.tid": "69f3999600000000",
       "_dd.svc_src": "azure_functions",
-      "_dd.tags.process": "entrypoint.basedir:x64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:x64",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "UpsertItem",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -53,17 +53,17 @@
       "http.url": "http://0.0.0.0:7071/api/upsert_item",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "7afbf223626040978acf659312ae2ecd",
+      "runtime-id": "be586c83128d40dfa892219e036314ed",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 50064.0
+      "process_id": 32085.0
     },
-    "duration": 82472000,
-    "start": 1776886515100079000
+    "duration": 89326000,
+    "start": 1777572246012765000
   },
      {
        "name": "cosmosdb.query",
@@ -74,19 +74,19 @@
        "parent_id": 1,
        "type": "cosmosdb",
        "meta": {
-         "_dd.base_service": "x64",
-         "_dd.svc_src": "m",
+         "_dd.base_service": "arm64",
+         "_dd.svc_src": "azure_functions",
          "component": "azure_cosmos",
          "cosmosdb.connection.mode": "gateway",
          "cosmosdb.container": "documents",
          "db.name": "documents-db",
          "db.system": "cosmosdb",
-         "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.12.13 (macOS-26.2-arm64-arm-64bit)",
+         "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.12.13 (macOS-26.4.1-arm64-arm-64bit)",
          "out.host": "http://localhost:8081/",
          "span.kind": "client"
        },
-       "duration": 7789000,
-       "start": 1776886515167916000
+       "duration": 6312000,
+       "start": 1777572246087343000
      },
      {
        "name": "cosmosdb.query",
@@ -97,17 +97,17 @@
        "parent_id": 1,
        "type": "cosmosdb",
        "meta": {
-         "_dd.base_service": "x64",
-         "_dd.svc_src": "m",
+         "_dd.base_service": "arm64",
+         "_dd.svc_src": "azure_functions",
          "component": "azure_cosmos",
          "cosmosdb.connection.mode": "gateway",
          "cosmosdb.container": "documents",
          "db.name": "documents-db",
          "db.system": "cosmosdb",
-         "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.12.13 (macOS-26.2-arm64-arm-64bit)",
+         "http.useragent": "azsdk-python-cosmos/4.9.0 Python/3.12.13 (macOS-26.4.1-arm64-arm-64bit)",
          "out.host": "http://localhost:8081/",
          "span.kind": "client"
        },
-       "duration": 6326000,
-       "start": 1776886515175958000
+       "duration": 7787000,
+       "start": 1777572246093894000
      }]]

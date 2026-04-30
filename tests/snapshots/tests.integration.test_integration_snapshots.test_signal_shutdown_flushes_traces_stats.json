@@ -9,19 +9,20 @@
     "type": "",
     "error": 0,
     "meta": {
-      "_dd.base_service": "test_signal_shutdown_flushes_t0",
+      "_dd.base_service": "test_signal_shutdown_flushes_t1",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69f22be800000000",
-      "_dd.tags.process": "entrypoint.basedir:test_signal_shutdown_flushes_t0,entrypoint.name:test_signal_shutdown,entrypoint.type:script,entrypoint.workdir:project,svc.auto:test_signal_shutdown_flushes_t0",
+      "_dd.p.tid": "69f39e0100000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:test_signal_shutdown_flushes_t1,entrypoint.name:test_signal_shutdown,entrypoint.type:script,entrypoint.workdir:project,svc.auto:test_signal_shutdown_flushes_t1",
       "language": "python",
-      "runtime-id": "df2e85f9565343669db9a6ba02240ce3"
+      "runtime-id": "7d895f3e2b4c42388b198e2d9e990a7e"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 1074.0
+      "process_id": 62760.0
     },
-    "duration": 36333,
-    "start": 1777478632693857171
+    "duration": 48833,
+    "start": 1777573377315564005
   }]]

@@ -12,10 +12,11 @@
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "69f22b9700000000",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp4jkz8r5f,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f39dfa00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpy2_auq9j,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "a213117350bd481fba14a5eee6fd057e",
+      "runtime-id": "0577e411bfa74cd79a9abd8817ee551f",
       "tag1": "mycooltag"
     },
     "metrics": {
@@ -23,10 +24,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1.0,
-      "process_id": 673.0
+      "process_id": 62607.0
     },
-    "duration": 48708,
-    "start": 1777478551619383467
+    "duration": 52208,
+    "start": 1777573370550771752
   }],
 [
   {
@@ -40,20 +41,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69f22b9700000000",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp4jkz8r5f,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f39dfa00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpy2_auq9j,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "a213117350bd481fba14a5eee6fd057e",
+      "runtime-id": "0577e411bfa74cd79a9abd8817ee551f",
       "tag1": "mycooltag"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 673.0
+      "process_id": 62607.0
     },
-    "duration": 20250,
-    "start": 1777478551619727009
+    "duration": 29583,
+    "start": 1777573370551197710
   }],
 [
   {
@@ -67,20 +68,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69f22b9700000000",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp4jkz8r5f,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f39dfa00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpy2_auq9j,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "banana": "True",
       "language": "python",
-      "runtime-id": "a213117350bd481fba14a5eee6fd057e"
+      "runtime-id": "0577e411bfa74cd79a9abd8817ee551f"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 673.0
+      "process_id": 62607.0
     },
-    "duration": 9000,
-    "start": 1777478551619802925
+    "duration": 8875,
+    "start": 1777573370551301293
   }],
 [
   {
@@ -95,18 +96,19 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69f22b9700000000",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp4jkz8r5f,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f39dfa00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpy2_auq9j,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "banana": "True",
       "language": "python",
-      "runtime-id": "a213117350bd481fba14a5eee6fd057e"
+      "runtime-id": "0577e411bfa74cd79a9abd8817ee551f"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 673.0
+      "process_id": 62607.0
     },
-    "duration": 6667,
-    "start": 1777478551619843925
+    "duration": 6916,
+    "start": 1777573370551342877
   }]]

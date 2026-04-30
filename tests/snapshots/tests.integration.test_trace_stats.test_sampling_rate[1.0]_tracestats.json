@@ -12,9 +12,9 @@
         "Synthetics": false,
         "Hits": 10,
         "TopLevelHits": 10,
-        "Duration": 73501,
+        "Duration": 83874,
         "Errors": 0,
-        "OkSummary": 767,
+        "OkSummary": 951,
         "ErrorSummary": 24
       }
     ]

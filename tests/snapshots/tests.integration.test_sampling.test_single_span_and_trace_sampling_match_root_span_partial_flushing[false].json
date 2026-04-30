@@ -11,10 +11,10 @@
     "meta": {
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "69f22b9e00000000",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpmldhd27g,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "_dd.p.tid": "69f39df700000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpmimwt3u,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "language": "python",
-      "runtime-id": "c1df6cf7d7fc4fed9c0ee6f06d261fc0"
+      "runtime-id": "a66fe945e97f4aa08b3c2efa595e9507"
     },
     "metrics": {
       "_dd.rule_psr": 0.0,
@@ -23,10 +23,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1.0,
-      "process_id": 811.0
+      "process_id": 62519.0
     },
-    "duration": 1270500,
-    "start": 1777478558135543553
+    "duration": 544417,
+    "start": 1777573367101802875
   },
      {
        "name": "non_monkey",
@@ -39,8 +39,8 @@
        "error": 0,
        "meta": {
          "_dd.p.dm": "-3",
-         "_dd.p.tid": "69f22b9e00000000",
-         "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpmldhd27g,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+         "_dd.p.tid": "69f39df700000000",
+         "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpmimwt3u,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
          "language": "python"
        },
        "metrics": {
@@ -48,6 +48,6 @@
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": -1.0
        },
-       "duration": 37750,
-       "start": 1777478558135801012
+       "duration": 20792,
+       "start": 1777573367101899750
      }]]

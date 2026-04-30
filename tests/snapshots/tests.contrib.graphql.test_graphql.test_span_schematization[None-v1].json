@@ -10,21 +10,22 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de9e4300000000",
+      "_dd.p.tid": "69f39bba00000000",
+      "_dd.svc_src": "graphql",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "graphql",
       "language": "python",
-      "runtime-id": "dfb55f4f943e4bc6ada5d4b4f8aec809"
+      "runtime-id": "53b81e65376d487593f78684fb76ad7f"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 75825.0
+      "process_id": 56695.0
     },
-    "duration": 853708,
-    "start": 1776197187599787466
+    "duration": 754542,
+    "start": 1777572794442501846
   },
      {
        "name": "graphql.parse",
@@ -36,11 +37,12 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "_dd.svc_src": "graphql",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 162083,
-       "start": 1776197187599938216
+       "duration": 113625,
+       "start": 1777572794442641513
      },
      {
        "name": "graphql.validate",
@@ -52,11 +54,12 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "_dd.svc_src": "graphql",
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 429709,
-       "start": 1776197187600130174
+       "duration": 406166,
+       "start": 1777572794442781055
      },
      {
        "name": "graphql.execute",
@@ -68,6 +71,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
+         "_dd.svc_src": "graphql",
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
@@ -76,6 +80,6 @@
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 52125,
-       "start": 1776197187600582341
+       "duration": 43250,
+       "start": 1777572794443207305
      }]]

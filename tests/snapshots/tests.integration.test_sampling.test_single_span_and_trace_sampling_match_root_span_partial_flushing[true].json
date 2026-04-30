@@ -11,10 +11,10 @@
     "meta": {
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "69f22b9800000000",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp2yvg6r09,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "_dd.p.tid": "69f39dfb00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp9c0gf_w4,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "language": "python",
-      "runtime-id": "9f823cfddd73492eb7f6c31143a1be39"
+      "runtime-id": "c4ee31137f5a4e288af55eab2b018f5c"
     },
     "metrics": {
       "_dd.rule_psr": 0.0,
@@ -23,8 +23,8 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1.0,
-      "process_id": 681.0
+      "process_id": 62623.0
     },
-    "duration": 972292,
-    "start": 1777478552810308384
+    "duration": 472792,
+    "start": 1777573371936325127
   }]]
