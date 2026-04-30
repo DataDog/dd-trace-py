@@ -212,7 +212,7 @@ import opentelemetry
         {"name": "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_ITR_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_LOG_LEVEL", "origin": "default", "value": "info"},
-        {"name": "DD_CODE_ORIGIN_FOR_SPANS_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_CODE_ORIGIN_FOR_SPANS_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_CRASHTRACKING_CREATE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_DEBUG_URL", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_ENABLED", "origin": "default", "value": True},
