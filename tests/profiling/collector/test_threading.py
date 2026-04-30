@@ -194,6 +194,9 @@ def test_patch():
     assert collector._original_lock == threading.Lock
 
 
+# Run in a subprocess: pops threading from sys.modules to simulate gevent's
+# cleanup_loaded_modules(), which would corrupt ModuleWatchdog state in-process.
+@pytest.mark.subprocess()
 def test_lock_patching_survives_module_reimport():
     """Test that lock patches are re-applied when threading is re-imported.
 
@@ -202,56 +205,63 @@ def test_lock_patching_survives_module_reimport():
     fresh, unpatched module. Without the fix, user code would get native locks.
     """
     import importlib
+    import sys
+    import threading
+
+    from ddtrace.profiling.collector._lock import LockAllocatorWrapper
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
     collector = ThreadingLockCollector()
     collector.start()
 
-    # Verify patching works on the current module
     assert isinstance(threading.Lock, LockAllocatorWrapper)
 
     # Simulate cleanup_loaded_modules(): remove threading from sys.modules
     old_threading = sys.modules.pop("threading")
-    try:
-        # Re-import threading — this is what user code does after cloning
-        new_threading = importlib.import_module("threading")
-        assert new_threading is not old_threading, "Should be a different module object"
+    # Re-import threading — this is what user code does after cloning
+    new_threading = importlib.import_module("threading")
+    assert new_threading is not old_threading, "Should be a different module object"
 
-        # The fix: patches should have been re-applied to the new module
-        assert isinstance(new_threading.Lock, LockAllocatorWrapper), (
-            "Lock on re-imported threading module should be patched. "
-            "This fails without the ModuleWatchdog re-import hook fix."
-        )
+    # The fix: patches should have been re-applied to the new module
+    assert isinstance(new_threading.Lock, LockAllocatorWrapper), (
+        "Lock on re-imported threading module should be patched. "
+        "This fails without the ModuleWatchdog re-import hook fix."
+    )
 
-        # User-created locks from the new module should be profiled
-        lock = new_threading.Lock()
-        assert isinstance(lock, _ProfiledLock), "Locks created from re-imported threading should be profiled"
-    finally:
-        # Restore original module to not break other tests
-        sys.modules["threading"] = old_threading
-        collector.stop()
+    # User-created locks from the new module should be profiled
+    lock = new_threading.Lock()
+    assert isinstance(lock, _ProfiledLock), "Locks created from re-imported threading should be profiled"
+
+    collector.stop()
 
 
+# Run in a subprocess: pops threading from sys.modules to simulate gevent's
+# cleanup_loaded_modules(), which would corrupt ModuleWatchdog state in-process.
+@pytest.mark.subprocess()
 def test_lock_unpatch_after_module_reimport():
     """Test that stop/unpatch works correctly after module has been swapped."""
     import importlib
+    import sys
+    import threading
+
+    from ddtrace.profiling.collector._lock import LockAllocatorWrapper
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
     collector = ThreadingLockCollector()
     collector.start()
     assert isinstance(threading.Lock, LockAllocatorWrapper)
 
     # Simulate module swap
-    old_threading = sys.modules.pop("threading")
-    try:
-        new_threading = importlib.import_module("threading")
-        assert isinstance(new_threading.Lock, LockAllocatorWrapper)
+    sys.modules.pop("threading")
+    new_threading = importlib.import_module("threading")
+    assert isinstance(new_threading.Lock, LockAllocatorWrapper)
 
-        # Stop should unpatch the current (new) module
-        collector.stop()
-        assert not isinstance(new_threading.Lock, LockAllocatorWrapper), (
-            "After stop, the new threading module should be unpatched"
-        )
-    finally:
-        sys.modules["threading"] = old_threading
+    # Stop should unpatch the current (new) module
+    collector.stop()
+    assert not isinstance(new_threading.Lock, LockAllocatorWrapper), (
+        "After stop, the new threading module should be unpatched"
+    )
 
 
 @pytest.mark.parametrize(

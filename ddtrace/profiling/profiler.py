@@ -347,10 +347,7 @@ class _ProfilerInstance(service.Service):
         # Prevent doing more initialisation now that we are shutting down.
         if self._collectors_on_import:
             for module, hook in self._collectors_on_import:
-                try:
-                    ModuleWatchdog.unregister_module_hook(module, hook)
-                except (ValueError, Exception):
-                    pass
+                ModuleWatchdog.unregister_module_hook(module, hook)
             self._collectors_on_import = None
 
         if self._scheduler is not None:
