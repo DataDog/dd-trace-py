@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 
 from .collector import ValueCollector
@@ -98,17 +100,19 @@ class MemallocRuntimeMetricCollector(RuntimeMetricCollector):
     Reports the live heap tracked by ddtrace's memory profiler (sampled OBJ-domain
     allocations today; expands as more domains are added). Returns nothing when the
     memory profiler is not started, so runtime metrics work independently of profiling.
-
-    If _memalloc cannot be imported (unsupported platform or build without native
-    extensions), ValueCollector._load_modules() catches the ImportError and sets
-    self.enabled=False, so collect() returns [] without calling collect_fn.
     """
 
-    required_modules = ["ddtrace.profiling.collector._memalloc"]
+    # If _memalloc cannot be imported ValueCollector._load_modules (base class)
+    # catches the ImportError and sets self.enabled=False, so collect() returns [] immediately.
+    required_modules: list[str] = ["ddtrace.profiling.collector._memalloc"]
 
-    def collect_fn(self, keys: set) -> list:
-        _memalloc = self.modules.get("ddtrace.profiling.collector._memalloc")
-        live_bytes = _memalloc.heap_live_bytes()
-        if live_bytes is None:
-            return []
-        return [(MEM_HEAP, live_bytes)]
+    def collect_fn(self, keys: set[str]) -> list[tuple[str, int]]:  # pyright: ignore[reportUnusedParameter]
+        import types
+        from typing import cast
+
+        _memalloc: types.ModuleType = cast(
+            types.ModuleType, (self.modules or {}).get("ddtrace.profiling.collector._memalloc")
+        )
+        live_bytes: int | None = _memalloc.heap_live_bytes()
+
+        return [(MEM_HEAP, live_bytes)] if live_bytes is not None else []

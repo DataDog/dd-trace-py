@@ -86,7 +86,7 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
 class TestMemallocRuntimeMetricCollector(BaseTestCase):
     _MODULE_PATH = "ddtrace.profiling.collector._memalloc"
 
-    def _make_collector(self, heap_live_bytes: int = 0) -> MemallocRuntimeMetricCollector:
+    def _make_collector(self, heap_live_bytes: "int | None" = 50 * 1024 * 1024) -> MemallocRuntimeMetricCollector:
         """Construct a MemallocRuntimeMetricCollector with a mocked _memalloc module."""
         mock_memalloc = mock.Mock()
         mock_memalloc.heap_live_bytes.return_value = heap_live_bytes
