@@ -2,3 +2,29 @@
 # This pipeline is meant to be used by the Integration Portal only.
 #
 # Triggered automatically when VERSION_SUPPORT_SPEC_JSON  is set.
+
+version_support_generate:
+  extends: .testrunner
+  stage: tests
+  needs: []
+  rules:
+    - if: $VERSION_SUPPORT_SPEC_JSON
+  script:
+    - PYTHONPATH=scripts scripts/uv-run-script scripts/version_support/gen_pipeline.py
+  artifacts:
+    paths:
+      - version-support-pipeline.yml
+      - version_support_riotfile.py
+
+version_support:
+  stage: tests
+  needs:
+    - job: version_support_generate
+      artifacts: true
+  rules:
+    - if: $VERSION_SUPPORT_SPEC_JSON
+  trigger:
+    include:
+      - artifact: version-support-pipeline.yml
+        job: version_support_generate
+    strategy: depend
