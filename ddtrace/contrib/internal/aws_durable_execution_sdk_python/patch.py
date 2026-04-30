@@ -13,6 +13,9 @@ from aws_durable_execution_sdk_python.lambda_service import OperationSubType
 from aws_durable_execution_sdk_python.operation.base import OperationExecutor
 from aws_durable_execution_sdk_python.operation.step import StepOperationExecutor
 
+from ddtrace.contrib.internal.aws_durable_execution_sdk_python.trace_checkpoint import (
+    maybe_save_trace_context_checkpoint,
+)
 from ddtrace.contrib._events.aws_durable import AwsDurableExecuteEvent
 from ddtrace.contrib._events.aws_durable import AwsDurableInvokeEvent
 from ddtrace.contrib._events.aws_durable import AwsDurableOperationEvent
@@ -115,6 +118,10 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
                 return user_func(*inner_args, **inner_kwargs)
             except SuspendExecution:
                 ctx.event.suspended = True
+                # Workflow is pausing; another invocation will resume it. This
+                # is the only branch where it's worth persisting trace context.
+                if ctx.span is not None:
+                    maybe_save_trace_context_checkpoint(durable_context, ctx.span)
                 ctx.dispatch_ended_event()
                 raise
 
