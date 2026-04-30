@@ -13,17 +13,17 @@
       "_dd.p.tid": "69e6440500000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.openai_agents",
       "language": "python",
-      "runtime-id": "e799c741d7964a95a505de6ad4017dc5"
+      "runtime-id": "4c7a3a33068a418293b3a5b0c3c73d51"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 431.0
+      "process_id": 605.0
     },
-    "duration": 12949917,
-    "start": 1776698373980434097
+    "duration": 21739541,
+    "start": 1776886039667057139
   },
      {
        "name": "Addition Agent",
@@ -37,8 +37,8 @@
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 12808583,
-       "start": 1776698373980554097
+       "duration": 21584042,
+       "start": 1776886039667187930
      },
         {
           "name": "openai_agents.response",
@@ -52,8 +52,8 @@
           "metrics": {
             "_dd.measured": 1.0
           },
-          "duration": 8602584,
-          "start": 1776698373980795930
+          "duration": 9797000,
+          "start": 1776886039667862930
         },
         {
           "name": "add",
@@ -67,8 +67,8 @@
           "metrics": {
             "_dd.measured": 1.0
           },
-          "duration": 244083,
-          "start": 1776698373989559597
+          "duration": 280583,
+          "start": 1776886039677879347
         },
         {
           "name": "openai_agents.response",
@@ -82,6 +82,6 @@
           "metrics": {
             "_dd.measured": 1.0
           },
-          "duration": 3281042,
-          "start": 1776698373989951555
+          "duration": 10114916,
+          "start": 1776886039678478264
         }]]

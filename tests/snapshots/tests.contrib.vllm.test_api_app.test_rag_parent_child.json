@@ -36,6 +36,9 @@
        "type": "llm",
        "error": 0,
        "meta": {
+         "_dd.llmobs.model_name": "intfloat/e5-small-v2",
+         "_dd.llmobs.model_provider": "vllm",
+         "_dd.llmobs.span_kind": "llm",
          "_dd.p.llmobs_ml_app": "<ml-app-name>",
          "_dd.p.llmobs_parent_id": "undefined",
          "_dd.p.llmobs_trace_id": "139852622014638841213851944042997448706",
@@ -45,6 +48,7 @@
          "vllm.request.provider": "vllm"
        },
        "metrics": {
+         "_dd.llmobs.enabled": 0,
          "_dd.measured": 1.0,
          "_dd.top_level": 1.0,
          "process_id": 573.0,
@@ -66,6 +70,9 @@
        "type": "llm",
        "error": 0,
        "meta": {
+         "_dd.llmobs.model_name": "intfloat/e5-small-v2",
+         "_dd.llmobs.model_provider": "vllm",
+         "_dd.llmobs.span_kind": "llm",
          "_dd.p.llmobs_ml_app": "<ml-app-name>",
          "_dd.p.llmobs_parent_id": "undefined",
          "_dd.p.llmobs_trace_id": "139852622093867003732216588897463149330",
@@ -75,6 +82,7 @@
          "vllm.request.provider": "vllm"
        },
        "metrics": {
+         "_dd.llmobs.enabled": 0,
          "_dd.measured": 1.0,
          "_dd.top_level": 1.0,
          "process_id": 573.0,
@@ -96,6 +104,9 @@
        "type": "llm",
        "error": 0,
        "meta": {
+         "_dd.llmobs.model_name": "intfloat/e5-small-v2",
+         "_dd.llmobs.model_provider": "vllm",
+         "_dd.llmobs.span_kind": "llm",
          "_dd.p.llmobs_ml_app": "<ml-app-name>",
          "_dd.p.llmobs_parent_id": "undefined",
          "_dd.p.llmobs_trace_id": "139852622093867003721424398273548191883",
@@ -105,6 +116,7 @@
          "vllm.request.provider": "vllm"
        },
        "metrics": {
+         "_dd.llmobs.enabled": 0,
          "_dd.measured": 1.0,
          "_dd.top_level": 1.0,
          "process_id": 573.0,
@@ -126,6 +138,9 @@
        "type": "llm",
        "error": 0,
        "meta": {
+         "_dd.llmobs.model_name": "facebook/opt-125m",
+         "_dd.llmobs.model_provider": "vllm",
+         "_dd.llmobs.span_kind": "llm",
          "_dd.p.llmobs_ml_app": "<ml-app-name>",
          "_dd.p.llmobs_parent_id": "undefined",
          "_dd.p.llmobs_trace_id": "139852622569235978801466275868881827569",
@@ -135,6 +150,7 @@
          "vllm.request.provider": "vllm"
        },
        "metrics": {
+         "_dd.llmobs.enabled": 0,
          "_dd.measured": 1.0,
          "_dd.top_level": 1.0,
          "process_id": 573.0,

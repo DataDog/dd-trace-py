@@ -1,0 +1,46 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "tests.contrib.openai",
+    "resource": "parseResponse",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.llmobs.model_name": "gpt-4o-2024-08-06",
+      "_dd.llmobs.model_provider": "openai",
+      "_dd.llmobs.span_kind": "llm",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69de55a900000000",
+      "_dd.svc_src": "tests.contrib.openai",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.openai",
+      "component": "openai",
+      "language": "python",
+      "openai.organization.name": "datadog-4",
+      "openai.request.endpoint": "/v1/responses",
+      "openai.request.method": "POST",
+      "openai.request.model": "gpt-4o-2024-08-06",
+      "openai.request.provider": "OpenAI",
+      "openai.response.model": "gpt-4o-2024-08-06",
+      "runtime-id": "59e87a92d11b4fb79e31606d290b1ab0"
+    },
+    "metrics": {
+      "_dd.llmobs.enabled": 0,
+      "_dd.llmobs.input_tokens": 113,
+      "_dd.llmobs.output_tokens": 99,
+      "_dd.llmobs.total_tokens": 212,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "openai.organization.ratelimit.requests.limit": 10000.0,
+      "openai.organization.ratelimit.requests.remaining": 9999.0,
+      "openai.organization.ratelimit.tokens.limit": 30000000.0,
+      "openai.organization.ratelimit.tokens.remaining": 29999868.0,
+      "process_id": 94238.0
+    },
+    "duration": 37302792,
+    "start": 1776178601592941292
+  }]]

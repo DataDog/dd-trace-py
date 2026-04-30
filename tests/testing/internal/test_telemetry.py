@@ -363,6 +363,22 @@ class TestTelemetry:
             call(CIVISIBILITY, "git.command_ms", 1200, (("command", "get_repository"),))
         ]
 
+    def test_record_git_missing(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
+        telemetry_api.record_git_missing()
+
+        assert mock_writer.add_count_metric.call_args_list == [
+            call(
+                CIVISIBILITY,
+                "git.command_errors",
+                1,
+                (
+                    ("command", "check_git"),
+                    ("exit_code", "missing"),
+                ),
+            ),
+        ]
+        assert mock_writer.add_distribution_metric.call_args_list == []
+
     def test_record_event_payload_ok(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         telemetry_api.record_event_payload(
             endpoint="test_cycle",

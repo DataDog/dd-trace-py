@@ -9,6 +9,9 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "gpt-4o-2024-08-06",
+      "_dd.llmobs.model_provider": "openai",
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69de55a900000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.openai",
@@ -23,6 +26,10 @@
       "runtime-id": "59e87a92d11b4fb79e31606d290b1ab0"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0,
+      "_dd.llmobs.input_tokens": 113,
+      "_dd.llmobs.output_tokens": 99,
+      "_dd.llmobs.total_tokens": 212,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,

@@ -13,17 +13,17 @@
       "_dd.p.tid": "69e6440500000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.openai_agents",
       "language": "python",
-      "runtime-id": "e799c741d7964a95a505de6ad4017dc5"
+      "runtime-id": "4c7a3a33068a418293b3a5b0c3c73d51"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 431.0
+      "process_id": 605.0
     },
-    "duration": 280527958,
-    "start": 1776698373522498097
+    "duration": 27000125,
+    "start": 1776886039569557722
   },
      {
        "name": "Simple Agent",
@@ -37,8 +37,8 @@
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 279843916,
-       "start": 1776698373523144597
+       "duration": 26626375,
+       "start": 1776886039569887680
      },
         {
           "name": "openai_agents.response",
@@ -52,6 +52,6 @@
           "metrics": {
             "_dd.measured": 1.0
           },
-          "duration": 275503333,
-          "start": 1776698373527176930
+          "duration": 21055917,
+          "start": 1776886039575077847
         }]]

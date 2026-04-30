@@ -9,22 +9,26 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "gpt-3.5-turbo",
+      "_dd.llmobs.model_provider": "openai",
+      "_dd.llmobs.span_kind": "workflow",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69e6434a00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.litellm",
       "language": "python",
       "litellm.request.model": "gpt-3.5-turbo",
-      "runtime-id": "0e2ca00e352c4145b2b58b06232000e0"
+      "runtime-id": "7024d668ba8e4d1c81c4b099ef79ab71"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 437.0
+      "process_id": 605.0
     },
-    "duration": 44231000,
-    "start": 1776698186335775677
+    "duration": 26994291,
+    "start": 1776885882124297177
   },
      {
        "name": "litellm.request",
@@ -39,8 +43,12 @@
          "litellm.request.model": "gpt-3.5-turbo"
        },
        "metrics": {
+         "_dd.llmobs.enabled": 0.0,
+         "_dd.llmobs.input_tokens": 13.0,
+         "_dd.llmobs.output_tokens": 20.0,
+         "_dd.llmobs.total_tokens": 33.0,
          "_dd.measured": 1.0
        },
-       "duration": 43478250,
-       "start": 1776698186336500510
+       "duration": 25915042,
+       "start": 1776885882125332093
      }]]
