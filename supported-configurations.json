@@ -26,7 +26,7 @@
       {
         "implementation": "A",
         "type": "int",
-        "default": null
+        "default": "0"
       }
     ],
     "DD_AIOBOTOCORE_SERVICE": [
@@ -271,14 +271,14 @@
       {
         "implementation": "A",
         "type": "decimal",
-        "default": null
+        "default": "0.1"
       }
     ],
     "DD_API_SECURITY_SAMPLE_DELAY": [
       {
         "implementation": "A",
         "type": "decimal",
-        "default": "30.0"
+        "default": "30"
       }
     ],
     "DD_APM_FLUSH_DEADLINE_MILLISECONDS": [
@@ -325,7 +325,7 @@
     ],
     "DD_APPSEC_ENABLED": [
       {
-        "implementation": "C",
+        "implementation": "A",
         "type": "boolean",
         "default": "false"
       }
@@ -416,7 +416,7 @@
     ],
     "DD_APPSEC_WAF_TIMEOUT": [
       {
-        "implementation": "A",
+        "implementation": "F",
         "type": "decimal",
         "default": null
       }
@@ -838,7 +838,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": ""
+        "default": null
       }
     ],
     "DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER": [
@@ -850,7 +850,7 @@
     ],
     "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
         "default": "false"
       }
@@ -864,7 +864,7 @@
     ],
     "DD_CIVISIBILITY_ENABLED": [
       {
-        "implementation": "B",
+        "implementation": "C",
         "type": "boolean",
         "default": "true"
       }
@@ -1469,7 +1469,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "http://localhost:8125"
       }
     ],
     "DD_DOWNLOAD_INITIAL_DELAY": [
@@ -1523,14 +1523,14 @@
     ],
     "DD_DYNAMIC_INSTRUMENTATION_MAX_PAYLOAD_SIZE": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "int",
         "default": "1048576"
       }
     ],
     "DD_DYNAMIC_INSTRUMENTATION_METRICS_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
         "default": "true"
       }
@@ -1609,7 +1609,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": ""
+        "default": null
       }
     ],
     "DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE": [
@@ -1621,7 +1621,7 @@
     ],
     "DD_EXCEPTION_REPLAY_CAPTURE_MAX_FRAMES": [
       {
-        "implementation": "A",
+        "implementation": "D",
         "type": "int",
         "default": "8"
       }
@@ -2125,7 +2125,7 @@
     ],
     "DD_IAST_MAX_RANGE_COUNT": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "int",
         "default": "30"
       }
@@ -2153,7 +2153,7 @@
     ],
     "DD_IAST_REDACTION_NAME_PATTERN": [
       {
-        "implementation": "A",
+        "implementation": "D",
         "type": "string",
         "default": "(?i)^.*(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|password|token|username|user_id|last.name|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)"
       }
@@ -2167,23 +2167,23 @@
     ],
     "DD_IAST_REDACTION_VALUE_PATTERN": [
       {
-        "implementation": "A",
+        "implementation": "G",
         "type": "string",
         "default": "(?i)bearer\\s+[a-z0-9\\._\\-]+|token:[a-z0-9]{13}|password|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\\w=-]+\\.ey[I-L][\\w=-]+(\\.[\\w.+\\/=-]+)?|[\\-]{5}BEGIN[a-z\\s]+PRIVATE\\sKEY[\\-]{5}[^\\-]+[\\-]{5}END[a-z\\s]+PRIVATE\\sKEY|ssh-rsa\\s*[a-z0-9\\/\\.+]{100,}"
       }
     ],
     "DD_IAST_REQUEST_SAMPLING": [
       {
-        "implementation": "B",
+        "implementation": "C",
         "type": "decimal",
         "default": "30.0"
       }
     ],
     "DD_IAST_SECURITY_CONTROLS_CONFIGURATION": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "string",
-        "default": ""
+        "default": null
       }
     ],
     "DD_IAST_SINK_POINTS_ENABLED": [
@@ -2230,7 +2230,7 @@
     ],
     "DD_IAST_WEAK_HASH_ALGORITHMS": [
       {
-        "implementation": "A",
+        "implementation": "E",
         "type": "array",
         "default": "md5,sha1"
       }
@@ -2321,7 +2321,7 @@
     ],
     "DD_KAFKA_PROPAGATION_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
         "default": null
       }
@@ -2806,7 +2806,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": ""
       }
     ],
     "DD_OPENAI_SERVICE_NAME": [
@@ -2951,7 +2951,7 @@
     ],
     "DD_PROFILING_EXCEPTION_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
         "default": "false"
       }
@@ -3007,7 +3007,7 @@
     ],
     "DD_PROFILING_MAX_FRAMES": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "int",
         "default": "64"
       }
@@ -3065,7 +3065,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": ""
       }
     ],
     "DD_PROFILING_PYTORCH_ENABLED": [
@@ -3462,7 +3462,7 @@
     ],
     "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS": [
       {
-        "implementation": "A",
+        "implementation": "C",
         "type": "decimal",
         "default": "5.0",
         "aliases": [
@@ -3825,7 +3825,7 @@
     ],
     "DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "decimal",
         "default": "86400.0"
       }
@@ -3862,7 +3862,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TELEMETRY_PORT": [
@@ -3916,7 +3916,7 @@
     ],
     "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES": [
       {
-        "implementation": "B",
+        "implementation": "C",
         "type": "boolean",
         "default": "false"
       }
@@ -3946,14 +3946,14 @@
       {
         "implementation": "A",
         "type": "array",
-        "default": ""
+        "default": "[]"
       }
     ],
     "DD_THIRD_PARTY_DETECTION_INCLUDES": [
       {
         "implementation": "A",
         "type": "array",
-        "default": ""
+        "default": "[]"
       }
     ],
     "DD_TORNADO_DISTRIBUTED_TRACING": [
@@ -3986,7 +3986,7 @@
     ],
     "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
         "default": "false"
       }
@@ -4009,19 +4009,19 @@
       {
         "implementation": "A",
         "type": "int",
-        "default": null
+        "default": "8126"
       }
     ],
     "DD_TRACE_AGENT_PROTOCOL_VERSION": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "0.4"
       }
     ],
     "DD_TRACE_AGENT_TIMEOUT_SECONDS": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "decimal",
         "default": "2.0"
       }
@@ -4140,7 +4140,7 @@
     ],
     "DD_TRACE_AWS_LAMBDA_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
         "default": "true"
       }
@@ -4154,7 +4154,7 @@
     ],
     "DD_TRACE_AZURE_DURABLE_FUNCTIONS_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
         "default": "true"
       }
@@ -4198,7 +4198,7 @@
       {
         "implementation": "A",
         "type": "array",
-        "default": "user.id,account.id,session.id"
+        "default": "user.id, session.id, account.id"
       }
     ],
     "DD_TRACE_BOTOCORE_ENABLED": [
@@ -4273,7 +4273,7 @@
     ],
     "DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES": [
       {
-        "implementation": "A",
+        "implementation": "C",
         "type": "string",
         "default": "s3,sns,sqs,kinesis,eventbridge,dynamodb"
       }
@@ -4384,14 +4384,14 @@
     ],
     "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "decimal",
         "default": "120.0"
       }
     ],
     "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "decimal",
         "default": "10.0"
       }
@@ -4443,7 +4443,7 @@
     ],
     "DD_TRACE_GENAI_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
         "default": null
       }
@@ -4494,7 +4494,7 @@
       {
         "implementation": "A",
         "type": "array",
-        "default": null
+        "default": ""
       }
     ],
     "DD_TRACE_GRAPHQL_RESOLVERS_ENABLED": [
@@ -4522,7 +4522,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_GRPC_ENABLED": [
@@ -4536,7 +4536,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_TRACE_HEADER_TAGS": [
@@ -4660,7 +4660,7 @@
     ],
     "DD_TRACE_LOGGING_RATE": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "int",
         "default": "60"
       }
@@ -4683,7 +4683,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": ""
       }
     ],
     "DD_TRACE_LOG_FILE_LEVEL": [
@@ -4904,7 +4904,7 @@
     ],
     "DD_TRACE_PROTOBUF_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
         "default": "false"
       }
