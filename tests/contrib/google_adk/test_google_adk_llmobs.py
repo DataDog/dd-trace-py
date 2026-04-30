@@ -41,7 +41,7 @@ class TestLLMObsGoogleADK:
     @pytest.mark.asyncio
     async def test_agent_run1(self, test_runner, request_vcr, test_spans):
         """Test that a simple agent run creates a valid LLMObs span event."""
-        error = mock.ANY
+        error = None
         with request_vcr.use_cassette("agent_run_async.yaml"):
             message = create_test_message("Say hello")
             try:
@@ -106,7 +106,7 @@ class TestLLMObsGoogleADK:
     @pytest.mark.asyncio
     async def test_agent_run_with_tools(self, test_runner, request_vcr, test_spans):
         """Test that an agent run with tool usage creates a valid LLMObs span event."""
-        error = mock.ANY
+        error = None
         with request_vcr.use_cassette("agent_tool_usage.yaml"):
             message = create_test_message("Can you search for information about recurring revenue?")
             try:
