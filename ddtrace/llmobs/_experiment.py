@@ -3171,7 +3171,7 @@ class SyncExperiment:
         return result
 
     def as_dataframe(self) -> "pd.DataFrame":
-        """Return all runs stacked into a single MultiIndex DataFrame.
+        r"""Return all runs stacked into a single MultiIndex DataFrame.
 
         Rows from every run in ``self.result["runs"]`` are concatenated in
         run-iteration order. Two extra top-level column groups are prepended:
@@ -3185,7 +3185,7 @@ class SyncExperiment:
 
             df = experiment.as_dataframe()
             run1 = df[df[("run_iteration", "")] == 1]
-            df.groupby(("run_iteration", ""))[(\"evaluations\", \"exact_match\")].apply(...)
+            df.groupby(("run_iteration", ""))[("evaluations", "exact_match")].apply(...)
 
         :raises ValueError: if ``self.result`` is ``None`` (experiment not yet run or pulled).
         :raises ImportError: if ``pandas`` is not installed.

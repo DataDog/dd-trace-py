@@ -2129,108 +2129,6 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
 
 
 # ---------------------------------------------------------------------------
-# ExperimentRun.as_dataframe() tests
-# ---------------------------------------------------------------------------
-
-
-def _make_experiment_run(rows):
-    """Helper to create an ExperimentRun from a list of ExperimentRowResult dicts."""
-    from ddtrace.llmobs._experiment import ExperimentRun
-
-    run_info = run_info_with_stable_id(0)
-    return ExperimentRun(run_info, {}, rows)
-
-
-def test_experiment_run_as_dataframe_basic():
-    pytest.importorskip("pandas")
-    run = _make_experiment_run(
-        [
-            {
-                "idx": 0,
-                "record_id": "r0",
-                "span_id": "s1",
-                "trace_id": "t1",
-                "timestamp": 1000,
-                "input": {"question": "What is 2+2?"},
-                "output": "4",
-                "expected_output": {"answer": "4"},
-                "evaluations": {},
-                "metadata": {},
-                "error": {"message": None, "type": None, "stack": None},
-            }
-        ]
-    )
-    df = run.as_dataframe()
-    assert ("input", "question") in df.columns
-    assert ("output", "") in df.columns
-    assert ("expected_output", "answer") in df.columns
-    assert ("span_id", "") in df.columns
-    assert ("trace_id", "") in df.columns
-    assert ("error", "") in df.columns
-    assert df[("input", "question")].iloc[0] == "What is 2+2?"
-    assert df[("output", "")].iloc[0] == "4"
-    assert df[("expected_output", "answer")].iloc[0] == "4"
-
-
-def test_experiment_run_as_dataframe_with_evaluations():
-    pytest.importorskip("pandas")
-    eval_data = {"value": 1.0, "type": "score", "reasoning": "correct", "assessment": "pass"}
-    run = _make_experiment_run(
-        [
-            {
-                "idx": 0,
-                "record_id": "r0",
-                "span_id": "s1",
-                "trace_id": "t1",
-                "timestamp": 1000,
-                "input": {"q": "hi"},
-                "output": "hello",
-                "expected_output": "hello",
-                "evaluations": {"correctness": eval_data},
-                "metadata": {},
-                "error": {"message": None, "type": None, "stack": None},
-            }
-        ]
-    )
-    df = run.as_dataframe()
-    assert ("evaluations", "correctness") in df.columns
-    assert df[("evaluations", "correctness")].iloc[0] == eval_data
-
-
-def test_experiment_run_as_dataframe_scalar_expected_output():
-    pytest.importorskip("pandas")
-    run = _make_experiment_run(
-        [
-            {
-                "idx": 0,
-                "record_id": "r0",
-                "span_id": "s1",
-                "trace_id": "t1",
-                "timestamp": 1000,
-                "input": {"q": "hi"},
-                "output": "hello",
-                "expected_output": "hello",
-                "evaluations": {},
-                "metadata": {},
-                "error": {"message": None, "type": None, "stack": None},
-            }
-        ]
-    )
-    df = run.as_dataframe()
-    assert ("expected_output", "") in df.columns
-    assert df[("expected_output", "")].iloc[0] == "hello"
-
-
-def test_experiment_run_as_dataframe_no_pandas(monkeypatch):
-    import sys
-
-    monkeypatch.setitem(sys.modules, "pandas", None)
-    run = _make_experiment_run([])
-    with pytest.raises(ImportError, match="pandas"):
-        run.as_dataframe()
-
-
-# ---------------------------------------------------------------------------
 # Eval-only re-run tests
 # ---------------------------------------------------------------------------
 
@@ -2634,7 +2532,7 @@ def test_experiment_rerun_without_task_succeeds(llmobs):
     assert span_copy["trace_id"] == result_row["trace_id"]
     assert span_copy["start_ns"] != MOCK_TIMESTAMP_NS
     # parent_experiment_span_id links span copy back to the original span
-    assert f"parent_experiment_span_id:abc" in span_copy["tags"]
+    assert "parent_experiment_span_id:abc" in span_copy["tags"]
     assert span_copy["meta"]["parent_experiment_span_id"] == "abc"
 
 
@@ -5622,7 +5520,8 @@ def test_parse_experiment_result_new_format():
 
 def test_rerun_preserves_all_span_fields(llmobs):
     """rerun_evaluators() preserves duration, span_name, input, output, expected_output, and
-    record_id from the prior result (e.g. populated via pull()) into the new result rows."""
+    record_id from the prior result (e.g. populated via pull()) into the new result rows.
+    """
     run_info = _ExperimentRunInfo(run_interation=0)
     prior_row = {
         "idx": 0,

@@ -911,7 +911,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         ``experiment_name`` for name-based resolution (returns latest run).
 
         Response shape (JSON:API):
-        ``{"data": {"id": "<uuid>", "type": "experiment_events", "attributes": {"spans": [...], "summary_metrics": []}}}``
+        ``{"data": {"id": "<uuid>", "type": "experiment_events",``
+        ``"attributes": {"spans": [...], "summary_metrics": []}}}``
 
         Each span has ``span_id``, ``trace_id``, ``name``, ``start_ns`` (nanoseconds),
         ``duration`` (nanoseconds), ``tags``, ``meta`` (with ``input``, ``output``,
