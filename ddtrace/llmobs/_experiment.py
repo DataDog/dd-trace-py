@@ -1876,7 +1876,7 @@ class Experiment:
     or ``LLMObs.experiment()`` to get a ``SyncExperiment`` wrapper (for sync callers).
     """
 
-    _task: Union[TaskType, AsyncTaskType]
+    _task: Optional[Union[TaskType, AsyncTaskType]]
     _evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]]
     _summary_evaluators: Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]
 
@@ -1955,6 +1955,7 @@ class Experiment:
         evaluations: list[EvaluationResult],
         summary_evaluations: Optional[list[EvaluationResult]],
     ) -> ExperimentRun:
+        assert self._dataset is not None
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
@@ -2132,6 +2133,7 @@ class Experiment:
 
     def _get_subset_dataset(self, sample_size: Optional[int]) -> Dataset:
         """Get dataset containing the first sample_size records of the original dataset."""
+        assert self._dataset is not None
         if sample_size is not None and sample_size < len(self._dataset):
             subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
             subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
@@ -2191,6 +2193,7 @@ class Experiment:
         list[dict[str, Any]],
         dict[str, list[JSONType]],
     ]:
+        assert self._dataset is not None
         inputs: list[JSONType] = []
         outputs: list[JSONType] = []
         expected_outputs: list[JSONType] = []
@@ -2229,6 +2232,7 @@ class Experiment:
         self._project_id = project.get("_id", "")
         self._tags["project_id"] = self._project_id
 
+        assert self._dataset is not None
         (
             experiment_id,
             experiment_run_name,
@@ -2281,10 +2285,7 @@ class Experiment:
 
         dataset_version = (self._dataset._version if self._dataset is not None else None) or self._dataset_version or 0
 
-        evaluator_names = [
-            e.name if hasattr(e, "name") else getattr(e, "__name__", str(e))  # type: ignore[union-attr]
-            for e in evaluators
-        ]
+        evaluator_names = [e.name if hasattr(e, "name") else getattr(e, "__name__", str(e)) for e in evaluators]
         new_name = f"{self.name}-rerun-{int(time.time() * 1000)}"
 
         experiment_id, _ = self._llmobs_instance._dne_client.experiment_create(
@@ -2454,6 +2455,8 @@ class Experiment:
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> Optional[TaskResult]:
         """Process single record asynchronously."""
+        assert self._task is not None
+        assert self._dataset is not None
         asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
@@ -2538,7 +2541,7 @@ class Experiment:
                 "span_id": span_id,
                 "trace_id": trace_id,
                 "timestamp": span.start_ns,
-                "duration": span.duration_ns,
+                "duration": span.duration_ns or 0,
                 "span_name": self._task.__name__,
                 "output": output_data,
                 "metadata": {
@@ -2740,6 +2743,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
+        assert self._dataset is not None
         asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
         coros = [
@@ -3094,7 +3098,6 @@ class SyncExperiment:
             summary_evaluators=summary_evaluators,
             runs=runs,
         )
-        self.result: Optional[ExperimentResult] = None
 
     @classmethod
     def _for_rerun(
@@ -3401,8 +3404,7 @@ class SyncExperiment:
         def _default_retry_delay(attempt: int) -> float:
             return 0.1 * (attempt + 1)
 
-        if retry_delay is None:
-            retry_delay = _default_retry_delay
+        resolved_retry_delay: Callable[[int], float] = retry_delay if retry_delay is not None else _default_retry_delay
 
         if not self._experiment._llmobs_instance or not self._experiment._llmobs_instance.enabled:
             raise ValueError(
@@ -3422,7 +3424,7 @@ class SyncExperiment:
             all_rows = (rows_to_eval or []) + (rows_to_retry or [])
             for row in all_rows:
                 fallback_records[row["idx"]] = {
-                    "record_id": row.get("record_id"),
+                    "record_id": row.get("record_id") or "",
                     "canonical_id": None,
                     "input_data": cast(dict, row.get("input") or {}),
                     "expected_output": row.get("expected_output"),
@@ -3488,7 +3490,7 @@ class SyncExperiment:
                             run,
                             semaphore,
                             max_retries=max_retries,
-                            retry_delay=retry_delay,
+                            retry_delay=resolved_retry_delay,
                         )
                         for row in rows_to_retry
                     ]
@@ -3512,7 +3514,7 @@ class SyncExperiment:
                         semaphore,
                         raise_errors,
                         max_retries,
-                        retry_delay,
+                        resolved_retry_delay,
                         _override_evaluators=evaluators,
                     )
                     for task_result in task_results

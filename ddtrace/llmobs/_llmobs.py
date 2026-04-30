@@ -1512,6 +1512,7 @@ class LLMObs(Service):
             raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`")
         experiment = cls._instance._dne_client.experiment_get(experiment_id)
         experiment._llmobs_instance = cls._instance
+        assert experiment._dataset is not None
         experiment._dataset._records = dataset_records
         experiment._task = task
         experiment._evaluators = evaluators
