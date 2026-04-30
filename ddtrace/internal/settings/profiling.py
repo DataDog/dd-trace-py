@@ -366,11 +366,46 @@ class ProfilingConfigLock(DDConfig):
         frozenset,
         "exclude_modules",
         parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
-        default=frozenset(),
+        default=frozenset(
+            {
+                # Datadog internals
+                "ddtrace",
+                "ddsketch",
+                "datadog",
+                "envier",
+                "bytecode",
+                "wrapt",
+                # HTTP/network infrastructure
+                "urllib3",
+                "requests",
+                "httpcore",
+                "httpx",
+                "aiohttp",
+                "h11",
+                "anyio",
+                # Web servers / ASGI
+                "uvicorn",
+                "gunicorn",
+                "starlette",
+                "werkzeug",
+                # Async web frameworks (high lock churn from middleware / model validation)
+                "fastapi",
+                "pydantic",
+                # Stdlib high-frequency lock creators
+                "asyncio",
+                "concurrent",
+                "queue",
+                "threading",
+                "logging",
+                "http",
+            }
+        ),
         help_type="String",
         help=(
             "Comma-separated list of module or package names to exclude from lock profiling. "
-            "Locks created from these modules are not profiled."
+            "Locks created from these modules are not profiled. Setting this environment variable "
+            "REPLACES the in-tree default rather than appending to it; users who only need to add "
+            "an entry should reproduce the full default list and append to it. "
             "Examples: ``ddtrace`` (excludes profiler overhead), ``django.db,sqlalchemy.pool,urllib3``"
         ),
     )
@@ -379,16 +414,23 @@ class ProfilingConfigLock(DDConfig):
         frozenset,
         "primitives",
         parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
-        # Deliberately conservative default. After new lock types were added in
-        # v3.5.x, customers with heavy async workloads (many Condition/Semaphore
-        # acquisitions) saw significant latency regressions (SCP-1121). We default
-        # to the original core primitives plus RLock, and let users opt in to
-        # broader coverage via this config.
-        default=frozenset({"threading.Lock", "threading.RLock", "asyncio.Lock"}),
+        default=frozenset(
+            {
+                "threading.Lock",
+                "threading.RLock",
+                "threading.Semaphore",
+                "threading.BoundedSemaphore",
+                "threading.Condition",
+                "asyncio.Lock",
+                "asyncio.Semaphore",
+                "asyncio.BoundedSemaphore",
+                "asyncio.Condition",
+            }
+        ),
         help_type="String",
         help=(
             "Comma-separated list of lock primitive types to profile. "
-            "Default: ``threading.Lock,threading.RLock,asyncio.Lock``. "
+            "Default: all 9 primitives. "
             "Available primitives: ``threading.Lock``, ``threading.RLock``, ``threading.Semaphore``, "
             "``threading.BoundedSemaphore``, ``threading.Condition``, ``asyncio.Lock``, "
             "``asyncio.Semaphore``, ``asyncio.BoundedSemaphore``, ``asyncio.Condition``."
