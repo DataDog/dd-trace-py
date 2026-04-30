@@ -1,7 +1,7 @@
 build_base_venvs:
   extends: .cached_testrunner
-  stage: setup
-  needs: []
+  stage: {stage}
+  needs: {needs}
   parallel:
     matrix:
       - PYTHON_VERSION: [{python_versions}]
@@ -24,7 +24,7 @@ build_base_venvs:
       python scripts/allow_prerelease_dependencies.py
       export PIP_PRE=true
     fi
-    riot -P -v generate --python=$PYTHON_VERSION
+    riot {riotfile_args} -P -v generate --python=$PYTHON_VERSION
     .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test

@@ -21,10 +21,10 @@ from riot import Venv
 from ruamel.yaml import YAML
 
 import riotfile
-from scripts.version_support.gen_riotfile import generate_new_riot_venvs, write_pipeline
+from scripts.version_support.gen_riotfile import generate_new_riot_venvs
+from scripts.version_support.gen_riotfile import write_pipeline
 from scripts.version_support.gen_riotfile import write_version_support_riotfile
-
-from .validate import validate_test_spec
+from scripts.version_support.validate import validate_test_spec
 
 
 def get_suites() -> dict[str, dict]:
@@ -90,7 +90,7 @@ def generate_pipeline():
     base_venvs = get_riot_venvs(target_integrations)
     updated_venvs = generate_new_riot_venvs(test_spec, base_venvs)
     write_version_support_riotfile(updated_venvs)
-    write_pipeline(target_suite_specs)
+    write_pipeline(target_suite_specs, test_spec)
 
 
 if __name__ == "__main__":
