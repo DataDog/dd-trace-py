@@ -394,6 +394,57 @@ detect_circular_imports:
     - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
     - exit $COMPARE_EXIT
 
+import_time_analysis:
+  stage: tests
+  needs:
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp312-cp312"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+  extends: .testrunner
+  timeout: 40m
+  variables:
+    PYTHON_VERSION: "3.12"
+  script:
+    - pip install uv
+    # Work from a separate directory to avoid the local ddtrace/ shadowing the installed package
+    - WORK_DIR=$(mktemp -d)
+    - cp scripts/import-analysis/import_analysis.py "$WORK_DIR/"
+    # Set up a dedicated venv to ensure we use the correct Python version
+    - python${PYTHON_VERSION} -m venv "$WORK_DIR/.venv"
+    - cd "$WORK_DIR"
+    - source .venv/bin/activate
+    - python --version
+    # Install the pre-built PR wheel (avoids compiling native extensions)
+    - PR_WHEEL=$(find "$CI_PROJECT_DIR/pywheels" -name "ddtrace-*-cp312-*-*x86_64*.whl" | head -1)
+    - pip install "$PR_WHEEL"
+    # Run smoke tests and collect samples from WORK_DIR to avoid local ddtrace/ shadowing
+    - python -c "import ddtrace.auto"
+    # We collect 1000 samples so that the Central Limit Theorem guarantees
+    # normality of the sample mean, which makes a simple z-test valid.
+    - for i in $(seq 1 1000); do python -X importtime -c "import ddtrace.auto" 2> "import-pr-$i.txt"; done
+    - pip uninstall -y ddtrace
+    # Download the base wheel from S3 for the PR's base commit
+    - cd "$CI_PROJECT_DIR"
+    - scripts/fetch_base_artifact.sh -o "$CI_PROJECT_DIR/base-artifacts"
+    - BASE_WHEEL=$(find "$CI_PROJECT_DIR/base-artifacts/pywheels" -name "ddtrace-*-cp312-*-*x86_64*.whl" | head -1)
+    - pip install "$BASE_WHEEL"
+    - cd "$WORK_DIR"
+    - python -c "import ddtrace.auto"
+    - for i in $(seq 1 1000); do python -X importtime -c "import ddtrace.auto" 2> "import-base-$i.txt"; done
+    - deactivate
+    - cd "$CI_PROJECT_DIR"
+    - |
+      set +e
+      uv run --script "$WORK_DIR/import_analysis.py" compare --dir "$WORK_DIR" > "$WORK_DIR/import_report.txt"
+      COMPARE_EXIT=$?
+      set -e
+    - cat "$WORK_DIR/import_report.txt"
+    - if [ $COMPARE_EXIT -ne 0 ]; then .gitlab/scripts/post-pr-comment.sh "Import time analysis" "$WORK_DIR/import_report.txt"; fi
+    - exit $COMPARE_EXIT
 
 package-oci:
   needs:

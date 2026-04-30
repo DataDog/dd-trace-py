@@ -1,3 +1,38 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "pyrometry",
+# ]
+# ///
+
+r"""Import time analysis tool.
+
+Typical usage: create a virtual environment (e.g. with riot), activate it,
+and then run something like::
+
+    python -X importtime -c "import ddtrace.auto" 2> imports.txt \\
+      && uv run scripts/import-analysis/import_analysis.py view imports.txt > imports.html
+
+To perform a comparison between two sets of samples (e.g. from a PR and base),
+you first need to collect the data from two different versions (two different
+commits). A standard way would be to run the loop::
+
+    for i in {1..10}; do
+        python -X importtime -c "import ddtrace.auto" 2> "import-pr-$i.txt"
+    done
+
+on the PR commit, and then::
+
+    for i in {1..10}; do
+        python -X importtime -c "import ddtrace.auto" 2> "import-base-$i.txt"
+    done
+
+on the base commit. Then you can run::
+
+    uv run scripts/import-analysis/import_analysis.py compare > import_comparison.md
+"""
+
+import argparse
 from collections import deque
 from dataclasses import dataclass
 from dataclasses import field
@@ -14,6 +49,7 @@ from pyrometry.flamegraph import FlameGraph
 microseconds = int
 
 Z_THRESHOLD = 3.0  # 3 sigma rule
+MIN_EFFECT_PCT = 5.0
 
 
 @dataclass
@@ -134,12 +170,41 @@ class Measure:
 
 
 def z_test(x: Measure, y: Measure) -> float:
-    return (x.mean - y.mean) / ((x.std**2 / x.size + y.std**2 / y.size) ** 0.5)
+    se = (x.std**2 / x.size + y.std**2 / y.size) ** 0.5
+    if se == 0:
+        if x.mean == y.mean:
+            return 0.0
+        return float("inf") if x.mean > y.mean else float("-inf")
+    return (x.mean - y.mean) / se
 
 
-def main() -> None:
-    x = [ImportFlameGraph.load(f) for f in Path.cwd().glob("import-pr-*.txt")]
-    y = [ImportFlameGraph.load(f) for f in Path.cwd().glob("import-base-*.txt")]
+def view(args: argparse.Namespace) -> None:
+    fg = ImportFlameGraph.load(args.file)
+    root = Import.expand(fg.stacks)
+    total = root.cumulative
+
+    print(f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Import Analysis</title></head><body>
+<h1>Import time breakdown</h1>
+<p>Total import time: {total / 1000:.3f} ms</p>
+""")
+
+    for dep in sorted(root.dependencies, key=lambda dep: dep.cumulative, reverse=True):
+        print(dep.html(total))
+
+    print("</body></html>")
+
+
+def compare(args: argparse.Namespace) -> None:
+    x = [ImportFlameGraph.load(f) for f in Path(args.dir).glob(f"{args.pr_prefix}*.txt")]
+    y = [ImportFlameGraph.load(f) for f in Path(args.dir).glob(f"{args.base_prefix}*.txt")]
+
+    if not x:
+        print(f"No PR samples found matching '{args.pr_prefix}*.txt' in {args.dir}", file=sys.stderr)
+        sys.exit(1)
+    if not y:
+        print(f"No base samples found matching '{args.base_prefix}*.txt' in {args.dir}", file=sys.stderr)
+        sys.exit(1)
 
     # PR - base
     graphs: tuple[ImportFlameGraph, ImportFlameGraph, ImportFlameGraph, ImportFlameGraph] = decompose_4way(x, y)
@@ -155,6 +220,8 @@ def main() -> None:
 
     # Assume large sample so that a z-test is appropriate.
     z = z_test(x_measure, y_measure)
+    pct_change = (x_measure.mean - y_measure.mean) / y_measure.mean * 100 if y_measure.mean else 0.0
+    is_regression = z > Z_THRESHOLD and pct_change > MIN_EFFECT_PCT
 
     print("## Bootstrap import analysis")
     print()
@@ -162,11 +229,12 @@ def main() -> None:
     print()
     print("### Summary")
     print()
-    print(f"The average import time from this PR is: {str(x_measure)}.\n")
-    print(f"The average import time from base is: {str(y_measure)}.\n")
-    print(f"The import time difference between this PR and base is: {str(diff_m)}.\n")
-    if abs(z) <= Z_THRESHOLD:
-        print(f"The difference is not statistically significant (z = {z:.2f}).\n")
+    print(f"The average import time from this PR is: {x_measure}.\n")
+    print(f"The average import time from base is: {y_measure}.\n")
+    print(f"The import time difference between this PR and base is: {diff_m}.\n")
+    print(f"z = {z:.2f}, change = {pct_change:+.1f}%\n")
+    if not is_regression:
+        print("The difference is **not** a significant regression.\n")
     print()
     print("### Import time breakdown")
     print()
@@ -182,9 +250,45 @@ def main() -> None:
     else:
         print("No import paths have changed significantly.")
 
-    if z > Z_THRESHOLD:
-        msg = f"Import time has increased significantly (z = {z:.2f})."
+    if is_regression:
+        msg = f"Import time has increased significantly (z = {z:.2f}, {pct_change:+.1f}%)."
         raise ValueError(msg)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Import time analysis tool")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # view subcommand
+    view_parser = subparsers.add_parser("view", help="Generate HTML from a single import data file")
+    view_parser.add_argument("file", type=Path, help="Path to an import data file")
+    view_parser.set_defaults(func=view)
+
+    # compare subcommand
+    compare_parser = subparsers.add_parser(
+        "compare",
+        help="Compare import times between PR and base samples",
+    )
+    compare_parser.add_argument(
+        "--dir",
+        type=Path,
+        default=Path.cwd(),
+        help="Directory containing sample files (default: cwd)",
+    )
+    compare_parser.add_argument(
+        "--pr-prefix",
+        default="import-pr-",
+        help="Filename prefix for PR samples (default: import-pr-)",
+    )
+    compare_parser.add_argument(
+        "--base-prefix",
+        default="import-base-",
+        help="Filename prefix for base samples (default: import-base-)",
+    )
+    compare_parser.set_defaults(func=compare)
+
+    args = parser.parse_args()
+    args.func(args)
 
 
 if __name__ == "__main__":
