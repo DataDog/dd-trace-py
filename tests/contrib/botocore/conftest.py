@@ -7,7 +7,7 @@ from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
 from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
-from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs import LLMObs
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import override_global_config
@@ -35,7 +35,7 @@ def aws_credentials():
 
 
 @pytest.fixture
-def boto3(aws_credentials, llmobs_span_writer, ddtrace_global_config):
+def boto3(aws_credentials, ddtrace_global_config):
     global_config = {"_dd_api_key": "<not-a-real-api_key>"}
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
@@ -90,19 +90,38 @@ def llmobs_span_writer():
 
 
 @pytest.fixture
-def bedrock_llmobs(tracer, llmobs_span_writer):
-    llmobs_service.disable()
-    with override_global_config(
-        {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.llmobs"}
-    ):
-        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-        yield llmobs_service
-    llmobs_service.disable()
+def test_spans(ddtrace_global_config, test_spans, llmobs_span_writer, monkeypatch):
+    try:
+        if ddtrace_global_config.get("_llmobs_enabled", False):
+            # Preserve meta_struct["_llmobs"] on spans so tests can assert against
+            # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it
+            # after enqueueing to LLMObsSpanWriter.
+            monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+            with override_global_config(ddtrace_global_config):
+                # Have to disable and re-enable LLMObs to use the test tracer.
+                LLMObs.disable()
+                LLMObs.enable(_tracer=test_spans.tracer, integrations_enabled=False, agentless_enabled=False)
+                # Replace the real LLMObsSpanWriter with a TestLLMObsSpanWriter so we
+                # don't keep a background flush thread alive trying to ship spans during
+                # the test, and so the bedrock_agents integration's synthetic span
+                # events (no backing APM span) are still observable via ``llmobs_events``.
+                LLMObs._instance._llmobs_span_writer.stop()
+                LLMObs._instance._llmobs_span_writer = llmobs_span_writer
+                yield test_spans
+        else:
+            yield test_spans
+    finally:
+        LLMObs.disable()
 
 
 @pytest.fixture
-def llmobs_events(bedrock_llmobs, llmobs_span_writer):
+def llmobs_events(test_spans, llmobs_span_writer):
+    """Wire-format LLMObsSpanEvents enqueued to the writer.
+
+    Used by ``test_bedrock_agents_llmobs.py`` because the bedrock_agents
+    integration synthesizes span events without backing APM spans (the
+    enqueued events are not derivable from ``meta_struct``).
+    """
     return llmobs_span_writer.events
 
 
