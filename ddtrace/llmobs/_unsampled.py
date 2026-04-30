@@ -3,6 +3,7 @@ from typing import Optional
 
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.span import Span
+from ddtrace.llmobs._constants import DD_LLMOBS_UNSAMPLED_TAG_KEY
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR_UNSAMPLED
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 
@@ -41,14 +42,16 @@ class LLMObsUnsampledStripProcessor(TraceProcessor):
 
 def _strip_llmobs_io(llmobs_data: dict[str, Any]) -> None:
     meta = llmobs_data.get(LLMOBS_STRUCT.META)
-    if not isinstance(meta, dict):
-        return
-    meta.pop(LLMOBS_STRUCT.INPUT, None)
-    meta.pop(LLMOBS_STRUCT.OUTPUT, None)
-    meta.pop(LLMOBS_STRUCT.EXPECTED_OUTPUT, None)
-    meta.pop(LLMOBS_STRUCT.TOOL_DEFINITIONS, None)
-    metadata = meta.setdefault(LLMOBS_STRUCT.METADATA, {})
-    metadata_dd = metadata.setdefault(LLMOBS_STRUCT.METADATA_DD, {})
-    errs = metadata_dd.setdefault("collection_errors", [])
-    if DROPPED_IO_COLLECTION_ERROR_UNSAMPLED not in errs:
-        errs.append(DROPPED_IO_COLLECTION_ERROR_UNSAMPLED)
+    if isinstance(meta, dict):
+        meta.pop(LLMOBS_STRUCT.INPUT, None)
+        meta.pop(LLMOBS_STRUCT.OUTPUT, None)
+        meta.pop(LLMOBS_STRUCT.EXPECTED_OUTPUT, None)
+        meta.pop(LLMOBS_STRUCT.TOOL_DEFINITIONS, None)
+        metadata = meta.setdefault(LLMOBS_STRUCT.METADATA, {})
+        metadata_dd = metadata.setdefault(LLMOBS_STRUCT.METADATA_DD, {})
+        errs = metadata_dd.setdefault("collection_errors", [])
+        if DROPPED_IO_COLLECTION_ERROR_UNSAMPLED not in errs:
+            errs.append(DROPPED_IO_COLLECTION_ERROR_UNSAMPLED)
+    # Per-span marker so the backend can detect unsampled-for-metrics after trace-chunk fan-out.
+    tags = llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})
+    tags[DD_LLMOBS_UNSAMPLED_TAG_KEY] = "1"

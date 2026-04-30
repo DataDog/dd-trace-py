@@ -1,3 +1,4 @@
+from ddtrace.llmobs._constants import DD_LLMOBS_UNSAMPLED_TAG_KEY
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR_UNSAMPLED
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._unsampled import LLMObsUnsampledStripProcessor
@@ -59,7 +60,7 @@ def test_strips_io_when_priority_is_auto_reject():
     assert meta[LLMOBS_STRUCT.METADATA]["temperature"] == 0.5
     assert meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.METADATA_DD][LLMOBS_STRUCT.COST_TAGS] == ["team:llm-obs"]
     assert data[LLMOBS_STRUCT.METRICS] == {"input_tokens": 10, "output_tokens": 5}
-    assert data[LLMOBS_STRUCT.TAGS] == {"env": "prod"}
+    assert data[LLMOBS_STRUCT.TAGS] == {"env": "prod", DD_LLMOBS_UNSAMPLED_TAG_KEY: "1"}
     assert data[LLMOBS_STRUCT.NAME] == "my_span"
     assert data[LLMOBS_STRUCT.ML_APP] == "test-app"
     errs = meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.METADATA_DD]["collection_errors"]
@@ -72,6 +73,45 @@ def test_strips_io_when_priority_is_user_reject():
     meta = _data(span)[LLMOBS_STRUCT.META]
     assert LLMOBS_STRUCT.INPUT not in meta
     assert LLMOBS_STRUCT.OUTPUT not in meta
+
+
+def test_marks_unsampled_tag_at_auto_reject():
+    span = _make_span(priority=0)
+    LLMObsUnsampledStripProcessor().process_trace([span])
+    assert _data(span)[LLMOBS_STRUCT.TAGS][DD_LLMOBS_UNSAMPLED_TAG_KEY] == "1"
+
+
+def test_marks_unsampled_tag_at_user_reject():
+    span = _make_span(priority=-1)
+    LLMObsUnsampledStripProcessor().process_trace([span])
+    assert _data(span)[LLMOBS_STRUCT.TAGS][DD_LLMOBS_UNSAMPLED_TAG_KEY] == "1"
+
+
+def test_marks_unsampled_tag_on_every_span_in_trace():
+    root = _make_span(priority=0)
+    child1 = Span(name="child1")
+    child1._local_root_value = root
+    child1._set_struct_tag(LLMOBS_STRUCT.KEY, _llmobs_payload())
+    child2 = Span(name="child2")
+    child2._local_root_value = root
+    child2._set_struct_tag(LLMOBS_STRUCT.KEY, _llmobs_payload())
+    LLMObsUnsampledStripProcessor().process_trace([root, child1, child2])
+    for span in (root, child1, child2):
+        assert _data(span)[LLMOBS_STRUCT.TAGS][DD_LLMOBS_UNSAMPLED_TAG_KEY] == "1"
+
+
+def test_does_not_mark_unsampled_tag_at_auto_keep():
+    span = _make_span(priority=1)
+    LLMObsUnsampledStripProcessor().process_trace([span])
+    assert DD_LLMOBS_UNSAMPLED_TAG_KEY not in _data(span)[LLMOBS_STRUCT.TAGS]
+
+
+def test_unsampled_tag_does_not_clobber_existing_tags():
+    span = _make_span(priority=0)
+    LLMObsUnsampledStripProcessor().process_trace([span])
+    tags = _data(span)[LLMOBS_STRUCT.TAGS]
+    assert tags["env"] == "prod"
+    assert tags[DD_LLMOBS_UNSAMPLED_TAG_KEY] == "1"
 
 
 def test_does_not_strip_when_priority_is_auto_keep():
