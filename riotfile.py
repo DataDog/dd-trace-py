@@ -2457,12 +2457,12 @@ venv = Venv(
         ),
         Venv(
             name="redis",
+            command="pytest {cmdargs} tests/contrib/redis",
             pkgs={
                 "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} tests/contrib/redis",
                     pys=select_pys(min_version="3.9", max_version="3.10"),
                     pkgs={
                         "redis": [
@@ -2476,7 +2476,6 @@ venv = Venv(
                 Venv(
                     # redis added support for Python 3.11 in 4.3
                     pys="3.11",
-                    command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": ["~=4.3", "==5.0.1"],
                         "pytest-asyncio": "==0.23.7",
@@ -2484,7 +2483,6 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12", max_version="3.13"),
-                    command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": latest,
                         "pytest-asyncio": "==0.23.7",
@@ -2492,7 +2490,6 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.14"),
-                    command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": latest,
                         "pytest-asyncio": latest,
