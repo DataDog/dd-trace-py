@@ -10,21 +10,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e6993800000000",
+      "_dd.p.tid": "69f3b95a00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.claude_agent_sdk",
       "claude_agent_sdk.request.model": "claude-sonnet-4-5-20250929",
       "language": "python",
-      "runtime-id": "ee93196fd08745c8b6c4d78d839fa8b9"
+      "runtime-id": "338234aed70f4c61aa90502751c41230"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 36593.0
+      "process_id": 69053.0
     },
-    "duration": 311000,
-    "start": 1776718040291568000
+    "duration": 319125,
+    "start": 1777580378783916834
   },
      {
        "name": "claude_agent_sdk.step",
@@ -38,21 +38,36 @@
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 192000,
-       "start": 1776718040291649000
+       "duration": 183708,
+       "start": 1777580378784004709
      },
-     {
-       "name": "claude_agent_sdk.tool.Grep",
-       "service": "tests.contrib.claude_agent_sdk",
-       "resource": "claude_agent_sdk.tool",
-       "trace_id": 0,
-       "span_id": 3,
-       "parent_id": 1,
-       "type": "",
-       "error": 0,
-       "metrics": {
-         "_dd.measured": 1.0
-       },
-       "duration": 41167,
-       "start": 1776720184919800345
-     }]]
+        {
+          "name": "claude_agent_sdk.llm",
+          "service": "tests.contrib.claude_agent_sdk",
+          "resource": "claude_agent_sdk.llm",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 69250,
+          "start": 1777580378784046709
+        },
+        {
+          "name": "claude_agent_sdk.tool.Grep",
+          "service": "tests.contrib.claude_agent_sdk",
+          "resource": "claude_agent_sdk.tool",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "metrics": {
+            "_dd.measured": 1.0
+          },
+          "duration": 65250,
+          "start": 1777580378784146875
+        }]]

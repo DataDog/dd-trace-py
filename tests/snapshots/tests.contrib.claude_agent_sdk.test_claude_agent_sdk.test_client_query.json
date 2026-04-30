@@ -10,21 +10,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e6993800000000",
+      "_dd.p.tid": "69f3b95a00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.claude_agent_sdk",
       "claude_agent_sdk.request.model": "claude-sonnet-4-5-20250929",
       "language": "python",
-      "runtime-id": "ee93196fd08745c8b6c4d78d839fa8b9"
+      "runtime-id": "338234aed70f4c61aa90502751c41230"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 36593.0
+      "process_id": 69053.0
     },
-    "duration": 1050000,
-    "start": 1776718040206823000
+    "duration": 934250,
+    "start": 1777580378739546000
   },
      {
        "name": "claude_agent_sdk.step",
@@ -38,8 +38,8 @@
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 152000,
-       "start": 1776718040207608000
+       "duration": 180917,
+       "start": 1777580378740162625
      },
         {
           "name": "claude_agent_sdk.llm",
@@ -50,12 +50,9 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.svc_src": "tests.contrib.claude_agent_sdk"
-          },
           "metrics": {
             "_dd.measured": 1.0
           },
-          "duration": 76000,
-          "start": 1776718040207658000
+          "duration": 108041,
+          "start": 1777580378740208334
         }]]
