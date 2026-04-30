@@ -28,7 +28,8 @@ LLMOBS_GLOBAL_CONFIG = dict(
 
 def _assert_distributed_trace(test_spans, expected_tool_name):
     """Assert that client and server spans have the same trace ID; return spans and the
-    client/server tool-call subsets identified by resource name."""
+    client/server tool-call subsets identified by resource name.
+    """
     traces = test_spans.pop_traces()
     assert len(traces) >= 1
 
