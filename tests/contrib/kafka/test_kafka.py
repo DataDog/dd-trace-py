@@ -26,6 +26,7 @@ SNAPSHOT_IGNORES = [
     "metrics.kafka.message_offset",
     "meta.error.stack",
     "meta.error.message",
+    "meta.kafka.group_id",
     "meta.messaging.kafka.bootstrap.servers",
     "meta.peer.service",
 ]
@@ -257,7 +258,7 @@ def _generate_in_subprocess(random_topic):
     consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
-            "group.id": "test_group",
+            "group.id": random_topic,
             "auto.offset.reset": "earliest",
         }
     )
@@ -372,6 +373,7 @@ from ddtrace.contrib.internal.kafka.patch import patch
 from tests.conftest import use_dummy_writer
 from tests.conftest import test_spans
 from tests.contrib.kafka.conftest import consumer
+from tests.contrib.kafka.conftest import group_id
 from tests.contrib.kafka.conftest import patch_kafka
 from tests.contrib.kafka.conftest import kafka_topic
 from tests.contrib.kafka.conftest import producer
@@ -493,7 +495,7 @@ def test_tracing_with_serialization_works(kafka_tracer, test_spans, kafka_topic)
 
     conf = {
         "bootstrap.servers": BOOTSTRAP_SERVERS,
-        "group.id": GROUP_ID,
+        "group.id": kafka_topic,
         "auto.offset.reset": "earliest",
         "key.deserializer": json_deserializer,
         "value.deserializer": json_deserializer,
@@ -561,6 +563,7 @@ from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace import config
 
 from tests.contrib.kafka.conftest import consumer
+from tests.contrib.kafka.conftest import group_id
 from tests.contrib.kafka.conftest import kafka_topic
 from tests.contrib.kafka.conftest import producer
 from tests.conftest import tracer

@@ -3278,10 +3278,11 @@ venv = Venv(
             },
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} -vv tests/contrib/kafka",
+                    command="pytest -n auto {cmdargs} -vv tests/contrib/kafka",
                     venvs=[
                         Venv(
                             pys=select_pys(min_version="3.9", max_version="3.10"),
