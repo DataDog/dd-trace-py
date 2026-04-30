@@ -1,6 +1,7 @@
 import unittest
 
 import dramatiq
+from dramatiq.brokers.stub import StubBroker
 import pytest
 
 from ddtrace.contrib.internal.dramatiq.patch import patch
@@ -10,10 +11,15 @@ from tests.utils import snapshot
 
 class DramatiqSnapshotTests(unittest.TestCase):
     def setUp(self):
+        self.broker = StubBroker()
+        self.broker.emit_after("process_boot")
+        dramatiq.set_broker(self.broker)
         patch()
 
     def tearDown(self):
         unpatch()
+        self.broker.flush_all()
+        self.broker.close()
 
     @snapshot(wait_for_num_traces=2)
     def test_idempotent_patch(self):
