@@ -13,43 +13,56 @@ use std::hash::{Hash, Hasher};
 /// `Hash`, `Eq`, and `Borrow<str>` call `PyUnicode_AsUTF8AndSize` using the raw
 /// `PyObject` pointer. This is safe because the GIL is held by every caller — all
 /// `AttributeMap` operations occur inside `#[pymethods]` entry points.
-pub struct AttrKey(pub Py<PyString>);
+/// `pub(crate)` visibility enforces this: callers outside the crate cannot
+/// construct an `AttrKey` and trigger `Hash`/`Eq` without the GIL.
+pub(crate) struct AttrKey(Py<PyString>);
 
 impl AttrKey {
-    pub fn new(s: Py<PyString>) -> Self {
+    pub(crate) fn new(s: Py<PyString>) -> Self {
         Self(s)
     }
 
-    pub fn as_bound<'py>(&self, py: Python<'py>) -> Bound<'py, PyString> {
+    pub(crate) fn as_bound<'py>(&self, py: Python<'py>) -> Bound<'py, PyString> {
         self.0.bind(py).clone()
     }
 
-    fn as_str_unchecked(&self) -> &str {
+    fn as_str(&self) -> &str {
         // SAFETY: GIL is held by every caller (see type-level contract above).
         // `PyUnicode_AsUTF8AndSize` caches the UTF-8 encoding on the PyUnicode object;
         // subsequent calls return the same pointer without re-encoding.
-        unsafe {
+        let bytes = unsafe {
             let mut size: ffi::Py_ssize_t = 0;
             let ptr = ffi::PyUnicode_AsUTF8AndSize(self.0.as_ptr(), &mut size);
-            if ptr.is_null() || size < 0 {
+            // NULL is returned for lone surrogates or allocation failure; an exception
+            // is set on the interpreter. Clear it so the #[pymethods] caller doesn't
+            // see a spurious UnicodeEncodeError on its next return to Python.
+            let Some(ptr) = std::ptr::NonNull::new(
+                // cast_mut: NonNull::new requires *mut T; no writes occur through this pointer.
+                ptr.cast_mut().cast::<u8>(),
+            ) else {
+                ffi::PyErr_Clear();
                 return "";
-            }
-            let bytes = std::slice::from_raw_parts(ptr as *const u8, size as usize);
-            // CPython guarantees PyUnicode_AsUTF8AndSize returns valid UTF-8.
-            std::str::from_utf8_unchecked(bytes)
-        }
+            };
+            let Ok(len) = usize::try_from(size) else {
+                return "";
+            };
+            std::slice::from_raw_parts(ptr.as_ptr(), len)
+        };
+        // CPython guarantees valid UTF-8 from a non-NULL return; this is a
+        // belt-and-suspenders check in case that invariant is ever violated.
+        std::str::from_utf8(bytes).unwrap_or("")
     }
 }
 
 impl Hash for AttrKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_str_unchecked().hash(state);
+        self.as_str().hash(state);
     }
 }
 
 impl PartialEq for AttrKey {
     fn eq(&self, other: &Self) -> bool {
-        self.as_str_unchecked() == other.as_str_unchecked()
+        self.as_str() == other.as_str()
     }
 }
 
@@ -57,7 +70,7 @@ impl Eq for AttrKey {}
 
 impl Borrow<str> for AttrKey {
     fn borrow(&self) -> &str {
-        self.as_str_unchecked()
+        self.as_str()
     }
 }
 
@@ -70,7 +83,7 @@ impl Borrow<str> for AttrKey {
 ///
 /// Bool is intentionally absent — `extract::<i64>()` succeeds for Python bool
 /// (True → 1, False → 0), so bool collapses into `Int` at write time.
-pub enum AttributeValue {
+pub(crate) enum AttributeValue {
     /// A Python str, stored as a reference to the live Python object.
     Str(Py<PyString>),
     Int(i64),
@@ -80,7 +93,7 @@ pub enum AttributeValue {
 impl AttributeValue {
     /// Return the natural Python object for this value (no v0.4 projection).
     /// Str → str, Int → int, Float → float.
-    pub fn as_py<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
+    pub(crate) fn as_py<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
         match self {
             AttributeValue::Str(s) => s.bind(py).clone().into_any(),
             AttributeValue::Int(i) => i.into_pyobject(py).expect("i64 into_pyobject").into_any(),
@@ -95,4 +108,4 @@ impl AttributeValue {
 /// names from instrumented Python code, so SipHash DoS resistance is unnecessary.
 /// FxHash is faster on short keys and `FxBuildHasher` is a ZST (saves the
 /// 16-byte `RandomState` per map instance).
-pub type AttributeMap = FxHashMap<AttrKey, AttributeValue>;
+pub(crate) type AttributeMap = FxHashMap<AttrKey, AttributeValue>;
