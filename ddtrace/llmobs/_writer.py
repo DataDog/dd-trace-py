@@ -809,25 +809,29 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         description: Optional[str] = None,
         runs: Optional[int] = 1,
         ensure_unique: bool = True,
+        parent_experiment_id: Optional[str] = None,
     ) -> tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
+        attributes: dict[str, JSONType] = {
+            "name": name,
+            "description": description or "",
+            "dataset_id": dataset_id,
+            "project_id": project_id,
+            "dataset_version": dataset_version,
+            "config": exp_config or {},
+            "metadata": {"tags": tags or []},
+            "ensure_unique": ensure_unique,
+            "run_count": runs,
+        }
+        if parent_experiment_id is not None:
+            attributes["parent_experiment_id"] = parent_experiment_id
         resp = self.request(
             "POST",
             path,
             body={
                 "data": {
                     "type": "experiments",
-                    "attributes": {
-                        "name": name,
-                        "description": description or "",
-                        "dataset_id": dataset_id,
-                        "project_id": project_id,
-                        "dataset_version": dataset_version,
-                        "config": exp_config or {},
-                        "metadata": {"tags": tags or []},
-                        "ensure_unique": ensure_unique,
-                        "run_count": runs,
-                    },
+                    "attributes": attributes,
                 }
             },
         )
@@ -866,23 +870,23 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             logger.warning("Failed to update experiment %s status: %s", experiment_id, resp.status)
 
     def experiment_eval_post(
-        self, experiment_id: str, events: list[LLMObsExperimentEvalMetricEvent], tags: list[str]
+        self,
+        experiment_id: str,
+        events: list[LLMObsExperimentEvalMetricEvent],
+        tags: list[str],
+        spans: Optional[list[dict]] = None,
     ) -> None:
         path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
-        resp = self.request(
-            "POST",
-            path,
-            body={
-                "data": {
-                    "type": "experiments",
-                    "attributes": {
-                        "scope": "experiments",
-                        "metrics": cast(list[JSONType], events),
-                        "tags": tags,
-                    },
-                }
-            },
-        )
+        attributes: dict[str, JSONType] = {
+            "scope": "experiments",
+            "metrics": cast(list[JSONType], events),
+            "tags": cast(list[JSONType], tags),
+        }
+        if spans:
+            attributes["spans"] = cast(list[JSONType], spans)
+        body: dict[str, JSONType] = {"data": {"type": "experiments", "attributes": attributes}}
+        logger.debug("experiment_eval_post payload: %s", body)
+        resp = self.request("POST", path, body=body)
         if resp.status not in (200, 202):
             raise ValueError(
                 f"Failed to post experiment evaluation metrics for {experiment_id}: {resp.status} {resp.get_json()}"
