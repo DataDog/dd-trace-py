@@ -134,7 +134,8 @@ def _llmobs_name(span):
 
 class _SpanLinkView:
     """Lightweight adapter so ``_assert_span_link`` can read ``span_id`` and
-    ``span_links`` from an APM span's ``meta_struct['_llmobs']`` dict."""
+    ``span_links`` from an APM span's ``meta_struct['_llmobs']`` dict.
+    """
 
     def __init__(self, span):
         self._span = span
@@ -224,8 +225,7 @@ def _assert_expected_agent_run(
     # Names match the LLMObs name on each span in order.
     for i, span in enumerate(spans):
         assert _llmobs_name(span) == expected_span_names[i], (
-            f"span[{i}] name mismatch: expected={expected_span_names[i]!r}, "
-            f"actual={_llmobs_name(span)!r}"
+            f"span[{i}] name mismatch: expected={expected_span_names[i]!r}, actual={_llmobs_name(span)!r}"
         )
     # First span: agent span.
     assert_llmobs_span_data(
