@@ -859,6 +859,10 @@ venv = Venv(
         Venv(
             name="celery",
             command="pytest {cmdargs} tests/contrib/celery",
+            env={
+                # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
+                "PYTEST_PLUGINS": "celery.contrib.pytest",
+            },
             pkgs={
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
@@ -866,24 +870,21 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=["3.9"],
-                    env={
-                        # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
-                        "PYTEST_PLUGINS": "celery.contrib.pytest",
-                    },
                     pkgs={
-                        "celery": [
-                            "~=5.2",
-                            latest,
-                        ],
+                        "celery": "~=5.2",
                         "redis": "~=3.5",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
-                    env={
-                        # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
-                        "PYTEST_PLUGINS": "celery.contrib.pytest",
+                    pys=["3.9"],
+                    pkgs={
+                        "celery[redis]": [
+                            latest,
+                        ],
                     },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
                     pkgs={
                         "celery[redis]": [
                             latest,
