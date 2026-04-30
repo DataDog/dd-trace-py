@@ -464,13 +464,15 @@ impl SpanData {
                 };
                 s
             };
-            self.attributes.insert(attr_key, AttributeValue::Str(s.unbind()));
+            self.attributes
+                .insert(attr_key, AttributeValue::Str(s.unbind()));
             return Ok(());
         }
 
         // str → Str
         if let Ok(s) = value.cast::<PyString>() {
-            self.attributes.insert(attr_key, AttributeValue::Str(s.clone().unbind()));
+            self.attributes
+                .insert(attr_key, AttributeValue::Str(s.clone().unbind()));
             return Ok(());
         }
 
@@ -499,7 +501,8 @@ impl SpanData {
         if let Ok(b) = value.cast::<PyBytes>() {
             let decoded = String::from_utf8_lossy(b.as_bytes());
             let py_str = PyString::new(key.py(), &decoded);
-            self.attributes.insert(attr_key, AttributeValue::Str(py_str.unbind()));
+            self.attributes
+                .insert(attr_key, AttributeValue::Str(py_str.unbind()));
             return Ok(());
         }
 
@@ -507,7 +510,8 @@ impl SpanData {
         let Ok(s) = value.str() else {
             return Ok(());
         };
-        self.attributes.insert(attr_key, AttributeValue::Str(s.unbind()));
+        self.attributes
+            .insert(attr_key, AttributeValue::Str(s.unbind()));
         Ok(())
     }
 

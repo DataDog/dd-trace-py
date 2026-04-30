@@ -1,10 +1,7 @@
 use std::time::SystemTime;
 
 use crate::py_string::PyBackedString;
-use pyo3::{
-    types::PyAnyMethods as _,
-    Bound, PyAny,
-};
+use pyo3::{types::PyAnyMethods as _, Bound, PyAny};
 
 /// Extract PyBackedString from Python object, falling back to empty string on error.
 ///
@@ -41,7 +38,6 @@ pub fn extract_i64_or_default(obj: &Bound<'_, PyAny>) -> i64 {
 pub fn extract_i32_or_default(obj: &Bound<'_, PyAny>) -> i32 {
     obj.extract::<i32>().unwrap_or(0)
 }
-
 
 /// Get wall clock time in nanoseconds since Unix epoch.
 /// Uses SystemTime for wall clock (matches Python's time.time_ns()).
