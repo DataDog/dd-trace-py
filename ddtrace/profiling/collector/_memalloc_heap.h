@@ -27,3 +27,6 @@ memalloc_heap_postfork_child(void);
 
 uint64_t
 memalloc_heap_get_live_bytes_no_cpython(void);
+
+bool
+memalloc_heap_is_started_no_cpython(void);

@@ -1,3 +1,4 @@
+#include <atomic>
 #include <cassert>
 #include <cstdint>
 #include <memory>
@@ -113,9 +114,8 @@ class heap_tracker_t
      * is deleted internally. weighted_size is added to live_heap_bytes. */
     void add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb, uint64_t weighted_size);
 
-    /* Return the current estimated live heap bytes (sum of weighted sizes of tracked allocations).
-     * Must be called with the GIL held. */
-    uint64_t get_live_heap_bytes_no_cpython() const { return live_heap_bytes; }
+    /* Return the current estimated live heap bytes (sum of weighted sizes of tracked allocations). */
+    uint64_t get_live_heap_bytes_no_cpython() const { return live_heap_bytes.load(std::memory_order_relaxed); }
 
     void export_heap_no_cpython();
 
@@ -152,8 +152,9 @@ class heap_tracker_t
     uint64_t current_sample_size;
     /* Tracked allocations - using unique_ptr for automatic memory management */
     HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
-    /* Running estimate of live heap bytes (sum of traceback_t::weighted_size for live samples) */
-    uint64_t live_heap_bytes{ 0 };
+    /* Running estimate of live heap bytes (sum of traceback_t::weighted_size for live samples).
+     * Atomic so it can be read without the GIL (e.g. from the runtime metrics collector). */
+    std::atomic<uint64_t> live_heap_bytes{ 0 };
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
 
@@ -232,7 +233,7 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 
     auto node = allocs_m.extract(ptr);
     if (!node.empty()) {
-        live_heap_bytes -= node.mapped()->weighted_size;
+        live_heap_bytes.fetch_sub(node.mapped()->weighted_size, std::memory_order_relaxed);
         pool_put_no_cpython(std::move(node.mapped()));
     }
 }
@@ -272,7 +273,7 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     /* This should always be a new insertion. If not, we failed to properly untrack a previous allocation. */
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
 
-    live_heap_bytes += weighted_size;
+    live_heap_bytes.fetch_add(weighted_size, std::memory_order_relaxed);
 
     // Get ready for the next sample
     reset_sampling_state_no_cpython();
@@ -316,7 +317,7 @@ heap_tracker_t::postfork_child()
     // Allocations map may contain data from the parent process, and also
     // traceback_t objects may reference invalid Profile state.
     allocs_m.clear();
-    live_heap_bytes = 0;
+    live_heap_bytes.store(0, std::memory_order_relaxed);
 
     // Reset the sampling state to start fresh after fork.
     reset_sampling_state_no_cpython();
@@ -455,4 +456,10 @@ memalloc_heap_get_live_bytes_no_cpython(void)
         return heap_tracker_t::instance->get_live_heap_bytes_no_cpython();
     }
     return 0;
+}
+
+bool
+memalloc_heap_is_started_no_cpython(void)
+{
+    return heap_tracker_t::instance != nullptr;
 }

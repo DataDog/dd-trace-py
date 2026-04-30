@@ -303,10 +303,13 @@ PyDoc_STRVAR(memalloc_heap_live_bytes__doc__,
              "\n"
              "Return the estimated live heap bytes tracked by the memory profiler.\n"
              "\n"
-             "Returns 0 if the memory profiler is not started.\n");
+             "Returns None if the memory profiler is not started, 0 or more if it is.\n");
 static PyObject*
 memalloc_heap_live_bytes(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
+    if (!memalloc_heap_is_started_no_cpython()) {
+        Py_RETURN_NONE;
+    }
     return PyLong_FromUnsignedLongLong(memalloc_heap_get_live_bytes_no_cpython());
 }
 

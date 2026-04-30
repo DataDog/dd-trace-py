@@ -104,8 +104,8 @@ class TestMemallocRuntimeMetricCollector(BaseTestCase):
         self.assertEqual(collector.collect(MEMALLOC_RUNTIME_METRICS), [])
 
     def test_returns_empty_when_profiler_not_started(self):
-        """Returns no metrics when heap_live_bytes() == 0 (profiler not started)."""
-        collector = self._make_collector(heap_live_bytes=0)
+        """Returns no metrics when heap_live_bytes() returns None (profiler not started)."""
+        collector = self._make_collector(heap_live_bytes=None)
         self.assertEqual(collector.collect_fn(None), [])
 
     def test_reports_heap_metric_when_profiler_active(self):
