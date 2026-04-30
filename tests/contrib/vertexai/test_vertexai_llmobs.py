@@ -4,6 +4,7 @@ import mock
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_REASONING
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_1
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_2
@@ -16,9 +17,9 @@ from tests.contrib.vertexai.utils import _mock_completion_response
 from tests.contrib.vertexai.utils import _mock_completion_stream_chunk
 from tests.contrib.vertexai.utils import get_current_weather
 from tests.contrib.vertexai.utils import weather_tool
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import aiterate_stream
 from tests.llmobs._utils import anext_stream
+from tests.llmobs._utils import assert_llmobs_span_data
 from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
 
@@ -36,7 +37,7 @@ else:
     "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
 )
 class TestLLMObsVertexai:
-    def test_completion(self, vertexai, mock_llmobs_writer, test_spans):
+    def test_completion(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
         llm.generate_content(
@@ -45,15 +46,15 @@ class TestLLMObsVertexai:
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
             ),
         )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_span_data())
 
     @pytest.mark.skipif(
         aiplatform_module is None or parse_version(aiplatform_module.__version__) < (1, 94, 0),
         reason="reasoning_output_tokens only available in google-cloud-aiplatform SDK version >= 1.94.0",
     )
-    def test_completion_reasoning_tokens(self, vertexai, mock_llmobs_writer, test_spans):
+    def test_completion_reasoning_tokens(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-2.5-pro")
         llm._prediction_client.responses["generate_content"].append(
             _mock_completion_response(MOCK_COMPLETION_REASONING)
@@ -62,11 +63,11 @@ class TestLLMObsVertexai:
             contents="What is the sum of the first 50 prime numbers?",
             generation_config=vertexai.generative_models.GenerationConfig(max_output_tokens=300, temperature=1.0),
         )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_reasoning_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_reasoning_span_data())
 
-    def test_completion_error(self, vertexai, mock_llmobs_writer, test_spans):
+    def test_completion_error(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.generate_content = mock.Mock()
         llm._prediction_client.generate_content.side_effect = TypeError(
@@ -80,11 +81,11 @@ class TestLLMObsVertexai:
                 ),
                 candidate_count=2,  # candidate_count is not a valid keyword argument
             )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_error_span_data(spans[0]))
 
-    def test_completion_tool(self, vertexai, mock_llmobs_writer, test_spans):
+    def test_completion_tool(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
         response = llm.generate_content(
@@ -94,9 +95,9 @@ class TestLLMObsVertexai:
             ),
             tools=[weather_tool],
         )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_span_data())
 
         # Execute the weather function with the tool call arguments
         tool_call = response.candidates[0].content.parts[0].function_call
@@ -118,11 +119,11 @@ class TestLLMObsVertexai:
         )
 
         # Validate second call (tool result)
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 2
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_result_span_data())
 
-    def test_completion_multiple_messages(self, vertexai, mock_llmobs_writer, test_spans):
+    def test_completion_multiple_messages(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
         llm.generate_content(
@@ -136,11 +137,11 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_history_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_history_span_data())
 
-    def test_completion_system_prompt(self, vertexai, mock_llmobs_writer, test_spans):
+    def test_completion_system_prompt(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel(
             "gemini-1.5-flash",
             system_instruction=[
@@ -154,11 +155,11 @@ class TestLLMObsVertexai:
                 stop_sequences=["x"], max_output_tokens=50, temperature=1.0
             ),
         )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_system_prompt_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_system_prompt_span_data())
 
-    def test_completion_model_generation_config(self, vertexai, mock_llmobs_writer, test_spans):
+    def test_completion_model_generation_config(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
         llm.generate_content(
@@ -167,22 +168,24 @@ class TestLLMObsVertexai:
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
             ),
         )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_span_data())
 
-    def test_completion_no_generation_config(self, vertexai, mock_llmobs_writer, test_spans):
+    def test_completion_no_generation_config(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
         llm.generate_content(
             "Why do bears hibernate?",
         )
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_no_generation_config_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]), **expected_llmobs_no_generation_config_span_data()
+        )
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_completion_stream(self, vertexai, mock_llmobs_writer, test_spans, consume_stream):
+    def test_completion_stream(self, vertexai, test_spans, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["stream_generate_content"] = [
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_STREAM_CHUNKS)
@@ -196,12 +199,12 @@ class TestLLMObsVertexai:
         )
         consume_stream(response)
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_stream_span_data())
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_completion_stream_error(self, vertexai, mock_llmobs_writer, test_spans, consume_stream):
+    def test_completion_stream_error(self, vertexai, test_spans, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["stream_generate_content"] = [
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_STREAM_CHUNKS)
@@ -217,12 +220,14 @@ class TestLLMObsVertexai:
             )
             consume_stream(response)
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]), **expected_llmobs_stream_error_span_data(spans[0])
+        )
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_completion_stream_tool(self, vertexai, mock_llmobs_writer, test_spans, consume_stream):
+    def test_completion_stream_tool(self, vertexai, test_spans, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
         llm._prediction_client.responses["stream_generate_content"] = [
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS)
@@ -236,9 +241,9 @@ class TestLLMObsVertexai:
         )
         consume_stream(response)
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_span_data())
 
         tool_call = MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS[0]["function_call"]
         weather_result = get_current_weather(tool_call["args"]["location"])
@@ -269,11 +274,11 @@ class TestLLMObsVertexai:
         for _ in response2:
             pass
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 2
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_result_span_data())
 
-    async def test_completion_async(self, vertexai, mock_llmobs_writer, test_spans):
+    async def test_completion_async(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["generate_content"].append(
             _mock_completion_response(MOCK_COMPLETION_SIMPLE_1)
@@ -285,11 +290,11 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_span_data())
 
-    async def test_completion_async_error(self, vertexai, mock_llmobs_writer, test_spans):
+    async def test_completion_async_error(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["generate_content"].append(
             _mock_completion_response(MOCK_COMPLETION_SIMPLE_1)
@@ -303,11 +308,11 @@ class TestLLMObsVertexai:
                 candidate_count=2,  # candidate_count is not a valid keyword argument
             )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_error_span_data(spans[0]))
 
-    async def test_completion_async_tool(self, vertexai, mock_llmobs_writer, test_spans):
+    async def test_completion_async_tool(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
         llm._prediction_async_client.responses["generate_content"].append(
             _mock_completion_response(MOCK_COMPLETION_TOOL)
@@ -319,12 +324,12 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_span_data())
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
-    async def test_completion_async_stream(self, vertexai, mock_llmobs_writer, test_spans, consume_stream):
+    async def test_completion_async_stream(self, vertexai, test_spans, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)
@@ -338,12 +343,12 @@ class TestLLMObsVertexai:
         )
         await consume_stream(response)
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_stream_span_data())
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
-    async def test_completion_async_stream_error(self, vertexai, mock_llmobs_writer, test_spans, consume_stream):
+    async def test_completion_async_stream_error(self, vertexai, test_spans, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)
@@ -359,12 +364,14 @@ class TestLLMObsVertexai:
             )
             await consume_stream(response)
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]), **expected_llmobs_stream_error_span_data(spans[0])
+        )
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
-    async def test_completion_async_stream_tool(self, vertexai, mock_llmobs_writer, test_spans, consume_stream):
+    async def test_completion_async_stream_tool(self, vertexai, test_spans, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS)
@@ -378,9 +385,9 @@ class TestLLMObsVertexai:
         )
         await consume_stream(response)
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_span_data())
 
         tool_call = MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS[0]["function_call"]
         weather_result = get_current_weather(tool_call["args"]["location"])
@@ -410,11 +417,11 @@ class TestLLMObsVertexai:
         async for _ in response2:
             pass
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 2
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_result_span_data())
 
-    def test_chat(self, vertexai, mock_llmobs_writer, test_spans):
+    def test_chat(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
         chat = llm.start_chat()
@@ -425,11 +432,11 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_span_data())
 
-    def test_chat_history(self, vertexai, mock_llmobs_writer, test_spans):
+    def test_chat_history(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
         chat = llm.start_chat(
@@ -452,11 +459,11 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_history_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_history_span_data())
 
-    def test_vertexai_chat_error(self, vertexai, mock_llmobs_writer, test_spans):
+    def test_vertexai_chat_error(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_SIMPLE_1))
         chat = llm.start_chat()
@@ -469,11 +476,11 @@ class TestLLMObsVertexai:
                 candidate_count=2,  # candidate_count is not a valid keyword argument
             )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_error_span_data(spans[0]))
 
-    def test_chat_tool(self, vertexai, mock_llmobs_writer, test_spans):
+    def test_chat_tool(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
         chat = llm.start_chat()
@@ -485,11 +492,11 @@ class TestLLMObsVertexai:
             tools=[weather_tool],
         )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_span_data())
 
-    def test_chat_system_prompt(self, vertexai, mock_llmobs_writer, test_spans):
+    def test_chat_system_prompt(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel(
             "gemini-1.5-flash",
             system_instruction=[
@@ -505,12 +512,12 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_system_prompt_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_system_prompt_span_data())
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_chat_stream(self, vertexai, mock_llmobs_writer, test_spans, consume_stream):
+    def test_chat_stream(self, vertexai, test_spans, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["stream_generate_content"] = [
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_STREAM_CHUNKS)
@@ -525,12 +532,12 @@ class TestLLMObsVertexai:
         )
         consume_stream(response)
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_stream_span_data())
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_chat_stream_error(self, vertexai, mock_llmobs_writer, test_spans, consume_stream):
+    def test_chat_stream_error(self, vertexai, test_spans, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["stream_generate_content"] = [
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_STREAM_CHUNKS)
@@ -547,12 +554,14 @@ class TestLLMObsVertexai:
             )
             consume_stream(response)
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]), **expected_llmobs_stream_error_span_data(spans[0])
+        )
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_chat_stream_tool(self, vertexai, mock_llmobs_writer, test_spans, consume_stream):
+    def test_chat_stream_tool(self, vertexai, test_spans, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
         llm._prediction_client.responses["stream_generate_content"] = [
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS)
@@ -567,11 +576,11 @@ class TestLLMObsVertexai:
         )
         consume_stream(response)
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_span_data())
 
-    async def test_chat_async(self, vertexai, mock_llmobs_writer, test_spans):
+    async def test_chat_async(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["generate_content"].append(
             _mock_completion_response(MOCK_COMPLETION_SIMPLE_1)
@@ -584,11 +593,11 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_span_data())
 
-    async def test_chat_async_error(self, vertexai, mock_llmobs_writer, test_spans):
+    async def test_chat_async_error(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["generate_content"].append(
             _mock_completion_response(MOCK_COMPLETION_SIMPLE_1)
@@ -603,11 +612,11 @@ class TestLLMObsVertexai:
                 candidate_count=2,
             )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_error_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_error_span_data(spans[0]))
 
-    async def test_chat_async_tool(self, vertexai, mock_llmobs_writer, test_spans):
+    async def test_chat_async_tool(self, vertexai, test_spans):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
         llm._prediction_async_client.responses["generate_content"].append(
             _mock_completion_response(MOCK_COMPLETION_TOOL)
@@ -620,12 +629,12 @@ class TestLLMObsVertexai:
             ),
         )
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_span_data())
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
-    async def test_chat_async_stream(self, vertexai, mock_llmobs_writer, test_spans, consume_stream):
+    async def test_chat_async_stream(self, vertexai, test_spans, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)
@@ -640,12 +649,12 @@ class TestLLMObsVertexai:
         )
         await consume_stream(response)
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_stream_span_data())
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
-    async def test_chat_async_stream_error(self, vertexai, mock_llmobs_writer, test_spans, consume_stream):
+    async def test_chat_async_stream_error(self, vertexai, test_spans, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)
@@ -662,12 +671,14 @@ class TestLLMObsVertexai:
             )
             await consume_stream(response)
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]), **expected_llmobs_stream_error_span_data(spans[0])
+        )
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
-    async def test_chat_async_stream_tool(self, vertexai, mock_llmobs_writer, test_spans, consume_stream):
+    async def test_chat_async_stream_tool(self, vertexai, test_spans, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS)
@@ -683,14 +694,14 @@ class TestLLMObsVertexai:
         )
         await consume_stream(response)
 
-        span = test_spans.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **expected_llmobs_tool_span_data())
 
 
-def expected_llmobs_span_event(span):
-    return _expected_llmobs_llm_span_event(
-        span,
+def expected_llmobs_span_data():
+    return dict(
+        span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
         input_messages=[{"content": "Why do bears hibernate?"}],
@@ -698,29 +709,31 @@ def expected_llmobs_span_event(span):
             {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
-        token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30, "reasoning_output_tokens": 0},
+        metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
-def expected_llmobs_error_span_event(span):
-    return _expected_llmobs_llm_span_event(
-        span,
+def expected_llmobs_error_span_data(span):
+    return dict(
+        span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
         input_messages=[{"content": "Why do bears hibernate?"}],
         output_messages=[{"content": ""}],
-        error="builtins.TypeError",
-        error_message=span.get_tag("error.message"),
-        error_stack=span.get_tag("error.stack"),
+        error={
+            "type": "builtins.TypeError",
+            "message": span.get_tag("error.message"),
+            "stack": span.get_tag("error.stack"),
+        },
         metadata={"temperature": 1.0, "max_output_tokens": 30},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
-def expected_llmobs_tool_span_event(span):
-    return _expected_llmobs_llm_span_event(
-        span,
+def expected_llmobs_tool_span_data():
+    return dict(
+        span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
         input_messages=[{"content": "What is the weather like in New York City?"}],
@@ -741,7 +754,7 @@ def expected_llmobs_tool_span_event(span):
             }
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
-        token_metrics={"input_tokens": 43, "output_tokens": 11, "total_tokens": 54, "reasoning_output_tokens": 0},
+        metrics={"input_tokens": 43, "output_tokens": 11, "total_tokens": 54, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
         tool_definitions=[
             {
@@ -767,9 +780,9 @@ def expected_llmobs_tool_span_event(span):
     )
 
 
-def expected_llmobs_stream_span_event(span):
-    return _expected_llmobs_llm_span_event(
-        span,
+def expected_llmobs_stream_span_data():
+    return dict(
+        span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
         input_messages=[{"content": "How big is the solar system?"}],
@@ -777,29 +790,31 @@ def expected_llmobs_stream_span_event(span):
             {"content": "".join([chunk["text"] for chunk in MOCK_COMPLETION_STREAM_CHUNKS]), "role": "model"},
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
-        token_metrics={"input_tokens": 16, "output_tokens": 37, "total_tokens": 53, "reasoning_output_tokens": 0},
+        metrics={"input_tokens": 16, "output_tokens": 37, "total_tokens": 53, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
-def expected_llmobs_stream_error_span_event(span):
-    return _expected_llmobs_llm_span_event(
-        span,
+def expected_llmobs_stream_error_span_data(span):
+    return dict(
+        span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
         input_messages=[{"content": "How big is the solar system?"}],
         output_messages=[{"content": ""}],
-        error="builtins.TypeError",
-        error_message=span.get_tag("error.message"),
-        error_stack=span.get_tag("error.stack"),
+        error={
+            "type": "builtins.TypeError",
+            "message": span.get_tag("error.message"),
+            "stack": span.get_tag("error.stack"),
+        },
         metadata={"temperature": 1.0, "max_output_tokens": 30},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
-def expected_llmobs_history_span_event(span):
-    return _expected_llmobs_llm_span_event(
-        span,
+def expected_llmobs_history_span_data():
+    return dict(
+        span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
         input_messages=[
@@ -811,14 +826,14 @@ def expected_llmobs_history_span_event(span):
             {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
-        token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30, "reasoning_output_tokens": 0},
+        metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
-def expected_llmobs_system_prompt_span_event(span):
-    return _expected_llmobs_llm_span_event(
-        span,
+def expected_llmobs_system_prompt_span_data():
+    return dict(
+        span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
         input_messages=[
@@ -829,14 +844,14 @@ def expected_llmobs_system_prompt_span_event(span):
             {"content": MOCK_COMPLETION_SIMPLE_2["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 50},
-        token_metrics={"input_tokens": 16, "output_tokens": 50, "total_tokens": 66, "reasoning_output_tokens": 0},
+        metrics={"input_tokens": 16, "output_tokens": 50, "total_tokens": 66, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
-def expected_llmobs_no_generation_config_span_event(span):
-    return _expected_llmobs_llm_span_event(
-        span,
+def expected_llmobs_no_generation_config_span_data():
+    return dict(
+        span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
         input_messages=[{"content": "Why do bears hibernate?"}],
@@ -844,14 +859,14 @@ def expected_llmobs_no_generation_config_span_event(span):
             {"content": MOCK_COMPLETION_SIMPLE_1["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
         metadata={},
-        token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30, "reasoning_output_tokens": 0},
+        metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
 
-def expected_llmobs_tool_result_span_event(span):
-    return _expected_llmobs_llm_span_event(
-        span,
+def expected_llmobs_tool_result_span_data():
+    return dict(
+        span_kind="llm",
         model_name="gemini-1.5-flash",
         model_provider="google",
         input_messages=[
@@ -872,7 +887,7 @@ def expected_llmobs_tool_result_span_event(span):
             {"content": MOCK_COMPLETION_TOOL_RESULT["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 30},
-        token_metrics={"input_tokens": 50, "output_tokens": 20, "total_tokens": 70, "reasoning_output_tokens": 0},
+        metrics={"input_tokens": 50, "output_tokens": 20, "total_tokens": 70, "reasoning_output_tokens": 0},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
         tool_definitions=[
             {
@@ -898,9 +913,9 @@ def expected_llmobs_tool_result_span_event(span):
     )
 
 
-def expected_llmobs_reasoning_span_event(span):
-    return _expected_llmobs_llm_span_event(
-        span,
+def expected_llmobs_reasoning_span_data():
+    return dict(
+        span_kind="llm",
         model_name="gemini-2.5-pro",
         model_provider="google",
         input_messages=[{"content": "What is the sum of the first 50 prime numbers?"}],
@@ -908,7 +923,7 @@ def expected_llmobs_reasoning_span_event(span):
             {"content": MOCK_COMPLETION_REASONING["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
         ],
         metadata={"temperature": 1.0, "max_output_tokens": 300},
-        token_metrics={"input_tokens": 20, "output_tokens": 143, "total_tokens": 163, "reasoning_output_tokens": 128},
+        metrics={"input_tokens": 20, "output_tokens": 143, "total_tokens": 163, "reasoning_output_tokens": 128},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
 
