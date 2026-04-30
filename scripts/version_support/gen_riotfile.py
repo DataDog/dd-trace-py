@@ -297,13 +297,16 @@ prepare_version_support_riot:
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
   script:
     - |
-      hashes=( $(riot -f version_support_riotfile.py list --hash-only "${{SUITE_NAME}}" \
-        | sort \
-        | ./.gitlab/ci-split-input.sh) )
+      all_hashes=( $(riot -f version_support_riotfile.py list --hash-only "${{SUITE_NAME}}" | sort) )
       echo "NIGHTLY_BUILD: ${{NIGHTLY_BUILD}}"
-      if [[ ${{#hashes[@]}} -eq 0 ]]; then
+      if [[ ${{#all_hashes[@]}} -eq 0 ]]; then
         echo "No riot hashes found for ${{SUITE_NAME}}"
         exit 1
+      fi
+      hashes=( $(printf '%s\\n' "${{all_hashes[@]}}" | ./.gitlab/ci-split-input.sh) )
+      if [[ ${{#hashes[@]}} -eq 0 ]]; then
+        echo "No riot hashes assigned to shard ${{CI_NODE_INDEX:-1}}/${{CI_NODE_TOTAL:-1}} for ${{SUITE_NAME}}"
+        exit 0
       fi
       for hash in "${{hashes[@]}}"
       do
