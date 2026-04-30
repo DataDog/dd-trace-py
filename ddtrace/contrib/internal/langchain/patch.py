@@ -33,11 +33,34 @@ config._add("langchain", {})
 
 
 def _extract_model_name(instance: Any) -> Optional[str]:
-    """Extract model name or ID from llm instance."""
+    """Extract model name or ID from llm instance.
+
+    Strips path prefixes (e.g. "models/gemini-2.5-flash" → "gemini-2.5-flash")
+    since some providers use resource paths rather than bare model names.
+    """
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
         if hasattr(instance, attr):
-            return getattr(instance, attr)
+            model_name = getattr(instance, attr)
+            if model_name and isinstance(model_name, str) and "/" in model_name:
+                model_name = model_name.split("/")[-1]
+            return model_name
     return None
+
+
+_GENERIC_LLM_TYPE_PARTS = {"chat", "llm"}
+
+
+def _extract_model_provider(instance: Any) -> str:
+    """Extract the model provider from a LangChain model instance.
+
+    LangChain's _llm_type mixes interface type with provider name inconsistently:
+      - "openai-chat" (provider first)
+      - "chat-google-generativeai" (interface first)
+    Filter out generic interface terms to isolate the actual provider.
+    """
+    parts = instance._llm_type.split("-")
+    provider_parts = [p for p in parts if p not in _GENERIC_LLM_TYPE_PARTS]
+    return "-".join(provider_parts) if provider_parts else instance._llm_type
 
 
 def _raising_dispatch(event_id: str, args: tuple[Any, ...] = ()):
@@ -114,7 +137,7 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
 
 
 def traced_chat_model_generate(func, instance, args, kwargs):
-    llm_provider = instance._llm_type.split("-")[0]
+    llm_provider = _extract_model_provider(instance)
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
@@ -145,7 +168,7 @@ def traced_chat_model_generate(func, instance, args, kwargs):
 
 
 async def traced_chat_model_agenerate(func, instance, args, kwargs):
-    llm_provider = instance._llm_type.split("-")[0]
+    llm_provider = _extract_model_provider(instance)
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(

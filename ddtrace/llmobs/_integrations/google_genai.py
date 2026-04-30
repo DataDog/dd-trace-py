@@ -76,6 +76,24 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         elif operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response)
 
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        if operation == "embedding":
+            metrics = extract_embedding_metrics_google_genai(response)
+        elif operation == "llm":
+            metrics = extract_generation_metrics_google_genai(response)
+        else:
+            return
+        provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
+        if response is not None:
+            model_name = getattr(response, "model_version", "") or model_name
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            operation,
+            model_name=model_name,
+            model_provider=provider_name,
+        )
+
     def _llmobs_set_tags_from_llm(self, span, args, kwargs, response):
         config = kwargs.get("config")
         tools = self._extract_tools(config)

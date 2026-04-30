@@ -15,8 +15,10 @@ except ImportError:
 import ddtrace
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs._llmobs import _STANDARD_INTEGRATION_SPAN_NAMES
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
-from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
@@ -50,7 +52,7 @@ DEEP_TOOL_SCHEMA = {
 
 if vcr:
     logs_vcr = vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes"),
         record_mode="once",
         match_on=["path"],
         filter_headers=[
@@ -70,7 +72,7 @@ else:
 
 def get_azure_openai_vcr():
     return vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/azure_openai"),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes", "azure_openai"),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "api-key"],
@@ -80,7 +82,7 @@ def get_azure_openai_vcr():
 
 def get_vertexai_vcr():
     return vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/vertexai"),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes", "vertexai"),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "x-goog-api-key"],
@@ -90,7 +92,7 @@ def get_vertexai_vcr():
 
 def get_bedrock_vcr():
     return vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/bedrock"),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes", "bedrock"),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "X-Amz-Security-Token"],
@@ -123,7 +125,7 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None, is_decor
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
         )
-    return expected_tags
+    return sorted(expected_tags)
 
 
 def _expected_llmobs_llm_span_event(
@@ -221,11 +223,11 @@ def _expected_llmobs_llm_span_event(
     if not meta_dict["output"]:
         meta_dict.pop("output")
     if span_kind in ("llm", "embedding"):
-        meta_dict["model_name"] = model_name if model_name is not None else ""
-        meta_dict["model_provider"] = (model_provider or "custom").lower()
+        meta_dict["model_name"] = model_name if model_name is not None else UNKNOWN_MODEL_NAME
+        meta_dict["model_provider"] = (model_provider or UNKNOWN_MODEL_PROVIDER).lower()
     elif model_name is not None:
         meta_dict["model_name"] = model_name
-        meta_dict["model_provider"] = (model_provider or "custom").lower()
+        meta_dict["model_provider"] = (model_provider or UNKNOWN_MODEL_PROVIDER).lower()
     if tool_definitions is not None:
         meta_dict["tool_definitions"] = tool_definitions
     meta_dict.update({"metadata": metadata or {}})
@@ -332,14 +334,18 @@ def _llmobs_base_span_event(
         expected_tags.append(f"prompt_tracking_instrumentation_method:{prompt_tracking_instrumentation_method}")
     if prompt_multimodal:
         expected_tags.append(f"prompt_multimodal:{prompt_multimodal}")
+    expected_tags = sorted(expected_tags)
     if parent_id is None:
         llmobs_parent = _get_nearest_llmobs_ancestor(span)
         parent_id = str(llmobs_parent.span_id) if llmobs_parent else ROOT_PARENT_ID
+    span_name = name or span.name
+    if span_name in _STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":
+        span_name = span.resource
     span_event = {
         "trace_id": mock.ANY,
         "span_id": str(span.span_id),
         "parent_id": parent_id,
-        "name": name or _get_span_name(span),
+        "name": span_name,
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "status": "error" if error else "ok",

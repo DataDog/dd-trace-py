@@ -11,19 +11,21 @@
     "meta": {
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "68a5d77c00000000",
+      "_dd.p.tid": "69dfabce00000000",
+      "_dd.svc_src": "animals",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpfw1xzstt,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "language": "python",
-      "runtime-id": "643fa3aa63d140ceb4d1b28983fc68cb"
+      "runtime-id": "f90dd64fee494cb193f12089f2db3ea1"
     },
     "metrics": {
       "_dd.rule_psr": 0.0,
-      "_dd.span_sampling.mechanism": 8,
-      "_dd.span_sampling.rule_rate": 1,
-      "_dd.top_level": 1,
+      "_dd.span_sampling.mechanism": 8.0,
+      "_dd.span_sampling.rule_rate": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": -1,
-      "process_id": 6548
+      "_sampling_priority_v1": -1.0,
+      "process_id": 4348.0
     },
-    "duration": 120625,
-    "start": 1758013735498309959
+    "duration": 2562958,
+    "start": 1776266190769330096
   }]]

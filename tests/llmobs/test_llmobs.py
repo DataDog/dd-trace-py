@@ -8,8 +8,16 @@ import pytest
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
-from ddtrace.llmobs import _constants as const
+from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_trace_id
@@ -51,14 +59,13 @@ def test_set_correct_parent_id(llmobs, tracer):
     """Test that the parent_id is set as the span_id of the nearest LLMObs span in the span's ancestor tree."""
     with tracer.trace("root"):
         with llmobs.workflow("llm_span") as llm_span:
-            pass
-    assert get_llmobs_parent_id(llm_span) is None
+            assert get_llmobs_parent_id(llm_span) == ROOT_PARENT_ID
     with llmobs.workflow("root_llm_span") as root_span:
-        assert get_llmobs_parent_id(root_span) is None
+        assert get_llmobs_parent_id(root_span) == ROOT_PARENT_ID
         with tracer.trace("child_span") as child_span:
             assert get_llmobs_parent_id(child_span) is None
             with llmobs.task("llm_span") as grandchild_span:
-                assert get_llmobs_parent_id(grandchild_span) == root_span.span_id
+                assert get_llmobs_parent_id(grandchild_span) == str(root_span.span_id)
 
 
 class TestSessionId:
@@ -337,9 +344,21 @@ def test_metrics_are_set(tracer, llmobs_events):
     assert llmobs_events[0]["metrics"] == {"tokens": 100}
 
 
+def test_cost_tags_are_set_on_span_event(tracer, llmobs_events):
+    """Test that cost tags are set on the span event if they are present on the span."""
+    with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
+        _annotate_llmobs_span_data(
+            llm_span,
+            kind="llm",
+            tags={"team": "ml", "feature": "chatbot"},
+            cost_tags=["team", "feature"],
+        )
+    assert llmobs_events[0]["meta"]["metadata"]["_dd"]["cost_tags"] == ["team", "feature"]
+
+
 def test_langchain_span_name_is_set_to_class_name(tracer, llmobs_events):
     """Test span names for langchain auto-instrumented spans is set correctly."""
-    with tracer.trace(const.LANGCHAIN_APM_SPAN_NAME, resource="expected_name", span_type=SpanTypes.LLM) as llm_span:
+    with tracer.trace(LANGCHAIN_APM_SPAN_NAME, resource="expected_name", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm")
     assert llmobs_events[0]["name"] == "expected_name"
 
@@ -356,13 +375,13 @@ def test_error_is_set(tracer, llmobs_events):
     assert 'raise ValueError("error")' in span_event["meta"]["error"]["stack"]
 
 
-def test_model_provider_defaults_to_custom(tracer, llmobs_events):
-    """Test that model provider defaults to "custom" if not provided."""
+def test_model_provider_defaults_to_unknown(tracer, llmobs_events):
+    """Test that model provider defaults to "unknown" if not provided."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm", model_name="model_name")
     span_event = llmobs_events[0]
     assert span_event["meta"]["model_name"] == "model_name"
-    assert span_event["meta"]["model_provider"] == "custom"
+    assert span_event["meta"]["model_provider"] == UNKNOWN_MODEL_PROVIDER
 
 
 def test_model_not_set_if_not_llm_kind_span(tracer, llmobs_events):
@@ -388,7 +407,7 @@ def test_malformed_span_logs_error_instead_of_raising(tracer, llmobs_events, moc
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         pass  # span does not have SPAN_KIND tag
     mock_llmobs_logs.error.assert_called_with(
-        "Error generating LLMObs span event for span %s, likely due to malformed span", llm_span, exc_info=True
+        "Error preparing LLMObs span event for span %s, missing span kind in span context.", llm_span
     )
     assert len(llmobs_events) == 0
 
@@ -637,7 +656,7 @@ def test_llmobs_trace_id_written_to_local_root_meta(llmobs, llmobs_events):
     # The local root (fastapi.request) should have llmobs_trace_id set as a tag
     assert root.get_tag("llmobs_trace_id") is not None
     # It should match the workflow span's llmobs_trace_id
-    assert root.get_tag("llmobs_trace_id") == format_trace_id(wf_trace_id)
+    assert root.get_tag("llmobs_trace_id") == wf_trace_id
     # llmobs_parent_id should be the workflow span's span_id
     assert root.get_tag("llmobs_parent_id") == str(wf.span_id)
 
@@ -657,7 +676,7 @@ def test_llmobs_trace_id_on_local_root_with_non_llm_child_spans(llmobs, llmobs_e
     # The child span shares the same local root
     assert child._local_root is root
     # So the processor will find llmobs_trace_id on the root span in the same payload
-    assert root.get_tag("llmobs_trace_id") == format_trace_id(wf_trace_id)
+    assert root.get_tag("llmobs_trace_id") == wf_trace_id
 
 
 def test_llmobs_trace_id_not_overwritten_by_sibling_workflows(llmobs, llmobs_events):
@@ -670,7 +689,7 @@ def test_llmobs_trace_id_not_overwritten_by_sibling_workflows(llmobs, llmobs_eve
 
     # The local root should have the first child's trace ID (first-wins)
     assert root.get_tag("llmobs_trace_id") is not None
-    assert root.get_tag("llmobs_trace_id") == format_trace_id(first_trace_id)
+    assert root.get_tag("llmobs_trace_id") == first_trace_id
     # The two workflows should have different trace IDs
     assert first_trace_id != second_trace_id
 
@@ -689,6 +708,122 @@ def test_llmobs_submitted_tag_not_set_without_llmobs(llmobs, llmobs_events):
         pass
 
     assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
+
+
+class TestAPMShadowTags:
+    """Test that _apply_shadow_metrics sets shadow token tags on APM spans."""
+
+    @staticmethod
+    def _make_integration(llmobs_enabled=False):
+        """Create a minimal BaseLLMIntegration for testing _apply_shadow_metrics."""
+        from unittest.mock import MagicMock
+
+        integration = MagicMock(spec=BaseLLMIntegration)
+        integration.llmobs_enabled = llmobs_enabled
+        integration._apply_shadow_metrics = BaseLLMIntegration._apply_shadow_metrics.__get__(integration)
+        return integration
+
+    def test_shadow_metrics_on_llm_span(self, tracer):
+        """Shadow token metrics and span_kind tag are set for llm spans."""
+        integration = self._make_integration()
+
+        with tracer.trace("test") as span:
+            metrics = {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
+            integration._apply_shadow_metrics(span, metrics, "llm")
+
+        assert span.get_metric(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) == 10
+        assert span.get_metric(LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY) == 20
+        assert span.get_metric(LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY) == 30
+        assert span.get_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY) == "llm"
+
+    def test_shadow_metrics_on_embedding_span(self, tracer):
+        """Shadow token metrics are set for embedding spans."""
+        integration = self._make_integration()
+
+        with tracer.trace("test") as span:
+            metrics = {"input_tokens": 15, "total_tokens": 15}
+            integration._apply_shadow_metrics(span, metrics, "embedding")
+
+        assert span.get_metric(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) == 15
+        assert span.get_metric(LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY) is None
+        assert span.get_metric(LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY) == 15
+        assert span.get_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY) == "embedding"
+
+    def test_shadow_metrics_not_set_on_non_llm_spans(self, tracer):
+        """Token metrics are not set on workflow spans, but span_kind and enabled are."""
+        integration = self._make_integration()
+
+        with tracer.trace("test") as span:
+            metrics = {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
+            integration._apply_shadow_metrics(span, metrics, "workflow")
+
+        assert span.get_metric(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) is None
+        assert span.get_metric(LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY) is None
+        assert span.get_metric(LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY) is None
+        assert span.get_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY) == "workflow"
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 0
+
+    def test_shadow_metrics_partial(self, tracer):
+        """Only present token metrics get shadow tags."""
+        integration = self._make_integration()
+
+        with tracer.trace("test") as span:
+            metrics = {"input_tokens": 5}
+            integration._apply_shadow_metrics(span, metrics, "llm")
+
+        assert span.get_metric(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) == 5
+        assert span.get_metric(LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY) is None
+        assert span.get_metric(LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY) is None
+        assert span.get_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY) == "llm"
+
+    def test_shadow_metrics_zero_values(self, tracer):
+        """Zero token values are set (not treated as falsy)."""
+        integration = self._make_integration()
+
+        with tracer.trace("test") as span:
+            metrics = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+            integration._apply_shadow_metrics(span, metrics, "llm")
+
+        assert span.get_metric(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) == 0
+        assert span.get_metric(LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY) == 0
+        assert span.get_metric(LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY) == 0
+
+    def test_shadow_metrics_none_metrics(self, tracer):
+        """No token shadow tags set when metrics is None."""
+        integration = self._make_integration()
+
+        with tracer.trace("test") as span:
+            integration._apply_shadow_metrics(span, None, "llm")
+
+        assert span.get_metric(LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY) is None
+        assert span.get_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY) == "llm"
+
+    def test_shadow_metrics_embedding_span_kind(self, tracer):
+        """Embedding span kind is set as 'embedding'."""
+        integration = self._make_integration()
+
+        with tracer.trace("test") as span:
+            integration._apply_shadow_metrics(span, {"input_tokens": 5, "total_tokens": 5}, "embedding")
+
+        assert span.get_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY) == "embedding"
+
+    def test_shadow_metrics_enabled_flag_true(self, tracer):
+        """_dd.llmobs.enabled is 1 when llmobs_enabled=True."""
+        integration = self._make_integration(llmobs_enabled=True)
+
+        with tracer.trace("test") as span:
+            integration._apply_shadow_metrics(span, {"input_tokens": 10, "total_tokens": 10}, "llm")
+
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 1
+
+    def test_shadow_metrics_enabled_flag_false(self, tracer):
+        """_dd.llmobs.enabled is 0 when llmobs_enabled=False (default)."""
+        integration = self._make_integration(llmobs_enabled=False)
+
+        with tracer.trace("test") as span:
+            integration._apply_shadow_metrics(span, {"input_tokens": 10, "total_tokens": 10}, "llm")
+
+        assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 0
 
 
 def test_no_llmobs_trace_id_without_llmobs_context(llmobs, llmobs_events):

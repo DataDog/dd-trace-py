@@ -10,16 +10,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69dea41a00000000",
+      "_dd.svc_src": "tests.contrib.aws_lambda",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aws_lambda",
       "language": "python",
-      "runtime-id": "2a38d844990949379810ed84bb6e71d7"
+      "runtime-id": "a684e05d0a384664989624077f99be0b"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 55112
+      "_sampling_priority_v1": 1.0,
+      "process_id": 88660.0
     },
-    "duration": 6433000,
-    "start": 1677616801872185000
+    "duration": 214875,
+    "start": 1776198682696422339
   }]]

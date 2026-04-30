@@ -11,26 +11,26 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de8d5700000000",
+      "_dd.p.tid": "69e92ddc00000000",
       "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_eventhubs",
       "language": "python",
       "messaging.destination.name": "eh1",
       "messaging.operation": "create",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "87a72e589ac043f2af736bcd21d53ad9",
+      "runtime-id": "a53ebc2098e643449804a36c7c5732a8",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 50461.0
+      "process_id": 73035.0
     },
-    "duration": 2228667,
-    "start": 1776192855212100430
+    "duration": 552000,
+    "start": 1776889308231687000
   }],
 [
   {
@@ -45,27 +45,27 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de8d5700000000",
+      "_dd.p.tid": "69e92ddc00000000",
       "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_eventhubs",
       "language": "python",
       "messaging.destination.name": "eh1",
-      "messaging.message_id": "303b9d37-b5c7-4b47-a61e-7ed8053678fb",
+      "messaging.message_id": "887e0035-5bc9-42d6-8443-3439d0a5a9bb",
       "messaging.operation": "create",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "87a72e589ac043f2af736bcd21d53ad9",
+      "runtime-id": "a53ebc2098e643449804a36c7c5732a8",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 50461.0
+      "process_id": 73035.0
     },
-    "duration": 670375,
-    "start": 1776192855216041639
+    "duration": 202000,
+    "start": 1776889308232504000
   }],
 [
   {
@@ -80,10 +80,10 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de8d5700000000",
-      "_dd.span_links": "[{\"trace_id\": \"69de8d570000000003d8d3b099d375d0\", \"span_id\": \"9c51a3e23aef32c6\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69de8d5700000000\", \"flags\": 1}, {\"trace_id\": \"69de8d5700000000e175dd79945a9d71\", \"span_id\": \"a01790254839b25e\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69de8d5700000000\", \"flags\": 1}]",
+      "_dd.p.tid": "69e92ddc00000000",
+      "_dd.span_links": "[{\"trace_id\": \"69e92ddc00000000ca6e9d32a6b8771a\", \"span_id\": \"05f97ac7a6d16404\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69e92ddc00000000\", \"flags\": 1}, {\"trace_id\": \"69e92ddc00000000f6922e6912cf5f3a\", \"span_id\": \"c13e5efde64fcd62\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69e92ddc00000000\", \"flags\": 1}]",
       "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_eventhubs",
       "language": "python",
       "messaging.batch_count": "2",
@@ -91,17 +91,17 @@
       "messaging.operation": "send",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "87a72e589ac043f2af736bcd21d53ad9",
+      "runtime-id": "a53ebc2098e643449804a36c7c5732a8",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 50461.0
+      "process_id": 73035.0
     },
-    "duration": 451122944,
-    "start": 1776192855216895514
+    "duration": 428510000,
+    "start": 1776889308232778000
   }],
 [
   {
@@ -116,26 +116,26 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de8d5700000000",
+      "_dd.p.tid": "69e92ddc00000000",
       "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_eventhubs",
       "language": "python",
       "messaging.destination.name": "eh1",
       "messaging.operation": "create",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "87a72e589ac043f2af736bcd21d53ad9",
+      "runtime-id": "a53ebc2098e643449804a36c7c5732a8",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 50461.0
+      "process_id": 73035.0
     },
-    "duration": 505833,
-    "start": 1776192855668480125
+    "duration": 152000,
+    "start": 1776889308661463000
   }],
 [
   {
@@ -150,27 +150,27 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de8d5700000000",
+      "_dd.p.tid": "69e92ddc00000000",
       "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_eventhubs",
       "language": "python",
       "messaging.destination.name": "eh1",
-      "messaging.message_id": "3cfaedcd-fe20-426a-8d83-ba906e30c948",
+      "messaging.message_id": "3c5ce20c-dd51-4abe-a0f0-a867f549c4e5",
       "messaging.operation": "create",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "87a72e589ac043f2af736bcd21d53ad9",
+      "runtime-id": "a53ebc2098e643449804a36c7c5732a8",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 50461.0
+      "process_id": 73035.0
     },
-    "duration": 410583,
-    "start": 1776192855669117625
+    "duration": 131000,
+    "start": 1776889308661663000
   }],
 [
   {
@@ -185,10 +185,10 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de8d5700000000",
-      "_dd.span_links": "[{\"trace_id\": \"69de8d57000000006d448ef75bd870c7\", \"span_id\": \"2c7cb6b60a51514b\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69de8d5700000000\", \"flags\": 1}, {\"trace_id\": \"69de8d57000000009d7b60cfcc222133\", \"span_id\": \"8dc0ef30181d5e16\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69de8d5700000000\", \"flags\": 1}]",
+      "_dd.p.tid": "69e92ddc00000000",
+      "_dd.span_links": "[{\"trace_id\": \"69e92ddc00000000ef49c96d0f01092f\", \"span_id\": \"dc0a2d948b4ac23f\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69e92ddc00000000\", \"flags\": 1}, {\"trace_id\": \"69e92ddc000000004624f43fc638c7e7\", \"span_id\": \"8f1809213bae5ecf\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69e92ddc00000000\", \"flags\": 1}]",
       "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_eventhubs",
       "language": "python",
       "messaging.batch_count": "2",
@@ -196,15 +196,15 @@
       "messaging.operation": "send",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "87a72e589ac043f2af736bcd21d53ad9",
+      "runtime-id": "a53ebc2098e643449804a36c7c5732a8",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 50461.0
+      "process_id": 73035.0
     },
-    "duration": 586916,
-    "start": 1776192855669680000
+    "duration": 827000,
+    "start": 1776889308661830000
   }]]

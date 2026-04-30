@@ -1,7 +1,6 @@
 import abc
 import binascii
 from collections import defaultdict
-import functools
 import gzip
 import sys
 import threading
@@ -10,13 +9,12 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import TextIO
-import weakref
 
 from ddtrace import config
-from ddtrace.internal import forksafe
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
+from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
@@ -108,29 +106,6 @@ class NoEncodableSpansError(Exception):
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
-
-
-def make_weak_method_hook(bound_method):
-    """
-    Wrap a bound method so that it is called via a weakref to its instance.
-    If the instance has been garbage-collected, the hook is a no-op.
-    """
-    if not hasattr(bound_method, "__self__") or bound_method.__self__ is None:
-        raise TypeError("make_weak_method_hook expects a bound method")
-
-    instance = bound_method.__self__
-    func = bound_method.__func__
-    instance_ref = weakref.ref(instance)
-
-    @functools.wraps(func)
-    def hook(*args, **kwargs):
-        inst = instance_ref()
-        if inst is None:
-            # The instance was garbage-collected
-            return
-        return func(inst, *args, **kwargs)
-
-    return hook
 
 
 def _human_size(nbytes: float) -> str:
@@ -724,23 +699,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
 
-        before_fork_hook = make_weak_method_hook(self.before_fork_hook)
-        self._fork_hook = before_fork_hook
-        forksafe.register_before_fork(before_fork_hook)
-
         self._exporter = self._create_exporter()
-
-    def before_fork_hook(self):
-        """
-        This hook is used to shut down the native runtime before forking when the service is not running.
-        When the PeriodicService is running, the native runtime is shut down by the PeriodicThread logic.
-        """
-        if self.status != service.ServiceStatus.RUNNING:
-            self._exporter.stop_worker()
-
-    def __del__(self):
-        if hasattr(self, "_fork_hook") and self._fork_hook:
-            forksafe.unregister_before_fork(self._fork_hook)
 
     @staticmethod
     def _parse_otlp_headers() -> list:
@@ -813,7 +772,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
 
-        return builder.build()
+        return builder.build(get_native_runtime())
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
@@ -821,7 +780,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         :param token: The test session token to use for authentication.
         """
         self._test_session_token = token
-        self._exporter.stop_worker()
+        self._shutdown_exporter()  # 3 seconds timeout
         self._exporter = self._create_exporter()
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
@@ -1045,34 +1004,18 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self,
         timeout: Optional[float] = None,
     ) -> None:
-        try:
-            # FIXME: don't join() on stop(), let the caller handle this
-            super(NativeWriter, self)._stop_service()
-            self.join(timeout=timeout)
-        # Native threads should be stopped even if the writer is not running
-        finally:
-            self._exporter.stop_worker()
-            if self._fork_hook:
-                forksafe.unregister_before_fork(self._fork_hook)
-                self._fork_hook = None
+        # FIXME: don't join() on stop(), let the caller handle this
+        super(NativeWriter, self)._stop_service()
+        self.join(timeout=timeout)
 
-    def _start_service(self, *args, **kwargs):
-        super()._start_service(*args, **kwargs)
-
-        def _before_fork(worker: periodic.PeriodicThread) -> None:
-            super(periodic.PeriodicThread, worker)._before_fork()
-            super(periodic.PeriodicThread, worker).join()
-            self._exporter.stop_worker()
-
-        assert self._worker is not None  # nosec
-
-        self._worker._before_fork = _before_fork.__get__(self._worker, type(self._worker))
+    def _shutdown_exporter(self) -> None:
+        self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
 
     def on_shutdown(self):
         try:
             self.periodic()
         finally:
-            self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
+            self._shutdown_exporter()
 
 
 def _use_log_writer() -> bool:
