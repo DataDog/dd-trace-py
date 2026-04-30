@@ -1,6 +1,6 @@
-import os
-
 import pytest
+
+from ddtrace.internal.settings import env
 
 
 def test_enable(test_agent_session, run_python_code_in_subprocess):
@@ -44,10 +44,10 @@ else:
     # Print the parent process runtime id for validation
     print(get_runtime_id())
     """
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv = env.copy()
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, stderr
     assert stderr == b"", stderr
 
@@ -103,10 +103,10 @@ from ddtrace.internal.telemetry import telemetry_writer
 telemetry_writer.reset_queues()
 telemetry_writer.periodic(force_flush=True)
     """
-    env = os.environ.copy()
-    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
+    subenv = env.copy()
+    subenv["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
     # Prevents dependencies loaded event from being generated
-    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, stderr
     assert stderr == b"", stderr
 
@@ -132,9 +132,9 @@ assert telemetry_writer.interval == 10
 assert telemetry_writer._periodic_threshold == 5
     """
 
-    env = os.environ.copy()
-    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "61"
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    subenv = env.copy()
+    subenv["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "61"
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, stderr
     assert stderr == b""
 
@@ -246,9 +246,9 @@ from ddtrace import patch, tracer
 patch(raise_errors=False, sqlite3=True)
 """
 
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    subenv = env.copy()
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=subenv)
 
     assert status == 0, stderr
     assert b"failed to enable ddtrace support for sqlite3" in stderr
@@ -312,8 +312,8 @@ f.wsgi_app()
 
 
 def test_app_started_with_install_metrics(test_agent_session, run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env.update(
+    subenv = env.copy()
+    subenv.update(
         {
             "DD_INSTRUMENTATION_INSTALL_ID": "68e75c48-57ca-4a12-adfc-575c4b05fcbe",
             "DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step",
@@ -322,7 +322,7 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
         }
     )
     # Generate a trace to trigger app-started event
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=subenv)
     assert status == 0, stderr
 
     app_started_event = test_agent_session.get_events("app-started")
@@ -336,8 +336,8 @@ def test_app_started_with_install_metrics(test_agent_session, run_python_code_in
 
 def test_instrumentation_telemetry_disabled(test_agent_session, run_python_code_in_subprocess):
     """Ensure no telemetry events are sent when telemetry is disabled"""
-    env = os.environ.copy()
-    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
+    subenv = env.copy()
+    subenv["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "false"
 
     code = """
 from ddtrace.trace import tracer
@@ -346,7 +346,7 @@ from ddtrace.trace import tracer
 import sys
 assert "ddtrace.internal.telemetry" in sys.modules
 """
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=subenv)
 
     events = test_agent_session.get_events()
     assert len(events) == 0
@@ -375,13 +375,13 @@ def test_installed_excepthook():
 def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subprocess):
     """Test that a config is submitted for multiple sources with increasing seq_id"""
 
-    env = os.environ.copy()
-    env["OTEL_TRACES_EXPORTER"] = "none"
-    env["DD_TRACE_ENABLED"] = "false"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv = env.copy()
+    subenv["OTEL_TRACES_EXPORTER"] = "none"
+    subenv["DD_TRACE_ENABLED"] = "false"
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, err, status, _ = run_python_code_in_subprocess(
-        "from ddtrace import config; config._tracing_enabled = True", env=env
+        "from ddtrace import config; config._tracing_enabled = True", env=subenv
     )
     assert status == 0, err
 
@@ -419,10 +419,10 @@ if pid1 == 0:
 else:
     os.waitpid(pid1, 0)
 """
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv = env.copy()
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, stderr
 
     # One representative request per process
@@ -463,13 +463,13 @@ else:
 def test_extended_heartbeat_sent(collect_dependencies, ddtrace_run_python_code_in_subprocess, test_agent_session):
     """Assert at least one extended heartbeat is sent when the extended heartbeat interval has elapsed."""
 
-    env = os.environ.copy()
-    env["_DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL"] = "1"
-    env["DD_TELEMETRY_LOG_COLLECTION_ENABLED"] = "0.1"
-    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = str(collect_dependencies)
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv = env.copy()
+    subenv["_DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL"] = "1"
+    subenv["DD_TELEMETRY_LOG_COLLECTION_ENABLED"] = "0.1"
+    subenv["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = str(collect_dependencies)
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import time; time.sleep(1.5)", env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import time; time.sleep(1.5)", env=subenv)
     assert status == 0, stderr
     assert stderr == b""
 

@@ -1,4 +1,3 @@
-import os
 import sys
 import sysconfig
 import time
@@ -10,6 +9,7 @@ import httpretty
 import pytest
 
 from ddtrace import config
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import get_agent_hostname
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 import ddtrace.internal.telemetry
@@ -40,11 +40,11 @@ def test_app_started_event_configuration_override_asm(
     test_agent_session, run_python_code_in_subprocess, env_var, value, expected_value
 ):
     """asserts that asm configuration value is changed and queues a valid telemetry request"""
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-    env["DD_APPSEC_ENABLED"] = "true"
-    env[env_var] = value
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
+    subenv = env.copy()
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv["DD_APPSEC_ENABLED"] = "true"
+    subenv[env_var] = value
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=subenv)
     assert status == 0, stderr
 
     configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True, effective=True)
@@ -84,72 +84,72 @@ import ddtrace.internal.settings.exception_replay
 import opentelemetry
     """
 
-    env = os.environ.copy()
+    subenv = env.copy()
     # Change configuration default values
-    env["DD_EXCEPTION_REPLAY_ENABLED"] = "True"
-    env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"
-    env["DD_TRACE_STARTUP_LOGS"] = "True"
-    env["DD_LOGS_INJECTION"] = "True"
-    env["DD_DATA_STREAMS_ENABLED"] = "true"
-    env["DD_APPSEC_ENABLED"] = "False"
-    env["DD_RUNTIME_METRICS_ENABLED"] = "True"
-    env["DD_SERVICE_MAPPING"] = "default_dd_service:remapped_dd_service"
-    env["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"] = "True"
-    env["DD_TRACE_CLIENT_IP_ENABLED"] = "True"
-    env["DD_TRACE_COMPUTE_STATS"] = "True"
-    env["DD_TRACE_DEBUG"] = "True"
-    env["DD_TRACE_ENABLED"] = "False"
-    env["DD_TRACE_HEALTH_METRICS_ENABLED"] = "True"
-    env["DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP"] = ".*"
-    env["DD_TRACE_OTEL_ENABLED"] = "True"
-    env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "tracecontext"
-    env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
-    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "True"
-    env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "1"
-    env["DD_TRACE_RATE_LIMIT"] = "50"
-    env["DD_TRACE_SAMPLING_RULES"] = '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]'
-    env["DD_PROFILING_ENABLED"] = "True"
-    env["DD_PROFILING_STACK_ENABLED"] = "False"
-    env["DD_PROFILING_MEMORY_ENABLED"] = "False"
-    env["DD_PROFILING_HEAP_ENABLED"] = "False"
-    env["DD_PROFILING_LOCK_ENABLED"] = "False"
-    env["DD_PROFILING_CAPTURE_PCT"] = "5.0"
-    env["DD_PROFILING_UPLOAD_INTERVAL"] = "10.0"
-    env["DD_PROFILING_MAX_FRAMES"] = "512"
-    env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
-    env["DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED"] = "True"
-    env["DD_TRACE_PEER_SERVICE_MAPPING"] = "default_service:remapped_service"
-    env["DD_TRACE_API_VERSION"] = "v0.5"
-    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
-    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "9999"
-    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "30"
-    env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
-    env["DD_TAGS"] = "team:apm,component:web"
-    env["DD_INSTRUMENTATION_CONFIG_ID"] = "abcedf123"
-    env["DD_LOGS_OTEL_ENABLED"] = "True"
-    env["DD_METRICS_OTEL_ENABLED"] = "True"
-    env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4317"
+    subenv["DD_EXCEPTION_REPLAY_ENABLED"] = "True"
+    subenv["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = "True"
+    subenv["DD_TRACE_STARTUP_LOGS"] = "True"
+    subenv["DD_LOGS_INJECTION"] = "True"
+    subenv["DD_DATA_STREAMS_ENABLED"] = "true"
+    subenv["DD_APPSEC_ENABLED"] = "False"
+    subenv["DD_RUNTIME_METRICS_ENABLED"] = "True"
+    subenv["DD_SERVICE_MAPPING"] = "default_dd_service:remapped_dd_service"
+    subenv["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"] = "True"
+    subenv["DD_TRACE_CLIENT_IP_ENABLED"] = "True"
+    subenv["DD_TRACE_COMPUTE_STATS"] = "True"
+    subenv["DD_TRACE_DEBUG"] = "True"
+    subenv["DD_TRACE_ENABLED"] = "False"
+    subenv["DD_TRACE_HEALTH_METRICS_ENABLED"] = "True"
+    subenv["DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP"] = ".*"
+    subenv["DD_TRACE_OTEL_ENABLED"] = "True"
+    subenv["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = "tracecontext"
+    subenv["DD_TRACE_PROPAGATION_STYLE_INJECT"] = "tracecontext"
+    subenv["DD_REMOTE_CONFIGURATION_ENABLED"] = "True"
+    subenv["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "1"
+    subenv["DD_TRACE_RATE_LIMIT"] = "50"
+    subenv["DD_TRACE_SAMPLING_RULES"] = '[{"sample_rate":1.0,"service":"xyz","name":"abc"}]'
+    subenv["DD_PROFILING_ENABLED"] = "True"
+    subenv["DD_PROFILING_STACK_ENABLED"] = "False"
+    subenv["DD_PROFILING_MEMORY_ENABLED"] = "False"
+    subenv["DD_PROFILING_HEAP_ENABLED"] = "False"
+    subenv["DD_PROFILING_LOCK_ENABLED"] = "False"
+    subenv["DD_PROFILING_CAPTURE_PCT"] = "5.0"
+    subenv["DD_PROFILING_UPLOAD_INTERVAL"] = "10.0"
+    subenv["DD_PROFILING_MAX_FRAMES"] = "512"
+    subenv["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = "v1"
+    subenv["DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED"] = "True"
+    subenv["DD_TRACE_PEER_SERVICE_MAPPING"] = "default_service:remapped_service"
+    subenv["DD_TRACE_API_VERSION"] = "v0.5"
+    subenv["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
+    subenv["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "9999"
+    subenv["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "30"
+    subenv["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
+    subenv["DD_TAGS"] = "team:apm,component:web"
+    subenv["DD_INSTRUMENTATION_CONFIG_ID"] = "abcedf123"
+    subenv["DD_LOGS_OTEL_ENABLED"] = "True"
+    subenv["DD_METRICS_OTEL_ENABLED"] = "True"
+    subenv["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4317"
 
     file = tmpdir.join("moon_ears.json")
     file.write('[{"service":"xy?","name":"a*c"}]')
-    env["DD_SPAN_SAMPLING_RULES"] = '[{"service":"xyz", "sample_rate":0.23}]'
-    env["DD_SPAN_SAMPLING_RULES_FILE"] = str(file)
-    env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
-    env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
-    env["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"] = "restart"
-    env["DD_SITE"] = "datadoghq.com"
-    env["DD_APPSEC_RASP_ENABLED"] = "False"
-    env["DD_API_SECURITY_ENABLED"] = "False"
-    env["DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"] = "False"
-    env["DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"] = "disabled"
-    env["DD_INJECT_FORCE"] = "true"
-    env["DD_INJECTION_ENABLED"] = "tracer"
+    subenv["DD_SPAN_SAMPLING_RULES"] = '[{"service":"xyz", "sample_rate":0.23}]'
+    subenv["DD_SPAN_SAMPLING_RULES_FILE"] = str(file)
+    subenv["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "false"
+    subenv["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = "3"
+    subenv["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"] = "restart"
+    subenv["DD_SITE"] = "datadoghq.com"
+    subenv["DD_APPSEC_RASP_ENABLED"] = "False"
+    subenv["DD_API_SECURITY_ENABLED"] = "False"
+    subenv["DD_APPSEC_AUTOMATED_USER_EVENTS_TRACKING_ENABLED"] = "False"
+    subenv["DD_APPSEC_AUTO_USER_INSTRUMENTATION_MODE"] = "disabled"
+    subenv["DD_INJECT_FORCE"] = "true"
+    subenv["DD_INJECTION_ENABLED"] = "tracer"
 
     # Ensures app-started event is queued immediately after ddtrace is imported
     # instead of waiting for 10 seconds.
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=subenv)
     assert status == 0, stderr
 
     # DD_TRACE_AGENT_URL in gitlab is different from CI, to keep things simple we will
@@ -523,24 +523,24 @@ import opentelemetry
 
 
 def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
+    subenv = env.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=subenv)
     assert status == 0, stderr
     deps = test_agent_session.get_dependencies("xmltodict")
     assert len(deps) == 1, deps
 
 
 def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
+    subenv = env.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
@@ -582,7 +582,7 @@ def mini_app(request):
 urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
 """
 
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=subenv)
     assert status == 0, stderr
     deps = test_agent_session.get_dependencies("django")
     assert len(deps) == 1, deps
@@ -608,46 +608,46 @@ urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
 def test_instrumentation_source_config(
     test_agent_session, ddtrace_run_python_code_in_subprocess, run_python_code_in_subprocess
 ):
-    env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv = env.copy()
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    _, stderr, status, _ = call_program("ddtrace-run", sys.executable, "-c", "", env=env)
+    _, stderr, status, _ = call_program("ddtrace-run", sys.executable, "-c", "", env=subenv)
     assert status == 0, stderr
     configs = test_agent_session.get_configurations("instrumentation_source")
     assert configs and configs[-1]["value"] == "cmd_line"
     test_agent_session.clear()
 
-    _, stderr, status, _ = call_program(sys.executable, "-c", "import ddtrace.auto", env=env)
+    _, stderr, status, _ = call_program(sys.executable, "-c", "import ddtrace.auto", env=subenv)
     assert status == 0, stderr
     configs = test_agent_session.get_configurations("instrumentation_source")
     assert configs and configs[-1]["value"] == "manual"
     test_agent_session.clear()
 
-    _, stderr, status, _ = call_program(sys.executable, "-c", "import ddtrace", env=env)
+    _, stderr, status, _ = call_program(sys.executable, "-c", "import ddtrace", env=subenv)
     assert status == 0, stderr
     configs = test_agent_session.get_configurations("instrumentation_source")
     assert not configs, "instrumentation_source should not be set when ddtrace instrumentation is not used"
 
 
 def test_update_dependencies_event_when_disabled(test_agent_session, ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
+    subenv = env.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
-    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
-    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=env)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import xmltodict", env=subenv)
     events = test_agent_session.get_events("app-dependencies-loaded")
     assert len(events) == 0, events
 
 
 def test_update_dependencies_event_not_stdlib(test_agent_session, ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
+    subenv = env.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
     # Imports httpretty twice and ensures only one dependency entry is sent
@@ -658,7 +658,7 @@ import httpretty
 del sys.modules["httpretty"]
 import httpretty
 """,
-        env=env,
+        env=subenv,
     )
     assert status == 0, stderr
     deps = test_agent_session.get_dependencies("httpretty")
@@ -946,21 +946,21 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     asserts that telemetry data is submitted for OpenTelemetry configurations
     """
 
-    env = os.environ.copy()
-    env["DD_SERVICE"] = "dd_service"
-    env["OTEL_SERVICE_NAME"] = "otel_service"
-    env["OTEL_LOG_LEVEL"] = "DEBUG"
-    env["OTEL_PROPAGATORS"] = "tracecontext"
-    env["OTEL_TRACES_SAMPLER"] = "always_on"
-    env["OTEL_TRACES_EXPORTER"] = "none"
-    env["OTEL_LOGS_EXPORTER"] = "otlp"
-    env["OTEL_METRICS_EXPORTER"] = "otlp"
-    env["OTEL_RESOURCE_ATTRIBUTES"] = "team=apm,component=web"
-    env["OTEL_SDK_DISABLED"] = "true"
-    env["OTEL_UNSUPPORTED_CONFIG"] = "value"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    subenv = env.copy()
+    subenv["DD_SERVICE"] = "dd_service"
+    subenv["OTEL_SERVICE_NAME"] = "otel_service"
+    subenv["OTEL_LOG_LEVEL"] = "DEBUG"
+    subenv["OTEL_PROPAGATORS"] = "tracecontext"
+    subenv["OTEL_TRACES_SAMPLER"] = "always_on"
+    subenv["OTEL_TRACES_EXPORTER"] = "none"
+    subenv["OTEL_LOGS_EXPORTER"] = "otlp"
+    subenv["OTEL_METRICS_EXPORTER"] = "otlp"
+    subenv["OTEL_RESOURCE_ATTRIBUTES"] = "team=apm,component=web"
+    subenv["OTEL_SDK_DISABLED"] = "true"
+    subenv["OTEL_UNSUPPORTED_CONFIG"] = "value"
+    subenv["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=subenv)
     assert status == 0, stderr
 
     configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
@@ -998,15 +998,15 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
         "value": "true",
     }
 
-    env_hiding_metrics = test_agent_session.get_metrics("otel.env.hiding")
+    env_hiding_metrics = test_agent_session.get_metrics("otel.subenv.hiding")
     tags = [m["tags"] for m in env_hiding_metrics]
     assert tags == [["config_opentelemetry:otel_service_name", "config_datadog:dd_service"]]
 
-    env_unsupported_metrics = test_agent_session.get_metrics("otel.env.unsupported")
+    env_unsupported_metrics = test_agent_session.get_metrics("otel.subenv.unsupported")
     tags = [m["tags"] for m in env_unsupported_metrics]
     assert tags == [["config_opentelemetry:otel_unsupported_config"]]
 
-    env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
+    env_invalid_metrics = test_agent_session.get_metrics("otel.subenv.invalid")
     tags = [m["tags"] for m in env_invalid_metrics]
     assert tags == [["config_opentelemetry:otel_logs_exporter"]]
 

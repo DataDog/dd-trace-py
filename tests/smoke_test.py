@@ -1,9 +1,10 @@
 import copy
-import os
 import platform
 import subprocess
 import sys
 import textwrap
+
+from ddtrace.internal.settings import env
 
 
 # Code need to be run in a separate subprocess to reload since reloading .so files doesn't
@@ -40,7 +41,7 @@ if __name__ == "__main__":
         print("Running native IAST module load test...")
         test_code = textwrap.dedent(test_native_load_code)
         cmd = [sys.executable, "-c", test_code]
-        orig_env = os.environ.copy()
+        orig_env = env.copy()
         copied_env = copy.deepcopy(orig_env)
 
         try:
@@ -59,7 +60,7 @@ if __name__ == "__main__":
             )
             print("IAST module load tests completed successfully")
         finally:
-            os.environ = orig_env
+            env = orig_env
 
     # ASM WAF smoke test
     if platform.system() != "Linux" or sys.maxsize > 2**32:

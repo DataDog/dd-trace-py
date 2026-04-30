@@ -6,7 +6,6 @@ from http.client import RemoteDisconnected
 import importlib.metadata as importlib_metadata
 import inspect
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -38,6 +37,7 @@ from ddtrace.internal.packages import filename_to_package
 from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._database_monitoring import dbm_config
 from ddtrace.internal.settings.asm import config as asm_config
@@ -90,24 +90,24 @@ def override_env(env, replace_os_env=False):
             # Your test
     """
     # Copy the full original environment
-    original = dict(os.environ)
+    original = dict(env)
 
     # We allow callers to clear out the environment to prevent leaking variables into the test
     if replace_os_env:
-        os.environ.clear()
+        env.clear()
 
-    for k in os.environ.keys():
+    for k in env.keys():
         if k.startswith(("_CI_DD_", "DD_CIVISIBILITY_", "DD_SITE")):
-            del os.environ[k]
+            del env[k]
 
     # Update based on the passed in arguments
-    os.environ.update(env)
+    env.update(env)
     try:
         yield
     finally:
         # Full clear the environment out and reset back to the original
-        os.environ.clear()
-        os.environ.update(original)
+        env.clear()
+        env.update(original)
 
 
 @contextlib.contextmanager
@@ -1234,9 +1234,9 @@ def snapshot_context(
                 tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
 
             # Also add a header to the environment for subprocesses test cases that might use snapshotting.
-            existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
+            existing_headers = parse_tags_str(env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
             existing_headers.update({"X-Datadog-Test-Session-Token": token})
-            os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
+            env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
                 ["%s:%s" % (k, v) for k, v in existing_headers.items()]
             )
         try:
@@ -1274,7 +1274,7 @@ def snapshot_context(
                     tracer._span_aggregator.writer.set_test_session_token(None)
                 else:
                     del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
-                del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
+                del env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
 
@@ -1476,7 +1476,7 @@ def check_test_agent_status():
 
 
 def add_dd_env_variables_to_headers(headers):
-    dd_env_vars = {key: value for key, value in os.environ.items() if key.startswith("DD_")}
+    dd_env_vars = {key: value for key, value in env.items() if key.startswith("DD_")}
     dd_env_vars["DD_SERVICE"] = dd_config.service
     dd_env_vars["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = SCHEMA_VERSION
 
@@ -1502,10 +1502,10 @@ def _build_env(env=None, file_path=FILE_PATH):
     CI environments
     """
     environ = dict(PATH="%s:%s" % (DDTRACE_PATH, file_path), PYTHONPATH="%s:%s" % (DDTRACE_PATH, file_path))
-    if os.environ.get("PATH"):
-        environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
-    if os.environ.get("PYTHONPATH"):
-        environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
+    if env.get("PATH"):
+        environ["PATH"] = "%s:%s" % (env.get("PATH"), environ["PATH"])
+    if env.get("PYTHONPATH"):
+        environ["PYTHONPATH"] = "%s:%s" % (env.get("PYTHONPATH"), environ["PYTHONPATH"])
     if env:
         for k, v in env.items():
             environ[k] = v

@@ -1,5 +1,4 @@
 import gzip
-import os
 import time
 
 import mock
@@ -12,6 +11,7 @@ from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsProcessor
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.processor import PartitionKey
+from ddtrace.internal.settings import env
 
 
 processor = DataStreamsProcessor("http://localhost:8126")
@@ -238,9 +238,9 @@ register_on_exit_signal(set_exit)
 run_test()
 """
 
-    env = os.environ.copy()
-    env["DD_DATA_STREAMS_ENABLED"] = "True"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    subenv = env.copy()
+    subenv["DD_DATA_STREAMS_ENABLED"] = "True"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv, timeout=5)
     assert out.decode().strip() == "Fake flush called"
 
 
@@ -264,9 +264,9 @@ t.start()
 t.join()
 """
 
-    env = os.environ.copy()
-    env["DD_DATA_STREAMS_ENABLED"] = "True"
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    subenv = env.copy()
+    subenv["DD_DATA_STREAMS_ENABLED"] = "True"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=subenv, timeout=5)
     assert err.decode().strip() == ""
 
 
