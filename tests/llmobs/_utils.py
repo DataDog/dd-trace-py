@@ -1113,14 +1113,6 @@ def assert_llmobs_span_data(
             )
 
     def _check_subset(label, expected_subset, actual_dict):
-        # ``mock.ANY`` (or any non-dict sentinel that equals anything) is allowed as a
-        # whole-value escape hatch; defer to ``==`` so callers can pin "any metadata".
-        if not isinstance(expected_subset, dict):
-            if expected_subset != actual_dict:
-                failures.append(
-                    "{} mismatch:\n    expected={!r}\n    actual={!r}".format(label, expected_subset, actual_dict)
-                )
-            return
         if not expected_subset.items() <= actual_dict.items():
             failures.append(
                 "{} subset mismatch:\n    expected={!r}\n    actual={!r}".format(label, expected_subset, actual_dict)

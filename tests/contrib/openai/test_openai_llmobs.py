@@ -737,7 +737,6 @@ class TestLLMObsOpenaiV1:
             model_provider="openai",
             input_messages=input_messages,
             output_messages=[{"content": expected_completion, "role": "assistant"}],
-            metadata=mock.ANY,
             metrics={"input_tokens": 17, "output_tokens": 19, "total_tokens": 36},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
