@@ -227,16 +227,16 @@ def _openai_chat_completion_before(client, kwargs):
     if not ai_guard_messages:
         return None
 
-    # AIDEV-NOTE: Before-model evaluation fires only when the last message is
-    # role="user". Tool-role messages (agentic loop tool responses) are skipped
-    # here because they are already covered by the after-model evaluation on
-    # the previous turn (which sees the full request+response including tool
-    # calls) and by framework-level integrations (LangChain/Strands) that wrap
-    # the full agentic loop. Raw-OpenAI users driving their own agent loop
-    # without a framework should enable the framework integration or evaluate
-    # tool outputs themselves — do not widen this check to role="tool" without
-    # also gating it on "no framework is active".
-    if ai_guard_messages[-1].get("role") != "user":
+    # AIDEV-NOTE: Before-model evaluation fires when the last message is
+    # role="user" (new user prompt) or role="tool" (tool result feeding back
+    # into the next model call). Per the AI Guard spec ("Anatomy of an AI
+    # Guard evaluation"), tool results are evaluated either "after tool"
+    # (framework hook) or at "next before model" — provider SDKs have no
+    # after-tool hook, so this is the prevention window that catches indirect
+    # prompt injection in tool output before the LLM processes it.
+    # Framework collisions (LangChain/Strands wrapping the loop) are already
+    # prevented by the is_aiguard_context_active() check above.
+    if ai_guard_messages[-1].get("role") not in ("user", "tool"):
         return None
 
     try:

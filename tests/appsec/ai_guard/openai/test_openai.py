@@ -512,7 +512,7 @@ def test_reset_same_context_restores_previous_value():
 
 
 # ---------------------------------------------------------------------------
-# Before-model skip when the last message is not role="user"
+# Before-model gating by last-message role
 # ---------------------------------------------------------------------------
 
 
@@ -530,30 +530,13 @@ def test_reset_same_context_restores_previous_value():
             ],
             id="last-assistant",
         ),
-        pytest.param(
-            [
-                {"role": "user", "content": "What's the weather?"},
-                {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [
-                        {
-                            "id": "call_1",
-                            "type": "function",
-                            "function": {"name": "get_weather", "arguments": "{}"},
-                        }
-                    ],
-                },
-                {"role": "tool", "tool_call_id": "call_1", "content": "72F and sunny"},
-            ],
-            id="last-tool",
-        ),
     ],
 )
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_before_skips_when_last_message_not_user(mock_execute_request, openai_client_mock, messages):
+def test_before_skips_when_last_message_not_user_or_tool(mock_execute_request, openai_client_mock, messages):
     """Before-model evaluation MUST be skipped when the last message is not
-    role="user". The after-model evaluation still fires for the response.
+    role="user" or role="tool". The after-model evaluation still fires for the
+    response.
 
     Uses the mock-transport client so arbitrary message shapes don't depend
     on a matching testagent VCR cassette.
@@ -565,6 +548,42 @@ def test_before_skips_when_last_message_not_user(mock_execute_request, openai_cl
     assert resp is not None
     # Only the after-model evaluation fired — before was skipped.
     assert mock_execute_request.call_count == 1
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_before_fires_when_last_message_is_tool(mock_execute_request, openai_client_mock):
+    """Before-model evaluation MUST fire when the last message is role="tool"
+    (tool result feeding back into the next model call). Per the AI Guard spec,
+    tool results are evaluated either "after tool" (framework hook) or at
+    "next before model" — provider SDKs only have the latter, so this is the
+    prevention window for indirect prompt injection in tool output.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    messages = [
+        {"role": "user", "content": "What's the weather?"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "get_weather", "arguments": "{}"},
+                }
+            ],
+        },
+        {"role": "tool", "tool_call_id": "call_1", "content": "72F and sunny"},
+    ]
+    resp = openai_client_mock.chat.completions.create(messages=messages, **CHAT_PARAMS)
+
+    assert resp is not None
+    # Both before-model (tool result) and after-model (response) evaluations fired.
+    assert mock_execute_request.call_count == 2
+    _, before_payload = mock_execute_request.call_args_list[0].args
+    before_messages = before_payload["data"]["attributes"]["messages"]
+    assert before_messages[-1]["role"] == "tool"
+    assert before_messages[-1]["content"] == "72F and sunny"
 
 
 # ---------------------------------------------------------------------------
