@@ -1631,6 +1631,8 @@ def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
         "span_id": mock.ANY,
         "trace_id": mock.ANY,
         "timestamp": mock.ANY,
+        "duration": mock.ANY,
+        "span_name": "dummy_task",
         "output": {"prompt": "What is the capital of France?"},
         "metadata": {
             "dataset_record_index": 0,
@@ -1644,6 +1646,8 @@ def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
         "span_id": mock.ANY,
         "trace_id": mock.ANY,
         "timestamp": mock.ANY,
+        "duration": mock.ANY,
+        "span_name": "dummy_task",
         "output": {"prompt": "What is the capital of Canada?"},
         "metadata": {
             "dataset_record_index": 1,
@@ -1664,6 +1668,8 @@ def test_experiment_run_task_error(llmobs, test_dataset_one_record):
             "span_id": mock.ANY,
             "trace_id": mock.ANY,
             "timestamp": mock.ANY,
+            "duration": mock.ANY,
+            "span_name": "faulty_task",
             "output": None,
             "metadata": {
                 "dataset_record_index": 0,
