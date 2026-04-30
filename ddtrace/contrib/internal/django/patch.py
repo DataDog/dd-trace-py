@@ -7,6 +7,7 @@ Django internals are instrumented via normal `patch()`.
 specific Django apps like Django Rest Framework (DRF).
 """
 
+import asyncio
 from inspect import getmro
 from inspect import iscoroutinefunction
 from inspect import unwrap
@@ -195,6 +196,8 @@ def traced_func(django, name, resource=None, ignored_excs=None):
                     ) as ctx,
                     ctx.span,
                 ):
+                    # Don't flag the span as errored on routine ASGI cancellation (#17728).
+                    ctx.span._ignore_exception(asyncio.CancelledError)
                     core.dispatch(
                         "django.func.wrapped",
                         (
