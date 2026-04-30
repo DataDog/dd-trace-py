@@ -4,8 +4,8 @@ import wrapt
 from ddtrace import config
 from ddtrace._trace.utils_valkey import _instrument_valkey_cmd
 from ddtrace._trace.utils_valkey import _instrument_valkey_execute_pipeline
-from ddtrace.contrib.internal.valkey_utils import ROW_RETURNING_COMMANDS
-from ddtrace.contrib.internal.valkey_utils import determine_row_count
+from ddtrace.contrib.internal.trace_utils import ROW_RETURNING_COMMANDS
+from ddtrace.contrib.internal.trace_utils import determine_kv_store_row_count
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
@@ -93,10 +93,10 @@ def _run_valkey_command(ctx: core.ExecutionContext, func, args, kwargs):
         raise
     finally:
         if rowcount is None:
-            rowcount = determine_row_count(valkey_command=valkey_command, result=result)
+            rowcount = determine_kv_store_row_count(valkey_command, result)
         if valkey_command not in ROW_RETURNING_COMMANDS:
             rowcount = None
-        core.dispatch("valkey.command.post", (ctx, rowcount))
+        ctx.event.rowcount = rowcount
 
 
 #

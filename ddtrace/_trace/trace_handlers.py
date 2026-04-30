@@ -49,7 +49,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import net
-from ddtrace.ext import redis as redisx
 from ddtrace.ext import websocket
 from ddtrace.ext.kafka import MESSAGE_KEY
 from ddtrace.ext.kafka import MESSAGE_OFFSET
@@ -903,28 +902,6 @@ def _on_botocore_kinesis_getrecords_post(
             ctx.set_item("distributed_context", extract_DD_context_from_messages(result["Records"], message_parser))
 
 
-def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
-    if rowcount is not None:
-        ctx.span._set_attribute(db.ROWCOUNT, rowcount)
-
-
-def _on_redis_execute_pipeline(ctx: core.ExecutionContext, config_integration, args, instance, query):
-    span = ctx.span
-    if args is not None:
-        # PERF: avoid extra overhead from checks in Span.set_metric
-        span._set_attribute(redisx.ARGS_LEN, len(args))
-    else:
-        for attr in ("command_stack", "_command_stack"):
-            if hasattr(instance, attr):
-                # PERF: avoid extra overhead from checks in Span.set_metric
-                span._set_attribute(redisx.PIPELINE_LEN, len(getattr(instance, attr)))
-
-
-def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
-    if rowcount is not None:
-        ctx.span._set_attribute(db.ROWCOUNT, rowcount)
-
-
 def _on_test_visibility_enable(config) -> None:
     from ddtrace.internal.ci_visibility import CIVisibility
 
@@ -1717,11 +1694,6 @@ def listen():
     core.on("botocore.bedrock.process_response_converse", _on_botocore_bedrock_process_response_converse)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
-    core.on("redis.async_command.post", _on_redis_command_post)
-    core.on("redis.command.post", _on_redis_command_post)
-    core.on("redis.execute_pipeline", _on_redis_execute_pipeline)
-    core.on("valkey.async_command.post", _on_valkey_command_post)
-    core.on("valkey.command.post", _on_valkey_command_post)
     core.on("context.started.azure_cosmos.request", _on_azure_cosmos_request_start)
     core.on("azure.eventhubs.message_modifier", _on_azure_message_modifier)
     core.on("azure.durable_functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
@@ -1804,9 +1776,6 @@ def listen():
         "botocore.patched_sqs_api_call",
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
-        "redis.command",
-        "redis.execute_pipeline",
-        "valkey.command",
         "rq.queue.enqueue_job",
         "rq.traced_queue_fetch_job",
         "rq.worker.perform_job",
@@ -1849,8 +1818,6 @@ def listen():
         "django.template.render",
         "django.traced_get_response",
         "molten.trace_func",
-        "redis.execute_pipeline",
-        "redis.command",
         "azure.durable_functions.patched_activity",
         "azure.durable_functions.patched_entity",
         "azure.functions.patched_cosmosdb",

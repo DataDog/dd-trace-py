@@ -1,13 +1,13 @@
-from ddtrace.contrib.internal.redis_utils import MULTI_KEY_COMMANDS  # noqa: F401
-from ddtrace.contrib.internal.redis_utils import ROW_RETURNING_COMMANDS  # noqa: F401
-from ddtrace.contrib.internal.redis_utils import SINGLE_KEY_COMMANDS  # noqa: F401
-from ddtrace.contrib.internal.redis_utils import determine_row_count  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import IP_PATTERNS  # noqa: F401
+from ddtrace.contrib.internal.trace_utils import MULTI_KEY_COMMANDS  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import NORMALIZE_PATTERN  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import REQUEST  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import RESPONSE  # noqa: F401
+from ddtrace.contrib.internal.trace_utils import ROW_RETURNING_COMMANDS  # noqa: F401
+from ddtrace.contrib.internal.trace_utils import SINGLE_KEY_COMMANDS  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import USER_AGENT_PATTERNS  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers  # noqa: F401
+from ddtrace.contrib.internal.trace_utils import determine_kv_store_row_count as determine_row_count  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import distributed_tracing_enabled  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import ext_service  # noqa: F401
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url  # noqa: F401
