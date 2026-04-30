@@ -394,3 +394,30 @@ class TestLLMObsLlamaIndex:
         )
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected
+
+
+def test_shadow_tags_llm_when_llmobs_disabled(tracer):
+    """Verify shadow tags are set on LlamaIndex spans when LLMObs is disabled."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.llama_index import LlamaIndexIntegration
+
+    integration = LlamaIndexIntegration(MagicMock())
+
+    response = MagicMock()
+    response.raw.usage.prompt_tokens = 14
+    response.raw.usage.completion_tokens = 15
+    response.raw.usage.total_tokens = 29
+
+    with tracer.trace("llama_index.request") as span:
+        span._set_attribute("llama_index.request.model", "gpt-4o-mini")
+        span._set_attribute("llama_index.request.provider", "openai")
+        integration._set_apm_shadow_tags(span, [], {}, response=response, operation="llm")
+
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "gpt-4o-mini"
+    assert span.get_tag("_dd.llmobs.model_provider") == "openai"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+    assert span.get_metric("_dd.llmobs.input_tokens") == 14
+    assert span.get_metric("_dd.llmobs.output_tokens") == 15
+    assert span.get_metric("_dd.llmobs.total_tokens") == 29

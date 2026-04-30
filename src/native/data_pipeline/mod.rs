@@ -1,3 +1,4 @@
+use libdd_capabilities_impl::NativeCapabilities;
 use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
@@ -5,6 +6,7 @@ use libdd_data_pipeline::trace_exporter::{
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
 mod exceptions;
+use crate::shared_runtime::SharedRuntimePy;
 use exceptions::TraceExporterErrorPy;
 
 /// A wrapper around [TraceExporterBuilder]
@@ -185,16 +187,21 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
-    /// Consumes the wrapped builder.
+    /// Consumes the wrapped builder, requires a shared runtime to be passed to spawn async tasks.
     ///
-    /// The builder shouldn't be reused
-    fn build(&mut self) -> PyResult<TraceExporterPy> {
+    /// The builder shouldn't be reused.
+    ///
+    /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
+    /// one without registering the fork hooks.
+    fn build(&mut self, shared_runtime: PyRef<'_, SharedRuntimePy>) -> PyResult<TraceExporterPy> {
+        let shared_runtime = shared_runtime.as_arc().clone();
+        self.try_as_mut()?.set_shared_runtime(shared_runtime);
         let exporter = TraceExporterPy {
             inner: Some(
                 self.builder
                     .take()
                     .ok_or(PyValueError::new_err("Builder has already been consumed"))?
-                    .build()
+                    .build::<NativeCapabilities>()
                     .map_err(|err| PyValueError::new_err(format!("Builder {err}")))?,
             ),
         };
@@ -209,7 +216,7 @@ impl TraceExporterBuilderPy {
 /// A python object wrapping a [TraceExporter] instance
 #[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
-    inner: Option<TraceExporter>,
+    inner: Option<TraceExporter<NativeCapabilities>>,
 }
 
 #[pymethods]
@@ -248,23 +255,6 @@ impl TraceExporterPy {
 
     fn drop(&mut self) -> PyResult<()> {
         drop(self.inner.take());
-        Ok(())
-    }
-
-    fn run_worker(&self) -> PyResult<()> {
-        let exporter = self.inner.as_ref().ok_or(PyValueError::new_err(
-            "TraceExporter has already been consumed",
-        ))?;
-        match exporter.run_worker() {
-            Ok(_) => Ok(()),
-            Err(e) => Err(TraceExporterErrorPy::from(e).into()),
-        }
-    }
-
-    fn stop_worker(&self) -> PyResult<()> {
-        if let Some(exporter) = self.inner.as_ref() {
-            exporter.stop_worker();
-        }
         Ok(())
     }
 

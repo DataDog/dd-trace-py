@@ -10,21 +10,28 @@
     "error": 0,
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
+      "_dd.llmobs.model_name": "anthropic.claude-instant-v1",
+      "_dd.llmobs.model_provider": "bedrock",
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd45c800000000",
+      "_dd.p.tid": "69ea390200000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "bedrock.request.model": "claude-instant-v1",
       "bedrock.request.model_provider": "anthropic",
       "language": "python",
-      "runtime-id": "86933269d17f48f5b2d2b76948d7dbb1"
+      "runtime-id": "8f140050200d4b169e44f14eb189e9ad"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
+      "_dd.llmobs.input_tokens": 23.0,
+      "_dd.llmobs.output_tokens": 32.0,
+      "_dd.llmobs.total_tokens": 55.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 10452.0
+      "process_id": 621.0
     },
-    "duration": 2793000,
-    "start": 1776109000878064008
+    "duration": 1418041,
+    "start": 1776957698494374585
   }]]

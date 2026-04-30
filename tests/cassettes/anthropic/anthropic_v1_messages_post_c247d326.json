@@ -1,0 +1,61 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.anthropic.com/v1/messages",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate, zstd",
+      "Connection": "keep-alive",
+      "x-stainless-timeout": "NOT_GIVEN",
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "User-Agent": "Anthropic/Python 0.96.0",
+      "X-Stainless-Lang": "python",
+      "X-Stainless-Package-Version": "0.96.0",
+      "X-Stainless-OS": "Linux",
+      "X-Stainless-Arch": "arm64",
+      "X-Stainless-Runtime": "CPython",
+      "X-Stainless-Runtime-Version": "3.12.12",
+      "X-Stainless-Async": "false",
+      "anthropic-version": "2023-06-01",
+      "x-stainless-retry-count": "0",
+      "Content-Length": "383"
+    },
+    "body": "{\"max_tokens\":1024,\"messages\":[{\"role\":\"user\",\"content\":\"What is the sum of 1 and 2?\"}],\"model\":\"claude-sonnet-4-5-20250929\",\"temperature\":1.0,\"tools\":[{\"name\":\"add\",\"input_schema\":{\"properties\":{\"a\":{\"type\":\"integer\"},\"b\":{\"type\":\"integer\"}},\"required\":[\"a\",\"b\"],\"type\":\"object\"},\"description\":\"Adds a and b.\\n\\n        Args:\\n            a: first int\\n            b: second int\"}]}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "Date": "Thu, 23 Apr 2026 22:13:21 GMT",
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
+      "Connection": "keep-alive",
+      "anthropic-ratelimit-output-tokens-limit": "4000000",
+      "anthropic-ratelimit-output-tokens-remaining": "4000000",
+      "anthropic-ratelimit-output-tokens-reset": "2026-04-23T22:13:21Z",
+      "anthropic-ratelimit-requests-limit": "20000",
+      "anthropic-ratelimit-requests-remaining": "19998",
+      "anthropic-ratelimit-requests-reset": "2026-04-23T22:13:20Z",
+      "anthropic-ratelimit-input-tokens-limit": "20000000",
+      "anthropic-ratelimit-input-tokens-remaining": "19999000",
+      "anthropic-ratelimit-input-tokens-reset": "2026-04-23T22:13:21Z",
+      "anthropic-ratelimit-tokens-limit": "24000000",
+      "anthropic-ratelimit-tokens-remaining": "23999000",
+      "anthropic-ratelimit-tokens-reset": "2026-04-23T22:13:21Z",
+      "request-id": "req_011CaMUKsiigT4Ukkx1HQZZ3",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+      "anthropic-organization-id": "4257e925-ee99-4ee8-9c62-8e53716d5203",
+      "Server": "cloudflare",
+      "x-envoy-upstream-service-time": "1344",
+      "cf-cache-status": "DYNAMIC",
+      "set-cookie": "_cfuvid=ccBSc.jVFXQxHWMP7e7dIYNcxIp4URRO87lvVB_siZo-1776982400.3546553-1.0.1.1-grnm5b7w0SMZcAf_NILPp326.K5.PxNSKdgQ0fghBs8; HttpOnly; SameSite=None; Secure; Path=/; Domain=api.anthropic.com",
+      "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+      "X-Robots-Tag": "none",
+      "Content-Encoding": "gzip",
+      "CF-RAY": "9f10370239e5f95f-SJC"
+    },
+    "body": "{\"model\":\"claude-sonnet-4-5-20250929\",\"id\":\"msg_017ZiCHjMeJJuZ2bagzy2SrX\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_018oomXF9jsqQiLqv1VatVRr\",\"name\":\"add\",\"input\":{\"a\":1,\"b\":2},\"caller\":{\"type\":\"direct\"}}],\"stop_reason\":\"tool_use\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":599,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":68,\"service_tier\":\"standard\",\"inference_geo\":\"not_available\"}}"
+  }
+}

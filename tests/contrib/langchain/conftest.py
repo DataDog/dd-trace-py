@@ -56,6 +56,7 @@ def langchain_core():
         dict(
             OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
             ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+            GOOGLE_API_KEY=os.getenv("GOOGLE_API_KEY", "<not-a-real-key>"),
         )
     ):
         langchain_core_patch()
@@ -107,6 +108,16 @@ def langchain_anthropic(langchain_core):
         import langchain_anthropic
 
         yield langchain_anthropic
+    except ImportError:
+        yield
+
+
+@pytest.fixture
+def langchain_google_genai(langchain_core):
+    try:
+        import langchain_google_genai
+
+        yield langchain_google_genai
     except ImportError:
         yield
 

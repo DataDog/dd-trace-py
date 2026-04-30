@@ -8,6 +8,8 @@ from ddtrace.internal import core
 
 @pytest.fixture(autouse=True)
 def reset_context_and_listeners():
+    core.reset_listeners()
+    core._reset_context()
     yield
     core.reset_listeners()
     core._reset_context()

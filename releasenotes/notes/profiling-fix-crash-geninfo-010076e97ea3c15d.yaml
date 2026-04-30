@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: A rare crash happening on systems with small stack sizes when
+    profiling asyncio code has been fixed.

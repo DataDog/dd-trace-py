@@ -11,8 +11,10 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69e127ce00000000",
       "_dd.peer.service.source": "db.name",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "asyncpg",
       "db.name": "postgres",
       "db.system": "postgresql",
@@ -20,19 +22,19 @@
       "language": "python",
       "out.host": "127.0.0.1",
       "peer.service": "postgres",
-      "runtime-id": "15db47b079fc4656b27a4ce5e5c44910",
+      "runtime-id": "3b4fde8eba2e40f8a0b7f62396bc71aa",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "network.destination.port": 5432,
-      "process_id": 25721
+      "_sampling_priority_v1": 1.0,
+      "network.destination.port": 5432.0,
+      "process_id": 16466.0
     },
-    "duration": 6866833,
-    "start": 1692706987864093173
+    "duration": 3016459,
+    "start": 1776363470827890754
   }],
 [
   {
@@ -47,8 +49,10 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69e127ce00000000",
       "_dd.peer.service.source": "db.name",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "asyncpg",
       "db.name": "postgres",
       "db.system": "postgresql",
@@ -56,18 +60,18 @@
       "language": "python",
       "out.host": "127.0.0.1",
       "peer.service": "postgres",
-      "runtime-id": "15db47b079fc4656b27a4ce5e5c44910",
+      "runtime-id": "3b4fde8eba2e40f8a0b7f62396bc71aa",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "network.destination.port": 5432,
-      "process_id": 25721
+      "_sampling_priority_v1": 1.0,
+      "network.destination.port": 5432.0,
+      "process_id": 16466.0
     },
-    "duration": 670000,
-    "start": 1692706987902233215
+    "duration": 328042,
+    "start": 1776363470831205296
   }]]
