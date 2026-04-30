@@ -214,6 +214,105 @@ class TestConvertOpenAIMessages:
         assert len(result) == 1
         assert result[0]["role"] == "user"
 
+    def test_legacy_function_call_in_assistant_message(self):
+        """Legacy ``function_call`` on an assistant message gets translated to a
+        synthetic ``ToolCall`` with id ``fc_0`` since AI Guard's Message schema
+        only models ``tool_calls``.
+        """
+        messages = [
+            {
+                "role": "assistant",
+                "content": None,
+                "function_call": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+            }
+        ]
+        result = _convert_openai_messages(messages)
+        assert len(result) == 1
+        assert result[0]["role"] == "assistant"
+        assert "content" not in result[0]
+        assert len(result[0]["tool_calls"]) == 1
+        tc = result[0]["tool_calls"][0]
+        assert tc["id"] == "fc_0"
+        assert tc["function"]["name"] == "get_weather"
+        assert tc["function"]["arguments"] == '{"city": "Paris"}'
+
+    def test_legacy_function_role_message_paired_to_tool(self):
+        """``role="function"`` is rewritten to ``role="tool"`` and its
+        ``tool_call_id`` is taken from the FIFO of preceding ``function_call``s.
+        """
+        messages = [
+            {
+                "role": "assistant",
+                "content": None,
+                "function_call": {"name": "get_weather", "arguments": "{}"},
+            },
+            {"role": "function", "name": "get_weather", "content": "72F and sunny"},
+        ]
+        result = _convert_openai_messages(messages)
+        assert len(result) == 2
+        assert result[1]["role"] == "tool"
+        assert result[1]["tool_call_id"] == "fc_0"
+        assert result[1]["content"] == "72F and sunny"
+
+    def test_legacy_function_call_pairing_fifo_order(self):
+        """Multiple ``function_call``s are paired with following ``role="function"``
+        results in FIFO order: ``fc_0`` → first result, ``fc_1`` → second.
+        """
+        messages = [
+            {"role": "assistant", "content": None, "function_call": {"name": "fn_a", "arguments": "{}"}},
+            {"role": "assistant", "content": None, "function_call": {"name": "fn_b", "arguments": "{}"}},
+            {"role": "function", "name": "fn_a", "content": "result_a"},
+            {"role": "function", "name": "fn_b", "content": "result_b"},
+        ]
+        result = _convert_openai_messages(messages)
+        assert result[0]["tool_calls"][0]["id"] == "fc_0"
+        assert result[1]["tool_calls"][0]["id"] == "fc_1"
+        assert result[2]["role"] == "tool"
+        assert result[2]["tool_call_id"] == "fc_0"
+        assert result[2]["content"] == "result_a"
+        assert result[3]["role"] == "tool"
+        assert result[3]["tool_call_id"] == "fc_1"
+        assert result[3]["content"] == "result_b"
+
+    def test_legacy_function_role_without_pending_pairing(self):
+        """A ``role="function"`` message with no preceding ``function_call``
+        gets an empty ``tool_call_id`` (matches LiteLLM behavior).
+        """
+        messages = [{"role": "function", "name": "orphan", "content": "stray"}]
+        result = _convert_openai_messages(messages)
+        assert len(result) == 1
+        assert result[0]["role"] == "tool"
+        assert result[0]["tool_call_id"] == ""
+        assert result[0]["content"] == "stray"
+
+    def test_legacy_mixed_tool_calls_and_function_call(self):
+        """An assistant message with both modern ``tool_calls`` and legacy
+        ``function_call`` keeps both — the legacy one is appended last with a
+        synthetic id.
+        """
+        messages = [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_modern",
+                        "type": "function",
+                        "function": {"name": "fn_modern", "arguments": "{}"},
+                    }
+                ],
+                "function_call": {"name": "fn_legacy", "arguments": "{}"},
+            }
+        ]
+        result = _convert_openai_messages(messages)
+        assert len(result) == 1
+        tool_calls = result[0]["tool_calls"]
+        assert len(tool_calls) == 2
+        assert tool_calls[0]["id"] == "call_modern"
+        assert tool_calls[0]["function"]["name"] == "fn_modern"
+        assert tool_calls[1]["id"] == "fc_0"
+        assert tool_calls[1]["function"]["name"] == "fn_legacy"
+
 
 class TestConvertOpenAIResponse:
     def test_basic_response(self):
@@ -258,6 +357,37 @@ class TestConvertOpenAIResponse:
         assert "content" not in result[0]
         assert result[0]["tool_calls"][0]["id"] == "call_1"
         assert result[0]["tool_calls"][0]["function"]["name"] == "get_weather"
+
+    def test_response_with_legacy_function_call(self):
+        """Legacy ``function_call`` on a response message is translated to a
+        synthetic ``ToolCall`` with id ``fc_<hex>`` (response-side scheme — no
+        FIFO needed since each choice is independent).
+        """
+
+        class MockFunctionCall:
+            name = "get_weather"
+            arguments = '{"city": "NYC"}'
+
+        class MockMessage:
+            role = "assistant"
+            content = None
+            tool_calls = None
+            function_call = MockFunctionCall()
+
+        class MockChoice:
+            message = MockMessage()
+
+        class MockResp:
+            choices = [MockChoice()]
+
+        result = _convert_openai_response(MockResp())
+        assert len(result) == 1
+        assert "content" not in result[0]
+        assert len(result[0]["tool_calls"]) == 1
+        tc = result[0]["tool_calls"][0]
+        assert tc["id"].startswith("fc_")
+        assert tc["function"]["name"] == "get_weather"
+        assert tc["function"]["arguments"] == '{"city": "NYC"}'
 
 
 # ---------------------------------------------------------------------------
@@ -584,6 +714,41 @@ def test_before_fires_when_last_message_is_tool(mock_execute_request, openai_cli
     before_messages = before_payload["data"]["attributes"]["messages"]
     assert before_messages[-1]["role"] == "tool"
     assert before_messages[-1]["content"] == "72F and sunny"
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_before_fires_when_last_message_is_function_role(mock_execute_request, openai_client_mock):
+    """Legacy ``role="function"`` messages must trigger before-model evaluation
+    too. Translation rewrites them to ``role="tool"`` upstream of the role
+    gate, so the same prevention window applies for legacy function-calling
+    flows (deprecated but still supported on ``openai>=1.102.0``).
+    """
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    messages = [
+        {"role": "user", "content": "What's the weather?"},
+        {
+            "role": "assistant",
+            "content": None,
+            "function_call": {"name": "get_weather", "arguments": "{}"},
+        },
+        {"role": "function", "name": "get_weather", "content": "72F and sunny"},
+    ]
+    resp = openai_client_mock.chat.completions.create(messages=messages, **CHAT_PARAMS)
+
+    assert resp is not None
+    assert mock_execute_request.call_count == 2
+    _, before_payload = mock_execute_request.call_args_list[0].args
+    before_messages = before_payload["data"]["attributes"]["messages"]
+    # function-role rewritten to tool, paired with the synthetic id from the
+    # preceding function_call.
+    assert before_messages[-1]["role"] == "tool"
+    assert before_messages[-1]["tool_call_id"] == "fc_0"
+    assert before_messages[-1]["content"] == "72F and sunny"
+    # Assistant message carries the synthesized tool_call.
+    assert before_messages[-2]["role"] == "assistant"
+    assert before_messages[-2]["tool_calls"][0]["id"] == "fc_0"
+    assert before_messages[-2]["tool_calls"][0]["function"]["name"] == "get_weather"
 
 
 # ---------------------------------------------------------------------------

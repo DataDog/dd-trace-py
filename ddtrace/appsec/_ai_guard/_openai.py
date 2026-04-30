@@ -23,6 +23,8 @@ Block error type:
     (``except AIGuardAbortError``).
 """
 
+from collections import deque
+
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
 from ddtrace.appsec.ai_guard._api_client import Function
@@ -133,8 +135,21 @@ def _convert_openai_messages(messages):
 
     Handles both plain dicts (user-supplied) and SDK response objects
     (which expose attributes instead of dict keys).
+
+    Legacy translation: OpenAI's deprecated single-call API still ships in
+    ``openai>=1.102.0`` (our minimum supported version). Assistant
+    ``function_call`` and ``role="function"`` response messages are
+    translated to AI Guard's canonical ``tool_calls`` / ``role="tool"``
+    shape — the ``Message`` schema in ``_api_client.py`` only models
+    ``tool_calls``/``tool_call_id``, so without translation the function
+    name and arguments would be invisible to the evaluator. Pairing uses a
+    FIFO of synthetic ids ``fc_N`` so the matching ``role="function"``
+    result correlates with the assistant turn that issued it. Mirrors the
+    canonical pattern in ``ai_guard/integrations/litellm.py``.
     """
     result = []
+    pending_fc_ids: deque = deque()
+    fc_counter = 0
     for msg in messages:
         try:
             if msg is None:
@@ -142,19 +157,45 @@ def _convert_openai_messages(messages):
             role = _get(msg, "role", "")
             if not role:
                 continue
-            ai_msg = Message(role=role)
+
+            if role == "function":
+                ai_msg = Message(role="tool")
+                ai_msg["tool_call_id"] = pending_fc_ids.popleft() if pending_fc_ids else ""
+            else:
+                ai_msg = Message(role=role)
+                tool_call_id = _get(msg, "tool_call_id")
+                if tool_call_id:
+                    ai_msg["tool_call_id"] = tool_call_id
 
             content = _get(msg, "content")
             if content is not None:
                 ai_msg["content"] = content
 
-            tool_call_id = _get(msg, "tool_call_id")
-            if tool_call_id:
-                ai_msg["tool_call_id"] = tool_call_id
-
-            tool_calls = _get(msg, "tool_calls")
-            if tool_calls:
-                ai_msg["tool_calls"] = [_tool_call_from(tc) for tc in tool_calls]
+            if role == "assistant":
+                tool_calls_out = []
+                tool_calls = _get(msg, "tool_calls")
+                if tool_calls:
+                    tool_calls_out.extend(_tool_call_from(tc) for tc in tool_calls)
+                function_call = _get(msg, "function_call")
+                if function_call:
+                    synthetic_id = f"fc_{fc_counter}"
+                    fc_counter += 1
+                    pending_fc_ids.append(synthetic_id)
+                    tool_calls_out.append(
+                        ToolCall(
+                            id=synthetic_id,
+                            function=Function(
+                                name=_get(function_call, "name", "") or "",
+                                arguments=_get(function_call, "arguments", "{}") or "{}",
+                            ),
+                        )
+                    )
+                if tool_calls_out:
+                    ai_msg["tool_calls"] = tool_calls_out
+            else:
+                tool_calls = _get(msg, "tool_calls")
+                if tool_calls:
+                    ai_msg["tool_calls"] = [_tool_call_from(tc) for tc in tool_calls]
             result.append(ai_msg)
         except Exception:
             logger.debug("Failed to convert OpenAI message", exc_info=True)
@@ -181,7 +222,11 @@ def _convert_openai_response(resp):
     """Convert an OpenAI ChatCompletion response to AI Guard ``Message`` list.
 
     Iterates over ``resp.choices`` and extracts the assistant message
-    (content + tool_calls) from each choice.
+    (content + tool_calls) from each choice. Legacy ``function_call``
+    responses are translated to a synthetic ``ToolCall`` (see
+    ``_convert_openai_messages`` for rationale); response-side uses
+    ``fc_<id():x>`` since each choice is independent and there is no
+    pairing within a single response.
     """
     result = []
     choices = _get(resp, "choices") or []
@@ -197,9 +242,23 @@ def _convert_openai_response(resp):
             if content is not None:
                 ai_msg["content"] = content
 
+            tool_calls_out = []
             tool_calls = _get(message, "tool_calls")
             if tool_calls:
-                ai_msg["tool_calls"] = [_tool_call_from(tc) for tc in tool_calls]
+                tool_calls_out.extend(_tool_call_from(tc) for tc in tool_calls)
+            function_call = _get(message, "function_call")
+            if function_call:
+                tool_calls_out.append(
+                    ToolCall(
+                        id=f"fc_{id(function_call):x}",
+                        function=Function(
+                            name=_get(function_call, "name", "") or "",
+                            arguments=_get(function_call, "arguments", "{}") or "{}",
+                        ),
+                    )
+                )
+            if tool_calls_out:
+                ai_msg["tool_calls"] = tool_calls_out
             result.append(ai_msg)
         except Exception:
             logger.debug("Failed to convert OpenAI response message", exc_info=True)
