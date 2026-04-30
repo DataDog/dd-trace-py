@@ -1,9 +1,16 @@
 ## Description
 
 Part of the Python 3.15 integration parity effort
-(tracker: <!-- fill in tracker issue number, e.g. #12345 -->).
+(parent tracker: <!-- fill in parent tracker issue, e.g. #12345 -->).
 
-This PR closes the **`<integration>`** row.
+Closes #<!-- sub-issue number for this row, e.g. #12346 -->
+
+<!-- The `Closes #<sub-issue>` line above auto-closes the per-row sub-issue
+     on merge, which auto-flips the parent tracker's checkbox. Keep both
+     references — the parent gives readers context, the `Closes` does the
+     bookkeeping. -->
+
+This PR enables the **`<integration>`** integration on Python 3.15.
 
 <!-- One-paragraph summary of the upstream blocker and what changed.
      Example: "Bumps `tiktoken` to 0.x.y, which adds Python 3.15 wheels
