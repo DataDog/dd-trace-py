@@ -4,7 +4,6 @@
 # would cause Cython compilation errors since they aren't valid C types.
 
 import _thread
-import logging
 import os.path
 import sys
 import time
@@ -30,9 +29,10 @@ from ddtrace.profiling.collector._task cimport (
     get_task as _c_get_task,
     initialize_gevent_support as _c_initialize_gevent_support,
 )
+from ddtrace.internal.logger import get_logger
 
 
-LOG = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 ACQUIRE_RELEASE_CO_NAMES: frozenset[str] = frozenset(["_acquire", "_release"])
@@ -122,7 +122,7 @@ class _ProfiledLock:
         # and should not generate profile samples to avoid double-counting
         self.is_internal: bool = is_internal
 
-    # gevent compatibility — gevent's _patch_existing_locks() calls
+    # gevent compatibility — gevent's _patch_existing_locks calls
     # type(threading.RLock()) to determine the RLock type, then scans gc.get_objects()
     # for instances of that type. When our wrapper is on threading.RLock, the type is
     # _ProfiledLock, so ALL profiled lock instances match. gevent then checks each for
@@ -543,11 +543,13 @@ class LockCollector(collector.CaptureSamplerCollector):
             nonlocal patched_module_id
             if id(new_module) == patched_module_id:
                 return
-            LOG.warning(
-                "%s: target module %r was re-imported (id %#x -> %#x); "
-                "re-applying lock profiling patches. "
-                "This typically happens when gevent is installed and cleanup_loaded_modules() "
-                "discards the previously-patched module from sys.modules.",
+            log.warning(
+                (
+                    "%s: target module %r was re-imported (id %#x -> %#x); "
+                    "re-applying lock profiling patches. "
+                    "This typically happens when gevent is installed and cleanup_loaded_modules() "
+                    "discards the previously-patched module from sys.modules."
+                ),
                 type(self).__name__,
                 module_name,
                 patched_module_id,
@@ -568,17 +570,14 @@ class LockCollector(collector.CaptureSamplerCollector):
         super(LockCollector, self)._stop_service()  # type: ignore[safe-super]
         self.unpatch()
         if self._reimport_hook is not None:
-            try:
-                ModuleWatchdog.unregister_module_hook(self.MODULE.__name__, self._reimport_hook)
-            except Exception:  # nosec B110
-                pass
+            ModuleWatchdog.unregister_module_hook(self.MODULE.__name__, self._reimport_hook)
             self._reimport_hook = None
 
     def patch(self) -> None:
         """Patch the module for tracking lock allocation."""
         original_lock: Callable[..., Any] = self._get_patch_target()
         if isinstance(original_lock, _LockAllocatorWrapper):
-            LOG.debug(
+            log.debug(
                 "%s: %s.%s is already patched, skipping to avoid double-wrapping.",
                 type(self).__name__,
                 self.MODULE.__name__,
