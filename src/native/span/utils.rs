@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 use crate::py_string::PyBackedString;
 use pyo3::{
-    types::{PyAnyMethods as _, PyString},
+    types::PyAnyMethods as _,
     Bound, PyAny,
 };
 
@@ -42,14 +42,6 @@ pub fn extract_i32_or_default(obj: &Bound<'_, PyAny>) -> i32 {
     obj.extract::<i32>().unwrap_or(0)
 }
 
-/// Try to extract a PyBackedString from any Python object that is a string.
-/// Returns None if the object is not a PyString or UTF-8 extraction fails.
-/// Use this for all key/value extractions that should bail silently on bad input.
-#[inline(always)]
-pub fn try_extract_backed_string(value: &Bound<'_, PyAny>) -> Option<PyBackedString> {
-    let py_str = value.cast::<PyString>().ok()?;
-    PyBackedString::try_from(py_str.clone()).ok()
-}
 
 /// Get wall clock time in nanoseconds since Unix epoch.
 /// Uses SystemTime for wall clock (matches Python's time.time_ns()).

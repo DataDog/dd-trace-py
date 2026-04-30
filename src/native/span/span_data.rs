@@ -2,36 +2,12 @@ use pyo3::{
     types::{
         PyAnyMethods as _, PyBool, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _,
         PyFloat, PyFloatMethods as _, PyList, PyListMethods as _, PyMapping, PyMappingMethods as _,
-        PyString, PyTuple,
+        PyString, PyStringMethods as _, PyTuple,
     },
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 
-/// Typed storage for a single span attribute value.
-///
-/// Variants map 1:1 to the Python types accepted by `_set_attribute`.
-/// Bool is intentionally absent — PyO3's `extract::<i64>()` succeeds for
-/// bool (True → 1, False → 0), so bool collapses into `Int` at write time.
-/// The `set_tag` Python shim converts bool to str before reaching Rust, so
-/// callers using the public API never see bool stored as Int here.
-pub enum AttributeValue {
-    Str(PyBackedString),
-    Int(i64),
-    Float(f64),
-}
-
-impl AttributeValue {
-    /// Return the natural Python object for this value (no v0.4 projection).
-    /// Str → str, Int → int, Float → float.
-    pub fn as_py<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
-        match self {
-            AttributeValue::Str(s) => s.as_py(py),
-            AttributeValue::Int(i) => i.into_pyobject(py).expect("i64 into_pyobject").into_any(),
-            AttributeValue::Float(f) => f.into_pyobject(py).expect("f64 into_pyobject").into_any(),
-        }
-    }
-}
-
+use super::attributes::{AttrKey, AttributeMap, AttributeValue};
 use crate::py_string::{PyBackedString, PyTraceData};
 use crate::utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use libdd_trace_utils::span::{
@@ -44,7 +20,7 @@ use libdd_trace_utils::span::{
 
 use super::utils::{
     extract_backed_string_or_default, extract_backed_string_or_none, extract_i32_or_default,
-    extract_i64_or_default, extract_time_unix_nano, try_extract_backed_string, wall_clock_ns,
+    extract_i64_or_default, extract_time_unix_nano, wall_clock_ns,
 };
 use super::{SpanEvent, SpanLink};
 
@@ -57,7 +33,7 @@ pub struct SpanData {
     /// `data.meta` and `data.metrics` are left empty; they are materialized from
     /// this map at encode time (currently by the Python encoder via the bulk read
     /// accessors `_get_str_attributes` / `_get_numeric_attributes`).
-    pub attributes: std::collections::HashMap<PyBackedString, AttributeValue>,
+    pub attributes: AttributeMap,
     /// Lazy Python int cache for the `trace_id` getter.
     /// Populated on first read; invalidated on every write to `data.trace_id`.
     /// `data.trace_id` is always the source of truth.
@@ -471,14 +447,15 @@ impl SpanData {
         key: &Bound<'_, PyAny>,
         value: &Bound<'_, PyAny>,
     ) -> pyo3::PyResult<()> {
-        let Some(key_pbs) = try_extract_backed_string(key) else {
+        let Ok(key_str) = key.cast::<PyString>() else {
             return Ok(());
         };
+        let attr_key = AttrKey::new(key_str.clone().unbind());
 
         // http.status_code must always be a string in meta.
         // Fast path: typed contract is `str`, so most callers already pass a PyString.
         // Only fall back to str() for non-string inputs (e.g. an int 200).
-        if &*key_pbs == HTTP_STATUS_CODE_KEY {
+        if key_str.to_str().unwrap_or("") == HTTP_STATUS_CODE_KEY {
             let s = if let Ok(s) = value.cast::<PyString>() {
                 s.clone()
             } else {
@@ -487,17 +464,13 @@ impl SpanData {
                 };
                 s
             };
-            if let Ok(v) = PyBackedString::try_from(s) {
-                self.attributes.insert(key_pbs, AttributeValue::Str(v));
-            }
+            self.attributes.insert(attr_key, AttributeValue::Str(s.unbind()));
             return Ok(());
         }
 
         // str → Str
         if let Ok(s) = value.cast::<PyString>() {
-            if let Ok(v) = PyBackedString::try_from(s.clone()) {
-                self.attributes.insert(key_pbs, AttributeValue::Str(v));
-            }
+            self.attributes.insert(attr_key, AttributeValue::Str(s.clone().unbind()));
             return Ok(());
         }
 
@@ -509,7 +482,7 @@ impl SpanData {
             if n.is_nan() || n.is_infinite() {
                 return Ok(());
             }
-            self.attributes.insert(key_pbs, AttributeValue::Float(n));
+            self.attributes.insert(attr_key, AttributeValue::Float(n));
             return Ok(());
         }
 
@@ -518,7 +491,7 @@ impl SpanData {
         // type implementing __index__. Python ints that overflow i64 fall through
         // to the str() fallback below.
         if let Ok(n) = value.extract::<i64>() {
-            self.attributes.insert(key_pbs, AttributeValue::Int(n));
+            self.attributes.insert(attr_key, AttributeValue::Int(n));
             return Ok(());
         }
 
@@ -526,9 +499,7 @@ impl SpanData {
         if let Ok(b) = value.cast::<PyBytes>() {
             let decoded = String::from_utf8_lossy(b.as_bytes());
             let py_str = PyString::new(key.py(), &decoded);
-            if let Ok(v) = PyBackedString::try_from(py_str) {
-                self.attributes.insert(key_pbs, AttributeValue::Str(v));
-            }
+            self.attributes.insert(attr_key, AttributeValue::Str(py_str.unbind()));
             return Ok(());
         }
 
@@ -536,9 +507,7 @@ impl SpanData {
         let Ok(s) = value.str() else {
             return Ok(());
         };
-        if let Ok(v) = PyBackedString::try_from(s.clone()) {
-            self.attributes.insert(key_pbs, AttributeValue::Str(v));
-        }
+        self.attributes.insert(attr_key, AttributeValue::Str(s.unbind()));
         Ok(())
     }
 
@@ -577,19 +546,25 @@ impl SpanData {
     /// Return True if the span has an attribute with the given key.
     #[pyo3(name = "_has_attribute")]
     fn has_attribute(&self, key: &Bound<'_, PyAny>) -> bool {
-        let Some(k) = try_extract_backed_string(key) else {
+        let Ok(k) = key.cast::<PyString>() else {
             return false;
         };
-        self.attributes.contains_key(&k)
+        let Ok(k_str) = k.to_str() else {
+            return false;
+        };
+        self.attributes.contains_key(k_str)
     }
 
     /// Remove an attribute by key.
     #[pyo3(name = "_remove_attribute")]
     fn remove_attribute(&mut self, key: &Bound<'_, PyAny>) {
-        let Some(k) = try_extract_backed_string(key) else {
+        let Ok(k) = key.cast::<PyString>() else {
             return;
         };
-        self.attributes.remove(&k);
+        let Ok(k_str) = k.to_str() else {
+            return;
+        };
+        self.attributes.remove(k_str);
     }
 
     /// Return the raw stored value for the given key, or None if not found.
@@ -600,8 +575,9 @@ impl SpanData {
         py: Python<'py>,
         key: &Bound<'_, PyAny>,
     ) -> Option<Bound<'py, PyAny>> {
-        let k = try_extract_backed_string(key)?;
-        Some(self.attributes.get(&k)?.as_py(py))
+        let k = key.cast::<PyString>().ok()?;
+        let k_str = k.to_str().ok()?;
+        Some(self.attributes.get(k_str)?.as_py(py))
     }
 
     /// Return the string attribute for the given key, or None if not a Str variant.
@@ -611,9 +587,10 @@ impl SpanData {
         py: Python<'py>,
         key: &Bound<'_, PyAny>,
     ) -> Option<Bound<'py, PyAny>> {
-        let k = try_extract_backed_string(key)?;
-        match self.attributes.get(&k)? {
-            AttributeValue::Str(s) => Some(s.as_py(py)),
+        let k = key.cast::<PyString>().ok()?;
+        let k_str = k.to_str().ok()?;
+        match self.attributes.get(k_str)? {
+            AttributeValue::Str(s) => Some(s.bind(py).clone().into_any()),
             _ => None,
         }
     }
@@ -626,8 +603,9 @@ impl SpanData {
         py: Python<'py>,
         key: &Bound<'_, PyAny>,
     ) -> Option<Bound<'py, PyAny>> {
-        let k = try_extract_backed_string(key)?;
-        match self.attributes.get(&k)? {
+        let k = key.cast::<PyString>().ok()?;
+        let k_str = k.to_str().ok()?;
+        match self.attributes.get(k_str)? {
             AttributeValue::Int(i) => {
                 Some(i.into_pyobject(py).expect("i64 into_pyobject").into_any())
             }
@@ -645,7 +623,7 @@ impl SpanData {
     fn get_attributes<'py>(&self, py: Python<'py>) -> pyo3::PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
         for (k, v) in &self.attributes {
-            d.set_item(k.as_py(py), v.as_py(py))?;
+            d.set_item(k.as_bound(py), v.as_py(py))?;
         }
         Ok(d)
     }
@@ -659,7 +637,7 @@ impl SpanData {
         let d = PyDict::new(py);
         for (k, v) in &self.attributes {
             if let AttributeValue::Str(s) = v {
-                d.set_item(k.as_py(py), s.as_py(py))?;
+                d.set_item(k.as_bound(py), s.bind(py))?;
             }
         }
         Ok(d)
@@ -676,10 +654,10 @@ impl SpanData {
         for (k, v) in &self.attributes {
             match v {
                 AttributeValue::Int(i) => {
-                    d.set_item(k.as_py(py), *i)?;
+                    d.set_item(k.as_bound(py), *i)?;
                 }
                 AttributeValue::Float(f) => {
-                    d.set_item(k.as_py(py), *f)?;
+                    d.set_item(k.as_bound(py), *f)?;
                 }
                 AttributeValue::Str(_) => {}
             }
