@@ -933,9 +933,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             if include_eval_metrics:
                 path += "&include[eval_metrics]=true"
         else:
-            raise ValueError(
-                "Either experiment_id or (project_name and experiment_name) must be provided."
-            )
+            raise ValueError("Either experiment_id or (project_name and experiment_name) must be provided.")
         resp = self.request("GET", path)
         if resp.status != 200:
             raise ValueError(f"Failed to get experiment events: {resp.status} {resp.get_json()}")

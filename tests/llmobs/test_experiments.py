@@ -2237,12 +2237,15 @@ def test_experiment_run_as_dataframe_no_pandas(monkeypatch):
 
 def test_experiment_run_stores_result(llmobs, test_dataset_one_record):
     """run() stores the result on self.result."""
-    with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record, \
-         mock.patch.object(
-             llmobs._instance._dne_client,
-             "experiment_create",
-             return_value=("mock-exp-id", "test_experiment"),
-         ), mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"):
+    with (
+        mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record,
+        mock.patch.object(
+            llmobs._instance._dne_client,
+            "experiment_create",
+            return_value=("mock-exp-id", "test_experiment"),
+        ),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"),
+    ):
         mock_process_record.return_value = {
             "idx": 0,
             "span_id": "123",
@@ -2287,10 +2290,15 @@ def test_experiment_rerun_evaluators_skips_task(llmobs, test_dataset_one_record)
     exp._experiment._id = "mock-original-exp-id"
     exp._experiment._project_id = "mock-project-id"
 
-    with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record, \
-         mock.patch.object(
-             llmobs._instance._dne_client, "experiment_create", return_value=("new-rerun-exp-id", "test_experiment-rerun")
-         ), mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"):
+    with (
+        mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record,
+        mock.patch.object(
+            llmobs._instance._dne_client,
+            "experiment_create",
+            return_value=("new-rerun-exp-id", "test_experiment-rerun"),
+        ),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"),
+    ):
         new_result = exp.rerun_evaluators(evaluators=[dummy_evaluator])
 
     # _process_record must not be called at all on re-run
@@ -2395,9 +2403,14 @@ def test_experiment_rerun_skip_strategy(llmobs):
     exp._experiment._id = "mock-original-exp-id"
     exp._experiment._project_id = "mock-project-id"
     exp._experiment._dataset_id = "mock-dataset-id"
-    with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_create", return_value=("new-rerun-exp-id", "test_experiment-rerun")
-    ), mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"):
+    with (
+        mock.patch.object(
+            llmobs._instance._dne_client,
+            "experiment_create",
+            return_value=("new-rerun-exp-id", "test_experiment-rerun"),
+        ),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"),
+    ):
         new_result = exp.rerun_evaluators(evaluators=[dummy_evaluator], missing_task_strategy="skip")
 
     assert len(new_result.result["runs"][0].rows) == 1
@@ -2518,8 +2531,10 @@ def test_experiment_rerun_creates_new_experiment_with_parent_id(llmobs, test_dat
         create_calls.append(kwargs if kwargs else args)
         return ("new-rerun-exp-id", "test_experiment-rerun")
 
-    with mock.patch.object(llmobs._instance._dne_client, "experiment_create", side_effect=capture_create), \
-         mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"):
+    with (
+        mock.patch.object(llmobs._instance._dne_client, "experiment_create", side_effect=capture_create),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"),
+    ):
         exp.rerun_evaluators(evaluators=[dummy_evaluator])
 
     # experiment_create IS called once for the re-run experiment
@@ -2585,8 +2600,10 @@ def test_experiment_rerun_without_task_succeeds(llmobs):
         call_kwargs["events"] = events
         call_kwargs["spans"] = spans
 
-    with mock.patch.object(llmobs._instance._dne_client, "experiment_create", side_effect=capture_create), \
-         mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post", side_effect=capture_eval_post):
+    with (
+        mock.patch.object(llmobs._instance._dne_client, "experiment_create", side_effect=capture_create),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post", side_effect=capture_eval_post),
+    ):
         new_result = exp.rerun_evaluators(evaluators=[dummy_evaluator])
 
     assert new_result is not exp
@@ -2708,9 +2725,7 @@ def test_experiment_pull_sets_id_from_response(llmobs):
     exp = llmobs.experiment("test-exp", evaluators=[dummy_evaluator], project_name="my-project")
     assert exp._experiment._id is None
 
-    with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE
-    ):
+    with mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE):
         exp.pull()
 
     assert exp._experiment._id == "mock-experiment-id"
@@ -2721,9 +2736,7 @@ def test_experiment_pull_parses_eval_metrics(llmobs):
     exp = llmobs.experiment("test-exp", evaluators=[dummy_evaluator], project_name="my-project")
     exp._experiment._id = "mock-experiment-id"
 
-    with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE
-    ):
+    with mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE):
         exp.pull()
 
     evals = exp.result["runs"][0].rows[0]["evaluations"]
@@ -2780,9 +2793,7 @@ def test_experiment_pull_populates_duration_and_span_name(llmobs):
     exp = llmobs.experiment("test-exp", evaluators=[dummy_evaluator], project_name="my-project")
     exp._experiment._id = "mock-experiment-id"
 
-    with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE
-    ):
+    with mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE):
         exp.pull()
 
     row = exp.result["runs"][0].rows[0]
@@ -2794,9 +2805,7 @@ def test_experiment_pull_then_rerun(llmobs):
     """pull() + rerun_evaluators(): fresh span copies with new UUIDs emitted to a new child experiment."""
     exp = llmobs.experiment("test-exp", evaluators=[dummy_evaluator], project_name="my-project")
 
-    with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE
-    ):
+    with mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE):
         exp.pull()
 
     assert exp.result is not None
@@ -2815,8 +2824,10 @@ def test_experiment_pull_then_rerun(llmobs):
         call_kwargs["events"] = events
         call_kwargs["spans"] = spans
 
-    with mock.patch.object(llmobs._instance._dne_client, "experiment_create", side_effect=capture_create), \
-         mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post", side_effect=capture_eval_post):
+    with (
+        mock.patch.object(llmobs._instance._dne_client, "experiment_create", side_effect=capture_create),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post", side_effect=capture_eval_post),
+    ):
         # No evaluators argument — uses the experiment's own evaluators (cross-session notebook pattern)
         new_result = exp.rerun_evaluators()
 
@@ -5367,7 +5378,6 @@ def test_experiment_run_as_dataframe_no_pandas(monkeypatch):
         run.as_dataframe()
 
 
-
 # --- User-defined record ID unit tests ---
 
 
@@ -5644,10 +5654,11 @@ def test_rerun_preserves_all_span_fields(llmobs):
         if spans:
             posted_spans.extend(spans)
 
-    with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_create", return_value=("new-rerun-exp-id", "test-exp-rerun")
-    ), mock.patch.object(
-        llmobs._instance._dne_client, "experiment_eval_post", side_effect=capture_eval_post
+    with (
+        mock.patch.object(
+            llmobs._instance._dne_client, "experiment_create", return_value=("new-rerun-exp-id", "test-exp-rerun")
+        ),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post", side_effect=capture_eval_post),
     ):
         new_result = exp.rerun_evaluators(evaluators=[dummy_evaluator])
 

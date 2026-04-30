@@ -1902,9 +1902,7 @@ class Experiment:
     ) -> None:
         self.name = name
         self._task = task
-        self._task_accepts_metadata = (
-            "metadata" in inspect.signature(task).parameters if task is not None else False
-        )
+        self._task_accepts_metadata = "metadata" in inspect.signature(task).parameters if task is not None else False
         self._dataset = dataset
         self._evaluators = list(evaluators)
         self._remote_evaluator_names: set[str] = {
@@ -2281,9 +2279,7 @@ class Experiment:
                 "automatically when the original run was performed with a dataset)."
             )
 
-        dataset_version = (
-            self._dataset._version if self._dataset is not None else None
-        ) or self._dataset_version or 0
+        dataset_version = (self._dataset._version if self._dataset is not None else None) or self._dataset_version or 0
 
         evaluator_names = [
             e.name if hasattr(e, "name") else getattr(e, "__name__", str(e))  # type: ignore[union-attr]
@@ -3204,9 +3200,7 @@ class SyncExperiment:
             ) from e
 
         if self.result is None:
-            raise ValueError(
-                "No result found. Call run() or pull() before as_dataframe()."
-            )
+            raise ValueError("No result found. Call run() or pull() before as_dataframe().")
 
         frames = []
         for run in self.result.get("runs", []):
@@ -3220,7 +3214,6 @@ class SyncExperiment:
             return pd.DataFrame()
 
         return pd.concat(frames, ignore_index=True)
-
 
     def rerun_evaluators(
         self,
@@ -3278,8 +3271,7 @@ class SyncExperiment:
             )
         if self.result is None:
             raise ValueError(
-                "No previous result found. Run the experiment first via `run()` "
-                "or load a prior run via `pull()`."
+                "No previous result found. Run the experiment first via `run()` or load a prior run via `pull()`."
             )
         return self._rerun_evaluators(
             self.result,
@@ -3385,9 +3377,7 @@ class SyncExperiment:
         """
         if missing_task_strategy not in ("raise", "skip", "retry"):
             raise ValueError(
-                "missing_task_strategy must be 'raise', 'skip', or 'retry', got '{}'.".format(
-                    missing_task_strategy
-                )
+                "missing_task_strategy must be 'raise', 'skip', or 'retry', got '{}'.".format(missing_task_strategy)
             )
 
         rows = previous_result["runs"][0].rows if previous_result.get("runs") else previous_result["rows"]
@@ -3623,6 +3613,7 @@ class SyncExperiment:
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 return pool.submit(asyncio.run, _run()).result()
+
     @property
     def url(self) -> str:
         return self._experiment.url
