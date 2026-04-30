@@ -9,25 +9,29 @@
     "type": "",
     "error": 1,
     "meta": {
+      "_dd.llmobs.model_name": "text-embedding-004",
+      "_dd.llmobs.model_provider": "google",
+      "_dd.llmobs.span_kind": "embedding",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e6430000000000",
+      "_dd.p.tid": "69e920d400000000",
       "_dd.svc_src": "tests.contrib.google_genai",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_genai",
       "error.message": "Models.embed_content() got an unexpected keyword argument 'not_an_argument'",
-      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/google_genai/patch.py\", line 109, in traced_embed_content\n    resp = func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\nTypeError: Models.embed_content() got an unexpected keyword argument 'not_an_argument'\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/google_genai/patch.py\", line 109, in traced_embed_content\n    resp = func(*args, **kwargs)\nTypeError: Models.embed_content() got an unexpected keyword argument 'not_an_argument'\n",
       "error.type": "builtins.TypeError",
       "google_genai.request.model": "text-embedding-004",
       "google_genai.request.provider": "google",
       "language": "python",
-      "runtime-id": "a447ab5760174b6f931d0630724f28d7"
+      "runtime-id": "d2ae4c06649e4b41835183fbcfb0bad0"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 429.0
+      "process_id": 621.0
     },
-    "duration": 185458,
-    "start": 1776698112033682503
+    "duration": 207750,
+    "start": 1776885972403501260
   }]]

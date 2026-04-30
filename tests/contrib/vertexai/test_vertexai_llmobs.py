@@ -911,3 +911,35 @@ def expected_llmobs_reasoning_span_event(span):
         token_metrics={"input_tokens": 20, "output_tokens": 143, "total_tokens": 163, "reasoning_output_tokens": 128},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai", "integration": "vertexai"},
     )
+
+
+def test_shadow_tags_completion_when_llmobs_disabled(tracer):
+    """Verify shadow tags are set on VertexAI spans when LLMObs is disabled."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.vertexai import VertexAIIntegration
+
+    integration = VertexAIIntegration(MagicMock())
+
+    response = MagicMock()
+    response.to_dict.return_value = {
+        "usage_metadata": {
+            "prompt_token_count": 10,
+            "candidates_token_count": 5,
+            "thoughts_token_count": 0,
+            "total_token_count": 15,
+        }
+    }
+
+    with tracer.trace("vertexai.request") as span:
+        span._set_attribute("vertexai.request.model", "gemini-1.5-pro")
+        span._set_attribute("vertexai.request.provider", "google")
+        integration._set_apm_shadow_tags(span, [], {}, response=response)
+
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "gemini-1.5-pro"
+    assert span.get_tag("_dd.llmobs.model_provider") == "google"
+    assert span.get_metric("_dd.llmobs.enabled") is not None
+    assert span.get_metric("_dd.llmobs.input_tokens") == 10
+    assert span.get_metric("_dd.llmobs.output_tokens") == 5
+    assert span.get_metric("_dd.llmobs.total_tokens") == 15
