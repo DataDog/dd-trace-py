@@ -1,4 +1,5 @@
 import os
+from unittest import mock
 
 from agents import Agent
 from agents import GuardrailFunctionOutput
@@ -12,8 +13,7 @@ import vcr
 
 from ddtrace.contrib.internal.openai_agents.patch import patch
 from ddtrace.contrib.internal.openai_agents.patch import unpatch
-from ddtrace.llmobs import LLMObs as llmobs_service
-from tests.llmobs._utils import TestLLMObsSpanWriter
+from ddtrace.llmobs import LLMObs
 from tests.utils import override_global_config
 
 
@@ -202,22 +202,28 @@ def openai(agents):
 
 
 @pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
+def ddtrace_global_config():
+    return {}
 
 
 @pytest.fixture
-def agents_llmobs(tracer, llmobs_span_writer):
-    llmobs_service.disable()
-    with override_global_config(
-        {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.agents"}
-    ):
-        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-        yield llmobs_service
-    llmobs_service.disable()
-
-
-@pytest.fixture
-def llmobs_events(agents_llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events
+def test_spans(ddtrace_global_config, test_spans, monkeypatch):
+    try:
+        if ddtrace_global_config.get("_llmobs_enabled", False):
+            # Preserve meta_struct["_llmobs"] on spans so tests can assert against
+            # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it
+            # after enqueueing to LLMObsSpanWriter.
+            monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+            with override_global_config(ddtrace_global_config):
+                # Have to disable and re-enable LLMObs to use to mock tracer.
+                LLMObs.disable()
+                LLMObs.enable(_tracer=test_spans.tracer, integrations_enabled=False)
+                # Replace the real LLMObsSpanWriter with a mock so we don't keep a
+                # background flush thread alive trying to ship spans during the test.
+                LLMObs._instance._llmobs_span_writer.stop()
+                LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+                yield test_spans
+        else:
+            yield test_spans
+    finally:
+        LLMObs.disable()
