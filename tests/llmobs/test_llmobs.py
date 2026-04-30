@@ -407,7 +407,7 @@ def test_malformed_span_logs_error_instead_of_raising(tracer, llmobs_events, moc
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         pass  # span does not have SPAN_KIND tag
     mock_llmobs_logs.error.assert_called_with(
-        "Error generating LLMObs span event for span %s, likely due to malformed span", llm_span, exc_info=True
+        "Error preparing LLMObs span event for span %s, missing span kind in span context.", llm_span
     )
     assert len(llmobs_events) == 0
 
