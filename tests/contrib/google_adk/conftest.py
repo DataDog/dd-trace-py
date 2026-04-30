@@ -36,7 +36,7 @@ def test_spans(ddtrace_global_config, test_spans, monkeypatch):
             monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
             # Have to disable and re-enable LLMObs to use to mock tracer.
             LLMObs.disable()
-            LLMObs.enable(integrations_enabled=False)
+            LLMObs.enable(integrations_enabled=False, agentless_enabled=False)
             # Replace the real LLMObsSpanWriter with a mock so we don't keep a
             # background flush thread alive trying to ship spans during the test.
             LLMObs._instance._llmobs_span_writer.stop()
