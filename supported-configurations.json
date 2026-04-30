@@ -327,7 +327,7 @@
       {
         "implementation": "C",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML": [
@@ -474,7 +474,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_ASYNCIO_SERVICE": [
@@ -656,7 +656,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_BOTOCORE_INSTRUMENT_INTERNALS": [
@@ -677,7 +677,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_BOTOCORE_SERVICE": [
@@ -866,7 +866,7 @@
       {
         "implementation": "B",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_CIVISIBILITY_FLAKY_RETRY_COUNT": [
@@ -922,7 +922,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_CLAUDE_AGENT_SDK_SERVICE": [
@@ -3380,7 +3380,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_PYTEST_USE_NEW_PLUGIN_BETA": [
@@ -4697,7 +4697,7 @@
       {
         "implementation": "A",
         "type": "int",
-        "default": null
+        "default": "15728640"
       }
     ],
     "DD_TRACE_LOG_LEVEL": [
@@ -4997,14 +4997,14 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_TRACE_RAY_CORE_API": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_TRACE_RAY_ENABLED": [
