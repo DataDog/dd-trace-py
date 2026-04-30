@@ -1,5 +1,7 @@
 from abc import ABC
 from abc import abstractmethod
+import asyncio
+from copy import copy
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
@@ -1118,7 +1120,7 @@ class DatasetRecordUpdateWithId(DatasetRecordUpdate):
     record_id: str
 
 
-class TaskResult(TypedDict):
+class _TaskResultRequired(TypedDict):
     idx: int
     span_id: str
     trace_id: str
@@ -1126,6 +1128,11 @@ class TaskResult(TypedDict):
     output: JSONType
     metadata: dict[str, JSONType]
     error: dict[str, Optional[str]]
+
+
+class TaskResult(_TaskResultRequired, total=False):
+    duration: int
+    span_name: str
 
 
 class EvaluationResult(TypedDict):
@@ -1140,18 +1147,24 @@ class _ExperimentRunInfo:
         self._run_iteration = run_interation + 1
 
 
-class ExperimentRowResult(TypedDict):
+class _ExperimentRowResultRequired(TypedDict):
     idx: int
     record_id: Optional[str]
     span_id: str
     trace_id: str
     timestamp: int
+    duration: int
+    span_name: str
     input: JSONType
     output: JSONType
     expected_output: JSONType
     evaluations: dict[str, dict[str, JSONType]]
     metadata: dict[str, JSONType]
     error: dict[str, Optional[str]]
+
+
+class ExperimentRowResult(_ExperimentRowResultRequired, total=False):
+    pass
 
 
 class ExperimentRun:
@@ -1246,6 +1259,188 @@ class ExperimentResult(TypedDict):
     summary_evaluations: dict[str, dict[str, JSONType]]
     rows: list[ExperimentRowResult]
     runs: list[ExperimentRun]
+
+
+def _build_span_copies(
+    prior_rows: "list[ExperimentRowResult]",
+    new_experiment_id: str,
+    base_tags: list[str],
+) -> "tuple[list[dict], dict[str, str], str]":
+    """Build semantically identical span dicts with fresh UUIDs and an offset timestamp.
+
+    For each row with a span_id, a new span dict is produced with:
+    - A fresh UUID for span_id (old → new mapping stored in id_map)
+    - A single shared new trace_id for the entire batch
+    - start_ns offset uniformly to the current wall clock while preserving relative ordering
+    - duration preserved from the original span (stored on the row from run() or pull())
+    - name preserved from the original span (stored on the row from run() or pull())
+    - All meta content (input, output, expected_output, metadata) copied verbatim
+    - Tags updated to reference new_experiment_id instead of the original
+
+    Returns ``(span_dicts, id_map, new_trace_id)`` where ``id_map`` maps each original
+    span_id to its new UUID so eval metrics can reference the correct new span IDs.
+    """
+    rows_with_span = [r for r in prior_rows if r.get("span_id")]
+    if not rows_with_span:
+        return [], {}, ""
+
+    timestamps = [r["timestamp"] for r in rows_with_span if r.get("timestamp")]
+    min_start_ns = min(timestamps) if timestamps else 0
+    offset_ns = time.time_ns() - min_start_ns
+    new_trace_id = str(uuid.uuid4())
+    id_map: dict[str, str] = {r["span_id"]: str(uuid.uuid4()) for r in rows_with_span}
+
+    spans = []
+    for row in rows_with_span:
+        # Replace experiment_id tag; preserve every other tag from base_tags.
+        tags = [t for t in base_tags if not t.startswith("experiment_id:")]
+        record_id = row.get("record_id")
+        if record_id:
+            tags.append(f"dataset_record_id:{record_id}")
+        tags.append(f"experiment_id:{new_experiment_id}")
+        tags.append(f"parent_experiment_span_id:{row['span_id']}")
+
+        span: dict = {
+            "span_id": id_map[row["span_id"]],
+            "trace_id": new_trace_id,
+            "name": row.get("span_name") or "experiment_record",
+            "start_ns": (row["timestamp"] or 0) + offset_ns,
+            "duration": row.get("duration") or 1,  # backend requires non-zero (Go `required` tag)
+            "meta": {
+                "input": row.get("input"),
+                "output": row.get("output"),
+                "expected_output": row.get("expected_output"),
+                "metadata": row.get("metadata"),
+                "parent_experiment_span_id": row["span_id"],
+            },
+            "status": row.get("status", "ok"),
+            "tags": tags,
+        }
+        spans.append(span)
+
+    return spans, id_map, new_trace_id
+
+
+def _task_results_from_previous(
+    rows: "list[ExperimentRowResult]",
+    id_map: "dict[str, str]",
+    new_trace_id: str,
+) -> "list[TaskResult]":
+    """Reconstruct TaskResult objects from a previous ExperimentRun's rows.
+
+    Used by eval-only re-runs to reuse prior task outputs without re-executing the task.
+    span_id and trace_id are replaced with new values from id_map / new_trace_id so that
+    eval metrics emitted for the re-run reference the newly created span copies.
+    """
+    return [
+        {
+            "idx": row["idx"],
+            "span_id": id_map.get(row["span_id"], row["span_id"]),
+            "trace_id": new_trace_id or row["trace_id"],
+            "timestamp": row["timestamp"],
+            "duration": row["duration"],
+            "span_name": row["span_name"],
+            "output": row["output"],
+            "metadata": row["metadata"],
+            "error": row["error"],
+        }
+        for row in rows
+    ]
+
+
+def _parse_experiment_result(response: dict) -> "ExperimentResult":
+    """Deserialise a backend ``/events`` response into an ``ExperimentResult``.
+
+    Response shape (single JSON:API object):
+    ``{"data": {"id": "<experiment_id>", "type": "experiment_events",
+    "attributes": {"spans": [...], "summary_metrics": [...]}}}``
+
+    Each item in ``attributes.spans`` is one experiment span with flat fields
+    (``span_id``, ``trace_id``, ``name``, ``start_ns``, ``duration``, ``tags``,
+    ``meta`` containing ``input``/``output``/``expected_output``/``metadata``/``error``,
+    and ``eval_metrics``).  ``eval_metrics`` on each span (when present) are converted
+    to the ``evaluations`` dict format used by ``ExperimentRowResult``.  When multiple
+    eval events share the same label (e.g. original run + re-run), the one with the
+    latest ``timestamp_ms`` wins.
+    """
+    data = response.get("data") or {}
+    attributes = data.get("attributes") or {}
+    spans = attributes.get("spans") or []
+
+    rows: list[ExperimentRowResult] = []
+    for i, span in enumerate(spans):
+        meta = span.get("meta") or {}
+        metadata: dict = meta.get("metadata") or {}
+
+        # idx: use array position (no dataset_record_index in the new response shape)
+        idx: int = i
+
+        # record_id is stored as a "dataset_record_id:<uuid>" tag
+        record_id: Optional[str] = None
+        for tag in span.get("tags") or []:
+            if isinstance(tag, str) and tag.startswith("dataset_record_id:"):
+                record_id = tag.split(":", 1)[1]
+                break
+
+        # Convert eval_metrics list → evaluations dict keyed by label.
+        # Multiple events per label are possible (original run + re-run); keep latest by timestamp_ms.
+        evaluations: dict = {}
+        latest_ts: dict[str, int] = {}
+        for em in span.get("eval_metrics") or []:
+            label = em.get("label", "")
+            if not label:
+                continue
+            ts = em.get("timestamp_ms", 0) or 0
+            if label in latest_ts and ts < latest_ts[label]:
+                continue
+            latest_ts[label] = ts
+            metric_type = em.get("metric_type", "score")
+            value = em.get("score_value") if metric_type == "score" else em.get("boolean_value")
+            evaluations[label] = {
+                "value": value,
+                "type": metric_type,
+                "reasoning": em.get("reasoning"),
+                "assessment": em.get("assessment"),
+            }
+
+        # Normalise error: the API returns an empty dict {} when there is no error.
+        raw_error = meta.get("error") or {}
+        normalised_error: dict[str, Optional[str]] = {
+            "type": raw_error.get("type") or None,
+            "message": raw_error.get("message") or None,
+            "stack": raw_error.get("stack") or None,
+        }
+
+        duration = span.get("duration") or 0
+        if not duration:
+            logger.warning(
+                "Span %s from experiment pull response is missing a duration field; "
+                "rerun_evaluators() will use a fallback of 1 ns.",
+                span.get("span_id", "<unknown>"),
+            )
+
+        row: ExperimentRowResult = {
+            "idx": idx,
+            "record_id": record_id,
+            "span_id": span.get("span_id", ""),
+            "trace_id": span.get("trace_id", ""),
+            "timestamp": span.get("start_ns", 0),
+            "duration": duration,
+            "span_name": span.get("name", "experiment_record"),
+            "input": meta.get("input") or {},
+            "output": meta.get("output"),
+            "expected_output": meta.get("expected_output"),
+            "evaluations": evaluations,
+            "metadata": metadata,
+            "error": normalised_error,
+        }
+        rows.append(row)
+
+    rows.sort(key=lambda r: r["idx"])
+
+    run_info = _ExperimentRunInfo(run_interation=0)
+    experiment_run = ExperimentRun(run_info, summary_evaluations={}, rows=rows)
+    return Experiment._build_result([experiment_run])
 
 
 class Dataset:
@@ -1681,7 +1876,7 @@ class Experiment:
     or ``LLMObs.experiment()`` to get a ``SyncExperiment`` wrapper (for sync callers).
     """
 
-    _task: Union[TaskType, AsyncTaskType]
+    _task: Optional[Union[TaskType, AsyncTaskType]]
     _evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]]
     _summary_evaluators: Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]
 
@@ -1693,10 +1888,10 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        task: Union[TaskType, AsyncTaskType],
-        dataset: Dataset,
-        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
-        project_name: str,
+        task: Optional[Union[TaskType, AsyncTaskType]] = None,
+        dataset: Optional[Dataset] = None,
+        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]] = (),
+        project_name: str = "",
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
@@ -1707,7 +1902,7 @@ class Experiment:
     ) -> None:
         self.name = name
         self._task = task
-        self._task_accepts_metadata = "metadata" in inspect.signature(task).parameters
+        self._task_accepts_metadata = "metadata" in inspect.signature(task).parameters if task is not None else False
         self._dataset = dataset
         self._evaluators = list(evaluators)
         self._remote_evaluator_names: set[str] = {
@@ -1720,11 +1915,11 @@ class Experiment:
         self._tags: dict[str, str] = tags or {}
         self._tags["ddtrace.version"] = str(__version__)
         self._tags["project_name"] = project_name
-        self._tags["dataset_name"] = dataset.name
+        self._tags["dataset_name"] = dataset.name if dataset is not None else ""
         self._tags["experiment_name"] = name
         self._config: dict[str, JSONType] = config or {}
         # Write dataset tags to experiment config
-        if dataset.filter_tags:
+        if dataset is not None and dataset.filter_tags:
             self._config["filtered_record_tags"] = dataset.filter_tags
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
@@ -1740,8 +1935,13 @@ class Experiment:
         self._project_name = project_name
         self._project_id: Optional[str] = None
         self._id: Optional[str] = None
+        # Populated from dataset if provided, or extracted from span tags during pull()
+        # so that _create_rerun_experiment() can reference them without a dataset.
+        self._dataset_id: Optional[str] = dataset._id if dataset is not None else None
+        self._dataset_version: Optional[int] = dataset._version if dataset is not None else None
         self._run_name: Optional[str] = None
         self.experiment_span: Optional["ExportedLLMObsSpan"] = None
+        self._interrupted: bool = False
 
     @property
     def url(self) -> str:
@@ -1755,6 +1955,7 @@ class Experiment:
         evaluations: list[EvaluationResult],
         summary_evaluations: Optional[list[EvaluationResult]],
     ) -> ExperimentRun:
+        assert self._dataset is not None  # nosec B101
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
@@ -1767,6 +1968,8 @@ class Experiment:
                 "span_id": task_result.get("span_id", ""),
                 "trace_id": task_result.get("trace_id", ""),
                 "timestamp": task_result.get("timestamp", 0),
+                "duration": task_result.get("duration", 0),
+                "span_name": task_result.get("span_name", "experiment_record"),
                 "record_id": record.get("record_id", ""),
                 "input": record["input_data"],
                 "expected_output": record["expected_output"],
@@ -1930,6 +2133,7 @@ class Experiment:
 
     def _get_subset_dataset(self, sample_size: Optional[int]) -> Dataset:
         """Get dataset containing the first sample_size records of the original dataset."""
+        assert self._dataset is not None  # nosec B101
         if sample_size is not None and sample_size < len(self._dataset):
             subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
             subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
@@ -1989,6 +2193,7 @@ class Experiment:
         list[dict[str, Any]],
         dict[str, list[JSONType]],
     ]:
+        assert self._dataset is not None  # nosec B101
         inputs: list[JSONType] = []
         outputs: list[JSONType] = []
         expected_outputs: list[JSONType] = []
@@ -2027,6 +2232,7 @@ class Experiment:
         self._project_id = project.get("_id", "")
         self._tags["project_id"] = self._project_id
 
+        assert self._dataset is not None  # nosec B101
         (
             experiment_id,
             experiment_run_name,
@@ -2044,6 +2250,54 @@ class Experiment:
         self._id = experiment_id
         self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
+
+    def _create_rerun_experiment(
+        self,
+        evaluators: "Sequence[Union[EvaluatorType, AsyncEvaluatorType]]",
+    ) -> "tuple[str, str]":
+        """Create a new experiment entity for this re-run.
+
+        The new experiment has ``parent_experiment_id`` set to the current experiment's ID,
+        making the lineage traversable. Returns ``(experiment_id, experiment_name)``.
+
+        :raises ValueError: if LLMObs is not enabled, if the current experiment has no ID,
+                            or if dataset information cannot be resolved from the loaded
+                            dataset or span tags from a prior pull().
+        """
+        assert self._llmobs_instance is not None and self._llmobs_instance.enabled  # nosec B101
+
+        # Resolve project_id lazily — not set if the experiment was never run() in this session
+        if not self._project_id:
+            project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
+            self._project_id = project.get("_id", "")
+            self._tags["project_id"] = self._project_id
+
+        # Resolve dataset_id — prefer the loaded dataset, fall back to what was extracted
+        # from span tags during pull() and stored on self._dataset_id.
+        dataset_id = (self._dataset._id if self._dataset is not None else None) or self._dataset_id
+        if not dataset_id:
+            raise ValueError(
+                "Cannot create re-run experiment: dataset_id is not available. "
+                "Either provide a dataset when creating the experiment or ensure "
+                "the original spans include a 'dataset_id:<uuid>' tag (populated "
+                "automatically when the original run was performed with a dataset)."
+            )
+
+        dataset_version = (self._dataset._version if self._dataset is not None else None) or self._dataset_version or 0
+
+        evaluator_names = [e.name if hasattr(e, "name") else getattr(e, "__name__", str(e)) for e in evaluators]
+        new_name = f"{self.name}-rerun-{int(time.time() * 1000)}"
+
+        experiment_id, _ = self._llmobs_instance._dne_client.experiment_create(
+            name=new_name,
+            dataset_id=dataset_id,
+            project_id=self._project_id,
+            dataset_version=dataset_version,
+            exp_config={"evaluators": evaluator_names},
+            tags=convert_tags_dict_to_list(self._tags),
+            parent_experiment_id=str(self._id),
+        )
+        return experiment_id, new_name
 
     async def run(
         self,
@@ -2076,6 +2330,12 @@ class Experiment:
             raise ValueError("jobs must be at least 1")
         if max_retries < 0:
             raise ValueError("max_retries must be >= 0")
+        if self._task is None or self._dataset is None:
+            raise ValueError(
+                "task and dataset are required to run an experiment from scratch. "
+                "Either provide them when creating the experiment, or call `pull()` first "
+                "and use `rerun_evaluators()` to re-score the stored results."
+            )
 
         self._setup_experiment(
             "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
@@ -2195,6 +2455,8 @@ class Experiment:
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> Optional[TaskResult]:
         """Process single record asynchronously."""
+        assert self._task is not None  # nosec B101
+        assert self._dataset is not None  # nosec B101
         asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
@@ -2272,24 +2534,27 @@ class Experiment:
                     metadata=record.get("metadata"),
                     config=self._config or None,
                 )
-
-                return {
-                    "idx": idx,
-                    "span_id": span_id,
-                    "trace_id": trace_id,
-                    "timestamp": span.start_ns,
-                    "output": output_data,
-                    "metadata": {
-                        "dataset_record_index": idx,
-                        "experiment_name": self.name,
-                        "dataset_name": self._dataset.name,
-                    },
-                    "error": {
-                        "message": span.get_tag(ERROR_MSG),
-                        "stack": span.get_tag(ERROR_STACK),
-                        "type": span.get_tag(ERROR_TYPE),
-                    },
-                }
+            # span.__exit__ has now been called and span.finish() has run;
+            # span.duration_ns is the real wall-clock duration in nanoseconds, not 0.
+            return {
+                "idx": idx,
+                "span_id": span_id,
+                "trace_id": trace_id,
+                "timestamp": span.start_ns,
+                "duration": span.duration_ns or 0,
+                "span_name": self._task.__name__,
+                "output": output_data,
+                "metadata": {
+                    "dataset_record_index": idx,
+                    "experiment_name": self.name,
+                    "dataset_name": self._dataset.name,
+                },
+                "error": {
+                    "message": span.get_tag(ERROR_MSG),
+                    "stack": span.get_tag(ERROR_STACK),
+                    "type": span.get_tag(ERROR_TYPE),
+                },
+            }
 
     def _check_task_result_error(self, task_result: TaskResult, raise_errors: bool) -> None:
         err_dict = task_result.get("error") or {}
@@ -2352,6 +2617,7 @@ class Experiment:
         raise_errors: bool = False,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
+        _override_evaluators: Optional[Sequence[Union[EvaluatorType, AsyncEvaluatorType]]] = None,
     ) -> EvaluationResult:
         asyncio = get_asyncio()
         idx = task_result["idx"]
@@ -2454,8 +2720,9 @@ class Experiment:
                     **extra_return_values,
                 }
 
+        evaluators_to_use = _override_evaluators if _override_evaluators is not None else self._evaluators
         results = await asyncio.gather(
-            *[_run_single_evaluator(ev) for ev in self._evaluators],
+            *[_run_single_evaluator(ev) for ev in evaluators_to_use],
             return_exceptions=True,
         )
         row_results: dict[str, dict[str, JSONType]] = {}
@@ -2476,6 +2743,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
+        assert self._dataset is not None  # nosec B101
         asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
         coros = [
@@ -2575,6 +2843,8 @@ class Experiment:
         raise_errors: bool = False,
         jobs: int = 10,
     ) -> list[EvaluationResult]:
+        if not self._summary_evaluators:
+            return []
         (
             inputs,
             outputs,
@@ -2803,10 +3073,10 @@ class SyncExperiment:
     def __init__(
         self,
         name: str,
-        task: Union[TaskType, AsyncTaskType],
-        dataset: Dataset,
-        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
-        project_name: str,
+        task: Optional[Union[TaskType, AsyncTaskType]] = None,
+        dataset: Optional[Dataset] = None,
+        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]] = (),
+        project_name: str = "",
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
@@ -2829,6 +3099,40 @@ class SyncExperiment:
             runs=runs,
         )
 
+    @classmethod
+    def _for_rerun(
+        cls,
+        parent: "SyncExperiment",
+        new_id: str,
+        new_name: str,
+        evaluators: "Sequence[Union[EvaluatorType, AsyncEvaluatorType]]",
+        result: ExperimentResult,
+    ) -> "SyncExperiment":
+        """Build a SyncExperiment clone representing a completed rerun.
+
+        Shallow-copies the parent's Experiment, overriding only the fields that differ
+        for the rerun (id, name, tags, evaluators). All other state — dataset, task,
+        llmobs_instance, config, project info — is shared by reference.
+        """
+        rerun = cls.__new__(cls)
+        exp = copy(parent._experiment)
+        exp._id = new_id
+        exp.name = new_name
+        exp._tags = {**parent._experiment._tags, "experiment_id": new_id}
+        exp._evaluators = list(evaluators)
+        exp._remote_evaluator_names = {
+            e.name  # type: ignore[union-attr]
+            for e in evaluators
+            if hasattr(e, "_is_remote_evaluator") and e._is_remote_evaluator
+        }
+        exp._run_results = []
+        exp._retries = []
+        exp._has_errors = False
+        exp._interrupted = False
+        rerun._experiment = exp
+        rerun.result = result
+        return rerun
+
     def run(
         self,
         jobs: int = 1,
@@ -2846,7 +3150,8 @@ class SyncExperiment:
         :param max_retries: Maximum number of retries for failed tasks and evaluators (default: 0)
         :param retry_delay: Callable that takes the attempt number (0-based) and returns the delay
                             in seconds before the next retry. Default: ``0.1 * (attempt + 1)``
-        :return: ExperimentResult containing evaluation results and metadata
+        :return: ExperimentResult containing evaluation results and metadata. Also stored on
+                 ``self.result``.
         """
         asyncio = get_asyncio()
         coro = self._experiment.run(
@@ -2883,9 +3188,9 @@ class SyncExperiment:
 
             df = experiment.as_dataframe()
             run1 = df[df[("run_iteration", "")] == 1]
-            df.groupby(("run_iteration", ""))[(\"evaluations\", \"exact_match\")].apply(...)
+            df.groupby(("run_iteration", ""))[("evaluations", "exact_match")].apply(...)
 
-        :raises ValueError: if ``self.result`` is ``None`` (experiment not yet run).
+        :raises ValueError: if ``self.result`` is ``None`` (experiment not yet run or pulled).
         :raises ImportError: if ``pandas`` is not installed.
         :return: ``pd.DataFrame`` with ``pd.MultiIndex`` columns and a reset integer index.
         """
@@ -2898,7 +3203,7 @@ class SyncExperiment:
             ) from e
 
         if self.result is None:
-            raise ValueError("No result found. Call run() before as_dataframe().")
+            raise ValueError("No result found. Call run() or pull() before as_dataframe().")
 
         frames = []
         for run in self.result.get("runs", []):
@@ -2912,6 +3217,404 @@ class SyncExperiment:
             return pd.DataFrame()
 
         return pd.concat(frames, ignore_index=True)
+
+    def rerun_evaluators(
+        self,
+        evaluators: "Optional[Sequence[Union[EvaluatorType, AsyncEvaluatorType]]]" = None,
+        missing_task_strategy: str = "raise",
+        jobs: int = 1,
+        raise_errors: bool = False,
+        max_retries: int = 0,
+        retry_delay: Optional[Callable[[int], float]] = None,
+        summary_evaluators: Optional["Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]"] = None,
+    ) -> "SyncExperiment":
+        """Re-run evaluators on the stored task outputs from the previous run.
+
+        Creates a new experiment entity on the backend (linked via ``parent_experiment_id``)
+        and returns it as a new ``SyncExperiment`` object, leaving the original experiment
+        unchanged.  This means multiple independent reruns can be created from the same
+        original without losing track of any of them:
+
+        .. code-block:: python
+
+            rerun1 = exp.rerun_evaluators([evaluator_v2])
+            rerun2 = exp.rerun_evaluators([evaluator_v3])
+            # exp, rerun1, rerun2 all have their own IDs and results
+
+        Reads task outputs from ``self.result`` — call ``run()`` or ``pull()`` first.
+
+        :param evaluators: Evaluators to run against the stored outputs. When omitted (or ``None``),
+                           the experiment's own evaluators (set at construction time) are reused.
+                           Pass an explicit list to override — for example to fix a bug in an
+                           evaluator or add a new one — without modifying the original experiment.
+        :param missing_task_strategy: How to handle rows with task errors.
+                                      ``"raise"`` (default) raises immediately, ``"skip"``
+                                      drops failed rows, ``"retry"`` re-executes failed tasks.
+        :param jobs: Maximum number of concurrent evaluator executions (default: 1)
+        :param raise_errors: Whether to raise exceptions on evaluator errors (default: False)
+        :param max_retries: Maximum number of retries for failed evaluators (default: 0)
+        :param retry_delay: Callable that takes the attempt number (0-based) and returns the delay
+                            in seconds before the next retry. Default: ``0.1 * (attempt + 1)``
+        :param summary_evaluators: Optional summary evaluators to run after all rows are evaluated.
+                                   When omitted, the experiment's own summary evaluators are used.
+        :return: New ``SyncExperiment`` representing the rerun, with its own ID and result.
+        :raises ValueError: if no evaluators are available (neither provided nor set on the experiment),
+                            or ``self.result`` is ``None``.
+        """
+        # Resolve evaluators: use provided list or fall back to the experiment's own evaluators.
+        resolved_evaluators: "Sequence[Union[EvaluatorType, AsyncEvaluatorType]]"
+        if evaluators is not None:
+            resolved_evaluators = evaluators
+        else:
+            resolved_evaluators = self._experiment._evaluators
+        if not resolved_evaluators:
+            raise ValueError(
+                "No evaluators available for rerun_evaluators(). "
+                "Either pass an evaluators list or set evaluators when creating the experiment."
+            )
+        if self.result is None:
+            raise ValueError(
+                "No previous result found. Run the experiment first via `run()` or load a prior run via `pull()`."
+            )
+        return self._rerun_evaluators(
+            self.result,
+            list(resolved_evaluators),
+            missing_task_strategy,
+            jobs,
+            raise_errors,
+            max_retries,
+            retry_delay,
+            list(summary_evaluators) if summary_evaluators else None,
+        )
+
+    def pull(self, include_eval_metrics: bool = True) -> None:
+        """Fetch prior experiment results from the backend and store them on ``self.result``.
+
+        Uses the experiment's own name and project to find the latest run (or uses the
+        known ``_id`` directly if the experiment has already been run in this session).
+        Returns ``None`` — results are accessible via ``self.result``.
+
+        After a successful ``pull()``, ``rerun_evaluators()`` can be called immediately
+        to re-score the fetched outputs with updated evaluators.
+
+        :param include_eval_metrics: Whether to include evaluator scores from the original
+                                     run. Default: ``True``.
+        :raises ValueError: If LLMObs is not enabled.
+        :raises ValueError: If neither an experiment ID nor name+project are available.
+        :raises ValueError: If the backend call fails.
+        """
+        if not self._experiment._llmobs_instance or not self._experiment._llmobs_instance.enabled:
+            raise ValueError("LLMObs is not enabled. Enable LLMObs before calling pull().")
+
+        client = self._experiment._llmobs_instance._dne_client
+        experiment_id = self._experiment._id
+
+        if experiment_id:
+            raw = client.experiment_events_get(
+                experiment_id=str(experiment_id),
+                include_eval_metrics=include_eval_metrics,
+            )
+        else:
+            experiment_name = self._experiment.name
+            project_name = self._experiment._project_name
+            if not experiment_name or not project_name:
+                raise ValueError(
+                    "experiment name and project_name are required to pull results when "
+                    "the experiment has not been run in the current session."
+                )
+            raw = client.experiment_events_get(
+                project_name=project_name,
+                experiment_name=experiment_name,
+                include_eval_metrics=include_eval_metrics,
+            )
+
+        self.result = _parse_experiment_result(raw)
+
+        # Populate _id from data.id and dataset_id / project_id from the first span's tags.
+        # The /events API returns a single JSON:API object whose primary id is the experiment UUID;
+        # span-level tags carry the dataset_id / project_id.
+        data = raw.get("data") or {}
+        attributes = data.get("attributes") or {}
+        if not self._experiment._id:
+            experiment_id_from_response = data.get("id")
+            if experiment_id_from_response:
+                self._experiment._id = experiment_id_from_response
+        spans = attributes.get("spans") or []
+        first_span = spans[0] if spans else {}
+        for tag in first_span.get("tags") or []:
+            if not isinstance(tag, str):
+                continue
+            if not self._experiment._id and tag.startswith("experiment_id:"):
+                self._experiment._id = tag.split(":", 1)[1]
+            elif tag.startswith("dataset_id:") and self._experiment._dataset_id is None:
+                self._experiment._dataset_id = tag.split(":", 1)[1]
+            elif tag.startswith("project_id:") and not self._experiment._project_id:
+                self._experiment._project_id = tag.split(":", 1)[1]
+
+    def _rerun_evaluators(
+        self,
+        previous_result: ExperimentResult,
+        evaluators: "list[Union[EvaluatorType, AsyncEvaluatorType]]",
+        missing_task_strategy: str,
+        jobs: int,
+        raise_errors: bool,
+        max_retries: int,
+        retry_delay: Optional[Callable[[int], float]],
+        summary_evaluators: "Optional[list[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]]",
+    ) -> "SyncExperiment":
+        """Re-run evaluators on task outputs from a previous experiment run.
+
+        Creates a new experiment entity on the backend linked to the original via
+        ``parent_experiment_id``.  Span copies with fresh UUIDs are emitted so the
+        re-run is fully independent.  The original experiment's state is never mutated —
+        all rerun-specific state (ID, tags, evaluators) is carried locally and only written
+        to the returned ``SyncExperiment`` clone.
+
+        :param previous_result: ExperimentResult whose task outputs to reuse.
+        :param evaluators: Row-level evaluators to run (already resolved by ``rerun_evaluators``).
+        :param missing_task_strategy: ``"raise"`` (default), ``"skip"``, or ``"retry"``.
+        :param summary_evaluators: Optional summary evaluators; if None uses the experiment's own.
+        :raises ValueError: if ``missing_task_strategy`` is invalid, ``"raise"`` is used
+                            with rows that have task errors, LLMObs is not enabled, or the
+                            experiment has not been run yet (``self._experiment._id`` is None).
+        """
+        if missing_task_strategy not in ("raise", "skip", "retry"):
+            raise ValueError(
+                "missing_task_strategy must be 'raise', 'skip', or 'retry', got '{}'.".format(missing_task_strategy)
+            )
+
+        rows = previous_result["runs"][0].rows if previous_result.get("runs") else previous_result["rows"]
+
+        if missing_task_strategy == "raise":
+            for row in rows:
+                if (row.get("error") or {}).get("message"):
+                    raise ValueError(
+                        "Cannot re-run evaluators: row {} has a task error. "
+                        "Use missing_task_strategy='skip' or 'retry' to handle failed rows.".format(row["idx"])
+                    )
+            rows_to_eval = rows
+            rows_to_retry: list[ExperimentRowResult] = []
+        elif missing_task_strategy == "skip":
+            rows_to_eval = [r for r in rows if not (r.get("error") or {}).get("message")]
+            rows_to_retry = []
+        else:  # "retry"
+            rows_to_eval = [r for r in rows if not (r.get("error") or {}).get("message")]
+            rows_to_retry = [r for r in rows if (r.get("error") or {}).get("message")]
+
+        def _default_retry_delay(attempt: int) -> float:
+            return 0.1 * (attempt + 1)
+
+        resolved_retry_delay: Callable[[int], float] = retry_delay if retry_delay is not None else _default_retry_delay
+
+        if not self._experiment._llmobs_instance or not self._experiment._llmobs_instance.enabled:
+            raise ValueError(
+                "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
+                "and create the experiment via `LLMObs.experiment(...)` before re-running evaluators."
+            )
+        if not self._experiment._id:
+            raise ValueError(
+                "Experiment has no ID. Run the experiment via `run()` or call `pull()` first "
+                "before calling `rerun_evaluators()`."
+            )
+
+        # Build a fallback record lookup from prior rows when no dataset is loaded
+        # (e.g. after pull() without a dataset). Keys are row idx values.
+        fallback_records: dict[int, DatasetRecord] = {}
+        if self._experiment._dataset is None:
+            all_rows = (rows_to_eval or []) + (rows_to_retry or [])
+            for row in all_rows:
+                fallback_records[row["idx"]] = {
+                    "record_id": row.get("record_id") or "",
+                    "canonical_id": None,
+                    "input_data": cast(dict, row.get("input") or {}),
+                    "expected_output": row.get("expected_output"),
+                    "metadata": cast(dict, row.get("metadata") or {}),
+                    "tags": [],
+                }
+
+        def _get_record(idx: int) -> DatasetRecord:
+            if self._experiment._dataset is not None:
+                return self._experiment._dataset[idx]
+            return fallback_records[idx]
+
+        # Compute remote evaluator names from the provided evaluators so that
+        # _generate_metrics_for_record() correctly marks managed (LLM-as-judge) evals.
+        rerun_remote_names: set[str] = {
+            e.name  # type: ignore[union-attr]
+            for e in evaluators
+            if hasattr(e, "_is_remote_evaluator") and e._is_remote_evaluator
+        }
+
+        async def _run() -> "SyncExperiment":
+            run = _ExperimentRunInfo(0)
+
+            # Step 1 — create a new experiment entity with parent_experiment_id so the
+            # lineage is traversable and the re-run accumulates into a clean aggregate.
+            new_experiment_id, new_name = self._experiment._create_rerun_experiment(evaluators)
+
+            # Temporarily update _id and _tags on the shared Experiment so that
+            # _process_record (for retried rows), _generate_metric_from_evaluation,
+            # and _run_summary_evaluators all stamp the new experiment ID.
+            # Both are restored unconditionally in the finally block below so the
+            # original experiment is left untouched regardless of success or failure.
+            original_id = self._experiment._id
+            original_tags = dict(self._experiment._tags)
+            self._experiment._id = new_experiment_id
+            self._experiment._tags["experiment_id"] = new_experiment_id
+
+            try:
+                # Step 2 — build span copies: new UUIDs, shared trace_id, offset timestamps.
+                # span_name and duration are read from each row (stored during run() or pull()).
+                span_copies, id_map, new_trace_id = _build_span_copies(
+                    rows_to_eval,
+                    new_experiment_id,
+                    convert_tags_dict_to_list(self._experiment._tags),
+                )
+
+                # Step 3 — reconstruct task results pointing at the new span IDs so that
+                # eval metrics emitted later reference the freshly created span copies.
+                task_results = _task_results_from_previous(rows_to_eval, id_map, new_trace_id)
+
+                # Step 4 — re-execute failed rows (creates new spans via the normal task path).
+                if rows_to_retry:
+                    if self._experiment._dataset is None:
+                        raise ValueError(
+                            "Cannot retry failed rows without a dataset. "
+                            "Provide a dataset when creating the experiment or use "
+                            "missing_task_strategy='skip'."
+                        )
+                    semaphore = asyncio.Semaphore(jobs)
+                    retry_coros = [
+                        self._experiment._process_record(
+                            (row["idx"], self._experiment._dataset[row["idx"]]),
+                            run,
+                            semaphore,
+                            max_retries=max_retries,
+                            retry_delay=resolved_retry_delay,
+                        )
+                        for row in rows_to_retry
+                    ]
+                    retried = list(await asyncio.gather(*retry_coros, return_exceptions=True))
+                    for r in retried:
+                        if isinstance(r, BaseException):
+                            if raise_errors:
+                                raise r
+                            continue
+                        if r is not None:
+                            task_results.append(r)
+                            self._experiment._check_task_result_error(r, raise_errors)
+                    task_results.sort(key=lambda t: t["idx"])
+
+                # Step 5 — run only the provided evaluators, not the experiment's own list.
+                semaphore = asyncio.Semaphore(jobs)
+                eval_coros = [
+                    self._experiment._evaluate_record(
+                        _get_record(task_result["idx"]),
+                        task_result,
+                        semaphore,
+                        raise_errors,
+                        max_retries,
+                        resolved_retry_delay,
+                        _override_evaluators=evaluators,
+                    )
+                    for task_result in task_results
+                ]
+                evaluations = list(await asyncio.gather(*eval_coros))
+
+                # Step 6 — post span copies and eval metrics to the NEW experiment.
+                eval_post_failed = False
+                if self._experiment._llmobs_instance:
+                    pending_metrics: list["LLMObsExperimentEvalMetricEvent"] = []
+                    original_remote_names = self._experiment._remote_evaluator_names
+                    self._experiment._remote_evaluator_names = rerun_remote_names
+                    try:
+                        for task_result, evaluation in zip(task_results, evaluations):
+                            if evaluation:
+                                pending_metrics.extend(
+                                    self._experiment._generate_metrics_for_record(task_result, evaluation)
+                                )
+                    finally:
+                        self._experiment._remote_evaluator_names = original_remote_names
+
+                    if pending_metrics:
+                        try:
+                            self._experiment._llmobs_instance._dne_client.experiment_eval_post(
+                                new_experiment_id,
+                                pending_metrics,
+                                convert_tags_dict_to_list(self._experiment._tags),
+                                spans=span_copies if span_copies else None,
+                            )
+                        except Exception:
+                            eval_post_failed = True
+                            logger.debug("Failed to post eval metrics for re-run", exc_info=True)
+                            self._experiment._update_status("failed")
+                        else:
+                            self._experiment._llmobs_instance.flush()
+
+                # Step 7 — run summary evaluators (provided ones or experiment's own set).
+                original_summary_evs = self._experiment._summary_evaluators
+                if summary_evaluators is not None:
+                    self._experiment._summary_evaluators = summary_evaluators
+                try:
+                    summary_evals = await self._experiment._run_summary_evaluators(
+                        task_results, evaluations, raise_errors, jobs=jobs
+                    )
+                finally:
+                    self._experiment._summary_evaluators = original_summary_evs
+
+                # Step 8 — build the ExperimentRun result rows.
+                experiment_rows: list[ExperimentRowResult] = []
+                for task_result, evaluation in zip(task_results, evaluations):
+                    idx = task_result["idx"]
+                    record = _get_record(idx)
+                    metadata: dict[str, JSONType] = {
+                        "tags": cast(list[JSONType], convert_tags_dict_to_list(self._experiment._tags))
+                    }
+                    metadata.update(task_result.get("metadata") or {})
+                    exp_row: ExperimentRowResult = {
+                        "idx": idx,
+                        "span_id": task_result.get("span_id", ""),
+                        "trace_id": task_result.get("trace_id", ""),
+                        "timestamp": task_result.get("timestamp", 0),
+                        "duration": task_result.get("duration", 0),
+                        "span_name": task_result.get("span_name", "experiment_record"),
+                        "record_id": record.get("record_id", ""),
+                        "input": record["input_data"],
+                        "expected_output": record["expected_output"],
+                        "output": task_result["output"],
+                        "evaluations": evaluation["evaluations"] if evaluation else {},
+                        "metadata": metadata,
+                        "error": task_result["error"],
+                    }
+                    experiment_rows.append(exp_row)
+
+                summary_eval_dict: dict[str, dict[str, JSONType]] = {}
+                if summary_evals:
+                    for se in summary_evals:
+                        for name, data in se["evaluations"].items():
+                            summary_eval_dict[name] = data
+
+                run_obj = ExperimentRun(run, summary_eval_dict, experiment_rows)
+                result = Experiment._build_result([run_obj])
+                self._experiment._log_experiment_summary(result)
+                logger.info("Rerun experiment URL: %s", self._experiment.url, extra={"product": "llmobs"})
+                if not eval_post_failed:
+                    self._experiment._update_status("completed")
+                return SyncExperiment._for_rerun(self, new_experiment_id, new_name, evaluators, result)
+            finally:
+                # Restore original identity so this experiment object is unchanged.
+                self._experiment._id = original_id
+                self._experiment._tags = original_tags
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(_run())
+        else:
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(asyncio.run, _run()).result()
 
     @property
     def url(self) -> str:
