@@ -51,6 +51,26 @@ def _get_dependency_events(token):
     return events
 
 
+def _get_extended_heartbeat_events(token):
+    """Extract app-extended-heartbeat events from the test agent session."""
+    requests = _get_telemetry_requests(token)
+    events = []
+    for req in requests:
+        if "apmtelemetry" not in req.get("url", ""):
+            continue
+        try:
+            body = json.loads(base64.b64decode(req["body"]))
+        except Exception:
+            continue
+        if body.get("request_type") == "message-batch":
+            for sub in body.get("payload", []):
+                if sub.get("request_type") == "app-extended-heartbeat":
+                    events.append(sub)
+        elif body.get("request_type") == "app-extended-heartbeat":
+            events.append({"payload": body["payload"], "request_type": body["request_type"]})
+    return events
+
+
 def _collect_all_deps(events):
     """Flatten all dependencies from all events into a single list."""
     all_deps = []
@@ -335,4 +355,177 @@ class TestSCAFlaskTelemetry:
         # reached should be empty — no vulnerable endpoint was called
         assert len(cve_value["reached"]) == 0, (
             f"Expected reached=[] for CVE registered at load time (no vulnerable call), got: {cve_value['reached']}"
+        )
+
+
+_SCA_EXTENDED_HEARTBEAT_ENV = {
+    "DD_APPSEC_SCA_ENABLED": "true",
+    "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
+    "DD_TELEMETRY_HEARTBEAT_INTERVAL": "2",
+    # Force the extended-heartbeat payload to fire on every heartbeat tick so we
+    # can inspect it within the test's lifetime instead of waiting 24h.
+    "_DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL": "1",
+}
+
+
+def _collect_all_deps_extended(events):
+    """Flatten dependencies from app-extended-heartbeat events."""
+    all_deps = []
+    for event in events:
+        all_deps.extend(event.get("payload", {}).get("dependencies", []))
+    return all_deps
+
+
+def _find_dep_with_cve_in_extended(events, dep_name, cve_id):
+    """Find a dependency carrying a specific CVE in any extended-heartbeat event."""
+    for dep in _collect_all_deps_extended(events):
+        if dep.get("name") != dep_name:
+            continue
+        for meta_entry in dep.get("metadata", []):
+            if meta_entry.get("type") != "reachability":
+                continue
+            try:
+                value = json.loads(meta_entry["value"])
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+            if value.get("id") == cve_id:
+                return dep, value
+    return None, None
+
+
+class TestSCAFlaskExtendedHeartbeat:
+    """SCA telemetry e2e tests asserting the app-extended-heartbeat payload.
+
+    The extended heartbeat is meant to be a *complete* snapshot of the
+    application's dependencies and SCA reachability findings, re-sent on a
+    long interval so the backend can recover from missed deltas. These tests
+    pin down that contract end-to-end.
+    """
+
+    def test_extended_heartbeat_includes_dependencies_with_metadata_key(self, iast_test_token):
+        """SCA on: extended heartbeat carries dependencies and metadata key is preserved."""
+        with flask_server(
+            appsec_enabled="false",
+            iast_enabled="false",
+            token=iast_test_token,
+            port=8056,
+            env=_SCA_EXTENDED_HEARTBEAT_ENV,
+        ) as context:
+            _, flask_client, pid = context
+            response = flask_client.get("/", headers={"X-Datadog-Test-Session-Token": iast_test_token})
+            assert response.status_code == 200
+            time.sleep(4)
+
+        events = _get_extended_heartbeat_events(iast_test_token)
+        assert len(events) > 0, "No app-extended-heartbeat events found"
+
+        # Configuration must always be present in the extended payload.
+        for event in events:
+            assert "configuration" in event["payload"], (
+                f"app-extended-heartbeat missing configuration: {event['payload']}"
+            )
+
+        all_deps = _collect_all_deps_extended(events)
+        assert len(all_deps) > 0, (
+            f"Expected dependencies in app-extended-heartbeat with SCA enabled, got none. Events: {events[:1]}"
+        )
+
+        deps_with_metadata_key = [d for d in all_deps if "metadata" in d]
+        assert len(deps_with_metadata_key) > 0, (
+            f"Expected SCA-tracked deps to carry the 'metadata' key in extended heartbeat. Sample deps: {all_deps[:3]}"
+        )
+
+    def test_extended_heartbeat_includes_cve_metadata_after_vulnerable_call(self, iast_test_token):
+        """After a vulnerable call, CVE reachability shows up in app-extended-heartbeat too.
+
+        This is the contract-critical scenario: even if the backend missed the
+        original app-dependencies-loaded delta, the next extended heartbeat
+        must re-send the full snapshot including the attached CVE metadata.
+        """
+        with flask_server(
+            appsec_enabled="false",
+            iast_enabled="false",
+            token=iast_test_token,
+            port=8057,
+            env=_SCA_EXTENDED_HEARTBEAT_ENV,
+        ) as context:
+            _, flask_client, pid = context
+
+            response = flask_client.get("/", headers={"X-Datadog-Test-Session-Token": iast_test_token})
+            assert response.status_code == 200
+
+            # Trigger the vulnerable code path to attach reachability metadata.
+            response = flask_client.get("/sca-test-requests", headers={"X-Datadog-Test-Session-Token": iast_test_token})
+            assert response.status_code == 200
+
+            # Allow at least one heartbeat tick AFTER the vulnerable call so the
+            # extended heartbeat payload re-snapshots tracked deps with the new
+            # metadata.
+            time.sleep(5)
+
+        events = _get_extended_heartbeat_events(iast_test_token)
+        assert len(events) > 0, "No app-extended-heartbeat events found"
+
+        dep, cve_value = _find_dep_with_cve_in_extended(events, "requests", "CVE-2024-35195")
+        assert dep is not None, (
+            "CVE-2024-35195 not present in any app-extended-heartbeat dependency metadata. "
+            f"Extended events: {json.dumps(events, indent=2)[:2000]}"
+        )
+        assert dep["name"] == "requests"
+        assert cve_value["id"] == "CVE-2024-35195"
+        assert isinstance(cve_value["reached"], list)
+        assert len(cve_value["reached"]) >= 1, (
+            f"Expected reached entry in extended heartbeat after vulnerable call, got: {cve_value['reached']}"
+        )
+        hit = cve_value["reached"][0]
+        assert "app.py" in hit["path"], f"Expected caller path containing 'app.py', got: {hit['path']}"
+        assert "sca_test_requests" in hit.get("symbol", "")
+        assert hit.get("line", 0) > 0
+
+    def test_extended_heartbeat_dependency_list_is_full_snapshot(self, iast_test_token):
+        """The extended-heartbeat dependency list must be a full snapshot, not a delta.
+
+        Compares the union of dependencies seen across app-dependencies-loaded
+        (the per-tick delta) against the list emitted in app-extended-heartbeat.
+        Every dep ever reported via the delta channel must show up at least once
+        in an extended-heartbeat snapshot, since the snapshot is meant to let the
+        backend reconcile state without relying on every delta being received.
+        """
+        with flask_server(
+            appsec_enabled="false",
+            iast_enabled="false",
+            token=iast_test_token,
+            port=8058,
+            env=_SCA_EXTENDED_HEARTBEAT_ENV,
+        ) as context:
+            _, flask_client, pid = context
+
+            response = flask_client.get("/", headers={"X-Datadog-Test-Session-Token": iast_test_token})
+            assert response.status_code == 200
+
+            # Hit a route that imports more modules so the dep set grows over
+            # time, increasing the chance of catching a delta-vs-snapshot drift.
+            response = flask_client.get("/sca-test-requests", headers={"X-Datadog-Test-Session-Token": iast_test_token})
+            assert response.status_code == 200
+
+            time.sleep(5)
+
+        delta_events = _get_dependency_events(iast_test_token)
+        extended_events = _get_extended_heartbeat_events(iast_test_token)
+
+        assert len(delta_events) > 0, "No app-dependencies-loaded events to compare against"
+        assert len(extended_events) > 0, "No app-extended-heartbeat events found"
+
+        delta_names = {d["name"] for d in _collect_all_deps(delta_events) if d.get("name")}
+        snapshot_names = {d["name"] for d in _collect_all_deps_extended(extended_events) if d.get("name")}
+
+        # The latest extended heartbeat is meant to be a complete snapshot.
+        # The delta channel may include deps the snapshot also includes, but
+        # the snapshot must cover the union of what was reported, so any delta
+        # name absent from every snapshot is a contract violation.
+        missing = delta_names - snapshot_names
+        assert not missing, (
+            f"Dependencies reported via app-dependencies-loaded are missing from every "
+            f"app-extended-heartbeat snapshot — extended heartbeat is not a full snapshot. "
+            f"Missing: {sorted(missing)[:20]}"
         )
