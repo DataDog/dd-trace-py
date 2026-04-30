@@ -15,6 +15,7 @@
 #include "echion/threads.h"
 #include "echion/vm.h"
 
+#include <cstdint>
 #include <cstring>
 #include <mutex>
 #include <pthread.h>
@@ -72,6 +73,42 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
 #elif defined(__MACH__)
 #include <mach/mach.h>
 #endif
+
+namespace {
+
+// Returns the CPU time of the calling thread in microseconds, or 0 on error.
+uint64_t
+get_thread_cpu_time_us()
+{
+#if defined(__linux__)
+    struct timespec ts
+    {
+        0, 0
+    };
+
+    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) != 0) {
+        return 0;
+    }
+
+    return static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
+#elif defined(__MACH__)
+    mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
+    thread_basic_info_data_t info;
+    thread_port_t thread = mach_thread_self();
+    int kr = thread_info(thread, THREAD_BASIC_INFO, reinterpret_cast<thread_info_t>(&info), &count);
+    mach_port_deallocate(mach_task_self(), thread);
+    if (kr != KERN_SUCCESS) {
+        return 0;
+    }
+
+    return static_cast<uint64_t>(info.user_time.seconds * 1000000ULL + info.user_time.microseconds +
+                                 info.system_time.seconds * 1000000ULL + info.system_time.microseconds);
+#else
+    return 0;
+#endif
+}
+
+} // namespace
 
 void
 Sampler::adapt_sampling_interval()
@@ -184,6 +221,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
     auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
+        auto sample_capture_cpu_before = get_thread_cpu_time_us();
+
         // Clear ephemeral string table entries (task names, greenlet names) periodically.
         // Safe because strings are copied into StringArena during sample construction.
         auto current_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
@@ -317,6 +356,13 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Before sleeping, check whether the user has called for this thread to die.
         if (seq_num != thread_seq_num.load()) {
             break;
+        }
+
+        // Report the CPU time spent capturing samples
+        auto sample_capture_cpu_after = get_thread_cpu_time_us();
+        if (sample_capture_cpu_after > sample_capture_cpu_before) {
+            auto elapsed = sample_capture_cpu_after - sample_capture_cpu_before;
+            Sample::profile_borrow().stats().add_sample_capture_cpu_time_us(elapsed);
         }
 
         // Sleep for the remainder of the interval, get it atomically
