@@ -413,7 +413,6 @@ suites:
       - '@tracing'
       - '@ai_guard'
       - tests/appsec/ai_guard/openai/*
-    retry: 2
     services:
       - testagent
     venvs_per_job: 2
