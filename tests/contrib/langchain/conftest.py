@@ -1,13 +1,13 @@
 import importlib
 import os
+from unittest import mock
 
 import pytest
 
 from ddtrace.contrib.internal.langchain.patch import patch as langchain_core_patch
 from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_core_unpatch
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs import LLMObs as llmobs_service
-from tests.llmobs._utils import TestLLMObsSpanWriter
+from ddtrace.llmobs import LLMObs
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -21,27 +21,36 @@ def llmobs_env():
 
 
 @pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
+def ddtrace_global_config():
+    return {}
 
 
 @pytest.fixture
-def llmobs(
-    tracer,
-    llmobs_span_writer,
-):
-    with override_global_config(
-        dict(_dd_api_key="<not-a-real-key>", _llmobs_instrumented_proxy_urls="http://localhost:4000")
-    ):
-        llmobs_service.enable(_tracer=tracer, ml_app="langchain_test", integrations_enabled=False)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-        yield llmobs_service
-        llmobs_service.disable()
-
-
-@pytest.fixture
-def llmobs_events(llmobs, llmobs_span_writer):
-    yield llmobs_span_writer.events
+def test_spans(ddtrace_global_config, test_spans, monkeypatch):
+    """Override of the shared ``test_spans`` fixture that, when LLMObs is enabled
+    via ``ddtrace_global_config``, sets ``_DD_LLMOBS_TEST_KEEP_META_STRUCT=1`` so
+    ``meta_struct["_llmobs"]`` is preserved on spans for assertion via
+    ``_get_llmobs_data_metastruct``. The langchain integration also needs the
+    instrumented-proxy-URL config in place at ``LLMObs.enable()`` time, so the
+    override is applied via ``override_global_config`` here.
+    """
+    try:
+        if ddtrace_global_config.get("_llmobs_enabled", False):
+            monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+            with override_global_config(ddtrace_global_config):
+                LLMObs.disable()
+                LLMObs.enable(
+                    _tracer=test_spans.tracer,
+                    ml_app="langchain_test",
+                    integrations_enabled=False,
+                )
+                LLMObs._instance._llmobs_span_writer.stop()
+                LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+                yield test_spans
+        else:
+            yield test_spans
+    finally:
+        LLMObs.disable()
 
 
 # scoping this fixture to "module" overcomes issues with patching ABC embeddings/vectorstore classes
