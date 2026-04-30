@@ -801,9 +801,10 @@ venv = Venv(
         ),
         Venv(
             name="logging",
-            command="pytest {cmdargs} tests/contrib/logging",
+            command="pytest -n auto {cmdargs} tests/contrib/logging",
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             pys=select_pys(),
         ),
@@ -2301,9 +2302,10 @@ venv = Venv(
         ),
         Venv(
             name="urllib3",
-            command="pytest {cmdargs} tests/contrib/urllib3",
+            command="pytest -n auto {cmdargs} tests/contrib/urllib3",
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             venvs=[
                 Venv(
