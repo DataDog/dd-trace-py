@@ -448,6 +448,79 @@ def test_chat_sync_block_is_openai_compatible_exception(mock_execute_request, op
     assert isinstance(err.__cause__, AIGuardAbortError)
 
 
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_block_error_class_identity_across_consecutive_blocks(mock_execute_request, openai_client):
+    """Two consecutive DENY blocks MUST raise errors of the same class.
+
+    Pins the cache contract in ``_get_openai_abort_error_cls`` so a regression
+    that rebuilds the OpenAI-compatible abort class on every block (different
+    ``type(e)`` per raise) is caught: user code that captured ``type(err)``
+    from a prior block — or a thread race that overwrites the cached class
+    after a partial build — would silently stop matching subsequent blocks.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    with pytest.raises(AIGuardAbortError) as exc_first:
+        openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+    with pytest.raises(AIGuardAbortError) as exc_second:
+        openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    assert type(exc_first.value) is type(exc_second.value)
+    # And it's the OpenAI-compatible subclass, not bare AIGuardAbortError.
+    assert type(exc_first.value).__name__ == "OpenAIAIGuardAbortError"
+
+
+def test_block_error_class_identity_under_thread_race():
+    """Concurrent threads racing through the cold cache MUST all observe the
+    same class object.
+
+    Without ``_openai_abort_error_cls_lock``, the unsynchronised check-then-act
+    pattern lets two threads pass the ``is None`` check, build their own class
+    each, and leave the cache pointing at whichever assignment ran last — the
+    other thread keeps a stale class that's never returned again, so a caller's
+    ``isinstance(e, cached_cls)`` will start failing intermittently. This test
+    resets the cache and races N threads through the helper, asserting all
+    returns are ``is``-equal.
+    """
+    import ddtrace.appsec._ai_guard._openai as _openai_mod
+
+    # Sanity: the openai SDK must be importable for this test to be meaningful;
+    # if it's not, the helper returns None and there is no class identity to
+    # compare.
+    if _openai_mod._get_openai_abort_error_cls() is None:
+        pytest.skip("openai SDK not importable")
+
+    saved_cls = _openai_mod._openai_abort_error_cls
+    _openai_mod._openai_abort_error_cls = None
+
+    n = 32
+    barrier = threading.Barrier(n)
+    results: list = [None] * n
+
+    def _race(idx: int) -> None:
+        # Force all threads to enter the helper at the same moment so the
+        # check-then-act window is genuinely contended.
+        barrier.wait()
+        results[idx] = _openai_mod._get_openai_abort_error_cls()
+
+    try:
+        threads = [threading.Thread(target=_race, args=(i,)) for i in range(n)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    finally:
+        _openai_mod._openai_abort_error_cls = saved_cls
+
+    first = results[0]
+    assert first is not None
+    distinct_ids = {id(cls) for cls in results}
+    assert len(distinct_ids) == 1, (
+        f"concurrent _get_openai_abort_error_cls() returned {len(distinct_ids)} distinct class "
+        f"objects; the lazy cache build is not thread-safe"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Chat completions (async) — before-model allow / block
 # ---------------------------------------------------------------------------
@@ -868,6 +941,38 @@ def test_reset_cross_context_does_not_raise():
         assert is_aiguard_context_active() is True
     finally:
         reset_aiguard_context_active(token)
+    assert is_aiguard_context_active() is False
+
+
+@pytest.mark.asyncio
+async def test_reentrant_set_reset_in_same_coroutine():
+    """A single coroutine that sets, re-sets nested, then resets nested-first
+    MUST observe the outer flag's value across every step — including across
+    intermediate ``await`` points.
+
+    Pins token-stack semantics (LIFO) for the case where one task wraps a
+    nested AI Guard scope mid-evaluation — e.g. a tool callback that re-enters
+    the framework's evaluation block. Inner reset MUST restore the outer's
+    value (True), not the default (False); otherwise provider-level listeners
+    would mistakenly evaluate calls the outer framework already owns.
+    """
+    assert is_aiguard_context_active() is False
+    outer_token = set_aiguard_context_active()
+    try:
+        await asyncio.sleep(0)
+        assert is_aiguard_context_active() is True
+
+        inner_token = set_aiguard_context_active()
+        await asyncio.sleep(0)
+        assert is_aiguard_context_active() is True
+        reset_aiguard_context_active(inner_token)
+        # Inner reset returns to the outer's value, not False.
+        assert is_aiguard_context_active() is True
+
+        await asyncio.sleep(0)
+        assert is_aiguard_context_active() is True
+    finally:
+        reset_aiguard_context_active(outer_token)
     assert is_aiguard_context_active() is False
 
 
