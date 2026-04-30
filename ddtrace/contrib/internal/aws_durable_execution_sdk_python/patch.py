@@ -26,6 +26,7 @@ from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.propagation.http import HTTPPropagator
 
 
 log = get_logger(__name__)
@@ -172,6 +173,33 @@ class _ContextMethod(NamedTuple):
     name_pos: int
 
 
+def _inject_invoke_payload(args: tuple, kwargs: dict, span) -> tuple[tuple, dict]:
+    """Inject Datadog propagation headers into ``DurableContext.invoke``'s payload.
+
+    The callee Lambda's ``datadog-lambda-python`` extractor reads
+    ``Operations[0].ExecutionDetails.InputPayload`` as a priority-2 fallback
+    when no ``_datadog_{N}`` checkpoint exists (e.g. on the very
+    first invocation of a chained durable execution). Mirrors JS client.js.
+
+    The SDK's invoke signature is ``invoke(function_name, payload, name=None)``
+    where ``payload`` is a dict serialized by the SDK before sending. We mutate
+    ``payload`` in place if it's a dict; otherwise we leave it alone.
+    """
+    try:
+        payload = get_argument_value(args, kwargs, 1, "payload", optional=True)
+        if not isinstance(payload, dict):
+            return args, kwargs
+        # Stash inside a `_datadog` envelope so we don't collide with user keys.
+        # The extractor scans both `headers` and `_datadog` (see datadog-lambda-python).
+        carrier = payload.setdefault("_datadog", {})
+        if not isinstance(carrier, dict):
+            return args, kwargs
+        HTTPPropagator.inject(span, carrier)
+    except Exception:
+        log.debug("Failed to inject trace context into invoke payload", exc_info=True)
+    return args, kwargs
+
+
 def _traced_context(method: _ContextMethod, wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
     is_invoke = method.method_name == "invoke"
     tags = {}
@@ -189,6 +217,8 @@ def _traced_context(method: _ContextMethod, wrapped: Callable, instance: Any, ar
     )
 
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        if is_invoke and ctx.span is not None:
+            args, kwargs = _inject_invoke_payload(args, kwargs, ctx.span)
         try:
             result = wrapped(*args, **kwargs)
         except SuspendExecution:
