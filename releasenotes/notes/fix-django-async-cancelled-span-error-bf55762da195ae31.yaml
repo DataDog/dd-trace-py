@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    django: Stop tagging async view and middleware spans as errored on routine ASGI
+    cancellations (e.g. client disconnects on streaming responses), a regression
+    introduced in 4.8.0rc4. Cancellation still propagates; the span just finishes
+    without ``error.type='asyncio.exceptions.CancelledError'``.
