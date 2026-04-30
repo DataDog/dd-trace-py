@@ -1,8 +1,8 @@
 import contextlib
 import os
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.ext import SpanTypes
@@ -138,7 +138,10 @@ def test_runtime_tags_manual_tracer_tags():
 
 class TestRuntimeMetrics(BaseTestCase):
     def test_all_metrics(self):
-        metrics = set([k for (k, v) in RuntimeMetrics()])
+        mock_memalloc = mock.Mock()
+        mock_memalloc.heap_live_bytes.return_value = 1024
+        with mock.patch.dict("sys.modules", {"ddtrace.profiling.collector._memalloc": mock_memalloc}):
+            metrics = set([k for (k, v) in RuntimeMetrics()])
         self.assertSetEqual(metrics, DEFAULT_RUNTIME_METRICS)
 
     def test_one_metric(self):
