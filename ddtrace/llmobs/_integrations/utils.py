@@ -1109,7 +1109,7 @@ def openai_construct_completion_from_streamed_chunks(streamed_chunks: list[Any])
     if finish_reason := _get_attr(streamed_chunks[-1], "finish_reason", None):
         completion["finish_reason"] = str(finish_reason)
     if usage := _get_attr(streamed_chunks[0], "usage", None):
-        completion["usage"] = usage  # type: ignore
+        completion["usage"] = usage
     return completion
 
 
