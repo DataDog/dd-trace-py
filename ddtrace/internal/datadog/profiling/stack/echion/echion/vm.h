@@ -71,38 +71,23 @@ inline ssize_t (*safe_copy)(pid_t,
                             const struct iovec*,
                             unsigned long,
                             unsigned long) = process_vm_readv;
+#endif // PL_LINUX
 
-/**
- * Initialize the safe copy operation on Linux
- *
- * This occurs at static init
- */
-__attribute__((constructor)) void
-init_safe_copy();
-#elif defined PL_DARWIN
 /**
  * Initialize the safe copy operation on macOS
  *
- * Tries safe_memcpy first, falls back to mach_vm_read_overwrite.
+ * Tries safe_memcpy first (unless disabled via env var), falls back to
+ * mach_vm_read_overwrite.
  * This occurs at static init.
  */
-__attribute__((constructor)) inline void
-init_safe_copy()
-{
-    if (init_segv_catcher() == 0) {
-        safe_copy = safe_memcpy_wrapper;
-        fast_copy_active = true;
-        safe_memcpy_initialized = true;
-        return;
-    }
-
-    std::cerr << "Failed to initialize segv catcher. Using mach_vm_read_overwrite instead." << std::endl;
-}
-#endif // PL_DARWIN
+__attribute__((constructor)) void
+init_safe_copy();
 
 // Switch the active copy method at runtime.  Must be called before the
 // sampling thread is started.
-void
+// Returns true on success, false if the requested method (and its fallback) are unavailable
+// (in which case failed_safe_copy is set and stack profiling should be disabled).
+bool
 set_fast_copy_enabled(bool enabled);
 
 /**

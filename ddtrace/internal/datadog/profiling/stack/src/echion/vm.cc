@@ -1,4 +1,19 @@
+#include <cstdio>
+#include <cstring>
+
 #include <echion/vm.h>
+
+// Returns true when _DD_PROFILING_STACK_FAST_COPY is set to a falsy value.
+// Called only during static init (constructor time), so getenv is safe here.
+static bool
+fast_copy_env_disabled()
+{
+    const char* val = getenv("_DD_PROFILING_STACK_FAST_COPY");
+    if (val == nullptr) {
+        return false;
+    }
+    return strcmp(val, "0") == 0 || strcmp(val, "false") == 0 || strcmp(val, "False") == 0;
+}
 
 #if defined PL_LINUX
 static bool
@@ -23,6 +38,18 @@ init_safe_copy()
     // Always probe process_vm_readv so we know whether it is a valid fallback.
     process_vm_readv_available = probe_process_vm_readv();
 
+    // Honor the fast-copy opt-out: when disabled via env var, skip installing
+    // the SIGSEGV/SIGBUS handlers and alt stack entirely.
+    if (fast_copy_env_disabled()) {
+        if (process_vm_readv_available) {
+            safe_copy = process_vm_readv;
+        } else {
+            fprintf(stderr, "Failed to initialize safe copy interface\n");
+            failed_safe_copy = true;
+        }
+        return;
+    }
+
     // Try safe_memcpy (fast path) first.
     if (init_segv_catcher() == 0) {
         safe_copy = safe_memcpy_wrapper;
@@ -39,30 +66,61 @@ init_safe_copy()
         }
     }
 }
-#endif // PL_LINUX
+#elif defined PL_DARWIN
+__attribute__((constructor)) void
+init_safe_copy()
+{
+    // Honor the fast-copy opt-out: skip installing signal handlers when disabled.
+    if (fast_copy_env_disabled()) {
+        return;
+    }
 
-void
+    if (init_segv_catcher() == 0) {
+        safe_copy = safe_memcpy_wrapper;
+        fast_copy_active = true;
+        safe_memcpy_initialized = true;
+        return;
+    }
+
+    // std::cerr might not be fully initialized at constructor time.
+    fprintf(stderr, "Failed to initialize segv catcher. Using mach_vm_read_overwrite instead.\n");
+}
+#endif // PL_DARWIN
+
+bool
 set_fast_copy_enabled(bool enabled)
 {
     if (enabled) {
+        // Fast copy enabled: prefer safe_memcpy, fall back to process_vm_readv.
         if (safe_memcpy_initialized) {
             safe_copy = safe_memcpy_wrapper;
             fast_copy_active = true;
-        } else {
-            fprintf(stderr, "Warning: fast copy requested but safe_memcpy was not initialized\n");
+            return true;
         }
-    } else {
+        fprintf(stderr,
+                "Warning: fast copy requested but safe_memcpy was not initialized; falling back to process_vm_readv\n");
+
+        // Fall through to process_vm_readv.
+    }
+
+    // Fast copy disabled (or safe_memcpy unavailable): try process_vm_readv only.
 #if defined PL_LINUX
+    if (process_vm_readv_available) {
         safe_copy = process_vm_readv;
         fast_copy_active = false;
-        if (!process_vm_readv_available) {
-            fprintf(stderr, "Warning: process_vm_readv was not verified during init\n");
-        }
-#elif defined PL_DARWIN
-        safe_copy = mach_vm_read_overwrite;
-        fast_copy_active = false;
-#endif
+        return true;
     }
+    fprintf(stderr,
+            "No safe memory copy method available (safe_memcpy and process_vm_readv both failed); disabling stack "
+            "profiling\n");
+    failed_safe_copy = true;
+    return false;
+#elif defined PL_DARWIN
+    // mach_vm_read_overwrite is always available on macOS.
+    safe_copy = mach_vm_read_overwrite;
+    fast_copy_active = false;
+    return true;
+#endif
 }
 
 int
