@@ -128,7 +128,11 @@ serverless lambda tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
-    branch: main
+    # AIDEV-TODO: TEMPORARY — REVERT to `branch: main` before merging this PR.
+    # Pointed at the lambda-python PR (DataDog/datadog-lambda-python#813) so
+    # we can validate that its setup_python_env.sh actually fetches this
+    # PR's ddtrace wheel via UPSTREAM_PIPELINE_ID.
+    branch: rey.abolofia/fix-ddtrace-pr
   needs:
     - job: "upload serverless"
   variables:
