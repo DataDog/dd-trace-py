@@ -1,5 +1,5 @@
 ---
-features:
+other:
   - |
     LLM Observability: when LLMObs is enabled without a reachable Datadog Agent (or with
     ``DD_LLMOBS_AGENTLESS_ENABLED=1``), APM traces are now exported agentless to the Datadog
