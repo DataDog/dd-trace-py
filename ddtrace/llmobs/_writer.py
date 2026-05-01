@@ -180,13 +180,11 @@ def llmobs_apm_trace_agentless_enabled() -> bool:
     Auto-detects via :func:`should_use_agentless` only when the user hasn't expressed a
     preference (``DD_LLMOBS_AGENTLESS_ENABLED`` unset and no programmatic value resolved yet).
     """
-    if not config._llmobs_enabled or not config._dd_api_key:
+    if not config._dd_api_key or config._llmobs_agentless_enabled is False:
         return False
-    if config._llmobs_agentless_enabled is True:
+    elif config._llmobs_agentless_enabled or config._trace_agentless_enabled:
         return True
-    if config._llmobs_agentless_enabled is None:
-        return should_use_agentless()
-    return False
+    return should_use_agentless()
 
 
 class BaseLLMObsWriter(PeriodicService):
