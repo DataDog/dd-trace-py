@@ -20,6 +20,7 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._llmobs import _STANDARD_INTEGRATION_SPAN_NAMES
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
@@ -1006,18 +1007,19 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
         super().enqueue(event)
 
 
-def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
+def _assert_span_link(from_span, to_span, from_io, to_io):
+    """Assert a span link exists from ``from_span`` to ``to_span``.
+
+    Both arguments are APM ``Span`` objects whose ``meta_struct['_llmobs']``
+    payload is read via ``get_llmobs_span_links``. Pass ``from_span=None`` to
+    assert the destination span has no incoming link (``span_id="undefined"``).
     """
-    Assert that a span link exists between two span events, specifically the correct span ID and from/to specification.
-    """
-    found = False
-    expected_to_span_id = "undefined" if not from_span_event else from_span_event["span_id"]
-    for span_link in to_span_event["span_links"]:
+    expected_to_span_id = "undefined" if from_span is None else str(from_span.span_id)
+    for span_link in get_llmobs_span_links(to_span) or []:
         if span_link["span_id"] == expected_to_span_id:
             assert span_link["attributes"] == {"from": from_io, "to": to_io}
-            found = True
-            break
-    assert found
+            return
+    assert False, "expected span link not found"
 
 
 def iterate_stream(stream):

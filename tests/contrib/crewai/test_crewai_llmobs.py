@@ -2,14 +2,12 @@ import json
 
 import crewai
 import mock
-import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_parent_id
-from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.contrib.crewai.utils import fun_fact_text
 from tests.llmobs._utils import _assert_span_link
@@ -115,15 +113,6 @@ def _llmobs_name(span):
     return get_llmobs_span_name(span) or span.name
 
 
-def _link_event(span):
-    """Build a minimal dict that ``_assert_span_link`` can consume.
-
-    ``_assert_span_link`` only reads ``span_id`` and ``span_links`` from the dicts it's
-    given, so we splice them out of the metastruct payload and the underlying span.
-    """
-    return {"span_id": str(span.span_id), "span_links": get_llmobs_span_links(span) or []}
-
-
 def _ordered_spans(test_spans):
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     spans.sort(key=lambda s: s.start_ns)
@@ -144,17 +133,16 @@ def _assert_basic_crew_events(spans):
 
 
 def _assert_basic_crew_links(spans):
-    events = [_link_event(s) for s in spans]
     # span links for crew -> task
-    _assert_span_link(events[0], events[1], "input", "input")
-    _assert_span_link(events[1], events[3], "output", "input")
-    _assert_span_link(events[3], events[0], "output", "output")
+    _assert_span_link(spans[0], spans[1], "input", "input")
+    _assert_span_link(spans[1], spans[3], "output", "input")
+    _assert_span_link(spans[3], spans[0], "output", "output")
 
     # span links for task -> agent
-    _assert_span_link(events[1], events[2], "input", "input")
-    _assert_span_link(events[2], events[1], "output", "output")
-    _assert_span_link(events[3], events[4], "input", "input")
-    _assert_span_link(events[4], events[3], "output", "output")
+    _assert_span_link(spans[1], spans[2], "input", "input")
+    _assert_span_link(spans[2], spans[1], "output", "output")
+    _assert_span_link(spans[3], spans[4], "input", "input")
+    _assert_span_link(spans[4], spans[3], "output", "output")
 
 
 def _assert_tool_crew_events(spans):
@@ -172,14 +160,13 @@ def _assert_tool_crew_events(spans):
 
 
 def _assert_tool_crew_links(spans):
-    events = [_link_event(s) for s in spans]
     # span links for crew -> task
-    _assert_span_link(events[0], events[1], "input", "input")
-    _assert_span_link(events[1], events[0], "output", "output")
+    _assert_span_link(spans[0], spans[1], "input", "input")
+    _assert_span_link(spans[1], spans[0], "output", "output")
 
     # span links for task -> agent
-    _assert_span_link(events[1], events[2], "input", "input")
-    _assert_span_link(events[2], events[1], "output", "output")
+    _assert_span_link(spans[1], spans[2], "input", "input")
+    _assert_span_link(spans[2], spans[1], "output", "output")
 
 
 def _assert_async_crew_events(spans):
@@ -202,17 +189,16 @@ def _assert_async_crew_events(spans):
 
 
 def _assert_async_crew_links(spans):
-    events = [_link_event(s) for s in spans]
     # span links for crew -> task
-    _assert_span_link(events[0], events[1], "input", "input")
-    _assert_span_link(events[1], events[4], "output", "input")
-    _assert_span_link(events[4], events[0], "output", "output")
+    _assert_span_link(spans[0], spans[1], "input", "input")
+    _assert_span_link(spans[1], spans[4], "output", "input")
+    _assert_span_link(spans[4], spans[0], "output", "output")
 
     # span links for task -> agent
-    _assert_span_link(events[1], events[2], "input", "input")
-    _assert_span_link(events[2], events[1], "output", "output")
-    _assert_span_link(events[4], events[5], "input", "input")
-    _assert_span_link(events[5], events[4], "output", "output")
+    _assert_span_link(spans[1], spans[2], "input", "input")
+    _assert_span_link(spans[2], spans[1], "output", "output")
+    _assert_span_link(spans[4], spans[5], "input", "input")
+    _assert_span_link(spans[5], spans[4], "output", "output")
 
 
 def _assert_hierarchical_crew_events(spans):
@@ -239,24 +225,23 @@ def _assert_hierarchical_crew_events(spans):
 
 
 def _assert_hierarchical_crew_links(spans):
-    events = [_link_event(s) for s in spans]
     # span links for crew -> task
-    _assert_span_link(events[0], events[1], "input", "input")
-    _assert_span_link(events[1], events[3], "output", "input")
-    _assert_span_link(events[3], events[8], "output", "input")
-    _assert_span_link(events[8], events[0], "output", "output")
+    _assert_span_link(spans[0], spans[1], "input", "input")
+    _assert_span_link(spans[1], spans[3], "output", "input")
+    _assert_span_link(spans[3], spans[8], "output", "input")
+    _assert_span_link(spans[8], spans[0], "output", "output")
 
     # span links for task -> agent
-    _assert_span_link(events[1], events[2], "input", "input")
-    _assert_span_link(events[2], events[1], "output", "output")
-    _assert_span_link(events[3], events[4], "input", "input")
-    _assert_span_link(events[4], events[3], "output", "output")
-    _assert_span_link(events[5], events[6], "input", "input")
-    _assert_span_link(events[6], events[5], "output", "output")
-    _assert_span_link(events[8], events[9], "input", "input")
-    _assert_span_link(events[9], events[8], "output", "output")
-    _assert_span_link(events[10], events[11], "input", "input")
-    _assert_span_link(events[11], events[10], "output", "output")
+    _assert_span_link(spans[1], spans[2], "input", "input")
+    _assert_span_link(spans[2], spans[1], "output", "output")
+    _assert_span_link(spans[3], spans[4], "input", "input")
+    _assert_span_link(spans[4], spans[3], "output", "output")
+    _assert_span_link(spans[5], spans[6], "input", "input")
+    _assert_span_link(spans[6], spans[5], "output", "output")
+    _assert_span_link(spans[8], spans[9], "input", "input")
+    _assert_span_link(spans[9], spans[8], "output", "output")
+    _assert_span_link(spans[10], spans[11], "input", "input")
+    _assert_span_link(spans[11], spans[10], "output", "output")
 
 
 def _assert_simple_flow_events(spans):
@@ -281,10 +266,9 @@ def _assert_simple_flow_events(spans):
 
 
 def _assert_simple_flow_links(spans):
-    events = [_link_event(s) for s in spans]
-    _assert_span_link(events[0], events[1], "input", "input")
-    _assert_span_link(events[1], events[2], "output", "input")
-    _assert_span_link(events[2], events[0], "output", "output")
+    _assert_span_link(spans[0], spans[1], "input", "input")
+    _assert_span_link(spans[1], spans[2], "output", "input")
+    _assert_span_link(spans[2], spans[0], "output", "output")
 
 
 def _assert_complex_flow_events(spans):
@@ -295,18 +279,17 @@ def _assert_complex_flow_events(spans):
 
 
 def _assert_complex_flow_links(spans):
-    events = [_link_event(s) for s in spans]
-    _assert_span_link(events[0], events[1], "input", "input")
-    _assert_span_link(events[0], events[2], "input", "input")
-    _assert_span_link(events[5], events[0], "output", "output")
+    _assert_span_link(spans[0], spans[1], "input", "input")
+    _assert_span_link(spans[0], spans[2], "input", "input")
+    _assert_span_link(spans[5], spans[0], "output", "output")
 
-    _assert_span_link(events[1], events[3], "output", "input")
-    _assert_span_link(events[1], events[4], "output", "input")
-    _assert_span_link(events[1], events[5], "output", "input")
+    _assert_span_link(spans[1], spans[3], "output", "input")
+    _assert_span_link(spans[1], spans[4], "output", "input")
+    _assert_span_link(spans[1], spans[5], "output", "input")
 
-    _assert_span_link(events[2], events[5], "output", "input")
-    _assert_span_link(events[3], events[5], "output", "input")
-    _assert_span_link(events[4], events[5], "output", "input")
+    _assert_span_link(spans[2], spans[5], "output", "input")
+    _assert_span_link(spans[3], spans[5], "output", "input")
+    _assert_span_link(spans[4], spans[5], "output", "input")
 
 
 def _assert_router_flow_events(spans):
@@ -317,11 +300,10 @@ def _assert_router_flow_events(spans):
 
 
 def _assert_router_flow_links(spans):
-    events = [_link_event(s) for s in spans]
-    _assert_span_link(events[0], events[1], "input", "input")
-    _assert_span_link(events[1], events[2], "output", "input")
-    _assert_span_link(events[2], events[3], "output", "input")
-    _assert_span_link(events[3], events[0], "output", "output")
+    _assert_span_link(spans[0], spans[1], "input", "input")
+    _assert_span_link(spans[1], spans[2], "output", "input")
+    _assert_span_link(spans[2], spans[3], "output", "input")
+    _assert_span_link(spans[3], spans[0], "output", "output")
 
 
 def test_basic_crew(crewai, basic_crew, request_vcr, crewai_llmobs, test_spans):
