@@ -450,7 +450,7 @@ class LLMObs(Service):
         self._export_llmobs = _env.get("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
         # agentless APM trace writers carry the LLMObs meta_struct themselves;
         # leaving _DD_LLMOBS_EXPORT=llmobs would cause double submission via the LLMObs writer.
-        if self._export_llmobs and (config._trace_agentless_enabled or config._llmobs_agentless_enabled is True):
+        if self._export_llmobs and (config._trace_agentless_enabled or llmobs_apm_trace_agentless_enabled() is True):
             log.warning(
                 "_DD_LLMOBS_EXPORT=llmobs is ignored because the APM trace writer is configured "
                 "for agentless export; coercing to 'apm' to prevent double submission of LLMObs data."
