@@ -97,7 +97,6 @@ def bedrock_llmobs(tracer, monkeypatch, llmobs_span_writer):
         {
             "_llmobs_ml_app": "<ml-app-name>",
             "_dd_api_key": "<not-a-real-key>",
-            "_llmobs_sample_rate": 1.0,
         }
     ):
         LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)

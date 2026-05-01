@@ -15,7 +15,7 @@ pytestmark = [
     # the ``llmobs_events`` fixture rather than asserting on ``meta_struct``.
     pytest.mark.parametrize(
         "ddtrace_global_config",
-        [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")],
+        [dict(_llmobs_enabled=True, _llmobs_ml_app="<ml-app-name>")],
     ),
 ]
 
