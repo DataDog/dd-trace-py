@@ -97,14 +97,12 @@ def add_tags(payload: dict[str, Any]) -> None:
 def _build_log_track_payload(
     service: str,
     signal: LogSignal,
-    host: Optional[str],
 ) -> dict[str, Any]:
     context = signal.trace_context
 
     payload = {
         "service": service,
         "debugger": {"snapshot": signal.snapshot},
-        "host": host,
         "logger": _logs_track_logger_details(signal.thread, signal.frame),
         "ddsource": "dd_debugger",
         "message": signal.message,
@@ -251,12 +249,11 @@ class LogSignalJsonEncoder(Encoder):
     MAX_SIGNAL_SIZE = (1 << 20) - 2
     MIN_LEVEL = 5
 
-    def __init__(self, service: str, host: Optional[str] = None) -> None:
+    def __init__(self, service: str) -> None:
         self._service = service
-        self._host = host
 
     def _encode(self, item: LogSignal) -> str:
-        return json.dumps(_build_log_track_payload(self._service, item, self._host))
+        return json.dumps(_build_log_track_payload(self._service, item))
 
     def encode(self, item: LogSignal) -> bytes:
         return self._encode(item).encode("utf-8")

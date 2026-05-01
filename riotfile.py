@@ -801,9 +801,10 @@ venv = Venv(
         ),
         Venv(
             name="logging",
-            command="pytest {cmdargs} tests/contrib/logging",
+            command="pytest -n auto {cmdargs} tests/contrib/logging",
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             pys=select_pys(),
         ),
@@ -971,10 +972,13 @@ venv = Venv(
                 "redis": ">=2.10,<2.11",
                 "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django[testing]": "==3.10.0",
+                # async ASGI tests (#17404 / #17728) silently skip without it.
+                "pytest-asyncio": latest,
+                # setuptools 80 removed `pkg_resources`, still imported by django-q[2].
+                "setuptools": "<80",
                 "pylibmc": latest,
                 "python-memcached": latest,
                 "pytest-randomly": latest,
-                "django-q": latest,
                 "spyne": latest,
                 "zeep": latest,
                 "bcrypt": "==4.2.1",
@@ -996,6 +1000,7 @@ venv = Venv(
                     pkgs={
                         "django": ["~=2.2.0", "~=3.0.0", "~=4.0"],
                         "channels": latest,
+                        "django-q": latest,
                     },
                 ),
                 Venv(
@@ -1005,6 +1010,28 @@ venv = Venv(
                         "django": ["~=4.2"],
                         "psycopg": latest,
                         "channels": latest,
+                        "django-q": latest,
+                    },
+                ),
+                Venv(
+                    # django 5.x (#17728 coverage). Uses django-q2 because django-q imports
+                    # django.utils.baseconv (removed in Django 5.0). Postgres-touching tests
+                    # and Django-4.2-specific test_cached_view are skipped because Django 5.0
+                    # dropped Postgres 12, but the suite's docker-compose still runs Postgres 12.
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    command=(
+                        "pytest {cmdargs} "
+                        "--ignore=tests/contrib/django/test_django_dbm.py "
+                        "--ignore=tests/contrib/django/test_django_snapshots.py "
+                        "-k 'not test_user_name_included and not test_user_name_excluded "
+                        "and not test_cached_view' "
+                        "tests/contrib/django"
+                    ),
+                    pkgs={
+                        "django": ["~=5.1"],
+                        "psycopg": latest,
+                        "channels": latest,
+                        "django-q2": latest,
                     },
                 ),
             ],
@@ -2275,9 +2302,10 @@ venv = Venv(
         ),
         Venv(
             name="urllib3",
-            command="pytest {cmdargs} tests/contrib/urllib3",
+            command="pytest -n auto {cmdargs} tests/contrib/urllib3",
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             venvs=[
                 Venv(
@@ -2430,12 +2458,12 @@ venv = Venv(
         ),
         Venv(
             name="redis",
+            command="pytest {cmdargs} tests/contrib/redis",
             pkgs={
                 "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} tests/contrib/redis",
                     pys=select_pys(min_version="3.9", max_version="3.10"),
                     pkgs={
                         "redis": [
@@ -2449,7 +2477,6 @@ venv = Venv(
                 Venv(
                     # redis added support for Python 3.11 in 4.3
                     pys="3.11",
-                    command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": ["~=4.3", "==5.0.1"],
                         "pytest-asyncio": "==0.23.7",
@@ -2457,7 +2484,6 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12", max_version="3.13"),
-                    command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": latest,
                         "pytest-asyncio": "==0.23.7",
@@ -2465,7 +2491,6 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.14"),
-                    command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": latest,
                         "pytest-asyncio": latest,
@@ -3599,10 +3624,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # process_vm_readv fallback (safe_memcpy is now default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "0",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3655,10 +3680,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # process_vm_readv fallback (safe_memcpy is now default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "0",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3697,10 +3722,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # process_vm_readv fallback (safe_memcpy is now default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "0",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3740,10 +3765,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # process_vm_readv fallback (safe_memcpy is now default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "0",
                             },
                             pkgs={
                                 "protobuf": latest,

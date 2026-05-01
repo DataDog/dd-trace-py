@@ -9,8 +9,11 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "ada",
+      "_dd.llmobs.model_provider": "openai",
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de554800000000",
+      "_dd.p.tid": "69e91cde00000000",
       "_dd.svc_src": "mysvc",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "openai",
@@ -21,9 +24,13 @@
       "openai.request.model": "ada",
       "openai.request.provider": "OpenAI",
       "openai.response.model": "ada",
-      "runtime-id": "6f37d17fd5c048f2b1d74ad038bdb3be"
+      "runtime-id": "de1c438638354ee59875796e3e589569"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
+      "_dd.llmobs.input_tokens": 2.0,
+      "_dd.llmobs.output_tokens": 12.0,
+      "_dd.llmobs.total_tokens": 14.0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
@@ -32,8 +39,8 @@
       "openai.organization.ratelimit.requests.remaining": 2999.0,
       "openai.organization.ratelimit.tokens.limit": 250000.0,
       "openai.organization.ratelimit.tokens.remaining": 249979.0,
-      "process_id": 92906.0
+      "process_id": 1203.0
     },
-    "duration": 9251458,
-    "start": 1776178504619704137
+    "duration": 4031334,
+    "start": 1776884958924409263
   }]]
