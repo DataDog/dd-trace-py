@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.internal import process_tags
 from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_MODULE
+from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_SCRIPT
 from ddtrace.internal.process_tags import _compute_process_tag
 from ddtrace.internal.process_tags import _get_entrypoint_name
 from ddtrace.internal.process_tags import _get_entrypoint_type
@@ -92,6 +93,40 @@ def test_compute_process_tag_excluded_values(excluded_value):
 def test_module_getattr_raises_attribute_error_for_unknown_process_tags_name():
     with pytest.raises(AttributeError):
         getattr(process_tags, "process_tags_unknown")
+
+
+@pytest.mark.parametrize(
+    "argv0,expected",
+    [
+        ("python -m unittest", "unittest"),
+        ("python3 -m myapp", "myapp"),
+        ("python3.11 -W ignore -m mypackage.submodule", "mypackage.submodule"),
+        ("python /path/to/my_script.py", "my_script"),
+        ("python /srv/app.py --tenant acme", "app"),
+    ],
+)
+def test_get_entrypoint_name_compound_argv0(argv0, expected):
+    with patch("sys.argv", [argv0]):
+        assert _get_entrypoint_name() == expected
+
+
+@pytest.mark.parametrize(
+    "argv0,expected_type",
+    [
+        ("python -m unittest", ENTRYPOINT_TYPE_MODULE),
+        ("python /path/to/script.py", ENTRYPOINT_TYPE_SCRIPT),
+        ("python /srv/app.py -m prod", ENTRYPOINT_TYPE_SCRIPT),
+    ],
+)
+def test_get_entrypoint_type_compound_argv0(argv0, expected_type):
+    with patch("sys.argv", [argv0]):
+        assert _get_entrypoint_type() == expected_type
+
+
+def test_svc_auto_compound_argv0_produces_module_name(tracer):
+    with patch("sys.argv", ["python -m unittest"]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
+        process_tag_reload()
+        assert "svc.auto:unittest" in process_tags.process_tags
 
 
 @pytest.mark.skipif(sys.version_info[:2] == (3, 9), reason="sys.orig_argv is not available on Python 3.9")

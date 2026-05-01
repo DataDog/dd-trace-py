@@ -9,7 +9,9 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6981be9a00000000",
+      "_dd.p.tid": "69e7a82200000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "start_entity",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -19,17 +21,17 @@
       "http.url": "http://0.0.0.0:7072/api/startentity",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "196b6f9036a84b498173f93a69a578a0",
+      "runtime-id": "1b69241f081e4253a3da394677a05d74",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 1802.0
+      "process_id": 61271.0
     },
-    "duration": 1281617334,
-    "start": 1770110618951849051
+    "duration": 1052130000,
+    "start": 1776789538037598000
   },
      {
        "name": "aiohttp.request",
@@ -40,17 +42,17 @@
        "parent_id": 1,
        "type": "http",
        "meta": {
+         "_dd.svc_src": "aiohttp_client",
          "component": "aiohttp_client",
          "http.method": "POST",
          "http.status_code": "202",
          "http.status_msg": "Accepted",
          "http.url": "http://127.0.0.1:17071/durabletask/orchestrators/entity_orchestrator",
          "out.host": "127.0.0.1",
-         "span.kind": "client",
-         "test.deployment_verification": "pmartinez-aiohttp-test-20260129"
+         "span.kind": "client"
        },
-       "duration": 159445500,
-       "start": 1770110618952974051
+       "duration": 36882000,
+       "start": 1776789538037822000
      },
         {
           "name": "TCPConnector.connect",
@@ -60,11 +62,12 @@
           "span_id": 5,
           "parent_id": 2,
           "meta": {
-            "_dd.p.tid": "6981be9a00000000",
+            "_dd.p.tid": "69e7a82200000000",
+            "_dd.svc_src": "aiohttp_client",
             "component": "aiohttp"
           },
-          "duration": 1502250,
-          "start": 1770110618955986217
+          "duration": 538000,
+          "start": 1776789538038080000
         },
      {
        "name": "aiohttp.request",
@@ -75,18 +78,18 @@
        "parent_id": 1,
        "type": "http",
        "meta": {
-         "_dd.p.tid": "6981be9a00000000",
+         "_dd.p.tid": "69e7a82200000000",
+         "_dd.svc_src": "aiohttp_client",
          "component": "aiohttp_client",
          "http.method": "GET",
          "http.status_code": "202",
          "http.status_msg": "Accepted",
-         "http.url": "http://127.0.0.1:17071/durabletask/instances/c21ab90e7ff4450b846575faf21cae8d",
+         "http.url": "http://127.0.0.1:17071/durabletask/instances/85bd4673d0c042728048361061549c26",
          "out.host": "127.0.0.1",
-         "span.kind": "client",
-         "test.deployment_verification": "pmartinez-aiohttp-test-20260129"
+         "span.kind": "client"
        },
-       "duration": 93368042,
-       "start": 1770110619114189384
+       "duration": 8918000,
+       "start": 1776789538075123000
      },
         {
           "name": "TCPConnector.connect",
@@ -96,11 +99,12 @@
           "span_id": 6,
           "parent_id": 3,
           "meta": {
-            "_dd.p.tid": "6981be9a00000000",
+            "_dd.p.tid": "69e7a82200000000",
+            "_dd.svc_src": "aiohttp_client",
             "component": "aiohttp"
           },
-          "duration": 512333,
-          "start": 1770110619114727676
+          "duration": 443000,
+          "start": 1776789538075296000
         },
      {
        "name": "aiohttp.request",
@@ -111,18 +115,18 @@
        "parent_id": 1,
        "type": "http",
        "meta": {
-         "_dd.p.tid": "6981be9a00000000",
+         "_dd.p.tid": "69e7a82200000000",
+         "_dd.svc_src": "aiohttp_client",
          "component": "aiohttp_client",
          "http.method": "GET",
          "http.status_code": "200",
          "http.status_msg": "OK",
-         "http.url": "http://127.0.0.1:17071/durabletask/instances/c21ab90e7ff4450b846575faf21cae8d",
+         "http.url": "http://127.0.0.1:17071/durabletask/instances/85bd4673d0c042728048361061549c26",
          "out.host": "127.0.0.1",
-         "span.kind": "client",
-         "test.deployment_verification": "pmartinez-aiohttp-test-20260129"
+         "span.kind": "client"
        },
-       "duration": 19974625,
-       "start": 1770110620212754093
+       "duration": 3331000,
+       "start": 1776789539085776000
      },
         {
           "name": "TCPConnector.connect",
@@ -132,11 +136,12 @@
           "span_id": 7,
           "parent_id": 4,
           "meta": {
-            "_dd.p.tid": "6981be9a00000000",
+            "_dd.p.tid": "69e7a82200000000",
+            "_dd.svc_src": "aiohttp_client",
             "component": "aiohttp"
           },
-          "duration": 455375,
-          "start": 1770110620213090801
+          "duration": 469000,
+          "start": 1776789539086037000
         }],
 [
   {
@@ -149,20 +154,22 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6981be9b00000000",
+      "_dd.p.tid": "69e7a82200000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "counter",
       "aas.function.trigger": "Entity",
       "component": "azure_functions",
       "language": "python",
-      "runtime-id": "196b6f9036a84b498173f93a69a578a0",
+      "runtime-id": "1b69241f081e4253a3da394677a05d74",
       "span.kind": "internal"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 1802.0
+      "process_id": 61271.0
     },
-    "duration": 448459,
-    "start": 1770110619491400759
+    "duration": 227000,
+    "start": 1776789538153367000
   }]]

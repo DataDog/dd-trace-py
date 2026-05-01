@@ -1067,3 +1067,31 @@ class TestLLMObsBedrockProxy:
                 error_stack=mock.ANY,
             )
         LLMObs.disable()
+
+
+def test_shadow_tags_invoke_when_llmobs_disabled(tracer):
+    """Verify shadow tags are set on Bedrock spans when LLMObs is disabled."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.bedrock import BedrockIntegration
+
+    integration = BedrockIntegration(MagicMock())
+
+    ctx = MagicMock()
+    ctx.get_item.side_effect = lambda key: {
+        "llmobs.proxy_request": None,
+        "llmobs.usage": {"input_tokens": 20, "output_tokens": 10, "total_tokens": 30},
+        "model_id": "anthropic.claude-v2",
+        "model_name": "anthropic.claude-v2",
+    }.get(key)
+
+    with tracer.trace("botocore.command") as span:
+        integration._set_apm_shadow_tags(span, [ctx], {}, response=None, operation="")
+
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "anthropic.claude-v2"
+    assert span.get_tag("_dd.llmobs.model_provider") == "bedrock"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+    assert span.get_metric("_dd.llmobs.input_tokens") == 20
+    assert span.get_metric("_dd.llmobs.output_tokens") == 10
+    assert span.get_metric("_dd.llmobs.total_tokens") == 30

@@ -163,7 +163,10 @@ benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
   tags: ["arch:amd64"]
   stage: report
-  needs: [ "check-slo-breaches" ]
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: tests-gen
+    - job: microbenchmarks
   when: always
   allow_failure: true
   script: |
