@@ -331,7 +331,9 @@ class TestLangGraphLLMObs:
         assert b_output.get("value") is not None
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
-    def test_agent_manifest_simple_graph(self, langgraph_llmobs, test_spans, agentic_graph_with_conditional_and_definitive_edges):
+    def test_agent_manifest_simple_graph(
+        self, langgraph_llmobs, test_spans, agentic_graph_with_conditional_and_definitive_edges
+    ):
         agentic_graph_with_conditional_and_definitive_edges.invoke(
             {"a_list": [], "which": random.choice(["agent_b", "agent_c"])}
         )
@@ -421,7 +423,9 @@ class TestLangGraphLLMObs:
         assert react_agent_metadata.get("_dd", {}).get("agent_manifest") == expected_agent_manifest
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
-    def test_agent_manifest_populates_tools_from_tool_node(self, langgraph_llmobs, test_spans, custom_agent_with_tool_node):
+    def test_agent_manifest_populates_tools_from_tool_node(
+        self, langgraph_llmobs, test_spans, custom_agent_with_tool_node
+    ):
         custom_agent_with_tool_node.invoke({"a_list": []})
         spans = _collect_spans(test_spans)
 
