@@ -43,7 +43,7 @@ LITELLM_TAGS = {"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "
 class TestLLMObsLiteLLM:
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_completion(self, litellm, request_vcr, test_spans, stream, n, consume_stream):
+    def test_completion(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
@@ -74,7 +74,7 @@ class TestLLMObsLiteLLM:
 
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_completion_exclude_usage(self, litellm, request_vcr, test_spans, stream, n, consume_stream):
+    def test_completion_exclude_usage(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n, False)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
@@ -105,7 +105,7 @@ class TestLLMObsLiteLLM:
 
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_completion_with_tools(self, litellm, request_vcr, test_spans, stream, n, consume_stream):
+    def test_completion_with_tools(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         if stream and n > 1:
             pytest.skip(
                 "Streamed responses with multiple completions and tool calls are not supported: see open issue https://github.com/BerriAI/litellm/issues/8977"
@@ -154,7 +154,7 @@ class TestLLMObsLiteLLM:
 
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
-    async def test_acompletion(self, litellm, request_vcr, test_spans, stream, n, consume_stream):
+    async def test_acompletion(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = await litellm.acompletion(
@@ -185,7 +185,7 @@ class TestLLMObsLiteLLM:
 
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_text_completion(self, litellm, request_vcr, test_spans, stream, n, consume_stream):
+    def test_text_completion(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
             resp = litellm.text_completion(
@@ -216,7 +216,7 @@ class TestLLMObsLiteLLM:
 
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
-    async def test_atext_completion(self, litellm, request_vcr, test_spans, stream, n, consume_stream):
+    async def test_atext_completion(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
             resp = await litellm.atext_completion(
@@ -251,7 +251,7 @@ class TestLLMObsLiteLLM:
     )
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
     def test_completion_proxy(
-        self, litellm, request_vcr_include_localhost, test_spans, stream, n, consume_stream
+        self, litellm, request_vcr_include_localhost, litellm_llmobs, test_spans, stream, n, consume_stream
     ):
         with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -288,7 +288,7 @@ class TestLLMObsLiteLLM:
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
     def test_completion_base_url_set(
-        self, litellm, request_vcr_include_localhost, test_spans, stream, n, consume_stream
+        self, litellm, request_vcr_include_localhost, litellm_llmobs, test_spans, stream, n, consume_stream
     ):
         with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -327,7 +327,7 @@ class TestLLMObsLiteLLM:
 
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_router_completion(self, litellm, request_vcr, test_spans, router, stream, n, consume_stream):
+    def test_router_completion(self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = router.completion(
@@ -368,7 +368,7 @@ class TestLLMObsLiteLLM:
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
     async def test_router_acompletion(
-        self, litellm, request_vcr, test_spans, router, stream, n, consume_stream
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, consume_stream
     ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -409,7 +409,7 @@ class TestLLMObsLiteLLM:
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
     def test_router_text_completion(
-        self, litellm, request_vcr, test_spans, router, stream, n, consume_stream
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, consume_stream
     ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
@@ -450,7 +450,7 @@ class TestLLMObsLiteLLM:
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
     async def test_router_atext_completion(
-        self, litellm, request_vcr, test_spans, router, stream, n, consume_stream
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, consume_stream
     ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
@@ -491,7 +491,7 @@ class TestLLMObsLiteLLM:
     @pytest.mark.skip(reason="Patching Open AI to be used within the LiteLLM library appears to be flaky")
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_completion_openai_enabled(self, litellm, request_vcr, test_spans, stream, n, consume_stream):
+    def test_completion_openai_enabled(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             patch(openai=True)
 
@@ -513,7 +513,7 @@ class TestLLMObsLiteLLM:
         assert get_llmobs_span_name(spans[0]) == expected_name
 
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-    def test_completion_anthropic_token_metrics(self, litellm, request_vcr, test_spans, stream, n):
+    def test_completion_anthropic_token_metrics(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n):
         """Test that cache token metrics (cache_read, cache_write) are captured for Anthropic models via litellm."""
         if stream or n > 1:
             pytest.skip("Anthropic cassette is non-streamed, single-choice only")
@@ -552,7 +552,7 @@ class TestLLMObsLiteLLM:
         assert "cache_write_input_tokens" in event_metrics
 
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-    def test_completion_anthropic_cache_1h_ttl(self, litellm, request_vcr, test_spans, stream, n):
+    def test_completion_anthropic_cache_1h_ttl(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n):
         """Test that 1h cache TTL breakdown metrics are captured for Anthropic models via litellm."""
         if stream or n > 1:
             pytest.skip("Anthropic cassette is non-streamed, single-choice only")
@@ -607,7 +607,7 @@ class TestLLMObsLiteLLM:
         )
 
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-    def test_completion_with_reasoning(self, litellm, request_vcr, test_spans, stream, n):
+    def test_completion_with_reasoning(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n):
         """Test that reasoning_content and reasoning_output_tokens are captured for models with reasoning."""
         if stream or n > 1:
             pytest.skip("Reasoning cassette is non-streamed, single-choice only")
@@ -649,7 +649,7 @@ _OPENAI_ENABLED = "ddtrace.llmobs._integrations.litellm.LLMObs._integration_is_e
 
 @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 def test_completion_litellm_proxy_model_not_suppressed_when_openai_enabled(
-    litellm, request_vcr_include_localhost, test_spans
+    litellm, request_vcr_include_localhost, litellm_llmobs, test_spans
 ):
     """Regression: model='litellm_proxy/<gpt-model>' with OpenAI integration enabled must still produce LLMObs spans."""
     messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -669,7 +669,7 @@ def test_completion_litellm_proxy_model_not_suppressed_when_openai_enabled(
 
 @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 def test_completion_use_litellm_proxy_kwarg_not_suppressed_when_openai_enabled(
-    litellm, request_vcr_include_localhost, test_spans
+    litellm, request_vcr_include_localhost, litellm_llmobs, test_spans
 ):
     """Regression: use_litellm_proxy=True with an OpenAI model name must still produce LLMObs spans."""
     messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -690,7 +690,7 @@ def test_completion_use_litellm_proxy_kwarg_not_suppressed_when_openai_enabled(
 
 @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 def test_completion_use_litellm_proxy_module_flag_not_suppressed_when_openai_enabled(
-    litellm, request_vcr_include_localhost, test_spans
+    litellm, request_vcr_include_localhost, litellm_llmobs, test_spans
 ):
     """Regression: litellm.use_litellm_proxy = True with an OpenAI model name must still produce LLMObs spans."""
     messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -711,7 +711,7 @@ def test_completion_use_litellm_proxy_module_flag_not_suppressed_when_openai_ena
 
 @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 def test_completion_use_litellm_proxy_env_var_not_suppressed_when_openai_enabled(
-    litellm, request_vcr_include_localhost, test_spans, monkeypatch
+    litellm, request_vcr_include_localhost, litellm_llmobs, test_spans, monkeypatch
 ):
     """Regression: USE_LITELLM_PROXY=true env var with an OpenAI model name must still produce LLMObs spans."""
     monkeypatch.setenv("USE_LITELLM_PROXY", "true")
