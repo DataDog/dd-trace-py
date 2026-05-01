@@ -6,6 +6,8 @@ import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
@@ -606,7 +608,7 @@ class TestLLMObsBedrock:
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert _get_llmobs_data_metastruct(spans[0])["meta"]["input"]["messages"] == [
+        assert get_llmobs_input_messages(spans[0]) == [
             {"tool_results": [{"result": "bar", "tool_id": "foo", "type": "toolResult"}], "role": "user"}
         ]
 
@@ -628,7 +630,7 @@ class TestLLMObsBedrock:
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert _get_llmobs_data_metastruct(spans[0])["meta"]["input"]["messages"] == [
+        assert get_llmobs_input_messages(spans[0]) == [
             {"tool_results": [{"result": '{"result": "bar"}', "tool_id": "foo", "type": "toolResult"}], "role": "user"}
         ]
 
@@ -664,7 +666,7 @@ class TestLLMObsBedrock:
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert _get_llmobs_data_metastruct(spans[0])["meta"]["input"]["messages"] == [
+        assert get_llmobs_input_messages(spans[0]) == [
             {
                 "tool_results": [
                     {"result": "[Unsupported content type(s): image]", "tool_id": "foo", "type": "toolResult"}
@@ -728,7 +730,7 @@ class TestLLMObsBedrockProxy:
                 tags=BEDROCK_TAGS,
             )
         else:
-            assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
+            assert get_llmobs_span_kind(spans[0]) == "llm"
 
     @classmethod
     def _test_llmobs_invoke_stream_proxy(
@@ -775,7 +777,7 @@ class TestLLMObsBedrockProxy:
                 tags=BEDROCK_TAGS,
             )
         else:
-            assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
+            assert get_llmobs_span_kind(spans[0]) == "llm"
 
     def test_llmobs_ai21_invoke_proxy(
         self,
