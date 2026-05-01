@@ -809,6 +809,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         description: Optional[str] = None,
         runs: Optional[int] = 1,
         ensure_unique: bool = True,
+        parent_experiment_id: Optional[str] = None,
     ) -> tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
         attributes: dict[str, JSONType] = {
@@ -822,6 +823,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "ensure_unique": ensure_unique,
             "run_count": runs,
         }
+        if parent_experiment_id is not None:
+            attributes["parent_experiment_id"] = parent_experiment_id
         resp = self.request(
             "POST",
             path,
