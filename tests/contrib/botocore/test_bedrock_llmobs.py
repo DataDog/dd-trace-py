@@ -142,13 +142,9 @@ class TestLLMObsBedrock:
     def test_llmobs_cohere_single_output_invoke(
         self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans
     ):
-        self._test_llmobs_invoke(
-            "cohere", bedrock_client, test_spans, cassette_name="cohere_invoke_single_output.yaml"
-        )
+        self._test_llmobs_invoke("cohere", bedrock_client, test_spans, cassette_name="cohere_invoke_single_output.yaml")
 
-    def test_llmobs_cohere_multi_output_invoke(
-        self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans
-    ):
+    def test_llmobs_cohere_multi_output_invoke(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke(
             "cohere",
             bedrock_client,
