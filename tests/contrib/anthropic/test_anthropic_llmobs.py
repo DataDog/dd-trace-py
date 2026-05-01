@@ -50,19 +50,8 @@ EXPECTED_TOOL_DEFINITIONS = [
 ]
 
 
-@pytest.mark.parametrize(
-    "ddtrace_global_config",
-    [
-        dict(
-            _llmobs_enabled=True,
-            _llmobs_sample_rate=1.0,
-            _llmobs_ml_app="<ml-app-name>",
-            _llmobs_instrumented_proxy_urls="http://localhost:4000",
-        )
-    ],
-)
 class TestLLMObsAnthropic:
-    def test_content_block_stop_without_content_does_not_crash(self, ddtrace_global_config):
+    def test_content_block_stop_without_content_does_not_crash(self):
         """Regression test for beta streaming: content_block_stop can arrive without any content blocks."""
         from ddtrace.contrib.internal.anthropic._streaming import _on_content_block_stop_chunk
 
@@ -71,9 +60,7 @@ class TestLLMObsAnthropic:
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_beta_server_tool_use_stream(
-        self, anthropic, ddtrace_global_config, test_spans, request_vcr, consume_stream
-    ):
+    def test_beta_server_tool_use_stream(self, anthropic, anthropic_llmobs, test_spans, request_vcr, consume_stream):
         """Regression test for streamed server-side tool usage/results being captured"""
         llm = anthropic.Anthropic()
         with request_vcr.use_cassette("anthropic_completion_beta_tools_stream.yaml"):
@@ -177,7 +164,7 @@ class TestLLMObsAnthropic:
         )
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
-    def test_beta_server_tool_use_non_stream(self, anthropic, ddtrace_global_config, test_spans, request_vcr):
+    def test_beta_server_tool_use_non_stream(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         llm = anthropic.Anthropic()
         with request_vcr.use_cassette("anthropic_completion_tools_server_tool_use.yaml"):
             llm.beta.messages.create(
@@ -282,7 +269,7 @@ class TestLLMObsAnthropic:
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 47), reason="Thinking support requires anthropic>=0.47.0")
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_stream_with_thinking(self, anthropic, ddtrace_global_config, test_spans, request_vcr, consume_stream):
+    def test_stream_with_thinking(self, anthropic, anthropic_llmobs, test_spans, request_vcr, consume_stream):
         """Ensure thinking blocks are properly captured from streamed responses."""
         llm = anthropic.Anthropic()
         with request_vcr.use_cassette("anthropic_completion_stream_thinking.yaml"):
@@ -326,7 +313,7 @@ class TestLLMObsAnthropic:
         self,
         mock_anthropic_messages_post,
         anthropic,
-        ddtrace_global_config,
+        anthropic_llmobs,
         test_spans,
         request_vcr,
     ):
@@ -382,9 +369,7 @@ class TestLLMObsAnthropic:
         assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
 
     @patch("anthropic._base_client.SyncAPIClient.post")
-    def test_completion_unknown_provider(
-        self, mock_anthropic_messages_post, anthropic, ddtrace_global_config, test_spans
-    ):
+    def test_completion_unknown_provider(self, mock_anthropic_messages_post, anthropic, anthropic_llmobs, test_spans):
         """Ensure model_provider is set to 'unknown' when base_url doesn't match any known provider."""
         mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
         llm = anthropic.Anthropic(base_url="http://localhost:8000")
@@ -393,7 +378,7 @@ class TestLLMObsAnthropic:
         assert len(spans) == 1
         assert _get_llmobs_data_metastruct(spans[0])["meta"]["model_provider"] == "unknown"
 
-    def test_completion(self, anthropic, ddtrace_global_config, test_spans, request_vcr):
+    def test_completion(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -433,7 +418,7 @@ class TestLLMObsAnthropic:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
         )
 
-    def test_completion_with_multiple_system_prompts(self, anthropic, ddtrace_global_config, test_spans, request_vcr):
+    def test_completion_with_multiple_system_prompts(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints with a list of messages as the system prompt.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -491,7 +476,7 @@ class TestLLMObsAnthropic:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
         )
 
-    def test_error(self, anthropic, ddtrace_global_config, test_spans, request_vcr):
+    def test_error(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an error.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -542,7 +527,7 @@ class TestLLMObsAnthropic:
                 )
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_stream(self, anthropic, ddtrace_global_config, test_spans, request_vcr, consume_stream):
+    def test_stream(self, anthropic, anthropic_llmobs, test_spans, request_vcr, consume_stream):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -593,7 +578,7 @@ class TestLLMObsAnthropic:
             )
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_stream_helper(self, anthropic, ddtrace_global_config, test_spans, request_vcr, consume_stream):
+    def test_stream_helper(self, anthropic, anthropic_llmobs, test_spans, request_vcr, consume_stream):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -648,7 +633,7 @@ class TestLLMObsAnthropic:
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
             )
 
-    def test_image(self, anthropic, ddtrace_global_config, test_spans, request_vcr):
+    def test_image(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an image input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -703,7 +688,7 @@ class TestLLMObsAnthropic:
             )
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
-    def test_tools_sync(self, anthropic, ddtrace_global_config, test_spans, request_vcr):
+    def test_tools_sync(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -801,7 +786,7 @@ class TestLLMObsAnthropic:
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
-    async def test_tools_async(self, anthropic, ddtrace_global_config, test_spans, request_vcr):
+    async def test_tools_async(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -895,7 +880,7 @@ class TestLLMObsAnthropic:
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_tools_sync_stream(self, anthropic, ddtrace_global_config, test_spans, request_vcr, consume_stream):
+    def test_tools_sync_stream(self, anthropic, anthropic_llmobs, test_spans, request_vcr, consume_stream):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -1010,7 +995,7 @@ class TestLLMObsAnthropic:
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_tools_async_stream_helper(
-        self, anthropic, ddtrace_global_config, test_spans, request_vcr, consume_stream
+        self, anthropic, anthropic_llmobs, test_spans, request_vcr, consume_stream
     ):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
@@ -1113,7 +1098,7 @@ class TestLLMObsAnthropic:
             tool_definitions=EXPECTED_TOOL_DEFINITIONS,
         )
 
-    def test_completion_prompt_caching(self, anthropic, ddtrace_global_config, test_spans, request_vcr):
+    def test_completion_prompt_caching(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         llm = anthropic.Anthropic()
         """Test that prompt caching metrics are properly captured for both cache creation and cache read."""
         large_system_prompt = [
@@ -1212,7 +1197,7 @@ class TestLLMObsAnthropic:
         )
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 66), reason="1h cache TTL not available until 0.66.0, skipping.")
-    def test_completion_prompt_caching_1h_ttl(self, anthropic, ddtrace_global_config, test_spans, request_vcr):
+    def test_completion_prompt_caching_1h_ttl(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Test that prompt caching metrics with 1h TTL are properly captured."""
         llm = anthropic.Anthropic()
         large_system_prompt = [
@@ -1265,7 +1250,7 @@ class TestLLMObsAnthropic:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic", "integration": "anthropic"},
         )
 
-    def test_completion_stream_prompt_caching(self, anthropic, ddtrace_global_config, test_spans, request_vcr):
+    def test_completion_stream_prompt_caching(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Test that prompt caching metrics are properly captured for streamed completions."""
         large_system_prompt = [
             {
@@ -1370,7 +1355,7 @@ class TestLLMObsAnthropic:
         )
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
-    def test_beta_completion(self, anthropic, ddtrace_global_config, test_spans, request_vcr):
+    def test_beta_completion(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for beta completion endpoints."""
         llm = anthropic.Anthropic()
         with request_vcr.use_cassette("anthropic_completion.yaml"):
@@ -1400,7 +1385,7 @@ class TestLLMObsAnthropic:
     def test_completion_with_thinking(
         self,
         anthropic,
-        ddtrace_global_config,
+        anthropic_llmobs,
         test_spans,
         request_vcr,
     ):
@@ -1438,7 +1423,7 @@ class TestLLMObsAnthropic:
     def test_completion_with_thinking_and_tools(
         self,
         anthropic,
-        ddtrace_global_config,
+        anthropic_llmobs,
         test_spans,
         request_vcr,
     ):
@@ -1489,7 +1474,7 @@ class TestLLMObsAnthropic:
     def test_thinking_in_input_messages(
         self,
         anthropic,
-        ddtrace_global_config,
+        anthropic_llmobs,
         test_spans,
         request_vcr,
     ):
@@ -1574,7 +1559,7 @@ class TestLLMObsAnthropic:
             tool_definitions=EXPECTED_TOOL_DEFINITIONS,
         )
 
-    def test_deferred_tool_schema_stripped_in_span(self, anthropic, ddtrace_global_config, test_spans, request_vcr):
+    def test_deferred_tool_schema_stripped_in_span(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Regression test: deferred tools (defer_loading=True) should have description and schema
         stripped from LLMObs spans to avoid inflating payload size. Non-deferred tools keep their
         full definitions.
@@ -1622,9 +1607,7 @@ class TestLLMObsAnthropic:
             },
         ]
 
-    def test_tool_with_deep_schema_has_schema_truncated(
-        self, anthropic, ddtrace_global_config, test_spans, request_vcr
-    ):
+    def test_tool_with_deep_schema_has_schema_truncated(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Tool schemas exceeding MAX_TOOL_SCHEMA_DEPTH should be truncated at the depth limit,
         replacing over-limit containers with empty containers while preserving name, description,
         and all fields within the limit. Tools with shallow schemas are unaffected.
