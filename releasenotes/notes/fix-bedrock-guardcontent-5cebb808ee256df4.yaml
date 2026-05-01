@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where text wrapped in Bedrock Converse ``guardContent`` content blocks was rendered as ``[Unsupported content type: guardContent]`` in traces, dropping the user's input.
