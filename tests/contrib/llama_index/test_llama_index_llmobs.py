@@ -15,14 +15,6 @@ from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
 
 
-LLMOBS_GLOBAL_CONFIG = dict(
-    _dd_api_key="<not-a-real-api_key>",
-    _llmobs_ml_app="<ml-app-name>",
-    _llmobs_enabled=True,
-    _llmobs_sample_rate=1.0,
-    service="tests.contrib.llama_index",
-)
-
 EXPECTED_TAGS = {
     "ml_app": "<ml-app-name>",
     "service": "tests.contrib.llama_index",
@@ -30,9 +22,8 @@ EXPECTED_TAGS = {
 }
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 class TestLLMObsLlamaIndex:
-    def test_chat_completion(self, llama_index, test_spans, request_vcr):
+    def test_chat_completion(self, llama_index, llama_index_llmobs, test_spans, request_vcr):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_completion.yaml"):
             llm.chat(messages=[ChatMessage(role="user", content="Hello")])
@@ -55,7 +46,7 @@ class TestLLMObsLlamaIndex:
             tags=EXPECTED_TAGS,
         )
 
-    def test_completion(self, llama_index, test_spans, request_vcr):
+    def test_completion(self, llama_index, llama_index_llmobs, test_spans, request_vcr):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_complete.yaml"):
             llm.complete("What is the meaning of life?")
@@ -84,7 +75,7 @@ class TestLLMObsLlamaIndex:
         )
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_chat_stream(self, llama_index, test_spans, request_vcr, consume_stream):
+    def test_chat_stream(self, llama_index, llama_index_llmobs, test_spans, request_vcr, consume_stream):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_chat_stream.yaml"):
             response = llm.stream_chat(messages=[ChatMessage(role="user", content="Hello")])
@@ -103,7 +94,7 @@ class TestLLMObsLlamaIndex:
             tags=EXPECTED_TAGS,
         )
 
-    def test_chat_error(self, llama_index, test_spans, request_vcr):
+    def test_chat_error(self, llama_index, llama_index_llmobs, test_spans, request_vcr):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with pytest.raises(Exception):
             with request_vcr.use_cassette("llama_index_chat_error.yaml"):
@@ -133,7 +124,7 @@ class TestLLMObsLlamaIndex:
             tags=EXPECTED_TAGS,
         )
 
-    def test_multi_turn_conversation(self, llama_index, test_spans, request_vcr):
+    def test_multi_turn_conversation(self, llama_index, llama_index_llmobs, test_spans, request_vcr):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         messages = [
             ChatMessage(role="system", content="You are a helpful assistant."),
@@ -172,7 +163,7 @@ class TestLLMObsLlamaIndex:
             tags=EXPECTED_TAGS,
         )
 
-    async def test_chat_async(self, llama_index, test_spans, request_vcr):
+    async def test_chat_async(self, llama_index, llama_index_llmobs, test_spans, request_vcr):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_completion.yaml"):
             await llm.achat(messages=[ChatMessage(role="user", content="Hello")])
@@ -196,7 +187,7 @@ class TestLLMObsLlamaIndex:
         )
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
-    async def test_chat_stream_async(self, llama_index, test_spans, request_vcr, consume_stream):
+    async def test_chat_stream_async(self, llama_index, llama_index_llmobs, test_spans, request_vcr, consume_stream):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_chat_stream.yaml"):
             response = await llm.astream_chat(messages=[ChatMessage(role="user", content="Hello")])
@@ -216,7 +207,7 @@ class TestLLMObsLlamaIndex:
         )
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_complete_stream(self, llama_index, test_spans, request_vcr, consume_stream):
+    def test_complete_stream(self, llama_index, llama_index_llmobs, test_spans, request_vcr, consume_stream):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_complete_stream.yaml"):
             response = llm.stream_complete("What is the meaning of life?")
@@ -241,7 +232,9 @@ class TestLLMObsLlamaIndex:
         )
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
-    async def test_complete_stream_async(self, llama_index, test_spans, request_vcr, consume_stream):
+    async def test_complete_stream_async(
+        self, llama_index, llama_index_llmobs, test_spans, request_vcr, consume_stream
+    ):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_complete_stream.yaml"):
             response = await llm.astream_complete("What is the meaning of life?")
@@ -265,7 +258,7 @@ class TestLLMObsLlamaIndex:
             tags=EXPECTED_TAGS,
         )
 
-    async def test_complete_async(self, llama_index, test_spans, request_vcr):
+    async def test_complete_async(self, llama_index, llama_index_llmobs, test_spans, request_vcr):
         llm = OpenAI(model="gpt-4o-mini", max_tokens=100)
         with request_vcr.use_cassette("llama_index_complete.yaml"):
             await llm.acomplete("What is the meaning of life?")
@@ -293,7 +286,7 @@ class TestLLMObsLlamaIndex:
             tags=EXPECTED_TAGS,
         )
 
-    def test_query_engine(self, llama_index, test_spans):
+    def test_query_engine(self, llama_index, llama_index_llmobs, test_spans):
         engine = _make_mock_query_engine()
         engine.query("What is the meaning of life?")
 
@@ -307,7 +300,7 @@ class TestLLMObsLlamaIndex:
             tags=EXPECTED_TAGS,
         )
 
-    async def test_query_engine_async(self, llama_index, test_spans):
+    async def test_query_engine_async(self, llama_index, llama_index_llmobs, test_spans):
         engine = _make_mock_query_engine()
         await engine.aquery("What is the meaning of life?")
 
@@ -321,7 +314,7 @@ class TestLLMObsLlamaIndex:
             tags=EXPECTED_TAGS,
         )
 
-    def test_retriever(self, llama_index, test_spans):
+    def test_retriever(self, llama_index, llama_index_llmobs, test_spans):
         retriever = _make_mock_retriever()
         retriever.retrieve("test query")
 
@@ -335,7 +328,7 @@ class TestLLMObsLlamaIndex:
             tags=EXPECTED_TAGS,
         )
 
-    async def test_retriever_async(self, llama_index, test_spans):
+    async def test_retriever_async(self, llama_index, llama_index_llmobs, test_spans):
         retriever = _make_mock_retriever()
         await retriever.aretrieve("test query")
 
@@ -349,7 +342,7 @@ class TestLLMObsLlamaIndex:
             tags=EXPECTED_TAGS,
         )
 
-    def test_embedding_query(self, llama_index, test_spans):
+    def test_embedding_query(self, llama_index, llama_index_llmobs, test_spans):
         embed = _make_mock_embedding()
         embed.get_query_embedding("test query")
 
@@ -365,7 +358,7 @@ class TestLLMObsLlamaIndex:
             tags=EXPECTED_TAGS,
         )
 
-    def test_embedding_batch(self, llama_index, test_spans):
+    def test_embedding_batch(self, llama_index, llama_index_llmobs, test_spans):
         embed = _make_mock_embedding()
         embed.get_text_embedding_batch(["doc one", "doc two"])
 
@@ -381,7 +374,7 @@ class TestLLMObsLlamaIndex:
             tags=EXPECTED_TAGS,
         )
 
-    async def test_embedding_query_async(self, llama_index, test_spans):
+    async def test_embedding_query_async(self, llama_index, llama_index_llmobs, test_spans):
         embed = _make_mock_embedding()
         await embed.aget_query_embedding("test query")
 
