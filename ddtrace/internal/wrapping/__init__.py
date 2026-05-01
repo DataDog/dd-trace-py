@@ -335,17 +335,13 @@ if PY >= (3, 15):
     def is_wrapped(f: FunctionType) -> bool:
         """Check if a function is wrapped with any wrapper."""
         inner = getattr(f, "__dd_wrapped__", None)
-        if inner is None:
-            return False
-        assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
-        return True
+        return inner is not None
 
     def is_wrapped_with(f: FunctionType, wrapper: Wrapper) -> bool:
         """Check if a function is wrapped with a specific wrapper."""
         inner = getattr(f, "__dd_wrapped__", None)
-        if inner is None:
+        if inner is None or getattr(inner, "__name__", None) != "<wrapped>":
             return False
-        assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
 
         if getattr(f, "__dd_wrapper__", None) is wrapper:
             return True
@@ -360,11 +356,9 @@ if PY >= (3, 15):
         the first argument.
         """
         inner = getattr(wf, "__dd_wrapped__", None)
-        if inner is None:
+        if inner is None or getattr(inner, "__name__", None) != "<wrapped>":
             return cast(FunctionType, wf)
         inner = cast(FunctionType, inner)
-
-        assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
 
         if getattr(wf, "__dd_wrapper__", None) is not wrapper:
             return unwrap(cast(WrappedFunction, inner), wrapper)
