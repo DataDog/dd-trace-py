@@ -63,7 +63,6 @@ def langgraph_llmobs(tracer, monkeypatch):
         {
             "_llmobs_ml_app": "unnamed-ml-app",
             "_dd_api_key": "<not-a-real-api_key>",
-            "_llmobs_sample_rate": 1.0,
             "service": "tests.llmobs",
         }
     ):
