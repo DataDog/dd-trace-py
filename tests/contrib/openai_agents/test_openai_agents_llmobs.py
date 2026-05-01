@@ -125,22 +125,6 @@ def _link_view(span):
     return {"span_id": str(span.span_id), "span_links": get_llmobs_span_links(span) or []}
 
 
-def _expected_tool_kwargs(tool_call: dict) -> dict:
-    """Build the kwargs for ``assert_llmobs_span_data`` for a tool span."""
-    error = None
-    if tool_call["error"]:
-        error = {
-            "type": "Error running tool (non-fatal)",
-            "message": f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}',
-            "stack": mock.ANY,
-        }
-    kwargs = dict(span_kind="tool", tags=COMMON_TAGS, error=error)
-    if tool_call["type"] in ("function_call", "handoff"):
-        kwargs["input_value"] = mock.ANY
-        kwargs["output_value"] = mock.ANY
-    return kwargs
-
-
 def _assert_expected_agent_run(
     expected_span_names: list[str],
     spans,
@@ -203,9 +187,24 @@ def _assert_expected_agent_run(
                 _assert_span_link(_link_view(tool_span), _link_view(span), "output", "input")
         else:
             tool_call = tool_calls[i // 2]
+            error = None
+            if tool_call["error"]:
+                error = {
+                    "type": "Error running tool (non-fatal)",
+                    "message": f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}',
+                    "stack": mock.ANY,
+                }
+            io_args = (
+                {"input_value": mock.ANY, "output_value": mock.ANY}
+                if tool_call["type"] in ("function_call", "handoff")
+                else {}
+            )
             assert_llmobs_span_data(
                 _get_llmobs_data_metastruct(span),
-                **_expected_tool_kwargs(tool_call),
+                span_kind="tool",
+                tags=COMMON_TAGS,
+                error=error,
+                **io_args,
             )
             # assert tool is linked to the previous LLM call
             _assert_span_link(_link_view(spans[i]), _link_view(span), "output", "input")
