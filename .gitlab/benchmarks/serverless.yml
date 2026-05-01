@@ -1,11 +1,12 @@
 variables:
   SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
+  SLS_CI_BRANCH: v1.2.0
 
 benchmark-serverless:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
-    branch: dd-trace-py-pinned-ref
+    branch: $SLS_CI_BRANCH
     strategy: depend
   needs:
     - job: "upload serverless"
@@ -14,9 +15,12 @@ benchmark-serverless:
       allow_failure: true
     - allow_failure: false
   variables:
+    DD_TAGS: "SLS_CI_BRANCH:$SLS_CI_BRANCH"
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
     UPSTREAM_COMMIT_BRANCH: $CI_COMMIT_BRANCH
+    # only available on Merge Requests
+    UPSTREAM_MERGE_TARGET_BRANCH: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_COMMIT_TITLE: $CI_COMMIT_TITLE
     UPSTREAM_COMMIT_TAG: $CI_COMMIT_TAG
