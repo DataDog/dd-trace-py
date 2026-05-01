@@ -196,9 +196,14 @@ def test_llmobs_client_server_tool_error(mcp_setup, mcp_llmobs, test_spans, mcp_
         },
         sort_keys=True,
     )
-    assert (
-        _get_llmobs_data_metastruct(client_span).get("meta", {}).get("error", {}).get("message")
-        == "Error executing tool failing_tool: Tool execution failed"
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(client_span),
+        span_kind="tool",
+        error={
+            "message": "Error executing tool failing_tool: Tool execution failed",
+            "type": mock.ANY,
+            "stack": mock.ANY,
+        },
     )
 
     expected_params = {
