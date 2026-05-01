@@ -36,7 +36,7 @@ ASYNC_GEN_ASSEMBLY = Assembly()
 ASYNC_HEAD_ASSEMBLY = None
 
 if PY >= (3, 15):
-    # AIDEV-NOTE: On Python 3.15+, async function wrapping is handled by
+    # On Python 3.15+, async function wrapping is handled by
     # the closure-trampoline path in `ddtrace/internal/wrapping/__init__.py`
     # (no `bytecode` lib dependency). This module is only used for
     # 3.9-3.14 and is never imported on 3.15+ via the public API.

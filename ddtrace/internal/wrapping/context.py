@@ -10,7 +10,7 @@ import typing as t
 from typing import Protocol  # noqa:F401
 
 
-# AIDEV-NOTE: On 3.15+ the bytecode-rewriting WrappingContext is replaced
+# On 3.15+ the bytecode-rewriting WrappingContext is replaced
 # by a sys.monitoring (PEP 669) backend. That backend is implemented in a
 # follow-up; until then, `WrappingContext.wrap()` raises on 3.15+ but the
 # class is importable so subclasses (e.g. `LazyWrappingContext` in
@@ -89,7 +89,7 @@ if sys.version_info < (3, 15):
     CONTEXT_FOOT = Assembly()
 
 if sys.version_info >= (3, 15):
-    # AIDEV-NOTE: 3.15+ stub. Class definitions below remain so subclasses
+    # 3.15+ stub. Class definitions below remain so subclasses
     # can be imported. Actual `_UniversalWrappingContext.wrap()` raises
     # NotImplementedError until the sys.monitoring backend lands. This
     # keeps the cp315 import path green for callers that subclass
@@ -603,7 +603,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
         return t.cast(_UniversalWrappingContext, t.cast(ContextWrappedFunction, f).__dd_context_wrapped__)
 
     if sys.version_info >= (3, 15):
-        # AIDEV-NOTE: 3.15+ stub. The sys.monitoring (PEP 669) backend is
+        # 3.15+ stub. The sys.monitoring (PEP 669) backend is
         # implemented in a follow-up todo (see plan
         # `.cursor/plans/pep669-wrapping-3.15_*`). Until then, calling
         # `wrap()` on cp315 raises with a clear message; importing and

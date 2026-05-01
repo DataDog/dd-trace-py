@@ -75,7 +75,7 @@ if PY >= (3, 15):
     _PyFunction_SetClosure.argtypes = [ctypes.py_object, ctypes.py_object]
     _PyFunction_SetClosure.restype = ctypes.c_int
 
-    _SENTINEL = object()
+    _SENTINEL: object = object()
 
     def _swap_code_and_closure(f: FunctionType, code: CodeType, closure: Optional[tuple]) -> None:
         """Atomically replace f's __code__ and __closure__.
@@ -102,7 +102,7 @@ if PY >= (3, 15):
         inner.__qualname__ = f.__qualname__
         return inner
 
-    _ASYNC_GEN_BODY_TEMPLATE = (
+    _ASYNC_GEN_BODY_TEMPLATE: str = (
         "    {iter} = {wrapper}({inner}, {args}, {kwargs})\n"
         "    try:\n"
         "        {v} = await {iter}.__anext__()\n"
@@ -136,54 +136,54 @@ if PY >= (3, 15):
                     return __dd_w(__dd_i, <pos-args-tuple>, <kw-args-dict>)
                 return __dd_trampoline
         """
-        code = f.__code__
-        flags = code.co_flags
-        n_args = code.co_argcount
-        n_posonly = code.co_posonlyargcount
-        n_kwonly = code.co_kwonlyargcount
-        has_varargs = bool(flags & CO_VARARGS)
-        has_varkwargs = bool(flags & CO_VARKEYWORDS)
-        is_coro = bool(flags & CO_COROUTINE)
-        is_async_gen = bool(flags & CO_ASYNC_GENERATOR)
-        is_gen = bool(flags & CO_GENERATOR) and not is_coro and not is_async_gen
+        code: CodeType = f.__code__
+        flags: int = code.co_flags
+        n_args: int = code.co_argcount
+        n_posonly: int = code.co_posonlyargcount
+        n_kwonly: int = code.co_kwonlyargcount
+        has_varargs: bool = bool(flags & CO_VARARGS)
+        has_varkwargs: bool = bool(flags & CO_VARKEYWORDS)
+        is_coro: bool = bool(flags & CO_COROUTINE)
+        is_async_gen: bool = bool(flags & CO_ASYNC_GENERATOR)
+        is_gen: bool = bool(flags & CO_GENERATOR) and not is_coro and not is_async_gen
 
-        varnames = code.co_varnames
-        n_sig = n_args + n_kwonly + has_varargs + has_varkwargs
+        varnames: tuple[str, ...] = code.co_varnames
+        n_sig: int = n_args + n_kwonly + has_varargs + has_varkwargs
         for name in varnames[:n_sig]:
             if not name.isidentifier():
                 raise ValueError(f"Parameter name {name!r} is not a valid Python identifier")
-        pos_argnames = list(varnames[:n_args])
-        kwonly_argnames = list(varnames[n_args : n_args + n_kwonly])
+        pos_argnames: list[str] = list(varnames[:n_args])
+        kwonly_argnames: list[str] = list(varnames[n_args : n_args + n_kwonly])
         varargs_name: str = varnames[n_args + n_kwonly] if has_varargs else ""
         varkwargs_name: str = varnames[n_args + n_kwonly + (1 if has_varargs else 0)] if has_varkwargs else ""
 
-        defaults = f.__defaults__ or ()
-        kwdefaults = f.__kwdefaults__ or {}
+        defaults: tuple[Any, ...] = f.__defaults__ or ()
+        kwdefaults: dict[str, Any] = f.__kwdefaults__ or {}
 
         # Reserve unique sentinel names that won't collide with f's params.
-        used = set(pos_argnames) | set(kwonly_argnames)
+        used: set[str] = set(pos_argnames) | set(kwonly_argnames)
         if varargs_name:
             used.add(varargs_name)
         if varkwargs_name:
             used.add(varkwargs_name)
 
         def _uniq(prefix: str) -> str:
-            n = 0
-            cand = "__dd_" + prefix
+            n: int = 0
+            cand: str = "__dd_" + prefix
             while cand in used:
                 n += 1
                 cand = "__dd_" + prefix + "_" + str(n)
             used.add(cand)
             return cand
 
-        wrapper_n = _uniq("w")
-        inner_n = _uniq("i")
-        default_ns = [_uniq("d" + str(i)) for i in range(len(defaults))]
-        kwdefault_ns = {name: _uniq("kd_" + name) for name in kwdefaults}
+        wrapper_n: str = _uniq("w")
+        inner_n: str = _uniq("i")
+        default_ns: list[str] = [_uniq("d" + str(i)) for i in range(len(defaults))]
+        kwdefault_ns: dict[str, str] = {name: _uniq("kd_" + name) for name in kwdefaults}
 
         # Reconstruct the signature string with default placeholders.
-        sig_parts = []
-        n_defaults = len(defaults)
+        sig_parts: list[str] = []
+        n_defaults: int = len(defaults)
         for i, name in enumerate(pos_argnames):
             if i >= n_args - n_defaults:
                 sig_parts.append(name + "=" + default_ns[i - (n_args - n_defaults)])
@@ -202,12 +202,13 @@ if PY >= (3, 15):
                 sig_parts.append(name)
         if has_varkwargs:
             sig_parts.append("**" + varkwargs_name)
-        signature = ", ".join(sig_parts)
+        signature: str = ", ".join(sig_parts)
 
         # Build the args tuple expression that mirrors the bytecode path's
         # `generate_posargs`: load each positional local then concat *varargs.
+        args_expr: str
         if pos_argnames:
-            pos_tuple = "(" + ", ".join(pos_argnames) + ("," if len(pos_argnames) == 1 else "") + ")"
+            pos_tuple: str = "(" + ", ".join(pos_argnames) + ("," if len(pos_argnames) == 1 else "") + ")"
             args_expr = pos_tuple + (" + " + varargs_name if has_varargs else "")
         elif has_varargs:
             args_expr = varargs_name
@@ -216,8 +217,9 @@ if PY >= (3, 15):
 
         # Build the kwargs dict expression that mirrors `generate_kwargs`:
         # kwonly params land in the dict (by name), then **varkwargs is merged.
+        kwargs_expr: str
         if kwonly_argnames:
-            kw_pairs = ", ".join("'" + n + "': " + n for n in kwonly_argnames)
+            kw_pairs: str = ", ".join("'" + n + "': " + n for n in kwonly_argnames)
             kwargs_expr = "{" + kw_pairs + (", **" + varkwargs_name if has_varkwargs else "") + "}"
         elif has_varkwargs:
             kwargs_expr = varkwargs_name
@@ -225,6 +227,8 @@ if PY >= (3, 15):
             kwargs_expr = "{}"
 
         # Build the body.
+        async_kw: str
+        body: str
         if is_coro:
             async_kw = "async "
             body = "    return await " + wrapper_n + "(" + inner_n + ", " + args_expr + ", " + kwargs_expr + ")\n"
@@ -247,13 +251,12 @@ if PY >= (3, 15):
             async_kw = ""
             body = "    return " + wrapper_n + "(" + inner_n + ", " + args_expr + ", " + kwargs_expr + ")\n"
 
-        factory_params = [wrapper_n, inner_n] + default_ns + [kwdefault_ns[n] for n in kwdefaults]
-        factory_args = [wrapper, inner] + list(defaults) + [kwdefaults[n] for n in kwdefaults]
+        factory_params: list[str] = [wrapper_n, inner_n] + default_ns + [kwdefault_ns[n] for n in kwdefaults]
+        factory_args: list[Any] = [wrapper, inner] + list(defaults) + [kwdefaults[n] for n in kwdefaults]
 
-        # Construct factory source. Inner function body is indented by 4 more.
-        inner_body = "".join("    " + ln if ln.strip() else ln for ln in body.splitlines(keepends=True))
+        inner_body: str = "".join("    " + ln if ln.strip() else ln for ln in body.splitlines(keepends=True))
 
-        src = (
+        src: str = (
             "def __dd_factory(" + ", ".join(factory_params) + "):\n"
             "    "
             + async_kw
@@ -264,7 +267,7 @@ if PY >= (3, 15):
             + "    return __dd_trampoline\n"
         )
 
-        ns: dict = {}
+        ns: dict[str, Any] = {}
         # `src` is fully constructed from f.__code__ metadata
         # (parameter names, defaults) — no user-controlled input. The exec'd
         # source defines a single factory function that returns the
@@ -295,16 +298,16 @@ if PY >= (3, 15):
         original body. Multiple wraps stack via the ``__dd_wrapped__``
         singly-linked list (matches 3.9-3.14 contract).
         """
-        original_code = f.__code__
-        inner = _make_inner(f)
+        original_code: CodeType = f.__code__
+        inner: FunctionType = _make_inner(f)
 
         # Preserve any prior __dd_wrapped__/__dd_wrapper__ chain so multiple wraps stack.
         for attr in ("__dd_wrapped__", "__dd_wrapper__"):
-            val = getattr(f, attr, _SENTINEL)
+            val: object = getattr(f, attr, _SENTINEL)
             if val is not _SENTINEL:
                 setattr(inner, attr, val)
 
-        trampoline = _build_trampoline(f, wrapper, inner)
+        trampoline: FunctionType = _build_trampoline(f, wrapper, inner)
 
         # Replace f's code/closure with the trampoline's. Keep f's
         # name/module/qualname/etc. The renamed code object makes call
@@ -317,7 +320,7 @@ if PY >= (3, 15):
         f.__defaults__ = trampoline.__defaults__
         f.__kwdefaults__ = trampoline.__kwdefaults__
 
-        wf = cast(WrappedFunction, f)
+        wf: WrappedFunction = cast(WrappedFunction, f)
         wf.__dd_wrapped__ = inner
         # __dd_wrapper__ identifies this layer's wrapper for
         # is_wrapped_with / unwrap. The 3.9-3.14 bytecode path uses
@@ -355,22 +358,21 @@ if PY >= (3, 15):
         that uses ``wrapper``. If not wrapped with ``wrapper``, returns
         the first argument.
         """
-        inner = getattr(wf, "__dd_wrapped__", None)
+        inner: Optional[FunctionType] = getattr(wf, "__dd_wrapped__", None)
         if inner is None or getattr(inner, "__name__", None) != "<wrapped>":
             return cast(FunctionType, wf)
-        inner = cast(FunctionType, inner)
 
         if getattr(wf, "__dd_wrapper__", None) is not wrapper:
             return unwrap(cast(WrappedFunction, inner), wrapper)
 
         # Remove this layer by overlaying inner onto wf.
-        f = cast(FunctionType, wf)
+        f: FunctionType = cast(FunctionType, wf)
         _swap_code_and_closure(f, inner.__code__, inner.__closure__)
         f.__defaults__ = inner.__defaults__
         f.__kwdefaults__ = inner.__kwdefaults__
 
         for attr in ("__dd_wrapped__", "__dd_wrapper__"):
-            next_val = getattr(inner, attr, _SENTINEL)
+            next_val: object = getattr(inner, attr, _SENTINEL)
             if next_val is not _SENTINEL:
                 setattr(wf, attr, next_val)
             elif hasattr(wf, attr):
