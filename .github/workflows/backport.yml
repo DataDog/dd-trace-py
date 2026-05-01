@@ -122,7 +122,7 @@ jobs:
           echo "target-branch=${TARGET_BRANCH}" >> "$GITHUB_OUTPUT"
 
       - name: Push Commit
-        uses: DataDog/commit-headless@05d7b7ee023e2c7d01c47832d420c2503cd416f3 # action/v2.0.3
+        uses: DataDog/commit-headless@ad3668640012ec69186398f43d61923f6878bbbe # action/v3.2.0
         with:
           branch: ${{ steps.create-commit.outputs.branch }}
           head-sha: ${{ steps.create-commit.outputs.branch-from }}
