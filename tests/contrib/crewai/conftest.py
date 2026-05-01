@@ -350,7 +350,6 @@ def crewai_llmobs(tracer, monkeypatch):
         {
             "_llmobs_ml_app": "<ml-app-name>",
             "_dd_api_key": "<not-a-real-api_key>",
-            "_llmobs_sample_rate": 1.0,
             "service": "tests.contrib.crewai",
         }
     ):
