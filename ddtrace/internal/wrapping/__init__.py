@@ -7,6 +7,8 @@ from typing import Optional
 from typing import Protocol
 from typing import cast
 
+from ddtrace.internal.utils.inspection import link_function_to_code
+
 
 PY = sys.version_info[:2]
 
@@ -24,22 +26,27 @@ class WrappedFunction(Protocol):
 Wrapper = Callable[[FunctionType, tuple[Any], dict[str, Any]], Any]
 
 
-# AIDEV-NOTE: Two implementations of `wrap()` ship in this module:
+# Two implementations of `wrap()` ship in this module:
 #   * 3.15+: pure-Python closure trampoline (no `bytecode` lib dependency).
 #     Eliminates the need for the version-specific bytecode in
 #     `wrapping/asyncs.py` and `wrapping/generators.py`. The Python compiler
 #     emits the right generator/coroutine bytecode for the trampolines.
 #   * 3.9-3.14: bytecode rewriting via the `bytecode` lib. Unchanged.
-# Both expose identical public API: wrap / unwrap / is_wrapped /
-# is_wrapped_with / get_function_code / set_function_code.
-# See plan: `.cursor/plans/pep669-wrapping-3.15_*.plan.md`
+#
+# Both expose identical public API:
+#   * wrap
+#   * unwrap
+#   * is_wrapped
+#   * is_wrapped_with
+#   * get_function_code
+#   * set_function_code
 
 
 if PY >= (3, 15):
     # ----------------------------------------------------------------------
     # Closure trampoline path (no bytecode lib).
     # ----------------------------------------------------------------------
-    # AIDEV-NOTE: The trampoline is generated via exec() with the *exact*
+    # The trampoline is generated via exec() with the *exact*
     # signature of the original function. Python's argument binding then
     # normalizes positional / keyword / *args / **kwargs / defaults the
     # same way it would for the original. Inside the trampoline body we
@@ -56,9 +63,7 @@ if PY >= (3, 15):
     from inspect import CO_VARARGS
     from inspect import CO_VARKEYWORDS
 
-    from ddtrace.internal.utils.inspection import link_function_to_code
-
-    # AIDEV-NOTE: We must atomically swap (`__code__`, `__closure__`) on
+    # We must atomically swap (`__code__`, `__closure__`) on
     # the wrapped function. The Python-level setters validate that
     # `len(closure) == co_freevars` *at every step*, so a two-step
     # assignment fails. The C-level `PyFunction_SetClosure` does NOT
@@ -141,9 +146,12 @@ if PY >= (3, 15):
         is_gen = bool(flags & CO_GENERATOR) and not is_coro and not is_async_gen
 
         varnames = code.co_varnames
+        n_sig = n_args + n_kwonly + has_varargs + has_varkwargs
+        for name in varnames[:n_sig]:
+            if not name.isidentifier():
+                raise ValueError(f"Parameter name {name!r} is not a valid Python identifier")
         pos_argnames = list(varnames[:n_args])
         kwonly_argnames = list(varnames[n_args : n_args + n_kwonly])
-        # Use empty strings (not None) when absent so string composition stays well-typed.
         varargs_name: str = varnames[n_args + n_kwonly] if has_varargs else ""
         varkwargs_name: str = varnames[n_args + n_kwonly + (1 if has_varargs else 0)] if has_varkwargs else ""
 
@@ -255,7 +263,7 @@ if PY >= (3, 15):
         )
 
         ns: dict = {}
-        # AIDEV-NOTE: `src` is fully constructed from f.__code__ metadata
+        # `src` is fully constructed from f.__code__ metadata
         # (parameter names, defaults) — no user-controlled input. The exec'd
         # source defines a single factory function that returns the
         # trampoline; the wrapper and inner are passed in as factory args
@@ -266,7 +274,7 @@ if PY >= (3, 15):
 
     def _rename_code(code: CodeType, original: CodeType) -> CodeType:
         """Rename trampoline's code object so call stacks/tracebacks read as the original."""
-        # AIDEV-NOTE: `co_qualname` exists since 3.11 and is always available
+        # `co_qualname` exists since 3.11 and is always available
         # in this branch (PY >= (3, 15)). mypy type-checks against the lowest
         # supported Python (3.10) typeshed where `co_qualname` is absent, so
         # we silence the call-arg / attr-defined errors here.
@@ -288,17 +296,12 @@ if PY >= (3, 15):
         original_code = f.__code__
         inner = _make_inner(f)
 
-        # Preserve any prior __dd_wrapped__ chain so multiple wraps stack.
-        try:
-            wf_old = cast(WrappedFunction, f)
-            cast(WrappedFunction, inner).__dd_wrapped__ = cast(FunctionType, wf_old.__dd_wrapped__)
-        except AttributeError:
-            pass
-
-        try:
-            cast(Any, inner).__dd_wrapper__ = cast(Any, f).__dd_wrapper__
-        except AttributeError:
-            pass
+        # Preserve any prior __dd_wrapped__/__dd_wrapper__ chain so multiple wraps stack.
+        for attr in ("__dd_wrapped__", "__dd_wrapper__"):
+            try:
+                setattr(inner, attr, getattr(f, attr))
+            except AttributeError:
+                pass
 
         trampoline = _build_trampoline(f, wrapper, inner)
 
@@ -315,7 +318,7 @@ if PY >= (3, 15):
 
         wf = cast(WrappedFunction, f)
         wf.__dd_wrapped__ = inner
-        # AIDEV-NOTE: __dd_wrapper__ identifies this layer's wrapper for
+        # __dd_wrapper__ identifies this layer's wrapper for
         # is_wrapped_with / unwrap. The 3.9-3.14 bytecode path uses
         # f.__code__.co_consts instead; the public API is identical.
         cast(Any, f).__dd_wrapper__ = wrapper
@@ -409,7 +412,6 @@ else:
     from bytecode import Instr
 
     from ddtrace.internal.assembly import Assembly
-    from ddtrace.internal.utils.inspection import link_function_to_code
     from ddtrace.internal.wrapping.asyncs import wrap_async
     from ddtrace.internal.wrapping.generators import wrap_generator
 
