@@ -202,11 +202,6 @@ def openai(agents):
 
 
 @pytest.fixture
-def ddtrace_global_config():
-    return {}
-
-
-@pytest.fixture
 def openai_agents_llmobs(tracer, monkeypatch):
     # Preserve meta_struct["_llmobs"] on spans so tests can assert against
     # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it after
