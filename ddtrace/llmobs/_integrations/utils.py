@@ -354,12 +354,13 @@ def openai_set_meta_tags_from_chat(
             # ignore system messages as we may unintentionally parse instructions as tool calls
             capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span, is_input=True)
 
+        # True if a ReAct-style "Action:" call was parsed out of the content string above
         react_appended = len(extracted_tool_calls) > pre_react_call_count
 
         if extracted_tool_calls:
             processed_message["tool_calls"] = extracted_tool_calls
             if react_appended:
-                processed_message["content"] = ""  # reset content to empty string if tool calls present
+                processed_message["content"] = ""  # only clear content if react tool calls present
         if extracted_tool_results:
             processed_message["tool_results"] = extracted_tool_results
             processed_message["content"] = ""  # reset content to empty string if tool results present

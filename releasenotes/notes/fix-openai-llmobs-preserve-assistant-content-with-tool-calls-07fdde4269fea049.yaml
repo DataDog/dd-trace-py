@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    LLM Observability: The OpenAI integration now preserves assistant message content when ``tool_calls`` are present on the same message.
+    LLM Observability: The OpenAI integration now preserves assistant message content when ``tool_calls`` are present on the same message. #17760

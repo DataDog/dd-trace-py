@@ -1030,6 +1030,48 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
     @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_tool_call_with_none_content_does_not_leak_string(
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
+    ):
+        """MLOS-605: OpenAI returns `content=None` alongside `tool_calls` when the model issues
+        a pure function call with no narration. Earlier logic ran `str(None)` → "None" and
+        relied on the unconditional content-clear to mask it; once the clear became conditional
+        the literal string "None" leaked into the span. Normalize None → "" before stringifying.
+        """
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        tool_call_id = "call_get_user_context_0"
+        messages = [
+            {"role": "user", "content": chat_completion_input_description},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": "extract_student_info", "arguments": "{}"},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": tool_call_id, "content": '{"verified": true}'},
+            {"role": "user", "content": "Thanks, can you summarize?"},
+        ]
+        client = openai.OpenAI()
+        client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        tagged_inputs = mock_llmobs_writer.enqueue.call_args.args[0]["meta"]["input"]["messages"]
+        assistant_tagged = tagged_inputs[1]
+        assert assistant_tagged["role"] == "assistant"
+        assert assistant_tagged["content"] == ""
+        assert assistant_tagged["tool_calls"] == [
+            {"name": "extract_student_info", "arguments": {}, "tool_id": tool_call_id, "type": "function"}
+        ]
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_chat_completion_react_style_content_still_deduplicates(
         self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
     ):
