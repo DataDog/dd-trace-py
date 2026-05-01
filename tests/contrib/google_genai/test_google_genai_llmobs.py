@@ -5,6 +5,7 @@ from google.genai import types
 import pytest
 
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_output_messages
 from tests.contrib.google_genai.utils import EMBED_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import FULL_GENERATE_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import TOOL_GENERATE_CONTENT_CONFIG
@@ -868,8 +869,7 @@ class TestLLMObsGoogleGenAI:
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) >= 1
-        llmobs_data = _get_llmobs_data_metastruct(spans[0])
-        output_messages = llmobs_data["meta"]["output"]["messages"]
+        output_messages = get_llmobs_output_messages(spans[0])
         assert output_messages[0]["content"] == mock.ANY
         assert json.loads(output_messages[1]["content"]) == {
             "language": mock.ANY,
