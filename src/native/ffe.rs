@@ -215,6 +215,13 @@ pub mod ffe {
                 ),
                 EvaluationError::FlagDisabled => ResolutionDetails::empty(Reason::Disabled),
                 EvaluationError::DefaultAllocationNull => ResolutionDetails::empty(Reason::Default),
+                // libdatadog returns TargetingKeyMissing when a flag has shard-based
+                // allocation but no targeting key was provided (nothing to hash).
+                // See: https://github.com/DataDog/libdatadog/blob/1b7b2daf790f/datadog-ffe/src/rules_based/eval/eval_assignment.rs#L186
+                EvaluationError::TargetingKeyMissing => ResolutionDetails::error(
+                    ErrorCode::TargetingKeyMissing,
+                    "targeting key is missing",
+                ),
                 err => ResolutionDetails::error(ErrorCode::General, err.to_string()),
             }
         }
