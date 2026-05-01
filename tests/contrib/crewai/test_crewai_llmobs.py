@@ -9,6 +9,7 @@ from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.contrib.crewai.utils import fun_fact_text
 from tests.llmobs._utils import _assert_span_link
@@ -129,8 +130,7 @@ def _link_event(span):
     ``_assert_span_link`` only reads ``span_id`` and ``span_links`` from the dicts it's
     given, so we splice them out of the metastruct payload and the underlying span.
     """
-    metastruct = _get_llmobs_data_metastruct(span)
-    return {"span_id": str(span.span_id), "span_links": metastruct.get("span_links") or []}
+    return {"span_id": str(span.span_id), "span_links": get_llmobs_span_links(span) or []}
 
 
 def _ordered_spans(test_spans):
