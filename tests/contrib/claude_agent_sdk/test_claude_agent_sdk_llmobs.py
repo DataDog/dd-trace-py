@@ -27,19 +27,10 @@ CLAUDE_AGENT_SDK_VERSION = parse_version(claude_agent_sdk.__version__)
 
 COMMON_TAGS = {"ml_app": "unnamed-ml-app", "service": "tests.llmobs", "integration": "claude_agent_sdk"}
 
-LLMOBS_GLOBAL_CONFIG = dict(
-    _dd_api_key="<not-a-real-api_key>",
-    _llmobs_ml_app="unnamed-ml-app",
-    _llmobs_enabled=True,
-    _llmobs_sample_rate=1.0,
-    service="tests.llmobs",
-)
 
-
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 class TestLLMObsClaudeAgentSdk:
     async def test_llmobs_query_extracts_content_and_usage(
-        self, claude_agent_sdk, mock_internal_client, test_spans
+        self, claude_agent_sdk, mock_internal_client, claude_agent_sdk_llmobs, test_spans
     ):
         prompt = "What is 2+2? Reply with just the number."
         async for _ in claude_agent_sdk.query(prompt=prompt):
@@ -86,7 +77,9 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
         )
 
-    async def test_llmobs_query_with_options(self, claude_agent_sdk, mock_internal_client, test_spans):
+    async def test_llmobs_query_with_options(
+        self, claude_agent_sdk, mock_internal_client, claude_agent_sdk_llmobs, test_spans
+    ):
         prompt = "Test prompt with options"
         options = claude_agent_sdk.ClaudeAgentOptions(max_turns=3)
 
@@ -139,7 +132,7 @@ class TestLLMObsClaudeAgentSdk:
         )
 
     async def test_llmobs_query_with_structured_output(
-        self, claude_agent_sdk, mock_internal_client_structured_output, test_spans
+        self, claude_agent_sdk, mock_internal_client_structured_output, claude_agent_sdk_llmobs, test_spans
     ):
         prompt = "What is 2+2? Return as JSON."
         async for _ in claude_agent_sdk.query(prompt=prompt):
@@ -187,7 +180,7 @@ class TestLLMObsClaudeAgentSdk:
         )
 
     async def test_llmobs_query_error_no_output(
-        self, claude_agent_sdk, mock_internal_client_error, test_spans
+        self, claude_agent_sdk, mock_internal_client_error, claude_agent_sdk_llmobs, test_spans
     ):
         prompt = "This will fail"
 
@@ -234,7 +227,7 @@ class TestLLMObsClaudeAgentSdk:
         )
 
     async def test_llmobs_assistant_message_error_marks_llm_span_as_error(
-        self, claude_agent_sdk, mock_internal_client_assistant_message_error, test_spans
+        self, claude_agent_sdk, mock_internal_client_assistant_message_error, claude_agent_sdk_llmobs, test_spans
     ):
         prompt = "Hello"
         async for _ in claude_agent_sdk.query(prompt=prompt):
@@ -282,7 +275,7 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
         )
 
-    async def test_llmobs_client_query_captures_prompt(self, mock_client, test_spans):
+    async def test_llmobs_client_query_captures_prompt(self, mock_client, claude_agent_sdk_llmobs, test_spans):
         prompt = "Hello from client!"
 
         await mock_client.query(prompt=prompt)
@@ -339,7 +332,7 @@ class TestLLMObsClaudeAgentSdk:
         )
 
     async def test_llmobs_query_with_read_tool_use(
-        self, claude_agent_sdk, mock_internal_client_tool_use, test_spans
+        self, claude_agent_sdk, mock_internal_client_tool_use, claude_agent_sdk_llmobs, test_spans
     ):
         prompt = "Read the file at /etc/hostname"
         async for _ in claude_agent_sdk.query(prompt=prompt):
@@ -420,7 +413,7 @@ class TestLLMObsClaudeAgentSdk:
         )
 
     async def test_llmobs_query_with_bash_tool_use(
-        self, claude_agent_sdk, mock_internal_client_bash_tool, test_spans
+        self, claude_agent_sdk, mock_internal_client_bash_tool, claude_agent_sdk_llmobs, test_spans
     ):
         prompt = "Run 'echo hello' using the Bash tool"
         async for _ in claude_agent_sdk.query(prompt=prompt):
@@ -501,7 +494,7 @@ class TestLLMObsClaudeAgentSdk:
         )
 
     async def test_llmobs_query_with_grep_tool_use(
-        self, claude_agent_sdk, mock_internal_client_grep_tool, test_spans
+        self, claude_agent_sdk, mock_internal_client_grep_tool, claude_agent_sdk_llmobs, test_spans
     ):
         prompt = "Use the Grep tool to search for 'def test_' in the tests directory"
         async for _ in claude_agent_sdk.query(prompt=prompt):
@@ -582,7 +575,7 @@ class TestLLMObsClaudeAgentSdk:
         )
 
     async def test_llmobs_query_with_async_iterable_prompt(
-        self, claude_agent_sdk, mock_internal_client, test_spans
+        self, claude_agent_sdk, mock_internal_client, claude_agent_sdk_llmobs, test_spans
     ):
         async def prompt_generator():
             yield {"type": "user", "message": {"role": "user", "content": "Hello"}}
@@ -632,7 +625,9 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
         )
 
-    async def test_llmobs_client_query_with_async_iterable_prompt(self, mock_client, test_spans):
+    async def test_llmobs_client_query_with_async_iterable_prompt(
+        self, mock_client, claude_agent_sdk_llmobs, test_spans
+    ):
         async def prompt_generator():
             yield {"type": "user", "message": {"role": "user", "content": "Hello"}}
             yield {"type": "user", "message": {"role": "user", "content": "What is 2+2?"}}
@@ -691,7 +686,7 @@ class TestLLMObsClaudeAgentSdk:
         )
 
     async def test_llmobs_multi_turn_produces_two_step_spans(
-        self, claude_agent_sdk, mock_internal_client_tool_use_with_followup, test_spans
+        self, claude_agent_sdk, mock_internal_client_tool_use_with_followup, claude_agent_sdk_llmobs, test_spans
     ):
         """Multi-turn with a tool call produces two step spans, one per inference cycle.
         Step 1 contains an llm span and a tool span; step 2 contains only an llm span.
@@ -814,7 +809,7 @@ class TestLLMObsClaudeAgentSdk:
         assert_llmobs_span_data(_get_llmobs_data_metastruct(agent_span), span_kind="agent")
 
     async def test_llmobs_llm_span_includes_token_usage(
-        self, claude_agent_sdk, mock_internal_client_with_usage, test_spans
+        self, claude_agent_sdk, mock_internal_client_with_usage, claude_agent_sdk_llmobs, test_spans
     ):
         """LLM span should include token metrics when AssistantMessage has usage data."""
         prompt = "What is 2+2?"
@@ -849,7 +844,7 @@ class TestLLMObsClaudeAgentSdk:
         )
 
     async def test_llmobs_tool_error_marks_tool_span_as_error(
-        self, claude_agent_sdk, mock_internal_client_tool_error, test_spans
+        self, claude_agent_sdk, mock_internal_client_tool_error, claude_agent_sdk_llmobs, test_spans
     ):
         """ToolResultBlock with is_error=True should mark the tool span as an error."""
         prompt = "Read the file at /etc/hostname"
