@@ -2614,11 +2614,14 @@ MUL: "*"
             )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        span_event = _get_llmobs_data_metastruct(spans[0])
-        assert span_event["meta"]["tool_definitions"] == [
-            EXPECTED_TOOL_DEFINITIONS[0],
-            {"name": "search_logs", "description": "", "schema": {}},
-        ]
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            tool_definitions=[
+                EXPECTED_TOOL_DEFINITIONS[0],
+                {"name": "search_logs", "description": "", "schema": {}},
+            ],
+        )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
@@ -2646,38 +2649,41 @@ MUL: "*"
             )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        span_event = _get_llmobs_data_metastruct(spans[0])
-        assert span_event["meta"]["tool_definitions"] == [
-            EXPECTED_TOOL_DEFINITIONS[0],
-            {
-                "name": "deep_tool",
-                "description": "A tool with a deeply nested schema",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "l1": {
-                            "type": "object",
-                            "properties": {
-                                "l2": {
-                                    "type": "object",
-                                    "properties": {
-                                        "l3": {
-                                            "type": "object",
-                                            "properties": {
-                                                "l4": {
-                                                    "type": "object",
-                                                    "properties": {"l5": {}},
-                                                }
-                                            },
-                                        }
-                                    },
-                                }
-                            },
-                        }
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            tool_definitions=[
+                EXPECTED_TOOL_DEFINITIONS[0],
+                {
+                    "name": "deep_tool",
+                    "description": "A tool with a deeply nested schema",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "l1": {
+                                "type": "object",
+                                "properties": {
+                                    "l2": {
+                                        "type": "object",
+                                        "properties": {
+                                            "l3": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "l4": {
+                                                        "type": "object",
+                                                        "properties": {"l5": {}},
+                                                    }
+                                                },
+                                            }
+                                        },
+                                    }
+                                },
+                            }
+                        },
                     },
                 },
-            },
-        ]
+            ],
+        )
 
 
 @pytest.mark.parametrize(
