@@ -66,7 +66,9 @@ class TestLLMObsLiteLLM:
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_completion_exclude_usage(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
+    def test_completion_exclude_usage(
+        self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n, False)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
@@ -313,7 +315,9 @@ class TestLLMObsLiteLLM:
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_router_completion(self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, consume_stream):
+    def test_router_completion(
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = router.completion(
@@ -473,7 +477,9 @@ class TestLLMObsLiteLLM:
 
     @pytest.mark.skip(reason="Patching Open AI to be used within the LiteLLM library appears to be flaky")
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_completion_openai_enabled(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
+    def test_completion_openai_enabled(
+        self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             patch(openai=True)
 
