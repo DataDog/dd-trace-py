@@ -9,6 +9,8 @@ import mock
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input_value
+from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from tests.llmobs._utils import assert_llmobs_span_data
@@ -179,10 +181,8 @@ def test_llmobs_client_server_tool_error(mcp_setup, mcp_llmobs, test_spans, mcp_
     assert server_span.error
 
     # assert the error client span manually via meta_struct
-    client_metastruct = _get_llmobs_data_metastruct(client_span)
-    client_meta = client_metastruct.get("meta", {})
-    assert client_meta.get("input", {}).get("value") == json.dumps({"param": "value"}, sort_keys=True)
-    assert client_meta.get("output", {}).get("value") == json.dumps(
+    assert get_llmobs_input_value(client_span) == json.dumps({"param": "value"}, sort_keys=True)
+    assert get_llmobs_output_value(client_span) == json.dumps(
         {
             "content": [
                 {
@@ -196,7 +196,10 @@ def test_llmobs_client_server_tool_error(mcp_setup, mcp_llmobs, test_spans, mcp_
         },
         sort_keys=True,
     )
-    assert client_meta.get("error", {}).get("message") == "Error executing tool failing_tool: Tool execution failed"
+    assert (
+        _get_llmobs_data_metastruct(client_span).get("meta", {}).get("error", {}).get("message")
+        == "Error executing tool failing_tool: Tool execution failed"
+    )
 
     expected_params = {
         **({"task": None} if MCP_VERSION >= (1, 26, 0) else {}),
@@ -272,14 +275,12 @@ def test_server_initialization_span_created(mcp_setup, mcp_llmobs, test_spans, m
         },
     )
 
-    init_metastruct = _get_llmobs_data_metastruct(initialize_span)
-    init_meta = init_metastruct.get("meta", {})
-    input_data = json.loads(init_meta.get("input", {}).get("value"))
+    input_data = json.loads(get_llmobs_input_value(initialize_span))
     assert input_data["method"] == "initialize"
     assert input_data["params"]["clientInfo"]["name"] == "test-client"
     assert input_data["params"]["clientInfo"]["version"] == "1.2.3"
 
-    output_data = json.loads(init_meta.get("output", {}).get("value"))
+    output_data = json.loads(get_llmobs_output_value(initialize_span))
     assert "protocolVersion" in output_data
     assert "capabilities" in output_data
     assert "serverInfo" in output_data
@@ -419,15 +420,14 @@ def test_intent_capture_records_intent_on_span_meta(mcp_setup, mcp_llmobs, test_
     )
     assert server_tool_span is not None
 
-    server_tool_metastruct = _get_llmobs_data_metastruct(server_tool_span)
-    server_tool_meta = server_tool_metastruct.get("meta", {})
+    server_tool_meta = _get_llmobs_data_metastruct(server_tool_span).get("meta", {})
 
     # Verify intent is recorded in meta
     assert "intent" in server_tool_meta, f"intent not in meta: {server_tool_meta}"
     assert server_tool_meta["intent"] == "Testing intent capture for adding numbers"
 
     # Verify telemetry argument is NOT in the input value
-    input_value = json.loads(server_tool_meta.get("input", {}).get("value"))
+    input_value = json.loads(get_llmobs_input_value(server_tool_span))
     arguments = input_value.get("params", {}).get("arguments", {})
     assert "telemetry" not in arguments, f"telemetry should not be in arguments: {arguments}"
     assert "operation" in arguments
