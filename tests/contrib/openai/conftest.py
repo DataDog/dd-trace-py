@@ -120,20 +120,26 @@ def snapshot_tracer(tracer, openai, patch_openai):
 
 
 @pytest.fixture
-def test_spans(ddtrace_global_config, test_spans, snapshot_tracer, monkeypatch):
-    if ddtrace_global_config.get("_llmobs_enabled", False):
-        # Preserve meta_struct["_llmobs"] on spans so tests can assert against
-        # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it
-        # after enqueueing to LLMObsSpanWriter.
-        monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
-        # Have to disable and re-enable LLMObs to use to mock tracer.
-        LLMObs.disable()
-        LLMObs.enable(_tracer=snapshot_tracer, integrations_enabled=False)
+def openai_llmobs(snapshot_tracer, monkeypatch):
+    # Preserve meta_struct["_llmobs"] on spans so tests can assert against
+    # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it after
+    # enqueueing to LLMObsSpanWriter.
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+    LLMObs.disable()
+    with override_global_config(
+        {
+            "_llmobs_ml_app": "<ml-app-name>",
+            "_dd_api_key": "<not-a-real-key>",
+        }
+    ):
+        LLMObs.enable(
+            _tracer=snapshot_tracer,
+            integrations_enabled=False,
+            instrumented_proxy_urls={"http://localhost:4000"},
+        )
         # Replace the real LLMObsSpanWriter with a mock so we don't keep a
         # background flush thread alive trying to ship spans during the test.
         LLMObs._instance._llmobs_span_writer.stop()
         LLMObs._instance._llmobs_span_writer = mock.MagicMock()
-
-    yield test_spans
-
+        yield LLMObs
     LLMObs.disable()

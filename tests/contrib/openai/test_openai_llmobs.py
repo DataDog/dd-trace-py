@@ -46,20 +46,9 @@ EXPECTED_TOOL_DEFINITIONS = [
 ]
 
 
-@pytest.mark.parametrize(
-    "ddtrace_global_config",
-    [
-        dict(
-            _llmobs_enabled=True,
-            _llmobs_sample_rate=1.0,
-            _llmobs_ml_app="<ml-app-name>",
-            _llmobs_instrumented_proxy_urls="http://localhost:4000",
-        )
-    ],
-)
 class TestLLMObsOpenaiV1:
     @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_completion_proxy(self, mock_completions_post, openai, ddtrace_global_config, test_spans):
+    def test_completion_proxy(self, mock_completions_post, openai, openai_llmobs, test_spans):
         # mock out the completions response
         mock_completions_post.return_value = mock_openai_completions_response
         model = "gpt-3.5-turbo"
@@ -113,7 +102,7 @@ class TestLLMObsOpenaiV1:
         assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
 
     @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_chat_completion_unknown_provider(self, mock_completions_post, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_unknown_provider(self, mock_completions_post, openai, openai_llmobs, test_spans):
         """Ensure model_provider is set to 'unknown' for chat completions with unknown base_url."""
         mock_completions_post.return_value = mock_openai_chat_completions_response
         client = openai.OpenAI(base_url="http://localhost:8000")
@@ -122,7 +111,7 @@ class TestLLMObsOpenaiV1:
         assert len(spans) == 1
         assert _get_llmobs_data_metastruct(spans[0])["meta"]["model_provider"] == "unknown"
 
-    def test_completion(self, openai, ddtrace_global_config, test_spans):
+    def test_completion(self, openai, openai_llmobs, test_spans):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -160,7 +149,7 @@ class TestLLMObsOpenaiV1:
     )
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_completion_azure_proxy(
-        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, test_spans
+        self, mock_completions_post, openai, azure_openai_config, openai_llmobs, test_spans
     ):
         prompt = "Hello world"
         mock_completions_post.return_value = mock_openai_completions_response
@@ -212,7 +201,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    def test_completion_azure(self, openai, azure_openai_config, ddtrace_global_config, test_spans):
+    def test_completion_azure(self, openai, azure_openai_config, openai_llmobs, test_spans):
         prompt = "why do some languages have words that can't directly be translated to other languages?"
         expected_output = (
             '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
@@ -246,7 +235,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    async def test_completion_azure_async(self, openai, azure_openai_config, ddtrace_global_config, test_spans):
+    async def test_completion_azure_async(self, openai, azure_openai_config, openai_llmobs, test_spans):
         prompt = "why do some languages have words that can't directly be translated to other languages?"
         expected_output = (
             '". The answer is that languages are not just a collection of words, but also a collection of cultural'  # noqa: E501
@@ -276,7 +265,7 @@ class TestLLMObsOpenaiV1:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_completion_stream(self, openai, ddtrace_global_config, test_spans):
+    def test_completion_stream(self, openai, openai_llmobs, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_streamed.yaml"):
             with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
                 mock_est.return_value = 2
@@ -302,7 +291,7 @@ class TestLLMObsOpenaiV1:
         )
 
     @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_chat_completion_proxy(self, mock_completions_post, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_proxy(self, mock_completions_post, openai, openai_llmobs, test_spans):
         mock_completions_post.return_value = mock_openai_chat_completions_response
         model = "gpt-3.5-turbo"
         input_messages = multi_message_input
@@ -343,7 +332,7 @@ class TestLLMObsOpenaiV1:
         assert len(spans) == 1
         assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
 
-    def test_chat_completion(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion(self, openai, openai_llmobs, test_spans):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -370,7 +359,7 @@ class TestLLMObsOpenaiV1:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_chat_completion_multimodal_content(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_multimodal_content(self, openai, openai_llmobs, test_spans):
         """Test that multimodal content (text + image_url + audio) is rendered as readable text."""
         image_url = (
             "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
@@ -406,7 +395,7 @@ class TestLLMObsOpenaiV1:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_chat_completion_multimodal_lazy_iterator(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_multimodal_lazy_iterator(self, openai, openai_llmobs, test_spans):
         """Test that iterable message content is materialized to a list before the SDK
         consumes it, so post-call tag extraction still sees the content.
         """
@@ -464,7 +453,7 @@ class TestLLMObsOpenaiV1:
     )
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_chat_completion_azure_proxy(
-        self, mock_completions_post, openai, azure_openai_config, ddtrace_global_config, test_spans
+        self, mock_completions_post, openai, azure_openai_config, openai_llmobs, test_spans
     ):
         input_messages = [
             {"content": "Where did the Los Angeles Dodgers play to win the world series in 2020?", "role": "user"}
@@ -524,7 +513,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    def test_chat_completion_azure(self, openai, azure_openai_config, ddtrace_global_config, test_spans):
+    def test_chat_completion_azure(self, openai, azure_openai_config, openai_llmobs, test_spans):
         input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
         expected_output = "I'm sorry, as an AI language model, I do not have real-time information. Please check"
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_chat_completion.yaml"):
@@ -556,7 +545,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    def test_chat_completion_azure_streamed(self, openai, azure_openai_config, ddtrace_global_config, test_spans):
+    def test_chat_completion_azure_streamed(self, openai, azure_openai_config, openai_llmobs, test_spans):
         input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
         expected_output = (
             "I'm unable to provide real-time weather updates. To find the current weather in New York City, "
@@ -611,7 +600,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
-    async def test_chat_completion_azure_async(self, openai, azure_openai_config, ddtrace_global_config, test_spans):
+    async def test_chat_completion_azure_async(self, openai, azure_openai_config, openai_llmobs, test_spans):
         input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
         expected_output = "I'm sorry, as an AI language model, I do not have real-time information. Please check"
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_chat_completion.yaml"):
@@ -642,7 +631,7 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
-    def test_chat_completion_stream_explicit_no_tokens(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_stream_explicit_no_tokens(self, openai, openai_llmobs, test_spans):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -683,7 +672,7 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
     )
-    def test_chat_completion_stream_tokens(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_stream_tokens(self, openai, openai_llmobs, test_spans):
         """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed_tokens.yaml"):
             model = "gpt-3.5-turbo"
@@ -713,7 +702,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 40, 0),
         reason="`client.beta.chat.completions.stream` available in 1.40.0+",
     )
-    def test_chat_completion_stream_tokens_beta(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_stream_tokens_beta(self, openai, openai_llmobs, test_spans):
         """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed_tokens.yaml"):
             model = "gpt-3.5-turbo"
@@ -741,7 +730,7 @@ class TestLLMObsOpenaiV1:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_chat_completion_function_call(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_function_call(self, openai, openai_llmobs, test_spans):
         """Test that function call chat completion calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_function_call.yaml"):
             model = "gpt-3.5-turbo"
@@ -788,7 +777,7 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
-    def test_chat_completion_tool_call(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_tool_call(self, openai, openai_llmobs, test_spans):
         """Test that tool call chat completion calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call.yaml"):
             model = "gpt-3.5-turbo"
@@ -818,7 +807,7 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
-    def test_chat_completion_tool_call_with_follow_up(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_tool_call_with_follow_up(self, openai, openai_llmobs, test_spans):
         """Test a conversation flow where a tool call response is used in a follow-up message."""
         model = "gpt-3.5-turbo"
         messages = [{"role": "user", "content": chat_completion_input_description}]
@@ -958,7 +947,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 66),
         reason="Responses API with custom tools available after v1.66.0",
     )
-    def test_response_custom_tool_call(self, openai, ddtrace_global_config, test_spans):
+    def test_response_custom_tool_call(self, openai, openai_llmobs, test_spans):
         """Test that custom tool calls in responses API are recorded as LLMObs events correctly."""
         grammar = """
         start: expr
@@ -1049,7 +1038,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 1),
         reason="Tool calls available after v1.1.0",
     )
-    def test_chat_completion_custom_tool_call(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_custom_tool_call(self, openai, openai_llmobs, test_spans):
         """Test that custom tool calls in chat completions API are recorded as LLMObs events correctly."""
         grammar = """
 start: expr
@@ -1126,7 +1115,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
     )
-    def test_chat_completion_tool_call_stream(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_tool_call_stream(self, openai, openai_llmobs, test_spans):
         """Test that tool call chat completion calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call_streamed.yaml"):
             model = "gpt-3.5-turbo"
@@ -1156,7 +1145,7 @@ MUL: "*"
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_completion_error(self, openai, ddtrace_global_config, test_spans):
+    def test_completion_error(self, openai, openai_llmobs, test_spans):
         """Ensure erroneous llmobs records are emitted for completion endpoints when configured."""
         with pytest.raises(Exception):
             with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_error.yaml"):
@@ -1191,7 +1180,7 @@ MUL: "*"
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_chat_completion_error(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_error(self, openai, openai_llmobs, test_spans):
         """Ensure erroneous llmobs records are emitted for chat completion endpoints when configured."""
         with pytest.raises(Exception):
             with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_error.yaml"):
@@ -1221,7 +1210,7 @@ MUL: "*"
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_chat_completion_prompt_caching(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_prompt_caching(self, openai, openai_llmobs, test_spans):
         """Test that prompt caching metrics are properly captured"""
         model = "gpt-4o"
         client = openai.OpenAI()
@@ -1280,7 +1269,7 @@ MUL: "*"
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_embedding_string(self, openai, ddtrace_global_config, test_spans):
+    def test_embedding_string(self, openai, openai_llmobs, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(input="hello world", model="text-embedding-ada-002")
@@ -1299,7 +1288,7 @@ MUL: "*"
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_embedding_string_array(self, openai, ddtrace_global_config, test_spans):
+    def test_embedding_string_array(self, openai, openai_llmobs, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_string_array.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(input=["hello world", "hello again"], model="text-embedding-ada-002")
@@ -1318,7 +1307,7 @@ MUL: "*"
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_embedding_token_array(self, openai, ddtrace_global_config, test_spans):
+    def test_embedding_token_array(self, openai, openai_llmobs, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_token_array.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(input=[1111, 2222, 3333], model="text-embedding-ada-002")
@@ -1337,7 +1326,7 @@ MUL: "*"
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_embedding_array_of_token_arrays(self, openai, ddtrace_global_config, test_spans):
+    def test_embedding_array_of_token_arrays(self, openai, openai_llmobs, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_array_of_token_arrays.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(
@@ -1365,7 +1354,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 10, 0), reason="Embedding dimensions available in 1.10.0+"
     )
-    def test_embedding_string_base64(self, openai, ddtrace_global_config, test_spans):
+    def test_embedding_string_base64(self, openai, openai_llmobs, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("embedding_b64.yaml"):
             client = openai.OpenAI()
             resp = client.embeddings.create(
@@ -1386,7 +1375,7 @@ MUL: "*"
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
-    def test_deepseek_as_provider(self, openai, test_spans):
+    def test_deepseek_as_provider(self, openai, openai_llmobs, test_spans):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("deepseek_completion.yaml"):
             client = openai.OpenAI(api_key="<not-a-real-key>", base_url="https://api.deepseek.com")
 
@@ -1409,7 +1398,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
-    def test_completion_stream_no_resp(self, openai, ddtrace_global_config, test_spans):
+    def test_completion_stream_no_resp(self, openai, openai_llmobs, test_spans):
         """Test that None responses from streamed chat completions results in a finished span regardless."""
         client = openai.OpenAI()
         with mock.patch.object(client.completions, "_post", return_value=None):
@@ -1434,7 +1423,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
-    def test_chat_completion_stream_prompt_caching(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_stream_prompt_caching(self, openai, openai_llmobs, test_spans):
         client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for streamed chat completions."""
         input_messages = [
@@ -1524,7 +1513,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
-    def test_chat_stream_no_resp(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_stream_no_resp(self, openai, openai_llmobs, test_spans):
         """Test that None responses from streamed chat completions results in a finished span regardless."""
         client = openai.OpenAI()
         with mock.patch.object(client.chat.completions, "_post", return_value=None):
@@ -1556,7 +1545,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response(self, openai, test_spans):
+    def test_response(self, openai, openai_llmobs, test_spans):
         """Ensure llmobs records are emitted for response endpoints when configured.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -1600,7 +1589,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_stream_tokens(self, openai, test_spans):
+    def test_response_stream_tokens(self, openai, openai_llmobs, test_spans):
         """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_stream.yaml"):
             model = "gpt-4.1"
@@ -1643,7 +1632,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_stream_incomplete(self, openai, test_spans):
+    def test_response_stream_incomplete(self, openai, openai_llmobs, test_spans):
         client = openai.OpenAI()
         request_args = {
             "model": "gpt-4o",
@@ -1696,7 +1685,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_function_call(self, openai, test_spans, snapshot_tracer):
+    def test_response_function_call(self, openai, openai_llmobs, test_spans, snapshot_tracer):
         """Test that function call response calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call.yaml"):
             model = "gpt-4.1"
@@ -1752,7 +1741,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_function_call_stream(self, openai, test_spans, snapshot_tracer):
+    def test_response_function_call_stream(self, openai, openai_llmobs, test_spans, snapshot_tracer):
         """Test that Response tool calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call_streamed.yaml"):
             model = "gpt-4.1"
@@ -1817,7 +1806,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_error(self, openai, test_spans, snapshot_tracer):
+    def test_response_error(self, openai, openai_llmobs, test_spans, snapshot_tracer):
         """Ensure erroneous llmobs records are emitted for response function call stream endpoints when configured."""
         with pytest.raises(Exception):
             with get_openai_vcr(subdirectory_name="v1").use_cassette("response_error.yaml"):
@@ -1848,7 +1837,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    async def test_response_async(self, openai, test_spans):
+    async def test_response_async(self, openai, openai_llmobs, test_spans):
         input_messages = multi_message_input
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response.yaml"):
             model = "gpt-4.1"
@@ -1888,7 +1877,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_prompt_caching(self, openai, ddtrace_global_config, test_spans):
+    def test_responses_prompt_caching(self, openai, openai_llmobs, test_spans):
         client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for responses API"""
         model = "gpt-4o"
@@ -1968,7 +1957,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_stream_prompt_caching(self, openai, ddtrace_global_config, test_spans):
+    def test_responses_stream_prompt_caching(self, openai, openai_llmobs, test_spans):
         client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for streamed responses API"""
         base_input = "hello " * 1500
@@ -2053,7 +2042,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_reasoning_stream(self, openai, ddtrace_global_config, test_spans):
+    def test_responses_reasoning_stream(self, openai, openai_llmobs, test_spans):
         client = openai.OpenAI(base_url="http://127.0.0.1:9126/vcr/openai")
 
         stream = client.responses.create(
@@ -2077,7 +2066,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_tool_message_input(self, openai, ddtrace_global_config, test_spans):
+    def test_responses_tool_message_input(self, openai, openai_llmobs, test_spans):
         client = openai.OpenAI(base_url="http://127.0.0.1:9126/vcr/openai")
 
         client.responses.create(
@@ -2110,7 +2099,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
     )
-    def test_chat_completion_parse(self, openai, ddtrace_global_config, test_spans):
+    def test_chat_completion_parse(self, openai, openai_llmobs, test_spans):
         from pydantic import BaseModel
 
         class Step(BaseModel):
@@ -2158,7 +2147,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
     )
-    def test_response_parse(self, openai, ddtrace_global_config, test_spans):
+    def test_response_parse(self, openai, openai_llmobs, test_spans):
         from pydantic import BaseModel
 
         class Step(BaseModel):
@@ -2218,7 +2207,7 @@ MUL: "*"
         reason="Full OpenAI MCP support only available with openai >= 1.80",
     )
     @mock.patch("openai._base_client.SyncAPIClient.post")
-    def test_response_mcp_tool_call(self, mock_response_post, openai, ddtrace_global_config, test_spans):
+    def test_response_mcp_tool_call(self, mock_response_post, openai, openai_llmobs, test_spans):
         mock_response_post.return_value = mock_response_mcp_tool_call()
 
         client = openai.OpenAI()
@@ -2346,7 +2335,7 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (1, 87),
         reason="Reusable prompts only available in openai >= 1.87",
     )
-    def test_response_with_prompt_tracking(self, openai, test_spans):
+    def test_response_with_prompt_tracking(self, openai, openai_llmobs, test_spans):
         """Test that prompt metadata (id, version, variables) is captured for reusable prompts."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_with_prompt.yaml"):
             client = openai.OpenAI()
@@ -2382,7 +2371,7 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (1, 87),
         reason="Reusable prompts only available in openai >= 1.87",
     )
-    def test_response_with_mixed_input_prompt_tracking_url_stripped(self, openai, test_spans):
+    def test_response_with_mixed_input_prompt_tracking_url_stripped(self, openai, openai_llmobs, test_spans):
         """Test default behavior: image_url is stripped, file_id is preserved."""
         from openai.types.responses import ResponseInputFile
         from openai.types.responses import ResponseInputImage
@@ -2459,7 +2448,7 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (1, 87),
         reason="Reusable prompts only available in openai >= 1.87",
     )
-    def test_response_with_mixed_input_prompt_tracking_url_preserved(self, openai, test_spans):
+    def test_response_with_mixed_input_prompt_tracking_url_preserved(self, openai, openai_llmobs, test_spans):
         """Test with include parameter: image_url is preserved."""
         from openai.types.responses import ResponseInputFile
         from openai.types.responses import ResponseInputImage
@@ -2537,7 +2526,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_response_reasoning_tokens(self, openai, test_spans):
+    def test_response_reasoning_tokens(self, openai, openai_llmobs, test_spans):
         """Test that reasoning tokens are captured in response endpoints."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_reasoning_tokens.yaml"):
             model = "gpt-5-mini"
@@ -2593,7 +2582,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
-    def test_deferred_tool_schema_stripped_in_span(self, openai, ddtrace_global_config, test_spans):
+    def test_deferred_tool_schema_stripped_in_span(self, openai, openai_llmobs, test_spans):
         """Regression test: deferred tools (defer_loading=True) should have description and schema
         stripped from LLMObs spans to avoid inflating payload size. Non-deferred tools keep their
         full definitions.
@@ -2631,7 +2620,7 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
-    def test_tool_with_deep_schema_has_schema_truncated(self, openai, ddtrace_global_config, test_spans):
+    def test_tool_with_deep_schema_has_schema_truncated(self, openai, openai_llmobs, test_spans):
         """Tool schemas exceeding MAX_TOOL_SCHEMA_DEPTH should be truncated at the depth limit,
         replacing over-limit containers with empty containers while preserving name, description,
         and all fields within the limit. Tools with shallow schemas are unaffected.
@@ -2693,7 +2682,7 @@ MUL: "*"
     [dict(_llmobs_enabled=True, _llmobs_ml_app="<ml-app-name>", _llmobs_agentless_enabled=True)],
 )
 @pytest.mark.skipif(parse_version(openai_module.version.VERSION) < (1, 0), reason="These tests are for openai >= 1.0")
-def test_agentless_enabled_does_not_submit_metrics(openai, ddtrace_global_config, test_spans):
+def test_agentless_enabled_does_not_submit_metrics(openai, openai_llmobs, test_spans):
     """Ensure openai metrics are not emitted when agentless mode is enabled."""
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         model = "ada"
