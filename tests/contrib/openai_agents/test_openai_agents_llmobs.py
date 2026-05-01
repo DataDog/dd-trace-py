@@ -4,6 +4,7 @@ import mock
 import pytest
 
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import assert_llmobs_span_data
@@ -119,55 +120,9 @@ def _expected_agent_metadata(agent_name: str) -> dict:
     return {"_dd": {"agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[agent_name]}}
 
 
-class _SpanLinkView:
-    """Lightweight adapter so ``_assert_span_link`` can read ``span_id`` and
-    ``span_links`` from an APM span's ``meta_struct['_llmobs']`` dict.
-    """
-
-    def __init__(self, span):
-        self._span = span
-        self._metastruct = _get_llmobs_data_metastruct(span)
-
-    def __getitem__(self, key):
-        if key == "span_id":
-            return str(self._span.span_id)
-        if key == "span_links":
-            return self._metastruct.get("span_links", [])
-        raise KeyError(key)
-
-
-def _expected_agent_kwargs(span, agent_name: str) -> dict:
-    """Build the kwargs for ``assert_llmobs_span_data`` for an agent span."""
-    return dict(
-        span_kind="agent",
-        metadata=_expected_agent_metadata(agent_name),
-        tags=COMMON_TAGS,
-        name=agent_name,
-    )
-
-
-def _expected_llm_kwargs(
-    input_messages,
-    output_messages,
-    name: Optional[str] = None,
-) -> dict:
-    """Build the kwargs for ``assert_llmobs_span_data`` for an LLM (response) span."""
-    return dict(
-        span_kind="llm",
-        input_messages=input_messages,
-        output_messages=output_messages,
-        metrics={
-            "input_tokens": mock.ANY,
-            "output_tokens": mock.ANY,
-            "total_tokens": mock.ANY,
-            "reasoning_output_tokens": mock.ANY,
-        },
-        metadata=COMMON_RESPONSE_LLM_METADATA,
-        model_name="gpt-4o-2024-08-06",
-        model_provider="openai",
-        tags=COMMON_TAGS,
-        name=name,
-    )
+def _link_view(span):
+    """Build a dict the shape `_assert_span_link` expects (span_id + span_links)."""
+    return {"span_id": str(span.span_id), "span_links": get_llmobs_span_links(span) or []}
 
 
 def _expected_tool_kwargs(tool_call: dict) -> dict:
@@ -217,7 +172,10 @@ def _assert_expected_agent_run(
     # First span: agent span.
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
-        **_expected_agent_kwargs(spans[0], get_llmobs_span_name(spans[0])),
+        span_kind="agent",
+        metadata=_expected_agent_metadata(get_llmobs_span_name(spans[0])),
+        tags=COMMON_TAGS,
+        name=get_llmobs_span_name(spans[0]),
     )
 
     for i, span in enumerate(spans[1:]):
@@ -226,14 +184,23 @@ def _assert_expected_agent_run(
             if not is_chat:
                 assert_llmobs_span_data(
                     _get_llmobs_data_metastruct(span),
-                    **_expected_llm_kwargs(
-                        input_messages=llm_calls[i // 2][0],
-                        output_messages=llm_calls[i // 2][1],
-                        name=expected_span_names[i + 1],
-                    ),
+                    span_kind="llm",
+                    input_messages=llm_calls[i // 2][0],
+                    output_messages=llm_calls[i // 2][1],
+                    metrics={
+                        "input_tokens": mock.ANY,
+                        "output_tokens": mock.ANY,
+                        "total_tokens": mock.ANY,
+                        "reasoning_output_tokens": mock.ANY,
+                    },
+                    metadata=COMMON_RESPONSE_LLM_METADATA,
+                    model_name="gpt-4o-2024-08-06",
+                    model_provider="openai",
+                    tags=COMMON_TAGS,
+                    name=expected_span_names[i + 1],
                 )
             for tool_span in previous_tool_spans:
-                _assert_span_link(_SpanLinkView(tool_span), _SpanLinkView(span), "output", "input")
+                _assert_span_link(_link_view(tool_span), _link_view(span), "output", "input")
         else:
             tool_call = tool_calls[i // 2]
             assert_llmobs_span_data(
@@ -241,7 +208,7 @@ def _assert_expected_agent_run(
                 **_expected_tool_kwargs(tool_call),
             )
             # assert tool is linked to the previous LLM call
-            _assert_span_link(_SpanLinkView(spans[i]), _SpanLinkView(span), "output", "input")
+            _assert_span_link(_link_view(spans[i]), _link_view(span), "output", "input")
             previous_tool_spans.append(span)
     return previous_tool_spans
 
@@ -792,9 +759,9 @@ async def test_llmobs_oai_agents_with_guardrail_spans(
     assert len(spans) == 7
 
     # assert input guardrail span links to LLM span
-    _assert_span_link(_SpanLinkView(spans[2]), _SpanLinkView(spans[3]), "output", "input")
+    _assert_span_link(_link_view(spans[2]), _link_view(spans[3]), "output", "input")
     # assert LLM span links to output guardrail span
-    _assert_span_link(_SpanLinkView(spans[5]), _SpanLinkView(spans[6]), "output", "input")
+    _assert_span_link(_link_view(spans[5]), _link_view(spans[6]), "output", "input")
 
 
 @pytest.mark.asyncio
