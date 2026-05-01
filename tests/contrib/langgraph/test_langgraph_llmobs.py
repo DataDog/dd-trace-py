@@ -13,15 +13,6 @@ from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.llmobs._utils import _assert_span_link
 
 
-LLMOBS_GLOBAL_CONFIG = dict(
-    _dd_api_key="<not-a-real-api_key>",
-    _llmobs_ml_app="unnamed-ml-app",
-    _llmobs_enabled=True,
-    _llmobs_sample_rate=1.0,
-    service="tests.llmobs",
-)
-
-
 def _link_view(span):
     """Adapt an APM span into the dict shape ``_assert_span_link`` expects.
 
@@ -55,9 +46,8 @@ def _collect_spans(test_spans):
     return [s for trace in test_spans.pop_traces() for s in trace]
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 class TestLangGraphLLMObs:
-    def test_simple_graph(self, test_spans, simple_graph):
+    def test_simple_graph(self, langgraph_llmobs, test_spans, simple_graph):
         simple_graph.invoke({"a_list": [], "which": "a"}, stream_mode=["values"])
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -74,7 +64,7 @@ class TestLangGraphLLMObs:
         graph_output = get_llmobs_output(graph_span) or {}
         assert graph_output.get("value") == json.dumps({"a_list": ["a", "b"], "which": "a"})
 
-    async def test_simple_graph_async(self, test_spans, simple_graph):
+    async def test_simple_graph_async(self, langgraph_llmobs, test_spans, simple_graph):
         await simple_graph.ainvoke({"a_list": [], "which": "a"})
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -91,7 +81,7 @@ class TestLangGraphLLMObs:
         graph_output = get_llmobs_output(graph_span) or {}
         assert graph_output.get("value") == json.dumps({"a_list": ["a", "b"], "which": "a"})
 
-    def test_conditional_graph(self, test_spans, conditional_graph):
+    def test_conditional_graph(self, langgraph_llmobs, test_spans, conditional_graph):
         conditional_graph.invoke({"a_list": [], "which": "c"})
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -103,7 +93,7 @@ class TestLangGraphLLMObs:
         _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
         _assert_span_link(_link_view(a_span), _link_view(c_span), "output", "input")
 
-    async def test_conditional_graph_async(self, test_spans, conditional_graph):
+    async def test_conditional_graph_async(self, langgraph_llmobs, test_spans, conditional_graph):
         await conditional_graph.ainvoke({"a_list": [], "which": "b"})
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -115,7 +105,7 @@ class TestLangGraphLLMObs:
         _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
         _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
 
-    def test_subgraph(self, test_spans, complex_graph):
+    def test_subgraph(self, langgraph_llmobs, test_spans, complex_graph):
         complex_graph.invoke({"a_list": [], "which": "b"})
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -134,7 +124,7 @@ class TestLangGraphLLMObs:
         _assert_span_link(_link_view(b1_span), _link_view(b2_span), "output", "input")
         _assert_span_link(_link_view(b2_span), _link_view(b3_span), "output", "input")
 
-    async def test_subgraph_async(self, test_spans, complex_graph):
+    async def test_subgraph_async(self, langgraph_llmobs, test_spans, complex_graph):
         await complex_graph.ainvoke({"a_list": [], "which": "b"})
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -153,7 +143,7 @@ class TestLangGraphLLMObs:
         _assert_span_link(_link_view(b1_span), _link_view(b2_span), "output", "input")
         _assert_span_link(_link_view(b2_span), _link_view(b3_span), "output", "input")
 
-    def test_fanning_graph(self, test_spans, fanning_graph):
+    def test_fanning_graph(self, langgraph_llmobs, test_spans, fanning_graph):
         fanning_graph.invoke({"a_list": [], "which": ""})
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -170,7 +160,7 @@ class TestLangGraphLLMObs:
         _assert_span_link(_link_view(b_span), _link_view(d_span), "output", "input")
         _assert_span_link(_link_view(c_span), _link_view(d_span), "output", "input")
 
-    async def test_fanning_graph_async(self, test_spans, fanning_graph):
+    async def test_fanning_graph_async(self, langgraph_llmobs, test_spans, fanning_graph):
         await fanning_graph.ainvoke({"a_list": [], "which": ""})
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -188,7 +178,7 @@ class TestLangGraphLLMObs:
         _assert_span_link(_link_view(b_span), _link_view(d_span), "output", "input")
         _assert_span_link(_link_view(c_span), _link_view(d_span), "output", "input")
 
-    def test_graph_with_send(self, test_spans, graph_with_send):
+    def test_graph_with_send(self, langgraph_llmobs, test_spans, graph_with_send):
         graph_with_send.invoke({"a_list": []})
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -203,7 +193,7 @@ class TestLangGraphLLMObs:
         _assert_span_link(_link_view(a_span), _link_view(b_span_2), "output", "input")
         _assert_span_link(_link_view(a_span), _link_view(b_span_3), "output", "input")
 
-    async def test_graph_with_send_async(self, test_spans, graph_with_send):
+    async def test_graph_with_send_async(self, langgraph_llmobs, test_spans, graph_with_send):
         await graph_with_send.ainvoke({"a_list": []})
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -218,7 +208,7 @@ class TestLangGraphLLMObs:
         _assert_span_link(_link_view(a_span), _link_view(b_span_2), "output", "input")
         _assert_span_link(_link_view(a_span), _link_view(b_span_3), "output", "input")
 
-    def test_graph_with_send_complex(self, test_spans, graph_with_send_complex):
+    def test_graph_with_send_complex(self, langgraph_llmobs, test_spans, graph_with_send_complex):
         graph_with_send_complex.invoke({"a_list": []})
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -250,7 +240,7 @@ class TestLangGraphLLMObs:
         _assert_span_link(_link_view(h_span), _link_view(j_span), "output", "input")
         _assert_span_link(_link_view(i_span), _link_view(j_span), "output", "input")
 
-    async def test_graph_with_send_complex_async(self, test_spans, graph_with_send_complex):
+    async def test_graph_with_send_complex_async(self, langgraph_llmobs, test_spans, graph_with_send_complex):
         await graph_with_send_complex.ainvoke({"a_list": []})
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -282,7 +272,7 @@ class TestLangGraphLLMObs:
         _assert_span_link(_link_view(h_span), _link_view(j_span), "output", "input")
         _assert_span_link(_link_view(i_span), _link_view(j_span), "output", "input")
 
-    def test_graph_with_uneven_sides(self, test_spans, graph_with_uneven_sides):
+    def test_graph_with_uneven_sides(self, langgraph_llmobs, test_spans, graph_with_uneven_sides):
         graph_with_uneven_sides.invoke({"a_list": []})
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -302,7 +292,7 @@ class TestLangGraphLLMObs:
         _assert_span_link(_link_view(e_first_finish), _link_view(graph_span), "output", "output")
         _assert_span_link(_link_view(e_second_finish), _link_view(graph_span), "output", "output")
 
-    async def test_graph_with_uneven_sides_async(self, test_spans, graph_with_uneven_sides):
+    async def test_graph_with_uneven_sides_async(self, langgraph_llmobs, test_spans, graph_with_uneven_sides):
         await graph_with_uneven_sides.ainvoke({"a_list": []})
         spans = _collect_spans(test_spans)
         graph_span = _find_span_by_name(spans, "LangGraph")
@@ -322,7 +312,7 @@ class TestLangGraphLLMObs:
         _assert_span_link(_link_view(e_first_finish), _link_view(graph_span), "output", "output")
         _assert_span_link(_link_view(e_second_finish), _link_view(graph_span), "output", "output")
 
-    async def test_astream_events(self, test_spans, simple_graph):
+    async def test_astream_events(self, langgraph_llmobs, test_spans, simple_graph):
         async for _ in simple_graph.astream_events({"a_list": [], "which": "a"}, version="v2"):
             pass
         spans = _collect_spans(test_spans)
@@ -341,7 +331,7 @@ class TestLangGraphLLMObs:
         assert b_output.get("value") is not None
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
-    def test_agent_manifest_simple_graph(self, test_spans, agentic_graph_with_conditional_and_definitive_edges):
+    def test_agent_manifest_simple_graph(self, langgraph_llmobs, test_spans, agentic_graph_with_conditional_and_definitive_edges):
         agentic_graph_with_conditional_and_definitive_edges.invoke(
             {"a_list": [], "which": random.choice(["agent_b", "agent_c"])}
         )
@@ -392,7 +382,7 @@ class TestLangGraphLLMObs:
     @pytest.mark.skipif(
         LANGGRAPH_VERSION < (0, 3, 21), reason="create_react_agent has full support after LangGraph 0.3.21"
     )
-    def test_agent_manifest_from_create_react_agent(self, test_spans, agent_from_create_react_agent):
+    def test_agent_manifest_from_create_react_agent(self, langgraph_llmobs, test_spans, agent_from_create_react_agent):
         agent_from_create_react_agent.invoke({"messages": [{"role": "user", "content": "What is 2 + 2?"}]})
         spans = _collect_spans(test_spans)
 
@@ -431,7 +421,7 @@ class TestLangGraphLLMObs:
         assert react_agent_metadata.get("_dd", {}).get("agent_manifest") == expected_agent_manifest
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
-    def test_agent_manifest_populates_tools_from_tool_node(self, test_spans, custom_agent_with_tool_node):
+    def test_agent_manifest_populates_tools_from_tool_node(self, langgraph_llmobs, test_spans, custom_agent_with_tool_node):
         custom_agent_with_tool_node.invoke({"a_list": []})
         spans = _collect_spans(test_spans)
 
@@ -465,7 +455,7 @@ class TestLangGraphLLMObs:
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_manifest_different_recursion_limit(
-        self, test_spans, agentic_graph_with_conditional_and_definitive_edges
+        self, langgraph_llmobs, test_spans, agentic_graph_with_conditional_and_definitive_edges
     ):
         agentic_graph_with_conditional_and_definitive_edges.invoke(
             {"a_list": [], "which": random.choice(["agent_b", "agent_c"])}, {"recursion_limit": 100}
@@ -479,7 +469,7 @@ class TestLangGraphLLMObs:
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_with_tool_calls_integrations_enabled(
-        self, test_spans, agent_from_create_react_agent_integrations_enabled
+        self, langgraph_llmobs, test_spans, agent_from_create_react_agent_integrations_enabled
     ):
         """
         Test that invoking an agent with tool calls while other integrations are enabled results in
