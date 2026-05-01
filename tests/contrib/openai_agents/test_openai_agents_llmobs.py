@@ -4,6 +4,7 @@ import mock
 import pytest
 
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import assert_llmobs_span_data
 
@@ -118,11 +119,6 @@ def _expected_agent_metadata(agent_name: str) -> dict:
     return {"_dd": {"agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[agent_name]}}
 
 
-def _llmobs_name(span):
-    """Get the LLMObs name from a span's meta_struct['_llmobs']."""
-    return _get_llmobs_data_metastruct(span).get("name")
-
-
 class _SpanLinkView:
     """Lightweight adapter so ``_assert_span_link`` can read ``span_id`` and
     ``span_links`` from an APM span's ``meta_struct['_llmobs']`` dict.
@@ -215,13 +211,13 @@ def _assert_expected_agent_run(
         previous_tool_spans = []
     # Names match the LLMObs name on each span in order.
     for i, span in enumerate(spans):
-        assert _llmobs_name(span) == expected_span_names[i], (
-            f"span[{i}] name mismatch: expected={expected_span_names[i]!r}, actual={_llmobs_name(span)!r}"
+        assert get_llmobs_span_name(span) == expected_span_names[i], (
+            f"span[{i}] name mismatch: expected={expected_span_names[i]!r}, actual={get_llmobs_span_name(span)!r}"
         )
     # First span: agent span.
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
-        **_expected_agent_kwargs(spans[0], _llmobs_name(spans[0])),
+        **_expected_agent_kwargs(spans[0], get_llmobs_span_name(spans[0])),
     )
 
     for i, span in enumerate(spans[1:]):
@@ -261,7 +257,7 @@ async def test_llmobs_single_agent(agents, openai_agents_llmobs, test_spans, req
 
     assert len(spans) == 3
 
-    assert _llmobs_name(spans[0]) == "Agent workflow"
+    assert get_llmobs_span_name(spans[0]) == "Agent workflow"
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
         span_kind="workflow",
@@ -306,7 +302,7 @@ async def test_llmobs_streamed_single_agent(agents, openai_agents_llmobs, test_s
 
     assert len(spans) == 3
 
-    assert _llmobs_name(spans[0]) == "Agent workflow"
+    assert get_llmobs_span_name(spans[0]) == "Agent workflow"
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
         span_kind="workflow",
@@ -344,7 +340,7 @@ def test_llmobs_single_agent_sync(agents, openai_agents_llmobs, test_spans, requ
 
     assert len(spans) == 3
 
-    assert _llmobs_name(spans[0]) == "Agent workflow"
+    assert get_llmobs_span_name(spans[0]) == "Agent workflow"
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
         span_kind="workflow",
@@ -389,7 +385,7 @@ async def test_llmobs_manual_tracing_llmobs(agents, openai_agents_llmobs, test_s
 
     assert len(spans) == 4
 
-    assert _llmobs_name(spans[0]) == "Simple Workflow"
+    assert get_llmobs_span_name(spans[0]) == "Simple Workflow"
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
         span_kind="workflow",
