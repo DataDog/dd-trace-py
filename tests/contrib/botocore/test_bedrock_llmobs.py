@@ -23,9 +23,6 @@ from tests.utils import override_global_config
 BEDROCK_TAGS = {"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"}
 
 
-@pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
-)
 class TestLLMObsBedrock:
     @classmethod
     def _assert_llm_span(
@@ -130,24 +127,28 @@ class TestLLMObsBedrock:
             metadata=expected_metadata,
         )
 
-    def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke("ai21", bedrock_client, test_spans)
 
-    def test_llmobs_amazon_invoke(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_amazon_invoke(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke("amazon", bedrock_client, test_spans)
 
-    def test_llmobs_anthropic_invoke(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_anthropic_invoke(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke("anthropic", bedrock_client, test_spans)
 
-    def test_llmobs_anthropic_message(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_anthropic_message(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke("anthropic_message", bedrock_client, test_spans)
 
-    def test_llmobs_cohere_single_output_invoke(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_cohere_single_output_invoke(
+        self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans
+    ):
         self._test_llmobs_invoke(
             "cohere", bedrock_client, test_spans, cassette_name="cohere_invoke_single_output.yaml"
         )
 
-    def test_llmobs_cohere_multi_output_invoke(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_cohere_multi_output_invoke(
+        self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans
+    ):
         self._test_llmobs_invoke(
             "cohere",
             bedrock_client,
@@ -156,10 +157,10 @@ class TestLLMObsBedrock:
             n_output=2,
         )
 
-    def test_llmobs_meta_invoke(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_meta_invoke(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke("meta", bedrock_client, test_spans)
 
-    def test_llmobs_cohere_rerank_invoke(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_cohere_rerank_invoke(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
         cassette_name = "cohere_rerank_invoke.yaml"
         model = "cohere.rerank-v3-5:0"
         prompt_data = "What is the capital of the United States?"
@@ -175,16 +176,20 @@ class TestLLMObsBedrock:
         assert len(spans) == 1
         self._assert_llm_span(spans[0], 1, model_id=model)
 
-    def test_llmobs_amazon_invoke_stream(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_amazon_invoke_stream(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream("amazon", bedrock_client, test_spans)
 
-    def test_llmobs_anthropic_invoke_stream(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_anthropic_invoke_stream(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream("anthropic", bedrock_client, test_spans)
 
-    def test_llmobs_anthropic_message_invoke_stream(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_anthropic_message_invoke_stream(
+        self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans
+    ):
         self._test_llmobs_invoke_stream("anthropic_message", bedrock_client, test_spans)
 
-    def test_llmobs_cohere_single_output_invoke_stream(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_cohere_single_output_invoke_stream(
+        self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans
+    ):
         self._test_llmobs_invoke_stream(
             "cohere",
             bedrock_client,
@@ -192,7 +197,9 @@ class TestLLMObsBedrock:
             cassette_name="cohere_invoke_stream_single_output.yaml",
         )
 
-    def test_llmobs_cohere_multi_output_invoke_stream(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_cohere_multi_output_invoke_stream(
+        self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans
+    ):
         self._test_llmobs_invoke_stream(
             "cohere",
             bedrock_client,
@@ -201,10 +208,10 @@ class TestLLMObsBedrock:
             n_output=2,
         )
 
-    def test_llmobs_meta_invoke_stream(self, ddtrace_global_config, bedrock_client, test_spans):
+    def test_llmobs_meta_invoke_stream(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream("meta", bedrock_client, test_spans)
 
-    def test_llmobs_only_patches_bedrock(self, ddtrace_global_config, tracer, test_spans):
+    def test_llmobs_only_patches_bedrock(self, ddtrace_global_config, tracer, bedrock_llmobs, test_spans):
         llmobs_service.disable()
 
         with override_global_config(
@@ -229,7 +236,7 @@ class TestLLMObsBedrock:
 
         llmobs_service.disable()
 
-    def test_llmobs_error(self, ddtrace_global_config, bedrock_client, test_spans, request_vcr):
+    def test_llmobs_error(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans, request_vcr):
         import botocore
 
         with pytest.raises(botocore.exceptions.ClientError):
@@ -255,7 +262,7 @@ class TestLLMObsBedrock:
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse(self, bedrock_client, request_vcr, test_spans):
+    def test_llmobs_converse(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         request_params = create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool)
         with request_vcr.use_cassette("bedrock_converse.yaml"):
             response = bedrock_client.converse(**request_params)
@@ -300,7 +307,7 @@ class TestLLMObsBedrock:
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_error(self, bedrock_client, request_vcr, test_spans):
+    def test_llmobs_converse_error(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         """Test error handling for the Bedrock Converse API."""
         import botocore
 
@@ -333,7 +340,7 @@ class TestLLMObsBedrock:
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_stream(self, bedrock_client, request_vcr, test_spans):
+    def test_llmobs_converse_stream(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         output_msg = ""
         request_params = create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool)
         with request_vcr.use_cassette("bedrock_converse_stream.yaml"):
@@ -382,7 +389,7 @@ class TestLLMObsBedrock:
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_modified_stream(self, bedrock_client, request_vcr, test_spans):
+    def test_llmobs_converse_modified_stream(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         """
         Verify that LLM Obs tracing works even if stream chunks are modified mid-stream.
         """
@@ -436,7 +443,7 @@ class TestLLMObsBedrock:
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_prompt_caching(self, bedrock_client, request_vcr, test_spans):
+    def test_llmobs_converse_prompt_caching(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         """Test that prompt caching metrics are properly captured for both cache creation and cache read."""
         large_system_prompt = "Software architecture guidelines: " + "bye " * 1024
         large_system_content = [
@@ -514,7 +521,7 @@ class TestLLMObsBedrock:
             )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_stream_prompt_caching(self, bedrock_client, request_vcr, test_spans):
+    def test_llmobs_converse_stream_prompt_caching(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         """Test that prompt caching metrics are properly captured for streamed converse responses."""
         large_system_prompt = "Software architecture guidelines: " + "hello " * 1024
         large_system_content = [
@@ -594,7 +601,7 @@ class TestLLMObsBedrock:
             )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_tool_result_text(self, bedrock_client, request_vcr, test_spans):
+    def test_llmobs_converse_tool_result_text(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         import botocore
 
         with pytest.raises(botocore.exceptions.ClientError):
@@ -613,7 +620,7 @@ class TestLLMObsBedrock:
         ]
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_tool_result_json(self, bedrock_client, request_vcr, test_spans):
+    def test_llmobs_converse_tool_result_json(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         import botocore
 
         with pytest.raises(botocore.exceptions.ClientError):
@@ -635,7 +642,9 @@ class TestLLMObsBedrock:
         ]
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_tool_result_json_non_text_or_json(self, bedrock_client, request_vcr, test_spans):
+    def test_llmobs_converse_tool_result_json_non_text_or_json(
+        self, bedrock_client, request_vcr, bedrock_llmobs, test_spans
+    ):
         import botocore
 
         with pytest.raises(botocore.exceptions.ClientError):
@@ -783,6 +792,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http,
     ):
@@ -798,6 +808,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http,
     ):
@@ -813,6 +824,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http,
     ):
@@ -828,6 +840,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http,
     ):
@@ -843,6 +856,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http,
     ):
@@ -858,6 +872,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http,
     ):
@@ -874,6 +889,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http,
     ):
@@ -889,6 +905,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http,
     ):
@@ -904,6 +921,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http,
     ):
@@ -919,6 +937,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http,
     ):
@@ -934,6 +953,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http,
     ):
@@ -949,6 +969,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http,
     ):
@@ -965,6 +986,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http,
     ):
@@ -980,6 +1002,7 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
         mock_invoke_model_http_error,
         mock_invoke_model_response_error,
