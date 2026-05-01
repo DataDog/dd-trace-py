@@ -418,8 +418,7 @@ def test_intent_capture_records_intent_on_span_meta(mcp_setup, mcp_llmobs, test_
         (
             s
             for s in all_spans
-            if get_llmobs_span_name(s) == "calculator"
-            and (get_llmobs_tags(s) or {}).get("mcp_tool_kind") == "server"
+            if get_llmobs_span_name(s) == "calculator" and (get_llmobs_tags(s) or {}).get("mcp_tool_kind") == "server"
         ),
         None,
     )
