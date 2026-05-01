@@ -4,7 +4,6 @@ import mock
 import pytest
 
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
-from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import assert_llmobs_span_data
@@ -120,11 +119,6 @@ def _expected_agent_metadata(agent_name: str) -> dict:
     return {"_dd": {"agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[agent_name]}}
 
 
-def _link_view(span):
-    """Build a dict the shape `_assert_span_link` expects (span_id + span_links)."""
-    return {"span_id": str(span.span_id), "span_links": get_llmobs_span_links(span) or []}
-
-
 def _assert_expected_agent_run(
     expected_span_names: list[str],
     spans,
@@ -184,7 +178,7 @@ def _assert_expected_agent_run(
                     name=expected_span_names[i + 1],
                 )
             for tool_span in previous_tool_spans:
-                _assert_span_link(_link_view(tool_span), _link_view(span), "output", "input")
+                _assert_span_link(tool_span, span, "output", "input")
         else:
             tool_call = tool_calls[i // 2]
             error = None
@@ -207,7 +201,7 @@ def _assert_expected_agent_run(
                 **io_args,
             )
             # assert tool is linked to the previous LLM call
-            _assert_span_link(_link_view(spans[i]), _link_view(span), "output", "input")
+            _assert_span_link(spans[i], span, "output", "input")
             previous_tool_spans.append(span)
     return previous_tool_spans
 
@@ -758,9 +752,9 @@ async def test_llmobs_oai_agents_with_guardrail_spans(
     assert len(spans) == 7
 
     # assert input guardrail span links to LLM span
-    _assert_span_link(_link_view(spans[2]), _link_view(spans[3]), "output", "input")
+    _assert_span_link(spans[2], spans[3], "output", "input")
     # assert LLM span links to output guardrail span
-    _assert_span_link(_link_view(spans[5]), _link_view(spans[6]), "output", "input")
+    _assert_span_link(spans[5], spans[6], "output", "input")
 
 
 @pytest.mark.asyncio

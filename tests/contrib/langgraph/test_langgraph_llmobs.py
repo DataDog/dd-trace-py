@@ -13,19 +13,6 @@ from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.llmobs._utils import _assert_span_link
 
 
-def _link_view(span):
-    """Adapt an APM span into the dict shape ``_assert_span_link`` expects.
-
-    ``_assert_span_link`` was written against the wire-event shape; in the
-    meta_struct world span_links live on ``span._meta_struct["_llmobs"]``
-    rather than at the top level of an event.
-    """
-    return {
-        "span_id": str(span.span_id),
-        "span_links": get_llmobs_span_links(span) or [],
-    }
-
-
 def _find_span_by_name(spans, name):
     """Find a single span by its LLMObs meta_struct name."""
     for span in spans:
@@ -54,10 +41,10 @@ class TestLangGraphLLMObs:
         a_span = _find_span_by_name(spans, "a")
         b_span = _find_span_by_name(spans, "b")
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(b_span), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(b_span, graph_span, "output", "output")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
 
         # Check that the graph span has the appropriate output
         # stream_mode=["values"] should result in the last yield being a tuple
@@ -71,10 +58,10 @@ class TestLangGraphLLMObs:
         a_span = _find_span_by_name(spans, "a")
         b_span = _find_span_by_name(spans, "b")
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(b_span), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(b_span, graph_span, "output", "output")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
 
         # Check that the graph span has the appropriate output
         # default stream_mode of "values" should result in the last yield being an object
@@ -88,10 +75,10 @@ class TestLangGraphLLMObs:
         a_span = _find_span_by_name(spans, "a")
         c_span = _find_span_by_name(spans, "c")
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(c_span), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
-        _assert_span_link(_link_view(a_span), _link_view(c_span), "output", "input")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(c_span, graph_span, "output", "output")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, c_span, "output", "input")
 
     async def test_conditional_graph_async(self, langgraph_llmobs, test_spans, conditional_graph):
         await conditional_graph.ainvoke({"a_list": [], "which": "b"})
@@ -100,10 +87,10 @@ class TestLangGraphLLMObs:
         a_span = _find_span_by_name(spans, "a")
         b_span = _find_span_by_name(spans, "b")
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(b_span), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(b_span, graph_span, "output", "output")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
 
     def test_subgraph(self, langgraph_llmobs, test_spans, complex_graph):
         complex_graph.invoke({"a_list": [], "which": "b"})
@@ -115,14 +102,14 @@ class TestLangGraphLLMObs:
         b2_span = _find_span_by_name(spans, "b2")
         b3_span = _find_span_by_name(spans, "b3")
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(b3_span), _link_view(b_span), "output", "output")
-        _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
-        _assert_span_link(_link_view(b3_span), _link_view(b_span), "output", "output")
-        _assert_span_link(_link_view(b_span), _link_view(b1_span), "input", "input")
-        _assert_span_link(_link_view(b1_span), _link_view(b2_span), "output", "input")
-        _assert_span_link(_link_view(b2_span), _link_view(b3_span), "output", "input")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(b3_span, b_span, "output", "output")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
+        _assert_span_link(b3_span, b_span, "output", "output")
+        _assert_span_link(b_span, b1_span, "input", "input")
+        _assert_span_link(b1_span, b2_span, "output", "input")
+        _assert_span_link(b2_span, b3_span, "output", "input")
 
     async def test_subgraph_async(self, langgraph_llmobs, test_spans, complex_graph):
         await complex_graph.ainvoke({"a_list": [], "which": "b"})
@@ -134,14 +121,14 @@ class TestLangGraphLLMObs:
         b2_span = _find_span_by_name(spans, "b2")
         b3_span = _find_span_by_name(spans, "b3")
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(b3_span), _link_view(b_span), "output", "output")
-        _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
-        _assert_span_link(_link_view(b3_span), _link_view(b_span), "output", "output")
-        _assert_span_link(_link_view(b_span), _link_view(b1_span), "input", "input")
-        _assert_span_link(_link_view(b1_span), _link_view(b2_span), "output", "input")
-        _assert_span_link(_link_view(b2_span), _link_view(b3_span), "output", "input")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(b3_span, b_span, "output", "output")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
+        _assert_span_link(b3_span, b_span, "output", "output")
+        _assert_span_link(b_span, b1_span, "input", "input")
+        _assert_span_link(b1_span, b2_span, "output", "input")
+        _assert_span_link(b2_span, b3_span, "output", "input")
 
     def test_fanning_graph(self, langgraph_llmobs, test_spans, fanning_graph):
         fanning_graph.invoke({"a_list": [], "which": ""})
@@ -152,13 +139,13 @@ class TestLangGraphLLMObs:
         c_span = _find_span_by_name(spans, "c")
         d_span = _find_span_by_name(spans, "d")
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(d_span), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
-        _assert_span_link(_link_view(a_span), _link_view(c_span), "output", "input")
-        _assert_span_link(_link_view(b_span), _link_view(d_span), "output", "input")
-        _assert_span_link(_link_view(c_span), _link_view(d_span), "output", "input")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(d_span, graph_span, "output", "output")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
+        _assert_span_link(a_span, c_span, "output", "input")
+        _assert_span_link(b_span, d_span, "output", "input")
+        _assert_span_link(c_span, d_span, "output", "input")
 
     async def test_fanning_graph_async(self, langgraph_llmobs, test_spans, fanning_graph):
         await fanning_graph.ainvoke({"a_list": [], "which": ""})
@@ -170,13 +157,13 @@ class TestLangGraphLLMObs:
         d_span = _find_span_by_name(spans, "d")
 
         assert get_llmobs_span_name(graph_span) == "LangGraph"
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(d_span), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
-        _assert_span_link(_link_view(a_span), _link_view(c_span), "output", "input")
-        _assert_span_link(_link_view(b_span), _link_view(d_span), "output", "input")
-        _assert_span_link(_link_view(c_span), _link_view(d_span), "output", "input")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(d_span, graph_span, "output", "output")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
+        _assert_span_link(a_span, c_span, "output", "input")
+        _assert_span_link(b_span, d_span, "output", "input")
+        _assert_span_link(c_span, d_span, "output", "input")
 
     def test_graph_with_send(self, langgraph_llmobs, test_spans, graph_with_send):
         graph_with_send.invoke({"a_list": []})
@@ -185,13 +172,13 @@ class TestLangGraphLLMObs:
         a_span = _find_span_by_name(spans, "a")
         b_span_1, b_span_2, b_span_3 = _find_spans_by_name(spans, ["b", "b", "b"])
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(b_span_1), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(b_span_2), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(b_span_3), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(a_span), _link_view(b_span_1), "output", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span_2), "output", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span_3), "output", "input")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(b_span_1, graph_span, "output", "output")
+        _assert_span_link(b_span_2, graph_span, "output", "output")
+        _assert_span_link(b_span_3, graph_span, "output", "output")
+        _assert_span_link(a_span, b_span_1, "output", "input")
+        _assert_span_link(a_span, b_span_2, "output", "input")
+        _assert_span_link(a_span, b_span_3, "output", "input")
 
     async def test_graph_with_send_async(self, langgraph_llmobs, test_spans, graph_with_send):
         await graph_with_send.ainvoke({"a_list": []})
@@ -200,13 +187,13 @@ class TestLangGraphLLMObs:
         a_span = _find_span_by_name(spans, "a")
         b_span_1, b_span_2, b_span_3 = _find_spans_by_name(spans, ["b", "b", "b"])
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(b_span_1), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(b_span_2), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(b_span_3), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(a_span), _link_view(b_span_1), "output", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span_2), "output", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span_3), "output", "input")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(b_span_1, graph_span, "output", "output")
+        _assert_span_link(b_span_2, graph_span, "output", "output")
+        _assert_span_link(b_span_3, graph_span, "output", "output")
+        _assert_span_link(a_span, b_span_1, "output", "input")
+        _assert_span_link(a_span, b_span_2, "output", "input")
+        _assert_span_link(a_span, b_span_3, "output", "input")
 
     def test_graph_with_send_complex(self, langgraph_llmobs, test_spans, graph_with_send_complex):
         graph_with_send_complex.invoke({"a_list": []})
@@ -223,22 +210,22 @@ class TestLangGraphLLMObs:
         i_span = _find_span_by_name(spans, "i")
         j_span = _find_span_by_name(spans, "j")
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
-        _assert_span_link(_link_view(b_span), _link_view(d_span), "output", "input")
-        _assert_span_link(_link_view(b_span), _link_view(e_span), "output", "input")
-        _assert_span_link(_link_view(c_span), _link_view(e_span), "output", "input")
-        _assert_span_link(_link_view(c_span), _link_view(e_span_from_send), "output", "input")
-        _assert_span_link(_link_view(c_span), _link_view(f_span), "output", "input")
-        _assert_span_link(_link_view(c_span), _link_view(g_span), "output", "input")
-        _assert_span_link(_link_view(d_span), _link_view(h_span), "output", "input")
-        _assert_span_link(_link_view(e_span), _link_view(h_span), "output", "input")
-        _assert_span_link(_link_view(e_span_from_send), _link_view(h_span), "output", "input")
-        _assert_span_link(_link_view(f_span), _link_view(i_span), "output", "input")
-        _assert_span_link(_link_view(g_span), _link_view(i_span), "output", "input")
-        _assert_span_link(_link_view(h_span), _link_view(j_span), "output", "input")
-        _assert_span_link(_link_view(i_span), _link_view(j_span), "output", "input")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
+        _assert_span_link(b_span, d_span, "output", "input")
+        _assert_span_link(b_span, e_span, "output", "input")
+        _assert_span_link(c_span, e_span, "output", "input")
+        _assert_span_link(c_span, e_span_from_send, "output", "input")
+        _assert_span_link(c_span, f_span, "output", "input")
+        _assert_span_link(c_span, g_span, "output", "input")
+        _assert_span_link(d_span, h_span, "output", "input")
+        _assert_span_link(e_span, h_span, "output", "input")
+        _assert_span_link(e_span_from_send, h_span, "output", "input")
+        _assert_span_link(f_span, i_span, "output", "input")
+        _assert_span_link(g_span, i_span, "output", "input")
+        _assert_span_link(h_span, j_span, "output", "input")
+        _assert_span_link(i_span, j_span, "output", "input")
 
     async def test_graph_with_send_complex_async(self, langgraph_llmobs, test_spans, graph_with_send_complex):
         await graph_with_send_complex.ainvoke({"a_list": []})
@@ -255,22 +242,22 @@ class TestLangGraphLLMObs:
         i_span = _find_span_by_name(spans, "i")
         j_span = _find_span_by_name(spans, "j")
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
-        _assert_span_link(_link_view(b_span), _link_view(d_span), "output", "input")
-        _assert_span_link(_link_view(b_span), _link_view(e_span), "output", "input")
-        _assert_span_link(_link_view(c_span), _link_view(e_span), "output", "input")
-        _assert_span_link(_link_view(c_span), _link_view(e_span_from_send), "output", "input")
-        _assert_span_link(_link_view(c_span), _link_view(f_span), "output", "input")
-        _assert_span_link(_link_view(c_span), _link_view(g_span), "output", "input")
-        _assert_span_link(_link_view(d_span), _link_view(h_span), "output", "input")
-        _assert_span_link(_link_view(e_span), _link_view(h_span), "output", "input")
-        _assert_span_link(_link_view(e_span_from_send), _link_view(h_span), "output", "input")
-        _assert_span_link(_link_view(f_span), _link_view(i_span), "output", "input")
-        _assert_span_link(_link_view(g_span), _link_view(i_span), "output", "input")
-        _assert_span_link(_link_view(h_span), _link_view(j_span), "output", "input")
-        _assert_span_link(_link_view(i_span), _link_view(j_span), "output", "input")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
+        _assert_span_link(b_span, d_span, "output", "input")
+        _assert_span_link(b_span, e_span, "output", "input")
+        _assert_span_link(c_span, e_span, "output", "input")
+        _assert_span_link(c_span, e_span_from_send, "output", "input")
+        _assert_span_link(c_span, f_span, "output", "input")
+        _assert_span_link(c_span, g_span, "output", "input")
+        _assert_span_link(d_span, h_span, "output", "input")
+        _assert_span_link(e_span, h_span, "output", "input")
+        _assert_span_link(e_span_from_send, h_span, "output", "input")
+        _assert_span_link(f_span, i_span, "output", "input")
+        _assert_span_link(g_span, i_span, "output", "input")
+        _assert_span_link(h_span, j_span, "output", "input")
+        _assert_span_link(i_span, j_span, "output", "input")
 
     def test_graph_with_uneven_sides(self, langgraph_llmobs, test_spans, graph_with_uneven_sides):
         graph_with_uneven_sides.invoke({"a_list": []})
@@ -282,15 +269,15 @@ class TestLangGraphLLMObs:
         d_span = _find_span_by_name(spans, "d")
         e_first_finish, e_second_finish = _find_spans_by_name(spans, ["e", "e"])
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
-        _assert_span_link(_link_view(a_span), _link_view(c_span), "output", "input")
-        _assert_span_link(_link_view(b_span), _link_view(e_first_finish), "output", "input")
-        _assert_span_link(_link_view(c_span), _link_view(d_span), "output", "input")
-        _assert_span_link(_link_view(d_span), _link_view(e_second_finish), "output", "input")
-        _assert_span_link(_link_view(e_first_finish), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(e_second_finish), _link_view(graph_span), "output", "output")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
+        _assert_span_link(a_span, c_span, "output", "input")
+        _assert_span_link(b_span, e_first_finish, "output", "input")
+        _assert_span_link(c_span, d_span, "output", "input")
+        _assert_span_link(d_span, e_second_finish, "output", "input")
+        _assert_span_link(e_first_finish, graph_span, "output", "output")
+        _assert_span_link(e_second_finish, graph_span, "output", "output")
 
     async def test_graph_with_uneven_sides_async(self, langgraph_llmobs, test_spans, graph_with_uneven_sides):
         await graph_with_uneven_sides.ainvoke({"a_list": []})
@@ -302,15 +289,15 @@ class TestLangGraphLLMObs:
         d_span = _find_span_by_name(spans, "d")
         e_first_finish, e_second_finish = _find_spans_by_name(spans, ["e", "e"])
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
-        _assert_span_link(_link_view(a_span), _link_view(c_span), "output", "input")
-        _assert_span_link(_link_view(b_span), _link_view(e_first_finish), "output", "input")
-        _assert_span_link(_link_view(c_span), _link_view(d_span), "output", "input")
-        _assert_span_link(_link_view(d_span), _link_view(e_second_finish), "output", "input")
-        _assert_span_link(_link_view(e_first_finish), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(e_second_finish), _link_view(graph_span), "output", "output")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
+        _assert_span_link(a_span, c_span, "output", "input")
+        _assert_span_link(b_span, e_first_finish, "output", "input")
+        _assert_span_link(c_span, d_span, "output", "input")
+        _assert_span_link(d_span, e_second_finish, "output", "input")
+        _assert_span_link(e_first_finish, graph_span, "output", "output")
+        _assert_span_link(e_second_finish, graph_span, "output", "output")
 
     async def test_astream_events(self, langgraph_llmobs, test_spans, simple_graph):
         async for _ in simple_graph.astream_events({"a_list": [], "which": "a"}, version="v2"):
@@ -320,10 +307,10 @@ class TestLangGraphLLMObs:
         a_span = _find_span_by_name(spans, "a")
         b_span = _find_span_by_name(spans, "b")
 
-        _assert_span_link(None, _link_view(graph_span), "input", "input")
-        _assert_span_link(_link_view(b_span), _link_view(graph_span), "output", "output")
-        _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
-        _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
+        _assert_span_link(None, graph_span, "input", "input")
+        _assert_span_link(b_span, graph_span, "output", "output")
+        _assert_span_link(graph_span, a_span, "input", "input")
+        _assert_span_link(a_span, b_span, "output", "input")
 
         a_output = get_llmobs_output(a_span) or {}
         b_output = get_llmobs_output(b_span) or {}
