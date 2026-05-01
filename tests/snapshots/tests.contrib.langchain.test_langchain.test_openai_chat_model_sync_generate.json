@@ -1,0 +1,36 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_openai.chat_models.base.ChatOpenAI",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.llmobs.model_name": "gpt-3.5-turbo",
+      "_dd.llmobs.model_provider": "openai",
+      "_dd.llmobs.span_kind": "llm",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69f4d7de00000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
+      "langchain.request.model": "gpt-3.5-turbo",
+      "langchain.request.provider": "openai",
+      "language": "python",
+      "runtime-id": "19c98f1fc71d41fe9092c1298da274b7"
+    },
+    "metrics": {
+      "_dd.llmobs.enabled": 0.0,
+      "_dd.llmobs.input_tokens": 60.0,
+      "_dd.llmobs.output_tokens": 152.0,
+      "_dd.llmobs.total_tokens": 212.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 46402.0
+    },
+    "duration": 33121542,
+    "start": 1777653726870596213
+  }]]
