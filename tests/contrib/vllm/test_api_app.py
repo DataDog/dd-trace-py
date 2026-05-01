@@ -7,6 +7,7 @@ import pytest
 
 from ddtrace import tracer as ddtracer
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_metrics
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.propagation.http import HTTPPropagator
@@ -66,8 +67,7 @@ def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
     }
     captured_docs = set()
     for span in embedding_spans:
-        meta_struct = _get_llmobs_data_metastruct(span)
-        documents = meta_struct.get("meta", {}).get("input", {}).get("documents", [])
+        documents = get_llmobs_input_documents(span) or []
         assert len(documents) == 1
         captured_docs.add(documents[0]["text"])
     assert captured_docs == expected_embedding_docs
