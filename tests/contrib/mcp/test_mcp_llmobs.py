@@ -6,7 +6,6 @@ import os
 from textwrap import dedent
 
 import mock
-import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -15,15 +14,6 @@ from tests.utils import override_config
 
 
 MCP_VERSION = parse_version(version("mcp"))
-
-
-LLMOBS_GLOBAL_CONFIG = dict(
-    _dd_api_key="<not-a-real-api_key>",
-    _llmobs_ml_app="<ml-app-name>",
-    _llmobs_enabled=True,
-    _llmobs_sample_rate=1.0,
-    service="mcptest",
-)
 
 
 def _assert_distributed_trace(test_spans, expected_tool_name):
@@ -43,8 +33,7 @@ def _assert_distributed_trace(test_spans, expected_tool_name):
     return all_spans, client_spans, server_spans
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, mcp_call_tool):
+def test_llmobs_mcp_client_calls_server(mcp_setup, mcp_llmobs, test_spans, mcp_call_tool):
     """Test that LLMObs records are emitted for both client and server MCP operations."""
     asyncio.run(mcp_call_tool("calculator", {"operation": "add", "a": 20, "b": 22}))
 
@@ -173,8 +162,7 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, test_spans, mcp_call_tool):
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_llmobs_client_server_tool_error(mcp_setup, test_spans, mcp_call_tool):
+def test_llmobs_client_server_tool_error(mcp_setup, mcp_llmobs, test_spans, mcp_call_tool):
     """Test error handling in both client and server MCP operations."""
     asyncio.run(mcp_call_tool("failing_tool", {"param": "value"}))
 
@@ -258,8 +246,7 @@ def test_llmobs_client_server_tool_error(mcp_setup, test_spans, mcp_call_tool):
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_server_initialization_span_created(mcp_setup, test_spans, mcp_server_initialized):
+def test_server_initialization_span_created(mcp_setup, mcp_llmobs, test_spans, mcp_server_initialized):
     """Test that server initialization creates a span and LLMObs event with custom client info."""
     traces = test_spans.pop_traces()
     all_spans = [span for trace in traces for span in trace]
@@ -359,8 +346,7 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
     assert client_trace["spans"][0]["_dd"]["apm_trace_id"] != server_trace["spans"][0]["_dd"]["apm_trace_id"]
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_intent_capture_tool_schema_injection(mcp_setup, test_spans, mcp_server):
+def test_intent_capture_tool_schema_injection(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     """Test that intent capture adds telemetry property to tool input schemas."""
     from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -398,8 +384,7 @@ def test_intent_capture_tool_schema_injection(mcp_setup, test_spans, mcp_server)
     assert "b" in schema["required"]
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_intent_capture_records_intent_on_span_meta(mcp_setup, test_spans, mcp_server):
+def test_intent_capture_records_intent_on_span_meta(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     """Test that intent is recorded on the span meta and telemetry argument is excluded from input."""
     from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -448,8 +433,7 @@ def test_intent_capture_records_intent_on_span_meta(mcp_setup, test_spans, mcp_s
     assert "b" in arguments
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_intent_capture_disabled_by_default(mcp_setup, test_spans, mcp_server):
+def test_intent_capture_disabled_by_default(mcp_setup, mcp_llmobs, test_spans, mcp_server):
     """Test that intent capture is disabled by default and telemetry property is not injected."""
     from mcp.shared.memory import create_connected_server_and_client_session
 
