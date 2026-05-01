@@ -38,7 +38,6 @@ def langchain_llmobs(tracer, monkeypatch):
     with override_global_config(
         {
             "_dd_api_key": "<not-a-real-key>",
-            "_llmobs_sample_rate": 1.0,
             "_llmobs_instrumented_proxy_urls": "http://localhost:4000",
         }
     ):
