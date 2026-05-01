@@ -75,6 +75,8 @@ if PY >= (3, 15):
     _PyFunction_SetClosure.argtypes = [ctypes.py_object, ctypes.py_object]
     _PyFunction_SetClosure.restype = ctypes.c_int
 
+    _SENTINEL = object()
+
     def _swap_code_and_closure(f: FunctionType, code: CodeType, closure: Optional[tuple]) -> None:
         """Atomically replace f's __code__ and __closure__.
 
@@ -298,10 +300,9 @@ if PY >= (3, 15):
 
         # Preserve any prior __dd_wrapped__/__dd_wrapper__ chain so multiple wraps stack.
         for attr in ("__dd_wrapped__", "__dd_wrapper__"):
-            try:
-                setattr(inner, attr, getattr(f, attr))
-            except AttributeError:
-                pass
+            val = getattr(f, attr, _SENTINEL)
+            if val is not _SENTINEL:
+                setattr(inner, attr, val)
 
         trampoline = _build_trampoline(f, wrapper, inner)
 
@@ -333,27 +334,23 @@ if PY >= (3, 15):
 
     def is_wrapped(f: FunctionType) -> bool:
         """Check if a function is wrapped with any wrapper."""
-        try:
-            wf = cast(WrappedFunction, f)
-            inner = cast(FunctionType, wf.__dd_wrapped__)
-            assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
-            return True
-        except AttributeError:
+        inner = getattr(f, "__dd_wrapped__", None)
+        if inner is None:
             return False
+        assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
+        return True
 
     def is_wrapped_with(f: FunctionType, wrapper: Wrapper) -> bool:
         """Check if a function is wrapped with a specific wrapper."""
-        try:
-            wf = cast(WrappedFunction, f)
-            inner = cast(FunctionType, wf.__dd_wrapped__)
-            assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
-
-            if getattr(f, "__dd_wrapper__", None) is wrapper:
-                return True
-
-            return is_wrapped_with(inner, wrapper)
-        except AttributeError:
+        inner = getattr(f, "__dd_wrapped__", None)
+        if inner is None:
             return False
+        assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
+
+        if getattr(f, "__dd_wrapper__", None) is wrapper:
+            return True
+
+        return is_wrapped_with(inner, wrapper)
 
     def unwrap(wf: WrappedFunction, wrapper: Wrapper) -> FunctionType:
         """Unwrap a wrapped function.
@@ -362,10 +359,10 @@ if PY >= (3, 15):
         that uses ``wrapper``. If not wrapped with ``wrapper``, returns
         the first argument.
         """
-        try:
-            inner = cast(FunctionType, wf.__dd_wrapped__)
-        except AttributeError:
+        inner = getattr(wf, "__dd_wrapped__", None)
+        if inner is None:
             return cast(FunctionType, wf)
+        inner = cast(FunctionType, inner)
 
         assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
 
@@ -378,21 +375,12 @@ if PY >= (3, 15):
         f.__defaults__ = inner.__defaults__
         f.__kwdefaults__ = inner.__kwdefaults__
 
-        try:
-            wf.__dd_wrapped__ = cast(WrappedFunction, inner).__dd_wrapped__  # type: ignore[assignment]
-        except AttributeError:
-            try:
-                del wf.__dd_wrapped__
-            except AttributeError:
-                pass
-
-        try:
-            cast(Any, wf).__dd_wrapper__ = cast(Any, inner).__dd_wrapper__
-        except AttributeError:
-            try:
-                del cast(Any, wf).__dd_wrapper__
-            except AttributeError:
-                pass
+        for attr in ("__dd_wrapped__", "__dd_wrapper__"):
+            next_val = getattr(inner, attr, _SENTINEL)
+            if next_val is not _SENTINEL:
+                setattr(wf, attr, next_val)
+            elif hasattr(wf, attr):
+                delattr(wf, attr)
 
         return f
 
