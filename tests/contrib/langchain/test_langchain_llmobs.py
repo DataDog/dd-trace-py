@@ -45,18 +45,6 @@ PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE = [
 ]
 
 
-# Default global config for LLMObs-enabled tests. Mirrors the previous ``llmobs``
-# fixture: agentless-style API key + the proxy URL config that the langchain
-# integration uses to decide whether a request goes through an instrumented proxy
-# (-> workflow span) or directly to the model (-> llm span).
-LLMOBS_GLOBAL_CONFIG = dict(
-    _dd_api_key="<not-a-real-key>",
-    _llmobs_enabled=True,
-    _llmobs_sample_rate=1.0,
-    _llmobs_instrumented_proxy_urls="http://localhost:4000",
-)
-
-
 COMMON_TAGS = {
     "ml_app": "langchain_test",
     "service": "tests.contrib.langchain",
@@ -152,9 +140,8 @@ def _llmobs_spans(test_spans):
     return spans
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 class TestLangChainLLMObs:
-    def test_llmobs_openai_llm(self, langchain_openai, test_spans, openai_url):
+    def test_llmobs_openai_llm(self, langchain_openai, langchain_llmobs, test_spans, openai_url):
         llm = langchain_openai.OpenAI(base_url=openai_url, max_tokens=256)
         llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
@@ -167,7 +154,7 @@ class TestLangChainLLMObs:
 
 
     @mock.patch("langchain_core.language_models.llms.BaseLLM._generate_helper")
-    def test_llmobs_openai_llm_proxy(self, mock_generate, langchain_openai, test_spans):
+    def test_llmobs_openai_llm_proxy(self, mock_generate, langchain_openai, langchain_llmobs, test_spans):
         mock_generate.return_value = mock_langchain_llm_generate_response
         llm = langchain_openai.OpenAI(base_url="http://localhost:4000", model="gpt-3.5-turbo")
         llm.invoke("What is the capital of France?")
@@ -187,7 +174,7 @@ class TestLangChainLLMObs:
         assert get_llmobs_span_kind(spans[0]) == "llm"
 
 
-    def test_llmobs_openai_chat_model(self, langchain_core, langchain_openai, test_spans, openai_url):
+    def test_llmobs_openai_chat_model(self, langchain_core, langchain_openai, langchain_llmobs, test_spans, openai_url):
         chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url)
         chat_model.invoke([langchain_core.messages.HumanMessage(content="When do you use 'who' instead of 'whom'?")])
 
@@ -201,7 +188,7 @@ class TestLangChainLLMObs:
         )
 
 
-    def test_llmobs_openai_chat_model_no_usage(self, langchain_core, langchain_openai, test_spans, openai_url):
+    def test_llmobs_openai_chat_model_no_usage(self, langchain_core, langchain_openai, langchain_llmobs, test_spans, openai_url):
         if parse_version(importlib.metadata.version("langchain_openai")) < (0, 2, 0):
             pytest.skip("langchain-openai <0.2.0 does not support stream_usage=False")
         chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url, stream_usage=False)
@@ -221,7 +208,7 @@ class TestLangChainLLMObs:
 
 
     @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
-    def test_llmobs_openai_chat_model_proxy(self, mock_generate, langchain_core, langchain_openai, test_spans):
+    def test_llmobs_openai_chat_model_proxy(self, mock_generate, langchain_core, langchain_openai, langchain_llmobs, test_spans):
         mock_generate.return_value = mock_langchain_chat_generate_response
         chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:4000")
         chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
@@ -244,7 +231,7 @@ class TestLangChainLLMObs:
         assert get_llmobs_span_kind(spans[0]) == "llm"
 
 
-    def test_llmobs_string_prompt_template_invoke(self, langchain_core, langchain_openai, openai_url, test_spans):
+    def test_llmobs_string_prompt_template_invoke(self, langchain_core, langchain_openai, openai_url, langchain_llmobs, test_spans):
         template_string = "You are a helpful assistant. Please answer this question: {question}"
         variable_dict = {"question": "What is machine learning?"}
         prompt_template = langchain_core.prompts.PromptTemplate(
@@ -267,7 +254,7 @@ class TestLangChainLLMObs:
         assert _has_prompt_tracking_tag(_get_llmobs_data_metastruct(spans[1]))
 
 
-    def test_llmobs_string_prompt_template_direct_invoke(self, langchain_core, langchain_openai, openai_url, test_spans):
+    def test_llmobs_string_prompt_template_direct_invoke(self, langchain_core, langchain_openai, openai_url, langchain_llmobs, test_spans):
         """Test StringPromptTemplate (PromptTemplate) with variable name detection using direct invoke (no chains)."""
         template_string = "Good {time_of_day}, {name}! How are you doing today?"
         variable_dict = {"name": "Alice", "time_of_day": "morning"}
@@ -294,7 +281,7 @@ class TestLangChainLLMObs:
         assert _has_prompt_tracking_tag(_get_llmobs_data_metastruct(spans[0]))
 
 
-    def test_llmobs_string_prompt_template_invoke_chat_model(self, langchain_core, langchain_openai, openai_url, test_spans):
+    def test_llmobs_string_prompt_template_invoke_chat_model(self, langchain_core, langchain_openai, openai_url, langchain_llmobs, test_spans):
         template_string = "You are a helpful assistant. Please answer this question: {question}"
         variable_dict = {"question": "What is machine learning?"}
         prompt_template = langchain_core.prompts.PromptTemplate(
@@ -313,7 +300,7 @@ class TestLangChainLLMObs:
 
 
     def test_llmobs_string_prompt_template_single_variable_string_input(self, 
-        langchain_core, langchain_openai, openai_url, test_spans
+        langchain_core, langchain_openai, openai_url, langchain_llmobs, test_spans
     ):
         template_string = "Write a creative story about {topic}."
         single_variable_template = langchain_core.prompts.PromptTemplate(
@@ -335,7 +322,7 @@ class TestLangChainLLMObs:
         assert actual_prompt["variables"] == {"topic": "time travel"}
 
 
-    def test_llmobs_multi_message_prompt_template_sync_chain(self, langchain_core, langchain_openai, openai_url, test_spans):
+    def test_llmobs_multi_message_prompt_template_sync_chain(self, langchain_core, langchain_openai, openai_url, langchain_llmobs, test_spans):
         test_metadata = {"template_type": "multi_message", "test_scenario": "sync_chain", "message_count": 10}
         multi_message_template = _create_multi_message_prompt_template(langchain_core, metadata=test_metadata)
         llm = langchain_openai.ChatOpenAI(base_url=openai_url)
@@ -368,7 +355,7 @@ class TestLangChainLLMObs:
 
 
     def test_llmobs_multi_message_prompt_template_sync_direct_invoke(self, 
-        langchain_core, langchain_openai, openai_url, test_spans
+        langchain_core, langchain_openai, openai_url, langchain_llmobs, test_spans
     ):
         multi_message_template = _create_multi_message_prompt_template(langchain_core)
         llm = langchain_openai.ChatOpenAI(base_url=openai_url)
@@ -400,7 +387,7 @@ class TestLangChainLLMObs:
 
     @pytest.mark.asyncio
     async def test_llmobs_multi_message_prompt_template_async_direct_invoke(
-        self, langchain_core, langchain_openai, openai_url, test_spans
+        self, langchain_core, langchain_openai, openai_url, langchain_llmobs, test_spans
     ):
         multi_message_template = _create_multi_message_prompt_template(langchain_core)
         llm = langchain_openai.ChatOpenAI(base_url=openai_url)
@@ -430,7 +417,7 @@ class TestLangChainLLMObs:
         assert actual_prompt["chat_template"] == PROMPT_TEMPLATE_EXPECTED_CHAT_TEMPLATE
 
 
-    def test_llmobs_chain(self, langchain_core, langchain_openai, openai_url, test_spans):
+    def test_llmobs_chain(self, langchain_core, langchain_openai, openai_url, langchain_llmobs, test_spans):
         prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
             [("system", "You are world class technical documentation writer."), ("user", "{input}")]
         )
@@ -463,7 +450,7 @@ class TestLangChainLLMObs:
         assert get_llmobs_input_prompt(spans[1]) == expected_prompt
 
 
-    def test_llmobs_chain_nested(self, langchain_core, langchain_openai, openai_url, test_spans):
+    def test_llmobs_chain_nested(self, langchain_core, langchain_openai, openai_url, langchain_llmobs, test_spans):
         prompt1 = langchain_core.prompts.ChatPromptTemplate.from_template("what is the city {person} is from?")
         prompt2 = langchain_core.prompts.ChatPromptTemplate.from_template(
             "what country is the city {city} in? respond in {language}"
@@ -530,7 +517,7 @@ class TestLangChainLLMObs:
 
 
     @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 required")
-    def test_llmobs_chain_batch(self, langchain_core, langchain_openai, test_spans, openai_url):
+    def test_llmobs_chain_batch(self, langchain_core, langchain_openai, langchain_llmobs, test_spans, openai_url):
         prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
         output_parser = langchain_core.output_parsers.StrOutputParser()
         model = langchain_openai.ChatOpenAI(base_url=openai_url)
@@ -561,7 +548,7 @@ class TestLangChainLLMObs:
             assert prompt_block["variables"]["topic"] in ("chickens", "pigs")
 
 
-    def test_llmobs_chain_schema_io(self, langchain_core, langchain_openai, openai_url, test_spans):
+    def test_llmobs_chain_schema_io(self, langchain_core, langchain_openai, openai_url, langchain_llmobs, test_spans):
         prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
             [
                 ("system", "You're an assistant who's good at {ability}. Respond in 20 words or fewer"),
@@ -606,7 +593,7 @@ class TestLangChainLLMObs:
         )
 
 
-    def test_llmobs_anthropic_chat_model(self, langchain_anthropic, test_spans, anthropic_url):
+    def test_llmobs_anthropic_chat_model(self, langchain_anthropic, langchain_llmobs, test_spans, anthropic_url):
         kwargs = dict(
             temperature=0,
             max_tokens=15,
@@ -631,7 +618,7 @@ class TestLangChainLLMObs:
         )
 
 
-    def test_llmobs_google_genai_chat_model(self, langchain_google_genai, test_spans):
+    def test_llmobs_google_genai_chat_model(self, langchain_google_genai, langchain_llmobs, test_spans):
         if langchain_google_genai is None:
             pytest.skip("langchain-google-genai not installed")
 
@@ -675,7 +662,7 @@ class TestLangChainLLMObs:
         )
 
 
-    def test_llmobs_embedding_documents(self, langchain_openai, test_spans, openai_url):
+    def test_llmobs_embedding_documents(self, langchain_openai, langchain_llmobs, test_spans, openai_url):
         embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
         embedding_model.embed_documents(["hello world", "goodbye world"])
 
@@ -692,7 +679,7 @@ class TestLangChainLLMObs:
         )
 
 
-    def test_llmobs_embedding_query(self, langchain_openai, test_spans, openai_url):
+    def test_llmobs_embedding_query(self, langchain_openai, langchain_llmobs, test_spans, openai_url):
         embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
         embedding_model.embed_query("hello world")
 
@@ -709,7 +696,7 @@ class TestLangChainLLMObs:
         )
 
 
-    def test_llmobs_vectorstore_similarity_search(self, langchain_in_memory_vectorstore, test_spans):
+    def test_llmobs_vectorstore_similarity_search(self, langchain_in_memory_vectorstore, langchain_llmobs, test_spans):
         vectorstore = langchain_in_memory_vectorstore
         vectorstore.similarity_search("France", k=1)
 
@@ -726,7 +713,7 @@ class TestLangChainLLMObs:
         )
 
 
-    def test_llmobs_chat_model_tool_calls(self, langchain_core, langchain_openai, test_spans, openai_url):
+    def test_llmobs_chat_model_tool_calls(self, langchain_core, langchain_openai, langchain_llmobs, test_spans, openai_url):
         @langchain_core.tools.tool
         def add(a: int, b: int) -> int:
             """Adds a and b.
@@ -740,7 +727,7 @@ class TestLangChainLLMObs:
         llm_with_tools = llm.bind_tools([add])
         llm_with_tools.invoke([langchain_core.messages.HumanMessage(content="What is the sum of 1 and 2?")])
 
-        spans = _llmobs_spans(test_spans)
+        spans = _llmobs_spans(langchain_llmobs, test_spans)
         assert len(spans) == 1
         span = spans[0]
         assert_llmobs_span_data(
@@ -768,7 +755,7 @@ class TestLangChainLLMObs:
         )
 
 
-    def test_llmobs_base_tool_invoke(self, langchain_core, test_spans):
+    def test_llmobs_base_tool_invoke(self, langchain_core, langchain_llmobs, test_spans):
         from math import pi
 
         def circumference_tool(radius: float) -> float:
@@ -784,7 +771,7 @@ class TestLangChainLLMObs:
 
         calculator.invoke("2", config={"test": "this is to test config"})
 
-        spans = _llmobs_spans(test_spans)
+        spans = _llmobs_spans(langchain_llmobs, test_spans)
         assert len(spans) == 1
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
@@ -803,7 +790,7 @@ class TestLangChainLLMObs:
 
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_llmobs_streamed_chain(self, langchain_core, langchain_openai, test_spans, openai_url, consume_stream):
+    def test_llmobs_streamed_chain(self, langchain_core, langchain_openai, langchain_llmobs, test_spans, openai_url, consume_stream):
         prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
             [("system", "You are a world class technical documentation writer."), ("user", "{input}")]
         )
@@ -840,7 +827,7 @@ class TestLangChainLLMObs:
 
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_llmobs_streamed_llm(self, langchain_openai, test_spans, openai_url, consume_stream):
+    def test_llmobs_streamed_llm(self, langchain_openai, langchain_llmobs, test_spans, openai_url, consume_stream):
         llm = langchain_openai.OpenAI(base_url=openai_url, n=1, seed=1, logprobs=None, logit_bias=None)
 
         consume_stream(llm.stream("What is 2+2?\n\n"))
@@ -863,7 +850,7 @@ class TestLangChainLLMObs:
         )
 
 
-    def test_llmobs_non_ascii_completion(self, langchain_openai, openai_url, test_spans):
+    def test_llmobs_non_ascii_completion(self, langchain_openai, openai_url, langchain_llmobs, test_spans):
         llm = langchain_openai.OpenAI(base_url=openai_url)
         llm.invoke("안녕,\n 지금 몇 시야?")
 
@@ -872,7 +859,7 @@ class TestLangChainLLMObs:
         assert get_llmobs_input_messages(spans[0])[0]["content"] == "안녕,\n 지금 몇 시야?"
 
 
-    def test_llmobs_runnable_lambda_invoke(self, langchain_core, test_spans):
+    def test_llmobs_runnable_lambda_invoke(self, langchain_core, langchain_llmobs, test_spans):
         def add(inputs: dict) -> int:
             return inputs["a"] + inputs["b"]
 
@@ -880,7 +867,7 @@ class TestLangChainLLMObs:
         result = runnable_lambda.invoke(dict(a=1, b=2))
         assert result == 3
 
-        spans = _llmobs_spans(test_spans)
+        spans = _llmobs_spans(langchain_llmobs, test_spans)
         assert len(spans) == 1
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
@@ -891,7 +878,7 @@ class TestLangChainLLMObs:
         )
 
 
-    async def test_llmobs_runnable_lambda_ainvoke(self, langchain_core, test_spans):
+    async def test_llmobs_runnable_lambda_ainvoke(self, langchain_core, langchain_llmobs, test_spans):
         async def add(inputs: dict) -> int:
             return inputs["a"] + inputs["b"]
 
@@ -899,7 +886,7 @@ class TestLangChainLLMObs:
         result = await runnable_lambda.ainvoke(dict(a=1, b=2))
         assert result == 3
 
-        spans = _llmobs_spans(test_spans)
+        spans = _llmobs_spans(langchain_llmobs, test_spans)
         assert len(spans) == 1
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
@@ -910,7 +897,7 @@ class TestLangChainLLMObs:
         )
 
 
-    def test_llmobs_runnable_lambda_batch(self, langchain_core, test_spans):
+    def test_llmobs_runnable_lambda_batch(self, langchain_core, langchain_llmobs, test_spans):
         def add(inputs: dict) -> int:
             return inputs["a"] + inputs["b"]
 
@@ -918,7 +905,7 @@ class TestLangChainLLMObs:
         result = runnable_lambda.batch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
         assert result == [3, 7, 11]
 
-        spans = _llmobs_spans(test_spans)
+        spans = _llmobs_spans(langchain_llmobs, test_spans)
         assert len(spans) == 4
 
         # parent should be batch span
@@ -946,7 +933,7 @@ class TestLangChainLLMObs:
             assert isinstance(output_value, int)
 
 
-    async def test_llmobs_runnable_lambda_abatch(self, langchain_core, test_spans):
+    async def test_llmobs_runnable_lambda_abatch(self, langchain_core, langchain_llmobs, test_spans):
         async def add(inputs: dict) -> int:
             return inputs["a"] + inputs["b"]
 
@@ -954,7 +941,7 @@ class TestLangChainLLMObs:
         result = await runnable_lambda.abatch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
         assert result == [3, 7, 11]
 
-        spans = _llmobs_spans(test_spans)
+        spans = _llmobs_spans(langchain_llmobs, test_spans)
         assert len(spans) == 4
 
         # parent should be batch span
@@ -982,7 +969,7 @@ class TestLangChainLLMObs:
             assert isinstance(output_value, int)
 
 
-    def test_llmobs_runnable_with_span_links(self, langchain_core, test_spans):
+    def test_llmobs_runnable_with_span_links(self, langchain_core, langchain_llmobs, test_spans):
         sequence = langchain_core.runnables.RunnableLambda(lambda x: x + 1, name="add_1") | {
             "mul_2": langchain_core.runnables.RunnableLambda(lambda x: x * 2, name="mul_2"),
             "mul_5": langchain_core.runnables.RunnableLambda(lambda x: x * 5, name="mul_5"),

@@ -26,31 +26,27 @@ def ddtrace_global_config():
 
 
 @pytest.fixture
-def test_spans(ddtrace_global_config, test_spans, monkeypatch):
-    """Override of the shared ``test_spans`` fixture that, when LLMObs is enabled
-    via ``ddtrace_global_config``, sets ``_DD_LLMOBS_TEST_KEEP_META_STRUCT=1`` so
-    ``meta_struct["_llmobs"]`` is preserved on spans for assertion via
-    ``_get_llmobs_data_metastruct``. The langchain integration also needs the
-    instrumented-proxy-URL config in place at ``LLMObs.enable()`` time, so the
-    override is applied via ``override_global_config`` here.
+def langchain_llmobs(tracer, monkeypatch):
+    """Enable LLMObs with langchain-specific config (instrumented proxy URLs).
+
+    The langchain integration reads ``_llmobs_instrumented_proxy_urls`` to
+    decide whether a request goes through an instrumented proxy
+    (-> workflow span) or directly to the model (-> llm span).
     """
-    try:
-        if ddtrace_global_config.get("_llmobs_enabled", False):
-            monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
-            with override_global_config(ddtrace_global_config):
-                LLMObs.disable()
-                LLMObs.enable(
-                    _tracer=test_spans.tracer,
-                    ml_app="langchain_test",
-                    integrations_enabled=False,
-                )
-                LLMObs._instance._llmobs_span_writer.stop()
-                LLMObs._instance._llmobs_span_writer = mock.MagicMock()
-                yield test_spans
-        else:
-            yield test_spans
-    finally:
-        LLMObs.disable()
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+    LLMObs.disable()
+    with override_global_config(
+        {
+            "_dd_api_key": "<not-a-real-key>",
+            "_llmobs_sample_rate": 1.0,
+            "_llmobs_instrumented_proxy_urls": "http://localhost:4000",
+        }
+    ):
+        LLMObs.enable(_tracer=tracer, ml_app="langchain_test", integrations_enabled=False)
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        yield LLMObs
+    LLMObs.disable()
 
 
 # scoping this fixture to "module" overcomes issues with patching ABC embeddings/vectorstore classes
