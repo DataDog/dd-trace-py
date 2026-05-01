@@ -5,6 +5,10 @@ from ddtrace._monkey import patch
 from ddtrace.contrib.internal.litellm.patch import get_version
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_metrics
+from ddtrace.llmobs._utils import get_llmobs_output_messages
+from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.litellm.utils import async_consume_stream_aiter
 from tests.contrib.litellm.utils import async_consume_stream_anext
@@ -343,9 +347,8 @@ class TestLLMObsLiteLLM:
         llm_span = trace[1]
 
         # The downstream LLM span is an "llm" kind named "completion"
-        llm_data = _get_llmobs_data_metastruct(llm_span)
-        assert llm_data["meta"]["span"]["kind"] == "llm"
-        assert llm_data["name"] == "completion"
+        assert get_llmobs_span_kind(llm_span) == "llm"
+        assert get_llmobs_span_name(llm_span) == "completion"
 
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(router_span),
@@ -385,9 +388,8 @@ class TestLLMObsLiteLLM:
         router_span = trace[0]
         llm_span = trace[1]
 
-        llm_data = _get_llmobs_data_metastruct(llm_span)
-        assert llm_data["meta"]["span"]["kind"] == "llm"
-        assert llm_data["name"] == "acompletion"
+        assert get_llmobs_span_kind(llm_span) == "llm"
+        assert get_llmobs_span_name(llm_span) == "acompletion"
 
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(router_span),
@@ -427,9 +429,8 @@ class TestLLMObsLiteLLM:
         router_span = trace[0]
         llm_span = trace[1]
 
-        llm_data = _get_llmobs_data_metastruct(llm_span)
-        assert llm_data["meta"]["span"]["kind"] == "llm"
-        assert llm_data["name"] == "text_completion"
+        assert get_llmobs_span_kind(llm_span) == "llm"
+        assert get_llmobs_span_name(llm_span) == "text_completion"
 
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(router_span),
@@ -469,9 +470,8 @@ class TestLLMObsLiteLLM:
         router_span = trace[0]
         llm_span = trace[1]
 
-        llm_data = _get_llmobs_data_metastruct(llm_span)
-        assert llm_data["meta"]["span"]["kind"] == "llm"
-        assert llm_data["name"] == "atext_completion"
+        assert get_llmobs_span_kind(llm_span) == "llm"
+        assert get_llmobs_span_name(llm_span) == "atext_completion"
 
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(router_span),
@@ -509,7 +509,7 @@ class TestLLMObsLiteLLM:
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         expected_name = "OpenAI.createChatCompletion" if not stream else "litellm.request"
-        assert _get_llmobs_data_metastruct(spans[0])["name"] == expected_name
+        assert get_llmobs_span_name(spans[0]) == expected_name
 
     @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
     def test_completion_anthropic_token_metrics(self, litellm, request_vcr, test_spans, stream, n):
@@ -546,7 +546,7 @@ class TestLLMObsLiteLLM:
         )
 
         # Verify cache token metrics are present
-        event_metrics = _get_llmobs_data_metastruct(spans[0])["metrics"]
+        event_metrics = get_llmobs_metrics(spans[0])
         assert "cache_read_input_tokens" in event_metrics
         assert "cache_write_input_tokens" in event_metrics
 
@@ -634,11 +634,11 @@ class TestLLMObsLiteLLM:
         )
 
         # Verify reasoning output message is present
-        event_output = _get_llmobs_data_metastruct(spans[0])["meta"]["output"]["messages"]
+        event_output = get_llmobs_output_messages(spans[0])
         assert any(msg.get("role") == "reasoning" for msg in event_output)
 
         # Verify reasoning_output_tokens metric is present
-        event_metrics = _get_llmobs_data_metastruct(spans[0])["metrics"]
+        event_metrics = get_llmobs_metrics(spans[0])
         assert "reasoning_output_tokens" in event_metrics
         assert event_metrics["reasoning_output_tokens"] == 15
 
