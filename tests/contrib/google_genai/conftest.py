@@ -34,7 +34,6 @@ def genai_llmobs(monkeypatch):
         {
             "_llmobs_ml_app": "<ml-app-name>",
             "_dd_api_key": "<not-a-real-key>",
-            "_llmobs_sample_rate": 1.0,
         }
     ):
         LLMObs.enable(integrations_enabled=False)
