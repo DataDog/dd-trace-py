@@ -180,13 +180,6 @@ def llmobs_apm_trace_agentless_enabled() -> bool:
     return False
 
 
-def maybe_swap_apm_trace_writer() -> bool:
-    """Trigger an APM trace writer swap on the global tracer when LLMObs goes agentless mid-process."""
-    if not (config._trace_agentless_enabled or llmobs_apm_trace_agentless_enabled()):
-        return False
-    return ddtrace.tracer._span_aggregator.swap_to_agentless_writer()
-
-
 class BaseLLMObsWriter(PeriodicService):
     """Base writer class for submitting data to Datadog LLMObs endpoints."""
 

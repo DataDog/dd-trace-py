@@ -145,7 +145,7 @@ from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
-from ddtrace.llmobs._writer import maybe_swap_apm_trace_writer
+from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
@@ -845,9 +845,10 @@ class LLMObs(Service):
             # written the appropriate source; stamping "code" would mask it on precedence.
             if not _auto:
                 config._llmobs_enabled = True
-            # AIDEV-NOTE: must run after config._llmobs_enabled is set so the reconciliation
+            # must run after config._llmobs_enabled is set so the reconciliation
             # helper sees the correct state.
-            maybe_swap_apm_trace_writer()
+            if not (config._trace_agentless_enabled or llmobs_apm_trace_agentless_enabled()):
+                ddtrace.tracer._span_aggregator.swap_to_agentless_writer()
             cls._instance.start()
 
             # Register hooks for span events
