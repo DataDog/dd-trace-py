@@ -9,8 +9,10 @@ from typing import cast
 
 import pytest
 
+from ddtrace.internal.wrapping import get_function_code
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
+from ddtrace.internal.wrapping import set_function_code
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.internal.wrapping.context import BaseWrappingContext
@@ -566,6 +568,362 @@ def test_wrap_closure():
 
     assert closure(1, 2, 3) == (1, 2, 3, 42)
     assert channel == [((42,), {}), closure, ((1, 2, 3), {}), (1, 2, 3, 42)]
+
+
+def test_wrap_no_args():
+    """Wrap a function with no parameters at all."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f():
+        return "ok"
+
+    wrap(f, wrapper)
+    assert f() == "ok"
+
+    unwrap(f, wrapper)
+    assert f() == "ok"
+    assert not is_wrapped(f)
+
+
+def test_wrap_positional_only():
+    """Positional-only parameters (PEP 570) are forwarded correctly."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f(a, b, /, c):
+        return (a, b, c)
+
+    wrap(f, wrapper)
+
+    assert f(1, 2, 3) == (1, 2, 3)
+    assert f(1, 2, c=3) == (1, 2, 3)
+
+    unwrap(f, wrapper)
+    assert f(1, 2, 3) == (1, 2, 3)
+
+
+def test_wrap_keyword_only():
+    """Keyword-only parameters (with and without defaults) are forwarded correctly."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f(a, *, kw_required, kw_default=99):
+        return (a, kw_required, kw_default)
+
+    wrap(f, wrapper)
+
+    assert f(1, kw_required=2) == (1, 2, 99)
+    assert f(1, kw_required=2, kw_default=3) == (1, 2, 3)
+
+    unwrap(f, wrapper)
+    assert f(1, kw_required=2) == (1, 2, 99)
+
+
+def test_wrap_complex_signature():
+    """Full-complexity signature: posonly + regular + *args + kwonly + **kwargs + defaults."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f(po, /, reg, reg_def=10, *args, kw_only=20, **kwargs):
+        return (po, reg, reg_def, args, kw_only, kwargs)
+
+    wrap(f, wrapper)
+
+    assert f(1, 2) == (1, 2, 10, (), 20, {})
+    assert f(1, 2, 3) == (1, 2, 3, (), 20, {})
+    assert f(1, 2, 3, 4, 5) == (1, 2, 3, (4, 5), 20, {})
+    assert f(1, 2, 3, 4, kw_only=99, extra="x") == (1, 2, 3, (4,), 99, {"extra": "x"})
+
+    unwrap(f, wrapper)
+    assert f(1, 2) == (1, 2, 10, (), 20, {})
+
+
+def test_wrap_only_varargs():
+    """Function with only *args."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f(*args):
+        return args
+
+    wrap(f, wrapper)
+    assert f() == ()
+    assert f(1, 2, 3) == (1, 2, 3)
+
+
+def test_wrap_only_varkwargs():
+    """Function with only **kwargs."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f(**kwargs):
+        return kwargs
+
+    wrap(f, wrapper)
+    assert f() == {}
+    assert f(a=1, b=2) == {"a": 1, "b": 2}
+
+
+def test_wrap_preserves_identity():
+    """Wrapping does not replace the function object; f is still the same object."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f():
+        return 1
+
+    original_id = id(f)
+    wrap(f, wrapper)
+    assert id(f) == original_id
+
+
+def test_wrap_preserves_metadata():
+    """Wrapping preserves __name__, __qualname__, __module__."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f():
+        return 1
+
+    orig_name = f.__name__
+    orig_qualname = f.__qualname__
+    orig_module = f.__module__
+
+    wrap(f, wrapper)
+
+    assert f.__name__ == orig_name
+    assert f.__qualname__ == orig_qualname
+    assert f.__module__ == orig_module
+
+
+def test_wrap_exception_propagation():
+    """Exceptions from the wrapped function propagate with correct type and message."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f():
+        raise RuntimeError("boom")
+
+    wrap(f, wrapper)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        f()
+
+
+def test_wrap_exception_propagation_with_args():
+    """Exceptions propagate even when the function has arguments."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f(x, y=10):
+        raise ValueError(x + y)
+
+    wrap(f, wrapper)
+
+    with pytest.raises(ValueError, match="15"):
+        f(5)
+
+
+def test_unwrap_wrong_wrapper_is_noop():
+    """Unwrapping with a wrapper that wasn't used returns the function unchanged."""
+
+    def wrapper_a(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def wrapper_b(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f():
+        return 42
+
+    wrap(f, wrapper_a)
+    unwrap(f, wrapper_b)
+
+    assert is_wrapped(f)
+    assert is_wrapped_with(f, wrapper_a)
+    assert f() == 42
+
+
+def test_unwrap_not_wrapped_is_noop():
+    """Unwrapping a function that was never wrapped returns it unchanged."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f():
+        return 42
+
+    result = unwrap(f, wrapper)
+    assert result is f
+    assert f() == 42
+
+
+def test_is_wrapped_bogus_dd_wrapped():
+    """A manually-set __dd_wrapped__ with wrong __name__ is treated as not wrapped."""
+
+    def f():
+        return 1
+
+    def bogus():
+        return 2
+
+    f.__dd_wrapped__ = bogus
+
+    assert not is_wrapped(f)
+    assert not is_wrapped_with(f, lambda f, a, k: None)
+
+
+def test_unwrap_bogus_dd_wrapped():
+    """A manually-set bogus __dd_wrapped__ does not crash unwrap; function returned as-is."""
+
+    def f():
+        return 1
+
+    def bogus():
+        return 2
+
+    f.__dd_wrapped__ = bogus
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    result = unwrap(f, wrapper)
+    assert result is f
+    assert f() == 1
+
+
+def test_get_function_code_unwrapped():
+    """get_function_code returns the function's own code when not wrapped."""
+
+    def f():
+        return 1
+
+    assert get_function_code(f) is f.__code__
+
+
+def test_get_function_code_wrapped():
+    """get_function_code returns the original (inner) code when wrapped."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f():
+        return 1
+
+    original_code = f.__code__
+    wrap(f, wrapper)
+    assert get_function_code(f) is original_code
+
+
+def test_set_function_code():
+    """set_function_code updates the inner code object of a wrapped function."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f():
+        return 1
+
+    def g():
+        return 2
+
+    wrap(f, wrapper)
+    set_function_code(f, g.__code__)
+    assert get_function_code(f) is g.__code__
+    assert f() == 2
+
+
+def test_wrap_return_none():
+    """Wrapping a function that returns None works correctly."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f():
+        pass
+
+    wrap(f, wrapper)
+    assert f() is None
+
+
+def test_wrap_defaults_preserved():
+    """Default values are preserved through wrap/unwrap cycles."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f(a, b=10, c=20):
+        return (a, b, c)
+
+    wrap(f, wrapper)
+
+    assert f(1) == (1, 10, 20)
+    assert f(1, 2) == (1, 2, 20)
+    assert f(1, b=5) == (1, 5, 20)
+
+    unwrap(f, wrapper)
+
+    assert f(1) == (1, 10, 20)
+
+
+def test_wrap_kwdefaults_preserved():
+    """Keyword-only defaults are preserved through wrap/unwrap cycles."""
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f(*, kw=42):
+        return kw
+
+    wrap(f, wrapper)
+    assert f() == 42
+    assert f(kw=99) == 99
+
+    unwrap(f, wrapper)
+    assert f() == 42
+
+
+@pytest.mark.asyncio
+async def test_wrap_async_generator_no_items():
+    """Wrapping an async generator that yields nothing works correctly."""
+
+    async def wrapper(f, args, kwargs):
+        async for item in f(*args, **kwargs):
+            yield item
+
+    async def g():
+        return
+        yield
+
+    wrap(g, wrapper)
+
+    items = [item async for item in g()]
+    assert items == []
+
+
+def test_wrap_generator_no_items():
+    """Wrapping a generator that yields nothing works correctly."""
+
+    def wrapper(f, args, kwargs):
+        yield from f(*args, **kwargs)
+
+    def g():
+        return
+        yield
+
+    wrap(g, wrapper)
+    assert list(g()) == []
 
 
 NOTSET = object()
