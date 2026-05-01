@@ -7,6 +7,8 @@ import pytest
 
 from ddtrace import tracer as ddtracer
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_metrics
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.propagation.http import HTTPPropagator
 from tests.llmobs._utils import assert_llmobs_span_data
 
@@ -51,11 +53,8 @@ def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
     llmobs_spans = [s for s in spans if _get_llmobs_data_metastruct(s)]
     assert len(llmobs_spans) == 4
 
-    def _kind(span):
-        return _get_llmobs_data_metastruct(span).get("meta", {}).get("span", {}).get("kind")
-
-    embedding_spans = [s for s in llmobs_spans if _kind(s) == "embedding"]
-    generation_spans = [s for s in llmobs_spans if _kind(s) == "llm"]
+    embedding_spans = [s for s in llmobs_spans if get_llmobs_span_kind(s) == "embedding"]
+    generation_spans = [s for s in llmobs_spans if get_llmobs_span_kind(s) == "llm"]
 
     assert len(embedding_spans) == 3  # 2 docs + 1 query
     assert len(generation_spans) == 1
@@ -93,7 +92,7 @@ def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm", "integration": "vllm"},
         )
         # input_tokens > 0 sanity check
-        metrics = _get_llmobs_data_metastruct(span).get("metrics", {})
+        metrics = get_llmobs_metrics(span) or {}
         assert metrics.get("input_tokens", 0) > 0
 
     # Verify generation span has correct structure
@@ -121,5 +120,5 @@ def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
         },
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vllm", "integration": "vllm"},
     )
-    gen_metrics = _get_llmobs_data_metastruct(gen_span).get("metrics", {})
+    gen_metrics = get_llmobs_metrics(gen_span) or {}
     assert gen_metrics.get("output_tokens", 0) > 0
