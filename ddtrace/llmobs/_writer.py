@@ -13,7 +13,6 @@ import urllib
 from urllib.parse import quote
 from urllib.parse import urlparse
 
-import ddtrace
 from ddtrace import config
 from ddtrace.internal import agent
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
@@ -146,10 +145,19 @@ class EvaluatorInferResponse(TypedDict, total=False):
     status: Optional[str]
 
 
+_SHOULD_USE_AGENTLESS: Optional[bool] = None
+
+
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
     """Determine whether to use agentless mode based on agent availability and capabilities."""
     if user_defined_agentless_enabled is not None:
         return user_defined_agentless_enabled
+
+    global _SHOULD_USE_AGENTLESS
+
+    if _SHOULD_USE_AGENTLESS is False:
+        # perf: If a supported agent is found, we don't need to check again. Use the cached value.
+        return _SHOULD_USE_AGENTLESS
 
     agent_info: Optional[dict[str, Any]]
 
@@ -162,7 +170,8 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
         return True
 
     endpoints = agent_info.get("endpoints", [])
-    return not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
+    _SHOULD_USE_AGENTLESS = not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
+    return _SHOULD_USE_AGENTLESS
 
 
 def llmobs_apm_trace_agentless_enabled() -> bool:
