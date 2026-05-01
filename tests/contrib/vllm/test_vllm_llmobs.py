@@ -16,17 +16,9 @@ IGNORE_FIELDS = [
     "metrics.vllm.latency.inference",
 ]
 
-LLMOBS_GLOBAL_CONFIG = dict(
-    _llmobs_enabled=True,
-    _llmobs_sample_rate=1.0,
-    _llmobs_ml_app="<ml-app-name>",
-    service="tests.contrib.vllm",
-)
-
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_llmobs_basic(test_spans, opt_125m_llm):
+def test_llmobs_basic(vllm_llmobs, test_spans, opt_125m_llm):
     from vllm import SamplingParams
 
     llm = opt_125m_llm
@@ -65,8 +57,7 @@ def test_llmobs_basic(test_spans, opt_125m_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_llmobs_chat(test_spans, opt_125m_llm):
+def test_llmobs_chat(vllm_llmobs, test_spans, opt_125m_llm):
     from vllm import SamplingParams
 
     llm = opt_125m_llm
@@ -118,8 +109,7 @@ def test_llmobs_chat(test_spans, opt_125m_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_llmobs_classify(test_spans, bge_reranker_llm):
+def test_llmobs_classify(vllm_llmobs, test_spans, bge_reranker_llm):
     llm = bge_reranker_llm
 
     prompts = [
@@ -167,8 +157,7 @@ def test_llmobs_classify(test_spans, bge_reranker_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_llmobs_embed(test_spans, e5_small_llm):
+def test_llmobs_embed(vllm_llmobs, test_spans, e5_small_llm):
     llm = e5_small_llm
 
     prompts = [
@@ -214,8 +203,7 @@ def test_llmobs_embed(test_spans, e5_small_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_llmobs_reward(test_spans, bge_reranker_llm):
+def test_llmobs_reward(vllm_llmobs, test_spans, bge_reranker_llm):
     llm = bge_reranker_llm
 
     prompts = [
@@ -261,8 +249,7 @@ def test_llmobs_reward(test_spans, bge_reranker_llm):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_llmobs_score(test_spans, bge_reranker_llm):
+def test_llmobs_score(vllm_llmobs, test_spans, bge_reranker_llm):
     llm = bge_reranker_llm
 
     text_1 = "What is the capital of France?"
