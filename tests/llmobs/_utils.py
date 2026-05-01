@@ -1008,12 +1008,7 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
 
 
 def _assert_span_link(from_span, to_span, from_io, to_io):
-    """Assert a span link exists from ``from_span`` to ``to_span``.
-
-    Both arguments are APM ``Span`` objects whose ``meta_struct['_llmobs']``
-    payload is read via ``get_llmobs_span_links``. Pass ``from_span=None`` to
-    assert the destination span has no incoming link (``span_id="undefined"``).
-    """
+    """Assert a span link from ``from_span`` (or None for "undefined") to ``to_span``."""
     expected_to_span_id = "undefined" if from_span is None else str(from_span.span_id)
     for span_link in get_llmobs_span_links(to_span) or []:
         if span_link["span_id"] == expected_to_span_id:
