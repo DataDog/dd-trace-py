@@ -985,35 +985,24 @@ class LLMObs(Service):
         if not experiment_id:
             raise ValueError("experiment_id is required.")
 
+        experiment_meta = cls._instance._dne_client.experiment_get(str(experiment_id))
+
         raw = cls._instance._dne_client.experiment_events_get(experiment_id=str(experiment_id))
         result = _parse_experiment_result(raw)
 
-        data = raw.get("data") or {}
-        attributes = data.get("attributes") or {}
-        response_id = data.get("id") or experiment_id
-
-        dataset_id: Optional[str] = None
-        project_id: Optional[str] = None
-        spans = attributes.get("spans") or []
-        first_span_tags = (spans[0].get("tags") if spans else None) or []
-        for tag in first_span_tags:
-            if not isinstance(tag, str):
-                continue
-            if tag.startswith("dataset_id:") and dataset_id is None:
-                dataset_id = tag.split(":", 1)[1]
-            elif tag.startswith("project_id:") and project_id is None:
-                project_id = tag.split(":", 1)[1]
+        project_name = experiment_meta._project_name or cls._project_name or "default"
+        dataset_id = experiment_meta._dataset._id if experiment_meta._dataset is not None else None
 
         exp = Experiment(
-            name=f"experiment-{response_id}",
+            name=experiment_meta.name,
             task=None,
             dataset=None,
             evaluators=[],
-            project_name=cls._project_name or "default",
+            project_name=project_name,
             _llmobs_instance=cls._instance,
         )
-        exp._id = str(response_id)
-        exp._project_id = project_id
+        exp._id = str(experiment_id)
+        exp._project_id = experiment_meta._project_id
         exp._dataset_id = dataset_id
         exp.result = result
         return exp

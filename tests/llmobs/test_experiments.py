@@ -5043,19 +5043,42 @@ MOCK_PULL_RESPONSE = {
 }
 
 
+def _mock_experiment_meta(
+    name="test-exp",
+    project_name="mock-project-name",
+    project_id="mock-project-id",
+    dataset_id="mock-dataset-id",
+):
+    """Return a MagicMock mimicking the Experiment object returned by DNEClient.experiment_get."""
+    m = mock.MagicMock()
+    m.name = name
+    m._project_name = project_name
+    m._project_id = project_id
+    m._dataset = mock.MagicMock()
+    m._dataset._id = dataset_id
+    return m
+
+
 def test_pull_experiment_by_id(llmobs):
-    """pull_experiment() calls the by-UUID endpoint and returns an Experiment with result populated."""
+    """pull_experiment() calls experiment_get and experiment_events_get, returns populated Experiment."""
     from ddtrace.llmobs._experiment import Experiment
 
-    with mock.patch.object(
-        llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE
-    ) as mock_get:
+    with (
+        mock.patch.object(
+            llmobs._instance._dne_client, "experiment_get", return_value=_mock_experiment_meta()
+        ) as mock_meta,
+        mock.patch.object(
+            llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE
+        ) as mock_events,
+    ):
         exp = llmobs.pull_experiment("mock-experiment-id")
 
-    mock_get.assert_called_once_with(experiment_id="mock-experiment-id")
+    mock_meta.assert_called_once_with("mock-experiment-id")
+    mock_events.assert_called_once_with(experiment_id="mock-experiment-id")
     assert isinstance(exp, Experiment)
     assert exp.result is not None
     assert exp._id == "mock-experiment-id"
+    assert exp.name == "test-exp"
     rows = exp.result["runs"][0].rows
     assert len(rows) == 1
     assert rows[0]["span_id"] == "abc123"
@@ -5065,8 +5088,11 @@ def test_pull_experiment_by_id(llmobs):
 
 
 def test_pull_experiment_sets_metadata_from_response(llmobs):
-    """pull_experiment() populates _id, _project_id, and _dataset_id from the response."""
-    with mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE):
+    """pull_experiment() populates _id, _project_id, and _dataset_id from experiment_get."""
+    with (
+        mock.patch.object(llmobs._instance._dne_client, "experiment_get", return_value=_mock_experiment_meta()),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE),
+    ):
         exp = llmobs.pull_experiment("mock-experiment-id")
 
     assert exp._id == "mock-experiment-id"
@@ -5076,7 +5102,10 @@ def test_pull_experiment_sets_metadata_from_response(llmobs):
 
 def test_pull_experiment_parses_eval_metrics(llmobs):
     """pull_experiment() correctly parses evaluations onto result rows."""
-    with mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE):
+    with (
+        mock.patch.object(llmobs._instance._dne_client, "experiment_get", return_value=_mock_experiment_meta()),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE),
+    ):
         exp = llmobs.pull_experiment("mock-experiment-id")
 
     evals = exp.result["runs"][0].rows[0]["evaluations"]
@@ -5088,7 +5117,10 @@ def test_pull_experiment_parses_eval_metrics(llmobs):
 
 def test_pull_experiment_populates_duration_and_span_name(llmobs):
     """pull_experiment() correctly populates duration and span_name on each result row."""
-    with mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE):
+    with (
+        mock.patch.object(llmobs._instance._dne_client, "experiment_get", return_value=_mock_experiment_meta()),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE),
+    ):
         exp = llmobs.pull_experiment("mock-experiment-id")
 
     row = exp.result["runs"][0].rows[0]
