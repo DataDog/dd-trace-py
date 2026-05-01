@@ -448,7 +448,7 @@ class LLMObs(Service):
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
         self._export_llmobs = _env.get("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
-        # AIDEV-NOTE: agentless APM trace writers carry the LLMObs meta_struct themselves;
+        # agentless APM trace writers carry the LLMObs meta_struct themselves;
         # leaving _DD_LLMOBS_EXPORT=llmobs would cause double submission via the LLMObs writer.
         if self._export_llmobs and (config._trace_agentless_enabled or config._llmobs_agentless_enabled is True):
             log.warning(
