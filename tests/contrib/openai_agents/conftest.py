@@ -203,9 +203,6 @@ def openai(agents):
 
 @pytest.fixture
 def openai_agents_llmobs(tracer, monkeypatch):
-    # Preserve meta_struct["_llmobs"] on spans so tests can assert against
-    # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it after
-    # enqueueing to LLMObsSpanWriter.
     monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     LLMObs.disable()
     with override_global_config(
@@ -216,8 +213,6 @@ def openai_agents_llmobs(tracer, monkeypatch):
         }
     ):
         LLMObs.enable(_tracer=tracer, integrations_enabled=False)
-        # Replace the real LLMObsSpanWriter with a mock so we don't keep a
-        # background flush thread alive trying to ship spans during the test.
         LLMObs._instance._llmobs_span_writer.stop()
         LLMObs._instance._llmobs_span_writer = mock.MagicMock()
         yield LLMObs
