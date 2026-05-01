@@ -7,6 +7,8 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_model_provider
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.openai.utils import assert_prompt_tracking
 from tests.contrib.openai.utils import chat_completion_custom_functions
@@ -99,7 +101,7 @@ class TestLLMObsOpenaiV1:
         )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
+        assert get_llmobs_span_kind(spans[0]) == "llm"
 
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_chat_completion_unknown_provider(self, mock_completions_post, openai, openai_llmobs, test_spans):
@@ -109,7 +111,7 @@ class TestLLMObsOpenaiV1:
         client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert _get_llmobs_data_metastruct(spans[0])["meta"]["model_provider"] == "unknown"
+        assert get_llmobs_model_provider(spans[0]) == "unknown"
 
     def test_completion(self, openai, openai_llmobs, test_spans):
         """Ensure llmobs records are emitted for completion endpoints when configured.
@@ -195,7 +197,7 @@ class TestLLMObsOpenaiV1:
         )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
+        assert get_llmobs_span_kind(spans[0]) == "llm"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
@@ -330,7 +332,7 @@ class TestLLMObsOpenaiV1:
         client.chat.completions.create(model=model, messages=input_messages, top_p=0.9, n=2, user="ddtrace-test")
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
+        assert get_llmobs_span_kind(spans[0]) == "llm"
 
     def test_chat_completion(self, openai, openai_llmobs, test_spans):
         """Ensure llmobs records are emitted for chat completion endpoints when configured.
@@ -507,7 +509,7 @@ class TestLLMObsOpenaiV1:
         )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
+        assert get_llmobs_span_kind(spans[0]) == "llm"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) >= (1, 60),
