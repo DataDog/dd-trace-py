@@ -2462,7 +2462,7 @@ def test_experiment_run_without_task_raises(llmobs):
 
 
 def test_experiment_rerun_without_task_succeeds(llmobs):
-    """rerun_evaluators() after LLMObs.pull_experiment() emits new span copies and references new IDs in eval metrics."""
+    """rerun_evaluators() after LLMObs.pull_experiment() emits span copies with new IDs in eval metrics."""
     row = {
         "record_id": "r1",
         "idx": 0,
