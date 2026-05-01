@@ -33,13 +33,9 @@ AGENT_MANIFEST_METADATA = {
 }
 
 
-@pytest.mark.parametrize(
-    "ddtrace_global_config",
-    [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")],
-)
 class TestLLMObsGoogleADK:
     @pytest.mark.asyncio
-    async def test_agent_run1(self, test_runner, request_vcr, test_spans):
+    async def test_agent_run1(self, test_runner, request_vcr, test_spans, google_adk_llmobs):
         """Test that a simple agent run creates a valid LLMObs span event."""
         error = None
         with request_vcr.use_cassette("agent_run_async.yaml"):
@@ -104,7 +100,7 @@ class TestLLMObsGoogleADK:
         )
 
     @pytest.mark.asyncio
-    async def test_agent_run_with_tools(self, test_runner, request_vcr, test_spans):
+    async def test_agent_run_with_tools(self, test_runner, request_vcr, test_spans, google_adk_llmobs):
         """Test that an agent run with tool usage creates a valid LLMObs span event."""
         error = None
         with request_vcr.use_cassette("agent_tool_usage.yaml"):
@@ -155,7 +151,7 @@ class TestLLMObsGoogleADK:
             metrics={},
         )
 
-    def test_code_execution(self, mock_invocation_context, test_spans):
+    def test_code_execution(self, mock_invocation_context, test_spans, google_adk_llmobs):
         """Test that code execution creates a valid LLMObs span event."""
         from google.adk.code_executors.code_execution_utils import CodeExecutionInput
         from google.adk.code_executors.unsafe_local_code_executor import UnsafeLocalCodeExecutor
