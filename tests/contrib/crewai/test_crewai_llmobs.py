@@ -82,7 +82,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
 # Common kwargs for non-agent crew/task spans. ``span_links`` is asserted separately
 # via the link helpers below so it doesn't appear here. ``parent_id=mock.ANY`` mirrors
 # the previous behaviour: async-task spans don't have a deterministic in-process parent.
-EXPECTED_SPAN_KWARGS = {
+EXPECTED_BASE_SPAN_DATA = {
     "input_value": mock.ANY,
     "output_value": mock.ANY,
     "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>", "integration": "crewai"},
@@ -90,7 +90,7 @@ EXPECTED_SPAN_KWARGS = {
 }
 
 
-def _expected_agent_kwargs(role):
+def _expected_agent_span_data(role):
     return {
         "input_value": mock.ANY,
         "output_value": mock.ANY,
@@ -100,7 +100,7 @@ def _expected_agent_kwargs(role):
     }
 
 
-def _expected_tool_kwargs():
+def _expected_tool_span_data():
     return {
         "input_value": mock.ANY,
         "output_value": mock.ANY,
@@ -123,7 +123,7 @@ def _assert_basic_crew_events(spans):
     assert len(spans) == 5
     expected_kinds = ("workflow", "task", "agent", "task", "agent")
     for span, kind in zip(spans, expected_kinds):
-        kwargs = _expected_agent_kwargs(_llmobs_name(span)) if kind == "agent" else EXPECTED_SPAN_KWARGS
+        kwargs = _expected_agent_span_data(_llmobs_name(span)) if kind == "agent" else EXPECTED_BASE_SPAN_DATA
         assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind=kind, **kwargs)
     # assert parent_id chain: workflow -> task -> agent
     assert get_llmobs_parent_id(spans[1]) == str(spans[0].span_id)  # task -> workflow
@@ -147,12 +147,12 @@ def _assert_basic_crew_links(spans):
 
 def _assert_tool_crew_events(spans):
     assert len(spans) == 4
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="workflow", **EXPECTED_SPAN_KWARGS)
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[1]), span_kind="task", **EXPECTED_SPAN_KWARGS)
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="workflow", **EXPECTED_BASE_SPAN_DATA)
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[1]), span_kind="task", **EXPECTED_BASE_SPAN_DATA)
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[2]), span_kind="agent", **_expected_agent_kwargs(_llmobs_name(spans[2]))
+        _get_llmobs_data_metastruct(spans[2]), span_kind="agent", **_expected_agent_span_data(_llmobs_name(spans[2]))
     )
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[3]), span_kind="tool", **_expected_tool_kwargs())
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[3]), span_kind="tool", **_expected_tool_span_data())
     # assert parent_id chain: workflow -> task -> agent -> tool
     assert get_llmobs_parent_id(spans[1]) == str(spans[0].span_id)  # task -> workflow
     assert get_llmobs_parent_id(spans[2]) == str(spans[1].span_id)  # agent -> task
@@ -171,15 +171,15 @@ def _assert_tool_crew_links(spans):
 
 def _assert_async_crew_events(spans):
     assert len(spans) == 6
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="workflow", **EXPECTED_SPAN_KWARGS)
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[1]), span_kind="task", **EXPECTED_SPAN_KWARGS)
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="workflow", **EXPECTED_BASE_SPAN_DATA)
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[1]), span_kind="task", **EXPECTED_BASE_SPAN_DATA)
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[2]), span_kind="agent", **_expected_agent_kwargs(_llmobs_name(spans[2]))
+        _get_llmobs_data_metastruct(spans[2]), span_kind="agent", **_expected_agent_span_data(_llmobs_name(spans[2]))
     )
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[3]), span_kind="tool", **_expected_tool_kwargs())
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[4]), span_kind="task", **EXPECTED_SPAN_KWARGS)
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[3]), span_kind="tool", **_expected_tool_span_data())
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[4]), span_kind="task", **EXPECTED_BASE_SPAN_DATA)
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[5]), span_kind="agent", **_expected_agent_kwargs(_llmobs_name(spans[5]))
+        _get_llmobs_data_metastruct(spans[5]), span_kind="agent", **_expected_agent_span_data(_llmobs_name(spans[5]))
     )
     # assert parent_id chain: workflow -> task -> agent, workflow -> task -> agent
     assert get_llmobs_parent_id(spans[1]) == str(spans[0].span_id)  # task -> workflow
@@ -219,9 +219,9 @@ def _assert_hierarchical_crew_events(spans):
     )
     for span, kind in zip(spans, expected_span_kinds):
         if kind is None:  # Not expecting any span links for this tool span
-            assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="tool", **_expected_tool_kwargs())
+            assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="tool", **_expected_tool_span_data())
             continue
-        assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind=kind, **EXPECTED_SPAN_KWARGS)
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind=kind, **EXPECTED_BASE_SPAN_DATA)
 
 
 def _assert_hierarchical_crew_links(spans):
@@ -246,10 +246,10 @@ def _assert_hierarchical_crew_links(spans):
 
 def _assert_simple_flow_events(spans):
     assert len(spans) == 3
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="workflow", **EXPECTED_SPAN_KWARGS)
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[1]), span_kind="task", **EXPECTED_SPAN_KWARGS)
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="workflow", **EXPECTED_BASE_SPAN_DATA)
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[1]), span_kind="task", **EXPECTED_BASE_SPAN_DATA)
     assert get_llmobs_output_value(spans[1]) == "New York City"
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[2]), span_kind="task", **EXPECTED_SPAN_KWARGS)
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[2]), span_kind="task", **EXPECTED_BASE_SPAN_DATA)
     if CREWAI_VERSION >= (0, 119, 0):  # Tracking I/O and state management only available CrewAI >=0.119.0
         input_val = json.loads(get_llmobs_input_value(spans[0]))
         assert input_val == {"continent": "North America"}
@@ -273,9 +273,9 @@ def _assert_simple_flow_links(spans):
 
 def _assert_complex_flow_events(spans):
     assert len(spans) == 6
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="workflow", **EXPECTED_SPAN_KWARGS)
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="workflow", **EXPECTED_BASE_SPAN_DATA)
     for i in range(1, 6):
-        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[i]), span_kind="task", **EXPECTED_SPAN_KWARGS)
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[i]), span_kind="task", **EXPECTED_BASE_SPAN_DATA)
 
 
 def _assert_complex_flow_links(spans):
@@ -294,9 +294,9 @@ def _assert_complex_flow_links(spans):
 
 def _assert_router_flow_events(spans):
     assert len(spans) == 4
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="workflow", **EXPECTED_SPAN_KWARGS)
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="workflow", **EXPECTED_BASE_SPAN_DATA)
     for i in range(1, 4):
-        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[i]), span_kind="task", **EXPECTED_SPAN_KWARGS)
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[i]), span_kind="task", **EXPECTED_BASE_SPAN_DATA)
 
 
 def _assert_router_flow_links(spans):
