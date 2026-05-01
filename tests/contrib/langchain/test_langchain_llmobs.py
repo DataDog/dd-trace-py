@@ -11,9 +11,14 @@ from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
+from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_metrics
+from ddtrace.llmobs._utils import get_llmobs_output_value
+from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.trace import Span
 from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
 from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
@@ -864,8 +869,7 @@ class TestLangChainLLMObs:
 
         spans = _llmobs_spans(test_spans)
         assert len(spans) == 1
-        metastruct = _get_llmobs_data_metastruct(spans[0])
-        assert metastruct["meta"]["input"]["messages"][0]["content"] == "안녕,\n 지금 몇 시야?"
+        assert get_llmobs_input_messages(spans[0])[0]["content"] == "안녕,\n 지금 몇 시야?"
 
 
     def test_llmobs_runnable_lambda_invoke(self, langchain_core, test_spans):
@@ -917,28 +921,26 @@ class TestLangChainLLMObs:
         spans = _llmobs_spans(test_spans)
         assert len(spans) == 4
 
-        parent_meta = _get_llmobs_data_metastruct(spans[0])
         # parent should be batch span
-        assert parent_meta["parent_id"] == "undefined"
-        assert parent_meta["name"] == "add_batch"
-        assert parent_meta["meta"]["span"]["kind"] == "task"
-        assert parent_meta["meta"]["input"]["value"] == json.dumps(
+        assert get_llmobs_parent_id(spans[0]) == "undefined"
+        assert get_llmobs_span_name(spans[0]) == "add_batch"
+        assert get_llmobs_span_kind(spans[0]) == "task"
+        assert get_llmobs_input_value(spans[0]) == json.dumps(
             [{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}], sort_keys=True
         )
-        assert parent_meta["meta"]["output"]["value"] == json.dumps([3, 7, 11], sort_keys=True)
+        assert get_llmobs_output_value(spans[0]) == json.dumps([3, 7, 11], sort_keys=True)
 
         # assert all children have batch as the parent
         # however, order of children is not guaranteed
         # loosely check that the children have the correct input and output values
         parent_span_id = str(spans[0].span_id)
         for i in range(1, 4):
-            child_meta = _get_llmobs_data_metastruct(spans[i])
-            assert child_meta["parent_id"] == parent_span_id
-            assert child_meta["name"] == "add"
-            assert child_meta["meta"]["span"]["kind"] == "task"
+            assert get_llmobs_parent_id(spans[i]) == parent_span_id
+            assert get_llmobs_span_name(spans[i]) == "add"
+            assert get_llmobs_span_kind(spans[i]) == "task"
 
-            input_value = json.loads(child_meta["meta"]["input"]["value"])
-            output_value = json.loads(child_meta["meta"]["output"]["value"])
+            input_value = json.loads(get_llmobs_input_value(spans[i]))
+            output_value = json.loads(get_llmobs_output_value(spans[i]))
             assert "a" in input_value
             assert "b" in input_value
             assert isinstance(output_value, int)
@@ -955,28 +957,26 @@ class TestLangChainLLMObs:
         spans = _llmobs_spans(test_spans)
         assert len(spans) == 4
 
-        parent_meta = _get_llmobs_data_metastruct(spans[0])
         # parent should be batch span
-        assert parent_meta["parent_id"] == "undefined"
-        assert parent_meta["name"] == "add_batch"
-        assert parent_meta["meta"]["span"]["kind"] == "task"
-        assert parent_meta["meta"]["input"]["value"] == json.dumps(
+        assert get_llmobs_parent_id(spans[0]) == "undefined"
+        assert get_llmobs_span_name(spans[0]) == "add_batch"
+        assert get_llmobs_span_kind(spans[0]) == "task"
+        assert get_llmobs_input_value(spans[0]) == json.dumps(
             [{"a": 1, "b": 2}, {"a": 3, "b": 4}, {"a": 5, "b": 6}], sort_keys=True
         )
-        assert parent_meta["meta"]["output"]["value"] == json.dumps([3, 7, 11], sort_keys=True)
+        assert get_llmobs_output_value(spans[0]) == json.dumps([3, 7, 11], sort_keys=True)
 
         # assert all children have batch as the parent
         # however, order of children is not guaranteed
         # loosely check that the children have the correct input and output values
         parent_span_id = str(spans[0].span_id)
         for i in range(1, 4):
-            child_meta = _get_llmobs_data_metastruct(spans[i])
-            assert child_meta["parent_id"] == parent_span_id
-            assert child_meta["name"] == "add"
-            assert child_meta["meta"]["span"]["kind"] == "task"
+            assert get_llmobs_parent_id(spans[i]) == parent_span_id
+            assert get_llmobs_span_name(spans[i]) == "add"
+            assert get_llmobs_span_kind(spans[i]) == "task"
 
-            input_value = json.loads(child_meta["meta"]["input"]["value"])
-            output_value = json.loads(child_meta["meta"]["output"]["value"])
+            input_value = json.loads(get_llmobs_input_value(spans[i]))
+            output_value = json.loads(get_llmobs_output_value(spans[i]))
             assert "a" in input_value
             assert "b" in input_value
             assert isinstance(output_value, int)
