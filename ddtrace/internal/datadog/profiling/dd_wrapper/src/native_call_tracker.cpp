@@ -1,5 +1,6 @@
 #include "native_call_tracker.hpp"
 
+#include <functional>
 #include <mutex>
 #include <shared_mutex>
 #include <string>

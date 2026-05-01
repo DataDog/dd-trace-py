@@ -15,6 +15,7 @@ SUPPORTED_PYTHON_VERSIONS: list[tuple[int, int]] = [
     (3, 12),
     (3, 13),
     (3, 14),
+    (3, 15),
 ]
 
 
@@ -33,6 +34,8 @@ def version_to_str(version: tuple[int, int]) -> str:
     '3.13'
     >>> version_to_str((3, 14))
     '3.14'
+    >>> version_to_str((3, 15))
+    '3.15'
     >>> version_to_str((3, ))
     '3'
     """
@@ -54,6 +57,8 @@ def str_to_version(version: str) -> tuple[int, int]:
     (3, 13)
     >>> str_to_version("3.14")
     (3, 14)
+    >>> str_to_version("3.15")
+    (3, 15)
     >>> str_to_version("3")
     (3,)
     """
@@ -68,9 +73,9 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
-    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
     >>> select_pys(min_version='3')
-    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
     >>> select_pys(max_version='3')
     []
     >>> select_pys(min_version='3.9', max_version='3.10')
@@ -3741,6 +3746,48 @@ venv = Venv(
                         Venv(
                             pkgs={
                                 # Use latest only - protobuf 4.22.0 fails with Python 3.14
+                                "protobuf": latest,
+                            },
+                        ),
+                        # Gevent
+                        Venv(
+                            env={
+                                "DD_PROFILE_TEST_GEVENT": "1",
+                            },
+                            pkgs={
+                                "gunicorn[gevent]": latest,
+                                "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # process_vm_readv fallback (safe_memcpy is now default)
+                        Venv(
+                            env={
+                                "_DD_PROFILING_STACK_FAST_COPY": "0",
+                            },
+                            pkgs={
+                                "protobuf": latest,
+                            },
+                        ),
+                    ],
+                ),
+                # Python 3.15
+                Venv(
+                    pys="3.15",
+                    pkgs={"uwsgi": latest},
+                    venvs=[
+                        Venv(
+                            pkgs={
                                 "protobuf": latest,
                             },
                         ),

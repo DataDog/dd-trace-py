@@ -1,9 +1,8 @@
-#include "sample.hpp"
-
 #define PY_SSIZE_T_CLEAN
-
 #include <Python.h>
 #include <frameobject.h>
+
+#include "sample.hpp"
 
 #include "libdatadog_helpers.hpp"
 #include "profiler_state.hpp"
