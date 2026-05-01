@@ -5,6 +5,8 @@ from mock import patch
 import pytest
 
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_model_provider
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
 from tests.contrib.anthropic.test_anthropic import BETA_SKIP_REASON
@@ -366,7 +368,7 @@ class TestLLMObsAnthropic:
         )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
+        assert get_llmobs_span_kind(spans[0]) == "llm"
 
     @patch("anthropic._base_client.SyncAPIClient.post")
     def test_completion_unknown_provider(self, mock_anthropic_messages_post, anthropic, anthropic_llmobs, test_spans):
@@ -376,7 +378,7 @@ class TestLLMObsAnthropic:
         llm.messages.create(model="claude-3-opus-20240229", max_tokens=15, messages=[{"role": "user", "content": "Hi"}])
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert _get_llmobs_data_metastruct(spans[0])["meta"]["model_provider"] == "unknown"
+        assert get_llmobs_model_provider(spans[0]) == "unknown"
 
     def test_completion(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
