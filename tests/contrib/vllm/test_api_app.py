@@ -23,17 +23,8 @@ IGNORE_FIELDS = [
 ]
 
 
-LLMOBS_GLOBAL_CONFIG = dict(
-    _llmobs_enabled=True,
-    _llmobs_sample_rate=1.0,
-    _llmobs_ml_app="<ml-app-name>",
-    service="tests.contrib.vllm",
-)
-
-
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_rag_parent_child(vllm, test_spans):
+def test_rag_parent_child(vllm, vllm_llmobs, test_spans):
     """Test RAG endpoint with parent-child span relationships and LLMObs event capture."""
     # Create a parent span and inject context into headers. ``ddtracer`` is the same
     # global tracer wrapped by ``test_spans``; spans land in the same container.
