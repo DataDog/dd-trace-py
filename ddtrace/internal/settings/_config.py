@@ -208,6 +208,7 @@ INTEGRATION_CONFIGS = frozenset(
     }
 )
 
+
 def _integration_default_service_names_from_config(int_config: IntegrationConfig) -> set[str]:
     """Collect non-empty ``str`` values for keys such as ``_default_service`` or ``_default_service_worker``."""
     names: set[str] = set()
