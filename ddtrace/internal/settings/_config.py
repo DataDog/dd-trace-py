@@ -208,6 +208,14 @@ INTEGRATION_CONFIGS = frozenset(
     }
 )
 
+def _integration_default_service_names_from_config(int_config: IntegrationConfig) -> set[str]:
+    """Collect non-empty ``str`` values for keys such as ``_default_service`` or ``_default_service_worker``."""
+    names: set[str] = set()
+    for key, value in int_config.items():
+        if isinstance(key, str) and key.startswith("_default_service") and isinstance(value, str) and value:
+            names.add(value)
+    return names
+
 
 def _parse_propagation_styles(styles_str: str) -> Optional[list[str]]:
     """Helper to parse http propagation extract/inject styles via env variables.
@@ -447,6 +455,8 @@ class Config(object):
 
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs: dict[str, IntegrationConfig] = {}
+        # Union of `_default_service*` string values from integrations registered via `_add`.
+        self._integration_default_services: frozenset[str] = frozenset()
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
@@ -772,6 +782,12 @@ class Config(object):
             self._extra_services.pop()
         return self._extra_services
 
+    def _recompute_integration_default_services(self) -> None:
+        names: set[str] = set()
+        for int_conf in self._integration_configs.values():
+            names.update(_integration_default_service_names_from_config(int_conf))
+        self._integration_default_services = frozenset(names)
+
     def _add(self, integration, settings, merge=True):
         """Internal API that registers an integration with given default
         settings.
@@ -808,6 +824,8 @@ class Config(object):
             )
         else:
             self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
+
+        self._recompute_integration_default_services()
 
     @cachedmethod()
     def _header_tag_name(self, header_name: str) -> Optional[str]:
