@@ -58,6 +58,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
+from ddtrace.llmobs._constants import EXPERIMENT_DATASET_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_DATASET_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_NAME_KEY
@@ -1941,6 +1942,7 @@ class LLMObs(Service):
             (EXPERIMENT_RUN_ID_KEY, "run_id"),
             (EXPERIMENT_RUN_ITERATION_KEY, "run_iteration"),
             (EXPERIMENT_DATASET_NAME_KEY, "dataset_name"),
+            (EXPERIMENT_DATASET_ID_KEY, "dataset_id"),
             (EXPERIMENT_PROJECT_ID_KEY, "project_id"),
             (EXPERIMENT_PROJECT_NAME_KEY, "project_name"),
             (EXPERIMENT_NAME_KEY, "experiment_name"),
@@ -2233,6 +2235,7 @@ class LLMObs(Service):
         run_id: Optional[str] = None,
         run_iteration: Optional[int] = None,
         dataset_name: Optional[str] = None,
+        dataset_id: Optional[str] = None,
         project_name: Optional[str] = None,
         project_id: Optional[str] = None,
         experiment_name: Optional[str] = None,
@@ -2264,6 +2267,9 @@ class LLMObs(Service):
         if dataset_name:
             span.context.set_baggage_item(EXPERIMENT_DATASET_NAME_KEY, dataset_name)
             _annotate_llmobs_span_data(span, tags={"dataset_name": dataset_name})
+        if dataset_id:
+            span.context.set_baggage_item(EXPERIMENT_DATASET_ID_KEY, dataset_id)
+            _annotate_llmobs_span_data(span, tags={"dataset_id": dataset_id})
         if project_id:
             span.context.set_baggage_item(EXPERIMENT_PROJECT_ID_KEY, project_id)
             _annotate_llmobs_span_data(span, tags={"project_id": project_id})
