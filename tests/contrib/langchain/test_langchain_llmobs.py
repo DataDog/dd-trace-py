@@ -11,6 +11,9 @@ from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input_prompt
+from ddtrace.llmobs._utils import get_llmobs_metrics
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.trace import Span
 from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
 from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
@@ -176,7 +179,7 @@ class TestLangChainLLMObs:
         llm.invoke("What is the capital of France?")
         spans = _llmobs_spans(test_spans)
         assert len(spans) == 1
-        assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
+        assert get_llmobs_span_kind(spans[0]) == "llm"
 
 
     def test_llmobs_openai_chat_model(self, langchain_core, langchain_openai, test_spans, openai_url):
@@ -206,7 +209,7 @@ class TestLangChainLLMObs:
 
         spans = _llmobs_spans(test_spans)
         assert len(spans) == 1
-        metrics = _get_llmobs_data_metastruct(spans[0]).get("metrics") or {}
+        metrics = get_llmobs_metrics(spans[0]) or {}
         assert metrics.get("input_tokens") is None
         assert metrics.get("output_tokens") is None
         assert metrics.get("total_tokens") is None
@@ -233,7 +236,7 @@ class TestLangChainLLMObs:
         chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
         spans = _llmobs_spans(test_spans)
         assert len(spans) == 1
-        assert _get_llmobs_data_metastruct(spans[0])["meta"]["span"]["kind"] == "llm"
+        assert get_llmobs_span_kind(spans[0]) == "llm"
 
 
     def test_llmobs_string_prompt_template_invoke(self, langchain_core, langchain_openai, openai_url, test_spans):
@@ -250,7 +253,7 @@ class TestLangChainLLMObs:
 
         spans = _llmobs_spans(test_spans)
         assert len(spans) == 2
-        actual_prompt = _get_llmobs_data_metastruct(spans[1])["meta"]["input"]["prompt"]
+        actual_prompt = get_llmobs_input_prompt(spans[1])
         assert actual_prompt["id"] == "test_langchain_llmobs.prompt_template"
         assert actual_prompt["template"] == template_string
         assert actual_prompt["variables"] == variable_dict
@@ -277,7 +280,7 @@ class TestLangChainLLMObs:
         spans = _llmobs_spans(test_spans)
         assert len(spans) == 1  # Only LLM span, prompt template invoke doesn't create LLMObs event by itself
 
-        actual_prompt = _get_llmobs_data_metastruct(spans[0])["meta"]["input"]["prompt"]
+        actual_prompt = get_llmobs_input_prompt(spans[0])
         assert actual_prompt["id"] == "test_langchain_llmobs.greeting_template"
         assert actual_prompt["template"] == template_string
         assert actual_prompt["variables"] == variable_dict
@@ -298,7 +301,7 @@ class TestLangChainLLMObs:
 
         spans = _llmobs_spans(test_spans)
         assert len(spans) == 2
-        actual_prompt = _get_llmobs_data_metastruct(spans[1])["meta"]["input"]["prompt"]
+        actual_prompt = get_llmobs_input_prompt(spans[1])
         assert actual_prompt["id"] == "test_langchain_llmobs.prompt_template"
         assert actual_prompt["template"] == template_string
         assert actual_prompt["variables"] == variable_dict
@@ -320,7 +323,7 @@ class TestLangChainLLMObs:
 
         spans = _llmobs_spans(test_spans)
         assert len(spans) == 2
-        actual_prompt = _get_llmobs_data_metastruct(spans[1])["meta"]["input"]["prompt"]
+        actual_prompt = get_llmobs_input_prompt(spans[1])
         assert actual_prompt["id"] == "test_langchain_llmobs.single_variable_template"
         assert actual_prompt["template"] == template_string
         # Should convert string input to dict format with single variable
@@ -349,7 +352,7 @@ class TestLangChainLLMObs:
         assert len(spans) == 2
 
         # Verify the prompt structure in the LLM span
-        actual_prompt = _get_llmobs_data_metastruct(spans[1])["meta"]["input"]["prompt"]
+        actual_prompt = get_llmobs_input_prompt(spans[1])
         assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
         assert actual_prompt["variables"] == variable_dict
         assert actual_prompt.get("template") is None
@@ -383,7 +386,7 @@ class TestLangChainLLMObs:
         assert len(spans) == 1  # Only LLM span for direct invoke
 
         # Verify the prompt structure
-        actual_prompt = _get_llmobs_data_metastruct(spans[0])["meta"]["input"]["prompt"]
+        actual_prompt = get_llmobs_input_prompt(spans[0])
         assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
         assert actual_prompt["variables"] == variable_dict
         assert actual_prompt.get("template") is None
@@ -415,7 +418,7 @@ class TestLangChainLLMObs:
         assert len(spans) == 1  # Only LLM span for direct invoke
 
         # Verify the prompt structure
-        actual_prompt = _get_llmobs_data_metastruct(spans[0])["meta"]["input"]["prompt"]
+        actual_prompt = get_llmobs_input_prompt(spans[0])
         assert actual_prompt["id"] == "test_langchain_llmobs.multi_message_template"
         assert actual_prompt["variables"] == variable_dict
         assert actual_prompt.get("template") is None
@@ -452,7 +455,7 @@ class TestLangChainLLMObs:
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         }
-        assert _get_llmobs_data_metastruct(spans[1])["meta"]["input"]["prompt"] == expected_prompt
+        assert get_llmobs_input_prompt(spans[1]) == expected_prompt
 
 
     def test_llmobs_chain_nested(self, langchain_core, langchain_openai, openai_url, test_spans):
@@ -505,7 +508,7 @@ class TestLangChainLLMObs:
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         }
-        assert _get_llmobs_data_metastruct(spans[3])["meta"]["input"]["prompt"] == expected_prompt_3
+        assert get_llmobs_input_prompt(spans[3]) == expected_prompt_3
 
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[4]), **_llm_span_kwargs(spans[4], mock_token_metrics=True)
@@ -518,7 +521,7 @@ class TestLangChainLLMObs:
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         }
-        assert _get_llmobs_data_metastruct(spans[4])["meta"]["input"]["prompt"] == expected_prompt_4
+        assert get_llmobs_input_prompt(spans[4]) == expected_prompt_4
 
 
     @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 required")
@@ -546,7 +549,7 @@ class TestLangChainLLMObs:
                 _get_llmobs_data_metastruct(child),
                 **_llm_span_kwargs(child, input_role="user", mock_token_metrics=True),
             )
-            prompt_block = _get_llmobs_data_metastruct(child)["meta"]["input"]["prompt"]
+            prompt_block = get_llmobs_input_prompt(child)
             assert prompt_block["id"] == "langchain.unknown_prompt_template"
             assert prompt_block["ml_app"] == "langchain_test"
             assert prompt_block["chat_template"] == [{"content": "Tell me a short joke about {topic}", "role": "user"}]
