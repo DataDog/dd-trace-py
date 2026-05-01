@@ -2,6 +2,7 @@ import mock
 import pytest
 
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs.types import Message
 from tests.llmobs._utils import assert_llmobs_span_data
 
@@ -127,8 +128,7 @@ def test_llmobs_classify(vllm_llmobs, test_spans, bge_reranker_llm):
     # Spans may be returned in any order; match by input document text.
     spans_by_prompt = {}
     for span in spans:
-        meta_struct = _get_llmobs_data_metastruct(span)
-        documents = meta_struct.get("meta", {}).get("input", {}).get("documents", [])
+        documents = get_llmobs_input_documents(span) or []
         assert len(documents) == 1
         spans_by_prompt[documents[0]["text"]] = span
 
@@ -173,8 +173,7 @@ def test_llmobs_embed(vllm_llmobs, test_spans, e5_small_llm):
 
     spans_by_prompt = {}
     for span in spans:
-        meta_struct = _get_llmobs_data_metastruct(span)
-        documents = meta_struct.get("meta", {}).get("input", {}).get("documents", [])
+        documents = get_llmobs_input_documents(span) or []
         assert len(documents) == 1
         spans_by_prompt[documents[0]["text"]] = span
 
@@ -219,8 +218,7 @@ def test_llmobs_reward(vllm_llmobs, test_spans, bge_reranker_llm):
 
     spans_by_prompt = {}
     for span in spans:
-        meta_struct = _get_llmobs_data_metastruct(span)
-        documents = meta_struct.get("meta", {}).get("input", {}).get("documents", [])
+        documents = get_llmobs_input_documents(span) or []
         assert len(documents) == 1
         spans_by_prompt[documents[0]["text"]] = span
 
@@ -287,10 +285,9 @@ def test_llmobs_score(vllm_llmobs, test_spans, bge_reranker_llm):
     }
 
     for span in spans:
-        meta_struct = _get_llmobs_data_metastruct(span)
-        token_text = meta_struct["meta"]["input"]["documents"][0]["text"]
+        token_text = get_llmobs_input_documents(span)[0]["text"]
         assert_llmobs_span_data(
-            meta_struct,
+            _get_llmobs_data_metastruct(span),
             span_kind="embedding",
             model_name="BAAI/bge-reranker-v2-m3",
             model_provider="vllm",
