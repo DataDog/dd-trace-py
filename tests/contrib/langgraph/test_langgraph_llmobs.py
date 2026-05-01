@@ -5,6 +5,11 @@ import pytest
 
 from ddtrace.contrib.internal.langgraph.patch import LANGGRAPH_VERSION
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_metadata
+from ddtrace.llmobs._utils import get_llmobs_output
+from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import get_llmobs_span_links
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.llmobs._utils import _assert_span_link
 
 
@@ -26,21 +31,21 @@ def _link_view(span):
     """
     return {
         "span_id": str(span.span_id),
-        "span_links": _get_llmobs_data_metastruct(span).get("span_links", []),
+        "span_links": get_llmobs_span_links(span) or [],
     }
 
 
 def _find_span_by_name(spans, name):
     """Find a single span by its LLMObs meta_struct name."""
     for span in spans:
-        if _get_llmobs_data_metastruct(span).get("name") == name:
+        if get_llmobs_span_name(span) == name:
             return span
     assert False, f"Span '{name}' not found in spans"
 
 
 def _find_spans_by_name(spans, names):
     """Find multiple spans by name, sorted by start_ns."""
-    matched = [span for span in spans if _get_llmobs_data_metastruct(span).get("name") in names]
+    matched = [span for span in spans if get_llmobs_span_name(span) in names]
     if len(matched) != len(names):
         assert False, f"Spans {names} not found in spans"
     return sorted(matched, key=lambda s: s.start_ns)
@@ -66,7 +71,7 @@ class TestLangGraphLLMObs:
 
         # Check that the graph span has the appropriate output
         # stream_mode=["values"] should result in the last yield being a tuple
-        graph_output = _get_llmobs_data_metastruct(graph_span).get("meta", {}).get("output", {})
+        graph_output = get_llmobs_output(graph_span) or {}
         assert graph_output.get("value") == json.dumps({"a_list": ["a", "b"], "which": "a"})
 
     async def test_simple_graph_async(self, test_spans, simple_graph):
@@ -83,7 +88,7 @@ class TestLangGraphLLMObs:
 
         # Check that the graph span has the appropriate output
         # default stream_mode of "values" should result in the last yield being an object
-        graph_output = _get_llmobs_data_metastruct(graph_span).get("meta", {}).get("output", {})
+        graph_output = get_llmobs_output(graph_span) or {}
         assert graph_output.get("value") == json.dumps({"a_list": ["a", "b"], "which": "a"})
 
     def test_conditional_graph(self, test_spans, conditional_graph):
@@ -174,7 +179,7 @@ class TestLangGraphLLMObs:
         c_span = _find_span_by_name(spans, "c")
         d_span = _find_span_by_name(spans, "d")
 
-        assert _get_llmobs_data_metastruct(graph_span).get("name") == "LangGraph"
+        assert get_llmobs_span_name(graph_span) == "LangGraph"
         _assert_span_link(None, _link_view(graph_span), "input", "input")
         _assert_span_link(_link_view(d_span), _link_view(graph_span), "output", "output")
         _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
@@ -330,8 +335,8 @@ class TestLangGraphLLMObs:
         _assert_span_link(_link_view(graph_span), _link_view(a_span), "input", "input")
         _assert_span_link(_link_view(a_span), _link_view(b_span), "output", "input")
 
-        a_output = _get_llmobs_data_metastruct(a_span).get("meta", {}).get("output", {})
-        b_output = _get_llmobs_data_metastruct(b_span).get("meta", {}).get("output", {})
+        a_output = get_llmobs_output(a_span) or {}
+        b_output = get_llmobs_output(b_span) or {}
         assert a_output.get("value") is not None
         assert b_output.get("value") is not None
 
@@ -376,9 +381,9 @@ class TestLangGraphLLMObs:
             "tools": [],
         }
 
-        agent_a_metadata = _get_llmobs_data_metastruct(agent_a_span).get("meta", {}).get("metadata", {})
-        conditional_metadata = _get_llmobs_data_metastruct(conditional_agent_span).get("meta", {}).get("metadata", {})
-        agent_d_metadata = _get_llmobs_data_metastruct(agent_d_span).get("meta", {}).get("metadata", {})
+        agent_a_metadata = get_llmobs_metadata(agent_a_span) or {}
+        conditional_metadata = get_llmobs_metadata(conditional_agent_span) or {}
+        agent_d_metadata = get_llmobs_metadata(agent_d_span) or {}
 
         assert agent_a_metadata.get("_dd", {}).get("agent_manifest") == expected_agent_a_manifest
         assert conditional_metadata.get("_dd", {}).get("agent_manifest") == expected_conditional_agent_manifest
@@ -422,7 +427,7 @@ class TestLangGraphLLMObs:
             "instructions": "You are a helpful assistant who talks with a Boston accent but is also very nice. You speak in full sentences with at least 15 words.",  # noqa: E501
         }
 
-        react_agent_metadata = _get_llmobs_data_metastruct(react_agent_span).get("meta", {}).get("metadata", {})
+        react_agent_metadata = get_llmobs_metadata(react_agent_span) or {}
         assert react_agent_metadata.get("_dd", {}).get("agent_manifest") == expected_agent_manifest
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
@@ -455,7 +460,7 @@ class TestLangGraphLLMObs:
             ],
         }
 
-        agent_metadata = _get_llmobs_data_metastruct(agent_span).get("meta", {}).get("metadata", {})
+        agent_metadata = get_llmobs_metadata(agent_span) or {}
         assert agent_metadata.get("_dd", {}).get("agent_manifest") == expected_agent_manifest
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
@@ -469,7 +474,7 @@ class TestLangGraphLLMObs:
 
         agent_span = _find_span_by_name(spans, "agent")
 
-        agent_metadata = _get_llmobs_data_metastruct(agent_span).get("meta", {}).get("metadata", {})
+        agent_metadata = get_llmobs_metadata(agent_span) or {}
         assert agent_metadata.get("_dd", {}).get("agent_manifest", {}).get("max_iterations") == 100
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
@@ -495,16 +500,12 @@ class TestLangGraphLLMObs:
         tool_span = llmobs_spans[4]
         second_llm_span = llmobs_spans[6]
 
-        first_llm_meta = _get_llmobs_data_metastruct(first_llm_span).get("meta", {})
-        tool_meta = _get_llmobs_data_metastruct(tool_span).get("meta", {})
-        second_llm_meta = _get_llmobs_data_metastruct(second_llm_span).get("meta", {})
+        assert get_llmobs_span_kind(first_llm_span) == "llm"
+        assert get_llmobs_span_kind(tool_span) == "tool"
+        assert get_llmobs_span_kind(second_llm_span) == "llm"
 
-        assert first_llm_meta.get("span", {}).get("kind") == "llm"
-        assert tool_meta.get("span", {}).get("kind") == "tool"
-        assert second_llm_meta.get("span", {}).get("kind") == "llm"
-
-        tool_links = _get_llmobs_data_metastruct(tool_span).get("span_links", [])
-        second_llm_links = _get_llmobs_data_metastruct(second_llm_span).get("span_links", [])
+        tool_links = get_llmobs_span_links(tool_span) or []
+        second_llm_links = get_llmobs_span_links(second_llm_span) or []
 
         # assert llm -> tool span link
         assert tool_links[1]["span_id"] == str(first_llm_span.span_id)
