@@ -9,6 +9,8 @@ import mock
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_span_name
+from ddtrace.llmobs._utils import get_llmobs_tags
 from tests.llmobs._utils import assert_llmobs_span_data
 from tests.utils import override_config
 
@@ -410,8 +412,8 @@ def test_intent_capture_records_intent_on_span_meta(mcp_setup, mcp_llmobs, test_
         (
             s
             for s in all_spans
-            if _get_llmobs_data_metastruct(s).get("name") == "calculator"
-            and _get_llmobs_data_metastruct(s).get("tags", {}).get("mcp_tool_kind") == "server"
+            if get_llmobs_span_name(s) == "calculator"
+            and (get_llmobs_tags(s) or {}).get("mcp_tool_kind") == "server"
         ),
         None,
     )
