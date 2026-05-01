@@ -145,6 +145,7 @@ from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.llmobs._writer import maybe_swap_apm_trace_writer
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
@@ -447,6 +448,14 @@ class LLMObs(Service):
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
         self._export_llmobs = _env.get("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
+        # AIDEV-NOTE: agentless APM trace writers carry the LLMObs meta_struct themselves;
+        # leaving _DD_LLMOBS_EXPORT=llmobs would cause double submission via the LLMObs writer.
+        if self._export_llmobs and (config._trace_agentless_enabled or config._llmobs_agentless_enabled is True):
+            log.warning(
+                "_DD_LLMOBS_EXPORT=llmobs is ignored because the APM trace writer is configured "
+                "for agentless export; coercing to 'apm' to prevent double submission of LLMObs data."
+            )
+            self._export_llmobs = False
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
@@ -836,6 +845,9 @@ class LLMObs(Service):
             # written the appropriate source; stamping "code" would mask it on precedence.
             if not _auto:
                 config._llmobs_enabled = True
+            # AIDEV-NOTE: must run after config._llmobs_enabled is set so the reconciliation
+            # helper sees the correct state.
+            maybe_swap_apm_trace_writer()
             cls._instance.start()
 
             # Register hooks for span events

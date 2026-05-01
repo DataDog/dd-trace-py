@@ -1059,22 +1059,29 @@ def _use_sync_mode() -> bool:
     )
 
 
-def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], None]] = None) -> TraceWriter:
+def create_trace_writer(
+    response_callback: Optional[Callable[[AgentResponse], None]] = None,
+    agentless: bool = False,
+) -> TraceWriter:
+    """Build the APM trace writer.
+
+    ``agentless=True`` always returns an :class:`AgentlessTraceWriter`; the caller owns the
+    precondition (``DD_API_KEY`` etc.) — see
+    :func:`ddtrace._trace.processor._resolve_apm_trace_agentless`.
+    """
     if _use_log_writer():
         return LogWriter()
 
-    if config._trace_agentless_enabled:
-        if config._dd_api_key:
-            intake_url = "https://{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, config._dd_site)
-            verify_url(intake_url)
-            return AgentlessTraceWriter(
-                intake_url=intake_url,
-                api_key=config._dd_api_key,
-                dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
-                sync_mode=_use_sync_mode(),
-                report_metrics=not asm_config._apm_opt_out,
-            )
-        log.warning("APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.")
+    if agentless:
+        intake_url = "https://{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, config._dd_site)
+        verify_url(intake_url)
+        return AgentlessTraceWriter(
+            intake_url=intake_url,
+            api_key=config._dd_api_key,
+            dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
+            sync_mode=_use_sync_mode(),
+            report_metrics=not asm_config._apm_opt_out,
+        )
 
     verify_url(agent_config.trace_agent_url)
 

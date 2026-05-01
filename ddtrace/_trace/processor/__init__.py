@@ -28,6 +28,7 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import create_trace_writer
 
@@ -273,6 +274,21 @@ class _Trace:
         return finished
 
 
+def _resolve_apm_trace_agentless() -> bool:
+    """Whether the APM trace writer should run in agentless mode.
+
+    Falls back (returns False with a warning) when agentless is requested but ``DD_API_KEY``
+    is unset.
+    """
+    requested = config._trace_agentless_enabled or (config._llmobs_enabled and config._llmobs_agentless_enabled is True)
+    if not requested:
+        return False
+    if not config._dd_api_key:
+        log.warning("APM Agentless requested but DD_API_KEY is not set. Agentless mode will be disabled.")
+        return False
+    return True
+
+
 class SpanAggregator(SpanProcessor):
     """Processor that aggregates spans together by trace_id and writes the
     spans to the provided writer when:
@@ -309,7 +325,10 @@ class SpanAggregator(SpanProcessor):
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
         self.service_name_processor = ServiceNameProcessor()
-        self.writer = create_trace_writer(response_callback=self._agent_response_callback)
+        self.writer = create_trace_writer(
+            response_callback=self._agent_response_callback,
+            agentless=_resolve_apm_trace_agentless(),
+        )
         # Initialize the trace buffer and lock
         self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
         self._lock: RLock = RLock()
@@ -473,6 +492,24 @@ class SpanAggregator(SpanProcessor):
                     TELEMETRY_NAMESPACE.TRACERS, metric_name, count, tags=((tag_name, tag_value),)
                 )
             self._span_metrics[metric_name] = defaultdict(int)
+
+    def swap_to_agentless_writer(self) -> bool:
+        """Swap to an :class:`AgentlessTraceWriter` if config now requires agentless and the
+        writer isn't already. Returns True when the writer was swapped.
+        """
+        if isinstance(self.writer, AgentlessTraceWriter) or not _resolve_apm_trace_agentless():
+            return False
+        old_writer = self.writer
+        self.writer = create_trace_writer(response_callback=self._agent_response_callback, agentless=True)
+        try:
+            old_writer.flush_queue()
+        except Exception:
+            log.debug("Failed to flush previous APM trace writer during swap; continuing.", exc_info=True)
+        try:
+            old_writer.stop()
+        except Exception:
+            log.debug("Failed to stop previous APM trace writer during swap; continuing.", exc_info=True)
+        return True
 
     def reset(
         self,

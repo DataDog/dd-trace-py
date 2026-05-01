@@ -13,6 +13,7 @@ import urllib
 from urllib.parse import quote
 from urllib.parse import urlparse
 
+import ddtrace
 from ddtrace import config
 from ddtrace.internal import agent
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
@@ -162,6 +163,28 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
 
     endpoints = agent_info.get("endpoints", [])
     return not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
+
+
+def llmobs_apm_trace_agentless_enabled() -> bool:
+    """Whether LLMObs config requires the APM trace writer to be agentless.
+
+    Auto-detects via :func:`should_use_agentless` only when the user hasn't expressed a
+    preference (``DD_LLMOBS_AGENTLESS_ENABLED`` unset and no programmatic value resolved yet).
+    """
+    if not config._llmobs_enabled or not config._dd_api_key:
+        return False
+    if config._llmobs_agentless_enabled is True:
+        return True
+    if config._llmobs_agentless_enabled is None:
+        return should_use_agentless()
+    return False
+
+
+def maybe_swap_apm_trace_writer() -> bool:
+    """Trigger an APM trace writer swap on the global tracer when LLMObs goes agentless mid-process."""
+    if not (config._trace_agentless_enabled or llmobs_apm_trace_agentless_enabled()):
+        return False
+    return ddtrace.tracer._span_aggregator.swap_to_agentless_writer()
 
 
 class BaseLLMObsWriter(PeriodicService):
