@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_name
@@ -274,21 +275,18 @@ def _assert_simple_flow_events(spans):
     assert get_llmobs_output_value(spans[1]) == "New York City"
     assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[2]), span_kind="task", **EXPECTED_SPAN_KWARGS)
     if CREWAI_VERSION >= (0, 119, 0):  # Tracking I/O and state management only available CrewAI >=0.119.0
-        meta_0 = _get_llmobs_data_metastruct(spans[0])
-        meta_1 = _get_llmobs_data_metastruct(spans[1])
-        meta_2 = _get_llmobs_data_metastruct(spans[2])
-        input_val = json.loads(meta_0["meta"]["input"]["value"])
+        input_val = json.loads(get_llmobs_input_value(spans[0]))
         assert input_val == {"continent": "North America"}
-        assert meta_0["meta"]["output"]["value"] == fun_fact_text
-        input_val = json.loads(meta_1["meta"]["input"]["value"])
+        assert get_llmobs_output_value(spans[0]) == fun_fact_text
+        input_val = json.loads(get_llmobs_input_value(spans[1]))
         assert input_val["args"] == []
         assert input_val["kwargs"] == {}
         assert input_val["flow_state"] == {"id": mock.ANY, "continent": "North America"}
-        input_val = json.loads(meta_2["meta"]["input"]["value"])
+        input_val = json.loads(get_llmobs_input_value(spans[2]))
         assert input_val["args"] == ["New York City"]
         assert input_val["kwargs"] == {}
         assert input_val["flow_state"] == {"id": mock.ANY, "continent": "North America"}
-        assert meta_2["meta"]["output"]["value"] == fun_fact_text
+        assert get_llmobs_output_value(spans[2]) == fun_fact_text
 
 
 def _assert_simple_flow_links(spans):
