@@ -7,8 +7,13 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_metadata
+from ddtrace.llmobs._utils import get_llmobs_model_name
 from ddtrace.llmobs._utils import get_llmobs_model_provider
+from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.openai.utils import assert_prompt_tracking
 from tests.contrib.openai.utils import chat_completion_custom_functions
@@ -718,8 +723,7 @@ class TestLLMObsOpenaiV1:
                         resp_model = chunk.chunk.model
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        llmobs_span_event = _get_llmobs_data_metastruct(spans[0])
-        assert llmobs_span_event["meta"]["metadata"]["stream_options"]["include_usage"] is True
+        assert get_llmobs_metadata(spans[0])["stream_options"]["include_usage"] is True
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
             span_kind="llm",
@@ -1391,11 +1395,9 @@ MUL: "*"
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        span_event = _get_llmobs_data_metastruct(spans[0])
-
-        assert span_event["name"] == "Deepseek.createChatCompletion"
-        assert span_event["meta"]["model_provider"] == "deepseek"
-        assert span_event["meta"]["model_name"] == "deepseek-chat"
+        assert get_llmobs_span_name(spans[0]) == "Deepseek.createChatCompletion"
+        assert get_llmobs_model_provider(spans[0]) == "deepseek"
+        assert get_llmobs_model_name(spans[0]) == "deepseek-chat"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
@@ -2059,9 +2061,9 @@ MUL: "*"
 
         # special assertion on rough reasoning content
         spans = [s for trace in test_spans.pop_traces() for s in trace]
-        span_event = _get_llmobs_data_metastruct(spans[0])
-        reasoning_content = json.loads(span_event["meta"]["output"]["messages"][0]["content"])
-        assistant_content = span_event["meta"]["output"]["messages"][1]["content"]
+        output_messages = get_llmobs_output_messages(spans[0])
+        reasoning_content = json.loads(output_messages[0]["content"])
+        assistant_content = output_messages[1]["content"]
         assert reasoning_content["summary"] is not None
         assert assistant_content == "The number is 9, since 1 + x = 10 ⇒ x = 10 − 1 = 9."
 
@@ -2092,9 +2094,8 @@ MUL: "*"
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        span_event = _get_llmobs_data_metastruct(spans[0])
         assert (
-            span_event["meta"]["input"]["messages"][2]["tool_results"][0]["result"]
+            get_llmobs_input_messages(spans[0])[2]["tool_results"][0]["result"]
             == '{"temperature": "72°F", "conditions": "sunny", "humidity": "65%"}'
         )
 
