@@ -8,15 +8,6 @@ from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import assert_llmobs_span_data
 
 
-LLMOBS_GLOBAL_CONFIG = dict(
-    _dd_api_key="<not-a-real-api_key>",
-    _llmobs_ml_app="<ml-app-name>",
-    _llmobs_enabled=True,
-    _llmobs_sample_rate=1.0,
-    service="tests.contrib.agents",
-)
-
-
 COMMON_TAGS = {"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"}
 
 
@@ -259,9 +250,8 @@ def _assert_expected_agent_run(
     return previous_tool_spans
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 @pytest.mark.asyncio
-async def test_llmobs_single_agent(agents, test_spans, request_vcr, simple_agent):
+async def test_llmobs_single_agent(agents, openai_agents_llmobs, test_spans, request_vcr, simple_agent):
     """Test tracing with a simple agent with no tools or handoffs"""
     with request_vcr.use_cassette("test_simple_agent.yaml"):
         result = await agents.Runner.run(simple_agent, "What is the capital of France?")
@@ -299,9 +289,8 @@ async def test_llmobs_single_agent(agents, test_spans, request_vcr, simple_agent
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 @pytest.mark.asyncio
-async def test_llmobs_streamed_single_agent(agents, test_spans, request_vcr, simple_agent):
+async def test_llmobs_streamed_single_agent(agents, openai_agents_llmobs, test_spans, request_vcr, simple_agent):
     from openai.types.responses import ResponseTextDeltaEvent
 
     final_output = ""
@@ -345,8 +334,7 @@ async def test_llmobs_streamed_single_agent(agents, test_spans, request_vcr, sim
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_llmobs_single_agent_sync(agents, test_spans, request_vcr, simple_agent):
+def test_llmobs_single_agent_sync(agents, openai_agents_llmobs, test_spans, request_vcr, simple_agent):
     """Test tracing with a simple agent with no tools or handoffs"""
     with request_vcr.use_cassette("test_simple_agent.yaml"):
         result = agents.Runner.run_sync(simple_agent, "What is the capital of France?")
@@ -384,9 +372,8 @@ def test_llmobs_single_agent_sync(agents, test_spans, request_vcr, simple_agent)
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 @pytest.mark.asyncio
-async def test_llmobs_manual_tracing_llmobs(agents, test_spans, request_vcr, simple_agent):
+async def test_llmobs_manual_tracing_llmobs(agents, openai_agents_llmobs, test_spans, request_vcr, simple_agent):
     from agents.tracing import custom_span
     from agents.tracing import trace
 
@@ -436,9 +423,10 @@ async def test_llmobs_manual_tracing_llmobs(agents, test_spans, request_vcr, sim
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 @pytest.mark.asyncio
-async def test_llmobs_single_agent_with_tool_calls_llmobs(agents, test_spans, request_vcr, addition_agent):
+async def test_llmobs_single_agent_with_tool_calls_llmobs(
+    agents, openai_agents_llmobs, test_spans, request_vcr, addition_agent
+):
     with request_vcr.use_cassette("test_single_agent_with_tool_calls.yaml"):
         result = await agents.Runner.run(addition_agent, "What is the sum of 1 and 2?")
 
@@ -507,9 +495,10 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(agents, test_spans, re
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 @pytest.mark.asyncio
-async def test_llmobs_single_agent_with_ootb_tools(agents, test_spans, request_vcr, weather_agent):
+async def test_llmobs_single_agent_with_ootb_tools(
+    agents, openai_agents_llmobs, test_spans, request_vcr, weather_agent
+):
     with request_vcr.use_cassette("test_single_agent_with_ootb_tools.yaml"):
         result = await agents.Runner.run(weather_agent, "What is the weather like in New York right now?")
 
@@ -549,9 +538,8 @@ async def test_llmobs_single_agent_with_ootb_tools(agents, test_spans, request_v
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 @pytest.mark.asyncio
-async def test_llmobs_multiple_agent_handoffs(agents, test_spans, request_vcr, research_workflow):
+async def test_llmobs_multiple_agent_handoffs(agents, openai_agents_llmobs, test_spans, request_vcr, research_workflow):
     with request_vcr.use_cassette("test_multiple_agent_handoffs.yaml"):
         result = await agents.Runner.run(
             research_workflow, "What is a brief summary of what happened yesterday in the soccer world??"
@@ -666,9 +654,10 @@ async def test_llmobs_multiple_agent_handoffs(agents, test_spans, request_vcr, r
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 @pytest.mark.asyncio
-async def test_llmobs_single_agent_with_tool_errors(agents, test_spans, request_vcr, addition_agent_with_tool_errors):
+async def test_llmobs_single_agent_with_tool_errors(
+    agents, openai_agents_llmobs, test_spans, request_vcr, addition_agent_with_tool_errors
+):
     with request_vcr.use_cassette("test_agent_with_tool_errors.yaml"):
         result = await agents.Runner.run(addition_agent_with_tool_errors, "What is the sum of 1 and 2?")
     spans = [s for trace in test_spans.pop_traces() for s in trace]
@@ -748,10 +737,9 @@ async def test_llmobs_single_agent_with_tool_errors(agents, test_spans, request_
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 @pytest.mark.asyncio
 async def test_llmobs_oai_agents_with_chat_completions_span_linking(
-    agents, openai, test_spans, request_vcr, research_workflow
+    agents, openai, openai_agents_llmobs, test_spans, request_vcr, research_workflow
 ):
     with request_vcr.use_cassette("test_multiple_agent_handoffs_with_chat_completions.yaml"):
         result = await agents.Runner.run(
@@ -796,9 +784,8 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
     )
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
 async def test_llmobs_oai_agents_with_guardrail_spans(
-    agents, openai, test_spans, request_vcr, simple_agent_with_guardrail
+    agents, openai, openai_agents_llmobs, test_spans, request_vcr, simple_agent_with_guardrail
 ):
     with request_vcr.use_cassette("test_oai_agents_with_guardrail_spans.yaml"):
         await agents.Runner.run(simple_agent_with_guardrail, "What is the sum of 1 and 2?")
