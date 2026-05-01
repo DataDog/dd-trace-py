@@ -6,6 +6,9 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_output_value
+from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.contrib.crewai.utils import fun_fact_text
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import assert_llmobs_span_data
@@ -116,7 +119,7 @@ def _expected_tool_kwargs():
 
 def _llmobs_name(span):
     """Return the LLMObs span name as projected to the wire (matches event['name'])."""
-    return _get_llmobs_data_metastruct(span).get("name") or span.name
+    return get_llmobs_span_name(span) or span.name
 
 
 def _link_event(span):
@@ -142,10 +145,10 @@ def _assert_basic_crew_events(spans):
         kwargs = _expected_agent_kwargs(_llmobs_name(span)) if kind == "agent" else EXPECTED_SPAN_KWARGS
         assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind=kind, **kwargs)
     # assert parent_id chain: workflow -> task -> agent
-    assert _get_llmobs_data_metastruct(spans[1])["parent_id"] == str(spans[0].span_id)  # task -> workflow
-    assert _get_llmobs_data_metastruct(spans[2])["parent_id"] == str(spans[1].span_id)  # agent -> task
-    assert _get_llmobs_data_metastruct(spans[3])["parent_id"] == str(spans[0].span_id)  # task -> workflow
-    assert _get_llmobs_data_metastruct(spans[4])["parent_id"] == str(spans[3].span_id)  # agent -> task
+    assert get_llmobs_parent_id(spans[1]) == str(spans[0].span_id)  # task -> workflow
+    assert get_llmobs_parent_id(spans[2]) == str(spans[1].span_id)  # agent -> task
+    assert get_llmobs_parent_id(spans[3]) == str(spans[0].span_id)  # task -> workflow
+    assert get_llmobs_parent_id(spans[4]) == str(spans[3].span_id)  # agent -> task
 
 
 def _assert_basic_crew_links(spans):
@@ -171,9 +174,9 @@ def _assert_tool_crew_events(spans):
     )
     assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[3]), span_kind="tool", **_expected_tool_kwargs())
     # assert parent_id chain: workflow -> task -> agent -> tool
-    assert _get_llmobs_data_metastruct(spans[1])["parent_id"] == str(spans[0].span_id)  # task -> workflow
-    assert _get_llmobs_data_metastruct(spans[2])["parent_id"] == str(spans[1].span_id)  # agent -> task
-    assert _get_llmobs_data_metastruct(spans[3])["parent_id"] == str(spans[2].span_id)  # tool -> agent
+    assert get_llmobs_parent_id(spans[1]) == str(spans[0].span_id)  # task -> workflow
+    assert get_llmobs_parent_id(spans[2]) == str(spans[1].span_id)  # agent -> task
+    assert get_llmobs_parent_id(spans[3]) == str(spans[2].span_id)  # tool -> agent
 
 
 def _assert_tool_crew_links(spans):
@@ -200,10 +203,10 @@ def _assert_async_crew_events(spans):
         _get_llmobs_data_metastruct(spans[5]), span_kind="agent", **_expected_agent_kwargs(_llmobs_name(spans[5]))
     )
     # assert parent_id chain: workflow -> task -> agent, workflow -> task -> agent
-    assert _get_llmobs_data_metastruct(spans[1])["parent_id"] == str(spans[0].span_id)  # task -> workflow
-    assert _get_llmobs_data_metastruct(spans[2])["parent_id"] == str(spans[1].span_id)  # agent -> task
-    assert _get_llmobs_data_metastruct(spans[4])["parent_id"] == str(spans[0].span_id)  # task -> workflow
-    assert _get_llmobs_data_metastruct(spans[5])["parent_id"] == str(spans[4].span_id)  # agent -> task
+    assert get_llmobs_parent_id(spans[1]) == str(spans[0].span_id)  # task -> workflow
+    assert get_llmobs_parent_id(spans[2]) == str(spans[1].span_id)  # agent -> task
+    assert get_llmobs_parent_id(spans[4]) == str(spans[0].span_id)  # task -> workflow
+    assert get_llmobs_parent_id(spans[5]) == str(spans[4].span_id)  # agent -> task
 
 
 def _assert_async_crew_links(spans):
@@ -268,7 +271,7 @@ def _assert_simple_flow_events(spans):
     assert len(spans) == 3
     assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="workflow", **EXPECTED_SPAN_KWARGS)
     assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[1]), span_kind="task", **EXPECTED_SPAN_KWARGS)
-    assert _get_llmobs_data_metastruct(spans[1])["meta"]["output"]["value"] == "New York City"
+    assert get_llmobs_output_value(spans[1]) == "New York City"
     assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[2]), span_kind="task", **EXPECTED_SPAN_KWARGS)
     if CREWAI_VERSION >= (0, 119, 0):  # Tracking I/O and state management only available CrewAI >=0.119.0
         meta_0 = _get_llmobs_data_metastruct(spans[0])
