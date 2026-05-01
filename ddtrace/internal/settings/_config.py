@@ -48,6 +48,7 @@ from .integration import IntegrationConfig
 log = get_logger(__name__)
 
 ENDPOINT_FETCHED_CONFIG = fetch_config_from_endpoint()
+DEFAULT_SERVICE_KEYS = frozenset(["_default_service", "_default_service_worker", "_default_service_producer"])
 
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"(?ix)"
@@ -210,10 +211,9 @@ INTEGRATION_CONFIGS = frozenset(
 
 
 def _integration_default_service_names_from_config(int_config: IntegrationConfig) -> set[str]:
-    """Collect non-empty ``str`` values for keys such as ``_default_service`` or ``_default_service_worker``."""
     names: set[str] = set()
-    for key, value in int_config.items():
-        if isinstance(key, str) and key.startswith("_default_service") and isinstance(value, str) and value:
+    for attribute in DEFAULT_SERVICE_KEYS:
+        if value := int_config.get(attribute):
             names.add(value)
     return names
 

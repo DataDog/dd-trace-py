@@ -1,0 +1,33 @@
+[[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_anthropic.chat_models.ChatAnthropic",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.llmobs.model_name": "claude-sonnet-4-5-20250929",
+      "_dd.llmobs.model_provider": "anthropic",
+      "_dd.llmobs.span_kind": "llm",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69f4e71000000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
+      "langchain.request.model": "claude-sonnet-4-5-20250929",
+      "langchain.request.provider": "anthropic",
+      "language": "python",
+      "runtime-id": "4e25b464197040e8a04da8a4bd075a09"
+    },
+    "metrics": {
+      "_dd.llmobs.enabled": 0.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 91674.0
+    },
+    "duration": 56911542,
+    "start": 1777657616538871875
+  }]]
