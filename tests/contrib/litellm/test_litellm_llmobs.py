@@ -5,6 +5,7 @@ from ddtrace._monkey import patch
 from ddtrace.contrib.internal.litellm.patch import get_version
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_metrics
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -662,9 +663,8 @@ def test_completion_litellm_proxy_model_not_suppressed_when_openai_enabled(
             )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1
-    data = _get_llmobs_data_metastruct(spans[0])
-    assert data["meta"]["input"]["messages"] == messages
-    assert data["meta"]["output"]["messages"]
+    assert get_llmobs_input_messages(spans[0]) == messages
+    assert get_llmobs_output_messages(spans[0])
 
 
 @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
@@ -684,9 +684,8 @@ def test_completion_use_litellm_proxy_kwarg_not_suppressed_when_openai_enabled(
             )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1
-    data = _get_llmobs_data_metastruct(spans[0])
-    assert data["meta"]["input"]["messages"] == messages
-    assert data["meta"]["output"]["messages"]
+    assert get_llmobs_input_messages(spans[0]) == messages
+    assert get_llmobs_output_messages(spans[0])
 
 
 @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
@@ -706,9 +705,8 @@ def test_completion_use_litellm_proxy_module_flag_not_suppressed_when_openai_ena
                 )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1
-    data = _get_llmobs_data_metastruct(spans[0])
-    assert data["meta"]["input"]["messages"] == messages
-    assert data["meta"]["output"]["messages"]
+    assert get_llmobs_input_messages(spans[0]) == messages
+    assert get_llmobs_output_messages(spans[0])
 
 
 @pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
@@ -728,9 +726,8 @@ def test_completion_use_litellm_proxy_env_var_not_suppressed_when_openai_enabled
             )
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1
-    data = _get_llmobs_data_metastruct(spans[0])
-    assert data["meta"]["input"]["messages"] == messages
-    assert data["meta"]["output"]["messages"]
+    assert get_llmobs_input_messages(spans[0]) == messages
+    assert get_llmobs_output_messages(spans[0])
 
 
 @pytest.mark.parametrize(
