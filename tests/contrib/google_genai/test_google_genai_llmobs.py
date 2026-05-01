@@ -45,11 +45,8 @@ WEATHER_TOOL_DEFINITIONS = [
 ]
 
 
-@pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
-)
 class TestLLMObsGoogleGenAI:
-    def test_generate_content(self, genai_client, test_spans, mock_generate_content):
+    def test_generate_content(self, genai_client, genai_llmobs, test_spans, mock_generate_content):
         genai_client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -73,7 +70,7 @@ class TestLLMObsGoogleGenAI:
         )
 
     def test_generate_content_with_reasoning_tokens(
-        self, genai_client, test_spans, mock_generate_content_with_reasoning
+        self, genai_client, genai_llmobs, test_spans, mock_generate_content_with_reasoning
     ):
         genai_client.models.generate_content(
             model="gemini-2.5-pro",
@@ -105,7 +102,7 @@ class TestLLMObsGoogleGenAI:
             tags=COMMON_TAGS,
         )
 
-    def test_generate_content_error(self, genai_client, test_spans, mock_generate_content):
+    def test_generate_content_error(self, genai_client, genai_llmobs, test_spans, mock_generate_content):
         with pytest.raises(TypeError):
             genai_client.models.generate_content(
                 model="gemini-2.0-flash-001",
@@ -136,7 +133,7 @@ class TestLLMObsGoogleGenAI:
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
     def test_generate_content_stream(
-        self, genai_client, test_spans, mock_generate_content_stream, consume_stream
+        self, genai_client, genai_llmobs, test_spans, mock_generate_content_stream, consume_stream
     ):
         response = genai_client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
@@ -161,7 +158,7 @@ class TestLLMObsGoogleGenAI:
             tags=COMMON_TAGS,
         )
 
-    def test_generate_content_stream_error(self, genai_client, test_spans, mock_generate_content_stream):
+    def test_generate_content_stream_error(self, genai_client, genai_llmobs, test_spans, mock_generate_content_stream):
         with pytest.raises(TypeError):
             genai_client.models.generate_content_stream(
                 model="gemini-2.0-flash-001",
@@ -190,7 +187,7 @@ class TestLLMObsGoogleGenAI:
             tags=COMMON_TAGS,
         )
 
-    async def test_generate_content_async(self, genai_client, test_spans, mock_async_generate_content):
+    async def test_generate_content_async(self, genai_client, genai_llmobs, test_spans, mock_async_generate_content):
         await genai_client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
@@ -214,7 +211,7 @@ class TestLLMObsGoogleGenAI:
         )
 
     async def test_generate_content_async_error(
-        self, genai_client, test_spans, mock_async_generate_content
+        self, genai_client, genai_llmobs, test_spans, mock_async_generate_content
     ):
         with pytest.raises(TypeError):
             await genai_client.aio.models.generate_content(
@@ -246,7 +243,7 @@ class TestLLMObsGoogleGenAI:
 
     @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_generate_content_stream_async(
-        self, genai_client, test_spans, mock_async_generate_content_stream, consume_stream
+        self, genai_client, genai_llmobs, test_spans, mock_async_generate_content_stream, consume_stream
     ):
         response = await genai_client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
@@ -272,7 +269,7 @@ class TestLLMObsGoogleGenAI:
         )
 
     async def test_generate_content_stream_async_error(
-        self, genai_client, test_spans, mock_async_generate_content_stream
+        self, genai_client, genai_llmobs, test_spans, mock_async_generate_content_stream
     ):
         with pytest.raises(TypeError):
             await genai_client.aio.models.generate_content_stream(
@@ -302,7 +299,7 @@ class TestLLMObsGoogleGenAI:
             tags=COMMON_TAGS,
         )
 
-    def test_embed_content(self, genai_client, test_spans, mock_embed_content):
+    def test_embed_content(self, genai_client, genai_llmobs, test_spans, mock_embed_content):
         genai_client.models.embed_content(
             model="text-embedding-004",
             contents=["why is the sky blue?", "What is your age?"],
@@ -325,7 +322,7 @@ class TestLLMObsGoogleGenAI:
             tags=COMMON_TAGS,
         )
 
-    def test_embed_content_error(self, genai_client, test_spans, mock_embed_content):
+    def test_embed_content_error(self, genai_client, genai_llmobs, test_spans, mock_embed_content):
         with pytest.raises(TypeError):
             genai_client.models.embed_content(
                 model="text-embedding-004",
@@ -354,7 +351,7 @@ class TestLLMObsGoogleGenAI:
             tags=COMMON_TAGS,
         )
 
-    async def test_embed_content_async(self, genai_client, test_spans, mock_async_embed_content):
+    async def test_embed_content_async(self, genai_client, genai_llmobs, test_spans, mock_async_embed_content):
         await genai_client.aio.models.embed_content(
             model="text-embedding-004",
             contents=["why is the sky blue?", "What is your age?"],
@@ -377,7 +374,7 @@ class TestLLMObsGoogleGenAI:
             tags=COMMON_TAGS,
         )
 
-    async def test_embed_content_async_error(self, genai_client, test_spans, mock_async_embed_content):
+    async def test_embed_content_async_error(self, genai_client, genai_llmobs, test_spans, mock_async_embed_content):
         with pytest.raises(TypeError):
             await genai_client.aio.models.embed_content(
                 model="text-embedding-004",
@@ -407,7 +404,7 @@ class TestLLMObsGoogleGenAI:
         )
 
     def test_generate_content_with_tools(
-        self, genai_client, test_spans, mock_generate_content_with_tools
+        self, genai_client, genai_llmobs, test_spans, mock_generate_content_with_tools
     ):
         response = genai_client.models.generate_content(
             model="gemini-2.0-flash-001",
@@ -517,7 +514,7 @@ class TestLLMObsGoogleGenAI:
         )
 
     def test_generate_content_stream_with_tools(
-        self, genai_client, test_spans, mock_generate_content_stream_with_tools
+        self, genai_client, genai_llmobs, test_spans, mock_generate_content_stream_with_tools
     ):
         response = genai_client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
@@ -634,7 +631,7 @@ class TestLLMObsGoogleGenAI:
         )
 
     async def test_generate_content_async_with_tools(
-        self, genai_client, test_spans, mock_async_generate_content_with_tools
+        self, genai_client, genai_llmobs, test_spans, mock_async_generate_content_with_tools
     ):
         response = await genai_client.aio.models.generate_content(
             model="gemini-2.0-flash-001",
@@ -744,7 +741,7 @@ class TestLLMObsGoogleGenAI:
         )
 
     async def test_generate_content_stream_async_with_tools(
-        self, genai_client, test_spans, mock_async_generate_content_stream_with_tools
+        self, genai_client, genai_llmobs, test_spans, mock_async_generate_content_stream_with_tools
     ):
         response = await genai_client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
@@ -860,7 +857,7 @@ class TestLLMObsGoogleGenAI:
             tool_definitions=WEATHER_TOOL_DEFINITIONS,
         )
 
-    def test_code_execution(self, genai_client_vcr, test_spans):
+    def test_code_execution(self, genai_client_vcr, genai_llmobs, test_spans):
         genai_client_vcr.models.generate_content(
             model="gemini-2.5-flash",
             contents="What is the sum of the first 50 prime numbers? Generate and run code for the calculation, and make sure you get all 50.",  # noqa: E501
