@@ -280,8 +280,7 @@ def _resolve_apm_trace_agentless() -> bool:
     Falls back (returns False with a warning) when agentless is requested but ``DD_API_KEY``
     is unset.
     """
-    requested = config._trace_agentless_enabled or (config._llmobs_enabled and config._llmobs_agentless_enabled is True)
-    if not requested:
+    if not config._trace_agentless_enabled:
         return False
     if not config._dd_api_key:
         log.warning("APM Agentless requested but DD_API_KEY is not set. Agentless mode will be disabled.")
@@ -497,7 +496,7 @@ class SpanAggregator(SpanProcessor):
         """Swap to an :class:`AgentlessTraceWriter` if config now requires agentless and the
         writer isn't already. Returns True when the writer was swapped.
         """
-        if isinstance(self.writer, AgentlessTraceWriter) or not _resolve_apm_trace_agentless():
+        if isinstance(self.writer, AgentlessTraceWriter):
             return False
         old_writer = self.writer
         self.writer = create_trace_writer(response_callback=self._agent_response_callback, agentless=True)
