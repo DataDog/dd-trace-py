@@ -358,6 +358,20 @@ update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
     Py_RETURN_NONE;
 }
 
+static PyObject*
+set_greenlet_offsets(PyObject* Py_UNUSED(m), PyObject* args)
+{
+    unsigned long pimpl_offset, frame_offset, stack_stop_offset;
+
+    if (!PyArg_ParseTuple(args, "kkk", &pimpl_offset, &frame_offset, &stack_stop_offset))
+        return NULL;
+
+    Sampler::get().set_greenlet_offsets(
+      static_cast<size_t>(pimpl_offset), static_cast<size_t>(frame_offset), static_cast<size_t>(stack_stop_offset));
+
+    Py_RETURN_NONE;
+}
+
 // ---- Native call monitoring (C callback for sys.monitoring CALL events) ----
 
 // Cached sys.monitoring.DISABLE sentinel and tool ID (looked up at runtime)
@@ -732,6 +746,10 @@ static PyMethodDef stack_methods[] = {
     { "untrack_greenlet", untrack_greenlet, METH_VARARGS, "Untrack a terminated greenlet" },
     { "link_greenlets", link_greenlets, METH_VARARGS, "Link two greenlets" },
     { "update_greenlet_frame", update_greenlet_frame, METH_VARARGS, "Update the frame of a greenlet" },
+    { "set_greenlet_offsets",
+      set_greenlet_offsets,
+      METH_VARARGS,
+      "Set greenlet struct byte offsets (pimpl, frame, stack_start) for sample-time reading" },
 
     { "set_adaptive_sampling", stack_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
     { "set_target_overhead",
