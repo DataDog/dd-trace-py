@@ -19,15 +19,6 @@ from tests.llmobs._utils import assert_llmobs_span_data
 CREWAI_VERSION = parse_version(getattr(crewai, "__version__", "0.0.0"))
 
 
-LLMOBS_GLOBAL_CONFIG = dict(
-    _dd_api_key="<not-a-real-api_key>",
-    _llmobs_ml_app="<ml-app-name>",
-    _llmobs_enabled=True,
-    _llmobs_sample_rate=1.0,
-    service="tests.contrib.crewai",
-)
-
-
 AGENT_TO_EXPECTED_AGENT_MANIFEST = {
     "Senior Research Scientist": {
         "framework": "CrewAI",
@@ -333,8 +324,7 @@ def _assert_router_flow_links(spans):
     _assert_span_link(events[3], events[0], "output", "output")
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_basic_crew(crewai, basic_crew, request_vcr, test_spans):
+def test_basic_crew(crewai, basic_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         basic_crew.kickoff(inputs={"topic": "AI"})
     spans = _ordered_spans(test_spans)
@@ -342,8 +332,7 @@ def test_basic_crew(crewai, basic_crew, request_vcr, test_spans):
     _assert_basic_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_basic_crew_for_each(crewai, basic_crew, request_vcr, test_spans):
+def test_basic_crew_for_each(crewai, basic_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         basic_crew.kickoff_for_each(inputs=[{"topic": "AI"}])
     spans = _ordered_spans(test_spans)
@@ -351,8 +340,7 @@ def test_basic_crew_for_each(crewai, basic_crew, request_vcr, test_spans):
     _assert_basic_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-async def test_basic_crew_async(crewai, basic_crew, request_vcr, test_spans):
+async def test_basic_crew_async(crewai, basic_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         await basic_crew.kickoff_async(inputs={"topic": "AI"})
     spans = _ordered_spans(test_spans)
@@ -360,8 +348,7 @@ async def test_basic_crew_async(crewai, basic_crew, request_vcr, test_spans):
     _assert_basic_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-async def test_basic_crew_async_for_each(crewai, basic_crew, request_vcr, test_spans):
+async def test_basic_crew_async_for_each(crewai, basic_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         await basic_crew.kickoff_for_each_async(inputs=[{"topic": "AI"}])
     spans = _ordered_spans(test_spans)
@@ -369,8 +356,7 @@ async def test_basic_crew_async_for_each(crewai, basic_crew, request_vcr, test_s
     _assert_basic_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_crew_with_tool(crewai, tool_crew, request_vcr, test_spans):
+def test_crew_with_tool(crewai, tool_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_crew_with_tool.yaml"):
         tool_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
     spans = _ordered_spans(test_spans)
@@ -378,8 +364,7 @@ def test_crew_with_tool(crewai, tool_crew, request_vcr, test_spans):
     _assert_tool_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_crew_with_tool_for_each(crewai, tool_crew, request_vcr, test_spans):
+def test_crew_with_tool_for_each(crewai, tool_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_crew_with_tool.yaml"):
         tool_crew.kickoff_for_each(inputs=[{"ages": [10, 12, 14, 16, 18]}])
     spans = _ordered_spans(test_spans)
@@ -387,8 +372,7 @@ def test_crew_with_tool_for_each(crewai, tool_crew, request_vcr, test_spans):
     _assert_tool_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-async def test_crew_with_tool_async(crewai, tool_crew, request_vcr, test_spans):
+async def test_crew_with_tool_async(crewai, tool_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_crew_with_tool.yaml"):
         await tool_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
     spans = _ordered_spans(test_spans)
@@ -396,8 +380,7 @@ async def test_crew_with_tool_async(crewai, tool_crew, request_vcr, test_spans):
     _assert_tool_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-async def test_crew_with_tool_async_for_each(crewai, tool_crew, request_vcr, test_spans):
+async def test_crew_with_tool_async_for_each(crewai, tool_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_crew_with_tool.yaml"):
         await tool_crew.kickoff_for_each_async(inputs=[{"ages": [10, 12, 14, 16, 18]}])
     spans = _ordered_spans(test_spans)
@@ -405,8 +388,7 @@ async def test_crew_with_tool_async_for_each(crewai, tool_crew, request_vcr, tes
     _assert_tool_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_async_crew(crewai, async_exec_crew, request_vcr, test_spans):
+def test_async_crew(crewai, async_exec_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         async_exec_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
     spans = _ordered_spans(test_spans)
@@ -414,8 +396,7 @@ def test_async_crew(crewai, async_exec_crew, request_vcr, test_spans):
     _assert_async_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_async_crew_for_each(crewai, async_exec_crew, request_vcr, test_spans):
+def test_async_crew_for_each(crewai, async_exec_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         async_exec_crew.kickoff_for_each(inputs=[{"ages": [10, 12, 14, 16, 18]}])
     spans = _ordered_spans(test_spans)
@@ -423,8 +404,7 @@ def test_async_crew_for_each(crewai, async_exec_crew, request_vcr, test_spans):
     _assert_async_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-async def test_async_crew_async(crewai, async_exec_crew, request_vcr, test_spans):
+async def test_async_crew_async(crewai, async_exec_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         await async_exec_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
     spans = _ordered_spans(test_spans)
@@ -432,8 +412,7 @@ async def test_async_crew_async(crewai, async_exec_crew, request_vcr, test_spans
     _assert_async_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-async def test_async_crew_async_for_each(crewai, async_exec_crew, request_vcr, test_spans):
+async def test_async_crew_async_for_each(crewai, async_exec_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         await async_exec_crew.kickoff_for_each_async(inputs=[{"ages": [10, 12, 14, 16, 18]}])
     spans = _ordered_spans(test_spans)
@@ -441,8 +420,7 @@ async def test_async_crew_async_for_each(crewai, async_exec_crew, request_vcr, t
     _assert_async_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_conditional_crew(crewai, conditional_crew, request_vcr, test_spans):
+def test_conditional_crew(crewai, conditional_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         conditional_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
     spans = _ordered_spans(test_spans)
@@ -450,8 +428,7 @@ def test_conditional_crew(crewai, conditional_crew, request_vcr, test_spans):
     _assert_async_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-async def test_conditional_crew_async(crewai, conditional_crew, request_vcr, test_spans):
+async def test_conditional_crew_async(crewai, conditional_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         await conditional_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
     spans = _ordered_spans(test_spans)
@@ -459,8 +436,7 @@ async def test_conditional_crew_async(crewai, conditional_crew, request_vcr, tes
     _assert_async_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_hierarchical_crew(crewai, hierarchical_crew, request_vcr, test_spans):
+def test_hierarchical_crew(crewai, hierarchical_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         hierarchical_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
     spans = _ordered_spans(test_spans)
@@ -468,8 +444,7 @@ def test_hierarchical_crew(crewai, hierarchical_crew, request_vcr, test_spans):
     _assert_hierarchical_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_hierarchical_crew_for_each(crewai, hierarchical_crew, request_vcr, test_spans):
+def test_hierarchical_crew_for_each(crewai, hierarchical_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         hierarchical_crew.kickoff_for_each(inputs=[{"ages": [10, 12, 14, 16, 18]}])
     spans = _ordered_spans(test_spans)
@@ -477,8 +452,7 @@ def test_hierarchical_crew_for_each(crewai, hierarchical_crew, request_vcr, test
     _assert_hierarchical_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-async def test_hierarchical_crew_async(crewai, hierarchical_crew, request_vcr, test_spans):
+async def test_hierarchical_crew_async(crewai, hierarchical_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         await hierarchical_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
     spans = _ordered_spans(test_spans)
@@ -486,8 +460,7 @@ async def test_hierarchical_crew_async(crewai, hierarchical_crew, request_vcr, t
     _assert_hierarchical_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-async def test_hierarchical_crew_async_for_each(crewai, hierarchical_crew, request_vcr, test_spans):
+async def test_hierarchical_crew_async_for_each(crewai, hierarchical_crew, request_vcr, crewai_llmobs, test_spans):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         await hierarchical_crew.kickoff_for_each_async(inputs=[{"ages": [10, 12, 14, 16, 18]}])
     spans = _ordered_spans(test_spans)
@@ -495,48 +468,42 @@ async def test_hierarchical_crew_async_for_each(crewai, hierarchical_crew, reque
     _assert_hierarchical_crew_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_simple_flow(crewai, simple_flow, test_spans):
+def test_simple_flow(crewai, simple_flow, crewai_llmobs, test_spans):
     simple_flow.kickoff(inputs={"continent": "North America"})
     spans = _ordered_spans(test_spans)
     _assert_simple_flow_events(spans)
     _assert_simple_flow_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-async def test_simple_flow_async(crewai, simple_flow_async, test_spans):
+async def test_simple_flow_async(crewai, simple_flow_async, crewai_llmobs, test_spans):
     await simple_flow_async.kickoff_async(inputs={"continent": "North America"})
     spans = _ordered_spans(test_spans)
     _assert_simple_flow_events(spans)
     _assert_simple_flow_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_complex_flow(crewai, complex_flow, test_spans):
+def test_complex_flow(crewai, complex_flow, crewai_llmobs, test_spans):
     complex_flow.kickoff(inputs={"continent": "North America"})
     spans = _ordered_spans(test_spans)
     _assert_complex_flow_events(spans)
     _assert_complex_flow_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-async def test_complex_flow_async(crewai, complex_flow_async, test_spans):
+async def test_complex_flow_async(crewai, complex_flow_async, crewai_llmobs, test_spans):
     await complex_flow_async.kickoff_async(inputs={"continent": "North America"})
     spans = _ordered_spans(test_spans)
     _assert_complex_flow_events(spans)
     _assert_complex_flow_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-def test_router_flow(crewai, router_flow, test_spans):
+def test_router_flow(crewai, router_flow, crewai_llmobs, test_spans):
     router_flow.kickoff()
     spans = _ordered_spans(test_spans)
     _assert_router_flow_events(spans)
     _assert_router_flow_links(spans)
 
 
-@pytest.mark.parametrize("ddtrace_global_config", [LLMOBS_GLOBAL_CONFIG])
-async def test_router_flow_async(crewai, router_flow_async, test_spans):
+async def test_router_flow_async(crewai, router_flow_async, crewai_llmobs, test_spans):
     await router_flow_async.kickoff_async()
     spans = _ordered_spans(test_spans)
     _assert_router_flow_events(spans)
