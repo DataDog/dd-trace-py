@@ -890,6 +890,48 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
         return None
 
+    def experiment_events_get(
+        self,
+        experiment_id: Optional[str] = None,
+        project_name: Optional[str] = None,
+        experiment_name: Optional[str] = None,
+        include_eval_metrics: bool = True,
+    ) -> dict:
+        """Fetch span events for a prior experiment run.
+
+        Pass ``experiment_id`` for direct UUID lookup, or ``project_name`` +
+        ``experiment_name`` for name-based resolution (returns latest run).
+
+        Response shape (JSON:API):
+        ``{"data": {"id": "<uuid>", "type": "experiment_events",``
+        ``"attributes": {"spans": [...], "summary_metrics": []}}}``
+
+        Each span has ``span_id``, ``trace_id``, ``name``, ``start_ns`` (nanoseconds),
+        ``duration`` (nanoseconds), ``tags``, ``meta`` (with ``input``, ``output``,
+        ``expected_output``, ``metadata``, ``error`` sub-keys), and ``eval_metrics``
+        (populated when ``include_eval_metrics=True``).
+        """
+        if experiment_id:
+            path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
+            if include_eval_metrics:
+                path += "?include[eval_metrics]=true"
+        elif project_name and experiment_name:
+            encoded_project = urllib.parse.quote(project_name, safe="")
+            encoded_name = urllib.parse.quote(experiment_name, safe="")
+            path = (
+                f"/api/unstable/llm-obs/v1/experiments/events"
+                f"?filter[project_name]={encoded_project}"
+                f"&filter[experiment_name]={encoded_name}"
+            )
+            if include_eval_metrics:
+                path += "&include[eval_metrics]=true"
+        else:
+            raise ValueError("Either experiment_id or (project_name and experiment_name) must be provided.")
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get experiment events: {resp.status} {resp.get_json()}")
+        return resp.get_json()
+
     def evaluator_infer(
         self,
         eval_name: str,
