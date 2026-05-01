@@ -368,36 +368,25 @@ class ProfilingConfigLock(DDConfig):
         parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
         default=frozenset(
             {
-                # Datadog internals
+                # Datadog internals (profiling our own profileris noise)
                 "ddtrace",
                 "ddsketch",
                 "datadog",
                 "envier",
                 "bytecode",
                 "wrapt",
-                # HTTP/network infrastructure
-                "urllib3",
-                "requests",
-                "httpcore",
-                "httpx",
-                "aiohttp",
-                "h11",
-                "anyio",
-                # Web servers / ASGI
+                # ── Server / ASGI plumbing
                 "uvicorn",
                 "gunicorn",
-                "starlette",
                 "werkzeug",
-                # Async web frameworks (high lock churn from middleware / model validation)
-                "fastapi",
-                "pydantic",
-                # Stdlib high-frequency lock creators
+                "h11",  # HTTP/1.1 protocol parser; no real contention
+                "anyio",  # async abstraction; locks are bookkeeping
+                # Stdlib internal lock allocations
                 "asyncio",
-                "concurrent",
-                # "queue",
                 "threading",
-                "logging",
-                "http",
+                "concurrent",  # also covers concurrent.futures.ThreadPoolExecutor's work queue
+                "logging",  # per-handler Handler.lock; almost never user-actionable
+                "http",  # http.client connection-handling internals
             }
         ),
         help_type="String",
