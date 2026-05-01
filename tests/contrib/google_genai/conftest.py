@@ -22,11 +22,6 @@ from tests.utils import override_global_config
 
 
 @pytest.fixture
-def ddtrace_global_config():
-    return {}
-
-
-@pytest.fixture
 def genai_llmobs(monkeypatch):
     monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     LLMObs.disable()
@@ -64,18 +59,17 @@ def genai_client_vcr(genai):
 
 
 @pytest.fixture
-def genai(ddtrace_global_config):
+def genai():
     # tests require that these environment variables are set (especially for remote CI testing)
     os.environ["GOOGLE_CLOUD_LOCATION"] = "<not-a-real-location>"
     os.environ["GOOGLE_CLOUD_PROJECT"] = "<not-a-real-project>"
     os.environ["GOOGLE_API_KEY"] = "<not-a-real-key>"
 
-    with override_global_config(ddtrace_global_config):
-        patch()
-        from google import genai
+    patch()
+    from google import genai
 
-        yield genai
-        unpatch()
+    yield genai
+    unpatch()
 
 
 @pytest.fixture
