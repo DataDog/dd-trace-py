@@ -422,10 +422,12 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, langchain_ll
         input_value=json.dumps([{"input": "Can you explain what an LLM chain is?"}], sort_keys=True),
         tags=COMMON_TAGS,
     )
+    assert _get_llmobs_data_metastruct(spans[0]).get("span_links")
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[1]),
         **_expected_llm_span_data(spans[1], mock_token_metrics=True, metadata={"max_tokens": 256, "temperature": 0.7}),
     )
+    assert _get_llmobs_data_metastruct(spans[1]).get("span_links")
     expected_prompt = {
         "id": "test_langchain_llmobs.prompt",
         "ml_app": "langchain_test",
@@ -464,12 +466,14 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, langc
         input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
         tags=COMMON_TAGS,
     )
+    assert _get_llmobs_data_metastruct(spans[0]).get("span_links")
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[1]),
         span_kind="workflow",
         input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
         tags=COMMON_TAGS,
     )
+    assert _get_llmobs_data_metastruct(spans[1]).get("span_links")
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[2]),
         span_kind="task",
@@ -477,9 +481,11 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, langc
         output_value="Spanish",
         tags=COMMON_TAGS,
     )
+    assert _get_llmobs_data_metastruct(spans[2]).get("span_links")
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[3]), **_expected_llm_span_data(spans[3], mock_token_metrics=True)
     )
+    assert _get_llmobs_data_metastruct(spans[3]).get("span_links")
     expected_prompt_3 = {
         "id": "langchain.unknown_prompt_template",
         "ml_app": "langchain_test",
@@ -493,6 +499,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, langc
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[4]), **_expected_llm_span_data(spans[4], mock_token_metrics=True)
     )
+    assert _get_llmobs_data_metastruct(spans[4]).get("span_links")
     expected_prompt_4 = {
         "id": "test_langchain_llmobs.prompt2",
         "ml_app": "langchain_test",
@@ -521,6 +528,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, langchain_llmobs, 
         input_value=json.dumps(["chickens", "pigs"], sort_keys=True),
         tags=COMMON_TAGS,
     )
+    assert _get_llmobs_data_metastruct(spans[0]).get("span_links")
 
     # The two LLM spans (one per batch item) can come back in either order; check by
     # matching the variables.topic in each span's prompt block.
@@ -529,6 +537,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, langchain_llmobs, 
             _get_llmobs_data_metastruct(child),
             **_expected_llm_span_data(child, input_role="user", mock_token_metrics=True),
         )
+        assert _get_llmobs_data_metastruct(child).get("span_links")
         prompt_block = get_llmobs_input_prompt(child)
         assert prompt_block["id"] == "langchain.unknown_prompt_template"
         assert prompt_block["ml_app"] == "langchain_test"
@@ -576,10 +585,12 @@ def test_llmobs_chain_schema_io(langchain_core, langchain_openai, openai_url, la
         output_value=json.dumps(["assistant", "Mitochondria"], sort_keys=True),
         tags=COMMON_TAGS,
     )
+    assert _get_llmobs_data_metastruct(spans[0]).get("span_links")
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[1]),
         **_expected_llm_span_data(spans[1], mock_io=True, mock_token_metrics=True),
     )
+    assert _get_llmobs_data_metastruct(spans[1]).get("span_links")
 
 
 def test_llmobs_anthropic_chat_model(langchain_anthropic, langchain_llmobs, test_spans, anthropic_url):
@@ -701,6 +712,7 @@ def test_llmobs_vectorstore_similarity_search(langchain_in_memory_vectorstore, l
         output_value="[1 document(s) retrieved]",
         tags=COMMON_TAGS,
     )
+    assert _get_llmobs_data_metastruct(spans[0]).get("span_links")
 
 
 def test_llmobs_chat_model_tool_calls(langchain_core, langchain_openai, langchain_llmobs, test_spans, openai_url):
@@ -802,6 +814,7 @@ def test_llmobs_streamed_chain(
         input_value=json.dumps({"input": "how can langsmith help with testing?"}, sort_keys=True),
         tags=COMMON_TAGS,
     )
+    assert _get_llmobs_data_metastruct(spans[0]).get("span_links")
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[1]),
         span_kind="llm",
@@ -816,6 +829,7 @@ def test_llmobs_streamed_chain(
         metrics={},
         tags=COMMON_TAGS,
     )
+    assert _get_llmobs_data_metastruct(spans[1]).get("span_links")
 
 
 @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
