@@ -19,6 +19,7 @@ from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
+from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.trace import Span
 from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
 from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
@@ -122,14 +123,6 @@ def _expected_chain_span_data(input_value=None, output_value=None, metadata=None
         metadata=metadata,
         tags=COMMON_TAGS,
     )
-
-
-def _has_prompt_tracking_tag(metastruct):
-    """Return True if the prompt-tracking tag is present (handles dict-shape and list-shape tags)."""
-    tags = metastruct.get("tags") or {}
-    if isinstance(tags, dict):
-        return tags.get("prompt_tracking_instrumentation_method") == "auto"
-    return any(t == "prompt_tracking_instrumentation_method:auto" for t in tags)
 
 
 def _llmobs_spans(test_spans):
@@ -254,7 +247,7 @@ class TestLangChainLLMObs:
         assert actual_prompt["variables"] == variable_dict
         assert "tags" in actual_prompt
         assert actual_prompt["tags"] == {"test_type": "basic_invoke", "author": "test_suite"}
-        assert _has_prompt_tracking_tag(_get_llmobs_data_metastruct(spans[1]))
+        assert get_llmobs_tags(spans[1]).get("prompt_tracking_instrumentation_method") == "auto"
 
     def test_llmobs_string_prompt_template_direct_invoke(
         self, langchain_core, langchain_openai, openai_url, langchain_llmobs, test_spans
@@ -287,7 +280,7 @@ class TestLangChainLLMObs:
         assert actual_prompt["variables"] == variable_dict
         assert "tags" in actual_prompt
         assert actual_prompt["tags"] == {"test_type": "direct_invoke", "interaction": "greeting"}
-        assert _has_prompt_tracking_tag(_get_llmobs_data_metastruct(spans[0]))
+        assert get_llmobs_tags(spans[0]).get("prompt_tracking_instrumentation_method") == "auto"
 
     def test_llmobs_string_prompt_template_invoke_chat_model(
         self, langchain_core, langchain_openai, openai_url, langchain_llmobs, test_spans
