@@ -1,0 +1,28 @@
+#!/bin/sh
+# Validate commit message against Conventional Commits format.
+# git passes the commit message file path as $1; autohook may not forward it,
+# so fall back to the standard location.
+msg_file="${1:-.git/COMMIT_EDITMSG}"
+
+# Skip merge commits and fixup commits
+msg=$(cat "$msg_file")
+case "$msg" in
+    Merge\ *|Revert\ *|fixup\!*|squash\!*) exit 0 ;;
+esac
+
+# Strip comments (lines starting with #) and take first non-empty line
+msg=$(printf '%s\n' "$msg" | grep -v '^#' | head -1)
+
+# Conventional Commits pattern: type(optional-scope)!?: description
+# Types from @commitlint/config-conventional
+if ! printf '%s\n' "$msg" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|wip)(\([^)]+\))?!?: .+'; then
+    echo "---"
+    echo "Invalid commit message format: $msg"
+    echo ""
+    echo "Expected: type(scope): description"
+    echo "Example:  fix(tracing): resolve span propagation issue"
+    echo ""
+    echo "Valid types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert, wip"
+    echo "---"
+    exit 1
+fi

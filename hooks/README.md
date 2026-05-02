@@ -33,6 +33,10 @@ Individual pre-commit hooks (run in numeric order):
 | `08-run-sg` | Runs `ast-grep scan` on staged Python files using rules in `.sg/rules/`. Catches anti-patterns and deprecated API usage. Skipped when no Python files are staged. |
 | `09-run-error-log-check` | Checks that `log.error()`, `add_error_log`, and `iast_error` calls use constant string literals as their first argument (LOG001) |
 
+### commit-msg (blocking)
+Runs after you type a commit message but before the commit is recorded. A non-zero exit code **aborts the commit**. Contains:
+- **commitlint**: Validates the commit message against [Conventional Commits](https://www.conventionalcommits.org/) format (`type(scope): description`). Merge commits, reverts, fixups, and squash commits are skipped automatically.
+
 ### post-merge (non-blocking)
 Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do not block** the operation (the merge has already completed). Contains:
 - **check-native-changes**: Detects changes to native code files (C, C++, Rust, Cython) and Python dependency files, and alerts you to rebuild or reinstall
@@ -40,6 +44,44 @@ Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do no
 ### post-checkout (non-blocking)
 Runs after `git checkout` or `git switch`. Non-zero exit codes are logged but **do not block** the operation. Contains:
 - **check-native-changes**: Detects changes to native code files and Python dependency files, and alerts you to rebuild or reinstall
+
+## Commit Message Validation
+
+### Problem
+PR title validation runs via GitHub Actions (`pr-name.yml`) using `commitlint.config.js`, but local commit messages are never validated — developers only discover format violations after pushing and opening a PR.
+
+### Solution
+The `commitlint` hook validates every commit message locally against [Conventional Commits](https://www.conventionalcommits.org/) format before the commit is recorded.
+
+### Format
+```
+type(scope): description
+```
+
+- **scope** is optional
+- **Breaking changes** are indicated with `!` before the colon: `feat(api)!: remove old endpoint`
+- **Valid types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, `wip`
+
+### Examples
+```
+feat(tracing): add support for span links
+fix(profiling): resolve memory leak in collector
+chore: update dependencies
+ci(hooks): add commitlint hook
+```
+
+### Skipped Commits
+The following are automatically skipped (not validated):
+- Merge commits (`Merge ...`)
+- Revert commits (`Revert ...`)
+- Fixup commits (`fixup! ...`)
+- Squash commits (`squash! ...`)
+
+### Bypassing
+To skip validation temporarily (use sparingly):
+```bash
+git commit --no-verify -m "your message"
+```
 
 ## Native Code Change Detection
 
@@ -139,13 +181,14 @@ To add a new hook script:
    chmod +x hooks/<hook-type>/my-script
    ```
 
-3. If it's a new hook type (not pre-commit, post-merge, or post-checkout), add it to `autohook.sh`:
+3. If it's a new hook type (not pre-commit, post-merge, post-checkout, or commit-msg), add it to `autohook.sh`:
    ```bash
    # Edit hooks/autohook.sh
    hook_types=(
        "pre-commit"
        "post-merge"
        "post-checkout"
+       "commit-msg"
        "your-new-hook-type"  # Add here
    )
    ```
@@ -188,6 +231,7 @@ hooks/autohook.sh install
 ### Hook Failing
 Check the hook scripts are executable:
 ```bash
+ls -la hooks/commit-msg/
 ls -la hooks/post-merge/
 ls -la hooks/post-checkout/
 ls -la hooks/scripts/
@@ -195,6 +239,7 @@ ls -la hooks/scripts/
 
 Make them executable if needed:
 ```bash
+chmod +x hooks/commit-msg/*
 chmod +x hooks/post-merge/*
 chmod +x hooks/post-checkout/*
 chmod +x hooks/scripts/*
@@ -211,6 +256,8 @@ The native change detection may occasionally warn about changes that don't requi
 hooks/
 ├── autohook.sh              # Autohook manager script
 ├── README.md                # This file
+├── commit-msg/              # Commit-msg hooks (blocking)
+│   └── commitlint           # Validates Conventional Commits format
 ├── pre-commit/              # Pre-commit hooks
 │   ├── ...
 │   └── 08-run-sg            # ast-grep scan on staged Python files

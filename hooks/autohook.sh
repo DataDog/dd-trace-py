@@ -38,6 +38,7 @@ install() {
         "pre-commit"
         "post-merge"
         "post-checkout"
+        "commit-msg"
     )
 
     repo_root=$(git rev-parse --show-toplevel)
