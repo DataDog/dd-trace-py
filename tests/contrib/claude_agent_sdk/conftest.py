@@ -19,19 +19,8 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT_RESPONSE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_ERROR_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_USE_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_USE_WITH_FOLLOWUP_SEQUENCE
-from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
-
-
-@pytest.fixture
-def ddtrace_config_claude_agent_sdk():
-    return {}
-
-
-@pytest.fixture
-def ddtrace_global_config():
-    return {}
 
 
 @pytest.fixture
@@ -53,18 +42,17 @@ def claude_agent_sdk_llmobs(tracer, monkeypatch):
 
 
 @pytest.fixture
-def claude_agent_sdk(ddtrace_config_claude_agent_sdk):
-    with override_config("claude_agent_sdk", ddtrace_config_claude_agent_sdk):
-        with override_env(
-            dict(
-                ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
-            )
-        ):
-            patch()
-            import claude_agent_sdk
+def claude_agent_sdk():
+    with override_env(
+        dict(
+            ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+        )
+    ):
+        patch()
+        import claude_agent_sdk
 
-            yield claude_agent_sdk
-            unpatch()
+        yield claude_agent_sdk
+        unpatch()
 
 
 def _create_mock_internal_client(response_sequence):
