@@ -107,19 +107,11 @@ def _expected_llm_span_data(span, input_role=None, mock_io=False, mock_token_met
     )
 
 
-def _llmobs_spans(test_spans):
-    """Collect all spans from ``pop_traces()`` that have an LLMObsSpanData metastruct, sorted by start_ns."""
-    spans = [s for trace in test_spans.pop_traces() for s in trace]
-    spans = [s for s in spans if _get_llmobs_data_metastruct(s)]
-    spans.sort(key=lambda s: s.start_ns)
-    return spans
-
-
 def test_llmobs_openai_llm(langchain_openai, langchain_llmobs, test_spans, openai_url):
     llm = langchain_openai.OpenAI(base_url=openai_url, max_tokens=256)
     llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -133,7 +125,7 @@ def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, langchain_llmo
     llm = langchain_openai.OpenAI(base_url="http://localhost:4000", model="gpt-3.5-turbo")
     llm.invoke("What is the capital of France?")
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -145,7 +137,7 @@ def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, langchain_llmo
     # span created from request with non-proxy URL should result in an LLM span
     llm = langchain_openai.OpenAI(base_url="http://localhost:8000", model="gpt-3.5-turbo")
     llm.invoke("What is the capital of France?")
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert get_llmobs_span_kind(spans[0]) == "llm"
 
@@ -154,7 +146,7 @@ def test_llmobs_openai_chat_model(langchain_core, langchain_openai, langchain_ll
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url)
     chat_model.invoke([langchain_core.messages.HumanMessage(content="When do you use 'who' instead of 'whom'?")])
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -175,7 +167,7 @@ def test_llmobs_openai_chat_model_no_usage(langchain_core, langchain_openai, lan
     for _ in response:
         pass
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     metrics = get_llmobs_metrics(spans[0]) or {}
     assert metrics.get("input_tokens") is None
@@ -189,7 +181,7 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_core, langchain
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:4000")
     chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -202,7 +194,7 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_core, langchain
     # span created from request with non-proxy URL should result in an LLM span
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:8000")
     chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert get_llmobs_span_kind(spans[0]) == "llm"
 
@@ -221,7 +213,8 @@ def test_llmobs_string_prompt_template_invoke(
     chain = prompt_template | llm
     chain.invoke(variable_dict)
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    spans.sort(key=lambda s: s.start_ns)
     assert len(spans) == 2
     actual_prompt = get_llmobs_input_prompt(spans[1])
     assert actual_prompt["id"] == "test_langchain_llmobs.prompt_template"
@@ -254,7 +247,7 @@ def test_llmobs_string_prompt_template_direct_invoke(
     prompt_value = greeting_template.invoke(variable_dict)
     llm.invoke(prompt_value)
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1  # Only LLM span, prompt template invoke doesn't create LLMObs event by itself
 
     actual_prompt = get_llmobs_input_prompt(spans[0])
@@ -278,7 +271,8 @@ def test_llmobs_string_prompt_template_invoke_chat_model(
     chain = prompt_template | chat_model
     chain.invoke(variable_dict)
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    spans.sort(key=lambda s: s.start_ns)
     assert len(spans) == 2
     actual_prompt = get_llmobs_input_prompt(spans[1])
     assert actual_prompt["id"] == "test_langchain_llmobs.prompt_template"
@@ -300,7 +294,8 @@ def test_llmobs_string_prompt_template_single_variable_string_input(
     string_input = "time travel"
     chain.invoke(string_input)
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    spans.sort(key=lambda s: s.start_ns)
     assert len(spans) == 2
     actual_prompt = get_llmobs_input_prompt(spans[1])
     assert actual_prompt["id"] == "test_langchain_llmobs.single_variable_template"
@@ -329,7 +324,8 @@ def test_llmobs_multi_message_prompt_template_sync_chain(
 
     chain.invoke(variable_dict)
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    spans.sort(key=lambda s: s.start_ns)
     assert len(spans) == 2
 
     # Verify the prompt structure in the LLM span
@@ -363,7 +359,7 @@ def test_llmobs_multi_message_prompt_template_sync_direct_invoke(
     prompt_value = multi_message_template.invoke(variable_dict)
     llm.invoke(prompt_value)
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1  # Only LLM span for direct invoke
 
     # Verify the prompt structure
@@ -395,7 +391,7 @@ async def test_llmobs_multi_message_prompt_template_async_direct_invoke(
     prompt_value = await multi_message_template.ainvoke(variable_dict)
     await llm.ainvoke(prompt_value)
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1  # Only LLM span for direct invoke
 
     # Verify the prompt structure
@@ -413,7 +409,8 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, langchain_ll
     chain = prompt | langchain_openai.OpenAI(base_url=openai_url, max_tokens=256)
     chain.invoke({"input": "Can you explain what an LLM chain is?"})
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    spans.sort(key=lambda s: s.start_ns)
     assert len(spans) == 2
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -512,7 +509,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, langchain_llmobs, 
 
     chain.batch(inputs=["chickens", "pigs"])
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 3
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -556,7 +553,8 @@ def test_llmobs_chain_schema_io(langchain_core, langchain_openai, openai_url, la
         }
     )
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    spans.sort(key=lambda s: s.start_ns)
     assert len(spans) == 2
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -595,7 +593,7 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, langchain_llmobs, test
     chat = langchain_anthropic.ChatAnthropic(**kwargs)
     chat.invoke("When do you use 'whom' instead of 'who'?")
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -636,7 +634,7 @@ def test_llmobs_google_genai_chat_model(langchain_google_genai, langchain_llmobs
         )
         chat.invoke("When do you use 'whom' instead of 'who'?")
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     span = spans[0]
     # Verify the fix: provider should be "google-generativeai" (not "chat"),
@@ -653,7 +651,7 @@ def test_llmobs_embedding_documents(langchain_openai, langchain_llmobs, test_spa
     embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
     embedding_model.embed_documents(["hello world", "goodbye world"])
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -670,7 +668,7 @@ def test_llmobs_embedding_query(langchain_openai, langchain_llmobs, test_spans, 
     embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
     embedding_model.embed_query("hello world")
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -687,7 +685,8 @@ def test_llmobs_vectorstore_similarity_search(langchain_in_memory_vectorstore, l
     vectorstore = langchain_in_memory_vectorstore
     vectorstore.similarity_search("France", k=1)
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    spans.sort(key=lambda s: s.start_ns)
     assert len(spans) == 2
     # spans[0] is the retrieval span (outer); spans[1] is the embedding sub-call.
     assert_llmobs_span_data(
@@ -714,7 +713,7 @@ def test_llmobs_chat_model_tool_calls(langchain_core, langchain_openai, langchai
     llm_with_tools = llm.bind_tools([add])
     llm_with_tools.invoke([langchain_core.messages.HumanMessage(content="What is the sum of 1 and 2?")])
 
-    spans = _llmobs_spans(langchain_llmobs, test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     span = spans[0]
     assert_llmobs_span_data(
@@ -758,7 +757,7 @@ def test_llmobs_base_tool_invoke(langchain_core, langchain_llmobs, test_spans):
 
     calculator.invoke("2", config={"test": "this is to test config"})
 
-    spans = _llmobs_spans(langchain_llmobs, test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -790,7 +789,8 @@ def test_llmobs_streamed_chain(
 
     consume_stream(chain.stream({"input": "how can langsmith help with testing?"}))
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    spans.sort(key=lambda s: s.start_ns)
     assert len(spans) == 2
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -820,7 +820,7 @@ def test_llmobs_streamed_llm(langchain_openai, langchain_llmobs, test_spans, ope
 
     consume_stream(llm.stream("What is 2+2?\n\n"))
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     span = spans[0]
     assert_llmobs_span_data(
@@ -842,7 +842,7 @@ def test_llmobs_non_ascii_completion(langchain_openai, openai_url, langchain_llm
     llm = langchain_openai.OpenAI(base_url=openai_url)
     llm.invoke("안녕,\n 지금 몇 시야?")
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert get_llmobs_input_messages(spans[0])[0]["content"] == "안녕,\n 지금 몇 시야?"
 
@@ -855,7 +855,7 @@ def test_llmobs_runnable_lambda_invoke(langchain_core, langchain_llmobs, test_sp
     result = runnable_lambda.invoke(dict(a=1, b=2))
     assert result == 3
 
-    spans = _llmobs_spans(langchain_llmobs, test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -874,7 +874,7 @@ async def test_llmobs_runnable_lambda_ainvoke(langchain_core, langchain_llmobs, 
     result = await runnable_lambda.ainvoke(dict(a=1, b=2))
     assert result == 3
 
-    spans = _llmobs_spans(langchain_llmobs, test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
@@ -893,7 +893,7 @@ def test_llmobs_runnable_lambda_batch(langchain_core, langchain_llmobs, test_spa
     result = runnable_lambda.batch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
     assert result == [3, 7, 11]
 
-    spans = _llmobs_spans(langchain_llmobs, test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 4
 
     # parent should be batch span
@@ -929,7 +929,7 @@ async def test_llmobs_runnable_lambda_abatch(langchain_core, langchain_llmobs, t
     result = await runnable_lambda.abatch([dict(a=1, b=2), dict(a=3, b=4), dict(a=5, b=6)])
     assert result == [3, 7, 11]
 
-    spans = _llmobs_spans(langchain_llmobs, test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 4
 
     # parent should be batch span
@@ -967,7 +967,7 @@ def test_llmobs_runnable_with_span_links(langchain_core, langchain_llmobs, test_
 
     assert result == {"mul_2": 4, "mul_5": 10}
 
-    spans = _llmobs_spans(test_spans)
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 4
 
     metas = [_get_llmobs_data_metastruct(s) for s in spans]
