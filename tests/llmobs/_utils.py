@@ -1069,8 +1069,11 @@ def assert_llmobs_span_data(
     """Assert against an LLMObsSpanData payload from ``meta_struct['_llmobs']``.
 
     Structural fields (``span_kind``, ``name``, ``parent_id``, ``model_name``,
-    ``model_provider``, input/output messages/values/documents, ``error``,
+    ``model_provider``, input/output messages/values/documents,
     ``tool_definitions``) are strict-equality, checked only when provided.
+
+    ``error`` defaults to asserting no error payload is present. Pass
+    ``error=mock.ANY`` to skip the check.
 
     ``metadata``, ``tags``, ``metrics`` are top-level subset only: declared
     top-level keys must equal exactly, extras tolerated. Nested values compare
@@ -1148,7 +1151,13 @@ def assert_llmobs_span_data(
         _check_eq("meta.output.value", output_value, actual_output.get(LLMOBS_STRUCT.VALUE))
     if output_documents is not None:
         _check_eq("meta.output.documents", output_documents, actual_output.get(LLMOBS_STRUCT.DOCUMENTS))
-    if error is not None:
+    if error is None:
+        actual_error = actual_meta.get(LLMOBS_STRUCT.ERROR)
+        if actual_error:
+            failures.append(
+                "meta.error unexpectedly present:\n    expected=<absent>\n    actual={!r}".format(actual_error)
+            )
+    else:
         _check_eq("meta.error", error, actual_meta.get(LLMOBS_STRUCT.ERROR))
     if tool_definitions is not None:
         _check_eq("meta.tool_definitions", tool_definitions, actual_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS))
