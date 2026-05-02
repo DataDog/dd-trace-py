@@ -36,17 +36,16 @@ def llama_index_llmobs(tracer, monkeypatch):
 
 @pytest.fixture
 def llama_index():
-    with override_global_config({"_dd_api_key": "<not-a-real-api_key>"}):
-        with override_env(
-            dict(
-                OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
-            )
-        ):
-            patch()
-            import llama_index
+    with override_env(
+        dict(
+            OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+        )
+    ):
+        patch()
+        import llama_index
 
-            yield llama_index
-            unpatch()
+        yield llama_index
+        unpatch()
 
 
 @pytest.fixture(scope="session")
