@@ -56,7 +56,9 @@ def openai(openai_api_key, openai_organization, api_key_in_env):
     # When testing locally to generate new cassette files, comment the line below to use the real OpenAI API key.
     os.environ["OPENAI_API_KEY"] = "<not-a-real-key>"
     openai.organization = openai_organization
+    patch()
     yield openai
+    unpatch()
 
 
 @pytest.fixture
@@ -81,17 +83,7 @@ class FilterOrg(TraceFilter):
 
 
 @pytest.fixture
-def patch_openai(openai, openai_api_key, openai_organization, api_key_in_env):
-    if api_key_in_env:
-        openai.api_key = openai_api_key
-    openai.organization = openai_organization
-    patch()
-    yield
-    unpatch()
-
-
-@pytest.fixture
-def snapshot_tracer(tracer, openai, patch_openai):
+def snapshot_tracer(tracer, openai):
     tracer.configure(trace_processors=[FilterOrg()])
     return tracer
 
