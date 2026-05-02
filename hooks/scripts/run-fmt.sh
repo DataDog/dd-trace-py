@@ -10,7 +10,9 @@ if [ -n "$staged_files" ]; then
     # (see https://github.com/astral-sh/ruff/issues/10250)
     staged_ruff=$(echo "$staged_files" | tr ' ' '\n' | grep -E '\.(py|pyi)$' | grep -v '^$' | tr '\n' ' ')
     if [ -n "$(printf '%s' "$staged_ruff" | tr -d ' \t\n')" ]; then
+        # shellcheck disable=SC2086  # Intentional word-splitting: $staged_ruff is a space-separated list of filenames
         hatch -v run lint:ruff format --no-cache $staged_ruff || exit $?
+        # shellcheck disable=SC2086
         hatch -v run lint:ruff check --fix --show-fixes --no-cache $staged_ruff || exit $?
     fi
 
@@ -24,9 +26,11 @@ if [ -n "$staged_files" ]; then
     # pycodestyle checks would be redundant on .py files
     staged_cython_lint=$(echo "$staged_files" | tr ' ' '\n' | grep '\.pyx$' | grep -v '^$' | tr '\n' ' ')
     if [ -n "$(printf '%s' "$staged_cython_lint" | tr -d ' \t\n')" ]; then
+        # shellcheck disable=SC2086  # Intentional word-splitting: $staged_cython_lint is a space-separated list of filenames
         hatch -v run lint:cython-lint $staged_cython_lint || exit $?
     fi
 else
+    # shellcheck disable=SC2016  # Backtick in message is literal, not a command substitution
     echo 'Format/lint skipped: No Python/stub files were found in `git diff --staged`'
 fi
 
