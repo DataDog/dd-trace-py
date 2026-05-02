@@ -9,10 +9,19 @@ from types import TracebackType
 import typing as t
 from typing import Protocol  # noqa:F401
 
-import bytecode
-from bytecode import Bytecode
 
-from ddtrace.internal.assembly import Assembly
+# On 3.15+ the bytecode-rewriting WrappingContext is replaced
+# by a sys.monitoring (PEP 669) backend. That backend is implemented in a
+# follow-up; until then, `WrappingContext.wrap()` raises on 3.15+ but the
+# class is importable so subclasses (e.g. `LazyWrappingContext` in
+# `ddtrace/internal/module.py`) still load. This is what unblocks Profiling
+# from importing on cp315 — see plan `.cursor/plans/pep669-wrapping-3.15_*`.
+if sys.version_info < (3, 15):
+    import bytecode
+    from bytecode import Bytecode
+
+    from ddtrace.internal.assembly import Assembly
+
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.inspection import link_function_to_code
@@ -74,12 +83,18 @@ T = t.TypeVar("T")
 # __wrapped__ attribute. Context-specific values can be stored and retrieved
 # with the set and get methods.
 
-CONTEXT_HEAD = Assembly()
-CONTEXT_RETURN = Assembly()
-CONTEXT_FOOT = Assembly()
+if sys.version_info < (3, 15):
+    CONTEXT_HEAD = Assembly()
+    CONTEXT_RETURN = Assembly()
+    CONTEXT_FOOT = Assembly()
 
 if sys.version_info >= (3, 15):
-    raise NotImplementedError("Python >= 3.15 is not supported yet")
+    # 3.15+ stub. Class definitions below remain so subclasses
+    # can be imported. Actual `_UniversalWrappingContext.wrap()` raises
+    # NotImplementedError until the sys.monitoring backend lands. This
+    # keeps the cp315 import path green for callers that subclass
+    # WrappingContext but never instantiate-and-wrap (e.g. Profiling).
+    pass
 elif sys.version_info >= (3, 13):
     CONTEXT_HEAD.parse(
         r"""
@@ -587,7 +602,25 @@ class _UniversalWrappingContext(BaseWrappingContext):
             raise ValueError("Function is not wrapped")
         return t.cast(_UniversalWrappingContext, t.cast(ContextWrappedFunction, f).__dd_context_wrapped__)
 
-    if sys.version_info >= (3, 11):
+    if sys.version_info >= (3, 15):
+        # 3.15+ stub. The sys.monitoring (PEP 669) backend is
+        # implemented in a follow-up todo (see plan
+        # `.cursor/plans/pep669-wrapping-3.15_*`). Until then, calling
+        # `wrap()` on cp315 raises with a clear message; importing and
+        # subclassing `WrappingContext` works (so e.g. Profiling can
+        # import `ddtrace.internal.module` cleanly).
+
+        def wrap(self) -> None:
+            raise NotImplementedError(
+                "WrappingContext.wrap() is not yet implemented on Python 3.15+. "
+                "The sys.monitoring (PEP 669) backend is pending; see plan "
+                "pep669-wrapping-3.15. This stub allows imports to succeed."
+            )
+
+        def unwrap(self) -> None:
+            return None
+
+    elif sys.version_info >= (3, 11):
 
         def wrap(self) -> None:
             f = self.__wrapped__
