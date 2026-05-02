@@ -12,7 +12,7 @@ from .utils import tools
 ANTHROPIC_VERSION = parse_version(anthropic_module.__version__)
 
 
-def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, test_spans):
+def test_global_tags(anthropic, request_vcr, test_spans):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -277,7 +277,7 @@ def test_anthropic_llm_sync_tools_full_use(anthropic, request_vcr, snapshot_cont
 
 
 @pytest.mark.asyncio
-async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vcr, test_spans):
+async def test_global_tags_async(anthropic, request_vcr, test_spans):
     """
     When the global config UST tags are set
         The service name should be used for all data
