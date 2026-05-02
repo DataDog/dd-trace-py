@@ -20,6 +20,7 @@ from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
 from tests.llmobs._utils import assert_llmobs_span_data
+from tests.utils import override_global_config
 
 
 LITELLM_TAGS = {"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"}
@@ -235,28 +236,25 @@ class TestLLMObsLiteLLM:
             tags=LITELLM_TAGS,
         )
 
-    @pytest.mark.parametrize(
-        "ddtrace_global_config",
-        [{"_llmobs_instrumented_proxy_urls": "http://localhost:4000"}],
-    )
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
     def test_completion_proxy(
         self, litellm, request_vcr_include_localhost, litellm_llmobs, test_spans, stream, n, consume_stream
     ):
-        with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
-            messages = [{"content": "Hey, what is up?", "role": "user"}]
-            resp = litellm.completion(
-                model="gpt-3.5-turbo",
-                messages=messages,
-                stream=stream,
-                n=n,
-                stream_options={"include_usage": True},
-                api_base="http://localhost:4000",
-            )
-            if stream:
-                output_messages, _ = consume_stream(resp, n)
-            else:
-                output_messages, _ = parse_response(resp)
+        with override_global_config({"_llmobs_instrumented_proxy_urls": "http://localhost:4000"}):
+            with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
+                messages = [{"content": "Hey, what is up?", "role": "user"}]
+                resp = litellm.completion(
+                    model="gpt-3.5-turbo",
+                    messages=messages,
+                    stream=stream,
+                    n=n,
+                    stream_options={"include_usage": True},
+                    api_base="http://localhost:4000",
+                )
+                if stream:
+                    output_messages, _ = consume_stream(resp, n)
+                else:
+                    output_messages, _ = parse_response(resp)
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
