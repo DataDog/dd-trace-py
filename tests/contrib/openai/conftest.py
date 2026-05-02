@@ -9,7 +9,6 @@ from ddtrace.contrib.internal.openai.patch import patch
 from ddtrace.contrib.internal.openai.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.trace import TraceFilter
-from tests.utils import override_config
 from tests.utils import override_global_config
 
 
@@ -82,35 +81,13 @@ class FilterOrg(TraceFilter):
 
 
 @pytest.fixture
-def ddtrace_config_openai():
-    config = {}
-    return config
-
-
-@pytest.fixture
-def ddtrace_global_config():
-    config = {}
-    return config
-
-
-def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>"}
-
-
-@pytest.fixture
-def patch_openai(
-    ddtrace_global_config, ddtrace_config_openai, openai, openai_api_key, openai_organization, api_key_in_env
-):
-    global_config = default_global_config()
-    global_config.update(ddtrace_global_config)
-    with override_global_config(global_config):
-        with override_config("openai", ddtrace_config_openai):
-            if api_key_in_env:
-                openai.api_key = openai_api_key
-            openai.organization = openai_organization
-            patch()
-            yield
-            unpatch()
+def patch_openai(openai, openai_api_key, openai_organization, api_key_in_env):
+    if api_key_in_env:
+        openai.api_key = openai_api_key
+    openai.organization = openai_organization
+    patch()
+    yield
+    unpatch()
 
 
 @pytest.fixture
