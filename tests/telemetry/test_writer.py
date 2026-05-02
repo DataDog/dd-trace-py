@@ -311,6 +311,7 @@ import opentelemetry
         {"name": "DD_PROFILING_HEAP_SAMPLE_SIZE", "origin": "default", "value": None},
         {"name": "DD_PROFILING_IGNORE_PROFILER", "origin": "default", "value": False},
         {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_PROFILING_LOCK_EXCLUDE_MODULES", "origin": "default", "value": "frozenset()"},
         {"name": "DD_PROFILING_LOCK_NAME_INSPECT_DIR", "origin": "default", "value": True},
         {"name": "DD_PROFILING_MAX_FRAMES", "origin": "env_var", "value": 512},
         {"name": "DD_PROFILING_MAX_TIME_USAGE_PCT", "origin": "default", "value": 1.0},

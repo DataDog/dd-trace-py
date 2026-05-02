@@ -24,7 +24,8 @@ from ddtrace.trace import Tracer
 
 from ddtrace.profiling._threading import get_thread_name, get_thread_native_id
 from ddtrace.profiling.collector._sampler cimport CaptureSampler
-from ddtrace.profiling.collector._task cimport get_task as _c_get_task, initialize_gevent_support as _c_initialize_gevent_support
+from ddtrace.profiling.collector._task cimport get_task as _c_get_task
+from ddtrace.profiling.collector._task cimport initialize_gevent_support as _c_initialize_gevent_support
 
 
 ACQUIRE_RELEASE_CO_NAMES: frozenset[str] = frozenset(["_acquire", "_release"])
@@ -149,27 +150,50 @@ class _ProfiledLock:
         """Return True if lock is currently held."""
         return bool(self.__wrapped__.locked())
 
+    # The sampler.capture() check is intentionally duplicated across acquire, __enter__, and
+    # __aenter__ rather than extracted into a shared helper. This eliminates one function-call
+    # frame on the unsampled hot path, which fires on every lock operation. A helper would
+    # reintroduce that overhead. Do NOT refactor. See:
+    # test_unsampled_acquire_bypasses_inner_acquire / test_sampled_acquire_calls_inner_acquire.
     def acquire(self, *args: Any, **kwargs: Any) -> Any:
+        cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
+        if not sampler.capture():
+            if config.enable_asserts and type(self.__wrapped__).__name__ == "RLock":
+                # For RLock, a re-entrant acquire can arrive here while a previous sampled acquire
+                # is still in progress (acquired_time set). If so, the next release will emit a
+                # sample whose hold time is truncated at this release rather than the true outer
+                # release — the outer hold time is silently lost, skewing the "lock held" time metrics.
+                assert self.acquired_time is None, (
+                    "Unsampled re-entrant acquire while a sampled hold is in progress; "
+                    "the next release will emit a truncated hold-time sample. acquired_time=%r" % (self.acquired_time,)
+                )  # nosec
+            return self.__wrapped__.acquire(*args, **kwargs)
         return self._acquire(self.__wrapped__.acquire, *args, **kwargs)
 
     def __enter__(self, *args: Any, **kwargs: Any) -> Any:
+        cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
+        if not sampler.capture():
+            if config.enable_asserts and type(self.__wrapped__).__name__ == "RLock":
+                assert self.acquired_time is None, (
+                    "Unsampled re-entrant acquire while a sampled hold is in progress; "
+                    "the next release will emit a truncated hold-time sample. acquired_time=%r" % (self.acquired_time,)
+                )  # nosec
+            return self.__wrapped__.__enter__(*args, **kwargs)
         return self._acquire(self.__wrapped__.__enter__, *args, **kwargs)
 
     def __aenter__(self, *args: Any, **kwargs: Any) -> Any:
+        cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
+        if not sampler.capture():
+            if config.enable_asserts and type(self.__wrapped__).__name__ == "RLock":
+                assert self.acquired_time is None, (
+                    "Unsampled re-entrant acquire while a sampled hold is in progress; "
+                    "the next release will emit a truncated hold-time sample. acquired_time=%r" % (self.acquired_time,)
+                )  # nosec
+            return self.__wrapped__.__aenter__(*args, **kwargs)
         return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
-        if not sampler.capture():
-            if config.enable_asserts:
-                # Ensure acquired_time is not set when acquire is not sampled
-                # (else a bogus release sample is produced)
-                assert self.acquired_time is None, (
-                    "Expected acquired_time to be None when acquire is not sampled, got %r" % (self.acquired_time,)
-                )  # nosec
-
-            return inner_func(*args, **kwargs)
-
+        # Called only when capture_sampler.capture already returned True — no re-check needed.
         cdef long long start = time.monotonic_ns()
         result: Any = None
         error_info: Optional[tuple[BaseException, Optional[TracebackType]]] = None
@@ -202,16 +226,27 @@ class _ProfiledLock:
         return result
 
     def release(self, *args: Any, **kwargs: Any) -> Any:
+        if self.acquired_time is None:
+            return self.__wrapped__.release(*args, **kwargs)
         return self._release(self.__wrapped__.release, *args, **kwargs)
 
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
+        if self.acquired_time is None:
+            self.__wrapped__.__exit__(*args, **kwargs)
+            return
         self._release(self.__wrapped__.__exit__, *args, **kwargs)
 
     def __aexit__(self, *args: Any, **kwargs: Any) -> Any:
+        if self.acquired_time is None:
+            return self.__wrapped__.__aexit__(*args, **kwargs)
         return self._release(self.__wrapped__.__aexit__, *args, **kwargs)
 
     def _release(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        start: Optional[int] = getattr(self, "acquired_time", None)
+        # `acquired_time` is guaranteed non-None by all callers, but we check it here anyway to be defensive.
+        if self.acquired_time is None:
+            return inner_func(*args, **kwargs)
+
+        cdef long long start = self.acquired_time
         self.acquired_time = None
 
         # Note: this can raise an exception. We don't catch it because we
@@ -221,9 +256,6 @@ class _ProfiledLock:
         # What comes next in the function is only code for sampling the lock
         # release, so it is irrelevant if it fails.
         result = inner_func(*args, **kwargs)
-
-        if start is None:
-            return result
 
         if self.is_internal:
             return result
@@ -387,7 +419,7 @@ class _LockAllocatorWrapper:
                 return
 
         # Case 1: Normal wrapper initialization
-        self._func: Callable[..., _ProfiledLock]
+        self._func: Callable[..., Any]
         self._original_class: Optional[type[Any]]
         if args:
             self._func = args[0]
@@ -396,7 +428,7 @@ class _LockAllocatorWrapper:
             self._func = kwargs.get("func")  # type: ignore[assignment]
             self._original_class = kwargs.get("original_class")
 
-    def __call__(self, *args: Any, **kwargs: Any) -> _ProfiledLock:
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         return self._func(*args, **kwargs)
 
     def __get__(self, instance: Any, owner: Optional[type[Any]] = None) -> _LockAllocatorWrapper:
@@ -496,22 +528,47 @@ class LockCollector(collector.CaptureSamplerCollector):
 
             internal_module_file = threading_module.__file__
 
-        def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> _ProfiledLock:
+        # Precompute the resolved internal module path once — avoids repeated filesystem syscalls
+        # on every lock allocation.
+        precomputed_internal_file: Optional[str] = None
+        if internal_module_file:
+            try:
+                precomputed_internal_file = os.path.normpath(os.path.realpath(internal_module_file))
+            except OSError:
+                pass
+
+        # Precompute module exclusion structures once at patch time (not per lock creation).
+        # Two structures for fast matching:
+        #   exclude_exact  — frozenset for O(1) exact module name lookup
+        #   exclude_dotted — tuple of "prefix." strings for str.startswith
+        exclude_exact: frozenset[str] = config.lock.exclude_modules
+        exclude_dotted: tuple[str, ...] = tuple(p + "." for p in exclude_exact)
+
+        def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> Any:
             """Simple wrapper that returns profiled locks.
 
             Detects if the lock is being created from within the stdlib module
             (i.e., internal to Semaphore/Condition) to avoid double-counting.
+            Skips wrapping entirely for locks created from excluded modules.
             """
             cdef bint is_internal = False
             cdef str caller_filename
-            cdef str internal_file
+            cdef str caller_module
             try:
                 # In Cython, intermediate frames are invisible; caller is at index 0
-                caller_filename = sys._getframe(0).f_code.co_filename
-                if internal_module_file and caller_filename:
+                caller_frame: FrameType = sys._getframe(0)
+                caller_filename = caller_frame.f_code.co_filename
+
+                # Module exclusion: return native lock with zero profiling overhead
+                if exclude_exact:
+                    caller_module = caller_frame.f_globals.get("__name__", "")
+                    if caller_module in exclude_exact or caller_module.startswith(exclude_dotted):
+                        return original_lock(*args, **kwargs)
+
+                # Internal lock detection (e.g., threading.Semaphore creating a Lock internally)
+                if precomputed_internal_file and caller_filename:
                     caller_filename = os.path.normpath(os.path.realpath(caller_filename))
-                    internal_file = os.path.normpath(os.path.realpath(internal_module_file))
-                    is_internal = caller_filename == internal_file
+                    is_internal = caller_filename == precomputed_internal_file
             except (ValueError, AttributeError, OSError):
                 pass
 
