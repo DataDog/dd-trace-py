@@ -113,18 +113,6 @@ def _expected_llm_span_data(span, input_role=None, mock_io=False, mock_token_met
     )
 
 
-def _expected_chain_span_data(input_value=None, output_value=None, metadata=None):
-    """Build kwargs to splat into ``assert_llmobs_span_data`` for a langchain chain (workflow) span."""
-    metadata = metadata if metadata else mock.ANY
-    return dict(
-        span_kind="workflow",
-        input_value=input_value if input_value is not None else mock.ANY,
-        output_value=output_value if output_value is not None else mock.ANY,
-        metadata=metadata,
-        tags=COMMON_TAGS,
-    )
-
-
 def _llmobs_spans(test_spans):
     """Collect all spans from ``pop_traces()`` that have an LLMObsSpanData metastruct, sorted by start_ns."""
     spans = [s for trace in test_spans.pop_traces() for s in trace]
@@ -155,9 +143,9 @@ def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, langchain_llmo
     assert len(spans) == 1
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
-        **_expected_chain_span_data(
-            input_value=json.dumps([{"content": "What is the capital of France?"}], sort_keys=True)
-        ),
+        span_kind="workflow",
+        input_value=json.dumps([{"content": "What is the capital of France?"}], sort_keys=True),
+        tags=COMMON_TAGS,
     )
 
     # span created from request with non-proxy URL should result in an LLM span
@@ -211,10 +199,10 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_core, langchain
     assert len(spans) == 1
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
-        **_expected_chain_span_data(
-            input_value=json.dumps([{"content": "What is the capital of France?", "role": "user"}], sort_keys=True),
-            metadata={"temperature": 0.0, "max_tokens": 256},
-        ),
+        span_kind="workflow",
+        input_value=json.dumps([{"content": "What is the capital of France?", "role": "user"}], sort_keys=True),
+        metadata={"temperature": 0.0, "max_tokens": 256},
+        tags=COMMON_TAGS,
     )
 
     # span created from request with non-proxy URL should result in an LLM span
@@ -435,9 +423,9 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, langchain_ll
     assert len(spans) == 2
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
-        **_expected_chain_span_data(
-            input_value=json.dumps([{"input": "Can you explain what an LLM chain is?"}], sort_keys=True),
-        ),
+        span_kind="workflow",
+        input_value=json.dumps([{"input": "Can you explain what an LLM chain is?"}], sort_keys=True),
+        tags=COMMON_TAGS,
     )
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[1]),
@@ -477,17 +465,15 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, langc
 
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
-        **_expected_chain_span_data(
-            input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
-            output_value=mock.ANY,
-        ),
+        span_kind="workflow",
+        input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
+        tags=COMMON_TAGS,
     )
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[1]),
-        **_expected_chain_span_data(
-            input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
-            output_value=mock.ANY,
-        ),
+        span_kind="workflow",
+        input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
+        tags=COMMON_TAGS,
     )
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[2]),
@@ -536,9 +522,9 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, langchain_llmobs, 
     assert len(spans) == 3
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
-        **_expected_chain_span_data(
-            input_value=json.dumps(["chickens", "pigs"], sort_keys=True), output_value=mock.ANY
-        ),
+        span_kind="workflow",
+        input_value=json.dumps(["chickens", "pigs"], sort_keys=True),
+        tags=COMMON_TAGS,
     )
 
     # The two LLM spans (one per batch item) can come back in either order; check by
@@ -580,19 +566,19 @@ def test_llmobs_chain_schema_io(langchain_core, langchain_openai, openai_url, la
     assert len(spans) == 2
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
-        **_expected_chain_span_data(
-            input_value=json.dumps(
-                [
-                    {
-                        "ability": "world capitals",
-                        "history": [["user", "Can you be my science teacher instead?"], ["assistant", "Yes"]],
-                        "input": "What's the powerhouse of the cell?",
-                    }
-                ],
-                sort_keys=True,
-            ),
-            output_value=json.dumps(["assistant", "Mitochondria"], sort_keys=True),
+        span_kind="workflow",
+        input_value=json.dumps(
+            [
+                {
+                    "ability": "world capitals",
+                    "history": [["user", "Can you be my science teacher instead?"], ["assistant", "Yes"]],
+                    "input": "What's the powerhouse of the cell?",
+                }
+            ],
+            sort_keys=True,
         ),
+        output_value=json.dumps(["assistant", "Mitochondria"], sort_keys=True),
+        tags=COMMON_TAGS,
     )
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[1]),
@@ -814,10 +800,9 @@ def test_llmobs_streamed_chain(
     assert len(spans) == 2
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
-        **_expected_chain_span_data(
-            input_value=json.dumps({"input": "how can langsmith help with testing?"}, sort_keys=True),
-            output_value=mock.ANY,
-        ),
+        span_kind="workflow",
+        input_value=json.dumps({"input": "how can langsmith help with testing?"}, sort_keys=True),
+        tags=COMMON_TAGS,
     )
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[1]),
