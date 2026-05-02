@@ -21,7 +21,7 @@ MCP_VERSION = parse_version(version("mcp"))
 
 
 def _assert_distributed_trace(test_spans, expected_tool_name):
-    """Assert that client and server spans have the same trace ID; return spans and the
+    """Assert that client and server spans share APM and LLMObs trace context; return spans and the
     client/server tool-call subsets identified by resource name.
     """
     traces = test_spans.pop_traces()
@@ -33,6 +33,14 @@ def _assert_distributed_trace(test_spans, expected_tool_name):
 
     assert len(client_spans) >= 1 and len(server_spans) >= 1
     assert client_spans[0].trace_id == server_spans[0].trace_id
+
+    # LLMObs has its own context propagation independent of APM (LLMObsContextProvider);
+    # assert the LLMObs trace_id matches and the server tool span's LLMObs parent_id points
+    # at the client tool span so an LLMObs-only propagation regression cannot pass.
+    client_meta = _get_llmobs_data_metastruct(client_spans[0])
+    server_meta = _get_llmobs_data_metastruct(server_spans[0])
+    assert client_meta["trace_id"] == server_meta["trace_id"]
+    assert server_meta["parent_id"] == str(client_spans[0].span_id)
 
     return all_spans, client_spans, server_spans
 
