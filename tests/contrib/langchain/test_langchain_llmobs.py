@@ -7,14 +7,17 @@ import sys
 import mock
 import pytest
 
+import ddtrace
 from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_metrics
+from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -28,6 +31,7 @@ from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
+from tests.utils import DummyWriter
 
 
 # Multi-message prompt template test constants
@@ -1028,14 +1032,6 @@ def test_llmobs_set_tags_with_none_response(langchain_core):
     )
 
 
-# TODO(meta-struct migration): The TestTraceStructureWithLLMIntegrations class
-# below verifies cross-integration trace structure (langchain + openai/anthropic
-# patched together) by patching ``ddtrace.llmobs._llmobs.LLMObsSpanWriter`` and
-# inspecting ``enqueue.call_args_list`` directly inside subprocesses spawned by
-# ``run_in_subprocess``. The subprocesses don't share fixture state with the
-# parent pytest process, so the meta_struct env-var/test_spans-override approach
-# can't be used here without re-architecting how each subprocess test is set up.
-# Leaving on the wire-event pattern for the cleanup PR to address.
 class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     bedrock_env_config = dict(
         AWS_ACCESS_KEY_ID="testing",
@@ -1063,38 +1059,44 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     )
 
     def setUp(self):
+        # Keep meta_struct["_llmobs"] on spans after enqueue so we can assert against it.
+        os.environ["_DD_LLMOBS_TEST_KEEP_META_STRUCT"] = "1"
+        # Install a DummyWriter so we can pop spans off the global tracer in-process.
+        ddtrace.tracer._span_aggregator.writer = DummyWriter()
+        # Mock LLMObsSpanWriter to avoid real network calls; we no longer assert against it.
         patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
         LLMObsSpanWriterMock = patcher.start()
-        mock_llmobs_span_writer = mock.MagicMock()
-        LLMObsSpanWriterMock.return_value = mock_llmobs_span_writer
-
-        self.mock_llmobs_span_writer = mock_llmobs_span_writer
-
+        LLMObsSpanWriterMock.return_value = mock.MagicMock()
         super(TestTraceStructureWithLLMIntegrations, self).setUp()
 
     def tearDown(self):
         LLMObs.disable()
 
-    def _assert_trace_structure_from_writer_call_args(self, span_kinds):
-        assert self.mock_llmobs_span_writer.enqueue.call_count == len(span_kinds)
+    def _llmobs_spans(self):
+        spans = [
+            s
+            for trace in ddtrace.tracer._span_aggregator.writer.pop_traces()
+            for s in trace
+            if _get_llmobs_data_metastruct(s)
+        ]
+        spans.sort(key=lambda s: s.start_ns)
+        return spans
 
-        calls = self.mock_llmobs_span_writer.enqueue.call_args_list[::-1]
-
-        for span_kind, call in zip(span_kinds, calls):
-            call_args = call.args[0]
-
-            assert call_args["meta"]["span"]["kind"] == span_kind, (
-                f"Span kind is {call_args['meta']['span']['kind']} but expected {span_kind}"
-            )
-            if span_kind == "workflow":
-                assert len(call_args["meta"]["input"]["value"]) > 0
-                assert len(call_args["meta"]["output"]["value"]) > 0
-            elif span_kind == "llm":
-                assert len(call_args["meta"]["input"]["messages"]) > 0
-                assert len(call_args["meta"]["output"]["messages"]) > 0
-            elif span_kind == "embedding":
-                assert len(call_args["meta"]["input"]["documents"]) > 0
-                assert len(call_args["meta"]["output"]["value"]) > 0
+    def _assert_span_kinds(self, span_kinds):
+        spans = self._llmobs_spans()
+        assert len(spans) == len(span_kinds)
+        for span, expected_kind in zip(spans, span_kinds):
+            actual_kind = get_llmobs_span_kind(span)
+            assert actual_kind == expected_kind, f"Span kind is {actual_kind} but expected {expected_kind}"
+            if expected_kind == "workflow":
+                assert get_llmobs_input_value(span)
+                assert get_llmobs_output_value(span)
+            elif expected_kind == "llm":
+                assert get_llmobs_input_messages(span)
+                assert get_llmobs_output_messages(span)
+            elif expected_kind == "embedding":
+                assert get_llmobs_input_documents(span)
+                assert get_llmobs_output_value(span)
 
     @staticmethod
     def _call_openai_llm(OpenAI):
@@ -1137,7 +1139,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         patch(langchain=True, openai=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
-        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+        self._assert_span_kinds(["workflow", "llm"])
 
     @run_in_subprocess(env_overrides=azure_openai_env_config)
     def test_llmobs_with_openai_enabled_azure(self):
@@ -1146,7 +1148,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         patch(langchain=True, openai=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_azure_openai_chat(AzureChatOpenAI)
-        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+        self._assert_span_kinds(["workflow", "llm"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_enabled_non_ascii_value(self):
@@ -1157,8 +1159,9 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         llm = OpenAI(base_url="http://localhost:9126/vcr/openai")
         llm.invoke("안녕,\n 지금 몇 시야?")
-        langchain_span = self.mock_llmobs_span_writer.enqueue.call_args_list[1][0][0]
-        assert langchain_span["meta"]["input"]["value"] == '[{"content": "안녕,\\n 지금 몇 시야?"}]'
+        spans = self._llmobs_spans()
+        assert get_llmobs_span_kind(spans[0]) == "workflow"
+        assert get_llmobs_input_value(spans[0]) == '[{"content": "안녕,\\n 지금 몇 시야?"}]'
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_langchain_with_embedding_model_openai_enabled(self):
@@ -1168,7 +1171,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_embedding(OpenAIEmbeddings)
-        self._assert_trace_structure_from_writer_call_args(["workflow", "embedding"])
+        self._assert_span_kinds(["workflow", "embedding"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_langchain_with_embedding_model_openai_disabled(self):
@@ -1178,7 +1181,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_embedding(OpenAIEmbeddings)
-        self._assert_trace_structure_from_writer_call_args(["embedding"])
+        self._assert_span_kinds(["embedding"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_disabled(self):
@@ -1188,7 +1191,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
-        self._assert_trace_structure_from_writer_call_args(["llm"])
+        self._assert_span_kinds(["llm"])
 
     @run_in_subprocess(env_overrides=azure_openai_env_config)
     def test_llmobs_with_openai_disabled_azure(self):
@@ -1198,7 +1201,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_azure_openai_chat(AzureChatOpenAI)
-        self._assert_trace_structure_from_writer_call_args(["llm"])
+        self._assert_span_kinds(["llm"])
 
     @run_in_subprocess(env_overrides=anthropic_env_config)
     def test_llmobs_with_anthropic_enabled(self):
@@ -1208,7 +1211,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_anthropic_chat(ChatAnthropic)
-        self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
+        self._assert_span_kinds(["workflow", "llm"])
 
     @run_in_subprocess(env_overrides=anthropic_env_config)
     def test_llmobs_with_anthropic_disabled(self):
@@ -1219,7 +1222,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
 
         self._call_anthropic_chat(ChatAnthropic)
-        self._assert_trace_structure_from_writer_call_args(["llm"])
+        self._assert_span_kinds(["llm"])
 
 
 def test_shadow_tags_chat_when_llmobs_disabled(tracer):
