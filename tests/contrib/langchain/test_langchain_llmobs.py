@@ -82,14 +82,8 @@ def _create_multi_message_prompt_template(langchain_core, metadata=None):
 
 
 def _expected_llm_span_data(span, input_role=None, mock_io=False, mock_token_metrics=False, metadata=None):
-    """Build kwargs to splat into ``assert_llmobs_span_data`` for a langchain LLM span.
-
-    Mirrors the structural shape produced by the legacy
-    ``_expected_langchain_llmobs_llm_span`` helper. The prompt block (when present) is
-    asserted separately by callers against ``meta.input.prompt`` on the metastruct.
-    """
+    """Build kwargs to splat into ``assert_llmobs_span_data`` for a langchain LLM span."""
     provider = span.get_tag("langchain.request.provider")
-    metadata = metadata if metadata else mock.ANY
 
     input_messages = [{"content": mock.ANY}]
     output_messages = [{"content": mock.ANY}]
