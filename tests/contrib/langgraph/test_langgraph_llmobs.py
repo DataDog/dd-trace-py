@@ -473,10 +473,10 @@ class TestLangGraphLLMObs:
 
         # Filter to LLMObs-bearing spans (some APM-only spans may be present from langchain/openai patching)
         llmobs_spans = [s for s in spans if _get_llmobs_data_metastruct(s)]
-        llmobs_spans.sort(key=lambda s: s.start_ns)
+        # Sort by finish time: the innermost llm span (openai, nested under langchain) finishes — and
+        # dispatches DISPATCH_ON_LLM_TOOL_CHOICE — first, so tool_links[1] resolves to llm_spans[0].
+        llmobs_spans.sort(key=lambda s: (s.start_ns or 0) + (s.duration_ns or 0))
 
-        # Pick by kind rather than positional index: langgraph >=0.3.22 emits an enclosing agent span
-        # whose start_ns precedes the inner llm span, which would shift fixed offsets.
         llm_spans = [s for s in llmobs_spans if get_llmobs_span_kind(s) == "llm"]
         tool_spans = [s for s in llmobs_spans if get_llmobs_span_kind(s) == "tool"]
         first_llm_span = llm_spans[0]
