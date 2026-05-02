@@ -1,4 +1,5 @@
 import os
+from unittest import mock
 
 from agents import Agent
 from agents import GuardrailFunctionOutput
@@ -12,8 +13,7 @@ import vcr
 
 from ddtrace.contrib.internal.openai_agents.patch import patch
 from ddtrace.contrib.internal.openai_agents.patch import unpatch
-from ddtrace.llmobs import LLMObs as llmobs_service
-from tests.llmobs._utils import TestLLMObsSpanWriter
+from ddtrace.llmobs import LLMObs
 from tests.utils import override_global_config
 
 
@@ -202,22 +202,18 @@ def openai(agents):
 
 
 @pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
-
-
-@pytest.fixture
-def agents_llmobs(tracer, llmobs_span_writer):
-    llmobs_service.disable()
+def openai_agents_llmobs(tracer, monkeypatch):
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+    LLMObs.disable()
     with override_global_config(
-        {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.agents"}
+        {
+            "_llmobs_ml_app": "<ml-app-name>",
+            "_dd_api_key": "<not-a-real-key>",
+            "service": "tests.contrib.agents",
+        }
     ):
-        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-        yield llmobs_service
-    llmobs_service.disable()
-
-
-@pytest.fixture
-def llmobs_events(agents_llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        yield LLMObs
+    LLMObs.disable()

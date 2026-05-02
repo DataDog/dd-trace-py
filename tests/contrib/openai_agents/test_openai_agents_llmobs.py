@@ -3,9 +3,13 @@ from typing import Optional
 import mock
 import pytest
 
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.llmobs._utils import _assert_span_link
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import assert_llmobs_span_data
+
+
+COMMON_TAGS = {"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"}
 
 
 COMMON_RESPONSE_LLM_METADATA = {
@@ -118,108 +122,113 @@ def _expected_agent_metadata(agent_name: str) -> dict:
 def _assert_expected_agent_run(
     expected_span_names: list[str],
     spans,
-    llmobs_events,
     llm_calls: Optional[list[tuple[list[dict], list[dict]]]] = None,
     tool_calls: Optional[list[dict]] = None,
-    previous_tool_events: Optional[list[dict]] = None,
-    is_chat=False,
-) -> list[dict]:
-    """Assert expected LLMObs events matches actual events for an agent run
-    Return previous tool events for span linking assertions across agent runs
+    previous_tool_spans: Optional[list] = None,
+    is_chat: bool = False,
+) -> list:
+    """Assert expected LLMObs span data for an agent run.
+
+    Returns the list of tool spans seen so far (for cross-run span-link assertions).
+
     Args:
-        spans: list of spans from the mock tracer
-        llmobs_events: list of LLMObs events
-        agent_name: Name of the agent
-        llm_calls: list of (input_messages, output_messages) for each LLM call
-        tool_calls: list of information about tool calls
-        previous_tool_events: list of previous tool events for span linking assertions across agent runs
+        expected_span_names: ordered list of LLMObs span names expected for this run.
+        spans: list of APM spans, sorted by start_ns, beginning with the agent span.
+        llm_calls: list of ``(input_messages, output_messages)`` pairs for each LLM call.
+        tool_calls: list of dicts describing each tool call (``type``, ``error``, optional ``tool_name``).
+        previous_tool_spans: list of tool spans from prior agent runs to assert span-links against.
+        is_chat: when True, the LLM span is produced by the openai integration (chat completions);
+            skip its event-shape assertion (kept compatible with the original test).
     """
-    for i, event in enumerate(llmobs_events):
-        assert event["name"] == expected_span_names[i]
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-        spans[0],
+    if previous_tool_spans is None:
+        previous_tool_spans = []
+    # Names match the LLMObs name on each span in order.
+    for i, span in enumerate(spans):
+        assert get_llmobs_span_name(span) == expected_span_names[i], (
+            f"span[{i}] name mismatch: expected={expected_span_names[i]!r}, actual={get_llmobs_span_name(span)!r}"
+        )
+    # First span: agent span.
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
         span_kind="agent",
-        metadata=_expected_agent_metadata(llmobs_events[0]["name"]),
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
+        metadata=_expected_agent_metadata(get_llmobs_span_name(spans[0])),
+        tags=COMMON_TAGS,
+        name=get_llmobs_span_name(spans[0]),
     )
-    if not previous_tool_events:
-        previous_tool_events = []
-    for i, event in enumerate(llmobs_events[1:]):
+
+    for i, span in enumerate(spans[1:]):
         if i % 2 == 0:
-            assert is_chat or event == _expected_llmobs_llm_span_event(
-                spans[i + 1],
-                span_kind="llm",
-                input_messages=llm_calls[i // 2][0],
-                output_messages=llm_calls[i // 2][1],
-                token_metrics={
-                    "input_tokens": mock.ANY,
-                    "output_tokens": mock.ANY,
-                    "total_tokens": mock.ANY,
-                    "reasoning_output_tokens": mock.ANY,
-                },
-                metadata=COMMON_RESPONSE_LLM_METADATA,
-                model_name="gpt-4o-2024-08-06",
-                model_provider="openai",
-                tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
-                span_links=i or previous_tool_events,
-                name=expected_span_names[i + 1],
-            )
-            for tool in previous_tool_events:
-                _assert_span_link(tool, event, "output", "input")
+            # LLM span — skip strict assertion in chat mode (handled by openai integration).
+            if not is_chat:
+                assert_llmobs_span_data(
+                    _get_llmobs_data_metastruct(span),
+                    span_kind="llm",
+                    input_messages=llm_calls[i // 2][0],
+                    output_messages=llm_calls[i // 2][1],
+                    metrics={
+                        "input_tokens": mock.ANY,
+                        "output_tokens": mock.ANY,
+                        "total_tokens": mock.ANY,
+                        "reasoning_output_tokens": mock.ANY,
+                    },
+                    metadata=COMMON_RESPONSE_LLM_METADATA,
+                    model_name="gpt-4o-2024-08-06",
+                    model_provider="openai",
+                    tags=COMMON_TAGS,
+                    name=expected_span_names[i + 1],
+                )
+            for tool_span in previous_tool_spans:
+                _assert_span_link(tool_span, span, "output", "input")
         else:
             tool_call = tool_calls[i // 2]
-            error_args = (
-                {
-                    "error_message": f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}',
-                    "error": "Error running tool (non-fatal)",
+            error = None
+            if tool_call["error"]:
+                error = {
+                    "type": "Error running tool (non-fatal)",
+                    "message": f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}',
+                    "stack": mock.ANY,
                 }
-                if tool_call["error"]
-                else {}
-            )
             io_args = (
                 {"input_value": mock.ANY, "output_value": mock.ANY}
                 if tool_call["type"] in ("function_call", "handoff")
                 else {}
             )
-            assert event == _expected_llmobs_non_llm_span_event(
-                spans[i + 1],
+            assert_llmobs_span_data(
+                _get_llmobs_data_metastruct(span),
                 span_kind="tool",
-                tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
-                span_links=True,
+                tags=COMMON_TAGS,
+                error=error,
                 **io_args,
-                **error_args,
             )
             # assert tool is linked to the previous LLM call
-            _assert_span_link(llmobs_events[i], event, "output", "input")
-            previous_tool_events.append(event)
-    return previous_tool_events
+            _assert_span_link(spans[i], span, "output", "input")
+            previous_tool_spans.append(span)
+    return previous_tool_spans
 
 
 @pytest.mark.asyncio
-async def test_llmobs_single_agent(agents, test_spans, request_vcr, llmobs_events, simple_agent):
+async def test_llmobs_single_agent(agents, openai_agents_llmobs, test_spans, request_vcr, simple_agent):
     """Test tracing with a simple agent with no tools or handoffs"""
     with request_vcr.use_cassette("test_simple_agent.yaml"):
         result = await agents.Runner.run(simple_agent, "What is the capital of France?")
 
-    spans = test_spans.pop_traces()[0]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
     spans.sort(key=lambda span: span.start_ns)
-    llmobs_events.sort(key=lambda event: event["start_ns"])
 
-    assert len(spans) == len(llmobs_events) == 3
+    assert len(spans) == 3
 
-    assert spans[0].name == "Agent workflow"
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-        spans[0],
+    assert get_llmobs_span_name(spans[0]) == "Agent workflow"
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
         span_kind="workflow",
         input_value="What is the capital of France?",
         output_value=result.final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
+        tags=COMMON_TAGS,
     )
     _assert_expected_agent_run(
         ["Simple Agent", "Simple Agent (LLM)"],
         spans[1:],
-        llmobs_events[1:],
         llm_calls=[
             (
                 [
@@ -237,7 +246,7 @@ async def test_llmobs_single_agent(agents, test_spans, request_vcr, llmobs_event
 
 
 @pytest.mark.asyncio
-async def test_llmobs_streamed_single_agent(agents, test_spans, request_vcr, llmobs_events, simple_agent):
+async def test_llmobs_streamed_single_agent(agents, openai_agents_llmobs, test_spans, request_vcr, simple_agent):
     from openai.types.responses import ResponseTextDeltaEvent
 
     final_output = ""
@@ -248,25 +257,23 @@ async def test_llmobs_streamed_single_agent(agents, test_spans, request_vcr, llm
             if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
                 final_output += event.data.delta
 
-    spans = test_spans.pop_traces()[0]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
     spans.sort(key=lambda span: span.start_ns)
-    llmobs_events.sort(key=lambda event: event["start_ns"])
 
-    assert len(spans) == len(llmobs_events) == 3
+    assert len(spans) == 3
 
-    assert llmobs_events[0]["name"] == "Agent workflow"
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-        spans[0],
+    assert get_llmobs_span_name(spans[0]) == "Agent workflow"
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
         span_kind="workflow",
         input_value="What is the capital of France?",
         output_value=final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
+        tags=COMMON_TAGS,
     )
     _assert_expected_agent_run(
         ["Simple Agent", "Simple Agent (LLM)"],
         spans[1:],
-        llmobs_events[1:],
         llm_calls=[
             (
                 [
@@ -283,30 +290,28 @@ async def test_llmobs_streamed_single_agent(agents, test_spans, request_vcr, llm
     )
 
 
-def test_llmobs_single_agent_sync(agents, test_spans, request_vcr, llmobs_events, simple_agent):
+def test_llmobs_single_agent_sync(agents, openai_agents_llmobs, test_spans, request_vcr, simple_agent):
     """Test tracing with a simple agent with no tools or handoffs"""
     with request_vcr.use_cassette("test_simple_agent.yaml"):
         result = agents.Runner.run_sync(simple_agent, "What is the capital of France?")
 
-    spans = test_spans.pop_traces()[0]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
     spans.sort(key=lambda span: span.start_ns)
-    llmobs_events.sort(key=lambda event: event["start_ns"])
 
-    assert len(spans) == len(llmobs_events) == 3
+    assert len(spans) == 3
 
-    assert llmobs_events[0]["name"] == "Agent workflow"
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-        spans[0],
+    assert get_llmobs_span_name(spans[0]) == "Agent workflow"
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
         span_kind="workflow",
         input_value="What is the capital of France?",
         output_value=result.final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
+        tags=COMMON_TAGS,
     )
     _assert_expected_agent_run(
         ["Simple Agent", "Simple Agent (LLM)"],
         spans[1:],
-        llmobs_events[1:],
         llm_calls=[
             (
                 [
@@ -324,7 +329,7 @@ def test_llmobs_single_agent_sync(agents, test_spans, request_vcr, llmobs_events
 
 
 @pytest.mark.asyncio
-async def test_llmobs_manual_tracing_llmobs(agents, test_spans, request_vcr, llmobs_events, simple_agent):
+async def test_llmobs_manual_tracing_llmobs(agents, openai_agents_llmobs, test_spans, request_vcr, simple_agent):
     from agents.tracing import custom_span
     from agents.tracing import trace
 
@@ -335,31 +340,29 @@ async def test_llmobs_manual_tracing_llmobs(agents, test_spans, request_vcr, llm
             cspan.finish()
             result = await agents.Runner.run(simple_agent, "What is the capital of France?")
 
-    spans = test_spans.pop_traces()[0]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
     spans.sort(key=lambda span: span.start_ns)
-    llmobs_events.sort(key=lambda event: event["start_ns"])
 
-    assert len(spans) == len(llmobs_events) == 4
+    assert len(spans) == 4
 
-    assert llmobs_events[0]["name"] == "Simple Workflow"
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-        spans[0],
+    assert get_llmobs_span_name(spans[0]) == "Simple Workflow"
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
         span_kind="workflow",
         input_value="What is the capital of France?",
         output_value=result.final_output,
         metadata={"foo": "bar"},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
+        tags=COMMON_TAGS,
     )
-    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(
-        spans[1],
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[1]),
         span_kind="task",
         metadata={"foo": "bar"},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
+        tags=COMMON_TAGS,
     )
     _assert_expected_agent_run(
         ["Simple Agent", "Simple Agent (LLM)"],
         spans[2:],
-        llmobs_events[2:],
         llm_calls=[
             (
                 [
@@ -378,29 +381,27 @@ async def test_llmobs_manual_tracing_llmobs(agents, test_spans, request_vcr, llm
 
 @pytest.mark.asyncio
 async def test_llmobs_single_agent_with_tool_calls_llmobs(
-    agents, test_spans, request_vcr, llmobs_events, addition_agent
+    agents, openai_agents_llmobs, test_spans, request_vcr, addition_agent
 ):
     with request_vcr.use_cassette("test_single_agent_with_tool_calls.yaml"):
         result = await agents.Runner.run(addition_agent, "What is the sum of 1 and 2?")
 
-    spans = test_spans.pop_traces()[0]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
     spans.sort(key=lambda span: span.start_ns)
-    llmobs_events.sort(key=lambda event: event["start_ns"])
 
-    assert len(spans) == len(llmobs_events) == 5
+    assert len(spans) == 5
 
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-        spans[0],
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
         span_kind="workflow",
         input_value="What is the sum of 1 and 2?",
         output_value=result.final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
+        tags=COMMON_TAGS,
     )
     _assert_expected_agent_run(
         ["Addition Agent", "Addition Agent (LLM)", "add", "Addition Agent (LLM)"],
         spans[1:],
-        llmobs_events[1:],
         llm_calls=[
             (
                 [
@@ -451,28 +452,28 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
 
 
 @pytest.mark.asyncio
-async def test_llmobs_single_agent_with_ootb_tools(agents, test_spans, request_vcr, llmobs_events, weather_agent):
+async def test_llmobs_single_agent_with_ootb_tools(
+    agents, openai_agents_llmobs, test_spans, request_vcr, weather_agent
+):
     with request_vcr.use_cassette("test_single_agent_with_ootb_tools.yaml"):
         result = await agents.Runner.run(weather_agent, "What is the weather like in New York right now?")
 
-    spans = test_spans.pop_traces()[0]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
     spans.sort(key=lambda span: span.start_ns)
-    llmobs_events.sort(key=lambda event: event["start_ns"])
 
-    assert len(spans) == len(llmobs_events) == 3
+    assert len(spans) == 3
 
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-        spans[0],
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
         span_kind="workflow",
         input_value="What is the weather like in New York right now?",
         output_value=result.final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
+        tags=COMMON_TAGS,
     )
     _assert_expected_agent_run(
         ["Weather Agent", "Weather Agent (LLM)"],
         spans[1:],
-        llmobs_events[1:],
         llm_calls=[
             (
                 [
@@ -494,31 +495,29 @@ async def test_llmobs_single_agent_with_ootb_tools(agents, test_spans, request_v
 
 
 @pytest.mark.asyncio
-async def test_llmobs_multiple_agent_handoffs(agents, test_spans, request_vcr, llmobs_events, research_workflow):
+async def test_llmobs_multiple_agent_handoffs(agents, openai_agents_llmobs, test_spans, request_vcr, research_workflow):
     with request_vcr.use_cassette("test_multiple_agent_handoffs.yaml"):
         result = await agents.Runner.run(
             research_workflow, "What is a brief summary of what happened yesterday in the soccer world??"
         )
 
-    spans = test_spans.pop_traces()[0]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
     spans.sort(key=lambda span: span.start_ns)
-    llmobs_events.sort(key=lambda event: event["start_ns"])
 
-    assert len(spans) == len(llmobs_events) == 8
+    assert len(spans) == 8
 
     # top level workflow
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-        spans[0],
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
         span_kind="workflow",
         input_value="What is a brief summary of what happened yesterday in the soccer world??",
         output_value=result.final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
+        tags=COMMON_TAGS,
     )
-    previous_tool_events = _assert_expected_agent_run(
+    previous_tool_spans = _assert_expected_agent_run(
         ["Researcher", "Researcher (LLM)", "research", "Researcher (LLM)", "transfer_to_summarizer"],
         spans[1:6],
-        llmobs_events[1:6],
         llm_calls=[
             (
                 [
@@ -600,7 +599,6 @@ async def test_llmobs_multiple_agent_handoffs(agents, test_spans, request_vcr, l
     _assert_expected_agent_run(
         ["Summarizer", "Summarizer (LLM)"],
         spans[6:],
-        llmobs_events[6:],
         llm_calls=[
             (
                 mock.ANY,
@@ -608,34 +606,32 @@ async def test_llmobs_multiple_agent_handoffs(agents, test_spans, request_vcr, l
             )
         ],
         tool_calls=[],
-        previous_tool_events=previous_tool_events[-1:],
+        previous_tool_spans=previous_tool_spans[-1:],
     )
 
 
 @pytest.mark.asyncio
 async def test_llmobs_single_agent_with_tool_errors(
-    agents, test_spans, request_vcr, llmobs_events, addition_agent_with_tool_errors
+    agents, openai_agents_llmobs, test_spans, request_vcr, addition_agent_with_tool_errors
 ):
     with request_vcr.use_cassette("test_agent_with_tool_errors.yaml"):
         result = await agents.Runner.run(addition_agent_with_tool_errors, "What is the sum of 1 and 2?")
-    spans = test_spans.pop_traces()[0]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
     spans.sort(key=lambda span: span.start_ns)
-    llmobs_events.sort(key=lambda event: event["start_ns"])
 
-    assert len(spans) == len(llmobs_events) == 5
+    assert len(spans) == 5
 
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-        spans[0],
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
         span_kind="workflow",
         input_value="What is the sum of 1 and 2?",
         output_value=result.final_output,
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
+        tags=COMMON_TAGS,
     )
     _assert_expected_agent_run(
         ["Addition Agent", "Addition Agent (LLM)", "add", "Addition Agent (LLM)"],
         spans[1:],
-        llmobs_events[1:],
         llm_calls=[
             (
                 [
@@ -699,26 +695,25 @@ async def test_llmobs_single_agent_with_tool_errors(
 
 @pytest.mark.asyncio
 async def test_llmobs_oai_agents_with_chat_completions_span_linking(
-    agents, openai, test_spans, request_vcr, llmobs_events, research_workflow
+    agents, openai, openai_agents_llmobs, test_spans, request_vcr, research_workflow
 ):
     with request_vcr.use_cassette("test_multiple_agent_handoffs_with_chat_completions.yaml"):
         result = await agents.Runner.run(
             research_workflow, "Research and then summarize what happened yesterday in the soccer world"
         )
 
-    spans = test_spans.pop_traces()[0]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
     spans.sort(key=lambda span: span.start_ns)
-    llmobs_events.sort(key=lambda event: event["start_ns"])
 
-    assert len(spans) == len(llmobs_events) == 8
+    assert len(spans) == 8
 
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-        spans[0],
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
         span_kind="workflow",
         metadata={},
-        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>", "integration": "openai_agents"},
+        tags=COMMON_TAGS,
     )
-    previous_tool_events = _assert_expected_agent_run(
+    previous_tool_spans = _assert_expected_agent_run(
         [
             "Researcher",
             "OpenAI.createChatCompletion",
@@ -727,14 +722,12 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
             "transfer_to_summarizer",
         ],
         spans[1:6],
-        llmobs_events[1:6],
         tool_calls=[{"type": "function_call", "error": False}, {"type": "handoff", "error": False}],
         is_chat=True,
     )
     _assert_expected_agent_run(
         ["Summarizer", "OpenAI.createChatCompletion"],
         spans[6:],
-        llmobs_events[6:],
         llm_calls=[
             (
                 mock.ANY,
@@ -742,27 +735,26 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
             )
         ],
         tool_calls=[],
-        previous_tool_events=previous_tool_events[-1:],
+        previous_tool_spans=previous_tool_spans[-1:],
         is_chat=True,
     )
 
 
 async def test_llmobs_oai_agents_with_guardrail_spans(
-    agents, openai, test_spans, request_vcr, llmobs_events, simple_agent_with_guardrail
+    agents, openai, openai_agents_llmobs, test_spans, request_vcr, simple_agent_with_guardrail
 ):
     with request_vcr.use_cassette("test_oai_agents_with_guardrail_spans.yaml"):
         await agents.Runner.run(simple_agent_with_guardrail, "What is the sum of 1 and 2?")
 
-    spans = test_spans.pop_traces()[0]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
     spans.sort(key=lambda span: span.start_ns)
-    llmobs_events.sort(key=lambda event: event["start_ns"])
 
-    assert len(spans) == len(llmobs_events) == 7
+    assert len(spans) == 7
 
     # assert input guardrail span links to LLM span
-    _assert_span_link(llmobs_events[2], llmobs_events[3], "output", "input")
+    _assert_span_link(spans[2], spans[3], "output", "input")
     # assert LLM span links to output guardrail span
-    _assert_span_link(llmobs_events[5], llmobs_events[6], "output", "input")
+    _assert_span_link(spans[5], spans[6], "output", "input")
 
 
 @pytest.mark.asyncio

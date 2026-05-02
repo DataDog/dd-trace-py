@@ -4,34 +4,42 @@ import random
 import pytest
 
 from ddtrace.contrib.internal.langgraph.patch import LANGGRAPH_VERSION
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_metadata
+from ddtrace.llmobs._utils import get_llmobs_output
+from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import get_llmobs_span_links
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.llmobs._utils import _assert_span_link
 
 
-def _find_span_by_name(llmobs_events, name):
-    """Find a single span by name."""
-    for event in llmobs_events:
-        if event["name"] == name:
-            return event
-    assert False, f"Span '{name}' not found in llmobs span events"
+def _find_span_by_name(spans, name):
+    """Find a single span by its LLMObs meta_struct name."""
+    for span in spans:
+        if get_llmobs_span_name(span) == name:
+            return span
+    assert False, f"Span '{name}' not found in spans"
 
 
-def _find_spans_by_name(llmobs_events, names):
-    """Find multiple spans by name, sorting by start_ns."""
-    spans = []
-    for event in llmobs_events:
-        if event["name"] in names:
-            spans.append(event)
-    if len(spans) != len(names):
-        assert False, f"Spans {names} not found in llmobs span events"
-    return sorted(spans, key=lambda x: x["start_ns"])
+def _find_spans_by_name(spans, names):
+    """Find multiple spans by name, sorted by start_ns."""
+    matched = [span for span in spans if get_llmobs_span_name(span) in names]
+    if len(matched) != len(names):
+        assert False, f"Spans {names} not found in spans"
+    return sorted(matched, key=lambda s: s.start_ns)
+
+
+def _collect_spans(test_spans):
+    return [s for trace in test_spans.pop_traces() for s in trace]
 
 
 class TestLangGraphLLMObs:
-    def test_simple_graph(self, llmobs_events, simple_graph):
+    def test_simple_graph(self, langgraph_llmobs, test_spans, simple_graph):
         simple_graph.invoke({"a_list": [], "which": "a"}, stream_mode=["values"])
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span = _find_span_by_name(llmobs_events, "b")
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span = _find_span_by_name(spans, "b")
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(b_span, graph_span, "output", "output")
@@ -40,13 +48,15 @@ class TestLangGraphLLMObs:
 
         # Check that the graph span has the appropriate output
         # stream_mode=["values"] should result in the last yield being a tuple
-        assert graph_span["meta"]["output"]["value"] == json.dumps({"a_list": ["a", "b"], "which": "a"})
+        graph_output = get_llmobs_output(graph_span) or {}
+        assert graph_output.get("value") == json.dumps({"a_list": ["a", "b"], "which": "a"})
 
-    async def test_simple_graph_async(self, llmobs_events, simple_graph):
+    async def test_simple_graph_async(self, langgraph_llmobs, test_spans, simple_graph):
         await simple_graph.ainvoke({"a_list": [], "which": "a"})
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span = _find_span_by_name(llmobs_events, "b")
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span = _find_span_by_name(spans, "b")
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(b_span, graph_span, "output", "output")
@@ -55,38 +65,42 @@ class TestLangGraphLLMObs:
 
         # Check that the graph span has the appropriate output
         # default stream_mode of "values" should result in the last yield being an object
-        assert graph_span["meta"]["output"]["value"] == json.dumps({"a_list": ["a", "b"], "which": "a"})
+        graph_output = get_llmobs_output(graph_span) or {}
+        assert graph_output.get("value") == json.dumps({"a_list": ["a", "b"], "which": "a"})
 
-    def test_conditional_graph(self, llmobs_events, conditional_graph):
+    def test_conditional_graph(self, langgraph_llmobs, test_spans, conditional_graph):
         conditional_graph.invoke({"a_list": [], "which": "c"})
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        c_span = _find_span_by_name(llmobs_events, "c")
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        c_span = _find_span_by_name(spans, "c")
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(c_span, graph_span, "output", "output")
         _assert_span_link(graph_span, a_span, "input", "input")
         _assert_span_link(a_span, c_span, "output", "input")
 
-    async def test_conditional_graph_async(self, llmobs_events, conditional_graph):
+    async def test_conditional_graph_async(self, langgraph_llmobs, test_spans, conditional_graph):
         await conditional_graph.ainvoke({"a_list": [], "which": "b"})
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span = _find_span_by_name(llmobs_events, "b")
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span = _find_span_by_name(spans, "b")
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(b_span, graph_span, "output", "output")
         _assert_span_link(graph_span, a_span, "input", "input")
         _assert_span_link(a_span, b_span, "output", "input")
 
-    def test_subgraph(self, llmobs_events, complex_graph):
+    def test_subgraph(self, langgraph_llmobs, test_spans, complex_graph):
         complex_graph.invoke({"a_list": [], "which": "b"})
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span = _find_span_by_name(llmobs_events, "b")
-        b1_span = _find_span_by_name(llmobs_events, "b1")
-        b2_span = _find_span_by_name(llmobs_events, "b2")
-        b3_span = _find_span_by_name(llmobs_events, "b3")
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span = _find_span_by_name(spans, "b")
+        b1_span = _find_span_by_name(spans, "b1")
+        b2_span = _find_span_by_name(spans, "b2")
+        b3_span = _find_span_by_name(spans, "b3")
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(b3_span, b_span, "output", "output")
@@ -97,14 +111,15 @@ class TestLangGraphLLMObs:
         _assert_span_link(b1_span, b2_span, "output", "input")
         _assert_span_link(b2_span, b3_span, "output", "input")
 
-    async def test_subgraph_async(self, llmobs_events, complex_graph):
+    async def test_subgraph_async(self, langgraph_llmobs, test_spans, complex_graph):
         await complex_graph.ainvoke({"a_list": [], "which": "b"})
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span = _find_span_by_name(llmobs_events, "b")
-        b1_span = _find_span_by_name(llmobs_events, "b1")
-        b2_span = _find_span_by_name(llmobs_events, "b2")
-        b3_span = _find_span_by_name(llmobs_events, "b3")
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span = _find_span_by_name(spans, "b")
+        b1_span = _find_span_by_name(spans, "b1")
+        b2_span = _find_span_by_name(spans, "b2")
+        b3_span = _find_span_by_name(spans, "b3")
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(b3_span, b_span, "output", "output")
@@ -115,13 +130,14 @@ class TestLangGraphLLMObs:
         _assert_span_link(b1_span, b2_span, "output", "input")
         _assert_span_link(b2_span, b3_span, "output", "input")
 
-    def test_fanning_graph(self, llmobs_events, fanning_graph):
+    def test_fanning_graph(self, langgraph_llmobs, test_spans, fanning_graph):
         fanning_graph.invoke({"a_list": [], "which": ""})
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span = _find_span_by_name(llmobs_events, "b")
-        c_span = _find_span_by_name(llmobs_events, "c")
-        d_span = _find_span_by_name(llmobs_events, "d")
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span = _find_span_by_name(spans, "b")
+        c_span = _find_span_by_name(spans, "c")
+        d_span = _find_span_by_name(spans, "d")
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(d_span, graph_span, "output", "output")
@@ -131,15 +147,16 @@ class TestLangGraphLLMObs:
         _assert_span_link(b_span, d_span, "output", "input")
         _assert_span_link(c_span, d_span, "output", "input")
 
-    async def test_fanning_graph_async(self, llmobs_events, fanning_graph):
+    async def test_fanning_graph_async(self, langgraph_llmobs, test_spans, fanning_graph):
         await fanning_graph.ainvoke({"a_list": [], "which": ""})
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span = _find_span_by_name(llmobs_events, "b")
-        c_span = _find_span_by_name(llmobs_events, "c")
-        d_span = _find_span_by_name(llmobs_events, "d")
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span = _find_span_by_name(spans, "b")
+        c_span = _find_span_by_name(spans, "c")
+        d_span = _find_span_by_name(spans, "d")
 
-        assert graph_span["name"] == "LangGraph"
+        assert get_llmobs_span_name(graph_span) == "LangGraph"
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(d_span, graph_span, "output", "output")
         _assert_span_link(graph_span, a_span, "input", "input")
@@ -148,11 +165,12 @@ class TestLangGraphLLMObs:
         _assert_span_link(b_span, d_span, "output", "input")
         _assert_span_link(c_span, d_span, "output", "input")
 
-    def test_graph_with_send(self, llmobs_events, graph_with_send):
+    def test_graph_with_send(self, langgraph_llmobs, test_spans, graph_with_send):
         graph_with_send.invoke({"a_list": []})
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span_1, b_span_2, b_span_3 = _find_spans_by_name(llmobs_events, ["b", "b", "b"])
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span_1, b_span_2, b_span_3 = _find_spans_by_name(spans, ["b", "b", "b"])
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(b_span_1, graph_span, "output", "output")
@@ -162,11 +180,12 @@ class TestLangGraphLLMObs:
         _assert_span_link(a_span, b_span_2, "output", "input")
         _assert_span_link(a_span, b_span_3, "output", "input")
 
-    async def test_graph_with_send_async(self, llmobs_events, graph_with_send):
+    async def test_graph_with_send_async(self, langgraph_llmobs, test_spans, graph_with_send):
         await graph_with_send.ainvoke({"a_list": []})
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span_1, b_span_2, b_span_3 = _find_spans_by_name(llmobs_events, ["b", "b", "b"])
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span_1, b_span_2, b_span_3 = _find_spans_by_name(spans, ["b", "b", "b"])
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(b_span_1, graph_span, "output", "output")
@@ -176,19 +195,20 @@ class TestLangGraphLLMObs:
         _assert_span_link(a_span, b_span_2, "output", "input")
         _assert_span_link(a_span, b_span_3, "output", "input")
 
-    def test_graph_with_send_complex(self, llmobs_events, graph_with_send_complex):
+    def test_graph_with_send_complex(self, langgraph_llmobs, test_spans, graph_with_send_complex):
         graph_with_send_complex.invoke({"a_list": []})
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span = _find_span_by_name(llmobs_events, "b")
-        c_span = _find_span_by_name(llmobs_events, "c")
-        d_span = _find_span_by_name(llmobs_events, "d")
-        e_span_from_send, e_span = _find_spans_by_name(llmobs_events, ["e", "e"])
-        f_span = _find_span_by_name(llmobs_events, "f")
-        g_span = _find_span_by_name(llmobs_events, "g")
-        h_span = _find_span_by_name(llmobs_events, "h")
-        i_span = _find_span_by_name(llmobs_events, "i")
-        j_span = _find_span_by_name(llmobs_events, "j")
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span = _find_span_by_name(spans, "b")
+        c_span = _find_span_by_name(spans, "c")
+        d_span = _find_span_by_name(spans, "d")
+        e_span_from_send, e_span = _find_spans_by_name(spans, ["e", "e"])
+        f_span = _find_span_by_name(spans, "f")
+        g_span = _find_span_by_name(spans, "g")
+        h_span = _find_span_by_name(spans, "h")
+        i_span = _find_span_by_name(spans, "i")
+        j_span = _find_span_by_name(spans, "j")
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(graph_span, a_span, "input", "input")
@@ -207,19 +227,20 @@ class TestLangGraphLLMObs:
         _assert_span_link(h_span, j_span, "output", "input")
         _assert_span_link(i_span, j_span, "output", "input")
 
-    async def test_graph_with_send_complex_async(self, llmobs_events, graph_with_send_complex):
+    async def test_graph_with_send_complex_async(self, langgraph_llmobs, test_spans, graph_with_send_complex):
         await graph_with_send_complex.ainvoke({"a_list": []})
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span = _find_span_by_name(llmobs_events, "b")
-        c_span = _find_span_by_name(llmobs_events, "c")
-        d_span = _find_span_by_name(llmobs_events, "d")
-        e_span_from_send, e_span = _find_spans_by_name(llmobs_events, ["e", "e"])
-        f_span = _find_span_by_name(llmobs_events, "f")
-        g_span = _find_span_by_name(llmobs_events, "g")
-        h_span = _find_span_by_name(llmobs_events, "h")
-        i_span = _find_span_by_name(llmobs_events, "i")
-        j_span = _find_span_by_name(llmobs_events, "j")
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span = _find_span_by_name(spans, "b")
+        c_span = _find_span_by_name(spans, "c")
+        d_span = _find_span_by_name(spans, "d")
+        e_span_from_send, e_span = _find_spans_by_name(spans, ["e", "e"])
+        f_span = _find_span_by_name(spans, "f")
+        g_span = _find_span_by_name(spans, "g")
+        h_span = _find_span_by_name(spans, "h")
+        i_span = _find_span_by_name(spans, "i")
+        j_span = _find_span_by_name(spans, "j")
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(graph_span, a_span, "input", "input")
@@ -238,14 +259,15 @@ class TestLangGraphLLMObs:
         _assert_span_link(h_span, j_span, "output", "input")
         _assert_span_link(i_span, j_span, "output", "input")
 
-    def test_graph_with_uneven_sides(self, llmobs_events, graph_with_uneven_sides):
+    def test_graph_with_uneven_sides(self, langgraph_llmobs, test_spans, graph_with_uneven_sides):
         graph_with_uneven_sides.invoke({"a_list": []})
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span = _find_span_by_name(llmobs_events, "b")
-        c_span = _find_span_by_name(llmobs_events, "c")
-        d_span = _find_span_by_name(llmobs_events, "d")
-        e_first_finish, e_second_finish = _find_spans_by_name(llmobs_events, ["e", "e"])
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span = _find_span_by_name(spans, "b")
+        c_span = _find_span_by_name(spans, "c")
+        d_span = _find_span_by_name(spans, "d")
+        e_first_finish, e_second_finish = _find_spans_by_name(spans, ["e", "e"])
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(graph_span, a_span, "input", "input")
@@ -257,14 +279,15 @@ class TestLangGraphLLMObs:
         _assert_span_link(e_first_finish, graph_span, "output", "output")
         _assert_span_link(e_second_finish, graph_span, "output", "output")
 
-    async def test_graph_with_uneven_sides_async(self, llmobs_events, graph_with_uneven_sides):
+    async def test_graph_with_uneven_sides_async(self, langgraph_llmobs, test_spans, graph_with_uneven_sides):
         await graph_with_uneven_sides.ainvoke({"a_list": []})
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span = _find_span_by_name(llmobs_events, "b")
-        c_span = _find_span_by_name(llmobs_events, "c")
-        d_span = _find_span_by_name(llmobs_events, "d")
-        e_first_finish, e_second_finish = _find_spans_by_name(llmobs_events, ["e", "e"])
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span = _find_span_by_name(spans, "b")
+        c_span = _find_span_by_name(spans, "c")
+        d_span = _find_span_by_name(spans, "d")
+        e_first_finish, e_second_finish = _find_spans_by_name(spans, ["e", "e"])
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(graph_span, a_span, "input", "input")
@@ -276,36 +299,42 @@ class TestLangGraphLLMObs:
         _assert_span_link(e_first_finish, graph_span, "output", "output")
         _assert_span_link(e_second_finish, graph_span, "output", "output")
 
-    async def test_astream_events(self, simple_graph, llmobs_events):
+    async def test_astream_events(self, langgraph_llmobs, test_spans, simple_graph):
         async for _ in simple_graph.astream_events({"a_list": [], "which": "a"}, version="v2"):
             pass
-        graph_span = _find_span_by_name(llmobs_events, "LangGraph")
-        a_span = _find_span_by_name(llmobs_events, "a")
-        b_span = _find_span_by_name(llmobs_events, "b")
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        a_span = _find_span_by_name(spans, "a")
+        b_span = _find_span_by_name(spans, "b")
 
         _assert_span_link(None, graph_span, "input", "input")
         _assert_span_link(b_span, graph_span, "output", "output")
         _assert_span_link(graph_span, a_span, "input", "input")
         _assert_span_link(a_span, b_span, "output", "input")
 
-        assert a_span["meta"]["output"]["value"] is not None
-        assert b_span["meta"]["output"]["value"] is not None
+        a_output = get_llmobs_output(a_span) or {}
+        b_output = get_llmobs_output(b_span) or {}
+        assert a_output.get("value") is not None
+        assert b_output.get("value") is not None
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
-    def test_agent_manifest_simple_graph(self, llmobs_events, agentic_graph_with_conditional_and_definitive_edges):
+    def test_agent_manifest_simple_graph(
+        self, langgraph_llmobs, test_spans, agentic_graph_with_conditional_and_definitive_edges
+    ):
         agentic_graph_with_conditional_and_definitive_edges.invoke(
             {"a_list": [], "which": random.choice(["agent_b", "agent_c"])}
         )
+        spans = _collect_spans(test_spans)
 
-        agent_a_span = _find_span_by_name(llmobs_events, "agent_a")
+        agent_a_span = _find_span_by_name(spans, "agent_a")
         try:
-            conditional_agent_span = _find_span_by_name(llmobs_events, "agent_b")
+            conditional_agent_span = _find_span_by_name(spans, "agent_b")
             conditional_agent_name = "agent_b"
         except AssertionError:
-            conditional_agent_span = _find_span_by_name(llmobs_events, "agent_c")
+            conditional_agent_span = _find_span_by_name(spans, "agent_c")
             conditional_agent_name = "agent_c"
 
-        agent_d_span = _find_span_by_name(llmobs_events, "agent_d")
+        agent_d_span = _find_span_by_name(spans, "agent_d")
 
         expected_agent_a_manifest = {
             "framework": "LangGraph",
@@ -331,19 +360,22 @@ class TestLangGraphLLMObs:
             "tools": [],
         }
 
-        assert agent_a_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_agent_a_manifest
-        assert (
-            conditional_agent_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_conditional_agent_manifest
-        )
-        assert agent_d_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_agent_d_manifest
+        agent_a_metadata = get_llmobs_metadata(agent_a_span) or {}
+        conditional_metadata = get_llmobs_metadata(conditional_agent_span) or {}
+        agent_d_metadata = get_llmobs_metadata(agent_d_span) or {}
+
+        assert agent_a_metadata.get("_dd", {}).get("agent_manifest") == expected_agent_a_manifest
+        assert conditional_metadata.get("_dd", {}).get("agent_manifest") == expected_conditional_agent_manifest
+        assert agent_d_metadata.get("_dd", {}).get("agent_manifest") == expected_agent_d_manifest
 
     @pytest.mark.skipif(
         LANGGRAPH_VERSION < (0, 3, 21), reason="create_react_agent has full support after LangGraph 0.3.21"
     )
-    def test_agent_manifest_from_create_react_agent(self, llmobs_events, agent_from_create_react_agent):
+    def test_agent_manifest_from_create_react_agent(self, langgraph_llmobs, test_spans, agent_from_create_react_agent):
         agent_from_create_react_agent.invoke({"messages": [{"role": "user", "content": "What is 2 + 2?"}]})
+        spans = _collect_spans(test_spans)
 
-        react_agent_span = _find_span_by_name(llmobs_events, "not_your_average_bostonian")
+        react_agent_span = _find_span_by_name(spans, "not_your_average_bostonian")
 
         expected_agent_manifest = {
             "framework": "LangGraph",
@@ -374,13 +406,17 @@ class TestLangGraphLLMObs:
             "instructions": "You are a helpful assistant who talks with a Boston accent but is also very nice. You speak in full sentences with at least 15 words.",  # noqa: E501
         }
 
-        assert react_agent_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_agent_manifest
+        react_agent_metadata = get_llmobs_metadata(react_agent_span) or {}
+        assert react_agent_metadata.get("_dd", {}).get("agent_manifest") == expected_agent_manifest
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
-    def test_agent_manifest_populates_tools_from_tool_node(self, llmobs_events, custom_agent_with_tool_node):
+    def test_agent_manifest_populates_tools_from_tool_node(
+        self, langgraph_llmobs, test_spans, custom_agent_with_tool_node
+    ):
         custom_agent_with_tool_node.invoke({"a_list": []})
+        spans = _collect_spans(test_spans)
 
-        agent_span = _find_span_by_name(llmobs_events, "custom_agent_with_tool_node")
+        agent_span = _find_span_by_name(spans, "custom_agent_with_tool_node")
 
         expected_agent_manifest = {
             "framework": "LangGraph",
@@ -405,23 +441,26 @@ class TestLangGraphLLMObs:
             ],
         }
 
-        assert agent_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_agent_manifest
+        agent_metadata = get_llmobs_metadata(agent_span) or {}
+        assert agent_metadata.get("_dd", {}).get("agent_manifest") == expected_agent_manifest
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_manifest_different_recursion_limit(
-        self, llmobs_events, agentic_graph_with_conditional_and_definitive_edges
+        self, langgraph_llmobs, test_spans, agentic_graph_with_conditional_and_definitive_edges
     ):
         agentic_graph_with_conditional_and_definitive_edges.invoke(
             {"a_list": [], "which": random.choice(["agent_b", "agent_c"])}, {"recursion_limit": 100}
         )
+        spans = _collect_spans(test_spans)
 
-        agent_span = _find_span_by_name(llmobs_events, "agent")
+        agent_span = _find_span_by_name(spans, "agent")
 
-        assert agent_span["meta"]["metadata"]["_dd"]["agent_manifest"]["max_iterations"] == 100
+        agent_metadata = get_llmobs_metadata(agent_span) or {}
+        assert agent_metadata.get("_dd", {}).get("agent_manifest", {}).get("max_iterations") == 100
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_with_tool_calls_integrations_enabled(
-        self, llmobs_events, agent_from_create_react_agent_integrations_enabled
+        self, langgraph_llmobs, test_spans, agent_from_create_react_agent_integrations_enabled
     ):
         """
         Test that invoking an agent with tool calls while other integrations are enabled results in
@@ -430,23 +469,29 @@ class TestLangGraphLLMObs:
         agent_from_create_react_agent_integrations_enabled.invoke(
             {"messages": [{"role": "user", "content": "What is 2 + 2?"}]}
         )
+        spans = _collect_spans(test_spans)
 
-        assert len(llmobs_events) == 11
+        # Filter to LLMObs-bearing spans (some APM-only spans may be present from langchain/openai patching)
+        llmobs_spans = [s for s in spans if _get_llmobs_data_metastruct(s)]
+        # Sort by finish time: the innermost llm span (openai, nested under langchain) finishes — and
+        # dispatches DISPATCH_ON_LLM_TOOL_CHOICE — first, so tool_links[1] resolves to llm_spans[0].
+        llmobs_spans.sort(key=lambda s: (s.start_ns or 0) + (s.duration_ns or 0))
 
-        first_llm_span = llmobs_events[0]
-        tool_span = llmobs_events[4]
-        second_llm_span = llmobs_events[6]
+        llm_spans = [s for s in llmobs_spans if get_llmobs_span_kind(s) == "llm"]
+        tool_spans = [s for s in llmobs_spans if get_llmobs_span_kind(s) == "tool"]
+        first_llm_span = llm_spans[0]
+        second_llm_span = llm_spans[1]
+        tool_span = tool_spans[0]
 
-        assert first_llm_span["meta"]["span"]["kind"] == "llm"
-        assert tool_span["meta"]["span"]["kind"] == "tool"
-        assert second_llm_span["meta"]["span"]["kind"] == "llm"
+        tool_links = get_llmobs_span_links(tool_span) or []
+        second_llm_links = get_llmobs_span_links(second_llm_span) or []
 
         # assert llm -> tool span link
-        assert tool_span["span_links"][1]["span_id"] == first_llm_span["span_id"]
-        assert tool_span["span_links"][1]["attributes"]["from"] == "output"
-        assert tool_span["span_links"][1]["attributes"]["to"] == "input"
+        assert tool_links[1]["span_id"] == str(first_llm_span.span_id)
+        assert tool_links[1]["attributes"]["from"] == "output"
+        assert tool_links[1]["attributes"]["to"] == "input"
 
         # assert tool -> llm span link
-        assert second_llm_span["span_links"][0]["span_id"] == tool_span["span_id"]
-        assert second_llm_span["span_links"][0]["attributes"]["from"] == "output"
-        assert second_llm_span["span_links"][0]["attributes"]["to"] == "input"
+        assert second_llm_links[0]["span_id"] == str(tool_span.span_id)
+        assert second_llm_links[0]["attributes"]["from"] == "output"
+        assert second_llm_links[0]["attributes"]["to"] == "input"
