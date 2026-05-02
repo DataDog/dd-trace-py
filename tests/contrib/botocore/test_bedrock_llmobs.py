@@ -127,24 +127,24 @@ class TestLLMObsBedrock:
             metadata=expected_metadata,
         )
 
-    def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
+    def test_llmobs_ai21_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke("ai21", bedrock_client, test_spans)
 
-    def test_llmobs_amazon_invoke(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
+    def test_llmobs_amazon_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke("amazon", bedrock_client, test_spans)
 
-    def test_llmobs_anthropic_invoke(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
+    def test_llmobs_anthropic_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke("anthropic", bedrock_client, test_spans)
 
-    def test_llmobs_anthropic_message(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
+    def test_llmobs_anthropic_message(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke("anthropic_message", bedrock_client, test_spans)
 
     def test_llmobs_cohere_single_output_invoke(
-        self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans
+        self, bedrock_client, bedrock_llmobs, test_spans
     ):
         self._test_llmobs_invoke("cohere", bedrock_client, test_spans, cassette_name="cohere_invoke_single_output.yaml")
 
-    def test_llmobs_cohere_multi_output_invoke(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
+    def test_llmobs_cohere_multi_output_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke(
             "cohere",
             bedrock_client,
@@ -153,10 +153,10 @@ class TestLLMObsBedrock:
             n_output=2,
         )
 
-    def test_llmobs_meta_invoke(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
+    def test_llmobs_meta_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke("meta", bedrock_client, test_spans)
 
-    def test_llmobs_cohere_rerank_invoke(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
+    def test_llmobs_cohere_rerank_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
         cassette_name = "cohere_rerank_invoke.yaml"
         model = "cohere.rerank-v3-5:0"
         prompt_data = "What is the capital of the United States?"
@@ -172,19 +172,19 @@ class TestLLMObsBedrock:
         assert len(spans) == 1
         self._assert_llm_span(spans[0], 1, model_id=model)
 
-    def test_llmobs_amazon_invoke_stream(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
+    def test_llmobs_amazon_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream("amazon", bedrock_client, test_spans)
 
-    def test_llmobs_anthropic_invoke_stream(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
+    def test_llmobs_anthropic_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream("anthropic", bedrock_client, test_spans)
 
     def test_llmobs_anthropic_message_invoke_stream(
-        self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans
+        self, bedrock_client, bedrock_llmobs, test_spans
     ):
         self._test_llmobs_invoke_stream("anthropic_message", bedrock_client, test_spans)
 
     def test_llmobs_cohere_single_output_invoke_stream(
-        self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans
+        self, bedrock_client, bedrock_llmobs, test_spans
     ):
         self._test_llmobs_invoke_stream(
             "cohere",
@@ -194,7 +194,7 @@ class TestLLMObsBedrock:
         )
 
     def test_llmobs_cohere_multi_output_invoke_stream(
-        self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans
+        self, bedrock_client, bedrock_llmobs, test_spans
     ):
         self._test_llmobs_invoke_stream(
             "cohere",
@@ -204,10 +204,10 @@ class TestLLMObsBedrock:
             n_output=2,
         )
 
-    def test_llmobs_meta_invoke_stream(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans):
+    def test_llmobs_meta_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream("meta", bedrock_client, test_spans)
 
-    def test_llmobs_only_patches_bedrock(self, ddtrace_global_config, tracer, bedrock_llmobs, test_spans):
+    def test_llmobs_only_patches_bedrock(self, tracer, bedrock_llmobs, test_spans):
         llmobs_service.disable()
 
         with override_global_config(
@@ -232,7 +232,7 @@ class TestLLMObsBedrock:
 
         llmobs_service.disable()
 
-    def test_llmobs_error(self, ddtrace_global_config, bedrock_client, bedrock_llmobs, test_spans, request_vcr):
+    def test_llmobs_error(self, bedrock_client, bedrock_llmobs, test_spans, request_vcr):
         import botocore
 
         with pytest.raises(botocore.exceptions.ClientError):
@@ -684,12 +684,8 @@ class TestLLMObsBedrock:
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [
-        dict(_llmobs_enabled=True, _llmobs_ml_app="<ml-app-name>"),
-        dict(
-            _llmobs_enabled=True,
-            _llmobs_ml_app="<ml-app-name>",
-            _llmobs_instrumented_proxy_urls="http://localhost:4000",
-        ),
+        {},
+        {"_llmobs_instrumented_proxy_urls": "http://localhost:4000"},
     ],
 )
 class TestLLMObsBedrockProxy:
