@@ -257,7 +257,7 @@ class _ProfilerInstance(service.Service):
 
         if self._pytorch_collector_enabled:
 
-            def start_pytorch_collector(collector_class: type[collector.Collector]) -> None:
+            def start_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
                     if any(type(c) is collector_class for c in self._collectors):
                         return
@@ -281,7 +281,7 @@ class _ProfilerInstance(service.Service):
                 self._collectors_on_import = []
 
             torch_hooks: list[tuple[str, Callable[[Any], None]]] = [
-                ("torch", lambda _: start_pytorch_collector(pytorch.TorchProfilerCollector)),
+                ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
             ]
             self._collectors_on_import.extend(torch_hooks)
 

@@ -40,6 +40,17 @@ ENTER_EXIT_CO_NAMES: frozenset[str] = frozenset(
     ["acquire", "release", "__enter__", "__exit__", "__aenter__", "__aexit__"]
 )
 
+# Modules whose internal lock allocations are always excluded from profiling,
+# regardless of user config.  This replaces the old per-lock `is_internal` flag:
+# instead of wrapping-then-silencing these locks, we return native locks (zero overhead).
+# AIDEV-NOTE: do NOT remove stdlib entries — they prevent double-counting when
+# multiple collectors (Lock + Semaphore + Condition) are active simultaneously.
+_ALWAYS_EXCLUDED_MODULES: frozenset = frozenset({
+    "threading",
+    "asyncio",
+    "concurrent",
+})
+
 # Cython-compiled def/cpdef functions do not create Python frame objects
 # visible to sys._getframe(). All intermediate calls within this module
 # (_acquire -> _flush_sample, __call__ -> _profiled_allocate_lock -> __init__)
@@ -92,7 +103,6 @@ class _ProfiledLock:
         "init_location",
         "acquired_time",
         "name",
-        "is_internal",
     )
 
     def __init__(
@@ -100,7 +110,6 @@ class _ProfiledLock:
         wrapped: Any,
         tracer: Optional[Tracer],
         capture_sampler: collector.CaptureSampler,
-        is_internal: bool = False,
     ) -> None:
         self.__wrapped__: Any = wrapped
         self.tracer: Optional[Tracer] = tracer
@@ -118,9 +127,6 @@ class _ProfiledLock:
             self.init_location = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
         self.acquired_time: Optional[int] = None
         self.name: Optional[str] = None
-        # If True, this lock is internal to another sync primitive (e.g., Lock inside Semaphore)
-        # and should not generate profile samples to avoid double-counting
-        self.is_internal: bool = is_internal
 
     # gevent compatibility — gevent's _patch_existing_locks calls
     # type(threading.RLock()) to determine the RLock type, then scans gc.get_objects()
@@ -230,16 +236,14 @@ class _ProfiledLock:
 
         cdef long long end = time.monotonic_ns()
         self.acquired_time = end
-        if not self.is_internal:
-            try:
-                self._update_name()
-                self._flush_sample(start, end, True)
-            except AssertionError:
-                if config.enable_asserts:
-                    raise
-            except Exception:
-                # Instrumentation must never crash user code
-                pass  # nosec
+        try:
+            self._update_name()
+            self._flush_sample(start, end, True)
+        except AssertionError:
+            if config.enable_asserts:
+                raise
+        except Exception:
+            pass  # nosec
         if error_info is not None:
             err: BaseException
             tb: Optional[TracebackType]
@@ -280,27 +284,18 @@ class _ProfiledLock:
         # release, so it is irrelevant if it fails.
         result = inner_func(*args, **kwargs)
 
-        if self.is_internal:
-            return result
-
         try:
             self._flush_sample(start, time.monotonic_ns(), False)
         except AssertionError:
             if config.enable_asserts:
                 raise
         except Exception:
-            # Instrumentation must never crash user code
             pass  # nosec
 
         return result
 
     def _flush_sample(self, long long start, long long end, bint is_acquire) -> None:
         """Push lock profiling data to ddup."""
-        # Skip profiling for internal locks (e.g., Lock inside Semaphore/Condition)
-        # to avoid double-counting when multiple collectors are active
-        if self.is_internal:
-            return
-
         cdef long long duration_ns = end - start
         try:
             handle: ddup.SampleHandle = ddup.SampleHandle()
@@ -507,9 +502,6 @@ class LockCollector(collector.CaptureSamplerCollector):
     PROFILED_LOCK_CLASS: type[_ProfiledLock]
     MODULE: ModuleType  # e.g., threading module
     PATCHED_LOCK_NAME: str  # e.g., "Lock", "RLock", "Semaphore"
-    # Module file to check for internal lock detection (e.g., threading.__file__ or asyncio.locks.__file__)
-    # If None, defaults to threading.__file__ for backward compatibility
-    INTERNAL_MODULE_FILE: Optional[str] = None
 
     def __init__(
         self,
@@ -586,55 +578,23 @@ class LockCollector(collector.CaptureSamplerCollector):
             return
         self._original_lock = original_lock
 
-        # Determine which module file to check for internal lock detection
-        internal_module_file: Optional[str] = self.INTERNAL_MODULE_FILE
-        if internal_module_file is None:
-            # Default to threading.__file__ for backward compatibility
-            import threading as threading_module
-
-            internal_module_file = threading_module.__file__
-
-        # Precompute the resolved internal module path once — avoids repeated filesystem syscalls
-        # on every lock allocation.
-        precomputed_internal_file: Optional[str] = None
-        if internal_module_file:
-            try:
-                precomputed_internal_file = os.path.normpath(os.path.realpath(internal_module_file))
-            except OSError:
-                pass
-
-        # Precompute module exclusion structures once at patch time (not per lock creation).
-        # Two structures for fast matching:
-        #   exclude_exact  — frozenset for O(1) exact module name lookup
-        #   exclude_dotted — tuple of "prefix." strings for str.startswith
-        exclude_exact: frozenset[str] = config.lock.exclude_modules
+        # Merge user-configured exclusions with the always-excluded stdlib modules.
+        # _ALWAYS_EXCLUDED_MODULES prevents double-counting when multiple collectors
+        # (Lock + Semaphore + Condition) are active — the same role `is_internal` used
+        # to play, but with zero overhead (native lock returned, not wrapped-then-silenced).
+        exclude_exact: frozenset[str] = (
+            config.lock.exclude_modules | _ALWAYS_EXCLUDED_MODULES
+        )
         exclude_dotted: tuple[str, ...] = tuple(p + "." for p in exclude_exact)
 
         def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> Any:
-            """Simple wrapper that returns profiled locks.
-
-            Detects if the lock is being created from within the stdlib module
-            (i.e., internal to Semaphore/Condition) to avoid double-counting.
-            Skips wrapping entirely for locks created from excluded modules.
-            """
-            cdef bint is_internal = False
-            cdef str caller_filename
+            """Return a profiled lock, or a native lock for excluded modules."""
             cdef str caller_module
             try:
-                # In Cython, intermediate frames are invisible; caller is at index 0
                 caller_frame: FrameType = sys._getframe(0)
-                caller_filename = caller_frame.f_code.co_filename
-
-                # Module exclusion: return native lock with zero profiling overhead
-                if exclude_exact:
-                    caller_module = caller_frame.f_globals.get("__name__", "")
-                    if caller_module in exclude_exact or caller_module.startswith(exclude_dotted):
-                        return original_lock(*args, **kwargs)
-
-                # Internal lock detection (e.g., threading.Semaphore creating a Lock internally)
-                if precomputed_internal_file and caller_filename:
-                    caller_filename = os.path.normpath(os.path.realpath(caller_filename))
-                    is_internal = caller_filename == precomputed_internal_file
+                caller_module = caller_frame.f_globals.get("__name__", "")
+                if caller_module in exclude_exact or caller_module.startswith(exclude_dotted):
+                    return original_lock(*args, **kwargs)
             except (ValueError, AttributeError, OSError):
                 pass
 
@@ -642,7 +602,6 @@ class LockCollector(collector.CaptureSamplerCollector):
                 wrapped=original_lock(*args, **kwargs),
                 tracer=self.tracer,
                 capture_sampler=self._capture_sampler,
-                is_internal=is_internal,
             )
 
         self._set_patch_target(_LockAllocatorWrapper(_profiled_allocate_lock, original_class=original_lock))
