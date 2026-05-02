@@ -475,15 +475,13 @@ class TestLangGraphLLMObs:
         llmobs_spans = [s for s in spans if _get_llmobs_data_metastruct(s)]
         llmobs_spans.sort(key=lambda s: s.start_ns)
 
-        assert len(llmobs_spans) == 11
-
-        first_llm_span = llmobs_spans[0]
-        tool_span = llmobs_spans[4]
-        second_llm_span = llmobs_spans[6]
-
-        assert get_llmobs_span_kind(first_llm_span) == "llm"
-        assert get_llmobs_span_kind(tool_span) == "tool"
-        assert get_llmobs_span_kind(second_llm_span) == "llm"
+        # Pick by kind rather than positional index: langgraph >=0.3.22 emits an enclosing agent span
+        # whose start_ns precedes the inner llm span, which would shift fixed offsets.
+        llm_spans = [s for s in llmobs_spans if get_llmobs_span_kind(s) == "llm"]
+        tool_spans = [s for s in llmobs_spans if get_llmobs_span_kind(s) == "tool"]
+        first_llm_span = llm_spans[0]
+        second_llm_span = llm_spans[1]
+        tool_span = tool_spans[0]
 
         tool_links = get_llmobs_span_links(tool_span) or []
         second_llm_links = get_llmobs_span_links(second_llm_span) or []
