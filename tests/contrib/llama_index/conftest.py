@@ -7,19 +7,8 @@ from ddtrace.contrib.internal.llama_index.patch import patch
 from ddtrace.contrib.internal.llama_index.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from tests.contrib.llama_index.utils import get_request_vcr
-from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
-
-
-@pytest.fixture
-def ddtrace_config_llama_index():
-    return {}
-
-
-@pytest.fixture
-def ddtrace_global_config():
-    return {}
 
 
 @pytest.fixture
@@ -45,26 +34,19 @@ def llama_index_llmobs(tracer, monkeypatch):
     LLMObs.disable()
 
 
-def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>"}
-
-
 @pytest.fixture
-def llama_index(ddtrace_global_config, ddtrace_config_llama_index):
-    global_config = default_global_config()
-    global_config.update(ddtrace_global_config)
-    with override_global_config(global_config):
-        with override_config("llama_index", ddtrace_config_llama_index):
-            with override_env(
-                dict(
-                    OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
-                )
-            ):
-                patch()
-                import llama_index
+def llama_index():
+    with override_global_config({"_dd_api_key": "<not-a-real-api_key>"}):
+        with override_env(
+            dict(
+                OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+            )
+        ):
+            patch()
+            import llama_index
 
-                yield llama_index
-                unpatch()
+            yield llama_index
+            unpatch()
 
 
 @pytest.fixture(scope="session")
