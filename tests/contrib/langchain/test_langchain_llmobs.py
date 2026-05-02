@@ -80,7 +80,7 @@ def _create_multi_message_prompt_template(langchain_core, metadata=None):
     return template
 
 
-def _llm_span_kwargs(span, input_role=None, mock_io=False, mock_token_metrics=False, metadata=None):
+def _expected_llm_span_data(span, input_role=None, mock_io=False, mock_token_metrics=False, metadata=None):
     """Build kwargs to splat into ``assert_llmobs_span_data`` for a langchain LLM span.
 
     Mirrors the structural shape produced by the legacy
@@ -112,7 +112,7 @@ def _llm_span_kwargs(span, input_role=None, mock_io=False, mock_token_metrics=Fa
     )
 
 
-def _chain_span_kwargs(input_value=None, output_value=None, metadata=None):
+def _expected_chain_span_data(input_value=None, output_value=None, metadata=None):
     """Build kwargs to splat into ``assert_llmobs_span_data`` for a langchain chain (workflow) span."""
     metadata = metadata if metadata else mock.ANY
     return dict(
@@ -149,7 +149,7 @@ class TestLangChainLLMObs:
         assert len(spans) == 1
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
-            **_llm_span_kwargs(spans[0], mock_token_metrics=True, metadata={"max_tokens": 256, "temperature": 0.7}),
+            **_expected_llm_span_data(spans[0], mock_token_metrics=True, metadata={"max_tokens": 256, "temperature": 0.7}),
         )
 
     @mock.patch("langchain_core.language_models.llms.BaseLLM._generate_helper")
@@ -162,7 +162,7 @@ class TestLangChainLLMObs:
         assert len(spans) == 1
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
-            **_chain_span_kwargs(
+            **_expected_chain_span_data(
                 input_value=json.dumps([{"content": "What is the capital of France?"}], sort_keys=True)
             ),
         )
@@ -182,7 +182,7 @@ class TestLangChainLLMObs:
         assert len(spans) == 1
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
-            **_llm_span_kwargs(
+            **_expected_llm_span_data(
                 spans[0], input_role="user", mock_token_metrics=True, metadata={"temperature": 0.0, "max_tokens": 256}
             ),
         )
@@ -219,7 +219,7 @@ class TestLangChainLLMObs:
         assert len(spans) == 1
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
-            **_chain_span_kwargs(
+            **_expected_chain_span_data(
                 input_value=json.dumps([{"content": "What is the capital of France?", "role": "user"}], sort_keys=True),
                 metadata={"temperature": 0.0, "max_tokens": 256},
             ),
@@ -435,13 +435,13 @@ class TestLangChainLLMObs:
         assert len(spans) == 2
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
-            **_chain_span_kwargs(
+            **_expected_chain_span_data(
                 input_value=json.dumps([{"input": "Can you explain what an LLM chain is?"}], sort_keys=True),
             ),
         )
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[1]),
-            **_llm_span_kwargs(spans[1], mock_token_metrics=True, metadata={"max_tokens": 256, "temperature": 0.7}),
+            **_expected_llm_span_data(spans[1], mock_token_metrics=True, metadata={"max_tokens": 256, "temperature": 0.7}),
         )
         expected_prompt = {
             "id": "test_langchain_llmobs.prompt",
@@ -476,14 +476,14 @@ class TestLangChainLLMObs:
 
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
-            **_chain_span_kwargs(
+            **_expected_chain_span_data(
                 input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
                 output_value=mock.ANY,
             ),
         )
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[1]),
-            **_chain_span_kwargs(
+            **_expected_chain_span_data(
                 input_value=json.dumps([{"person": "Spongebob Squarepants", "language": "Spanish"}], sort_keys=True),
                 output_value=mock.ANY,
             ),
@@ -496,7 +496,7 @@ class TestLangChainLLMObs:
             tags=COMMON_TAGS,
         )
         assert_llmobs_span_data(
-            _get_llmobs_data_metastruct(spans[3]), **_llm_span_kwargs(spans[3], mock_token_metrics=True)
+            _get_llmobs_data_metastruct(spans[3]), **_expected_llm_span_data(spans[3], mock_token_metrics=True)
         )
         expected_prompt_3 = {
             "id": "langchain.unknown_prompt_template",
@@ -509,7 +509,7 @@ class TestLangChainLLMObs:
         assert get_llmobs_input_prompt(spans[3]) == expected_prompt_3
 
         assert_llmobs_span_data(
-            _get_llmobs_data_metastruct(spans[4]), **_llm_span_kwargs(spans[4], mock_token_metrics=True)
+            _get_llmobs_data_metastruct(spans[4]), **_expected_llm_span_data(spans[4], mock_token_metrics=True)
         )
         expected_prompt_4 = {
             "id": "test_langchain_llmobs.prompt2",
@@ -534,7 +534,7 @@ class TestLangChainLLMObs:
         assert len(spans) == 3
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
-            **_chain_span_kwargs(input_value=json.dumps(["chickens", "pigs"], sort_keys=True), output_value=mock.ANY),
+            **_expected_chain_span_data(input_value=json.dumps(["chickens", "pigs"], sort_keys=True), output_value=mock.ANY),
         )
 
         # The two LLM spans (one per batch item) can come back in either order; check by
@@ -542,7 +542,7 @@ class TestLangChainLLMObs:
         for child in spans[1:3]:
             assert_llmobs_span_data(
                 _get_llmobs_data_metastruct(child),
-                **_llm_span_kwargs(child, input_role="user", mock_token_metrics=True),
+                **_expected_llm_span_data(child, input_role="user", mock_token_metrics=True),
             )
             prompt_block = get_llmobs_input_prompt(child)
             assert prompt_block["id"] == "langchain.unknown_prompt_template"
@@ -575,7 +575,7 @@ class TestLangChainLLMObs:
         assert len(spans) == 2
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
-            **_chain_span_kwargs(
+            **_expected_chain_span_data(
                 input_value=json.dumps(
                     [
                         {
@@ -591,7 +591,7 @@ class TestLangChainLLMObs:
         )
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[1]),
-            **_llm_span_kwargs(spans[1], mock_io=True, mock_token_metrics=True),
+            **_expected_llm_span_data(spans[1], mock_io=True, mock_token_metrics=True),
         )
 
     def test_llmobs_anthropic_chat_model(self, langchain_anthropic, langchain_llmobs, test_spans, anthropic_url):
@@ -613,7 +613,7 @@ class TestLangChainLLMObs:
         assert len(spans) == 1
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
-            **_llm_span_kwargs(
+            **_expected_llm_span_data(
                 spans[0], input_role="user", mock_token_metrics=True, metadata={"temperature": 0, "max_tokens": 15}
             ),
         )
@@ -658,7 +658,7 @@ class TestLangChainLLMObs:
         assert span.get_tag("langchain.request.model") == "gemini-2.5-flash"
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(span),
-            **_llm_span_kwargs(span, input_role="user", mock_token_metrics=True, metadata={"temperature": 0.0}),
+            **_expected_llm_span_data(span, input_role="user", mock_token_metrics=True, metadata={"temperature": 0.0}),
         )
 
     def test_llmobs_embedding_documents(self, langchain_openai, langchain_llmobs, test_spans, openai_url):
@@ -803,7 +803,7 @@ class TestLangChainLLMObs:
         assert len(spans) == 2
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
-            **_chain_span_kwargs(
+            **_expected_chain_span_data(
                 input_value=json.dumps({"input": "how can langsmith help with testing?"}, sort_keys=True),
                 output_value=mock.ANY,
             ),
