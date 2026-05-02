@@ -10,28 +10,16 @@ from tests.contrib.litellm.utils import model_list
 from tests.utils import override_global_config
 
 
-def default_global_config():
-    return {}
-
-
 @pytest.fixture
-def ddtrace_global_config():
-    return {}
+def litellm(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "<not-a-real-key>")
+    monkeypatch.setenv("COHERE_API_KEY", "<not-a-real-key>")
+    patch()
+    import litellm
 
-
-@pytest.fixture
-def litellm(ddtrace_global_config, monkeypatch):
-    global_config = default_global_config()
-    global_config.update(ddtrace_global_config)
-    with override_global_config(global_config):
-        monkeypatch.setenv("OPENAI_API_KEY", "<not-a-real-key>")
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "<not-a-real-key>")
-        monkeypatch.setenv("COHERE_API_KEY", "<not-a-real-key>")
-        patch()
-        import litellm
-
-        yield litellm
-        unpatch()
+    yield litellm
+    unpatch()
 
 
 @pytest.fixture
