@@ -97,7 +97,7 @@ def _assert_inner_spans(inner_spans, trace_step_spans):
         assert len(inner_spans_by_trace_step[trace_step_span["span_id"]]) == expected_inner_spans_per_step[i]
 
 
-def test_agent_invoke(bedrock_agent_client, request_vcr, llmobs_events):
+def test_agent_invoke(bedrock_agent_client, request_vcr, bedrock_agents_llmobs, test_spans, llmobs_events):
     with request_vcr.use_cassette("agent_invoke.yaml"):
         response = bedrock_agent_client.invoke_agent(
             agentAliasId=AGENT_ALIAS_ID,
@@ -119,7 +119,7 @@ def test_agent_invoke(bedrock_agent_client, request_vcr, llmobs_events):
     _assert_inner_spans(inner_spans, trace_step_spans)
 
 
-def test_agent_invoke_stream(bedrock_agent_client, request_vcr, llmobs_events):
+def test_agent_invoke_stream(bedrock_agent_client, request_vcr, bedrock_agents_llmobs, test_spans, llmobs_events):
     with request_vcr.use_cassette("agent_invoke.yaml"):
         response = bedrock_agent_client.invoke_agent(
             agentAliasId=AGENT_ALIAS_ID,
@@ -142,7 +142,9 @@ def test_agent_invoke_stream(bedrock_agent_client, request_vcr, llmobs_events):
     _assert_inner_spans(inner_spans, trace_step_spans)
 
 
-def test_agent_invoke_trace_disabled(bedrock_agent_client, request_vcr, llmobs_events):
+def test_agent_invoke_trace_disabled(
+    bedrock_agent_client, request_vcr, bedrock_agents_llmobs, test_spans, llmobs_events
+):
     """Test that we only get the agent span when enableTrace is set to False."""
     with request_vcr.use_cassette("agent_invoke_trace_disabled.yaml"):
         response = bedrock_agent_client.invoke_agent(
@@ -158,7 +160,9 @@ def test_agent_invoke_trace_disabled(bedrock_agent_client, request_vcr, llmobs_e
     assert llmobs_events[0]["name"] == "Bedrock Agent {}".format(AGENT_ID)
 
 
-def test_agent_invoke_stream_trace_disabled(bedrock_agent_client, request_vcr, llmobs_events):
+def test_agent_invoke_stream_trace_disabled(
+    bedrock_agent_client, request_vcr, bedrock_agents_llmobs, test_spans, llmobs_events
+):
     """Test that we only get the agent span when enableTrace is set to False."""
     with request_vcr.use_cassette("agent_invoke_trace_disabled.yaml"):
         response = bedrock_agent_client.invoke_agent(
