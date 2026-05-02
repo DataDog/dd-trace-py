@@ -13,19 +13,6 @@ from tests.utils import override_global_config
 
 
 @pytest.fixture
-def llmobs_env():
-    return {
-        "DD_API_KEY": "<default-not-a-real-key>",
-        "DD_LLMOBS_ML_APP": "unnamed-ml-app",
-    }
-
-
-@pytest.fixture
-def ddtrace_global_config():
-    return {}
-
-
-@pytest.fixture
 def langchain_llmobs(tracer, monkeypatch):
     """Enable LLMObs with langchain-specific config (instrumented proxy URLs).
 
