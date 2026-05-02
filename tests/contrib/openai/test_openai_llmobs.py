@@ -1004,6 +1004,119 @@ class TestLLMObsOpenaiV1:
         )
 
     @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_tool_call_preserves_assistant_content(
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
+    ):
+        """MLOS-605: assistant messages carrying both prose content and structured tool_calls
+        on the same message must preserve the prose in the LLMObs span. OpenAI's native
+        function-calling schema allows content and tool_calls to coexist (content is the
+        model's narration, tool_calls is the structured invocation) — earlier logic cleared
+        content unconditionally which dropped legitimate prose from replayed history.
+        """
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        assistant_prose = "I'll look up the student's profile before answering."
+        tool_call_id = "call_get_user_context_0"
+        messages = [
+            {"role": "user", "content": chat_completion_input_description},
+            {
+                "role": "assistant",
+                "content": assistant_prose,
+                "tool_calls": [
+                    {
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": "extract_student_info", "arguments": "{}"},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": tool_call_id, "content": '{"verified": true}'},
+            {"role": "user", "content": "Thanks, can you summarize?"},
+        ]
+        client = openai.OpenAI()
+        client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        tagged_inputs = mock_llmobs_writer.enqueue.call_args.args[0]["meta"]["input"]["messages"]
+        assistant_tagged = tagged_inputs[1]
+        assert assistant_tagged["role"] == "assistant"
+        assert assistant_tagged["content"] == assistant_prose
+        assert assistant_tagged["tool_calls"] == [
+            {"name": "extract_student_info", "arguments": {}, "tool_id": tool_call_id, "type": "function"}
+        ]
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_tool_call_with_none_content_does_not_leak_string(
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
+    ):
+        """MLOS-605: OpenAI returns `content=None` alongside `tool_calls` when the model issues
+        a pure function call with no narration. Earlier logic ran `str(None)` → "None" and
+        relied on the unconditional content-clear to mask it; once the clear became conditional
+        the literal string "None" leaked into the span. Normalize None → "" before stringifying.
+        """
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        tool_call_id = "call_get_user_context_0"
+        messages = [
+            {"role": "user", "content": chat_completion_input_description},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": "extract_student_info", "arguments": "{}"},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": tool_call_id, "content": '{"verified": true}'},
+            {"role": "user", "content": "Thanks, can you summarize?"},
+        ]
+        client = openai.OpenAI()
+        client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        tagged_inputs = mock_llmobs_writer.enqueue.call_args.args[0]["meta"]["input"]["messages"]
+        assistant_tagged = tagged_inputs[1]
+        assert assistant_tagged["role"] == "assistant"
+        assert assistant_tagged["content"] == ""
+        assert assistant_tagged["tool_calls"] == [
+            {"name": "extract_student_info", "arguments": {}, "tool_id": tool_call_id, "type": "function"}
+        ]
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_react_style_content_still_deduplicates(
+        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
+    ):
+        """Regression guard for ReAct-style agents: when content literally contains the
+        `Action:/Action Input:` pattern and structured tool_calls are extracted from it,
+        clear content to avoid rendering the same call twice in the LLMObs UI.
+        """
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        react_content = "Action: extract_student_info\nAction Input: {}"
+        messages = [
+            {"role": "user", "content": chat_completion_input_description},
+            {"role": "assistant", "content": react_content},
+        ]
+        client = openai.OpenAI()
+        client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        tagged_inputs = mock_llmobs_writer.enqueue.call_args.args[0]["meta"]["input"]["messages"]
+        assistant_tagged = tagged_inputs[1]
+        assert assistant_tagged["role"] == "assistant"
+        assert assistant_tagged["content"] == ""
+        assert assistant_tagged["tool_calls"][0]["name"] == "extract_student_info"
+
+    @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66),
         reason="Responses API with custom tools available after v1.66.0",
     )

@@ -338,6 +338,8 @@ def openai_set_meta_tags_from_chat(
         raw_content = _get_attr(m, "content", "")
         if isinstance(raw_content, list):
             content = _extract_content_parts(raw_content)
+        elif raw_content is None:
+            content = ""
         else:
             content = str(raw_content)
         role = str(_get_attr(m, "role", ""))
@@ -347,13 +349,18 @@ def openai_set_meta_tags_from_chat(
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
 
         extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(m)
+        pre_react_call_count = len(extracted_tool_calls)
         if role != "system":
             # ignore system messages as we may unintentionally parse instructions as tool calls
             capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span, is_input=True)
 
+        # True if a ReAct-style "Action:" call was parsed out of the content string above
+        react_appended = len(extracted_tool_calls) > pre_react_call_count
+
         if extracted_tool_calls:
             processed_message["tool_calls"] = extracted_tool_calls
-            processed_message["content"] = ""  # reset content to empty string if tool calls present
+            if react_appended:
+                processed_message["content"] = ""  # only clear content if react tool calls present
         if extracted_tool_results:
             processed_message["tool_results"] = extracted_tool_results
             processed_message["content"] = ""  # reset content to empty string if tool results present
