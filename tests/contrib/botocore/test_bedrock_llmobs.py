@@ -139,9 +139,7 @@ class TestLLMObsBedrock:
     def test_llmobs_anthropic_message(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke("anthropic_message", bedrock_client, test_spans)
 
-    def test_llmobs_cohere_single_output_invoke(
-        self, bedrock_client, bedrock_llmobs, test_spans
-    ):
+    def test_llmobs_cohere_single_output_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke("cohere", bedrock_client, test_spans, cassette_name="cohere_invoke_single_output.yaml")
 
     def test_llmobs_cohere_multi_output_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
@@ -178,14 +176,10 @@ class TestLLMObsBedrock:
     def test_llmobs_anthropic_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream("anthropic", bedrock_client, test_spans)
 
-    def test_llmobs_anthropic_message_invoke_stream(
-        self, bedrock_client, bedrock_llmobs, test_spans
-    ):
+    def test_llmobs_anthropic_message_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream("anthropic_message", bedrock_client, test_spans)
 
-    def test_llmobs_cohere_single_output_invoke_stream(
-        self, bedrock_client, bedrock_llmobs, test_spans
-    ):
+    def test_llmobs_cohere_single_output_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream(
             "cohere",
             bedrock_client,
@@ -193,9 +187,7 @@ class TestLLMObsBedrock:
             cassette_name="cohere_invoke_stream_single_output.yaml",
         )
 
-    def test_llmobs_cohere_multi_output_invoke_stream(
-        self, bedrock_client, bedrock_llmobs, test_spans
-    ):
+    def test_llmobs_cohere_multi_output_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream(
             "cohere",
             bedrock_client,
