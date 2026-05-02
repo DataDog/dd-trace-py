@@ -1,6 +1,7 @@
 import os
 
 import botocore
+import mock
 import pytest
 
 from ddtrace.contrib.internal.botocore.patch import patch
@@ -90,8 +91,31 @@ def llmobs_span_writer():
 
 
 @pytest.fixture
-def bedrock_llmobs(tracer, monkeypatch, llmobs_span_writer):
+def bedrock_llmobs(tracer, monkeypatch):
     monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+    LLMObs.disable()
+    with override_global_config(
+        {
+            "_llmobs_ml_app": "<ml-app-name>",
+            "_dd_api_key": "<not-a-real-key>",
+        }
+    ):
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        yield LLMObs
+    LLMObs.disable()
+
+
+@pytest.fixture
+def bedrock_agents_llmobs(tracer, llmobs_span_writer):
+    """LLMObs fixture for bedrock_agents tests.
+
+    Keeps the real ``TestLLMObsSpanWriter`` (instead of a mock) because the
+    bedrock_agents integration synthesizes span events without a backing APM
+    span — the enqueued events are not derivable from ``meta_struct`` and must
+    be read out of the writer via ``llmobs_events``.
+    """
     LLMObs.disable()
     with override_global_config(
         {
@@ -107,13 +131,7 @@ def bedrock_llmobs(tracer, monkeypatch, llmobs_span_writer):
 
 
 @pytest.fixture
-def llmobs_events(test_spans, llmobs_span_writer):
-    """Wire-format LLMObsSpanEvents enqueued to the writer.
-
-    Used by ``test_bedrock_agents_llmobs.py`` because the bedrock_agents
-    integration synthesizes span events without backing APM spans (the
-    enqueued events are not derivable from ``meta_struct``).
-    """
+def llmobs_events(llmobs_span_writer):
     return llmobs_span_writer.events
 
 
