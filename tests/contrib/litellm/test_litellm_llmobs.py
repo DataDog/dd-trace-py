@@ -4,6 +4,12 @@ import pytest
 from ddtrace._monkey import patch
 from ddtrace.contrib.internal.litellm.patch import get_version
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_metrics
+from ddtrace.llmobs._utils import get_llmobs_output_messages
+from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.litellm.utils import async_consume_stream_aiter
 from tests.contrib.litellm.utils import async_consume_stream_anext
@@ -13,8 +19,11 @@ from tests.contrib.litellm.utils import expected_router_settings
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
 from tests.contrib.litellm.utils import tools
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import assert_llmobs_span_data
+from tests.utils import override_global_config
+
+
+LITELLM_TAGS = {"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"}
 
 
 @pytest.mark.parametrize(
@@ -28,7 +37,7 @@ from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 )
 class TestLLMObsLiteLLM:
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_completion(self, litellm, request_vcr, llmobs_events, test_spans, stream, n, consume_stream):
+    def test_completion(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
@@ -43,21 +52,24 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp)
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
             model_name="gpt-3.5-turbo",
             model_provider="openai",
             input_messages=messages,
             output_messages=output_messages,
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
-            token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            metrics=token_metrics,
+            tags=LITELLM_TAGS,
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_completion_exclude_usage(self, litellm, request_vcr, llmobs_events, test_spans, stream, n, consume_stream):
+    def test_completion_exclude_usage(
+        self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n, False)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
@@ -72,21 +84,22 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp)
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
             model_name="gpt-3.5-turbo",
             model_provider="openai",
             input_messages=messages,
             output_messages=output_messages,
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": False}},
-            token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            metrics=token_metrics,
+            tags=LITELLM_TAGS,
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_completion_with_tools(self, litellm, request_vcr, llmobs_events, test_spans, stream, n, consume_stream):
+    def test_completion_with_tools(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         if stream and n > 1:
             pytest.skip(
                 "Streamed responses with multiple completions and tool calls are not supported: see open issue https://github.com/BerriAI/litellm/issues/8977"
@@ -107,10 +120,11 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp)
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
             model_name="gpt-3.5-turbo",
             model_provider="openai",
             input_messages=messages,
@@ -128,12 +142,12 @@ class TestLLMObsLiteLLM:
                     "schema": tools[0]["function"]["parameters"],
                 }
             ],
-            token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            metrics=token_metrics,
+            tags=LITELLM_TAGS,
         )
 
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
-    async def test_acompletion(self, litellm, request_vcr, llmobs_events, test_spans, stream, n, consume_stream):
+    async def test_acompletion(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = await litellm.acompletion(
@@ -148,21 +162,22 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp)
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
             model_name="gpt-3.5-turbo",
             model_provider="openai",
             input_messages=messages,
             output_messages=output_messages,
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
-            token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            metrics=token_metrics,
+            tags=LITELLM_TAGS,
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_text_completion(self, litellm, request_vcr, llmobs_events, test_spans, stream, n, consume_stream):
+    def test_text_completion(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
             resp = litellm.text_completion(
@@ -177,21 +192,22 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp, is_completion=True)
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
             model_name="gpt-3.5-turbo",
             model_provider="openai",
             input_messages=[{"content": prompt}],
             output_messages=output_messages,
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
-            token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            metrics=token_metrics,
+            tags=LITELLM_TAGS,
         )
 
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
-    async def test_atext_completion(self, litellm, request_vcr, llmobs_events, test_spans, stream, n, consume_stream):
+    async def test_atext_completion(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
             resp = await litellm.atext_completion(
@@ -206,43 +222,44 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp, is_completion=True)
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
             model_name="gpt-3.5-turbo",
             model_provider="openai",
             input_messages=[{"content": prompt}],
             output_messages=output_messages,
             metadata={"stream": stream, "n": n, "stream_options": {"include_usage": True}},
-            token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            metrics=token_metrics,
+            tags=LITELLM_TAGS,
         )
 
-    @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_instrumented_proxy_urls="http://localhost:4000")])
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
     def test_completion_proxy(
-        self, litellm, request_vcr_include_localhost, llmobs_events, test_spans, stream, n, consume_stream
+        self, litellm, request_vcr_include_localhost, litellm_llmobs, test_spans, stream, n, consume_stream
     ):
-        with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
-            messages = [{"content": "Hey, what is up?", "role": "user"}]
-            resp = litellm.completion(
-                model="gpt-3.5-turbo",
-                messages=messages,
-                stream=stream,
-                n=n,
-                stream_options={"include_usage": True},
-                api_base="http://localhost:4000",
-            )
-            if stream:
-                output_messages, _ = consume_stream(resp, n)
-            else:
-                output_messages, _ = parse_response(resp)
+        with override_global_config({"_llmobs_instrumented_proxy_urls": "http://localhost:4000"}):
+            with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
+                messages = [{"content": "Hey, what is up?", "role": "user"}]
+                resp = litellm.completion(
+                    model="gpt-3.5-turbo",
+                    messages=messages,
+                    stream=stream,
+                    n=n,
+                    stream_options={"include_usage": True},
+                    api_base="http://localhost:4000",
+                )
+                if stream:
+                    output_messages, _ = consume_stream(resp, n)
+                else:
+                    output_messages, _ = parse_response(resp)
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-            span,
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
             span_kind="workflow",
             input_value=safe_json(messages, ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
@@ -253,12 +270,12 @@ class TestLLMObsLiteLLM:
                 "api_base": "http://localhost:4000",
                 "model": "gpt-3.5-turbo",
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            tags=LITELLM_TAGS,
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
     def test_completion_base_url_set(
-        self, litellm, request_vcr_include_localhost, llmobs_events, test_spans, stream, n, consume_stream
+        self, litellm, request_vcr_include_localhost, litellm_llmobs, test_spans, stream, n, consume_stream
     ):
         with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -275,10 +292,11 @@ class TestLLMObsLiteLLM:
             else:
                 output_messages, token_metrics = parse_response(resp)
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
             model_name="gpt-3.5-turbo",
             model_provider="openai",
             input_messages=messages,
@@ -290,13 +308,13 @@ class TestLLMObsLiteLLM:
                 "base_url": "http://localhost:4000",
                 "model": "gpt-3.5-turbo",
             },
-            token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            metrics=token_metrics,
+            tags=LITELLM_TAGS,
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
     def test_router_completion(
-        self, litellm, request_vcr, llmobs_events, test_spans, router, stream, n, consume_stream
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, consume_stream
     ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -315,15 +333,14 @@ class TestLLMObsLiteLLM:
         trace = test_spans.pop_traces()[0]
         assert len(trace) == 2
         router_span = trace[0]
+        llm_span = trace[1]
 
-        assert len(llmobs_events) == 2
-        router_event = llmobs_events[1]
-        llm_event = llmobs_events[0]
+        # The downstream LLM span is an "llm" kind named "completion"
+        assert get_llmobs_span_kind(llm_span) == "llm"
+        assert get_llmobs_span_name(llm_span) == "completion"
 
-        assert llm_event["meta"]["span"]["kind"] == "llm"
-        assert llm_event["name"] == "completion"
-        assert router_event == _expected_llmobs_non_llm_span_event(
-            router_span,
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(router_span),
             span_kind="workflow",
             input_value=safe_json(messages, ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
@@ -333,12 +350,12 @@ class TestLLMObsLiteLLM:
                 "stream_options": {"include_usage": True},
                 "router_settings": expected_router_settings,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            tags=LITELLM_TAGS,
         )
 
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
     async def test_router_acompletion(
-        self, litellm, request_vcr, llmobs_events, test_spans, router, stream, n, consume_stream
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, consume_stream
     ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -357,15 +374,13 @@ class TestLLMObsLiteLLM:
         trace = test_spans.pop_traces()[0]
         assert len(trace) == 2
         router_span = trace[0]
+        llm_span = trace[1]
 
-        assert len(llmobs_events) == 2
-        router_event = llmobs_events[1]
-        llm_event = llmobs_events[0]
+        assert get_llmobs_span_kind(llm_span) == "llm"
+        assert get_llmobs_span_name(llm_span) == "acompletion"
 
-        assert llm_event["meta"]["span"]["kind"] == "llm"
-        assert llm_event["name"] == "acompletion"
-        assert router_event == _expected_llmobs_non_llm_span_event(
-            router_span,
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(router_span),
             span_kind="workflow",
             input_value=safe_json(messages, ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
@@ -375,12 +390,12 @@ class TestLLMObsLiteLLM:
                 "stream_options": {"include_usage": True},
                 "router_settings": expected_router_settings,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            tags=LITELLM_TAGS,
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
     def test_router_text_completion(
-        self, litellm, request_vcr, llmobs_events, test_spans, router, stream, n, consume_stream
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, consume_stream
     ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
@@ -399,15 +414,13 @@ class TestLLMObsLiteLLM:
         trace = test_spans.pop_traces()[0]
         assert len(trace) == 2
         router_span = trace[0]
+        llm_span = trace[1]
 
-        assert len(llmobs_events) == 2
-        router_event = llmobs_events[1]
-        llm_event = llmobs_events[0]
+        assert get_llmobs_span_kind(llm_span) == "llm"
+        assert get_llmobs_span_name(llm_span) == "text_completion"
 
-        assert llm_event["meta"]["span"]["kind"] == "llm"
-        assert llm_event["name"] == "text_completion"
-        assert router_event == _expected_llmobs_non_llm_span_event(
-            router_span,
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(router_span),
             span_kind="workflow",
             input_value=safe_json([{"content": prompt}], ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
@@ -417,12 +430,12 @@ class TestLLMObsLiteLLM:
                 "stream_options": {"include_usage": True},
                 "router_settings": expected_router_settings,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            tags=LITELLM_TAGS,
         )
 
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
     async def test_router_atext_completion(
-        self, litellm, request_vcr, llmobs_events, test_spans, router, stream, n, consume_stream
+        self, litellm, request_vcr, litellm_llmobs, test_spans, router, stream, n, consume_stream
     ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
@@ -441,15 +454,13 @@ class TestLLMObsLiteLLM:
         trace = test_spans.pop_traces()[0]
         assert len(trace) == 2
         router_span = trace[0]
+        llm_span = trace[1]
 
-        assert len(llmobs_events) == 2
-        router_event = llmobs_events[1]
-        llm_event = llmobs_events[0]
+        assert get_llmobs_span_kind(llm_span) == "llm"
+        assert get_llmobs_span_name(llm_span) == "atext_completion"
 
-        assert llm_event["meta"]["span"]["kind"] == "llm"
-        assert llm_event["name"] == "atext_completion"
-        assert router_event == _expected_llmobs_non_llm_span_event(
-            router_span,
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(router_span),
             span_kind="workflow",
             input_value=safe_json([{"content": prompt}], ensure_ascii=False),
             output_value=safe_json(output_messages, ensure_ascii=False),
@@ -459,13 +470,13 @@ class TestLLMObsLiteLLM:
                 "stream_options": {"include_usage": True},
                 "router_settings": expected_router_settings,
             },
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            tags=LITELLM_TAGS,
         )
 
     @pytest.mark.skip(reason="Patching Open AI to be used within the LiteLLM library appears to be flaky")
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
     def test_completion_openai_enabled(
-        self, litellm, request_vcr, llmobs_events, test_spans, stream, n, consume_stream
+        self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream
     ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             patch(openai=True)
@@ -482,10 +493,12 @@ class TestLLMObsLiteLLM:
                 for _ in resp:
                     pass
 
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0]["name"] == "OpenAI.createChatCompletion" if not stream else "litellm.request"
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        expected_name = "OpenAI.createChatCompletion" if not stream else "litellm.request"
+        assert get_llmobs_span_name(spans[0]) == expected_name
 
-    def test_completion_anthropic_token_metrics(self, litellm, request_vcr, llmobs_events, test_spans, stream, n):
+    def test_completion_anthropic_token_metrics(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n):
         """Test that cache token metrics (cache_read, cache_write) are captured for Anthropic models via litellm."""
         if stream or n > 1:
             pytest.skip("Anthropic cassette is non-streamed, single-choice only")
@@ -504,25 +517,26 @@ class TestLLMObsLiteLLM:
         token_metrics["ephemeral_1h_input_tokens"] = 0
         token_metrics["ephemeral_5m_input_tokens"] = 2
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
             model_name="claude-sonnet-4-5-20250929",
             model_provider="anthropic",
             input_messages=messages,
             output_messages=output_messages,
             metadata={},
-            token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            metrics=token_metrics,
+            tags=LITELLM_TAGS,
         )
 
         # Verify cache token metrics are present
-        event_metrics = llmobs_events[0]["metrics"]
+        event_metrics = get_llmobs_metrics(spans[0])
         assert "cache_read_input_tokens" in event_metrics
         assert "cache_write_input_tokens" in event_metrics
 
-    def test_completion_anthropic_cache_1h_ttl(self, litellm, request_vcr, llmobs_events, test_spans, stream, n):
+    def test_completion_anthropic_cache_1h_ttl(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n):
         """Test that 1h cache TTL breakdown metrics are captured for Anthropic models via litellm."""
         if stream or n > 1:
             pytest.skip("Anthropic cassette is non-streamed, single-choice only")
@@ -562,20 +576,21 @@ class TestLLMObsLiteLLM:
         token_metrics["ephemeral_1h_input_tokens"] = 2056
         token_metrics["ephemeral_5m_input_tokens"] = 14
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
             model_name="claude-sonnet-4-20250514",
             model_provider="anthropic",
             input_messages=mock.ANY,
             output_messages=output_messages,
             metadata={},
-            token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            metrics=token_metrics,
+            tags=LITELLM_TAGS,
         )
 
-    def test_completion_with_reasoning(self, litellm, request_vcr, llmobs_events, test_spans, stream, n):
+    def test_completion_with_reasoning(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n):
         """Test that reasoning_content and reasoning_output_tokens are captured for models with reasoning."""
         if stream or n > 1:
             pytest.skip("Reasoning cassette is non-streamed, single-choice only")
@@ -588,25 +603,26 @@ class TestLLMObsLiteLLM:
             )
             output_messages, token_metrics = parse_response(resp)
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
             model_name="o3-mini",
             model_provider="openai",
             input_messages=messages,
             output_messages=output_messages,
             metadata={},
-            token_metrics=token_metrics,
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm", "integration": "litellm"},
+            metrics=token_metrics,
+            tags=LITELLM_TAGS,
         )
 
         # Verify reasoning output message is present
-        event_output = llmobs_events[0]["meta"]["output"]["messages"]
+        event_output = get_llmobs_output_messages(spans[0])
         assert any(msg.get("role") == "reasoning" for msg in event_output)
 
         # Verify reasoning_output_tokens metric is present
-        event_metrics = llmobs_events[0]["metrics"]
+        event_metrics = get_llmobs_metrics(spans[0])
         assert "reasoning_output_tokens" in event_metrics
         assert event_metrics["reasoning_output_tokens"] == 15
 
@@ -615,7 +631,7 @@ _OPENAI_ENABLED = "ddtrace.llmobs._integrations.litellm.LLMObs._integration_is_e
 
 
 def test_completion_litellm_proxy_model_not_suppressed_when_openai_enabled(
-    litellm, request_vcr_include_localhost, llmobs_events, test_spans
+    litellm, request_vcr_include_localhost, litellm_llmobs, test_spans
 ):
     """Regression: model='litellm_proxy/<gpt-model>' with OpenAI integration enabled must still produce LLMObs spans."""
     messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -627,14 +643,14 @@ def test_completion_litellm_proxy_model_not_suppressed_when_openai_enabled(
                 api_base="http://localhost:4000",
                 api_key="<not-a-real-key>",
             )
-    assert len(llmobs_events) == 1
-    event = llmobs_events[0]
-    assert event["meta"]["input"]["messages"] == messages
-    assert event["meta"]["output"]["messages"]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert get_llmobs_input_messages(spans[0]) == messages
+    assert get_llmobs_output_messages(spans[0])
 
 
 def test_completion_use_litellm_proxy_kwarg_not_suppressed_when_openai_enabled(
-    litellm, request_vcr_include_localhost, llmobs_events, test_spans
+    litellm, request_vcr_include_localhost, litellm_llmobs, test_spans
 ):
     """Regression: use_litellm_proxy=True with an OpenAI model name must still produce LLMObs spans."""
     messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -647,14 +663,14 @@ def test_completion_use_litellm_proxy_kwarg_not_suppressed_when_openai_enabled(
                 api_key="<not-a-real-key>",
                 use_litellm_proxy=True,
             )
-    assert len(llmobs_events) == 1
-    event = llmobs_events[0]
-    assert event["meta"]["input"]["messages"] == messages
-    assert event["meta"]["output"]["messages"]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert get_llmobs_input_messages(spans[0]) == messages
+    assert get_llmobs_output_messages(spans[0])
 
 
 def test_completion_use_litellm_proxy_module_flag_not_suppressed_when_openai_enabled(
-    litellm, request_vcr_include_localhost, llmobs_events, test_spans
+    litellm, request_vcr_include_localhost, litellm_llmobs, test_spans
 ):
     """Regression: litellm.use_litellm_proxy = True with an OpenAI model name must still produce LLMObs spans."""
     messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -667,14 +683,14 @@ def test_completion_use_litellm_proxy_module_flag_not_suppressed_when_openai_ena
                     api_base="http://localhost:4000",
                     api_key="<not-a-real-key>",
                 )
-    assert len(llmobs_events) == 1
-    event = llmobs_events[0]
-    assert event["meta"]["input"]["messages"] == messages
-    assert event["meta"]["output"]["messages"]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert get_llmobs_input_messages(spans[0]) == messages
+    assert get_llmobs_output_messages(spans[0])
 
 
 def test_completion_use_litellm_proxy_env_var_not_suppressed_when_openai_enabled(
-    litellm, request_vcr_include_localhost, llmobs_events, test_spans, monkeypatch
+    litellm, request_vcr_include_localhost, litellm_llmobs, test_spans, monkeypatch
 ):
     """Regression: USE_LITELLM_PROXY=true env var with an OpenAI model name must still produce LLMObs spans."""
     monkeypatch.setenv("USE_LITELLM_PROXY", "true")
@@ -687,10 +703,10 @@ def test_completion_use_litellm_proxy_env_var_not_suppressed_when_openai_enabled
                 api_base="http://localhost:4000",
                 api_key="<not-a-real-key>",
             )
-    assert len(llmobs_events) == 1
-    event = llmobs_events[0]
-    assert event["meta"]["input"]["messages"] == messages
-    assert event["meta"]["output"]["messages"]
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert get_llmobs_input_messages(spans[0]) == messages
+    assert get_llmobs_output_messages(spans[0])
 
 
 @pytest.mark.parametrize(
