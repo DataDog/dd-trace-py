@@ -160,6 +160,18 @@ import opentelemetry
     assert configurations
     configurations.sort(key=lambda x: x["name"])
 
+    def _normalize_frozenset_str(val):
+        """Normalize frozenset string representations so ordering doesn't matter."""
+        if isinstance(val, str) and val.startswith("frozenset("):
+            try:
+                return str(sorted(eval(val)))
+            except Exception:
+                pass
+        return val
+
+    for cfg in configurations:
+        cfg["value"] = _normalize_frozenset_str(cfg["value"])
+
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
@@ -311,6 +323,32 @@ import opentelemetry
         {"name": "DD_PROFILING_HEAP_SAMPLE_SIZE", "origin": "default", "value": None},
         {"name": "DD_PROFILING_IGNORE_PROFILER", "origin": "default", "value": False},
         {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "env_var", "value": False},
+        {
+            "name": "DD_PROFILING_LOCK_EXCLUDE_MODULES",
+            "origin": "default",
+            "value": str(
+                sorted(
+                    [
+                        "anyio",
+                        "asyncio",
+                        "bytecode",
+                        "concurrent",
+                        "datadog",
+                        "ddsketch",
+                        "ddtrace",
+                        "envier",
+                        "gunicorn",
+                        "h11",
+                        "http",
+                        "logging",
+                        "threading",
+                        "uvicorn",
+                        "werkzeug",
+                        "wrapt",
+                    ]
+                )
+            ),
+        },
         {"name": "DD_PROFILING_LOCK_NAME_INSPECT_DIR", "origin": "default", "value": True},
         {"name": "DD_PROFILING_MAX_FRAMES", "origin": "env_var", "value": 512},
         {"name": "DD_PROFILING_MAX_TIME_USAGE_PCT", "origin": "default", "value": 1.0},

@@ -123,6 +123,7 @@ eventbridge
 exec
 Fargate
 fastapi
+frozenset
 Firehose
 flamegraph
 fnmatch
@@ -386,3 +387,7 @@ denom
 mtime
 mtimes
 txt
+anyio
+ddsketch
+werkzeug
+wrapt
