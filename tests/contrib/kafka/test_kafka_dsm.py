@@ -336,6 +336,8 @@ def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer,
 @pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, ddtrace_run=True, err=None)
 def test_data_streams_kafka_enabled():
     """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to Kafka messages."""
+    import time
+
     import confluent_kafka
     from confluent_kafka import admin as kafka_admin
 
@@ -360,11 +362,17 @@ def test_data_streams_kafka_enabled():
         producer.produce(topic_name, b"test")
         producer.flush()
 
-        import time
-
-        time.sleep(0.5)
-        message = consumer.poll(timeout=5.0)
-        assert message is not None
+        # subscribe() defers partition assignment until the first poll triggers a
+        # group rebalance, so the first poll pays both rebalance and fetch costs.
+        # Loop with a deadline to tolerate slow rebalances on loaded CI.
+        deadline = time.time() + 60
+        message = None
+        while time.time() < deadline:
+            candidate = consumer.poll(timeout=1.0)
+            if candidate is not None and not candidate.error():
+                message = candidate
+                break
+        assert message is not None, "consumer did not receive message within 60s"
         assert "dd-pathway-ctx-base64" in [h[0] for h in message.headers()]
 
     finally:
