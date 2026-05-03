@@ -965,7 +965,13 @@ class RetryReports:
             longrepr = source_report.longrepr
             wasxfail = getattr(source_report, "wasxfail", None)
         except IndexError:
-            log.warning("Test %s has final outcome %r, but no retry had this outcome; this should never happen", test)
+            log.warning(
+                "Test %s has final outcome %r, but no retry had this outcome; this should never happen. "
+                "Outcomes seen: %s",
+                test,
+                outcome,
+                sorted(self.reports_by_outcome.keys()),
+            )
             longrepr = None
             wasxfail = None
 
