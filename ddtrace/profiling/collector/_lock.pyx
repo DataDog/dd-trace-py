@@ -540,7 +540,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         patched_module_id: int = id(self.MODULE)
 
         def _on_module_reimport(new_module: ModuleType) -> None:
-            nonlocal patched_module_
+            nonlocal patched_module_id
             if id(new_module) == patched_module_id:
                 return
             log.warning(
