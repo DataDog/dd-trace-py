@@ -1948,6 +1948,52 @@ class BaseSemaphoreTest(LockCollectorTestBase):
                 "Internal lock from threading stdlib should be a native lock, not a _ProfiledLock"
             )
 
+    def test_internal_module_file_realpath_called_once_at_patch_time(self) -> None:
+        """Verify that os.path.realpath for the internal module file is computed once at patch time,
+        not on every lock allocation.
+
+        Regression test for a bug where the constant internal module path was being resolved via
+        os.path.realpath on every single lock instantiation, causing unnecessary filesystem syscalls
+        in hot paths (e.g. asyncio Semaphore/Condition allocations per request).
+        """
+        realpath_call_counts: dict[str, int] = {"patch_time": 0, "alloc_time": 0}
+        in_patch: list[bool] = [False]
+        original_realpath = os.path.realpath
+
+        def counting_realpath(path: str, **kwargs: object) -> str:
+            if in_patch[0]:
+                realpath_call_counts["patch_time"] += 1
+            else:
+                realpath_call_counts["alloc_time"] += 1
+            return original_realpath(path, **kwargs)  # type: ignore[call-overload]
+
+        with mock.patch("os.path.realpath", side_effect=counting_realpath):
+            in_patch[0] = True
+            collector = self.collector_class(capture_pct=100)
+            collector._start_service()
+            in_patch[0] = False
+
+            try:
+                # Allocate several locks — realpath for the internal module file must NOT be called again
+                for _ in range(5):
+                    lock: LockTypeInst = self.lock_class()
+                    lock.acquire()
+                    lock.release()
+            finally:
+                collector._stop_service()
+
+        # realpath should have been called at least once at patch time (to resolve the internal module file)
+        assert realpath_call_counts["patch_time"] >= 1, (
+            "Expected os.path.realpath to be called at patch() time to precompute the internal module path"
+        )
+        # realpath may still be called at alloc time for the *caller* filename, but NOT for the constant
+        # internal module file. The alloc-time count should be exactly N allocations (one caller realpath each),
+        # not 2*N (which would indicate the internal file is still being resolved per allocation).
+        assert realpath_call_counts["alloc_time"] <= 5, (
+            f"os.path.realpath called {realpath_call_counts['alloc_time']} times during 5 allocations — "
+            "expected at most 5 (one per caller filename). The internal module file path may be recomputed per-call."
+        )
+
     def test_acquire_return_values_preserved(self) -> None:
         """Test that profiling wrapper preserves acquire() return values (transparency test).
 
