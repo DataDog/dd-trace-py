@@ -1929,35 +1929,23 @@ class BaseSemaphoreTest(LockCollectorTestBase):
             ],
         )
 
-    def test_internal_lock_marked_correctly(self) -> None:
-        """Verify that locks created internally by threading.py are marked as internal (`self.is_internal == True`."""
+    def test_stdlib_internal_lock_is_native(self) -> None:
+        """Verify that locks created internally by threading.py are native (unwrapped).
+
+        Because 'threading' is in _ALWAYS_EXCLUDED_MODULES, any lock allocated
+        from within the threading module should be returned as a raw _thread.lock,
+        not a _ProfiledLock wrapper.
+        """
         from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
-        lock_type_name: str = self.lock_class.__name__
-
-        # Start Lock and Semaphore-like collectors to capture both lock types
         with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
-            # Create a regular lock from user code
-            regular_lock: LockTypeInst = threading.Lock()
-            assert hasattr(regular_lock, "is_internal"), "Lock should be wrapped with is_internal attribute"
-            # pyright: ignore[reportAttributeAccessIssue]
-            assert not regular_lock.is_internal, f"Regular lock should NOT be internal, got: {regular_lock.is_internal}"
-
-            # Create a semaphore-like lock - it should NOT be internal
             sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
-            # pyright: ignore[reportAttributeAccessIssue]
-            assert not sem.is_internal, (  # type: ignore[union-attr]
-                f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"  # type: ignore[union-attr]
-            )
 
-            # Access the internal lock (Semaphore-like -> Condition -> Lock)
-            # The Condition is at sem._cond, and its lock is at sem._cond._lock
-            internal_lock: LockTypeInst = (
-                sem._cond._lock  # type: ignore[union-attr]  # pyright: ignore[reportAttributeAccessIssue]
-            )
-            assert hasattr(internal_lock, "is_internal"), "Internal lock should be wrapped"
-            assert internal_lock.is_internal, (  # pyright: ignore[reportAttributeAccessIssue]
-                "Lock created by threading.py (inside Condition) SHOULD be marked as internal."
+            # The Condition's internal lock (sem._cond._lock) is allocated by
+            # threading.py, so it must be a native lock, not a _ProfiledLock.
+            internal_lock = sem._cond._lock  # type: ignore[union-attr]
+            assert not hasattr(internal_lock, "_ProfiledLock__wrapped"), (
+                "Internal lock from threading stdlib should be a native lock, not a _ProfiledLock"
             )
 
     def test_acquire_return_values_preserved(self) -> None:
