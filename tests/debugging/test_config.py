@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import pytest
 
 from ddtrace import __version__
+from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.dynamic_instrumentation import DynamicInstrumentationConfig
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -40,6 +41,7 @@ def test_tags():
             env="test-env",
             version="test-version",
             debugger_version=__version__,
+            host=get_hostname(),
         )
 
 
