@@ -241,15 +241,15 @@ class _ProfilerInstance(service.Service):
                     self._collectors.append(col)
 
             self._collectors_on_import = [
-                ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingConditionCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioConditionCollector)),
+                ("threading", lambda _: start_lock_collector(threading.ThreadingLockCollector)),
+                ("threading", lambda _: start_lock_collector(threading.ThreadingRLockCollector)),
+                ("threading", lambda _: start_lock_collector(threading.ThreadingSemaphoreCollector)),
+                ("threading", lambda _: start_lock_collector(threading.ThreadingBoundedSemaphoreCollector)),
+                ("threading", lambda _: start_lock_collector(threading.ThreadingConditionCollector)),
+                ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioLockCollector)),
+                ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioSemaphoreCollector)),
+                ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
+                ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioConditionCollector)),
             ]
 
             for module, hook in self._collectors_on_import:

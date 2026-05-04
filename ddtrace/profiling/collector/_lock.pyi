@@ -17,14 +17,12 @@ class _ProfiledLock:
     init_location: str
     acquired_time: typing.Optional[int]
     name: typing.Optional[str]
-    is_internal: bool
 
     def __init__(
         self,
         wrapped: typing.Any,
         tracer: typing.Optional[Tracer],
         capture_sampler: collector.CaptureSampler,
-        is_internal: bool = ...,
     ) -> None: ...
     def __eq__(self, other: object) -> bool: ...
     def __getattr__(self, name: str) -> typing.Any: ...
@@ -69,7 +67,6 @@ class LockCollector(collector.CaptureSamplerCollector):
     PROFILED_LOCK_CLASS: type[_ProfiledLock]
     MODULE: types.ModuleType
     PATCHED_LOCK_NAME: str
-    INTERNAL_MODULE_FILE: typing.Optional[str]
     tracer: typing.Optional[Tracer]
     _original_lock: typing.Optional[typing.Callable[..., typing.Any]]
 
