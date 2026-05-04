@@ -32,11 +32,6 @@ log = get_logger(__name__)
 
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
-    # TODO: class-level state pre-dates this migration; concurrent invoke_agent streams will
-    # interleave entries. Move to instance state in a future cleanup.
-    _step_spans_by_step_id: dict[str, Span] = {}  # Maps trace step ID to step parent span
-    _active_span_by_step_id: dict[str, Span] = {}  # Maps trace step ID to currently active inner span
-    _inner_spans_by_step_id: dict[str, list[Span]] = {}  # All inner spans per step (for safety-net finish)
 
     def _llmobs_set_tags(
         self,
@@ -180,46 +175,59 @@ class BedrockIntegration(BaseLLMIntegration):
             return
         _annotate_llmobs_span_data(span, output_value=str(response))
 
-    def translate_bedrock_traces(self, traces, root_span) -> None:
-        """Translate bedrock agent traces to back-dated APM child spans of ``root_span``."""
-        # Each trace event is now a real APM span (was 1 root span pre-migration); acceptable.
+    def translate_bedrock_traces(self, traces, root_span) -> int:
+        """Translate bedrock agent traces to back-dated APM child spans of ``root_span``.
+
+        Returns the latest child end time (ns), or 0 if no children were created. Caller uses it
+        to push ``root_span``'s finish forward so the root covers its back-dated children.
+        """
         if not traces or not self.llmobs_enabled:
-            return
+            return 0
+        # Per-invocation state. Held on the class previously, which raced across concurrent invoke_agent calls.
+        step_spans_by_step_id: dict[str, Span] = {}
+        active_span_by_step_id: dict[str, Span] = {}
+        inner_spans_by_step_id: dict[str, list[Span]] = {}
         for trace in traces:
             trace_step_id = _extract_trace_step_id(trace)
             if trace_step_id is None:
                 log.debug("Skipping Bedrock trace event with no traceId (type=%s)", _extract_trace_type(trace))
                 continue
-            step_span = _create_bedrock_trace_step_span(trace, trace_step_id, root_span, self._step_spans_by_step_id)
-            current_active_span = self._active_span_by_step_id.pop(trace_step_id, None)
+            step_span = _create_bedrock_trace_step_span(trace, trace_step_id, root_span, step_spans_by_step_id)
+            current_active_span = active_span_by_step_id.pop(trace_step_id, None)
             inner_span, finished = translate_bedrock_trace(
                 trace, root_span, step_span, current_active_span, trace_step_id
             )
             if inner_span is not None:
                 if inner_span is not current_active_span:
-                    self._inner_spans_by_step_id.setdefault(trace_step_id, []).append(inner_span)
+                    inner_spans_by_step_id.setdefault(trace_step_id, []).append(inner_span)
                 if not finished:
-                    self._active_span_by_step_id[trace_step_id] = inner_span
+                    active_span_by_step_id[trace_step_id] = inner_span
                 _propagate_inner_io_to_step_span(step_span, inner_span)
-        self._finalize_bedrock_step_spans()
-
-    def _finalize_bedrock_step_spans(self) -> None:
-        # Finish inner spans first so step.finish_time can span the children's full timeline.
         # Default finish_time = start_ns + 1ms (not wall-clock now) so back-dated orphans get a
-        # sane duration. Span.finish() is idempotent, so re-finishing already-finished inner
-        # spans is a no-op.
-        for inner_spans in self._inner_spans_by_step_id.values():
-            for inner_span in inner_spans:
-                inner_span.finish(finish_time=(int(inner_span.start_ns or 0) + DEFAULT_SPAN_DURATION_NS) / 1e9)
-        for step_id, step_span in self._step_spans_by_step_id.items():
-            child_spans = self._inner_spans_by_step_id.get(step_id, [])
-            latest_child_end_ns = max((_max_finish_ns(s) for s in child_spans), default=0)
+        # sane duration. Track earliest across both step and inner spans: guardrail inners can
+        # start before their step when AWS metadata predates the trace event's eventTime.
+        earliest_start_ns = int(root_span.start_ns or 0)
+        latest_end_ns = 0
+        for step_id, step_span in step_spans_by_step_id.items():
+            inners = inner_spans_by_step_id.get(step_id, [])
+            for inner in inners:
+                inner.finish(finish_time=(int(inner.start_ns or 0) + DEFAULT_SPAN_DURATION_NS) / 1e9)
+                inner_start = int(inner.start_ns or 0)
+                if inner_start:
+                    earliest_start_ns = min(earliest_start_ns, inner_start)
+            latest_inner_end_ns = max((_max_finish_ns(s) for s in inners), default=0)
             step_span.finish(
-                finish_time=(latest_child_end_ns or int(step_span.start_ns or 0) + DEFAULT_SPAN_DURATION_NS) / 1e9
+                finish_time=(latest_inner_end_ns or int(step_span.start_ns or 0) + DEFAULT_SPAN_DURATION_NS) / 1e9
             )
-        self._step_spans_by_step_id.clear()
-        self._active_span_by_step_id.clear()
-        self._inner_spans_by_step_id.clear()
+            step_start = int(step_span.start_ns or 0)
+            if step_start:
+                earliest_start_ns = min(earliest_start_ns, step_start)
+            latest_end_ns = max(latest_end_ns, _max_finish_ns(step_span))
+        # Stretch root over back-dated children (clock skew or fast-replay can push events outside
+        # the wall-clock window). Caller extends finish forward via the returned latest_end_ns.
+        if earliest_start_ns < int(root_span.start_ns or 0):
+            root_span.start_ns = earliest_start_ns
+        return latest_end_ns
 
     @staticmethod
     def _extract_input_message_for_converse(prompt: list[dict[str, Any]]) -> list[Message]:

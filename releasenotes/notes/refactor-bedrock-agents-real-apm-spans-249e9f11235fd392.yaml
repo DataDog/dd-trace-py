@@ -4,4 +4,7 @@ upgrade:
     LLM Observability: Bedrock Agent orchestration step events (model invocations,
     tool/action group calls, knowledge base lookups, guardrails, rationales) are
     now emitted as APM child spans of the ``Bedrock Agent <agent_id>`` span, with
-    the same LLMObs payload shape as before.
+    the same LLMObs payload shape as before. The root ``Bedrock Agent`` span is
+    stretched to encompass its back-dated children, so its reported duration now
+    reflects the full server-side execution window rather than just the local
+    ``invoke_agent`` call.
