@@ -2301,13 +2301,9 @@ def test_experiment_rerun_skip_strategy(llmobs):
     )
     previous: ExperimentResult = {"summary_evaluations": {}, "rows": mixed_run.rows, "runs": [mixed_run]}
 
-    # Use no-dataset experiment to avoid backend calls; fallback_records are built from prior rows.
-    exp = llmobs.experiment("test_experiment", evaluators=[dummy_evaluator], project_name="my-project")
+    # Use a pulled experiment to avoid backend calls; fallback_records are built from prior rows.
+    exp = _make_pulled_experiment(llmobs, evaluators=[dummy_evaluator])
     exp.result = previous
-    # Set fake IDs normally populated by run() or LLMObs.pull_experiment()
-    exp._experiment._id = "mock-original-exp-id"
-    exp._experiment._project_id = "mock-project-id"
-    exp._experiment._dataset_id = "mock-dataset-id"
     with (
         mock.patch.object(
             llmobs._instance._dne_client,
@@ -2448,16 +2444,9 @@ def test_experiment_rerun_creates_new_experiment_with_parent_id(llmobs, test_dat
     assert exp._experiment._id == original_id
 
 
-def test_experiment_init_without_task_and_dataset(llmobs):
-    """Creating an experiment without task or dataset must not raise — supports LLMObs.pull_experiment() workflow."""
-    exp = llmobs.experiment("test_experiment", evaluators=[dummy_evaluator], project_name="my-project")
-    assert exp._experiment._task is None
-    assert exp._experiment._dataset is None
-
-
 def test_experiment_run_without_task_raises(llmobs):
-    """Calling run() on an experiment without task/dataset must raise ValueError."""
-    exp = llmobs.experiment("test_experiment", evaluators=[dummy_evaluator], project_name="my-project")
+    """Calling run() on a pulled experiment (no task/dataset) must raise ValueError."""
+    exp = _make_pulled_experiment(llmobs, evaluators=[dummy_evaluator])
     with pytest.raises(ValueError, match="task and dataset are required to run an experiment from scratch"):
         exp.run()
 
@@ -2483,13 +2472,8 @@ def test_experiment_rerun_without_task_succeeds(llmobs):
     prior_run = ExperimentRun(run_info, summary_evaluations={}, rows=[row])
     prior_result = {"runs": [prior_run], "rows": [row], "summary_evaluations": {}}
 
-    exp = llmobs.experiment("test_experiment", evaluators=[dummy_evaluator], project_name="my-project")
-    # Simulate result from LLMObs.pull_experiment() — no run() needed
+    exp = _make_pulled_experiment(llmobs, exp_id="mock-experiment-id", evaluators=[dummy_evaluator])
     exp.result = prior_result
-    # Manually set fields that are normally populated by run()/_setup_experiment or LLMObs.pull_experiment()
-    exp._experiment._id = "mock-experiment-id"
-    exp._experiment._project_id = "mock-project-id"
-    exp._experiment._dataset_id = "mock-dataset-id"
 
     call_kwargs = {}
     new_experiment_ids: list[str] = []
@@ -5674,11 +5658,8 @@ def test_rerun_preserves_all_span_fields(llmobs):
     prior_run = ExperimentRun(run_info, {}, [prior_row])
     prior_result = {"summary_evaluations": {}, "rows": [prior_row], "runs": [prior_run]}
 
-    exp = llmobs.experiment("test_experiment", evaluators=[dummy_evaluator], project_name="my-project")
+    exp = _make_pulled_experiment(llmobs, evaluators=[dummy_evaluator])
     exp.result = prior_result
-    exp._experiment._id = "mock-original-exp-id"
-    exp._experiment._project_id = "mock-project-id"
-    exp._experiment._dataset_id = "mock-dataset-id"
 
     posted_spans = []
 
@@ -5740,11 +5721,8 @@ def test_experiment_rerun_span_copies_carry_new_run_id_and_iteration(llmobs):
     prior_run = ExperimentRun(run_info, {}, [prior_row])
     prior_result = {"summary_evaluations": {}, "rows": [prior_row], "runs": [prior_run]}
 
-    exp = llmobs.experiment("test_experiment", evaluators=[dummy_evaluator], project_name="my-project")
+    exp = _make_pulled_experiment(llmobs, exp_id="original-exp-id", evaluators=[dummy_evaluator])
     exp.result = prior_result
-    exp._experiment._id = "original-exp-id"
-    exp._experiment._project_id = "mock-project-id"
-    exp._experiment._dataset_id = "mock-dataset-id"
     # Stamp stale run_id / run_iteration as if a prior run() happened
     exp._experiment._tags["run_id"] = "stale-run-uuid"
     exp._experiment._tags["run_iteration"] = "999"
@@ -5797,16 +5775,13 @@ def test_experiment_rerun_for_rerun_persists_summary_evaluators(llmobs):
     prior_run = ExperimentRun(run_info, {}, [prior_row])
     prior_result = {"summary_evaluations": {}, "rows": [prior_row], "runs": [prior_run]}
 
-    exp = llmobs.experiment(
-        "test_experiment",
+    exp = _make_pulled_experiment(
+        llmobs,
+        exp_id="original-exp-id",
         evaluators=[dummy_evaluator],
-        project_name="my-project",
         summary_evaluators=[dummy_summary_evaluator],
     )
     exp.result = prior_result
-    exp._experiment._id = "original-exp-id"
-    exp._experiment._project_id = "mock-project-id"
-    exp._experiment._dataset_id = "mock-dataset-id"
 
     with (
         mock.patch.object(
