@@ -9,6 +9,7 @@ import threading
 from tracemalloc import Statistic
 from types import CodeType
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
 from typing import Sequence
 from typing import Union
@@ -19,7 +20,7 @@ import pytest
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
 from ddtrace.internal.settings.profiling import (
-    _derive_default_heap_sample_size,  # pyright: ignore[reportAttributeAccessIssue]
+    _derive_default_heap_sample_size,  # pyright: ignore[reportAttributeAccessIssue]  # type: ignore[attr-defined]
 )
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
@@ -146,7 +147,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
             quit_thread.wait()
 
         alloc_thread = threading.Thread(name="allocator", target=alloc)
-        alloc_thread._ddtrace_profiling_ignore = True  # pyright: ignore[reportAttributeAccessIssue]
+        alloc_thread._ddtrace_profiling_ignore = True  # pyright: ignore[reportAttributeAccessIssue]  # type: ignore[attr-defined]
         alloc_thread.start()
 
         mc.snapshot()
@@ -288,8 +289,8 @@ def get_tracemalloc_stats_per_func(
     actual_sizes: dict[str, int] = {}
     actual_counts: dict[str, int] = {}
     for stat in stats:
-        f = stat.traceback[0]
-        key = f.filename + str(f.lineno)
+        f = stat.traceback[0]  # type: ignore[assignment]
+        key = f.filename + str(f.lineno)  # type: ignore[attr-defined]
         if key in source_to_func:
             func_name = source_to_func[key]
             actual_sizes[func_name] = stat.size
@@ -448,7 +449,7 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
     def get_allocation_info_from_profile(
         profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], funcs: Sequence[Union[Callable, str]]
     ) -> dict[str, HeapInfo]:
-        got = {}
+        got: dict[Any, Any] = {}
         for sample in samples:
             if sample.value[heap_space_idx] > 0:
                 continue
@@ -969,7 +970,7 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 
         worker_samples = 0
         for sample in profile.sample:
-            if worker_func and has_function_in_profile_sample(profile, sample, worker_func):
+            if worker_func and has_function_in_profile_sample(profile, sample, worker_func):  # type: ignore[truthy-function]
                 worker_samples += 1
 
         assert worker_samples > 0, (
@@ -990,7 +991,7 @@ def test_start_wrong_arg() -> None:
     from ddtrace.profiling.collector import _memalloc
 
     with pytest.raises(TypeError, match="function takes exactly 2 arguments \\(1 given\\)"):
-        _memalloc.start(2)  # pyright: ignore[reportCallIssue]
+        _memalloc.start(2)  # pyright: ignore[reportCallIssue]  # type: ignore[call-arg]
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
         _memalloc.start(429496, 1)
@@ -1341,3 +1342,67 @@ def test_bytearray_tracked_on_py313(tmp_path: Path) -> None:
     )
 
     del ba
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PYMEM_DOMAIN_MEM hooks require Python 3.12+")
+def test_mem_domain_free_untracks(tmp_path: Path) -> None:
+    """MEM free hook must untrack the allocation so heap-space drops after del."""
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_free_untracks")
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024)
+
+    samples_after_alloc: int
+    samples_after_free: int
+
+    with mc:
+        obj: object = _make_mem_domain_object(16 * 1024 * 1024)
+        mc.snapshot()
+        ddup.upload()
+        profile = pprof_utils.parse_newest_profile(output_filename)
+        samples_after_alloc = len(pprof_utils.get_samples_with_value_type(profile, "heap-space"))
+
+        del obj
+        mc.snapshot()
+        ddup.upload()
+        profile = pprof_utils.parse_newest_profile(output_filename)
+        samples_after_free = len(pprof_utils.get_samples_with_value_type(profile, "heap-space"))
+
+    assert samples_after_alloc > 0, "Expected heap-space samples after MEM allocation"
+    assert samples_after_free < samples_after_alloc, (
+        f"Expected heap-space count to drop after del (alloc={samples_after_alloc}, free={samples_after_free})"
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PYMEM_DOMAIN_MEM hooks require Python 3.12+")
+def test_mem_domain_realloc_retracks(tmp_path: Path) -> None:
+    """Growing a list (reallocs ob_item via PyMem_Realloc) must not corrupt the heap tracker."""
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_realloc")
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=256 * 1024)
+    lst: list[None]
+    with mc:
+        lst = []
+        for _ in range(200_000):  # repeated appends trigger ob_item reallocs
+            lst.append(None)
+        mc.snapshot()
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+    assert len(samples) > 0, "heap tracker must not be corrupted by repeated MEM reallocs"
+    del lst
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PYMEM_DOMAIN_MEM hooks require Python 3.12+")
+def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
+    """OBJ and MEM allocations in the same session must not corrupt heap tracker state."""
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_obj_mem_coexist")
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=256 * 1024)
+    d: dict[int, int]
+    lst: list[None]
+    with mc:
+        d = {i: i for i in range(50_000)}  # OBJ domain
+        lst = [None] * 200_000  # MEM domain (ob_item)
+        mc.snapshot()
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+    assert len(samples) > 0, "OBJ + MEM coexistence test: expected heap-space samples"
+    del d, lst
