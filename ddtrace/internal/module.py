@@ -422,11 +422,22 @@ class BaseModuleWatchdog(abc.ABC):
         self._finding.add(fullname)
 
         try:
-            try:
-                # Best effort
-                spec = find_spec(fullname)
-            except Exception:
-                return None
+            # Iterate sys.meta_path directly to avoid re-entering the import machinery
+            # and acquiring per-module locks (A-B deadlock risk when a background thread
+            # calls importlib.files() during module __init__).
+            spec = None
+            for finder in sys.meta_path:
+                if finder is self:
+                    continue
+                _find_spec = getattr(finder, "find_spec", None)
+                if _find_spec is None:
+                    continue
+                try:
+                    spec = _find_spec(fullname, path, target)
+                except Exception:
+                    spec = None
+                if spec is not None:
+                    break
 
             if spec is None:
                 return None
@@ -434,6 +445,12 @@ class BaseModuleWatchdog(abc.ABC):
             loader = getattr(spec, "loader", None)
 
             if not isinstance(loader, _ImportHookChainedLoader):
+                # Reuse the existing loader to preserve accumulated state (e.g. _dd_get_code)
+                # and avoid re-wrapping on reload.
+                existing_module = sys.modules.get(fullname)
+                existing_loader = getattr(existing_module, "__loader__", None)
+                if existing_loader is not None and not isinstance(existing_loader, _ImportHookChainedLoader):
+                    loader = existing_loader
                 spec.loader = t.cast("Loader", _ImportHookChainedLoader(loader, spec))
 
             t.cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed a startup deadlock when using ``snowflake-connector-python >= 4.4.0``
+    with ``DD_TRACE_SNOWFLAKE_ENABLED=true``.

@@ -611,3 +611,47 @@ def test_lazy_decorator():
     import tests.internal.lazy as lazy
 
     assert lazy.new_value == 42
+
+
+@pytest.mark.subprocess(timeout=10)
+def test_module_watchdog_find_spec_no_cross_thread_deadlock():
+    """Regression: ModuleWatchdog.find_spec() must not re-enter the import machinery
+    and deadlock with a background thread holding a parent package import lock.
+    """
+    import sys
+    import threading
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    bootstrap = sys.modules.get("importlib._bootstrap")
+    if bootstrap is None or not hasattr(bootstrap, "_get_module_lock"):
+        import pytest
+
+        pytest.skip("importlib._bootstrap._get_module_lock not available")
+
+    _get_module_lock = bootstrap._get_module_lock
+
+    ModuleWatchdog.install()
+
+    lock = _get_module_lock("tests")  # hold the "tests" import lock, simulating a package mid-import
+    lock.acquire()
+
+    background_done = threading.Event()
+
+    def background():
+        for finder in sys.meta_path:
+            if isinstance(finder, ModuleWatchdog):
+                finder.find_spec("tests._ddtrace_regression_nonexistent", None, None)
+                break
+        background_done.set()
+
+    t = threading.Thread(target=background)
+    t.start()
+    t.join(timeout=5)
+    try:
+        assert background_done.is_set(), (
+            "Deadlock: ModuleWatchdog.find_spec() blocked the background thread on a "
+            "module import lock held by the main thread"
+        )
+    finally:
+        lock.release()
