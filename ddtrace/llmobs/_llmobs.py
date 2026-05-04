@@ -799,6 +799,7 @@ class LLMObs(Service):
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
+        config._llmobs_enabled = True
 
         error = None
         start_ns = time.time_ns()
