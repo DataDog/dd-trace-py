@@ -1,0 +1,32 @@
+#!/bin/sh
+# Verify supported-configurations.json and _supported_configurations.py are in sync,
+# and that every DD_*/OTEL_* env var in ddtrace/ is registered.
+#
+# Triggers when staged files touch config definitions, the JSON registry, or the
+# generated module. Catches missing config registrations before they break
+# system-tests telemetry checks in CI.
+
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR)
+
+should_run=false
+echo "$staged_files" | grep -qE '(supported-configurations\.json|ddtrace/internal/settings/)' && should_run=true
+
+if [ "$should_run" = true ]; then
+    echo "Checking supported-configurations registry..."
+    if ! hatch -v run lint:supported-config-check; then
+        echo ""
+        echo "╔══════════════════════════════════════════════════════════════════╗"
+        echo "║  Supported-configurations check failed. To fix:                 ║"
+        echo "║                                                                 ║"
+        echo "║  1. Add the missing var(s) to supported-configurations.json     ║"
+        echo "║  2. Run: python scripts/supported_configurations.py             ║"
+        echo "║  3. Stage the updated files and retry your commit               ║"
+        echo "║                                                                 ║"
+        echo "║  See docs/contributing.rst for full instructions, including     ║"
+        echo "║  how to register the var in the central Configuration Registry. ║"
+        echo "╚══════════════════════════════════════════════════════════════════╝"
+        exit 1
+    fi
+else
+    echo 'Supported-config check skipped: no config-related files staged'
+fi
