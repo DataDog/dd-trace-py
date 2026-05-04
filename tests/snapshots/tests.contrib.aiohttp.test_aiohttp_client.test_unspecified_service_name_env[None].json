@@ -2,7 +2,7 @@
   {
     "name": "aiohttp.request",
     "service": "ddtrace_subprocess_dir",
-    "resource": "aiohttp.request",
+    "resource": "GET /status/200",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
