@@ -569,69 +569,86 @@ class RemoteConfigClient:
         """Accumulate a payload to be published to the global connector."""
         payload_list.append(Payload(config_metadata, target, config_content))
 
-    def _remove_previously_applied_configurations(
-        self,
-        payload_list: list[Payload],
-        applied_configs: AppliedConfigType,
-        client_configs: TargetsType,
-        targets: TargetsType,
-    ) -> None:
-        witness = object()
-        for target, config in self._applied_configs.items():
-            if client_configs.get(target, witness) == config:
-                # The configuration has not changed.
-                applied_configs[target] = config
-                continue
-            elif target not in targets:
-                callback_action = None
-            else:
-                continue
-
-            # Check if product is registered
-            if config.product_name in self._product_callbacks:
-                try:
-                    log.debug("[%s][P: %s] Disabling configuration: %s", os.getpid(), os.getppid(), target)
-                    self._accumulate_payload(payload_list, callback_action, target, config)
-                except Exception:
-                    log.debug("error while removing product %s config %r", config.product_name, config)
-                    continue
-
-    def _load_new_configurations(
+    def _reconcile_configurations(
         self,
         payload_list: list[Payload],
         applied_configs: AppliedConfigType,
         client_configs: TargetsType,
         payload: AgentPayload,
     ) -> None:
-        for target, config in client_configs.items():
-            # Check if product is registered
-            if config.product_name in self._product_callbacks:
-                applied_config = self._applied_configs.get(target)
-                if applied_config == config:
-                    continue
-                config_content = self._extract_target_file(payload, target, config)
-                if config_content is None:
-                    continue
+        # Single pass over applied vs incoming configs. Each target is
+        # compared exactly once, and disables are queued before any apply
+        # payloads so product callbacks observe removals strictly before
+        # new or updated configs.
+        to_apply_changed: list[tuple[str, ConfigMetadata]] = []
+        for target, applied in self._applied_configs.items():
+            incoming = client_configs.get(target)
+            if incoming is None:
+                # Case 1 — removed: target is no longer assigned to this
+                # client. Notify the product so it can drop the stale config.
+                self._remove_config(payload_list, target, applied)
+            elif applied == incoming:
+                # Case 2 — unchanged: carry the existing metadata into the
+                # next snapshot, no payload needed.
+                applied_configs[target] = applied
+            else:
+                # Case 3 — changed: defer to the apply phase below so the
+                # fresh payload is queued after any disables.
+                to_apply_changed.append((target, incoming))
 
-                try:
-                    log.debug(
-                        "[%s][P: %s] Load new configuration: %s. content: %s",
-                        os.getpid(),
-                        os.getppid(),
-                        target,
-                        config_content,
-                    )
-                    self._accumulate_payload(payload_list, config_content, target, config)
-                except Exception:
-                    error_message = "Failed to apply configuration %s for product %r" % (config, config.product_name)
-                    log.debug(error_message, exc_info=True)
-                    config.apply_state = 3  # Error state
-                    config.apply_error = error_message
-                    applied_configs[target] = config
-                    continue
-                else:
-                    config.apply_state = 2  # Acknowledged (applied)
-                    applied_configs[target] = config
+        for target, incoming in to_apply_changed:
+            # Case 3 (continued) — fetch and publish the updated content after
+            # all the removals have taken place.
+            self._apply_config(payload_list, applied_configs, target, incoming, payload)
+
+        for target, incoming in client_configs.items():
+            if target not in self._applied_configs:
+                # Case 4 — new: target appears for the first time; fetch
+                # and publish its content.
+                self._apply_config(payload_list, applied_configs, target, incoming, payload)
+
+    def _remove_config(self, payload_list: list[Payload], target: str, config: ConfigMetadata) -> None:
+        if config.product_name not in self._product_callbacks:
+            return
+        try:
+            log.debug("[%s][P: %s] Disabling configuration: %s", os.getpid(), os.getppid(), target)
+            self._accumulate_payload(payload_list, None, target, config)
+        except Exception:
+            log.debug("error while removing product %s config %r", config.product_name, config)
+
+    def _apply_config(
+        self,
+        payload_list: list[Payload],
+        applied_configs: AppliedConfigType,
+        target: str,
+        config: ConfigMetadata,
+        payload: AgentPayload,
+    ) -> None:
+        if config.product_name not in self._product_callbacks:
+            return
+
+        config_content = self._extract_target_file(payload, target, config)
+        if config_content is None:
+            return
+
+        try:
+            log.debug(
+                "[%s][P: %s] Load new configuration: %s. content: %s",
+                os.getpid(),
+                os.getppid(),
+                target,
+                config_content,
+            )
+            self._accumulate_payload(payload_list, config_content, target, config)
+        except Exception:
+            error_message = "Failed to apply configuration %s for product %r" % (config, config.product_name)
+            log.debug(error_message, exc_info=True)
+            config.apply_state = 3  # Error state
+            config.apply_error = error_message
+            applied_configs[target] = config
+        else:
+            config.apply_state = 2  # Acknowledged (applied)
+            applied_configs[target] = config
 
     def _add_apply_config_to_cache(self):
         if self._applied_configs:
@@ -723,15 +740,14 @@ class RemoteConfigClient:
 
         self._validate_signed_target_files(payload.target_files, payload.targets.signed, client_configs)
 
-        # 2. Remove previously applied configurations
+        # 2. Reconcile applied vs incoming configurations in a single pass:
+        #    queue disables for targets no longer assigned, carry over
+        #    unchanged configs, and apply new or updated ones.
         applied_configs: AppliedConfigType = dict()
         payload_list: list[Payload] = []
-        self._remove_previously_applied_configurations(payload_list, applied_configs, client_configs, targets)
+        self._reconcile_configurations(payload_list, applied_configs, client_configs, payload)
 
-        # 3. Load new configurations
-        self._load_new_configurations(payload_list, applied_configs, client_configs, payload)
-
-        # 4. Publish all payloads to the global connector
+        # 3. Publish all payloads to the global connector
         self._publish_configuration(payload_list)
 
         self._last_targets_version = last_targets_version
