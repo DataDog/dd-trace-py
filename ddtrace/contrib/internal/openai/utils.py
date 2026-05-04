@@ -7,6 +7,7 @@ from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
+from ddtrace.llmobs._utils import _get_attr
 
 
 log = get_logger(__name__)
@@ -41,7 +42,7 @@ class OpenAIStreamHandler(BaseOpenAIStreamHandler, StreamHandler):
         if not choices:
             return
         choice = choices[0]
-        if not getattr(choice, "finish_reason", None):
+        if not _get_attr(choice, "finish_reason", None):
             # Only the second-last chunk in the stream with token usage enabled will have finish_reason set
             return
         try:
@@ -66,7 +67,7 @@ class OpenAIAsyncStreamHandler(BaseOpenAIStreamHandler, AsyncStreamHandler):
         if not choices:
             return
         choice = choices[0]
-        if not getattr(choice, "finish_reason", None):
+        if not _get_attr(choice, "finish_reason", None):
             return
         try:
             usage_chunk = await iterator.__anext__()
@@ -131,7 +132,8 @@ def _loop_handler(span, chunk, streamed_chunks):
 
     # Completions/chat completions are returned as `choices`
     for choice in getattr(chunk, "choices", []):
-        streamed_chunks[choice.index].append(choice)
+        if (index := _get_attr(choice, "index", None)) is not None:
+            streamed_chunks[index].append(choice)
     if getattr(chunk, "usage", None):
         streamed_chunks[0].insert(0, chunk)
 
