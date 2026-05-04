@@ -1415,27 +1415,17 @@ class TestRetryReportsTeardownTracking:
     them to pytest, keeping both systems in sync.
     """
 
-    def test_track_report_outcome_records_teardown(self) -> None:
-        """track_report_outcome should record a teardown report's outcome."""
+    def test_track_report_records_outcome(self) -> None:
+        """track_report should record a report's outcome in reports_by_outcome."""
         from ddtrace.testing.internal.pytest.plugin import RetryReports
 
         retry_reports = RetryReports()
         teardown = test_report(outcome="failed", longrepr="Error during teardown", when="teardown")
 
-        retry_reports.track_report_outcome({"teardown": teardown}, "teardown")
+        retry_reports.track_report(teardown)
 
         assert len(retry_reports.reports_by_outcome["failed"]) == 1
         assert retry_reports.reports_by_outcome["failed"][0] is teardown
-
-    def test_track_report_outcome_noop_when_missing(self) -> None:
-        """track_report_outcome should do nothing when the phase is missing."""
-        from ddtrace.testing.internal.pytest.plugin import RetryReports
-
-        retry_reports = RetryReports()
-
-        retry_reports.track_report_outcome({}, "teardown")
-
-        assert len(retry_reports.reports_by_outcome) == 0
 
     def test_make_final_report_with_teardown_failure(self) -> None:
         """Regression: make_final_report should find the teardown report when final status is FAIL.
@@ -1448,17 +1438,14 @@ class TestRetryReportsTeardownTracking:
         retry_reports = RetryReports()
 
         # Simulate the retry path: setup and call pass, teardown fails.
-        # log_test_report records setup and call with their dd_retry_outcome.
         setup = test_report(outcome="passed", when="setup")
         call = test_report(outcome="passed", when="call")
         call.user_properties = [("dd_retry_outcome", "passed")]
         teardown = test_report(outcome="failed", longrepr="Error during teardown", when="teardown")
 
-        # Replicate what log_test_report does (without the pytest logging hook).
-        retry_reports.reports_by_outcome["passed"].append(setup)
-        retry_reports.reports_by_outcome["passed"].append(call)
-        # Track teardown — this is the fix.
-        retry_reports.track_report_outcome({"teardown": teardown}, "teardown")
+        retry_reports.track_report(setup)
+        retry_reports.track_report(call)
+        retry_reports.track_report(teardown)
 
         test_ref = TestDataFactory.create_test_ref()
         test = mock_test(test_ref)
@@ -1483,10 +1470,10 @@ class TestRetryReportsTeardownTracking:
         setup = test_report(outcome="passed", when="setup")
         call = test_report(outcome="passed", when="call")
         call.user_properties = [("dd_retry_outcome", "passed")]
-        # Teardown NOT tracked — pre-fix behavior.
 
-        retry_reports.reports_by_outcome["passed"].append(setup)
-        retry_reports.reports_by_outcome["passed"].append(call)
+        retry_reports.track_report(setup)
+        retry_reports.track_report(call)
+        # Teardown NOT tracked — pre-fix behavior.
 
         test_ref = TestDataFactory.create_test_ref()
         test = mock_test(test_ref)

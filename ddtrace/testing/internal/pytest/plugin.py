@@ -626,11 +626,11 @@ class TestOptPlugin:
         retry_reports.log_test_report(item, reports, TestPhase.SETUP)
         # The call report may not exist if setup failed or skipped.
         retry_reports.log_test_report(item, reports, TestPhase.CALL)
-        # Track teardown outcome without logging it: _get_test_outcome considers teardown when determining
-        # the test_run status, so we must also track it in reports_by_outcome for make_final_report to find
-        # a matching source report. We don't log teardown to pytest because other plugins expect only one
-        # teardown per test (see comment below).
-        retry_reports.track_report_outcome(reports, TestPhase.TEARDOWN)
+        # Track teardown outcome without logging it to pytest (other plugins expect only one teardown per
+        # test). We still need it in reports_by_outcome because _get_test_outcome considers teardown when
+        # setting the test_run status, and make_final_report must be able to find a matching source report.
+        if teardown_report := reports.get(TestPhase.TEARDOWN):
+            retry_reports.track_report(teardown_report)
 
         test_run = test.last_test_run
         retry_handler.set_tags_for_test_run(test_run)
@@ -649,7 +649,8 @@ class TestOptPlugin:
             # multiple setups for a test does not seem to cause an issue with junitxml, at least.)
             if not retry_reports.log_test_report(item, reports, TestPhase.CALL):
                 retry_reports.log_test_report(item, reports, TestPhase.SETUP)
-            retry_reports.track_report_outcome(reports, TestPhase.TEARDOWN)
+            if teardown_report := reports.get(TestPhase.TEARDOWN):
+                retry_reports.track_report(teardown_report)
 
             test_run.finish()
 
@@ -926,17 +927,10 @@ class RetryReports:
     def __init__(self):
         self.reports_by_outcome = defaultdict(lambda: [])
 
-    def track_report_outcome(self, reports: _ReportGroup, when: str) -> None:
-        """Track a report's outcome in reports_by_outcome without logging it to pytest.
-
-        This is used for teardown reports: _get_test_outcome considers teardown when determining the test_run status
-        (e.g., a teardown failure makes the test_run FAIL), so reports_by_outcome must include teardown outcomes for
-        make_final_report to find a matching source report. However, teardown reports cannot be logged to pytest during
-        retries because other plugins expect only one teardown per test.
-        """
-        if report := reports.get(when):
-            outcome = _get_user_property(report, "dd_retry_outcome") or report.outcome
-            self.reports_by_outcome[outcome].append(report)
+    def track_report(self, report: pytest.TestReport) -> None:
+        """Track a report's outcome in reports_by_outcome without logging it to pytest."""
+        outcome = _get_user_property(report, "dd_retry_outcome") or report.outcome
+        self.reports_by_outcome[outcome].append(report)
 
     def log_test_report(self, item: pytest.Item, reports: _ReportGroup, when: str) -> bool:
         """
@@ -947,8 +941,7 @@ class RetryReports:
         """
         if report := reports.get(when):
             item.ihook.pytest_runtest_logreport(report=report)
-            outcome = _get_user_property(report, "dd_retry_outcome") or report.outcome
-            self.reports_by_outcome[outcome].append(report)
+            self.track_report(report)
             return True
 
         return False
@@ -983,13 +976,7 @@ class RetryReports:
             longrepr = source_report.longrepr
             wasxfail = getattr(source_report, "wasxfail", None)
         except IndexError:
-            log.warning(
-                "Test %s has final outcome %r, but no retry had this outcome; this should never happen. "
-                "Outcomes seen: %s",
-                test,
-                outcome,
-                sorted(self.reports_by_outcome.keys()),
-            )
+            log.warning("Test %s has final outcome %r, but no retry had this outcome; this should never happen", test)
             longrepr = None
             wasxfail = None
 
