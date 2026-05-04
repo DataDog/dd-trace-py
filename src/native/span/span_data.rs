@@ -631,10 +631,15 @@ impl SpanData {
         }
         for event in self.data.span_events.iter() {
             event.name.traverse(&visit)?;
-            for (k, _v) in event.attributes.iter() {
+            for (k, v) in event.attributes.iter() {
                 k.traverse(&visit)?;
-                // Event attribute values are AttributeAnyValue (primitives or
-                // arrays of primitives); none of them can hold a `Py<...>`.
+                // AttributeAnyValue can wrap an `AttributeArrayValue::String`
+                // (or an Array of them) whose `PyBackedString` storage holds a
+                // `Py<PyAny>` — typically a `PyString`, but possibly a `str`
+                // subclass with a `__dict__` that closes a cycle back to the
+                // span. Recurse so the GC sees the SpanData -> attribute-value
+                // edge.
+                traverse_attr_any(v, &visit)?;
             }
         }
         Ok(())
@@ -645,6 +650,38 @@ impl SpanData {
         self._trace_id_py = None;
         self.meta_struct = None;
     }
+}
+
+// --- Cyclic GC helpers ---
+
+/// Traverse the Python references reachable through an
+/// `AttributeAnyValue<PyTraceData>` (used by span-event attribute values).
+fn traverse_attr_any(
+    val: &AttributeAnyValue<PyTraceData>,
+    visit: &pyo3::PyVisit<'_>,
+) -> Result<(), pyo3::PyTraverseError> {
+    match val {
+        AttributeAnyValue::SingleValue(v) => traverse_attr_array(v, visit),
+        AttributeAnyValue::Array(items) => {
+            for item in items {
+                traverse_attr_array(item, visit)?;
+            }
+            Ok(())
+        }
+    }
+}
+
+/// Traverse the Python references reachable through an
+/// `AttributeArrayValue<PyTraceData>`. Only the `String` variant carries a
+/// `PyBackedString`; the rest are primitive Rust types.
+fn traverse_attr_array(
+    val: &AttributeArrayValue<PyTraceData>,
+    visit: &pyo3::PyVisit<'_>,
+) -> Result<(), pyo3::PyTraverseError> {
+    if let AttributeArrayValue::String(s) = val {
+        s.traverse(visit)?;
+    }
+    Ok(())
 }
 
 // --- Conversion helpers ---

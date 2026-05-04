@@ -1308,6 +1308,78 @@ def test_full_span_meta_struct_cycle_is_collectable():
             gc.enable()
 
 
+def test_span_event_string_attribute_value_cycle_is_collectable():
+    """Cycle through a span-event *attribute value*, not just the attribute key.
+
+    `_add_event` stores string attribute values as ``PyBackedString`` inside
+    ``AttributeAnyValue::SingleValue(String(...))`` (or inside an ``Array(...)``).
+    The ``PyBackedString.storage`` keeps the original Python object alive, so a
+    ``str`` subclass with a ``__dict__`` back-reference to the span closes a
+    cycle that GC traversal must follow through the value side too. Without
+    visiting attribute values the cycle survives ``gc.collect()`` even after
+    `__traverse__` was added on the key/key-only path.
+    """
+    import gc
+
+    from ddtrace.internal.native._native import SpanData
+
+    class CycleStr(str):
+        pass
+
+    initial = _count_objects_of_type("SpanData")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            span = SpanData(name="cycle.via.event_value")
+            value = CycleStr("v")
+            value.span = span  # type: ignore[attr-defined]
+            span._add_event("evt", attributes={"k": value})
+            del span
+            del value
+        assert _count_objects_of_type("SpanData") - initial == N
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — span event attribute values are not visited"
+        assert _count_objects_of_type("SpanData") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_span_event_string_attribute_value_in_array_cycle_is_collectable():
+    """Same as the previous test but the cyclic string sits inside an
+    ``AttributeAnyValue::Array``. Verifies the array branch of the
+    traversal.
+    """
+    import gc
+
+    from ddtrace.internal.native._native import SpanData
+
+    class CycleStr(str):
+        pass
+
+    initial = _count_objects_of_type("SpanData")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            span = SpanData(name="cycle.via.event_value_array")
+            value = CycleStr("v")
+            value.span = span  # type: ignore[attr-defined]
+            span._add_event("evt", attributes={"k": [value, value]})
+            del span
+            del value
+        assert _count_objects_of_type("SpanData") - initial == N
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — array value branch not visited"
+        assert _count_objects_of_type("SpanData") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
 def test_tracer_trace_meta_struct_cycle_is_collectable():
     """Production-shaped repro: drive the cycle through the public tracer API
     (``tracer.trace(...)``) rather than constructing Span instances directly.
