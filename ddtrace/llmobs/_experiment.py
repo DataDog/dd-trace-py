@@ -1140,18 +1140,24 @@ class _ExperimentRunInfo:
         self._run_iteration = run_interation + 1
 
 
-class ExperimentRowResult(TypedDict):
+class _ExperimentRowResultRequired(TypedDict):
     idx: int
     record_id: Optional[str]
     span_id: str
     trace_id: str
     timestamp: int
+    duration: int
+    span_name: str
     input: JSONType
     output: JSONType
     expected_output: JSONType
     evaluations: dict[str, dict[str, JSONType]]
     metadata: dict[str, JSONType]
     error: dict[str, Optional[str]]
+
+
+class ExperimentRowResult(_ExperimentRowResultRequired, total=False):
+    pass
 
 
 class ExperimentRun:
@@ -1246,6 +1252,114 @@ class ExperimentResult(TypedDict):
     summary_evaluations: dict[str, dict[str, JSONType]]
     rows: list[ExperimentRowResult]
     runs: list[ExperimentRun]
+
+
+def _parse_experiment_result(response: dict) -> "ExperimentResult":
+    """Deserialise a backend ``/events`` response into an ``ExperimentResult``.
+
+    Response shape (single JSON:API object):
+    ``{"data": {"id": "<experiment_id>", "type": "experiment_events",
+    "attributes": {"spans": [...], "summary_metrics": [...]}}}``
+
+    Each item in ``attributes.spans`` is one experiment span with flat fields
+    (``span_id``, ``trace_id``, ``name``, ``start_ns``, ``duration``, ``tags``,
+    ``meta`` containing ``input``/``output``/``expected_output``/``metadata``/``error``,
+    and ``eval_metrics``).  ``eval_metrics`` on each span (when present) are converted
+    to the ``evaluations`` dict format used by ``ExperimentRowResult``.  When multiple
+    eval events share the same label (e.g. original run + re-run), the one with the
+    latest ``timestamp_ms`` wins.
+    """
+    data = response.get("data") or {}
+    attributes = data.get("attributes") or {}
+    spans = attributes.get("spans") or []
+
+    rows: list[ExperimentRowResult] = []
+    for i, span in enumerate(spans):
+        meta = span.get("meta") or {}
+        metadata: dict = meta.get("metadata") or {}
+
+        # idx: use array position (no dataset_record_index in the new response shape)
+        idx: int = i
+
+        # record_id is stored as a "dataset_record_id:<uuid>" tag
+        record_id: Optional[str] = None
+        for tag in span.get("tags") or []:
+            if isinstance(tag, str) and tag.startswith("dataset_record_id:"):
+                record_id = tag.split(":", 1)[1]
+                break
+
+        # Convert eval_metrics list → evaluations dict keyed by label.
+        # Multiple events per label are possible (original run + re-run); keep latest by timestamp_ms.
+        evaluations: dict = {}
+        latest_ts: dict[str, int] = {}
+        for em in span.get("eval_metrics") or []:
+            label = em.get("label", "")
+            if not label:
+                continue
+            ts = em.get("timestamp_ms", 0) or 0
+            if label in latest_ts and ts < latest_ts[label]:
+                continue
+            latest_ts[label] = ts
+            metric_type = em.get("metric_type", "score")
+            value = em.get(f"{metric_type}_value")
+            evaluations[label] = {
+                "value": value,
+                "type": metric_type,
+                "reasoning": em.get("reasoning"),
+                "assessment": em.get("assessment"),
+            }
+
+        # Normalise error: the API returns an empty dict {} when there is no error.
+        raw_error = meta.get("error") or {}
+        normalised_error: dict[str, Optional[str]] = {
+            "type": raw_error.get("type") or None,
+            "message": raw_error.get("message") or None,
+            "stack": raw_error.get("stack") or None,
+        }
+
+        duration = span.get("duration") or 0
+        if not duration:
+            logger.warning(
+                "Span %s from experiment pull response is missing a duration field; "
+                "rerun_evaluators() will use a fallback of 1 ns.",
+                span.get("span_id", "<unknown>"),
+            )
+
+        row: ExperimentRowResult = {
+            "idx": idx,
+            "record_id": record_id,
+            "span_id": span.get("span_id", ""),
+            "trace_id": span.get("trace_id", ""),
+            "timestamp": span.get("start_ns", 0),
+            "duration": duration,
+            "span_name": span.get("name", "experiment_record"),
+            "input": meta.get("input") or {},
+            "output": meta.get("output"),
+            "expected_output": meta.get("expected_output"),
+            "evaluations": evaluations,
+            "metadata": metadata,
+            "error": normalised_error,
+        }
+        rows.append(row)
+
+    rows.sort(key=lambda r: r["idx"])
+
+    summary_evaluations: dict[str, dict[str, JSONType]] = {}
+    for sm in attributes.get("summary_metrics") or []:
+        label = sm.get("label", "")
+        if not label:
+            continue
+        metric_type = sm.get("metric_type", "score")
+        summary_evaluations[label] = {
+            "value": sm.get(f"{metric_type}_value"),
+            "type": metric_type,
+            "reasoning": sm.get("reasoning"),
+            "assessment": sm.get("assessment"),
+        }
+
+    run_info = _ExperimentRunInfo(run_interation=0)
+    experiment_run = ExperimentRun(run_info, summary_evaluations=summary_evaluations, rows=rows)
+    return Experiment._build_result([experiment_run])
 
 
 class Dataset:
@@ -1681,7 +1795,7 @@ class Experiment:
     or ``LLMObs.experiment()`` to get a ``SyncExperiment`` wrapper (for sync callers).
     """
 
-    _task: Union[TaskType, AsyncTaskType]
+    _task: Optional[Union[TaskType, AsyncTaskType]]
     _evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]]
     _summary_evaluators: Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]
 
@@ -1693,10 +1807,10 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        task: Union[TaskType, AsyncTaskType],
-        dataset: Dataset,
-        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
-        project_name: str,
+        task: Optional[Union[TaskType, AsyncTaskType]] = None,
+        dataset: Optional[Dataset] = None,
+        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]] = (),
+        project_name: str = "",
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
@@ -1707,7 +1821,7 @@ class Experiment:
     ) -> None:
         self.name = name
         self._task = task
-        self._task_accepts_metadata = "metadata" in inspect.signature(task).parameters
+        self._task_accepts_metadata = "metadata" in inspect.signature(task).parameters if task is not None else False
         self._dataset = dataset
         self._evaluators = list(evaluators)
         self._remote_evaluator_names: set[str] = {
@@ -1720,11 +1834,11 @@ class Experiment:
         self._tags: dict[str, str] = tags or {}
         self._tags["ddtrace.version"] = str(__version__)
         self._tags["project_name"] = project_name
-        self._tags["dataset_name"] = dataset.name
+        self._tags["dataset_name"] = dataset.name if dataset is not None else ""
         self._tags["experiment_name"] = name
         self._config: dict[str, JSONType] = config or {}
         # Write dataset tags to experiment config
-        if dataset.filter_tags:
+        if dataset is not None and dataset.filter_tags:
             self._config["filtered_record_tags"] = dataset.filter_tags
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
@@ -1740,8 +1854,13 @@ class Experiment:
         self._project_name = project_name
         self._project_id: Optional[str] = None
         self._id: Optional[str] = None
+        # Populated from dataset if provided, or extracted from span tags during pull()
+        # so that _create_rerun_experiment() can reference them without a dataset.
+        self._dataset_id: Optional[str] = dataset._id if dataset is not None else None
+        self._dataset_version: Optional[int] = dataset._version if dataset is not None else None
         self._run_name: Optional[str] = None
         self.experiment_span: Optional["ExportedLLMObsSpan"] = None
+        self._interrupted: bool = False
 
     @property
     def url(self) -> str:
@@ -1755,6 +1874,7 @@ class Experiment:
         evaluations: list[EvaluationResult],
         summary_evaluations: Optional[list[EvaluationResult]],
     ) -> ExperimentRun:
+        assert self._dataset is not None  # nosec B101
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
@@ -1767,6 +1887,8 @@ class Experiment:
                 "span_id": task_result.get("span_id", ""),
                 "trace_id": task_result.get("trace_id", ""),
                 "timestamp": task_result.get("timestamp", 0),
+                "duration": cast(int, task_result.get("duration") or 0),
+                "span_name": cast(str, task_result.get("span_name") or "experiment_record"),
                 "record_id": record.get("record_id", ""),
                 "input": record["input_data"],
                 "expected_output": record["expected_output"],
@@ -1930,6 +2052,7 @@ class Experiment:
 
     def _get_subset_dataset(self, sample_size: Optional[int]) -> Dataset:
         """Get dataset containing the first sample_size records of the original dataset."""
+        assert self._dataset is not None  # nosec B101
         if sample_size is not None and sample_size < len(self._dataset):
             subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
             subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
@@ -1989,6 +2112,7 @@ class Experiment:
         list[dict[str, Any]],
         dict[str, list[JSONType]],
     ]:
+        assert self._dataset is not None  # nosec B101
         inputs: list[JSONType] = []
         outputs: list[JSONType] = []
         expected_outputs: list[JSONType] = []
@@ -2027,6 +2151,7 @@ class Experiment:
         self._project_id = project.get("_id", "")
         self._tags["project_id"] = self._project_id
 
+        assert self._dataset is not None  # nosec B101
         (
             experiment_id,
             experiment_run_name,
@@ -2076,6 +2201,12 @@ class Experiment:
             raise ValueError("jobs must be at least 1")
         if max_retries < 0:
             raise ValueError("max_retries must be >= 0")
+        if self._task is None or self._dataset is None:
+            raise ValueError(
+                "task and dataset are required to run an experiment from scratch. "
+                "Either provide them when creating the experiment, or call `pull()` first "
+                "and use `rerun_evaluators()` to re-score the stored results."
+            )
 
         self._setup_experiment(
             "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
@@ -2195,6 +2326,8 @@ class Experiment:
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> Optional[TaskResult]:
         """Process single record asynchronously."""
+        assert self._task is not None  # nosec B101
+        assert self._dataset is not None  # nosec B101
         asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
@@ -2273,24 +2406,23 @@ class Experiment:
                     metadata=record.get("metadata"),
                     config=self._config or None,
                 )
-
-                return {
-                    "idx": idx,
-                    "span_id": span_id,
-                    "trace_id": trace_id,
-                    "timestamp": span.start_ns,
-                    "output": output_data,
-                    "metadata": {
-                        "dataset_record_index": idx,
-                        "experiment_name": self.name,
-                        "dataset_name": self._dataset.name,
-                    },
-                    "error": {
-                        "message": span.get_tag(ERROR_MSG),
-                        "stack": span.get_tag(ERROR_STACK),
-                        "type": span.get_tag(ERROR_TYPE),
-                    },
-                }
+            return {
+                "idx": idx,
+                "span_id": span_id,
+                "trace_id": trace_id,
+                "timestamp": span.start_ns,
+                "output": output_data,
+                "metadata": {
+                    "dataset_record_index": idx,
+                    "experiment_name": self.name,
+                    "dataset_name": self._dataset.name,
+                },
+                "error": {
+                    "message": span.get_tag(ERROR_MSG),
+                    "stack": span.get_tag(ERROR_STACK),
+                    "type": span.get_tag(ERROR_TYPE),
+                },
+            }
 
     def _check_task_result_error(self, task_result: TaskResult, raise_errors: bool) -> None:
         err_dict = task_result.get("error") or {}
@@ -2353,6 +2485,7 @@ class Experiment:
         raise_errors: bool = False,
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
+        _override_evaluators: Optional[Sequence[Union[EvaluatorType, AsyncEvaluatorType]]] = None,
     ) -> EvaluationResult:
         asyncio = get_asyncio()
         idx = task_result["idx"]
@@ -2455,8 +2588,9 @@ class Experiment:
                     **extra_return_values,
                 }
 
+        evaluators_to_use = _override_evaluators if _override_evaluators is not None else self._evaluators
         results = await asyncio.gather(
-            *[_run_single_evaluator(ev) for ev in self._evaluators],
+            *[_run_single_evaluator(ev) for ev in evaluators_to_use],
             return_exceptions=True,
         )
         row_results: dict[str, dict[str, JSONType]] = {}
@@ -2477,6 +2611,7 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
+        assert self._dataset is not None  # nosec B101
         asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
         coros = [
@@ -2576,6 +2711,8 @@ class Experiment:
         raise_errors: bool = False,
         jobs: int = 10,
     ) -> list[EvaluationResult]:
+        if not self._summary_evaluators:
+            return []
         (
             inputs,
             outputs,
@@ -2804,10 +2941,10 @@ class SyncExperiment:
     def __init__(
         self,
         name: str,
-        task: Union[TaskType, AsyncTaskType],
-        dataset: Dataset,
-        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
-        project_name: str,
+        task: Optional[Union[TaskType, AsyncTaskType]] = None,
+        dataset: Optional[Dataset] = None,
+        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]] = (),
+        project_name: str = "",
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
@@ -2847,7 +2984,8 @@ class SyncExperiment:
         :param max_retries: Maximum number of retries for failed tasks and evaluators (default: 0)
         :param retry_delay: Callable that takes the attempt number (0-based) and returns the delay
                             in seconds before the next retry. Default: ``0.1 * (attempt + 1)``
-        :return: ExperimentResult containing evaluation results and metadata
+        :return: ExperimentResult containing evaluation results and metadata. Also stored on
+                 ``self.result``.
         """
         asyncio = get_asyncio()
         coro = self._experiment.run(
@@ -2884,9 +3022,9 @@ class SyncExperiment:
 
             df = experiment.as_dataframe()
             run1 = df[df[("run_iteration", "")] == 1]
-            df.groupby(("run_iteration", ""))[(\"evaluations\", \"exact_match\")].apply(...)
+            df.groupby(("run_iteration", ""))[("evaluations", "exact_match")].apply(...)
 
-        :raises ValueError: if ``self.result`` is ``None`` (experiment not yet run).
+        :raises ValueError: if ``self.result`` is ``None`` (experiment not yet run or pulled).
         :raises ImportError: if ``pandas`` is not installed.
         :return: ``pd.DataFrame`` with ``pd.MultiIndex`` columns and a reset integer index.
         """
@@ -2899,7 +3037,7 @@ class SyncExperiment:
             ) from e
 
         if self.result is None:
-            raise ValueError("No result found. Call run() before as_dataframe().")
+            raise ValueError("No result found. Call run() or pull() before as_dataframe().")
 
         frames = []
         for run in self.result.get("runs", []):
@@ -2913,6 +3051,70 @@ class SyncExperiment:
             return pd.DataFrame()
 
         return pd.concat(frames, ignore_index=True)
+
+    def pull(self, include_eval_metrics: bool = True) -> None:
+        """Fetch prior experiment results from the backend and store them on ``self.result``.
+
+        Uses the experiment's own name and project to find the latest run (or uses the
+        known ``_id`` directly if the experiment has already been run in this session).
+        Returns ``None`` — results are accessible via ``self.result``.
+
+        After a successful ``pull()``, ``rerun_evaluators()`` can be called immediately
+        to re-score the fetched outputs with updated evaluators.
+
+        :param include_eval_metrics: Whether to include evaluator scores from the original
+                                     run. Default: ``True``.
+        :raises ValueError: If LLMObs is not enabled.
+        :raises ValueError: If neither an experiment ID nor name+project are available.
+        :raises ValueError: If the backend call fails.
+        """
+        if not self._experiment._llmobs_instance or not self._experiment._llmobs_instance.enabled:
+            raise ValueError("LLMObs is not enabled. Enable LLMObs before calling pull().")
+
+        client = self._experiment._llmobs_instance._dne_client
+        experiment_id = self._experiment._id
+
+        if experiment_id:
+            raw = client.experiment_events_get(
+                experiment_id=str(experiment_id),
+                include_eval_metrics=include_eval_metrics,
+            )
+        else:
+            experiment_name = self._experiment.name
+            project_name = self._experiment._project_name
+            if not experiment_name or not project_name:
+                raise ValueError(
+                    "experiment name and project_name are required to pull results when "
+                    "the experiment has not been run in the current session."
+                )
+            raw = client.experiment_events_get(
+                project_name=project_name,
+                experiment_name=experiment_name,
+                include_eval_metrics=include_eval_metrics,
+            )
+
+        self.result = _parse_experiment_result(raw)
+
+        # Populate _id from data.id and dataset_id / project_id from the first span's tags.
+        # The /events API returns a single JSON:API object whose primary id is the experiment UUID;
+        # span-level tags carry the dataset_id / project_id.
+        data = raw.get("data") or {}
+        attributes = data.get("attributes") or {}
+        if not self._experiment._id:
+            experiment_id_from_response = data.get("id")
+            if experiment_id_from_response:
+                self._experiment._id = experiment_id_from_response
+        spans = attributes.get("spans") or []
+        first_span = spans[0] if spans else {}
+        for tag in first_span.get("tags") or []:
+            if not isinstance(tag, str):
+                continue
+            if not self._experiment._id and tag.startswith("experiment_id:"):
+                self._experiment._id = tag.split(":", 1)[1]
+            elif tag.startswith("dataset_id:") and self._experiment._dataset_id is None:
+                self._experiment._dataset_id = tag.split(":", 1)[1]
+            elif tag.startswith("project_id:") and not self._experiment._project_id:
+                self._experiment._project_id = tag.split(":", 1)[1]
 
     @property
     def url(self) -> str:

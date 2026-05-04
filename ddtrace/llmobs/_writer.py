@@ -811,23 +811,24 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         ensure_unique: bool = True,
     ) -> tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
+        attributes: dict[str, JSONType] = {
+            "name": name,
+            "description": description or "",
+            "dataset_id": dataset_id,
+            "project_id": project_id,
+            "dataset_version": dataset_version,
+            "config": exp_config or {},
+            "metadata": {"tags": tags or []},
+            "ensure_unique": ensure_unique,
+            "run_count": runs,
+        }
         resp = self.request(
             "POST",
             path,
             body={
                 "data": {
                     "type": "experiments",
-                    "attributes": {
-                        "name": name,
-                        "description": description or "",
-                        "dataset_id": dataset_id,
-                        "project_id": project_id,
-                        "dataset_version": dataset_version,
-                        "config": exp_config or {},
-                        "metadata": {"tags": tags or []},
-                        "ensure_unique": ensure_unique,
-                        "run_count": runs,
-                    },
+                    "attributes": attributes,
                 }
             },
         )
@@ -866,22 +867,25 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             logger.warning("Failed to update experiment %s status: %s", experiment_id, resp.status)
 
     def experiment_eval_post(
-        self, experiment_id: str, events: list[LLMObsExperimentEvalMetricEvent], tags: list[str]
+        self,
+        experiment_id: str,
+        events: list[LLMObsExperimentEvalMetricEvent],
+        tags: list[str],
+        spans: Optional[list[dict]] = None,
     ) -> None:
         path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
+        attributes: dict[str, JSONType] = {
+            "scope": "experiments",
+            "metrics": cast(list[JSONType], events),
+            "tags": cast(list[JSONType], tags),
+        }
+        if spans:
+            attributes["spans"] = cast(list[JSONType], spans)
+        body: dict[str, JSONType] = {"data": {"type": "experiments", "attributes": attributes}}
         resp = self.request(
             "POST",
             path,
-            body={
-                "data": {
-                    "type": "experiments",
-                    "attributes": {
-                        "scope": "experiments",
-                        "metrics": cast(list[JSONType], events),
-                        "tags": tags,
-                    },
-                }
-            },
+            body=body,
         )
         if resp.status not in (200, 202):
             raise ValueError(
@@ -889,6 +893,48 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             )
         logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
         return None
+
+    def experiment_events_get(
+        self,
+        experiment_id: Optional[str] = None,
+        project_name: Optional[str] = None,
+        experiment_name: Optional[str] = None,
+        include_eval_metrics: bool = True,
+    ) -> dict:
+        """Fetch span events for a prior experiment run.
+
+        Pass ``experiment_id`` for direct UUID lookup, or ``project_name`` +
+        ``experiment_name`` for name-based resolution (returns latest run).
+
+        Response shape (JSON:API):
+        ``{"data": {"id": "<uuid>", "type": "experiment_events",``
+        ``"attributes": {"spans": [...], "summary_metrics": []}}}``
+
+        Each span has ``span_id``, ``trace_id``, ``name``, ``start_ns`` (nanoseconds),
+        ``duration`` (nanoseconds), ``tags``, ``meta`` (with ``input``, ``output``,
+        ``expected_output``, ``metadata``, ``error`` sub-keys), and ``eval_metrics``
+        (populated when ``include_eval_metrics=True``).
+        """
+        if experiment_id:
+            path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
+            if include_eval_metrics:
+                path += "?include[eval_metrics]=true"
+        elif project_name and experiment_name:
+            encoded_project = urllib.parse.quote(project_name, safe="")
+            encoded_name = urllib.parse.quote(experiment_name, safe="")
+            path = (
+                f"/api/unstable/llm-obs/v1/experiments/events"
+                f"?filter[project_name]={encoded_project}"
+                f"&filter[experiment_name]={encoded_name}"
+            )
+            if include_eval_metrics:
+                path += "&include[eval_metrics]=true"
+        else:
+            raise ValueError("Either experiment_id or (project_name and experiment_name) must be provided.")
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get experiment events: {resp.status} {resp.get_json()}")
+        return resp.get_json()
 
     def evaluator_infer(
         self,
