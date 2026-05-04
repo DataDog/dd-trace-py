@@ -20,7 +20,7 @@ class CodeOriginConfig(DDConfig):
         enabled = DDConfig.v(
             bool,
             "enabled",
-            default=False,
+            default=True,
             help_type="Boolean",
             help="Enable code origin for spans",
         )

@@ -950,7 +950,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_CODE_ORIGIN_MAX_USER_FRAMES": [
