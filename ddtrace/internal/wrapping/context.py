@@ -8,6 +8,7 @@ from types import FunctionType
 from types import TracebackType
 import typing as t
 from typing import Protocol  # noqa:F401
+import weakref
 
 import bytecode
 from bytecode import Bytecode
@@ -78,8 +79,12 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if sys.version_info >= (3, 15):
-    raise NotImplementedError("Python >= 3.15 is not supported yet")
+if sys.version_info >= (3, 16):
+    raise NotImplementedError("This version of Python is not supported yet")
+elif sys.version_info >= (3, 15):
+    # We rely on sys.monitoring for wrapping, so no bytecode manipulation is
+    # needed.
+    pass
 elif sys.version_info >= (3, 13):
     CONTEXT_HEAD.parse(
         r"""
@@ -288,6 +293,82 @@ elif sys.version_info >= (3, 9):
     )
 
 
+# On the bytecode path __enter__ is invoked directly from inside the wrapped
+# function, so the monitored frame is one level up. On the monitoring path
+# (3.15+) the stack is: monitored function → _on_py_start callback → __enter__,
+# so the monitored frame is two levels up.
+_ENTER_FRAME_DEPTH = 2 if sys.version_info >= (3, 15) else 1
+
+if sys.version_info >= (3, 15):
+    # Monitoring-based wrapping state (Python 3.15+). Keyed by code object so
+    # that the registry stays alive as long as the code is in use.
+    _monitoring_registry: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+    _monitoring_tool_id: t.Optional[int] = None
+    _monitoring_lock = Lock()
+
+    _E = sys.monitoring.events
+    _MONITORING_EVENTS = _E.PY_START | _E.PY_RETURN | _E.PY_UNWIND
+    del _E
+
+    # TODO: This needs to be done at a higher module level to allow line-level
+    # instrumentation to reuse the same tool ID.
+    def _setup_monitoring() -> int:
+        global _monitoring_tool_id
+
+        if _monitoring_tool_id is not None:
+            return _monitoring_tool_id
+
+        with _monitoring_lock:
+            if _monitoring_tool_id is not None:
+                return _monitoring_tool_id
+
+            # Find a free tool slot for our monitoring tool.
+            for tid in range(6):
+                try:
+                    sys.monitoring.use_tool_id(tid, "ddtrace-wrapping")
+                    _monitoring_tool_id = tid
+                    break
+                except ValueError:
+                    continue
+            else:
+                raise RuntimeError("No free sys.monitoring tool slots for ddtrace wrapping")
+
+            E = sys.monitoring.events
+
+            def _on_py_start(code: t.Any, instruction_offset: int) -> None:
+                ctx = _monitoring_registry.get(code)
+                if ctx is None:
+                    return sys.monitoring.DISABLE  # type: ignore[return-value]
+                try:
+                    ctx.__enter__()
+                except Exception:
+                    log.exception("ddtrace: error in PY_START callback for %s", code.co_qualname)
+
+            def _on_py_return(code: t.Any, instruction_offset: int, retval: t.Any) -> None:
+                ctx = _monitoring_registry.get(code)
+                if ctx is None:
+                    return sys.monitoring.DISABLE  # type: ignore[return-value]
+                try:
+                    ctx.__return__(retval)
+                except Exception:
+                    log.exception("ddtrace: error in PY_RETURN callback for %s", code.co_qualname)
+
+            def _on_py_unwind(code: t.Any, instruction_offset: int, exception: BaseException) -> None:
+                ctx = _monitoring_registry.get(code)
+                if ctx is None:
+                    return sys.monitoring.DISABLE  # type: ignore[return-value]
+                try:
+                    ctx.__exit__(type(exception), exception, exception.__traceback__)
+                except Exception:
+                    log.exception("ddtrace: error in PY_UNWIND callback for %s", code.co_qualname)
+
+            sys.monitoring.register_callback(tid, E.PY_START, _on_py_start)
+            sys.monitoring.register_callback(tid, E.PY_RETURN, _on_py_return)
+            sys.monitoring.register_callback(tid, E.PY_UNWIND, _on_py_unwind)
+
+            return _monitoring_tool_id
+
+
 # This is abstract and should not be used directly
 class BaseWrappingContext(ABC):
     __priority__: int = 0
@@ -411,84 +492,92 @@ class LazyWrappedFunction(Protocol):
         pass
 
 
-class LazyWrappingContext(WrappingContext):
-    def __init__(self, f: FunctionType):
-        super().__init__(f)
+if sys.version_info >= (3, 15):
+    # Monitoring-based instrumentation has negligible per-function overhead, so
+    # there is no benefit to deferring wrapping until first call. On Python 3.15+
+    # this is a transparent alias for WrappingContext kept only for API compatibility.
+    LazyWrappingContext = WrappingContext
 
-        self._trampoline: t.Optional[Wrapper] = None
-        self._trampoline_lock = Lock()
+else:
 
-    @classmethod
-    def is_wrapped(cls, f: FunctionType) -> bool:
-        try:
-            return any(isinstance(c, cls) for c in t.cast(LazyWrappedFunction, f).__dd_lazy_contexts__)
-        except AttributeError:
-            return False
+    class LazyWrappingContext(WrappingContext):
+        def __init__(self, f: FunctionType):
+            super().__init__(f)
 
-    def wrap(self) -> None:
-        """Perform the bytecode wrapping on first invocation."""
-        with (tl := self._trampoline_lock):
-            if self._trampoline is not None:
-                return
+            self._trampoline: t.Optional[Wrapper] = None
+            self._trampoline_lock = Lock()
 
-            # If the function is already universally wrapped so it's less expensive
-            # to do the normal wrapping.
-            if _UniversalWrappingContext.is_wrapped(self.__wrapped__):
-                super().wrap()
-                return
+        @classmethod
+        def is_wrapped(cls, f: FunctionType) -> bool:
+            try:
+                return any(isinstance(c, cls) for c in t.cast(LazyWrappedFunction, f).__dd_lazy_contexts__)
+            except AttributeError:
+                return False
 
-            def trampoline(_: t.Any, args: tuple, kwargs: dict) -> t.Any:
-                with tl:
-                    f = t.cast(WrappedFunction, self.__wrapped__)
-                    if is_wrapped_with(self.__wrapped__, trampoline):
-                        f = t.cast(WrappedFunction, unwrap(f, trampoline))
+        def wrap(self) -> None:
+            """Perform the bytecode wrapping on first invocation."""
+            with (tl := self._trampoline_lock):
+                if self._trampoline is not None:
+                    return
 
-                        self._trampoline = None
+                # If the function is already universally wrapped it's less expensive
+                # to do the normal wrapping.
+                if _UniversalWrappingContext.is_wrapped(self.__wrapped__):
+                    super().wrap()
+                    return
 
-                        try:
-                            (cs := t.cast(LazyWrappedFunction, f).__dd_lazy_contexts__).remove(self)
-                            if not cs:
-                                del t.cast(LazyWrappedFunction, f).__dd_lazy_contexts__
-                        except (AttributeError, ValueError):
-                            log.warning("Inconsistent lazy wrapping context state")
+                def trampoline(_: t.Any, args: tuple, kwargs: dict) -> t.Any:
+                    with tl:
+                        f = t.cast(WrappedFunction, self.__wrapped__)
+                        if is_wrapped_with(self.__wrapped__, trampoline):
+                            f = t.cast(WrappedFunction, unwrap(f, trampoline))
 
-                        super(LazyWrappingContext, self).wrap()
-                return f(*args, **kwargs)
+                            self._trampoline = None
 
-            wrap(self.__wrapped__, trampoline)
+                            try:
+                                (cs := t.cast(LazyWrappedFunction, f).__dd_lazy_contexts__).remove(self)
+                                if not cs:
+                                    del t.cast(LazyWrappedFunction, f).__dd_lazy_contexts__
+                            except (AttributeError, ValueError):
+                                log.warning("Inconsistent lazy wrapping context state")
 
-            self._trampoline = trampoline
+                            super(LazyWrappingContext, self).wrap()
+                    return f(*args, **kwargs)
 
-            wf = t.cast(LazyWrappedFunction, self.__wrapped__)
-            if not hasattr(wf, "__dd_lazy_contexts__"):
-                wf.__dd_lazy_contexts__ = []
-            wf.__dd_lazy_contexts__.append(self)
+                wrap(self.__wrapped__, trampoline)
 
-    def unwrap(self) -> None:
-        with self._trampoline_lock:
-            if _UniversalWrappingContext.is_wrapped(self.__wrapped__):
-                assert self._trampoline is None  # nosec
-                super().unwrap()
-            elif self._trampoline is not None:
+                self._trampoline = trampoline
+
                 wf = t.cast(LazyWrappedFunction, self.__wrapped__)
-                if hasattr(wf, "__dd_lazy_contexts__"):
-                    wf.__dd_lazy_contexts__.remove(self)
-                    if not wf.__dd_lazy_contexts__:
-                        del wf.__dd_lazy_contexts__
+                if not hasattr(wf, "__dd_lazy_contexts__"):
+                    wf.__dd_lazy_contexts__ = []
+                wf.__dd_lazy_contexts__.append(self)
 
-                unwrap(t.cast(WrappedFunction, self.__wrapped__), self._trampoline)
-                self._trampoline = None
+        def unwrap(self) -> None:
+            with self._trampoline_lock:
+                if _UniversalWrappingContext.is_wrapped(self.__wrapped__):
+                    assert self._trampoline is None  # nosec
+                    super().unwrap()
+                elif self._trampoline is not None:
+                    wf = t.cast(LazyWrappedFunction, self.__wrapped__)
+                    if hasattr(wf, "__dd_lazy_contexts__"):
+                        wf.__dd_lazy_contexts__.remove(self)
+                        if not wf.__dd_lazy_contexts__:
+                            del wf.__dd_lazy_contexts__
 
-    def __getstate__(self) -> dict[str, t.Any]:
-        state = super().__getstate__()
-        state.pop("_trampoline_lock", None)  # thread lock not picklable
-        state.pop("_trampoline", None)  # closure not picklable
-        return state
+                    unwrap(t.cast(WrappedFunction, self.__wrapped__), self._trampoline)
+                    self._trampoline = None
 
-    def __setstate__(self, state: dict[str, t.Any]) -> None:
-        super().__setstate__(state)
-        self._trampoline_lock = Lock()
-        self._trampoline = None
+        def __getstate__(self) -> dict[str, t.Any]:
+            state = super().__getstate__()
+            state.pop("_trampoline_lock", None)  # thread lock not picklable
+            state.pop("_trampoline", None)  # closure not picklable
+            return state
+
+        def __setstate__(self, state: dict[str, t.Any]) -> None:
+            super().__setstate__(state)
+            self._trampoline_lock = Lock()
+            self._trampoline = None
 
 
 class ContextWrappedFunction(Protocol):
@@ -537,11 +626,18 @@ class _UniversalWrappingContext(BaseWrappingContext):
     def __enter__(self) -> "_UniversalWrappingContext":
         super().__enter__()
 
-        # Make the frame object available to the contexts
-        self.set("__frame__", sys._getframe(1))
+        self.set("__frame__", sys._getframe(_ENTER_FRAME_DEPTH))
 
+        # Track which contexts successfully entered so that __return__/__exit__
+        # are only called on contexts whose __enter__ succeeded.
+        entered = []
         for context in self._contexts:
-            context.__enter__()
+            try:
+                context.__enter__()
+                entered.append(context)
+            except Exception:
+                log.exception("ddtrace: error in %s.__enter__", type(context).__qualname__)
+        self.set("__dd_entered__", entered)
 
         return self
 
@@ -554,291 +650,341 @@ class _UniversalWrappingContext(BaseWrappingContext):
         exc_value: t.Optional[BaseException],
         traceback: t.Optional[TracebackType],
     ) -> None:
-        if exc_value is None:
+        if self._storage.get() is None or exc_value is None:
             return
 
-        for context in self._contexts[::-1]:
-            context.__exit__(exc_type, exc_value, traceback)
+        for context in t.cast(list[WrappingContext], self.get("__dd_entered__"))[::-1]:
+            try:
+                context.__exit__(exc_type, exc_value, traceback)
+            except Exception:
+                log.exception("ddtrace: error in %s.__exit__", type(context).__qualname__)
 
         super().__exit__(exc_type, exc_value, traceback)
 
     def __return__(self, value: T) -> T:
-        for context in self._contexts[::-1]:
-            context.__return__(value)
+        if self._storage.get() is None:
+            return value
+
+        for context in t.cast(list[WrappingContext], self.get("__dd_entered__"))[::-1]:
+            try:
+                context.__return__(value)
+            except Exception:
+                log.exception("ddtrace: error in %s.__return__", type(context).__qualname__)
 
         return super().__return__(value)
 
-    @classmethod
-    def is_wrapped(cls, f: FunctionType) -> bool:
-        try:
-            # Check that we have actual bytecode wrapping. The presence of the
-            # __dd_context_wrapped__ attribute is not enough, as this could be
-            # copied over from an object state cloning.
-            if sys.version_info >= (3, 11):
-                return f.__dd_context_wrapped__.__enter__ in get_function_code(f).co_consts  # type: ignore
-            else:
-                return f.__dd_context_wrapped__ in get_function_code(f).co_consts  # type: ignore
-        except AttributeError:
-            return False
+    if sys.version_info >= (3, 15):
 
-    @classmethod
-    def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":
-        if not cls.is_wrapped(f):
-            raise ValueError("Function is not wrapped")
-        return t.cast(_UniversalWrappingContext, t.cast(ContextWrappedFunction, f).__dd_context_wrapped__)
+        @classmethod
+        def is_wrapped(cls, f: FunctionType) -> bool:
+            try:
+                return get_function_code(f) in _monitoring_registry
+            except Exception:
+                return False
 
-    if sys.version_info >= (3, 11):
+        @classmethod
+        def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":
+            ctx = _monitoring_registry.get(get_function_code(f))
+            if ctx is None:
+                raise ValueError("Function is not wrapped")
+            return ctx
 
         def wrap(self) -> None:
             f = self.__wrapped__
-
-            if self.is_wrapped(f):
-                raise ValueError("Function already wrapped")
-
-            bc = Bytecode.from_code(code := get_function_code(f))
-
-            # Prefix every return
-            i = 0
-            while i < len(bc):
-                instr = bc[i]
-                try:
-                    if instr.name == "RETURN_VALUE":
-                        return_code = CONTEXT_RETURN.bind({"context_return": self.__return__}, lineno=instr.lineno)
-                    elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
-                        return_code = CONTEXT_RETURN_CONST.bind(
-                            {"context_return": self.__return__, "value": instr.arg}, lineno=instr.lineno
-                        )
-                    else:
-                        return_code = []
-
-                    bc[i:i] = return_code
-                    i += len(return_code)
-                except AttributeError:
-                    # Not an instruction
-                    pass
-                i += 1
-
-            # Search for the RESUME instruction
-            for i, instr in enumerate(bc, 1):
-                try:
-                    if instr.name == "RESUME":
-                        break
-                except AttributeError:
-                    # Not an instruction
-                    pass
-            else:
-                i = 0
-
-            bc[i:i] = CONTEXT_HEAD.bind({"context_enter": self.__enter__}, lineno=code.co_firstlineno)
-
-            # Wrap every line outside a try block
-            except_label = bytecode.Label()
-            first_try_begin = last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
-
-            i = 0
-            while i < len(bc):
-                instr = bc[i]
-                if isinstance(instr, bytecode.TryBegin) and last_try_begin is not None:
-                    bc.insert(i, bytecode.TryEnd(last_try_begin))
-                    last_try_begin = None
-                    i += 1
-                elif isinstance(instr, bytecode.TryEnd):
-                    j = i + 1
-                    while j < len(bc) and not isinstance(bc[j], bytecode.TryBegin):
-                        if isinstance(bc[j], bytecode.Instr):
-                            last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
-                            bc.insert(i + 1, last_try_begin)
-                            break
-                        j += 1
-                    i += 1
-                i += 1
-
-            bc.insert(0, first_try_begin)
-
-            bc.append(bytecode.TryEnd(last_try_begin))
-            bc.append(except_label)
-            bc.extend(CONTEXT_FOOT.bind({"context_exit": self._exit}))
-
-            # Mark the function as wrapped by a wrapping context
+            code = get_function_code(f)
+            tool_id = _setup_monitoring()
+            with _monitoring_lock:
+                if code in _monitoring_registry:
+                    raise ValueError("Function already wrapped")
+                _monitoring_registry[code] = self
+                sys.monitoring.set_local_events(tool_id, code, _MONITORING_EVENTS)
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
-
-            # Replace the function code with the wrapped code. We also link
-            # the function to its original code object so that we can retrieve
-            # it later if required.
-            link_function_to_code(code, f)
-
-            set_function_code(f, bc.to_code())
 
         def unwrap(self) -> None:
             f = self.__wrapped__
-
-            if not self.is_wrapped(f):
-                return
-
-            wrapped = t.cast(ContextWrappedFunction, f)
-
-            bc = Bytecode.from_code(get_function_code(f))
-
-            # Remove the exception handling code
-            bc[-len(CONTEXT_FOOT) :] = []
-            bc.pop()
-            bc.pop()
-
-            except_label = bc.pop(0).target
-
-            # Remove the try blocks
-            i = 0
-            while i < len(bc):
-                instr = bc[i]
-                if isinstance(instr, bytecode.TryBegin) and instr.target is except_label:
-                    bc.pop(i)
-                elif isinstance(instr, bytecode.TryEnd) and instr.entry.target is except_label:
-                    bc.pop(i)
-                else:
-                    i += 1
-
-            # Remove the head of the try block
-            wc = wrapped.__dd_context_wrapped__
-            for i, instr in enumerate(bc):
-                try:
-                    if instr.name == "LOAD_CONST" and instr.arg is wc:
-                        break
-                except AttributeError:
-                    # Not an instruction
-                    pass
-
-            # Search for the RESUME instruction
-            for i, instr in enumerate(bc, 1):
-                try:
-                    if instr.name == "RESUME":
-                        break
-                except AttributeError:
-                    # Not an instruction
-                    pass
-            else:
-                i = 0
-
-            bc[i : i + len(CONTEXT_HEAD)] = []
-
-            # Un-prefix every return
-            i = 0
-            while i < len(bc):
-                instr = bc[i]
-                try:
-                    if instr.name == "RETURN_VALUE":
-                        return_code = CONTEXT_RETURN
-                    elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
-                        return_code = CONTEXT_RETURN_CONST
-                    else:
-                        return_code = None
-
-                    if return_code is not None:
-                        bc[i - len(return_code) : i] = []
-                        i -= len(return_code)
-                except AttributeError:
-                    # Not an instruction
-                    pass
-                i += 1
-
-            # Recreate the code object
-            set_function_code(f, bc.to_code())
-
-            # Remove the wrapping context marker
-            del wrapped.__dd_context_wrapped__
+            code = get_function_code(f)
+            with _monitoring_lock:
+                if code not in _monitoring_registry:
+                    return
+                del _monitoring_registry[code]
+                sys.monitoring.set_local_events(_monitoring_tool_id, code, 0)
+            try:
+                del t.cast(ContextWrappedFunction, f).__dd_context_wrapped__
+            except AttributeError:
+                pass
 
     else:
 
-        def wrap(self) -> None:
-            f = self.__wrapped__
+        @classmethod
+        def is_wrapped(cls, f: FunctionType) -> bool:
+            try:
+                # Check that we have actual bytecode wrapping. The presence of the
+                # __dd_context_wrapped__ attribute is not enough, as this could be
+                # copied over from an object state cloning.
+                wc = f.__dd_context_wrapped__  # type: ignore[attr-defined]
+                needle = wc.__enter__ if sys.version_info >= (3, 11) else wc
+                return needle in get_function_code(f).co_consts
+            except AttributeError:
+                return False
 
-            if self.is_wrapped(f):
-                raise ValueError("Function already wrapped")
+        @classmethod
+        def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":
+            if not cls.is_wrapped(f):
+                raise ValueError("Function is not wrapped")
+            return t.cast(_UniversalWrappingContext, t.cast(ContextWrappedFunction, f).__dd_context_wrapped__)
 
-            bc = Bytecode.from_code(code := get_function_code(f))
+        if sys.version_info >= (3, 11):
 
-            # Prefix every return
-            i = 0
-            while i < len(bc):
-                instr = bc[i]
-                try:
-                    if instr.name == "RETURN_VALUE":
-                        return_code = CONTEXT_RETURN.bind({"context": self}, lineno=instr.lineno)
-                    else:
-                        return_code = []
+            def wrap(self) -> None:
+                f = self.__wrapped__
 
-                    bc[i:i] = return_code
-                    i += len(return_code)
-                except AttributeError:
-                    # Not an instruction
-                    pass
-                i += 1
+                if self.is_wrapped(f):
+                    raise ValueError("Function already wrapped")
 
-            # Search for the GEN_START instruction, which needs to stay on top.
-            i = 0
-            if sys.version_info >= (3, 10) and (iscoroutinefunction(f) or isgeneratorfunction(f)):
+                bc = Bytecode.from_code(code := get_function_code(f))
+
+                # Prefix every return
+                i = 0
+                while i < len(bc):
+                    instr = bc[i]
+                    try:
+                        if instr.name == "RETURN_VALUE":
+                            return_code = CONTEXT_RETURN.bind({"context_return": self.__return__}, lineno=instr.lineno)
+                        elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
+                            return_code = CONTEXT_RETURN_CONST.bind(
+                                {"context_return": self.__return__, "value": instr.arg}, lineno=instr.lineno
+                            )
+                        else:
+                            return_code = []
+
+                        bc[i:i] = return_code
+                        i += len(return_code)
+                    except AttributeError:
+                        # Not an instruction
+                        pass
+                    i += 1
+
+                # Search for the RESUME instruction
                 for i, instr in enumerate(bc, 1):
                     try:
-                        if instr.name == "GEN_START":
+                        if instr.name == "RESUME":
+                            break
+                    except AttributeError:
+                        # Not an instruction
+                        pass
+                else:
+                    i = 0
+
+                bc[i:i] = CONTEXT_HEAD.bind({"context_enter": self.__enter__}, lineno=code.co_firstlineno)
+
+                # Wrap every line outside a try block
+                except_label = bytecode.Label()
+                first_try_begin = last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
+
+                i = 0
+                while i < len(bc):
+                    instr = bc[i]
+                    if isinstance(instr, bytecode.TryBegin) and last_try_begin is not None:
+                        bc.insert(i, bytecode.TryEnd(last_try_begin))
+                        last_try_begin = None
+                        i += 1
+                    elif isinstance(instr, bytecode.TryEnd):
+                        j = i + 1
+                        while j < len(bc) and not isinstance(bc[j], bytecode.TryBegin):
+                            if isinstance(bc[j], bytecode.Instr):
+                                last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
+                                bc.insert(i + 1, last_try_begin)
+                                break
+                            j += 1
+                        i += 1
+                    i += 1
+
+                bc.insert(0, first_try_begin)
+
+                bc.append(bytecode.TryEnd(last_try_begin))
+                bc.append(except_label)
+                bc.extend(CONTEXT_FOOT.bind({"context_exit": self._exit}))
+
+                # Mark the function as wrapped by a wrapping context
+                t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
+
+                # Replace the function code with the wrapped code. We also link
+                # the function to its original code object so that we can retrieve
+                # it later if required.
+                link_function_to_code(code, f)
+
+                set_function_code(f, bc.to_code())
+
+            def unwrap(self) -> None:
+                f = self.__wrapped__
+
+                if not self.is_wrapped(f):
+                    return
+
+                wrapped = t.cast(ContextWrappedFunction, f)
+
+                bc = Bytecode.from_code(get_function_code(f))
+
+                # Remove the exception handling code
+                bc[-len(CONTEXT_FOOT) :] = []
+                bc.pop()
+                bc.pop()
+
+                except_label = bc.pop(0).target
+
+                # Remove the try blocks
+                i = 0
+                while i < len(bc):
+                    instr = bc[i]
+                    if isinstance(instr, bytecode.TryBegin) and instr.target is except_label:
+                        bc.pop(i)
+                    elif isinstance(instr, bytecode.TryEnd) and instr.entry.target is except_label:
+                        bc.pop(i)
+                    else:
+                        i += 1
+
+                # Remove the head of the try block
+                wc = wrapped.__dd_context_wrapped__
+                for i, instr in enumerate(bc):
+                    try:
+                        if instr.name == "LOAD_CONST" and instr.arg is wc:
                             break
                     except AttributeError:
                         # Not an instruction
                         pass
 
-            *bc[i:i], except_label = CONTEXT_HEAD.bind({"context": self}, lineno=code.co_firstlineno)
+                # Search for the RESUME instruction
+                for i, instr in enumerate(bc, 1):
+                    try:
+                        if instr.name == "RESUME":
+                            break
+                    except AttributeError:
+                        # Not an instruction
+                        pass
+                else:
+                    i = 0
 
-            bc.append(except_label)
-            bc.extend(CONTEXT_FOOT.bind())
+                bc[i : i + len(CONTEXT_HEAD)] = []
 
-            # Mark the function as wrapped by a wrapping context
-            t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
+                # Un-prefix every return
+                i = 0
+                while i < len(bc):
+                    instr = bc[i]
+                    try:
+                        if instr.name == "RETURN_VALUE":
+                            return_code = CONTEXT_RETURN
+                        elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
+                            return_code = CONTEXT_RETURN_CONST
+                        else:
+                            return_code = None
 
-            # Replace the function code with the wrapped code. We also link
-            # the function to its original code object so that we can retrieve
-            # it later if required.
-            link_function_to_code(code, f)
-            set_function_code(f, bc.to_code())
+                        if return_code is not None:
+                            bc[i - len(return_code) : i] = []
+                            i -= len(return_code)
+                    except AttributeError:
+                        # Not an instruction
+                        pass
+                    i += 1
 
-        def unwrap(self) -> None:
-            f = self.__wrapped__
+                # Recreate the code object
+                set_function_code(f, bc.to_code())
 
-            if not self.is_wrapped(f):
-                return
+                # Remove the wrapping context marker
+                del wrapped.__dd_context_wrapped__
 
-            wrapped = t.cast(ContextWrappedFunction, f)
+        else:
 
-            bc = Bytecode.from_code(get_function_code(f))
+            def wrap(self) -> None:
+                f = self.__wrapped__
 
-            # Remove the exception handling code
-            bc[-len(CONTEXT_FOOT) :] = []
-            bc.pop()
+                if self.is_wrapped(f):
+                    raise ValueError("Function already wrapped")
 
-            # Remove the head of the try block
-            wc = wrapped.__dd_context_wrapped__
-            for i, instr in enumerate(bc):
-                try:
-                    if instr.name == "LOAD_CONST" and instr.arg is wc:
-                        break
-                except AttributeError:
-                    # Not an instruction
-                    pass
+                bc = Bytecode.from_code(code := get_function_code(f))
 
-            bc[i : i + len(CONTEXT_HEAD) - 1] = []
+                # Prefix every return
+                i = 0
+                while i < len(bc):
+                    instr = bc[i]
+                    try:
+                        if instr.name == "RETURN_VALUE":
+                            return_code = CONTEXT_RETURN.bind({"context": self}, lineno=instr.lineno)
+                        else:
+                            return_code = []
 
-            # Remove all the return handlers
-            i = 0
-            while i < len(bc):
-                instr = bc[i]
-                try:
-                    if instr.name == "RETURN_VALUE":
-                        bc[i - len(CONTEXT_RETURN) : i] = []
-                        i -= len(CONTEXT_RETURN)
-                except AttributeError:
-                    # Not an instruction
-                    pass
-                i += 1
+                        bc[i:i] = return_code
+                        i += len(return_code)
+                    except AttributeError:
+                        # Not an instruction
+                        pass
+                    i += 1
 
-            # Recreate the code object
-            set_function_code(f, bc.to_code())
+                # Search for the GEN_START instruction, which needs to stay on top.
+                i = 0
+                if sys.version_info >= (3, 10) and (iscoroutinefunction(f) or isgeneratorfunction(f)):
+                    for i, instr in enumerate(bc, 1):
+                        try:
+                            if instr.name == "GEN_START":
+                                break
+                        except AttributeError:
+                            # Not an instruction
+                            pass
 
-            # Remove the wrapping context marker
-            del wrapped.__dd_context_wrapped__
+                *bc[i:i], except_label = CONTEXT_HEAD.bind({"context": self}, lineno=code.co_firstlineno)
+
+                bc.append(except_label)
+                bc.extend(CONTEXT_FOOT.bind())
+
+                # Mark the function as wrapped by a wrapping context
+                t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
+
+                # Replace the function code with the wrapped code. We also link
+                # the function to its original code object so that we can retrieve
+                # it later if required.
+                link_function_to_code(code, f)
+                set_function_code(f, bc.to_code())
+
+            def unwrap(self) -> None:
+                f = self.__wrapped__
+
+                if not self.is_wrapped(f):
+                    return
+
+                wrapped = t.cast(ContextWrappedFunction, f)
+
+                bc = Bytecode.from_code(get_function_code(f))
+
+                # Remove the exception handling code
+                bc[-len(CONTEXT_FOOT) :] = []
+                bc.pop()
+
+                # Remove the head of the try block
+                wc = wrapped.__dd_context_wrapped__
+                for i, instr in enumerate(bc):
+                    try:
+                        if instr.name == "LOAD_CONST" and instr.arg is wc:
+                            break
+                    except AttributeError:
+                        # Not an instruction
+                        pass
+
+                bc[i : i + len(CONTEXT_HEAD) - 1] = []
+
+                # Remove all the return handlers
+                i = 0
+                while i < len(bc):
+                    instr = bc[i]
+                    try:
+                        if instr.name == "RETURN_VALUE":
+                            bc[i - len(CONTEXT_RETURN) : i] = []
+                            i -= len(CONTEXT_RETURN)
+                    except AttributeError:
+                        # Not an instruction
+                        pass
+                    i += 1
+
+                # Recreate the code object
+                set_function_code(f, bc.to_code())
+
+                # Remove the wrapping context marker
+                del wrapped.__dd_context_wrapped__

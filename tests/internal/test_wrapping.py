@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import copy
 import inspect
 import sys
+import threading
 from types import CoroutineType
 from types import FunctionType
 from typing import cast
@@ -1264,3 +1265,194 @@ async def test_lazy_async_wrapper_throw_forwarding():
             f"[call {call_index}] CancelledError was not forwarded to the inner "
             "coroutine by the lazy wrapper; throw() interception is broken"
         )
+
+
+# ---------------------------------------------------------------------------
+# Resilience: a broken sub-context must not affect other contexts or the
+# function's observable behaviour.  These tests exercise the per-context
+# try/except inside _UniversalWrappingContext.__enter__/__return__/__exit__.
+# ---------------------------------------------------------------------------
+
+
+def test_wrapping_context_broken_enter_does_not_break_function():
+    """A context whose __enter__ raises must not prevent the function from running."""
+
+    class BrokenEnterContext(WrappingContext):
+        def __enter__(self):
+            raise RuntimeError("broken enter")
+
+    class GoodContext(WrappingContext):
+        entered = False
+        return_value = NOTSET
+
+        def __enter__(self):
+            GoodContext.entered = True
+            return super().__enter__()
+
+        def __return__(self, value):
+            GoodContext.return_value = value
+            return super().__return__(value)
+
+    def foo():
+        return 42
+
+    BrokenEnterContext(foo).wrap()
+    GoodContext(foo).wrap()
+
+    assert foo() == 42
+
+    # The good context still ran despite the broken one.
+    assert GoodContext.entered
+    assert GoodContext.return_value == 42
+
+
+def test_wrapping_context_broken_return_does_not_affect_return_value():
+    """A context whose __return__ raises must not change the actual return value."""
+
+    class BrokenReturnContext(WrappingContext):
+        def __return__(self, value):
+            raise RuntimeError("broken return")
+
+    class GoodContext(WrappingContext):
+        entered = False
+        return_value = NOTSET
+
+        def __enter__(self):
+            GoodContext.entered = True
+            return super().__enter__()
+
+        def __return__(self, value):
+            GoodContext.return_value = value
+            return super().__return__(value)
+
+    def foo():
+        return 42
+
+    BrokenReturnContext(foo).wrap()
+    GoodContext(foo).wrap()
+
+    assert foo() == 42
+
+    assert GoodContext.entered
+    assert GoodContext.return_value == 42
+
+
+def test_wrapping_context_broken_exit_does_not_mask_original_exception():
+    """A context whose __exit__ raises must not replace the original exception."""
+
+    class BrokenExitContext(WrappingContext):
+        def __exit__(self, exc_type, exc_value, traceback):
+            super().__exit__(exc_type, exc_value, traceback)
+            raise RuntimeError("broken exit")
+
+    class GoodContext(WrappingContext):
+        exited = False
+        exc_info = None
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            GoodContext.exited = True
+            if exc_value is not None:
+                GoodContext.exc_info = (exc_type, exc_value, traceback)
+            super().__exit__(exc_type, exc_value, traceback)
+
+    def foo():
+        raise ValueError("original")
+
+    BrokenExitContext(foo).wrap()
+    GoodContext(foo).wrap()
+
+    with pytest.raises(ValueError, match="original"):
+        foo()
+
+    assert GoodContext.exited
+    _type, exc, _ = GoodContext.exc_info
+    assert _type is ValueError
+
+
+# ---------------------------------------------------------------------------
+# Thread-based concurrency: ContextVar storage must be isolated per thread.
+# ---------------------------------------------------------------------------
+
+
+def test_wrapping_context_thread_concurrent():
+    """Storage set by one thread must not bleed into a concurrent thread."""
+    results = {}
+    errors = []
+
+    class ThreadIsolationContext(DummyWrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            self.set("tid", threading.get_ident())
+            return self
+
+        def __return__(self, value):
+            stored = self.get("tid")
+            current = threading.get_ident()
+            if stored != current:
+                errors.append(f"tid mismatch: stored={stored} current={current}")
+            results[current] = stored
+            return super().__return__(value)
+
+    def foo():
+        return threading.get_ident()
+
+    wc = ThreadIsolationContext(foo)
+    wc.wrap()
+
+    barrier = threading.Barrier(10)
+
+    def run():
+        barrier.wait()
+        foo()
+
+    threads = [threading.Thread(target=run) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors, errors
+    # Each thread saw its own tid in storage.
+    for tid, stored in results.items():
+        assert tid == stored
+
+
+# ---------------------------------------------------------------------------
+# Async recursion: ContextVar stack must be correct for recursive coroutines.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_wrapping_context_async_recursive():
+    """Each recursive coroutine call must have its own isolated storage slot."""
+    values = []
+
+    class AsyncRecursiveContext(DummyWrappingContext):
+        def __enter__(self):
+            super().__enter__()
+            n = self.__frame__.f_locals["n"]
+            self.set("n", n)
+            values.append(("enter", n))
+            return self
+
+        def __return__(self, value):
+            n = self.__frame__.f_locals["n"]
+            assert self.get("n") == n, f"storage mismatch: expected {n}, got {self.get('n')}"
+            values.append(("return", n))
+            return super().__return__(value)
+
+    async def afactorial(n):
+        if n == 0:
+            return 1
+        return n * await afactorial(n - 1)
+
+    wc = AsyncRecursiveContext(afactorial)
+    wc.wrap()
+
+    result = await afactorial(5)
+    assert result == 120
+
+    entered = [n for ev, n in values if ev == "enter"]
+    returned = [n for ev, n in values if ev == "return"]
+    assert entered == [5, 4, 3, 2, 1, 0]
+    assert returned == [0, 1, 2, 3, 4, 5]
