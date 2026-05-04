@@ -957,7 +957,7 @@ class _BaggageHeader:
         baggages = header_value.split(",")
         for pair_index, key_value in enumerate(baggages):
             if pair_index >= DD_TRACE_BAGGAGE_MAX_ITEMS:
-                log.warning("Baggage item limit exceeded, dropping excess items")
+                log.warning("Baggage item limit exceeded, dropping excess items, skipped: %d items", len(baggages) - DD_TRACE_BAGGAGE_MAX_ITEMS)
                 telemetry_writer.add_count_metric(
                     namespace=TELEMETRY_NAMESPACE.TRACERS,
                     name="context_header.truncated",
