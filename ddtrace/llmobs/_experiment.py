@@ -1270,6 +1270,7 @@ def _parse_experiment_result(response: dict) -> "ExperimentResult":
     latest ``timestamp_ms`` wins.
     """
     data = response.get("data") or {}
+    breakpoint()
     attributes = data.get("attributes") or {}
     spans = attributes.get("spans") or []
 
@@ -1873,7 +1874,8 @@ class Experiment:
         evaluations: list[EvaluationResult],
         summary_evaluations: Optional[list[EvaluationResult]],
     ) -> ExperimentRun:
-        assert self._dataset is not None  # nosec B101
+        if self._dataset is None:
+            raise RuntimeError("_merge_results called with dataset=None; this is a bug")
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
@@ -2049,7 +2051,8 @@ class Experiment:
 
     def _get_subset_dataset(self, sample_size: Optional[int]) -> Dataset:
         """Get dataset containing the first sample_size records of the original dataset."""
-        assert self._dataset is not None  # nosec B101
+        if self._dataset is None:
+            raise RuntimeError("_get_subset_dataset called with dataset=None; this is a bug")
         if sample_size is not None and sample_size < len(self._dataset):
             subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
             subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
@@ -2109,7 +2112,8 @@ class Experiment:
         list[dict[str, Any]],
         dict[str, list[JSONType]],
     ]:
-        assert self._dataset is not None  # nosec B101
+        if self._dataset is None:
+            raise RuntimeError("_prepare_summary_evaluator_data called with dataset=None; this is a bug")
         inputs: list[JSONType] = []
         outputs: list[JSONType] = []
         expected_outputs: list[JSONType] = []
@@ -2143,7 +2147,8 @@ class Experiment:
     def _setup_experiment(self, llmobs_not_enabled_error: str, ensure_unique: bool = True) -> None:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(llmobs_not_enabled_error)
-        assert self._dataset is not None  # nosec B101
+        if self._dataset is None:
+            raise RuntimeError("_setup_experiment called with dataset=None; this is a bug")
 
         project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
         self._project_id = project.get("_id", "")
@@ -2328,7 +2333,8 @@ class Experiment:
         asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
-        assert self._task is not None and self._dataset is not None  # nosec B101
+        if self._task is None or self._dataset is None:
+            raise RuntimeError("_process_record called with task=None or dataset=None; this is a bug")
         async with semaphore:
             idx, record = idx_record
             with self._llmobs_instance._experiment(
@@ -2609,7 +2615,8 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
-        assert self._dataset is not None  # nosec B101
+        if self._dataset is None:
+            raise RuntimeError("_evaluate_records called with dataset=None; this is a bug")
         asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
         coros = [
