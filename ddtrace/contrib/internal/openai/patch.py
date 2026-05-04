@@ -404,9 +404,6 @@ def _patched_endpoint_async(patch_hook):
             return func(*args, **kwargs)
 
         is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
-        if is_chat:
-            _raising_dispatch("openai.chat.completions.create.before", (kwargs,))
-
         result = func(*args, **kwargs)
         # Detect AsyncPaginator objects (have both __aiter__ and __await__).
         # These must be returned directly (not awaited) to preserve iteration behavior.
@@ -414,6 +411,24 @@ def _patched_endpoint_async(patch_hook):
             return _TracedAsyncPaginator(result, openai._datadog_integration, patch_hook, instance, args, kwargs)
 
         async def async_wrapper():
+            # AIDEV-NOTE: Dispatch the AI Guard before-hook at await time, not
+            # at call time. Running it earlier would (a) surface
+            # ``AIGuardAbortError`` at coroutine construction, breaking
+            # ``async def`` semantics callers rely on (``asyncio.wait_for`` /
+            # ``gather`` / ``create_task`` assume cheap construction with work
+            # starting at await/scheduling), and (b) evaluate (and bill) AI
+            # Guard even when the caller never awaits the returned coroutine.
+            if is_chat:
+                try:
+                    _raising_dispatch("openai.chat.completions.create.before", (kwargs,))
+                except BaseException:
+                    # AI Guard blocked the request — discard the unstarted SDK
+                    # coroutine so Python doesn't emit a "coroutine was never
+                    # awaited" warning for it.
+                    if hasattr(result, "close"):
+                        result.close()
+                    raise
+
             integration = openai._datadog_integration
             g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
             g.send(None)

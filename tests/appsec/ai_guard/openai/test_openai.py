@@ -590,6 +590,48 @@ async def test_chat_async_block(mock_execute_request, async_openai_client, decis
     mock_execute_request.assert_called_once()
 
 
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_chat_async_block_raises_at_await_time(mock_execute_request, async_openai_client):
+    """The async wrapper MUST run AI Guard before-evaluation at ``await`` time,
+    not at coroutine construction time. Pins ``async def`` semantics: callers
+    using ``asyncio.wait_for`` / ``gather`` / ``create_task`` rely on cheap
+    construction, with work (and any errors) deferred to scheduling/await.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    coro = async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+    try:
+        # Construction MUST be side-effect free — no AI Guard call yet.
+        mock_execute_request.assert_not_called()
+
+        with pytest.raises(AIGuardAbortError):
+            await coro
+    finally:
+        # In the success branch the await consumed it; in any failure branch
+        # close it defensively so we don't leak an unfinished coroutine.
+        if hasattr(coro, "close"):
+            coro.close()
+
+    mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_chat_async_unawaited_coro_does_not_evaluate(mock_execute_request, async_openai_client):
+    """If the caller never awaits the returned coroutine, the AI Guard
+    evaluation MUST NOT run. Otherwise we'd be evaluating (and billing) a
+    request that never happened — and surfacing block errors out of-band of
+    the await the caller controls.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    coro = async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+    coro.close()  # discard without awaiting
+
+    mock_execute_request.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # After-model evaluation: ALLOW before, DENY after
 # ---------------------------------------------------------------------------
