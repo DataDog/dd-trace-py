@@ -60,6 +60,7 @@ case "$cmd" in
     "$SCRIPT_DIR/lint" suitespec-check
     "$SCRIPT_DIR/lint" profiling-native-check
     "$SCRIPT_DIR/lint" error-log-check
+    "$SCRIPT_DIR/lint" supported-config-check
     "$SCRIPT_DIR/lint" sg
     "$SCRIPT_DIR/lint" sg-test
     ;;
@@ -100,6 +101,9 @@ case "$cmd" in
     ;;
   error-log-check)
     uv_lint python scripts/check_constant_log_message.py "$@"
+    ;;
+  supported-config-check)
+    uv_lint python scripts/supported_configurations.py --check "$@"
     ;;
   ci-deps-check)
     bash scripts/check-ci-dependencies "$@"
