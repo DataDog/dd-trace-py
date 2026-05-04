@@ -5,7 +5,6 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace import version
-from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
@@ -168,6 +167,15 @@ def is_started() -> bool:
     return crashtracker_status() == CrashtrackerStatus.Initialized
 
 
+def restart(additional_tags: Optional[dict[str, str]] = None) -> None:
+    # We recreate the args here mainly to pass updated runtime_id after fork.
+    config, receiver_config, metadata = _get_args(additional_tags)
+    if config is None or receiver_config is None or metadata is None:
+        log.error("Failed to restart crashtracker after fork: failed to construct crashtracker configuration")
+        return
+    crashtracker_on_fork(config, receiver_config, metadata)
+
+
 def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
     if not is_available:
         return False
@@ -186,17 +194,6 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
         # )
 
         crashtracker_init(config, receiver_config, metadata)
-
-        def crashtracker_fork_handler():
-            # We recreate the args here mainly to pass updated runtime_id after
-            # fork
-            config, receiver_config, metadata = _get_args(additional_tags)
-            if config is None or receiver_config is None or metadata is None:
-                log.error("Failed to restart crashtracker after fork: failed to construct crashtracker configuration")
-                return
-            crashtracker_on_fork(config, receiver_config, metadata)
-
-        forksafe.register(crashtracker_fork_handler)
     except Exception:
         log.exception("Failed to start crashtracker")
         return False

@@ -10,7 +10,6 @@ from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.products import manager  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
-from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 from ddtrace.internal.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.trace import tracer
 
@@ -43,16 +42,6 @@ register_post_preload(manager.post_preload_products)
 
 
 # TODO: Migrate the following product logic to the new product plugin interface
-
-# DEV: We want to start the crashtracker as early as possible
-if crashtracker_config.enabled:
-    try:
-        from ddtrace.internal.core import crashtracking
-
-        crashtracking.start()
-    except Exception:
-        log.error("failed to enable crashtracking", exc_info=True)
-
 
 if profiling_config.enabled:
     log.debug("profiler enabled via environment variable")

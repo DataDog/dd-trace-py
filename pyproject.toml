@@ -79,6 +79,7 @@ datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 "iast" = "ddtrace.internal.iast.product"
 "sca" = "ddtrace.internal.sca.product"
 "tracer" = "ddtrace._trace.product"
+"crashtracking" = "ddtrace.internal.core.crashtracking.product"
 
 [project.urls]
 "Bug Tracker" = "https://github.com/DataDog/dd-trace-py/issues"
