@@ -844,11 +844,16 @@ experiments:
           - name: recursivecomputation-medium
             thresholds:
               - execution_time < 7.45 ms
-              - max_rss_usage < 38.00 MB
+              # Bumped from 38.00 MB: enabling cyclic-GC participation for
+              # native SpanData/SpanLink/SpanEvent (Py_TPFLAGS_HAVE_GC + per-
+              # instance GC header + GC gen-list tracking on every span)
+              # raises peak RSS by ~6 MB on this scenario. Observed: 44.04 MB.
+              - max_rss_usage < 46.00 MB
           - name: recursivecomputation-shallow
             thresholds:
               - execution_time < 1.05 ms
-              - max_rss_usage < 38.00 MB
+              # Same reason as recursivecomputation-medium above.
+              - max_rss_usage < 46.00 MB
 
           # samplingrules
           - name: samplingrules-average_match
