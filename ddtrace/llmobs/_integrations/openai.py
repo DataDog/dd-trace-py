@@ -102,10 +102,18 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_provider = "openai"
         elif self._is_provider(span, "deepseek"):
             model_provider = "deepseek"
+
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
+        provider = span.get_tag("openai.request.provider") or "OpenAI"
+        span_name = "{}.{}".format(provider, span.resource) if span.resource else None
         # Set kind before helpers so that input/output messages are routed correctly
         _annotate_llmobs_span_data(
-            span, kind=span_kind, model_name=model_name, model_provider=model_provider, metrics=metrics
+            span,
+            name=span_name,
+            kind=span_kind,
+            model_name=model_name,
+            model_provider=model_provider,
+            metrics=metrics,
         )
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)

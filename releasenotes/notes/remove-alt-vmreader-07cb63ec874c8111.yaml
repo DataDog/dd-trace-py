@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    profiling: The ``ECHION_ALT_VM_READ_FORCE`` configuration flag has been removed
+    and support for the associated feature has been dropped.
