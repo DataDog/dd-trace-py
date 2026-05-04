@@ -390,7 +390,19 @@ def _on_traced_request_context_started_flask(ctx):
 
     ctx.span = current_span
     flask_config = ctx.get_item("flask_config")
-    _set_flask_request_tags(ctx.get_item("flask_request"), current_span, flask_config)
+    flask_request = ctx.get_item("flask_request")
+    _set_flask_request_tags(flask_request, current_span, flask_config)
+
+    # Also update the root WSGI span resource from url_rule so that it is set
+    # before the handler runs. Without this, if gunicorn kills the worker
+    # (timeout) before start_response fires, the WSGI span retains the raw
+    # URL path as its resource.
+    root_span = tracer.current_root_span()
+    if root_span and root_span is not current_span and flask_request.url_rule and flask_request.url_rule.rule:
+        if not root_span.get_tag(FLASK_URL_RULE):
+            root_span.resource = " ".join((flask_request.method, flask_request.url_rule.rule))
+            root_span._set_attribute(FLASK_URL_RULE, flask_request.url_rule.rule)
+
     request_span = _start_span(ctx)
     request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
