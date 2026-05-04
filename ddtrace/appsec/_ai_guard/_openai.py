@@ -293,7 +293,18 @@ def _openai_chat_completion_before(client, kwargs):
     if is_aiguard_context_active():
         return None
 
-    messages = kwargs.get("messages", [])
+    messages = kwargs.get("messages")
+    if messages is None:
+        return None
+    # AIDEV-NOTE: ``chat.completions.create`` types ``messages`` as
+    # ``Iterable[ChatCompletionMessageParam]``, so callers may pass a generator
+    # or other one-shot iterator. Iterating it here for AI Guard evaluation
+    # would exhaust the input before the SDK serializes it, leaving the API
+    # call with no messages. Materialize once and write back so the SDK (and
+    # the after-hook) re-read the same list.
+    if not isinstance(messages, (list, tuple)):
+        messages = list(messages)
+        kwargs["messages"] = messages
     if not messages:
         return None
 

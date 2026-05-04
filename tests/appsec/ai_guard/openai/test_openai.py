@@ -20,6 +20,7 @@ from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active
 from ddtrace.appsec._ai_guard._context import set_aiguard_context_active
 from ddtrace.appsec._ai_guard._openai import _convert_openai_messages
 from ddtrace.appsec._ai_guard._openai import _convert_openai_response
+from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_before
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import override_ai_guard_config
@@ -388,6 +389,45 @@ class TestConvertOpenAIResponse:
         assert tc["id"].startswith("fc_")
         assert tc["function"]["name"] == "get_weather"
         assert tc["function"]["arguments"] == '{"city": "NYC"}'
+
+
+# ---------------------------------------------------------------------------
+# Listener input handling — non-list iterables
+# ---------------------------------------------------------------------------
+
+
+def test_before_hook_materializes_iterator_messages():
+    """The OpenAI SDK accepts ``messages`` as ``Iterable``, so callers may
+    pass a generator. The before-hook must materialize it back into ``kwargs``
+    so the SDK still sees the messages after AI Guard reads them.
+
+    Regression: previously the hook iterated the generator into
+    ``_convert_openai_messages`` and the SDK then received an exhausted
+    iterator (empty request).
+    """
+
+    class _RecordingClient:
+        def __init__(self):
+            self.evaluated = None
+
+        def evaluate(self, messages, options):
+            self.evaluated = list(messages)
+            return None
+
+    def _gen():
+        yield {"role": "user", "content": "Hello"}
+
+    client = _RecordingClient()
+    kwargs = {"messages": _gen()}
+
+    result = _openai_chat_completion_before(client, kwargs)
+
+    assert result is None
+    # SDK-visible payload: still iterable, with the original message preserved.
+    assert isinstance(kwargs["messages"], list)
+    assert kwargs["messages"] == [{"role": "user", "content": "Hello"}]
+    # AI Guard saw the messages too (would be empty if we materialized after iteration).
+    assert client.evaluated and client.evaluated[0]["role"] == "user"
 
 
 # ---------------------------------------------------------------------------
