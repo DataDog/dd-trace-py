@@ -1270,7 +1270,6 @@ def _parse_experiment_result(response: dict) -> "ExperimentResult":
     latest ``timestamp_ms`` wins.
     """
     data = response.get("data") or {}
-    breakpoint()
     attributes = data.get("attributes") or {}
     spans = attributes.get("spans") or []
 
