@@ -425,6 +425,8 @@ class SessionManager:
             git = Git()
         except RuntimeError:
             log.warning("Error calling git binary, skipping metadata upload")
+            if TelemetryAPI._instance is not None:
+                TelemetryAPI.get().record_git_missing()
             return
 
         latest_commits = git.get_latest_commits()
@@ -494,6 +496,10 @@ class SessionManager:
         if not asbool(env.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")):
             log.debug("Auto Test Retries is disabled by environment variable")
             self.settings.auto_test_retries.enabled = False
+
+        if not asbool(env.get("DD_TEST_MANAGEMENT_ENABLED", "true")):
+            log.debug("Test Management is disabled by environment variable")
+            self.settings.test_management.enabled = False
 
         _coverage_upload_env = env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "")
         if _coverage_upload_env.lower() in ("false", "0"):

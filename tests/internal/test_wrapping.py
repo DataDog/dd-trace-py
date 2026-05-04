@@ -1189,3 +1189,78 @@ async def test_lazy_async_wrapper_frames_have_valid_linenos():
                 f"has lineno=None — async wrapping injected instructions without "
                 f"line-number information"
             )
+
+
+@pytest.mark.asyncio
+async def test_async_wrapper_throw_forwarding():
+    """Regression test: throw() on a wrapped coroutine must be forwarded to the inner.
+
+    Python 3.12+ uses CLEANUP_THROW bytecode in compiled ``return await sub_coro``
+    to forward exceptions thrown into the outer coroutine to the inner one.  For
+    Python's own ``_PyGen_yf`` mechanism to work correctly, the wrapping bytecode
+    (COROUTINE_ASSEMBLY) must keep the inner coroutine as the top-of-stack iterator
+    so that a ``throw()`` call on the wrapper is forwarded to the wrapped coroutine
+    rather than absorbed by the wrapper frame.
+    """
+    received_cancel = []
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    async def inner():
+        try:
+            # Suspension point so throw() can be tested
+            await asyncio.sleep(0)
+        except asyncio.CancelledError:
+            received_cancel.append(True)
+            raise
+
+    wrap(inner, wrapper)
+
+    # Advance wrapped coroutine to its first suspension point, then throw
+    c = inner()
+    try:
+        c.send(None)
+    except StopIteration:
+        pass  # completed without suspending (shouldn't happen here)
+
+    try:
+        c.throw(asyncio.CancelledError())
+    except (asyncio.CancelledError, StopIteration):
+        pass
+
+    assert received_cancel, (
+        "CancelledError was not forwarded to the inner coroutine by the wrapper; throw() interception is broken"
+    )
+
+
+@pytest.mark.asyncio
+async def test_lazy_async_wrapper_throw_forwarding():
+    """Same throw-forwarding regression check for LazyWrappingContext."""
+    for call_index in range(2):
+        received_cancel = []
+
+        async def inner():
+            try:
+                await asyncio.sleep(0)
+            except asyncio.CancelledError:
+                received_cancel.append(True)
+                raise
+
+        DummyLazyWrappingContext(inner).wrap()
+
+        c = inner()
+        try:
+            c.send(None)
+        except StopIteration:
+            pass
+
+        try:
+            c.throw(asyncio.CancelledError())
+        except (asyncio.CancelledError, StopIteration):
+            pass
+
+        assert received_cancel, (
+            f"[call {call_index}] CancelledError was not forwarded to the inner "
+            "coroutine by the lazy wrapper; throw() interception is broken"
+        )

@@ -2000,7 +2000,7 @@ class Experiment:
             record: DatasetRecord = self._dataset[idx]
             inputs.append(record["input_data"])
             expected_outputs.append(record["expected_output"])
-            record_metadata = record.get("metadata", {})
+            record_metadata = record.get("metadata") or {}
             metadata_list.append({**record_metadata, "experiment_config": self._config})
 
             eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
@@ -2206,6 +2206,7 @@ class Experiment:
                 run_id=str(run._id),
                 run_iteration=run._run_iteration,
                 dataset_name=self._dataset.name,
+                dataset_id=str(self._dataset._id),
                 project_name=self._project_name,
                 project_id=self._project_id,
                 experiment_name=self.name,
@@ -2237,7 +2238,7 @@ class Experiment:
                     tags["dataset_record_canonical_id"] = canonical_id
                 output_data = None
                 last_exc_info = None
-                record_metadata = record.get("metadata", {})
+                record_metadata = record.get("metadata") or {}
                 task_args: list = [input_data, self._config]
                 if self._task_accepts_metadata:
                     task_args.append(record_metadata)

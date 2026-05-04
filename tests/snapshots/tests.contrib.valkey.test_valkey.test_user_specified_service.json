@@ -11,14 +11,14 @@
     "meta": {
       "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dfb8d500000000",
+      "_dd.p.tid": "69e27a8e00000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:project,entrypoint.name:python_-m_unittest,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "e14fa7062b9d41a688fb7885643a679e",
+      "runtime-id": "0621ecca0d374ab59d865d1c86490b64",
       "server.address": "localhost",
       "span.kind": "client",
       "valkey.raw_command": "GET cheese"
@@ -31,9 +31,9 @@
       "db.row_count": 0.0,
       "network.destination.port": 6379.0,
       "out.valkey_db": 0.0,
-      "process_id": 8391.0,
+      "process_id": 38340.0,
       "valkey.args_length": 2.0
     },
-    "duration": 626917,
-    "start": 1776269525413190044
+    "duration": 541791,
+    "start": 1776450190873085094
   }]]

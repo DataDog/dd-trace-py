@@ -11,19 +11,21 @@
     "meta": {
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "68a5d4f600000000",
+      "_dd.p.tid": "69dfabd100000000",
+      "_dd.svc_src": "animals",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpjhti_fmt,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "language": "python",
-      "runtime-id": "64bf6d3f1d7c4f62b4a4641d09d5f3c4"
+      "runtime-id": "3b6855734c264dcbae1e8087ef54545e"
     },
     "metrics": {
       "_dd.rule_psr": 0.0,
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": -1,
-      "process_id": 6556
+      "_sampling_priority_v1": -1.0,
+      "process_id": 4397.0
     },
-    "duration": 70916,
-    "start": 1758013735832416710
+    "duration": 115125,
+    "start": 1776266193570972305
   },
      {
        "name": "monkey",
@@ -34,12 +36,15 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "metrics": {
-         "_dd.span_sampling.mechanism": 8,
-         "_dd.span_sampling.rule_rate": 1
+       "meta": {
+         "_dd.svc_src": "animals"
        },
-       "duration": 29125,
-       "start": 1758013735832443876
+       "metrics": {
+         "_dd.span_sampling.mechanism": 8.0,
+         "_dd.span_sampling.rule_rate": 1.0
+       },
+       "duration": 44292,
+       "start": 1776266193571024680
      },
         {
           "name": "human_monkey",
@@ -50,8 +55,11 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "duration": 6625,
-          "start": 1758013735832458460
+          "meta": {
+            "_dd.svc_src": "animals"
+          },
+          "duration": 9166,
+          "start": 1776266193571045514
         },
      {
        "name": "donkey_monkey",
@@ -62,6 +70,9 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "duration": 4417,
-       "start": 1758013735832479668
+       "meta": {
+         "_dd.svc_src": "animals"
+       },
+       "duration": 7125,
+       "start": 1776266193571076805
      }]]

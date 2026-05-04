@@ -9,23 +9,26 @@
     "type": "worker",
     "error": 0,
     "meta": {
+      "_dd.hostname": "docker-desktop",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69b1461800000000",
+      "_dd.p.tid": "69ea222500000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mlflow",
       "component": "mlflow",
       "language": "python",
-      "mlflow.run_id": "3faaeb33781b4d7c82dd6e3f05c69bdb",
+      "mlflow.run_id": "b441583091954b95abf2f0ee092e0ffc",
       "mlflow.run_name": "context_run",
-      "runtime-id": "00c5ae6586e749afa643c7d3f002dd8d",
+      "runtime-id": "1dae4f97596e4a049d24d6dee2eb7eb9",
       "span.kind": "internal"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 605.0
+      "process_id": 2370.0
     },
-    "duration": 40358625,
-    "start": 1773225496692068127
+    "duration": 18667000,
+    "start": 1776951845531631927
   },
      {
        "name": "run.step",
@@ -37,13 +40,15 @@
        "type": "worker",
        "error": 0,
        "meta": {
+         "_dd.hostname": "docker-desktop",
+         "_dd.svc_src": "m",
          "component": "mlflow",
-         "mlflow.run_id": "3faaeb33781b4d7c82dd6e3f05c69bdb",
+         "mlflow.run_id": "b441583091954b95abf2f0ee092e0ffc",
          "mlflow.step": "0",
          "span.kind": "internal"
        },
-       "duration": 9422334,
-       "start": 1773225496722917168
+       "duration": 4443791,
+       "start": 1776951845545812177
      },
         {
           "name": "mlflow.manual.work",
@@ -55,8 +60,10 @@
           "type": "",
           "error": 0,
           "meta": {
-            "mlflow.run_id": "3faaeb33781b4d7c82dd6e3f05c69bdb"
+            "_dd.hostname": "docker-desktop",
+            "_dd.svc_src": "m",
+            "mlflow.run_id": "b441583091954b95abf2f0ee092e0ffc"
           },
-          "duration": 60792,
-          "start": 1773225496723051960
+          "duration": 30708,
+          "start": 1776951845545893552
         }]]

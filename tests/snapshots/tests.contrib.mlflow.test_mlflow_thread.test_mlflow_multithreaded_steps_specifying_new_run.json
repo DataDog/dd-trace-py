@@ -9,22 +9,25 @@
     "type": "worker",
     "error": 0,
     "meta": {
+      "_dd.hostname": "docker-desktop",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69b2910400000000",
+      "_dd.p.tid": "69ea221e00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mlflow",
       "component": "mlflow",
       "language": "python",
-      "mlflow.run_id": "3dd39473216a4257b38608c25eae236c",
-      "runtime-id": "f9b4c60fb5d641dd9e12908161660fe4",
+      "mlflow.run_id": "b16325ac9dfc4b028eae350d15776686",
+      "runtime-id": "1dae4f97596e4a049d24d6dee2eb7eb9",
       "span.kind": "internal"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 605.0
+      "process_id": 2370.0
     },
-    "duration": 5667544446,
-    "start": 1773310212667875014
+    "duration": 1831408001,
+    "start": 1776951838022368965
   },
      {
        "name": "run.step",
@@ -36,13 +39,15 @@
        "type": "worker",
        "error": 0,
        "meta": {
+         "_dd.hostname": "docker-desktop",
+         "_dd.svc_src": "m",
          "component": "mlflow",
-         "mlflow.run_id": "3dd39473216a4257b38608c25eae236c",
+         "mlflow.run_id": "b16325ac9dfc4b028eae350d15776686",
          "mlflow.step": "0",
          "span.kind": "internal"
        },
-       "duration": 4163711669,
-       "start": 1773310214171652458
+       "duration": 72519709,
+       "start": 1776951839781224632
      },
         {
           "name": "run",
@@ -54,18 +59,20 @@
           "type": "worker",
           "error": 0,
           "meta": {
+            "_dd.hostname": "docker-desktop",
+            "_dd.svc_src": "m",
             "component": "mlflow",
-            "mlflow.run_id": "e1cd577498084a0392dc1ec709585db6",
+            "mlflow.run_id": "ac3d91dd063e49a8b99457a84cc78285",
             "mlflow.run_name": "worker-0",
-            "runtime-id": "f9b4c60fb5d641dd9e12908161660fe4",
+            "runtime-id": "1dae4f97596e4a049d24d6dee2eb7eb9",
             "span.kind": "internal"
           },
           "metrics": {
             "_dd.top_level": 1.0,
-            "process_id": 605.0
+            "process_id": 2370.0
           },
-          "duration": 930119126,
-          "start": 1773310214173033750
+          "duration": 67569209,
+          "start": 1776951839782140257
         },
            {
              "name": "run.step",
@@ -77,16 +84,18 @@
              "type": "worker",
              "error": 0,
              "meta": {
+               "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "m",
                "component": "mlflow",
-               "mlflow.run_id": "e1cd577498084a0392dc1ec709585db6",
+               "mlflow.run_id": "ac3d91dd063e49a8b99457a84cc78285",
                "mlflow.step": "0",
                "span.kind": "internal"
              },
              "metrics": {
                "mlflow.metrics.loss_0": 0.0
              },
-             "duration": 948791,
-             "start": 1773310214222625542
+             "duration": 103167,
+             "start": 1776951839816831632
            },
            {
              "name": "run.step",
@@ -98,16 +107,18 @@
              "type": "worker",
              "error": 0,
              "meta": {
+               "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "m",
                "component": "mlflow",
-               "mlflow.run_id": "e1cd577498084a0392dc1ec709585db6",
+               "mlflow.run_id": "ac3d91dd063e49a8b99457a84cc78285",
                "mlflow.step": "1",
                "span.kind": "internal"
              },
              "metrics": {
                "mlflow.metrics.loss_0": 1.0
              },
-             "duration": 830684250,
-             "start": 1773310214223991667
+             "duration": 7576583,
+             "start": 1776951839817005799
            },
            {
              "name": "run.step",
@@ -119,12 +130,14 @@
              "type": "worker",
              "error": 0,
              "meta": {
+               "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "m",
                "component": "mlflow",
-               "mlflow.run_id": "e1cd577498084a0392dc1ec709585db6",
+               "mlflow.run_id": "ac3d91dd063e49a8b99457a84cc78285",
                "span.kind": "internal"
              },
-             "duration": 47646416,
-             "start": 1773310215055447751
+             "duration": 25047125,
+             "start": 1776951839824630091
            },
         {
           "name": "run",
@@ -136,18 +149,20 @@
           "type": "worker",
           "error": 0,
           "meta": {
+            "_dd.hostname": "docker-desktop",
+            "_dd.svc_src": "m",
             "component": "mlflow",
-            "mlflow.run_id": "73963d6167504f89a93287fb98afc7dd",
+            "mlflow.run_id": "bc4f13680d644401bfb454f3371dbb81",
             "mlflow.run_name": "worker-1",
-            "runtime-id": "f9b4c60fb5d641dd9e12908161660fe4",
+            "runtime-id": "1dae4f97596e4a049d24d6dee2eb7eb9",
             "span.kind": "internal"
           },
           "metrics": {
             "_dd.top_level": 1.0,
-            "process_id": 605.0
+            "process_id": 2370.0
           },
-          "duration": 4139196294,
-          "start": 1773310214173527333
+          "duration": 60832084,
+          "start": 1776951839785208757
         },
            {
              "name": "run.step",
@@ -159,16 +174,18 @@
              "type": "worker",
              "error": 0,
              "meta": {
+               "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "m",
                "component": "mlflow",
-               "mlflow.run_id": "73963d6167504f89a93287fb98afc7dd",
+               "mlflow.run_id": "bc4f13680d644401bfb454f3371dbb81",
                "mlflow.step": "2",
                "span.kind": "internal"
              },
              "metrics": {
                "mlflow.metrics.loss_1": 1.0
              },
-             "duration": 1603103126,
-             "start": 1773310214229387208
+             "duration": 12273958,
+             "start": 1776951839812652924
            },
            {
              "name": "run.step",
@@ -180,16 +197,18 @@
              "type": "worker",
              "error": 0,
              "meta": {
+               "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "m",
                "component": "mlflow",
-               "mlflow.run_id": "73963d6167504f89a93287fb98afc7dd",
+               "mlflow.run_id": "bc4f13680d644401bfb454f3371dbb81",
                "mlflow.step": "3",
                "span.kind": "internal"
              },
              "metrics": {
                "mlflow.metrics.loss_1": 2.0
              },
-             "duration": 2423875543,
-             "start": 1773310215833103501
+             "duration": 11421583,
+             "start": 1776951839824959716
            },
            {
              "name": "run.step",
@@ -201,10 +220,12 @@
              "type": "worker",
              "error": 0,
              "meta": {
+               "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "m",
                "component": "mlflow",
-               "mlflow.run_id": "73963d6167504f89a93287fb98afc7dd",
+               "mlflow.run_id": "bc4f13680d644401bfb454f3371dbb81",
                "span.kind": "internal"
              },
-             "duration": 55403208,
-             "start": 1773310218257201794
+             "duration": 9579333,
+             "start": 1776951839836426091
            }]]

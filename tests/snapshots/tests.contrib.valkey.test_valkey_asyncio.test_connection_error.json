@@ -11,17 +11,17 @@
     "meta": {
       "_dd.base_service": "tests.contrib.valkey",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dfb8e200000000",
+      "_dd.p.tid": "69e27a8a00000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.valkey",
       "component": "valkey",
       "db.system": "valkey",
       "error.message": "whatever",
-      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/_trace/utils_valkey.py\", line 64, in _instrument_valkey_cmd\n    yield ctx\n  File \"/home/bits/project/ddtrace/contrib/internal/valkey/asyncio_patch.py\", line 16, in instrumented_async_execute_command\n    return await _run_valkey_command_async(ctx=ctx, func=func, args=args, kwargs=kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/valkey_utils.py\", line 72, in _run_valkey_command_async\n    result = await func(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_valkey_pytest-randomly_pytest-asyncio0237/lib/python3.9/site-packages/valkey/asyncio/client.py\", line 628, in execute_command\n    conn = self.connection or await pool.get_connection(command_name, **options)\n  File \"/home/bits/.pyenv/versions/3.9.25/lib/python3.9/unittest/mock.py\", line 2153, in _execute_mock_call\n    raise effect\nvalkey.exceptions.ConnectionError: whatever\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/_trace/utils_valkey.py\", line 64, in _instrument_valkey_cmd\n    yield ctx\n  File \"/home/bits/project/ddtrace/contrib/internal/valkey/asyncio_patch.py\", line 16, in instrumented_async_execute_command\n    return await _run_valkey_command_async(ctx=ctx, func=func, args=args, kwargs=kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/ddtrace/contrib/internal/valkey_utils.py\", line 72, in _run_valkey_command_async\n    result = await func(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_valkey_pytest-randomly_pytest-asyncio0237/lib/python3.12/site-packages/valkey/asyncio/client.py\", line 628, in execute_command\n    conn = self.connection or await pool.get_connection(command_name, **options)\n                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/.pyenv/versions/3.12.12/lib/python3.12/unittest/mock.py\", line 2291, in _execute_mock_call\n    raise effect\nvalkey.exceptions.ConnectionError: whatever\n",
       "error.type": "valkey.exceptions.ConnectionError",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "35e2707575884fceb6fb7614d8a38d61",
+      "runtime-id": "fed65df52b054628a4831772b2acd6e9",
       "server.address": "127.0.0.1",
       "span.kind": "client",
       "valkey.raw_command": "GET foo"
@@ -34,9 +34,9 @@
       "db.row_count": 0.0,
       "network.destination.port": 6379.0,
       "out.valkey_db": 0.0,
-      "process_id": 8239.0,
+      "process_id": 38006.0,
       "valkey.args_length": 2.0
     },
-    "duration": 379042,
-    "start": 1776269538813499842
+    "duration": 2322125,
+    "start": 1776450186787271842
   }]]

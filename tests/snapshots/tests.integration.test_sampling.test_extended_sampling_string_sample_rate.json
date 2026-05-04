@@ -11,17 +11,19 @@
     "meta": {
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "68828b2100000000",
+      "_dd.p.tid": "69dfabd400000000",
+      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpcs8bzwbw,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "992ed589103d4826839b0d6ec8b5766f"
+      "runtime-id": "c7c2f046d36e4c42a01d498dc02fe88f"
     },
     "metrics": {
-      "_dd.rule_psr": 0,
-      "_dd.top_level": 1,
+      "_dd.rule_psr": 0.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": -1,
-      "process_id": 83293
+      "_sampling_priority_v1": -1.0,
+      "process_id": 4483.0
     },
-    "duration": 21000,
-    "start": 1753385761102076000
+    "duration": 55833,
+    "start": 1776266196377813251
   }]]

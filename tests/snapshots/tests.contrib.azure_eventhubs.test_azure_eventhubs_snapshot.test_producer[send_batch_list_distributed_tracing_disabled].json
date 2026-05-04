@@ -11,9 +11,9 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de8d1d00000000",
+      "_dd.p.tid": "69e92d9f00000000",
       "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_eventhubs",
       "language": "python",
       "messaging.batch_count": "2",
@@ -21,17 +21,17 @@
       "messaging.operation": "send",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "7e4b295263514d6d9c6ba64bd0805035",
+      "runtime-id": "2c44a493b999486aa0f021f989052116",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 50243.0
+      "process_id": 71831.0
     },
-    "duration": 491765251,
-    "start": 1776192797259513625
+    "duration": 538648000,
+    "start": 1776889247296531000
   },
      {
        "name": "azure.eventhubs.create",
@@ -52,8 +52,8 @@
          "network.destination.name": "localhost",
          "span.kind": "producer"
        },
-       "duration": 310250,
-       "start": 1776192797743099626
+       "duration": 652000,
+       "start": 1776889247826912000
      },
      {
        "name": "azure.eventhubs.create",
@@ -69,14 +69,14 @@
          "_dd.svc_src": "m",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
-         "messaging.message_id": "0a98587a-e7d2-400b-8628-d918c48fd9eb",
+         "messaging.message_id": "de4dbf4e-9394-4526-b9d2-1e8ce7681547",
          "messaging.operation": "create",
          "messaging.system": "eventhubs",
          "network.destination.name": "localhost",
          "span.kind": "producer"
        },
-       "duration": 648834,
-       "start": 1776192797743502167
+       "duration": 277000,
+       "start": 1776889247827715000
      }],
 [
   {
@@ -91,9 +91,9 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de8d1d00000000",
+      "_dd.p.tid": "69e92d9f00000000",
       "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_eventhubs",
       "language": "python",
       "messaging.batch_count": "2",
@@ -101,17 +101,17 @@
       "messaging.operation": "send",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "7e4b295263514d6d9c6ba64bd0805035",
+      "runtime-id": "2c44a493b999486aa0f021f989052116",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 50243.0
+      "process_id": 71831.0
     },
-    "duration": 3568417,
-    "start": 1776192797751772209
+    "duration": 6514000,
+    "start": 1776889247835846000
   },
      {
        "name": "azure.eventhubs.create",
@@ -132,8 +132,8 @@
          "network.destination.name": "localhost",
          "span.kind": "producer"
        },
-       "duration": 74292,
-       "start": 1776192797751861292
+       "duration": 173000,
+       "start": 1776889247835991000
      },
      {
        "name": "azure.eventhubs.create",
@@ -149,12 +149,12 @@
          "_dd.svc_src": "m",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
-         "messaging.message_id": "88e5d9d7-3164-49cf-9eed-34ca05556894",
+         "messaging.message_id": "03f3fcf1-9310-402d-8231-099a82c89743",
          "messaging.operation": "create",
          "messaging.system": "eventhubs",
          "network.destination.name": "localhost",
          "span.kind": "producer"
        },
-       "duration": 111125,
-       "start": 1776192797751954876
+       "duration": 247000,
+       "start": 1776889247836215000
      }]]

@@ -9,7 +9,9 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68c335fc00000000",
+      "_dd.p.tid": "69e92a4700000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "topic_send_message_batch",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -19,17 +21,17 @@
       "http.url": "http://0.0.0.0:7071/api/topicsendmessagebatch",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "4ec1f90ca2cd45c28e8dbf9723b3c1b4",
+      "runtime-id": "773680eb5998425ca78884667a53a432",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 11978
+      "_sampling_priority_v1": 1.0,
+      "process_id": 34508.0
     },
-    "duration": 1030990667,
-    "start": 1757623804813403546
+    "duration": 1026640000,
+    "start": 1776888391632008000
   },
      {
        "name": "azure.servicebus.create",
@@ -41,19 +43,20 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
+         "_dd.svc_src": "m",
          "component": "azure_servicebus",
          "messaging.destination.name": "topic.1",
-         "messaging.message_id": "6dcbf430-68f6-42f7-9f85-8d273e4bbafa",
+         "messaging.message_id": "76da5d90-4c83-4801-a3f6-c313247e9320",
          "messaging.operation": "create",
          "messaging.system": "servicebus",
          "network.destination.name": "localhost",
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1
+         "_dd.top_level": 1.0
        },
-       "duration": 1846000,
-       "start": 1757623805315511380
+       "duration": 4011000,
+       "start": 1776888392162830000
      },
      {
        "name": "azure.servicebus.create",
@@ -65,20 +68,21 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.p.tid": "68c335fc00000000",
+         "_dd.p.tid": "69e92a4700000000",
+         "_dd.svc_src": "m",
          "component": "azure_servicebus",
          "messaging.destination.name": "topic.1",
-         "messaging.message_id": "aa072078-5eec-401a-84a0-4f90dbbf7999",
+         "messaging.message_id": "75657cd4-46f9-4d92-932d-a6eb2bc050e0",
          "messaging.operation": "create",
          "messaging.system": "servicebus",
          "network.destination.name": "localhost",
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1
+         "_dd.top_level": 1.0
        },
-       "duration": 339583,
-       "start": 1757623805318220630
+       "duration": 550000,
+       "start": 1776888392167512000
      },
      {
        "name": "azure.servicebus.send",
@@ -90,7 +94,8 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.p.tid": "68c335fc00000000",
+         "_dd.p.tid": "69e92a4700000000",
+         "_dd.svc_src": "m",
          "component": "azure_servicebus",
          "messaging.batch_count": "2",
          "messaging.destination.name": "topic.1",
@@ -100,26 +105,26 @@
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1
+         "_dd.top_level": 1.0
        },
        "span_links": [
          {
            "trace_id": 0,
+           "trace_id_high": 7631677527987060736,
            "span_id": 2,
-           "tracestate": "dd=s:1;t.dm:-0;t.tid:68c335fc00000000",
-           "flags": 2147483649,
-           "trace_id_high": 7548936756851113984
+           "tracestate": "dd=s:1;t.dm:-0;t.tid:69e92a4700000000",
+           "flags": 2147483649
          },
          {
            "trace_id": 0,
+           "trace_id_high": 7631677527987060736,
            "span_id": 3,
-           "tracestate": "dd=s:1;t.dm:-0;t.tid:68c335fc00000000",
-           "flags": 2147483649,
-           "trace_id_high": 7548936756851113984
+           "tracestate": "dd=s:1;t.dm:-0;t.tid:69e92a4700000000",
+           "flags": 2147483649
          }
        ],
-       "duration": 8163042,
-       "start": 1757623805318692880
+       "duration": 24624000,
+       "start": 1776888392168291000
      }],
 [
   {
@@ -132,7 +137,9 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68c335fd00000000",
+      "_dd.p.tid": "69e92a4800000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "servicebustopic",
       "aas.function.trigger": "ServiceBus",
       "component": "azure_functions",
@@ -142,31 +149,31 @@
       "messaging.operation": "receive",
       "messaging.system": "servicebus",
       "network.destination.name": "localhost",
-      "runtime-id": "4ec1f90ca2cd45c28e8dbf9723b3c1b4",
+      "runtime-id": "773680eb5998425ca78884667a53a432",
       "span.kind": "consumer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 11978
+      "_sampling_priority_v1": 1.0,
+      "process_id": 34508.0
     },
     "span_links": [
       {
         "trace_id": 0,
+        "trace_id_high": 7631677527987060736,
         "span_id": 2,
-        "tracestate": "dd=s:1;t.dm:-0;t.tid:68c335fc00000000",
-        "flags": 2147483649,
-        "trace_id_high": 7548936756851113984
+        "tracestate": "dd=s:1;t.dm:-0;t.tid:69e92a4700000000",
+        "flags": 2147483649
       },
       {
         "trace_id": 0,
+        "trace_id_high": 7631677527987060736,
         "span_id": 3,
-        "tracestate": "dd=s:1;t.dm:-0;t.tid:68c335fc00000000",
-        "flags": 2147483649,
-        "trace_id_high": 7548936756851113984
+        "tracestate": "dd=s:1;t.dm:-0;t.tid:69e92a4700000000",
+        "flags": 2147483649
       }
     ],
-    "duration": 431208,
-    "start": 1757623805482834422
+    "duration": 317000,
+    "start": 1776888392288485000
   }]]

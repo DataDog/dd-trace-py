@@ -9,7 +9,9 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68cc71af00000000",
+      "_dd.p.tid": "69e92e2600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "eventhub",
       "aas.function.trigger": "EventHubs",
       "component": "azure_functions",
@@ -19,33 +21,33 @@
       "messaging.operation": "receive",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "23794c42c55c4f6ab2f7895a57678087",
+      "runtime-id": "0d5ffa456c23469787fe966acfe0921e",
       "span.kind": "consumer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 32047
+      "_sampling_priority_v1": 1.0,
+      "process_id": 79209.0
     },
     "span_links": [
       {
         "trace_id": 1,
+        "trace_id_high": 7631681784299651072,
         "span_id": 2,
-        "tracestate": "dd=s:1;t.dm:-0;t.tid:68cc71ae00000000",
-        "flags": 2147483649,
-        "trace_id_high": 7551535667331727360
+        "tracestate": "dd=s:1;t.dm:-0;t.tid:69e92e2600000000",
+        "flags": 2147483649
       },
       {
         "trace_id": 1,
+        "trace_id_high": 7631681784299651072,
         "span_id": 3,
-        "tracestate": "dd=s:1;t.dm:-0;t.tid:68cc71ae00000000",
-        "flags": 2147483649,
-        "trace_id_high": 7551535667331727360
+        "tracestate": "dd=s:1;t.dm:-0;t.tid:69e92e2600000000",
+        "flags": 2147483649
       }
     ],
-    "duration": 419625,
-    "start": 1758228911246453333
+    "duration": 347000,
+    "start": 1776889382702178000
   }],
 [
   {
@@ -58,7 +60,9 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68cc71ae00000000",
+      "_dd.p.tid": "69e92e2600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "send_batch",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -68,17 +72,17 @@
       "http.url": "http://0.0.0.0:7071/api/sendeventbatch",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "23794c42c55c4f6ab2f7895a57678087",
+      "runtime-id": "0d5ffa456c23469787fe966acfe0921e",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 32047
+      "_sampling_priority_v1": 1.0,
+      "process_id": 79209.0
     },
-    "duration": 531109917,
-    "start": 1758228910584137791
+    "duration": 556612000,
+    "start": 1776889382090626000
   },
      {
        "name": "azure.eventhubs.create",
@@ -90,6 +94,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
+         "_dd.svc_src": "m",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
          "messaging.operation": "create",
@@ -98,10 +103,10 @@
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1
+         "_dd.top_level": 1.0
        },
-       "duration": 1403500,
-       "start": 1758228911106487542
+       "duration": 807000,
+       "start": 1776889382632606000
      },
      {
        "name": "azure.eventhubs.create",
@@ -113,7 +118,8 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.p.tid": "68cc71ae00000000",
+         "_dd.p.tid": "69e92e2600000000",
+         "_dd.svc_src": "m",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
          "messaging.operation": "create",
@@ -122,10 +128,10 @@
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1
+         "_dd.top_level": 1.0
        },
-       "duration": 226542,
-       "start": 1758228911108522500
+       "duration": 254000,
+       "start": 1776889382633622000
      },
      {
        "name": "azure.eventhubs.send",
@@ -137,7 +143,8 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.p.tid": "68cc71ae00000000",
+         "_dd.p.tid": "69e92e2600000000",
+         "_dd.svc_src": "m",
          "component": "azure_eventhubs",
          "messaging.batch_count": "2",
          "messaging.destination.name": "eh1",
@@ -147,24 +154,24 @@
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1
+         "_dd.top_level": 1.0
        },
        "span_links": [
          {
            "trace_id": 1,
+           "trace_id_high": 7631681784299651072,
            "span_id": 2,
-           "tracestate": "dd=s:1;t.dm:-0;t.tid:68cc71ae00000000",
-           "flags": 2147483649,
-           "trace_id_high": 7551535667331727360
+           "tracestate": "dd=s:1;t.dm:-0;t.tid:69e92e2600000000",
+           "flags": 2147483649
          },
          {
            "trace_id": 1,
+           "trace_id_high": 7631681784299651072,
            "span_id": 3,
-           "tracestate": "dd=s:1;t.dm:-0;t.tid:68cc71ae00000000",
-           "flags": 2147483649,
-           "trace_id_high": 7551535667331727360
+           "tracestate": "dd=s:1;t.dm:-0;t.tid:69e92e2600000000",
+           "flags": 2147483649
          }
        ],
-       "duration": 5166000,
-       "start": 1758228911108862333
+       "duration": 11434000,
+       "start": 1776889382634012000
      }]]
