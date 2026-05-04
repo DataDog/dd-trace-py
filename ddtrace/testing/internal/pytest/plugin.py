@@ -790,13 +790,16 @@ class TestOptPlugin:
 
         This methods consumes the test reports and exception information for the specified test, and removes them from
         the dictionaries.
+
+        Only setup and call phases determine the test status. Teardown failures are infrastructure errors that do not
+        affect the test's own outcome — consistent with how pytest reports them as ERRORs rather than FAILUREs.
         """
         status = TestStatus.PASS
         tags = {}
 
         reports_dict = self.reports_by_nodeid.pop(nodeid, {})
 
-        for phase in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
+        for phase in (TestPhase.SETUP, TestPhase.CALL):
             report = reports_dict.get(phase)
             if not report:
                 continue
@@ -817,6 +820,10 @@ class TestOptPlugin:
                 reason = str(excinfo.value) if excinfo else "Unknown skip reason"
                 tags[TestTag.SKIP_REASON] = reason
                 break
+
+        # Consume teardown excinfo to avoid leaking references, but don't let it affect the test status.
+        if teardown_report := reports_dict.get(TestPhase.TEARDOWN):
+            self.excinfo_by_report.pop(teardown_report, None)
 
         return status, tags
 

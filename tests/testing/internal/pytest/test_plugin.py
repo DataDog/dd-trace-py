@@ -1400,3 +1400,121 @@ class TestOutcomeProcessing:
         assert status == TestStatus.SKIP
         assert tags[TestTag.XFAIL_REASON] == "reason: no fun"
         assert tags[TestTag.TEST_RESULT] == "xfail"
+
+
+class TestTeardownDoesNotAffectTestOutcome:
+    """Regression tests: teardown failures must not affect the test status.
+
+    Root cause of the IndexError in make_final_report: _get_test_outcome previously included
+    TEARDOWN in its phase loop, so a teardown failure set the test_run status to FAIL. The retry
+    handler then returned FAIL as the final_status, but reports_by_outcome only tracked setup/call
+    outcomes — "failed" was never recorded, causing reports_by_outcome["failed"][0] to IndexError.
+
+    The fix: _get_test_outcome now only considers setup and call phases, consistent with how pytest
+    itself treats teardown failures as ERRORs (separate from test FAILUREs).
+    """
+
+    def test_get_test_outcome_ignores_teardown_failure(self) -> None:
+        """A passing test with a failing teardown should still have status PASS."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        setup_report = test_report(outcome="passed", when="setup")
+        call_report = test_report(outcome="passed", when="call")
+        teardown_report = test_report(outcome="failed", when="teardown")
+
+        plugin.reports_by_nodeid["test_id"] = {
+            "setup": setup_report,
+            "call": call_report,
+            "teardown": teardown_report,
+        }
+        plugin.excinfo_by_report = {
+            setup_report: None,
+            call_report: None,
+            teardown_report: None,
+        }
+
+        status, tags = plugin._get_test_outcome("test_id")
+
+        assert status == TestStatus.PASS
+
+    def test_get_test_outcome_ignores_teardown_skip(self) -> None:
+        """A passing test with a skipping teardown should still have status PASS."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        setup_report = test_report(outcome="passed", when="setup")
+        call_report = test_report(outcome="passed", when="call")
+        teardown_report = test_report(outcome="skipped", when="teardown")
+
+        plugin.reports_by_nodeid["test_id"] = {
+            "setup": setup_report,
+            "call": call_report,
+            "teardown": teardown_report,
+        }
+        plugin.excinfo_by_report = {
+            setup_report: None,
+            call_report: None,
+            teardown_report: None,
+        }
+
+        status, tags = plugin._get_test_outcome("test_id")
+
+        assert status == TestStatus.PASS
+
+    def test_get_test_outcome_call_failure_still_detected(self) -> None:
+        """A failing call phase is still correctly detected as FAIL."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        setup_report = test_report(outcome="passed", when="setup")
+        call_report = test_report(outcome="failed", when="call")
+        teardown_report = test_report(outcome="passed", when="teardown")
+
+        mock_excinfo = Mock()
+        mock_excinfo.type = AssertionError
+        mock_excinfo.value = AssertionError("test failed")
+        mock_excinfo.tb = None
+
+        plugin.reports_by_nodeid["test_id"] = {
+            "setup": setup_report,
+            "call": call_report,
+            "teardown": teardown_report,
+        }
+        plugin.excinfo_by_report = {
+            setup_report: None,
+            call_report: mock_excinfo,
+            teardown_report: None,
+        }
+
+        status, tags = plugin._get_test_outcome("test_id")
+
+        assert status == TestStatus.FAIL
+        assert "error.type" in tags
+
+    def test_get_test_outcome_cleans_up_teardown_excinfo(self) -> None:
+        """Teardown excinfo is consumed even though it doesn't affect the status."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        setup_report = test_report(outcome="passed", when="setup")
+        call_report = test_report(outcome="passed", when="call")
+        teardown_report = test_report(outcome="failed", when="teardown")
+
+        teardown_excinfo = Mock()
+
+        plugin.reports_by_nodeid["test_id"] = {
+            "setup": setup_report,
+            "call": call_report,
+            "teardown": teardown_report,
+        }
+        plugin.excinfo_by_report = {
+            setup_report: None,
+            call_report: None,
+            teardown_report: teardown_excinfo,
+        }
+
+        plugin._get_test_outcome("test_id")
+
+        # Teardown excinfo should be consumed to avoid leaking references.
+        assert teardown_report not in plugin.excinfo_by_report
