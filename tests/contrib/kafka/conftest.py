@@ -67,6 +67,12 @@ def empty_kafka_topic(request):
 
 
 @pytest.fixture
+def group_id(kafka_topic):
+    """Unique consumer group ID per test to avoid cross-test rebalancing under xdist."""
+    return kafka_topic
+
+
+@pytest.fixture
 def should_filter_empty_polls():
     yield True
 
@@ -95,11 +101,11 @@ def producer(kafka_tracer):
 
 
 @pytest.fixture
-def consumer(kafka_tracer, kafka_topic):
+def consumer(kafka_tracer, kafka_topic, group_id):
     _consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
-            "group.id": GROUP_ID,
+            "group.id": group_id,
             "auto.offset.reset": "earliest",
             "auto.commit.interval.ms": 500,
         }
@@ -114,11 +120,11 @@ def consumer(kafka_tracer, kafka_topic):
 
 
 @pytest.fixture
-def non_auto_commit_consumer(kafka_tracer, kafka_topic):
+def non_auto_commit_consumer(kafka_tracer, kafka_topic, group_id):
     _consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
-            "group.id": GROUP_ID,
+            "group.id": group_id,
             "auto.offset.reset": "earliest",
             "enable.auto.commit": False,
         }
@@ -140,11 +146,11 @@ def serializing_producer(kafka_tracer):
 
 
 @pytest.fixture
-def deserializing_consumer(kafka_tracer, kafka_topic):
+def deserializing_consumer(kafka_tracer, kafka_topic, group_id):
     _consumer = confluent_kafka.DeserializingConsumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
-            "group.id": GROUP_ID,
+            "group.id": group_id,
             "auto.offset.reset": "earliest",
             "value.deserializer": lambda x, y: x,
         }

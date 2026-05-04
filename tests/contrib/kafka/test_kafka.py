@@ -26,6 +26,7 @@ SNAPSHOT_IGNORES = [
     "metrics.kafka.message_offset",
     "meta.error.stack",
     "meta.error.message",
+    "meta.kafka.group_id",
     "meta.messaging.kafka.bootstrap.servers",
     "meta.peer.service",
 ]
@@ -257,7 +258,7 @@ def _generate_in_subprocess(random_topic):
     consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
-            "group.id": "test_group",
+            "group.id": random_topic,
             "auto.offset.reset": "earliest",
         }
     )
@@ -362,8 +363,9 @@ def test_tracing_context_is_not_propagated_by_default(kafka_tracer, test_spans, 
 
 
 # Propagation should work when enabled
-def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess):
+def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess, kafka_topic):
     code = """
+import os
 import pytest
 import random
 import sys
@@ -371,13 +373,18 @@ import sys
 from ddtrace.contrib.internal.kafka.patch import patch
 from tests.conftest import use_dummy_writer
 from tests.conftest import test_spans
-from tests.contrib.kafka.conftest import consumer
+from tests.contrib.kafka.conftest import group_id
 from tests.contrib.kafka.conftest import patch_kafka
-from tests.contrib.kafka.conftest import kafka_topic
 from tests.contrib.kafka.conftest import producer
 from tests.conftest import tracer
 from tests.contrib.kafka.conftest import kafka_tracer
 from tests.contrib.kafka.conftest import should_filter_empty_polls
+
+@pytest.fixture
+def kafka_topic():
+    return os.environ["KAFKA_TEST_TOPIC"]
+
+from tests.contrib.kafka.conftest import consumer
 
 def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
 
@@ -423,6 +430,7 @@ if __name__ == "__main__":
 
     env = os.environ.copy()
     env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
+    env["KAFKA_TEST_TOPIC"] = kafka_topic
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
 
@@ -493,7 +501,7 @@ def test_tracing_with_serialization_works(kafka_tracer, test_spans, kafka_topic)
 
     conf = {
         "bootstrap.servers": BOOTSTRAP_SERVERS,
-        "group.id": GROUP_ID,
+        "group.id": kafka_topic,
         "auto.offset.reset": "earliest",
         "key.deserializer": json_deserializer,
         "value.deserializer": json_deserializer,
@@ -551,8 +559,9 @@ def test_traces_empty_poll_by_default(kafka_tracer, test_spans, consumer, kafka_
 
 
 # Poll should not be traced when disabled
-def test_does_not_trace_empty_poll_when_disabled(ddtrace_run_python_code_in_subprocess):
+def test_does_not_trace_empty_poll_when_disabled(ddtrace_run_python_code_in_subprocess, kafka_topic):
     code = """
+import os
 import pytest
 import random
 import sys
@@ -560,8 +569,7 @@ import sys
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace import config
 
-from tests.contrib.kafka.conftest import consumer
-from tests.contrib.kafka.conftest import kafka_topic
+from tests.contrib.kafka.conftest import group_id
 from tests.contrib.kafka.conftest import producer
 from tests.conftest import tracer
 from tests.conftest import test_spans
@@ -569,6 +577,12 @@ from tests.conftest import use_dummy_writer
 from tests.contrib.kafka.conftest import patch_kafka
 from tests.contrib.kafka.conftest import kafka_tracer
 from tests.contrib.kafka.conftest import should_filter_empty_polls
+
+@pytest.fixture
+def kafka_topic():
+    return os.environ["KAFKA_TEST_TOPIC"]
+
+from tests.contrib.kafka.conftest import consumer
 
 def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
 
@@ -623,6 +637,7 @@ if __name__ == "__main__":
     """
     env = os.environ.copy()
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
+    env["KAFKA_TEST_TOPIC"] = kafka_topic
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
 
