@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where the lock profiler silently stopped capturing
+    lock events when running under ``ddtrace-run`` with `gevent` installed.
