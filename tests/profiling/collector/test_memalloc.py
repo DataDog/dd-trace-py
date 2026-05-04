@@ -19,8 +19,8 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
-from ddtrace.internal.settings.profiling import (
-    _derive_default_heap_sample_size,  # pyright: ignore[reportAttributeAccessIssue]  # type: ignore[attr-defined]
+from ddtrace.internal.settings.profiling import (  # type: ignore[attr-defined]
+    _derive_default_heap_sample_size,  # pyright: ignore[reportAttributeAccessIssue]
 )
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
@@ -147,7 +147,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
             quit_thread.wait()
 
         alloc_thread = threading.Thread(name="allocator", target=alloc)
-        alloc_thread._ddtrace_profiling_ignore = True  # pyright: ignore[reportAttributeAccessIssue]  # type: ignore[attr-defined]
+        alloc_thread._ddtrace_profiling_ignore = True  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         alloc_thread.start()
 
         mc.snapshot()
@@ -991,7 +991,7 @@ def test_start_wrong_arg() -> None:
     from ddtrace.profiling.collector import _memalloc
 
     with pytest.raises(TypeError, match="function takes exactly 2 arguments \\(1 given\\)"):
-        _memalloc.start(2)  # pyright: ignore[reportCallIssue]  # type: ignore[call-arg]
+        _memalloc.start(2)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
         _memalloc.start(429496, 1)
@@ -1273,8 +1273,7 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
 
 
 # ---------------------------------------------------------------------------
-# PYMEM_DOMAIN_MEM tests — Python 3.12+ only (MEM hooks are gated on
-# _PY312_AND_LATER in the C extension).
+# PYMEM_DOMAIN_MEM tests
 # ---------------------------------------------------------------------------
 
 
@@ -1284,17 +1283,19 @@ def _make_mem_domain_object(size_bytes: int) -> object:
     On Python 3.13+, ``bytearray`` moved its internal buffer to the MEM domain,
     making it the canonical test vehicle.  On Python 3.12 we use list
     multiplication: ``PyList_New`` calls ``PyMem_Calloc`` (PYMEM_DOMAIN_MEM)
-    for the ``ob_item`` pointer array, so ``[None] * N`` produces a single large
-    MEM allocation of ``N * sizeof(void*)`` bytes.
+    for the ``ob_item`` pointer array, so ``[None] * N`` produces a dominant
+    MEM allocation of ``N * sizeof(void*)`` bytes (the list header itself goes
+    through PYMEM_DOMAIN_OBJ).
     """
     if PY_313_OR_ABOVE:
         return bytearray(size_bytes)
-    # List ob_item: N pointers @ 8 bytes each → size_bytes total.
+    # PyList_New calls PyMem_Calloc (PYMEM_DOMAIN_MEM) for the ob_item pointer
+    # array; N pointers @ 8 bytes each → size_bytes total.  The list header
+    # (PyListObject) goes through PYMEM_DOMAIN_OBJ and is negligible in size.
     n_ptrs: int = size_bytes // 8
     return [None] * n_ptrs
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="PYMEM_DOMAIN_MEM hooks require Python 3.12+")
 def test_mem_domain_allocations_appear_in_heap_samples(tmp_path: Path) -> None:
     """A large PYMEM_DOMAIN_MEM allocation must produce heap-space samples."""
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_heap_samples")
@@ -1344,7 +1345,6 @@ def test_bytearray_tracked_on_py313(tmp_path: Path) -> None:
     del ba
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="PYMEM_DOMAIN_MEM hooks require Python 3.12+")
 def test_mem_domain_free_untracks(tmp_path: Path) -> None:
     """MEM free hook must untrack the allocation so heap-space drops after del."""
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_free_untracks")
@@ -1372,7 +1372,6 @@ def test_mem_domain_free_untracks(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="PYMEM_DOMAIN_MEM hooks require Python 3.12+")
 def test_mem_domain_realloc_retracks(tmp_path: Path) -> None:
     """Growing a list (reallocs ob_item via PyMem_Realloc) must not corrupt the heap tracker."""
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_realloc")
@@ -1390,7 +1389,6 @@ def test_mem_domain_realloc_retracks(tmp_path: Path) -> None:
     del lst
 
 
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="PYMEM_DOMAIN_MEM hooks require Python 3.12+")
 def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
     """OBJ and MEM allocations in the same session must not corrupt heap tracker state."""
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_obj_mem_coexist")
