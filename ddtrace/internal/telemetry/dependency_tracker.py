@@ -61,16 +61,6 @@ class DependencyTracker:
         self._modules_already_imported: set[str] = set()
         self._lock = Lock()
 
-    def _update_imported(self, new_modules: Iterable[str]) -> list[dict]:
-        """Discover new dependencies from recently imported modules.
-
-        Adds a DependencyEntry for each newly discovered package.
-        Returns serialized dependency dicts ready for the telemetry payload.
-
-        Caller must hold self._lock (called internally from collect_report).
-        """
-        return update_imported_dependencies(self._imported_dependencies, new_modules)
-
     def collect_report(self) -> Optional[list[dict[str, Any]]]:
         """Discover new modules, collect re-reports, mark sent. Return payload or None.
 
@@ -82,14 +72,11 @@ class DependencyTracker:
 
         with self._lock:
             newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
-            new_deps = self._update_imported(newly_imported_deps)
+            new_deps = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
 
-            # Mark new deps as initially sent
-            for dep_dict in new_deps:
-                entry = self._imported_dependencies.get(_normalize_dep_name(dep_dict["name"]))
-                if entry:
-                    entry.mark_initial_sent()
-                    entry.mark_all_metadata_sent()
+            # Normalize once; reuse the set for sent-marking and re-report dedup.
+            new_keys = {_normalize_dep_name(d["name"]) for d in new_deps}
+            self._mark_sent(new_keys)
 
             # Skip the re-report scan when SCA is disabled.
             # Without SCA, no entry will ever have unsent metadata, so the
@@ -101,23 +88,52 @@ class DependencyTracker:
             if not tracer_config._sca_enabled:
                 return new_deps if new_deps else None
 
-            # Collect normalized names of deps just reported above to avoid double-reporting.
-            just_reported = {_normalize_dep_name(d["name"]) for d in new_deps}
-
-            # Re-report deps that need it: auto-created by SCA hook (never
-            # reported yet) or already reported but with new unsent metadata.
-            # Include ALL metadata (sent + unsent) per RFC.
-            re_report_deps: list[dict] = []
-            for entry in self._imported_dependencies.values():
-                if _normalize_dep_name(entry.name) in just_reported:
-                    continue
-                if entry.needs_report():
-                    re_report_deps.append(entry.to_telemetry_dict(include_all_metadata=True))
-                    entry.mark_initial_sent()
-                    entry.mark_all_metadata_sent()
-
+            re_report_deps = self._collect_rereports(new_keys)
             all_deps = new_deps + re_report_deps
             return all_deps if all_deps else None
+
+    def _mark_sent(self, keys: Iterable[str]) -> None:
+        """Mark entries at ``keys`` as initially sent with all metadata sent.
+
+        Caller must hold self._lock.
+        """
+        for key in keys:
+            entry = self._imported_dependencies.get(key)
+            if entry is not None:
+                entry.mark_initial_sent()
+                entry.mark_all_metadata_sent()
+
+    def _collect_rereports(self, skip_keys: set[str]) -> list[dict[str, Any]]:
+        """Return serialized dicts for entries needing a re-report.
+
+        Re-report deps that need it: auto-created by SCA hook (never reported
+        yet) or already reported but with new unsent metadata. Include ALL
+        metadata (sent + unsent) per RFC.
+
+        Caller must hold self._lock.
+        """
+        re_report: list[dict[str, Any]] = []
+        for key, entry in self._imported_dependencies.items():
+            if key in skip_keys:
+                continue
+            if entry.needs_report():
+                re_report.append(entry.to_telemetry_dict(include_all_metadata=True))
+                entry.mark_initial_sent()
+                entry.mark_all_metadata_sent()
+        return re_report
+
+    def snapshot_for_heartbeat(self) -> list[dict[str, Any]]:
+        """Return serialized dependency dicts for the extended heartbeat payload.
+
+        Serialization happens under the lock so that concurrent SCA mutations
+        (``attach_metadata`` / ``register_cve``) cannot race the iteration of
+        ``entry.metadata`` or the ``reached`` list inside ``json.dumps``. The
+        payload is a list of fresh dicts safe to hand off to the transport.
+        """
+        with self._lock:
+            return [
+                entry.to_telemetry_dict(include_all_metadata=True) for entry in self._imported_dependencies.values()
+            ]
 
     def _ensure_entry(self, package_name: str) -> None:
         """Auto-create a DependencyEntry if SCA is active and package not yet tracked.
@@ -188,11 +204,6 @@ class DependencyTracker:
             for entry in self._imported_dependencies.values():
                 if entry.metadata is None:
                     entry.metadata = []
-
-    def get_all_dependencies(self) -> list[DependencyEntry]:
-        """Return a snapshot of all dependency entries, safe for unsynchronized iteration."""
-        with self._lock:
-            return list(self._imported_dependencies.values())
 
     def reset(self) -> None:
         """Reset all state (used on fork / queue reset)."""

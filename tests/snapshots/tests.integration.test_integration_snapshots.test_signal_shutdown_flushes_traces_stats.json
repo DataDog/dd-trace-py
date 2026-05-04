@@ -9,16 +9,18 @@
     "meta": {
       "_dd.base_service": "test_signal_shutdown_flushes_t0",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6982362f00000000",
+      "_dd.p.tid": "69e27ae100000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:test_signal_shutdown_flushes_t0,entrypoint.name:test_signal_shutdown,entrypoint.type:script,entrypoint.workdir:project,svc.auto:test_signal_shutdown_flushes_t0",
       "language": "python",
-      "runtime-id": "78e48d852d1746998dc68682b13851f8"
+      "runtime-id": "be45e43e9fb1450ea2d76299268134b8"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 626.0
+      "process_id": 39787.0
     },
-    "duration": 1642667,
-    "start": 1770141231735705171
+    "duration": 72416,
+    "start": 1776450273314486299
   }]]

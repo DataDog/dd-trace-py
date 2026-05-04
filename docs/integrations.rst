@@ -634,7 +634,7 @@ urllib3
 
 valkey
 ^^^^^^
-.. automodule:: ddtrace.contrib.valkey
+.. automodule:: ddtrace.contrib.internal.valkey
 
 
 .. _vertexai:

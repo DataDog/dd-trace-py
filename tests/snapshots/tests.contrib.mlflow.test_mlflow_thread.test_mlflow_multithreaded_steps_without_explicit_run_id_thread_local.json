@@ -9,22 +9,25 @@
     "type": "worker",
     "error": 0,
     "meta": {
+      "_dd.hostname": "docker-desktop",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69b2d61200000000",
+      "_dd.p.tid": "69ea222100000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpowatv229,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "mlflow",
       "language": "python",
-      "mlflow.run_id": "aa305481fa9f4f99a28d5b2551284b94",
-      "runtime-id": "b57bdaf873714211badd15a53687df1f",
+      "mlflow.run_id": "c1540d6da18942e6bd3945f41f361555",
+      "runtime-id": "ebb49a78222a435f9a4bb5d6e0c29a1b",
       "span.kind": "internal"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 661.0
+      "process_id": 2400.0
     },
-    "duration": 4272718961,
-    "start": 1773327890657524172
+    "duration": 552055417,
+    "start": 1776951841353737133
   },
      {
        "name": "run.step",
@@ -36,13 +39,15 @@
        "type": "worker",
        "error": 0,
        "meta": {
+         "_dd.hostname": "docker-desktop",
+         "_dd.svc_src": "m",
          "component": "mlflow",
-         "mlflow.run_id": "aa305481fa9f4f99a28d5b2551284b94",
+         "mlflow.run_id": "c1540d6da18942e6bd3945f41f361555",
          "mlflow.step": "0",
          "span.kind": "internal"
        },
-       "duration": 4115998836,
-       "start": 1773327890814133547
+       "duration": 34121625,
+       "start": 1776951841871641550
      },
         {
           "name": "run",
@@ -54,17 +59,19 @@
           "type": "worker",
           "error": 0,
           "meta": {
+            "_dd.hostname": "docker-desktop",
+            "_dd.svc_src": "m",
             "component": "mlflow",
-            "mlflow.run_id": "a824594d58a8441db8143a9929bb7248",
-            "runtime-id": "b57bdaf873714211badd15a53687df1f",
+            "mlflow.run_id": "673c9b7b56304ee1986289326dd02e65",
+            "runtime-id": "ebb49a78222a435f9a4bb5d6e0c29a1b",
             "span.kind": "internal"
           },
           "metrics": {
             "_dd.top_level": 1.0,
-            "process_id": 661.0
+            "process_id": 2400.0
           },
-          "duration": 4113831377,
-          "start": 1773327890817679881
+          "duration": 33835333,
+          "start": 1776951841872019675
         },
            {
              "name": "run.step",
@@ -76,16 +83,18 @@
              "type": "worker",
              "error": 0,
              "meta": {
+               "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "m",
                "component": "mlflow",
-               "mlflow.run_id": "a824594d58a8441db8143a9929bb7248",
+               "mlflow.run_id": "673c9b7b56304ee1986289326dd02e65",
                "mlflow.step": "1",
                "span.kind": "internal"
              },
              "metrics": {
                "mlflow.metrics.loss_0": 1.0
              },
-             "duration": 809250792,
-             "start": 1773327890842642172
+             "duration": 5014958,
+             "start": 1776951841879112342
            },
            {
              "name": "run.step",
@@ -97,12 +106,14 @@
              "type": "worker",
              "error": 0,
              "meta": {
+               "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "m",
                "component": "mlflow",
-               "mlflow.run_id": "a824594d58a8441db8143a9929bb7248",
+               "mlflow.run_id": "673c9b7b56304ee1986289326dd02e65",
                "span.kind": "internal"
              },
-             "duration": 3278357585,
-             "start": 1773327891653092464
+             "duration": 21684125,
+             "start": 1776951841884161383
            },
         {
           "name": "run",
@@ -114,17 +125,19 @@
           "type": "worker",
           "error": 0,
           "meta": {
+            "_dd.hostname": "docker-desktop",
+            "_dd.svc_src": "m",
             "component": "mlflow",
-            "mlflow.run_id": "f659420bf11a4477ad0c13c3fc05ca37",
-            "runtime-id": "b57bdaf873714211badd15a53687df1f",
+            "mlflow.run_id": "7f00951902fb4cd991580a256729fb4d",
+            "runtime-id": "ebb49a78222a435f9a4bb5d6e0c29a1b",
             "span.kind": "internal"
           },
           "metrics": {
             "_dd.top_level": 1.0,
-            "process_id": 661.0
+            "process_id": 2400.0
           },
-          "duration": 2512430002,
-          "start": 1773327892419091006
+          "duration": 21488542,
+          "start": 1776951841884369800
         },
            {
              "name": "run.step",
@@ -136,16 +149,18 @@
              "type": "worker",
              "error": 0,
              "meta": {
+               "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "m",
                "component": "mlflow",
-               "mlflow.run_id": "f659420bf11a4477ad0c13c3fc05ca37",
+               "mlflow.run_id": "7f00951902fb4cd991580a256729fb4d",
                "mlflow.step": "3",
                "span.kind": "internal"
              },
              "metrics": {
                "mlflow.metrics.loss_1": 2.0
              },
-             "duration": 2409815667,
-             "start": 1773327892460310340
+             "duration": 2889958,
+             "start": 1776951841894266217
            },
            {
              "name": "run.step",
@@ -157,10 +172,12 @@
              "type": "worker",
              "error": 0,
              "meta": {
+               "_dd.hostname": "docker-desktop",
+               "_dd.svc_src": "m",
                "component": "mlflow",
-               "mlflow.run_id": "f659420bf11a4477ad0c13c3fc05ca37",
+               "mlflow.run_id": "7f00951902fb4cd991580a256729fb4d",
                "span.kind": "internal"
              },
-             "duration": 61208834,
-             "start": 1773327894870288299
+             "duration": 8658250,
+             "start": 1776951841897192592
            }]]

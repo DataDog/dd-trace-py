@@ -15,6 +15,7 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_RESPONSE_SEQUENC
 from tests.contrib.claude_agent_sdk.utils import MOCK_QUERY_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE
 from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT_RESPONSE_SEQUENCE
+from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_ERROR_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_USE_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_USE_WITH_FOLLOWUP_SEQUENCE
 from tests.llmobs._utils import TestLLMObsSpanWriter
@@ -115,6 +116,12 @@ def mock_internal_client_structured_output(claude_agent_sdk):
 @pytest.fixture
 def mock_internal_client_tool_use_with_followup(claude_agent_sdk):
     with _create_mock_internal_client(MOCK_TOOL_USE_WITH_FOLLOWUP_SEQUENCE):
+        yield
+
+
+@pytest.fixture
+def mock_internal_client_tool_error(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_TOOL_ERROR_RESPONSE_SEQUENCE):
         yield
 
 

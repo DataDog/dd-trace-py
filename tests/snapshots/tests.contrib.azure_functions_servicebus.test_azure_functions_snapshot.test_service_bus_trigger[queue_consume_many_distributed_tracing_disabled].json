@@ -9,7 +9,9 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68c332cc00000000",
+      "_dd.p.tid": "69e929fd00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "queue_send_message_batch",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -19,17 +21,17 @@
       "http.url": "http://0.0.0.0:7071/api/queuesendmessagebatch",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "cdda564dbbdd46eeb80690f69af5be5e",
+      "runtime-id": "f70bae2edbf1414f97aba5d268a3ac7c",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 7094
+      "_sampling_priority_v1": 1.0,
+      "process_id": 23973.0
     },
-    "duration": 1025611292,
-    "start": 1757622988816079169
+    "duration": 1024594000,
+    "start": 1776888317059996000
   },
      {
        "name": "azure.servicebus.create",
@@ -41,19 +43,20 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
+         "_dd.svc_src": "m",
          "component": "azure_servicebus",
          "messaging.destination.name": "queue.1",
-         "messaging.message_id": "a2755684-08f2-45b8-94a0-ac41b0d28172",
+         "messaging.message_id": "31a18a59-ff85-4168-8851-1fd421867216",
          "messaging.operation": "create",
          "messaging.system": "servicebus",
          "network.destination.name": "localhost",
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1
+         "_dd.top_level": 1.0
        },
-       "duration": 1518542,
-       "start": 1757622989320127210
+       "duration": 3012000,
+       "start": 1776888317585016000
      },
      {
        "name": "azure.servicebus.create",
@@ -65,20 +68,20 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.p.tid": "68c332cc00000000",
+         "_dd.svc_src": "m",
          "component": "azure_servicebus",
          "messaging.destination.name": "queue.1",
-         "messaging.message_id": "14789e1b-8a6b-450f-9d06-3184a828fc1d",
+         "messaging.message_id": "942c594e-837e-4619-821b-9a2f5c72b6bd",
          "messaging.operation": "create",
          "messaging.system": "servicebus",
          "network.destination.name": "localhost",
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1
+         "_dd.top_level": 1.0
        },
-       "duration": 273042,
-       "start": 1757622989322330252
+       "duration": 501000,
+       "start": 1776888317588838000
      },
      {
        "name": "azure.servicebus.send",
@@ -90,7 +93,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.p.tid": "68c332cc00000000",
+         "_dd.svc_src": "m",
          "component": "azure_servicebus",
          "messaging.batch_count": "2",
          "messaging.destination.name": "queue.1",
@@ -100,10 +103,10 @@
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1
+         "_dd.top_level": 1.0
        },
-       "duration": 9228666,
-       "start": 1757622989322707169
+       "duration": 19903000,
+       "start": 1776888317589559000
      }],
 [
   {
@@ -116,7 +119,9 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68c332cd00000000",
+      "_dd.p.tid": "69e929fd00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "servicebusqueue",
       "aas.function.trigger": "ServiceBus",
       "component": "azure_functions",
@@ -126,15 +131,15 @@
       "messaging.operation": "receive",
       "messaging.system": "servicebus",
       "network.destination.name": "localhost",
-      "runtime-id": "cdda564dbbdd46eeb80690f69af5be5e",
+      "runtime-id": "f70bae2edbf1414f97aba5d268a3ac7c",
       "span.kind": "consumer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 7094
+      "_sampling_priority_v1": 1.0,
+      "process_id": 23973.0
     },
-    "duration": 180542,
-    "start": 1757622989513373419
+    "duration": 198000,
+    "start": 1776888317683921000
   }]]

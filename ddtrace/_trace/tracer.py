@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import functools
 import inspect
 from inspect import iscoroutinefunction
+from inspect import unwrap
 from itertools import chain
 import logging
 import os
@@ -218,11 +219,14 @@ class Tracer(object):
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
-        log.debug(
-            "Waiting %d seconds for tracer to finish. Hit %s to quit.",
-            self.SHUTDOWN_TIMEOUT,
-            key,
-        )
+        try:
+            log.debug(
+                "Waiting %d seconds for tracer to finish. Hit %s to quit.",
+                self.SHUTDOWN_TIMEOUT,
+                key,
+            )
+        except Exception:  # nosec: B110
+            pass
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
     def sample(self, span):
@@ -898,6 +902,8 @@ class Tracer(object):
                     # otherwise fallback to a default tracing
                     with self.trace(span_name, service=service, resource=resource, span_type=span_type):
                         return f(*args, **kwargs)
+
+            core.dispatch("tracer.wrap", (unwrap(f),))
 
             return func_wrapper
 

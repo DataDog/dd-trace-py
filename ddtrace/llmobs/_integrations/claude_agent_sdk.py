@@ -39,8 +39,8 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     ) -> None:
         if operation == "tool":
             self._llmobs_set_tool_tags(span, kwargs)
-        elif operation == "llm":
-            self._llmobs_set_llm_tags(span, response, kwargs)
+        elif operation in ("llm", "step"):
+            self._llmobs_set_llm_tags(span, response, kwargs, kind=operation)
         else:
             self._llmobs_set_agent_tags(span, args, kwargs, response)
 
@@ -51,7 +51,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         return self._extract_input_messages(get_argument_value(args, kwargs, 0, "prompt", optional=True) or "", span)
 
     def _llmobs_set_llm_tags(
-        self, span: Span, response: Optional[Any], kwargs: Optional[dict[str, Any]] = None
+        self, span: Span, response: Optional[Any], kwargs: Optional[dict[str, Any]] = None, kind: str = "llm"
     ) -> None:
         model = (_get_attr(response, "model", "") or "") if response is not None else ""
         output_messages: list[Message] = []
@@ -69,9 +69,9 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         input_messages: list[Message] = (kwargs or {}).get("input_messages") or []
         _annotate_llmobs_span_data(
             span,
-            kind="llm",
-            model_name=model,
-            model_provider="anthropic",
+            kind=kind,
+            model_name=model if kind == "llm" else None,
+            model_provider="anthropic" if kind == "llm" else None,
             input_messages=input_messages or None,
             output_messages=output_messages or [Message(content="")],
             metrics=metrics or None,

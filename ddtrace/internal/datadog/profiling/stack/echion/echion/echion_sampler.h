@@ -109,8 +109,10 @@ class EchionSampler
         // Reset string_table mutex
         string_table_.postfork_child();
 
-        // Clear frame cache after fork (prevent stale pointers)
-        frame_cache_.clear();
+        // Reset frame cache. Use postfork_child (placement new) instead of std::list::clear
+        // because the Sampling Thread may have been modifying the cache when fork
+        // took its snapshot. Traversing a corrupted list to free nodes would crash.
+        frame_cache_.postfork_child();
 
         // Clear stale entries from parent process.
         // No lock needed: only one thread exists in child immediately after fork.

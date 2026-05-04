@@ -26,6 +26,10 @@ def with_config_raise_value(raise_value: bool):
 
 
 class TestContextEventsApi(unittest.TestCase):
+    def setUp(self):
+        core.reset_listeners()
+        core._reset_context()
+
     def tearDown(self):
         core.reset_listeners()
         core._reset_context()

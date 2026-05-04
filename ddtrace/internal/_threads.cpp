@@ -742,7 +742,12 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
     PyObject* timeout = Py_None;
 
-    if (args != NULL && kwargs != NULL) {
+    // CPython passes kwargs = NULL when the caller uses only positional
+    // arguments. The previous guard skipped parsing in that case, silently
+    // dropping the timeout: join(0.1) fell through to the Py_None branch and
+    // waited forever. PyArg_ParseTupleAndKeywords accepts kwargs == NULL, so
+    // we only need args to be non-NULL to attempt parsing.
+    if (args != NULL) {
         static const char* argnames[] = { "timeout", NULL };
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O", (char**)argnames, &timeout))
             return NULL;

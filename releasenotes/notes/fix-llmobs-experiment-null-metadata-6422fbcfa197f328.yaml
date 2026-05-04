@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where running an experiment with a dataset
+    whose records had ``null`` metadata caused the summary evaluator to crash with a
+    ``TypeError`` while preparing evaluator inputs.

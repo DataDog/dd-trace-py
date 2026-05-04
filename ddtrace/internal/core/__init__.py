@@ -188,7 +188,20 @@ class ExecutionContext(Generic[EventType]):
     def __enter__(self) -> "ExecutionContext[EventType]":
         if "_CURRENT_CONTEXT" in globals():
             self._token = _CURRENT_CONTEXT.set(self)
-        dispatch("context.started.%s" % self.identifier, (self,))
+        try:
+            dispatch("context.started.%s" % self.identifier, (self,))
+        except BaseException:
+            # If dispatch raises, __exit__ won't be called — reset the context ourselves
+            # to avoid leaving _CURRENT_CONTEXT pointing at this partially-entered context.
+            if self._token is not None:
+                try:
+                    _CURRENT_CONTEXT.reset(self._token)
+                except ValueError:
+                    log.debug("Encountered ValueError resetting context in __enter__ error path for %s", self)
+                except LookupError:
+                    log.debug("Encountered LookupError resetting context in __enter__ error path for %s", self)
+                self._token = None
+            raise
         return self
 
     def __repr__(self) -> str:

@@ -10,21 +10,23 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "685c2acd00000000",
+      "_dd.p.tid": "69e6445c00000000",
+      "_dd.svc_src": "tests.contrib.pydantic_ai",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.pydantic_ai",
       "language": "python",
       "pydantic_ai.request.model": "gpt-4o",
       "pydantic_ai.request.provider": "openai",
-      "runtime-id": "8f113d01af3e4e73aee4d266a9225a5b"
+      "runtime-id": "d03ffc1aa5f8407883b4b65ffac89b01"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 68870
+      "_sampling_priority_v1": 1.0,
+      "process_id": 436.0
     },
-    "duration": 2060766000,
-    "start": 1750870733933322000
+    "duration": 8663208,
+    "start": 1776698460779545137
   },
      {
        "name": "calculate_square_tool",
@@ -35,9 +37,12 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "metrics": {
-         "_dd.measured": 1
+       "meta": {
+         "_dd.svc_src": "tests.contrib.pydantic_ai"
        },
-       "duration": 2438000,
-       "start": 1750870735435157000
+       "metrics": {
+         "_dd.measured": 1.0
+       },
+       "duration": 742500,
+       "start": 1776698460784224387
      }]]

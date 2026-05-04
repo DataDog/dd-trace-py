@@ -11,20 +11,20 @@
     "meta": {
       "_dd.base_service": "tests.contrib.valkey",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dfb8e200000000",
+      "_dd.p.tid": "69e27a8a00000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.valkey",
       "language": "python",
-      "runtime-id": "35e2707575884fceb6fb7614d8a38d61"
+      "runtime-id": "fed65df52b054628a4831772b2acd6e9"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 8239.0
+      "process_id": 38006.0
     },
-    "duration": 1117708,
-    "start": 1776269538735249467
+    "duration": 1086292,
+    "start": 1776450186632404550
   },
      {
        "name": "valkey.command",
@@ -52,8 +52,8 @@
          "out.valkey_db": 0.0,
          "valkey.args_length": 3.0
        },
-       "duration": 492750,
-       "start": 1776269538735548342
+       "duration": 469417,
+       "start": 1776450186632554050
      },
      {
        "name": "valkey.command",
@@ -82,6 +82,6 @@
          "out.valkey_db": 0.0,
          "valkey.args_length": 2.0
        },
-       "duration": 197042,
-       "start": 1776269538736143800
+       "duration": 288833,
+       "start": 1776450186633167300
      }]]

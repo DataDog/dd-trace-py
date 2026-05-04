@@ -53,6 +53,23 @@ EOF = 2147483647
 MAX_FILE_SIZE = 1 << 20  # 1MB
 
 
+def _line_ranges(lines: set[int]) -> list[dict]:
+    """Convert a set of line numbers into a list of contiguous ranges."""
+    if not lines:
+        return []
+    it = iter(sorted(lines))
+    start = prev = next(it)
+    ranges = []
+    for ln in it:
+        if ln == prev + 1:
+            prev = ln
+        else:
+            ranges.append({"start": start, "end": prev})
+            start = prev = ln
+    ranges.append({"start": start, "end": prev})
+    return ranges
+
+
 @cached()
 def is_from_user_code(obj: t.Any) -> t.Optional[bool]:
     try:
@@ -162,6 +179,8 @@ class Scope:
     end_line: int
     symbols: list[Symbol]
     scopes: list["Scope"]
+    injectible_lines: list[dict] = field(default_factory=list)
+    has_injectible_lines: bool = False
 
     language_specifics: dict = field(default_factory=dict)
 
@@ -353,6 +372,8 @@ class Scope:
             scopes=[
                 _ for _ in (cls._get_from(_, data) for _ in code.co_consts if isinstance(_, CodeType)) if _ is not None
             ],
+            injectible_lines=_line_ranges(ls),
+            has_injectible_lines=True,
         )
 
     @_get_from.register(FunctionType)

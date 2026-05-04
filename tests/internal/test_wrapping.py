@@ -1123,3 +1123,144 @@ def test_wrapping_context_lazy_unwrap_before_call():
         assert not _UniversalWrappingContext.is_wrapped(foo)
 
     assert wc.count == 0
+
+
+@pytest.mark.asyncio
+async def test_async_wrapper_frames_have_valid_linenos():
+    """Regression test: async wrapping must not inject instructions with lineno=None.
+
+    When wrap() is applied to an async function, the injected COROUTINE_ASSEMBLY
+    instructions (GET_AWAITABLE, SEND, YIELD_VALUE, RESUME, ...) were previously
+    emitted without line-number information, leaving f_lineno=None on the
+    suspended trampoline frame.  inspect.stack() / inspect.getframeinfo() does
+    ``lineno - 1 - context//2`` and raises TypeError when lineno is None.  Any
+    code that inspects the call stack from inside or above a wrapped coroutine
+    (e.g. IAST's report_stack) would therefore crash silently.
+    """
+    stack_from_inside = []
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    async def coro(x):
+        # Capture the full call stack from inside the coroutine body.
+        stack_from_inside.extend(inspect.stack())
+        return x + 1
+
+    wrap(coro, wrapper)
+
+    result = await coro(41)
+    assert result == 42
+
+    # Every frame captured while the wrapped coroutine was running must have a
+    # valid (non-None) line number so that inspect.getframeinfo() cannot crash.
+    for frame_info in stack_from_inside:
+        lineno = frame_info.lineno
+        assert lineno is not None, (
+            f"Frame {frame_info.filename}:{frame_info.function} has lineno=None — "
+            "async wrapping injected instructions without line-number information"
+        )
+
+
+@pytest.mark.asyncio
+async def test_lazy_async_wrapper_frames_have_valid_linenos():
+    """Same lineno regression check for LazyWrappingContext on async functions.
+
+    LazyWrappingContext applies a trampoline on first call, then promotes to
+    full UniversalWrappingContext bytecode wrapping.  Both phases must produce
+    frames with valid linenos.
+    """
+    for call_index in range(2):
+        stack_from_inside = []
+
+        async def coro(x):
+            stack_from_inside.extend(inspect.stack())
+            return x + 1
+
+        DummyLazyWrappingContext(coro).wrap()
+
+        result = await coro(41)
+        assert result == 42
+
+        for frame_info in stack_from_inside:
+            lineno = frame_info.lineno
+            assert lineno is not None, (
+                f"[call {call_index}] Frame {frame_info.filename}:{frame_info.function} "
+                f"has lineno=None — async wrapping injected instructions without "
+                f"line-number information"
+            )
+
+
+@pytest.mark.asyncio
+async def test_async_wrapper_throw_forwarding():
+    """Regression test: throw() on a wrapped coroutine must be forwarded to the inner.
+
+    Python 3.12+ uses CLEANUP_THROW bytecode in compiled ``return await sub_coro``
+    to forward exceptions thrown into the outer coroutine to the inner one.  For
+    Python's own ``_PyGen_yf`` mechanism to work correctly, the wrapping bytecode
+    (COROUTINE_ASSEMBLY) must keep the inner coroutine as the top-of-stack iterator
+    so that a ``throw()`` call on the wrapper is forwarded to the wrapped coroutine
+    rather than absorbed by the wrapper frame.
+    """
+    received_cancel = []
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    async def inner():
+        try:
+            # Suspension point so throw() can be tested
+            await asyncio.sleep(0)
+        except asyncio.CancelledError:
+            received_cancel.append(True)
+            raise
+
+    wrap(inner, wrapper)
+
+    # Advance wrapped coroutine to its first suspension point, then throw
+    c = inner()
+    try:
+        c.send(None)
+    except StopIteration:
+        pass  # completed without suspending (shouldn't happen here)
+
+    try:
+        c.throw(asyncio.CancelledError())
+    except (asyncio.CancelledError, StopIteration):
+        pass
+
+    assert received_cancel, (
+        "CancelledError was not forwarded to the inner coroutine by the wrapper; throw() interception is broken"
+    )
+
+
+@pytest.mark.asyncio
+async def test_lazy_async_wrapper_throw_forwarding():
+    """Same throw-forwarding regression check for LazyWrappingContext."""
+    for call_index in range(2):
+        received_cancel = []
+
+        async def inner():
+            try:
+                await asyncio.sleep(0)
+            except asyncio.CancelledError:
+                received_cancel.append(True)
+                raise
+
+        DummyLazyWrappingContext(inner).wrap()
+
+        c = inner()
+        try:
+            c.send(None)
+        except StopIteration:
+            pass
+
+        try:
+            c.throw(asyncio.CancelledError())
+        except (asyncio.CancelledError, StopIteration):
+            pass
+
+        assert received_cancel, (
+            f"[call {call_index}] CancelledError was not forwarded to the inner "
+            "coroutine by the lazy wrapper; throw() interception is broken"
+        )

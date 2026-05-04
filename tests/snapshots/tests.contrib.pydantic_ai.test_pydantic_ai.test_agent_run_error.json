@@ -10,22 +10,24 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "685d864900000000",
+      "_dd.p.tid": "69e6445c00000000",
+      "_dd.svc_src": "tests.contrib.pydantic_ai",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.pydantic_ai",
       "error.message": "test error",
-      "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/tests/contrib/pydantic_ai/test_pydantic_ai.py\", line 40, in test_agent_iter_error\n    raise Exception(\"test error\")\nException: test error\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/tests/contrib/pydantic_ai/test_pydantic_ai.py\", line 46, in test_agent_iter_error\n    raise Exception(\"test error\")\nException: test error\n",
       "error.type": "builtins.Exception",
       "language": "python",
       "pydantic_ai.request.model": "gpt-4o",
       "pydantic_ai.request.provider": "openai",
-      "runtime-id": "95c42dea96174c31b772098e7b279498"
+      "runtime-id": "d03ffc1aa5f8407883b4b65ffac89b01"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 74933
+      "_sampling_priority_v1": 1.0,
+      "process_id": 436.0
     },
-    "duration": 884000,
-    "start": 1750959689643817000
+    "duration": 987917,
+    "start": 1776698460729607470
   }]]

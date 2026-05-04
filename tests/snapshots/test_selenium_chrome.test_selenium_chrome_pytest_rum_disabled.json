@@ -13,6 +13,7 @@
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "674f30a500000000",
+      "_dd.svc_src": "m",
       "component": "pytest",
       "language": "python",
       "library_version": "2.18.0.dev95+g5f76e34a0",
@@ -55,6 +56,7 @@
          "_dd.origin": "ciapp-test",
          "_dd.p.dm": "-0",
          "_dd.p.tid": "674f30a500000000",
+         "_dd.svc_src": "m",
          "component": "pytest",
          "language": "python",
          "library_version": "2.18.0.dev95+g5f76e34a0",
@@ -98,6 +100,7 @@
             "_dd.origin": "ciapp-test",
             "_dd.p.dm": "-0",
             "_dd.p.tid": "674f30a500000000",
+            "_dd.svc_src": "m",
             "component": "pytest",
             "language": "python",
             "library_version": "2.18.0.dev95+g5f76e34a0",
@@ -142,6 +145,7 @@
       "_dd.origin": "ciapp-test",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "674f30a500000000",
+      "_dd.svc_src": "m",
       "component": "pytest",
       "language": "python",
       "library_version": "2.18.0.dev95+g5f76e34a0",
@@ -178,8 +182,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "process_id": 13623,
-      "test.source.end": 29,
-      "test.source.start": 7
+      "test.source.end": 31,
+      "test.source.start": 13
     },
     "duration": 1035420043,
     "start": 1733243045320806200

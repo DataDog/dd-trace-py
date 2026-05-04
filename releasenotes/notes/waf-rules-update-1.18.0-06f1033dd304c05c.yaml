@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    ASM: Update default security rules to 1.18.0. Notably, this adds business
+    logic event coverage for Stripe auto-instrumentation and expands WAF rule
+    coverage (ZipSlip detection, file upload with double extension, broader
+    header scanning, and expanded XXE detection).

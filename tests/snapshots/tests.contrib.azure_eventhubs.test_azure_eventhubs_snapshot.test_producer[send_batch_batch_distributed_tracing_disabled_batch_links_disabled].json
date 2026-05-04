@@ -11,9 +11,9 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de8d2f00000000",
+      "_dd.p.tid": "69e92db100000000",
       "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_eventhubs",
       "language": "python",
       "messaging.batch_count": "2",
@@ -21,17 +21,17 @@
       "messaging.operation": "send",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "6905e78bb1dd4b42a20a6aa0c3d5856f",
+      "runtime-id": "387fb509033c435a89f41313ad1d33dd",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 50311.0
+      "process_id": 71923.0
     },
-    "duration": 10875292,
-    "start": 1776192815093397842
+    "duration": 12537000,
+    "start": 1776889265486367000
   }],
 [
   {
@@ -46,9 +46,9 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de8d2f00000000",
+      "_dd.p.tid": "69e92db100000000",
       "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
       "component": "azure_eventhubs",
       "language": "python",
       "messaging.batch_count": "2",
@@ -56,15 +56,15 @@
       "messaging.operation": "send",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "6905e78bb1dd4b42a20a6aa0c3d5856f",
+      "runtime-id": "387fb509033c435a89f41313ad1d33dd",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 50311.0
+      "process_id": 71923.0
     },
-    "duration": 3180583,
-    "start": 1776192815104957384
+    "duration": 6421000,
+    "start": 1776889265500542000
   }]]

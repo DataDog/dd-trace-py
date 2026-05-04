@@ -172,16 +172,13 @@ async def test_openai_llm_async_block(mock_execute_request, langchain_openai, op
     mock_execute_request.assert_called_once()
 
 
-# TODO use testagent cassettes instead of mocking OpenAI
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
-@patch("langchain_openai.chat_models.ChatOpenAI._generate")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_agent_action_sync_block(mock_execute_request, mock_openai_request, langchain_openai, openai_url, decision):
+def test_agent_action_sync_block(mock_execute_request, langchain_openai, openai_url, decision):
     mock_execute_request.side_effect = [
         mock_evaluate_response("ALLOW"),  # Allow the initial prompt
         mock_evaluate_response(decision),  # Deny/abort the tool call
     ]
-    mock_openai_request.return_value = _mock_openai_tool_response("add", {"a": 1, "b": 1})
 
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
@@ -195,7 +192,7 @@ def test_agent_action_sync_block(mock_execute_request, mock_openai_request, lang
 
     tools = [add]
     agent_prompt = ChatPromptTemplate.from_messages([("human", "{input}"), MessagesPlaceholder("agent_scratchpad")])
-    llm = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
     agent = create_openai_functions_agent(llm, tools, agent_prompt)
 
     agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False, return_intermediate_steps=False)
@@ -205,22 +202,16 @@ def test_agent_action_sync_block(mock_execute_request, mock_openai_request, lang
         agent_executor.invoke({"input": "1 + 1"})
 
     assert mock_execute_request.call_count == 2  # One for prompt, one for tool
-    assert mock_openai_request.call_count == 1  # Initial prompt that returns a function call result
 
 
-# TODO use testagent cassettes instead of mocking OpenAI
 @pytest.mark.asyncio
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
-@patch("langchain_openai.chat_models.ChatOpenAI._agenerate", autospec=True)
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-async def test_agent_action_async_block(
-    mock_execute_request, mock_openai_request, langchain_openai, openai_url, decision
-):
+async def test_agent_action_async_block(mock_execute_request, langchain_openai, openai_url, decision):
     mock_execute_request.side_effect = [
         mock_evaluate_response("ALLOW"),  # Allow the initial prompt
         mock_evaluate_response(decision),  # Deny/abort the tool call
     ]
-    mock_openai_request.return_value = _mock_openai_tool_response("add", {"a": 1, "b": 1})
 
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
@@ -234,7 +225,7 @@ async def test_agent_action_async_block(
 
     tools = [add]
     agent_prompt = ChatPromptTemplate.from_messages([("human", "{input}"), MessagesPlaceholder("agent_scratchpad")])
-    llm = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
     agent = create_openai_functions_agent(llm, tools, agent_prompt)
 
     agent_executor = AgentExecutor(agent=agent, tools=tools)
@@ -244,7 +235,6 @@ async def test_agent_action_async_block(
         await agent_executor.ainvoke({"input": "1 + 1"})
 
     assert mock_execute_request.call_count == 2  # One for prompt, one for tool
-    assert mock_openai_request.call_count == 1  # Initial prompt that returns a function call result
 
 
 @pytest.mark.asyncio

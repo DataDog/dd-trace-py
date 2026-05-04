@@ -11,27 +11,27 @@
     "meta": {
       "_dd.base_service": "tests.contrib.azure_eventhubs",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de8d5b00000000",
+      "_dd.p.tid": "69e92de000000000",
       "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.azure_eventhubs",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.azure_eventhubs",
       "component": "azure_eventhubs",
       "error.message": "'EventData' object is not iterable",
-      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/azure_eventhubs/patch.py\", line 176, in _patched_send_batch\n    return wrapped(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azureeventhub~5120_pytest-asyncio0237/lib/python3.12/site-packages/azure/eventhub/_producer_client.py\", line 752, in send_batch\n    batch, pid, pkey = self._batch_preparer(\n                       ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azureeventhub~5120_pytest-asyncio0237/lib/python3.12/site-packages/azure/eventhub/_producer_client.py\", line 293, in _batch_preparer\n    to_send_batch._load_events(  # pylint:disable=protected-access\n  File \"/home/bits/project/.riot/venv_py31212_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azureeventhub~5120_pytest-asyncio0237/lib/python3.12/site-packages/azure/eventhub/_common.py\", line 622, in _load_events\n    for event_data in events:\n                      ^^^^^^\nTypeError: 'EventData' object is not iterable\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/emmett.butler/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/azure_eventhubs/patch.py\", line 176, in _patched_send_batch\n    return wrapped(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/emmett.butler/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31115_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azureeventhub~5120_pytest-asyncio0237/lib/python3.11/site-packages/azure/eventhub/_producer_client.py\", line 752, in send_batch\n    batch, pid, pkey = self._batch_preparer(\n                       ^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/emmett.butler/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31115_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azureeventhub~5120_pytest-asyncio0237/lib/python3.11/site-packages/azure/eventhub/_producer_client.py\", line 293, in _batch_preparer\n    to_send_batch._load_events(  # pylint:disable=protected-access\n  File \"/Users/emmett.butler/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31115_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azureeventhub~5120_pytest-asyncio0237/lib/python3.11/site-packages/azure/eventhub/_common.py\", line 622, in _load_events\n    for event_data in events:\nTypeError: 'EventData' object is not iterable\n",
       "error.type": "builtins.TypeError",
       "language": "python",
       "messaging.destination.name": "eh1",
       "messaging.operation": "send",
       "messaging.system": "eventhubs",
       "network.destination.name": "localhost",
-      "runtime-id": "044632d074d64488bd74ef11c9fbcc37",
+      "runtime-id": "d8d5dfaa712949fe94263fdd34edd7ee",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 50128.0
+      "process_id": 71667.0
     },
-    "duration": 500723250,
-    "start": 1776192859391740043
+    "duration": 524382000,
+    "start": 1776889312402297000
   }]]

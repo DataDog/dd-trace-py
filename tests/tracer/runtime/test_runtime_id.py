@@ -154,3 +154,59 @@ def test_parent_runtime_id():
 
     _, status = os.waitpid(child, 0)
     assert os.WEXITSTATUS(status) == 42
+
+
+@pytest.mark.subprocess
+def test_get_process_role_single_process() -> None:
+    """Single-process application: get_process_role() returns None."""
+    from ddtrace.internal.runtime import get_process_role
+
+    assert get_process_role() is None
+
+
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_get_process_role_fork_child() -> None:
+    """Forked child process: get_process_role() returns 'worker'."""
+    import os
+
+    from ddtrace.internal.runtime import get_process_role
+
+    assert get_process_role() is None
+
+    child = os.fork()
+    if child == 0:
+        assert get_process_role() == "worker", get_process_role()
+        os._exit(0)
+
+    _, status = os.waitpid(child, 0)
+    assert os.WEXITSTATUS(status) == 0
+
+
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_get_process_role_fork_parent() -> None:
+    """Parent process after forking a child: get_process_role() returns 'main'."""
+    import os
+
+    from ddtrace.internal.runtime import get_process_role
+
+    assert get_process_role() is None
+
+    child = os.fork()
+    if child == 0:
+        os._exit(0)
+
+    os.waitpid(child, 0)
+    assert get_process_role() == "main", get_process_role()
+
+
+@pytest.mark.subprocess(
+    env={
+        "_DD_PARENT_PY_SESSION_ID": "some-parent-session-id",
+        "DD_TRACE_SUBPROCESS_ENABLED": "false",
+    }
+)
+def test_get_process_role_spawn_child() -> None:
+    """Multiprocessing spawn/forkserver child (env-var seeded): returns 'worker'."""
+    from ddtrace.internal.runtime import get_process_role
+
+    assert get_process_role() == "worker", get_process_role()

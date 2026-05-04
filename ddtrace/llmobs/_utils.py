@@ -4,6 +4,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+import re
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Iterator
@@ -16,21 +17,14 @@ from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
-from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
-from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
-from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
-from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
-from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import SESSION_ID
-from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
@@ -49,15 +43,6 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 ValidatedPromptDict = dict[str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message]]]
-
-STANDARD_INTEGRATION_SPAN_NAMES = (
-    CLAUDE_AGENT_SDK_APM_SPAN_NAME,
-    CREWAI_APM_SPAN_NAME,
-    GEMINI_APM_SPAN_NAME,
-    LANGCHAIN_APM_SPAN_NAME,
-    LITELLM_APM_SPAN_NAME,
-    VERTEXAI_APM_SPAN_NAME,
-)
 
 
 def get_asyncio():
@@ -219,16 +204,6 @@ def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
     return None
 
 
-def _get_span_name(span: Span) -> str:
-    if span.name in STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":
-        return span.resource
-    elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
-        client_name = span.get_tag("openai.request.provider") or "OpenAI"
-        return "{}.{}".format(client_name, span.resource)
-    llmobs_data = _get_llmobs_data_metastruct(span)
-    return llmobs_data.get(LLMOBS_STRUCT.NAME) or span.name
-
-
 def _unserializable_default_repr(obj):
     try:
         # Pydantic v2
@@ -331,6 +306,11 @@ def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
 
 
+def get_llmobs_span_name(span: Span) -> Optional[str]:
+    """Return the span name stored on a span's meta_struct."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.NAME)
+
+
 def resolve_ml_app(ml_app: Optional[str] = None) -> str:
     """Resolve ML app name, falling back to global config, service name, then default."""
     return ml_app or config._llmobs_ml_app or config.service or ML_APP_DEFAULT
@@ -353,20 +333,73 @@ def get_llmobs_span_kind(span: Span) -> Optional[str]:
     return kind
 
 
-def get_llmobs_parent_id(span: Span) -> Optional[int]:
+def get_llmobs_parent_id(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
     return parent_id
 
 
-def get_llmobs_trace_id(span: Span) -> Optional[int]:
+def get_llmobs_trace_id(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
     return trace_id
 
 
+_HEX_TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _normalize_wire_trace_id_to_hex(value: Optional[str]) -> Optional[str]:
+    """Normalize a wire-format trace_id to hexadecimal string.
+
+    A 32-char all-digit value is ambiguous between hex and a decimal serialization
+    of a 128-bit int. Leading ``"0"`` or any ``a-f`` marks it as unambiguous hex;
+    otherwise interpret as decimal (as per the wire contract). Non-numeric custom IDs pass through unmodified.
+
+    Note: In the case of trace IDs being submitted on request headers as hex strings, some rare values (~ 1/3.78 M)
+    with 32-char all-[0-9] chars and no leading zero will be incorrectly interpreted as decimal. This is only a risk
+    for hand-crafted/forwarded headers.
+
+    """
+    if value is None or value == "":
+        return None
+    if _HEX_TRACE_ID_RE.match(value.lower()) and (value[0] == "0" or not value.isdigit()):
+        return value
+    if value.isdigit():
+        try:
+            return format_trace_id(int(value))
+        except (ValueError, TypeError):
+            pass
+    log.debug("LLMObs trace_id %r is not canonical hex or a decimal integer; storing as-is.", value)
+    return value
+
+
+def _trace_id_to_wire(value: Optional[str]) -> Optional[str]:
+    """Convert stored hex trace_id to decimal for the distributed header.
+
+    Older dd-trace-py versions parse this header with ``int(x)`` (no base arg),
+    which rejects ``a-f``, so the wire must stay decimal.
+    """
+    if not value:
+        return None
+    if _HEX_TRACE_ID_RE.match(value.lower()):
+        try:
+            return str(int(value, 16))
+        except ValueError:
+            log.debug("Failed to convert hex LLMObs trace_id %r to decimal; sending as-is.", value)
+            return value
+    return value
+
+
 def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS)
+
+
+def get_llmobs_cost_tags(span: Span) -> Optional[list[str]]:
+    metadata = _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA, {})
+    metadata_dd = metadata.get(LLMOBS_STRUCT.METADATA_DD, {})
+    if not isinstance(metadata_dd, dict):
+        return None
+    return metadata_dd.get(LLMOBS_STRUCT.COST_TAGS)
 
 
 def get_llmobs_metrics(span: Span) -> Optional[dict[str, Any]]:
@@ -438,6 +471,7 @@ def _annotate_llmobs_span_data(
     metadata: Optional[dict[str, Any]] = None,
     metrics: Optional[dict[str, Any]] = None,
     tags: Optional[dict[str, str]] = None,
+    cost_tags: Optional[list[str]] = None,
     input_messages: Optional[list[Message]] = None,
     input_value: Optional[Any] = None,
     input_documents: Optional[list[Document]] = None,
@@ -454,13 +488,15 @@ def _annotate_llmobs_span_data(
     experiment_input: Optional[str] = None,
     experiment_output: Optional[str] = None,
     intent: Optional[str] = None,
-    parent_id: Optional[int] = None,
-    trace_id: Optional[int] = None,
+    parent_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
+    dd_scope: Optional[str] = None,
 ) -> None:
     """Annotate llmobs data on span meta_struct field.
 
     metadata, metrics, and tags are updated on any existing metadata/metrics/tags
     instead of being overwritten.
+    cost_tags must be pre-validated by the caller before being passed here.
     ml_app, session_id, and input_prompt involve being propagated to children spans
     so are additionally stored on span._store to ensure they are available at span finish time.
     """
@@ -474,11 +510,13 @@ def _annotate_llmobs_span_data(
         meta.setdefault(LLMOBS_STRUCT.METADATA, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.TAGS, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.METRICS, {})
+        llmobs_span_data.setdefault(LLMOBS_STRUCT.DD, {})
 
         if name is not None:
             llmobs_span_data[LLMOBS_STRUCT.NAME] = name
         if ml_app is not None:
             llmobs_span_data[LLMOBS_STRUCT.ML_APP] = ml_app
+            llmobs_span_data[LLMOBS_STRUCT.TAGS]["ml_app"] = ml_app
             span._set_ctx_item(ML_APP, ml_app)
         if parent_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = parent_id
@@ -492,15 +530,23 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
             meta[LLMOBS_STRUCT.METADATA].update(metadata)
-        if agent_manifest is not None:
+        if agent_manifest is not None or cost_tags is not None:
+            # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
             metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
-            metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
+            if agent_manifest is not None:
+                metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
+            if cost_tags is not None:
+                existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
+                for cost_tag in cost_tags:
+                    if cost_tag not in existing_cost_tags:
+                        existing_cost_tags.append(cost_tag)
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
         if tags is not None:
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
+            llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = session_id
             span._set_ctx_item(SESSION_ID, session_id)
         if span_links is not None:
             llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
@@ -540,6 +586,8 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.OUTPUT] = experiment_output  # type: ignore[typeddict-item]
         if intent is not None:
             meta[LLMOBS_STRUCT.INTENT] = intent
+        if dd_scope is not None:
+            llmobs_span_data[LLMOBS_STRUCT.DD][LLMOBS_STRUCT.SCOPE] = dd_scope
     except Exception as e:
         log.warning("Error auto-annotating llmobs data: %s", e)
     finally:

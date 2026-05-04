@@ -50,6 +50,7 @@ class GitTelemetry(str, Enum):
     GET_LOCAL_COMMITS = "get_local_commits"
     GET_OBJECTS = "get_objects"
     PACK_OBJECTS = "pack_objects"
+    CHECK_GIT = "check_git"
 
 
 class TelemetryAPI:
@@ -190,6 +191,12 @@ class TelemetryAPI:
         if exit_code:
             self.add_count_metric("git.command_errors", 1, {"command": command.value, "exit_code": str(exit_code)})
 
+    def record_git_missing(self) -> None:
+        """Record a telemetry error when the git binary is not found."""
+        self.add_count_metric(
+            "git.command_errors", 1, {"command": GitTelemetry.CHECK_GIT.value, "exit_code": "missing"}
+        )
+
     # Event payloads sent by writers.
 
     def record_event_payload(
@@ -300,6 +307,25 @@ class TelemetryAPI:
     def record_git_pack_data(self, uploaded_files: int, uploaded_bytes: int) -> None:
         self.add_distribution_metric("git_requests.objects_pack_files", uploaded_files)
         self.add_distribution_metric("git_requests.objects_pack_bytes", uploaded_bytes)
+
+    def record_commit_sha_match(self, matched: bool) -> None:
+        self.add_count_metric("git.commit_sha_match", 1, {"matched": "true" if matched else "false"})
+
+    def record_commit_sha_discrepancy(
+        self,
+        expected_provider: str,
+        discrepant_provider: str,
+        discrepancy_type: str,
+    ) -> None:
+        self.add_count_metric(
+            "git.commit_sha_discrepancy",
+            1,
+            {
+                "expected_provider": expected_provider,
+                "discrepant_provider": discrepant_provider,
+                "type": discrepancy_type,
+            },
+        )
 
 
 class _PayloadFileTelemetryClient:

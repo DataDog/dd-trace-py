@@ -32,6 +32,8 @@ def _on_set_http_meta(
     status_code: Optional[Union[int, str]],
     response_headers: Optional[Mapping[str, Optional[str]]],
     response_cookies: Optional[Mapping[str, str]],
+    peer_ip: Optional[str] = None,
+    headers_are_case_sensitive: bool = False,
 ) -> None:
     if asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types:
         # avoid circular import

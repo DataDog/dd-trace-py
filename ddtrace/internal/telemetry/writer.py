@@ -313,10 +313,10 @@ class TelemetryWriter(PeriodicService):
         if time.monotonic() - self._extended_time > self._extended_heartbeat_interval:
             payload["configuration"] = self._sent_configs
             if config.DEPENDENCY_COLLECTION:
-                payload["dependencies"] = [
-                    entry.to_telemetry_dict(include_all_metadata=True)
-                    for entry in self._dependency_tracker.get_all_dependencies()
-                ]
+                # Serialize under the tracker lock — concurrent SCA mutations on
+                # DependencyEntry.metadata or ReachabilityMetadata.value["reached"]
+                # would otherwise race list iteration inside json.dumps.
+                payload["dependencies"] = self._dependency_tracker.snapshot_for_heartbeat()
             self._extended_time += self._extended_heartbeat_interval
         return payload
 

@@ -159,6 +159,9 @@ CLAUDE.local.md
 .claude/settings.local.json
 .claude/worktrees/
 
+# oh-my-claudecode
+.omc/
+
 # Riot
 .riot/venv*
 .riot/envs/

@@ -4,6 +4,8 @@ import mock
 import pytest
 
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs.decorators import agent
 from ddtrace.llmobs.decorators import embedding
 from ddtrace.llmobs.decorators import llm
@@ -82,7 +84,7 @@ def test_llm_decorator_no_model_name_sets_default(llmobs, llmobs_events, test_sp
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span,
         "llm",
-        model_name="custom",
+        model_name=UNKNOWN_MODEL_NAME,
         model_provider="test_provider",
         session_id="test_session_id",
         is_decorator=True,
@@ -97,7 +99,7 @@ def test_llm_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
     f()
     span = test_spans.pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "llm", model_name="custom", model_provider="custom", is_decorator=True
+        span, "llm", model_name=UNKNOWN_MODEL_NAME, model_provider=UNKNOWN_MODEL_PROVIDER, is_decorator=True
     )
 
 
@@ -130,7 +132,7 @@ def test_embedding_decorator_no_model_name_sets_default(llmobs, llmobs_events, t
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span,
         "embedding",
-        model_name="custom",
+        model_name=UNKNOWN_MODEL_NAME,
         model_provider="test_provider",
         session_id="test_session_id",
         is_decorator=True,
@@ -145,7 +147,7 @@ def test_embedding_decorator_default_kwargs(llmobs, llmobs_events, test_spans):
     f()
     span = test_spans.pop()[0]
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "embedding", model_name="custom", model_provider="custom", is_decorator=True
+        span, "embedding", model_name=UNKNOWN_MODEL_NAME, model_provider=UNKNOWN_MODEL_PROVIDER, is_decorator=True
     )
 
 
@@ -504,7 +506,12 @@ def test_ml_app_override(llmobs, llmobs_events, test_spans):
     g()
     span = test_spans.pop()[0]
     assert llmobs_events[-1] == _expected_llmobs_llm_span_event(
-        span, "llm", model_name="test_model", model_provider="custom", tags={"ml_app": "test_ml_app"}, is_decorator=True
+        span,
+        "llm",
+        model_name="test_model",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_ml_app"},
+        is_decorator=True,
     )
 
     @embedding(model_name="test_model", ml_app="test_ml_app")
@@ -517,7 +524,7 @@ def test_ml_app_override(llmobs, llmobs_events, test_spans):
         span,
         "embedding",
         model_name="test_model",
-        model_provider="custom",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
         tags={"ml_app": "test_ml_app"},
         is_decorator=True,
     )
@@ -674,8 +681,8 @@ def test_generator_sync(llmobs, llmobs_events, test_spans):
                 decorator_name,
                 input_messages=[{"content": "hello"}],
                 output_messages=[{"content": "world"}],
-                model_name="custom",
-                model_provider="custom",
+                model_name=UNKNOWN_MODEL_NAME,
+                model_provider=UNKNOWN_MODEL_PROVIDER,
                 is_decorator=True,
             )
         elif decorator_name == "embedding":
@@ -684,8 +691,8 @@ def test_generator_sync(llmobs, llmobs_events, test_spans):
                 decorator_name,
                 input_documents=[{"text": "hello"}],
                 output_value="world",
-                model_name="custom",
-                model_provider="custom",
+                model_name=UNKNOWN_MODEL_NAME,
+                model_provider=UNKNOWN_MODEL_PROVIDER,
                 is_decorator=True,
             )
         elif decorator_name == "retrieval":
@@ -737,8 +744,8 @@ async def test_generator_async(llmobs, llmobs_events, test_spans):
                 decorator_name,
                 input_messages=[{"content": "hello"}],
                 output_messages=[{"content": "world"}],
-                model_name="custom",
-                model_provider="custom",
+                model_name=UNKNOWN_MODEL_NAME,
+                model_provider=UNKNOWN_MODEL_PROVIDER,
                 is_decorator=True,
             )
         elif decorator_name == "embedding":
@@ -747,8 +754,8 @@ async def test_generator_async(llmobs, llmobs_events, test_spans):
                 decorator_name,
                 input_documents=[{"text": "hello"}],
                 output_value="world",
-                model_name="custom",
-                model_provider="custom",
+                model_name=UNKNOWN_MODEL_NAME,
+                model_provider=UNKNOWN_MODEL_PROVIDER,
                 is_decorator=True,
             )
         elif decorator_name == "retrieval":

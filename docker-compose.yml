@@ -126,7 +126,7 @@ services:
             - "127.0.0.1:${TESTAGENT_HOST_PORT:-9126}:8126"
         volumes:
             - ./tests/snapshots:/snapshots
-            - ./tests/llmobs/llmobs_cassettes:/cassettes
+            - ./tests/cassettes:/cassettes
         environment:
             - LOG_LEVEL=WARNING
             - SNAPSHOT_DIR=/snapshots
@@ -136,7 +136,7 @@ services:
             - DD_POOL_TRACE_CHECK_FAILURES=true
             - DD_DISABLE_ERROR_RESPONSES=true
             - ENABLED_CHECKS=trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
-            - SNAPSHOT_IGNORED_ATTRS=span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id,meta._dd.git.repository_url,meta._dd.svc_src
+            - SNAPSHOT_IGNORED_ATTRS=span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id,meta._dd.git.repository_url
 
     vertica:
         image: vertica/vertica-ce
@@ -189,6 +189,15 @@ services:
             - "127.0.0.1:10001:10001"
             - "127.0.0.1:10002:10002"
 
+
+    selenium-chrome:
+        image: selenium/standalone-chrome:latest
+        platform: linux/amd64
+        network_mode: host
+        environment:
+            - SE_NODE_MAX_SESSIONS=2
+            - SE_VNC_NO_PASSWORD=1
+        shm_size: 2g
 
     testrunner:
         # DEV uncomment to test local changes to the Dockerfile

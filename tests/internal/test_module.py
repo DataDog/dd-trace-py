@@ -572,7 +572,6 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.__init__",
         "ddtrace.contrib.trace_utils",
         "ddtrace.contrib.celery",
-        "ddtrace.contrib.valkey",
         "ddtrace.contrib.asgi",
         "ddtrace.contrib.bottle",
         "ddtrace.contrib.flask_cache",
