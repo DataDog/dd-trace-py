@@ -1402,119 +1402,98 @@ class TestOutcomeProcessing:
         assert tags[TestTag.TEST_RESULT] == "xfail"
 
 
-class TestTeardownDoesNotAffectTestOutcome:
-    """Regression tests: teardown failures must not affect the test status.
+class TestRetryReportsTeardownTracking:
+    """Regression tests: teardown outcomes must be tracked in reports_by_outcome during retries.
 
-    Root cause of the IndexError in make_final_report: _get_test_outcome previously included
-    TEARDOWN in its phase loop, so a teardown failure set the test_run status to FAIL. The retry
-    handler then returned FAIL as the final_status, but reports_by_outcome only tracked setup/call
-    outcomes — "failed" was never recorded, causing reports_by_outcome["failed"][0] to IndexError.
+    Root cause of the IndexError in make_final_report: _get_test_outcome considers all three phases
+    (setup, call, teardown) when determining the test_run status. A teardown failure makes the
+    test_run FAIL. But reports_by_outcome only tracked setup/call outcomes — teardown was not logged
+    during retries to avoid confusing other pytest plugins. So "failed" was never recorded in
+    reports_by_outcome, causing reports_by_outcome["failed"][0] to raise IndexError.
 
-    The fix: _get_test_outcome now only considers setup and call phases, consistent with how pytest
-    itself treats teardown failures as ERRORs (separate from test FAILUREs).
+    The fix: track_report_outcome records teardown outcomes in reports_by_outcome without logging
+    them to pytest, keeping both systems in sync.
     """
 
-    def test_get_test_outcome_ignores_teardown_failure(self) -> None:
-        """A passing test with a failing teardown should still have status PASS."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
+    def test_track_report_outcome_records_teardown(self) -> None:
+        """track_report_outcome should record a teardown report's outcome."""
+        from ddtrace.testing.internal.pytest.plugin import RetryReports
 
-        setup_report = test_report(outcome="passed", when="setup")
-        call_report = test_report(outcome="passed", when="call")
-        teardown_report = test_report(outcome="failed", when="teardown")
+        retry_reports = RetryReports()
+        teardown = test_report(outcome="failed", longrepr="Error during teardown", when="teardown")
 
-        plugin.reports_by_nodeid["test_id"] = {
-            "setup": setup_report,
-            "call": call_report,
-            "teardown": teardown_report,
-        }
-        plugin.excinfo_by_report = {
-            setup_report: None,
-            call_report: None,
-            teardown_report: None,
-        }
+        retry_reports.track_report_outcome({"teardown": teardown}, "teardown")
 
-        status, tags = plugin._get_test_outcome("test_id")
+        assert len(retry_reports.reports_by_outcome["failed"]) == 1
+        assert retry_reports.reports_by_outcome["failed"][0] is teardown
 
-        assert status == TestStatus.PASS
+    def test_track_report_outcome_noop_when_missing(self) -> None:
+        """track_report_outcome should do nothing when the phase is missing."""
+        from ddtrace.testing.internal.pytest.plugin import RetryReports
 
-    def test_get_test_outcome_ignores_teardown_skip(self) -> None:
-        """A passing test with a skipping teardown should still have status PASS."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
+        retry_reports = RetryReports()
 
-        setup_report = test_report(outcome="passed", when="setup")
-        call_report = test_report(outcome="passed", when="call")
-        teardown_report = test_report(outcome="skipped", when="teardown")
+        retry_reports.track_report_outcome({}, "teardown")
 
-        plugin.reports_by_nodeid["test_id"] = {
-            "setup": setup_report,
-            "call": call_report,
-            "teardown": teardown_report,
-        }
-        plugin.excinfo_by_report = {
-            setup_report: None,
-            call_report: None,
-            teardown_report: None,
-        }
+        assert len(retry_reports.reports_by_outcome) == 0
 
-        status, tags = plugin._get_test_outcome("test_id")
+    def test_make_final_report_with_teardown_failure(self) -> None:
+        """Regression: make_final_report should find the teardown report when final status is FAIL.
 
-        assert status == TestStatus.PASS
+        When teardown fails, _get_test_outcome returns FAIL, the retry handler returns FAIL, and
+        make_final_report needs "failed" in reports_by_outcome. With teardown tracking, it finds it.
+        """
+        from ddtrace.testing.internal.pytest.plugin import RetryReports
 
-    def test_get_test_outcome_call_failure_still_detected(self) -> None:
-        """A failing call phase is still correctly detected as FAIL."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
+        retry_reports = RetryReports()
 
-        setup_report = test_report(outcome="passed", when="setup")
-        call_report = test_report(outcome="failed", when="call")
-        teardown_report = test_report(outcome="passed", when="teardown")
+        # Simulate the retry path: setup and call pass, teardown fails.
+        # log_test_report records setup and call with their dd_retry_outcome.
+        setup = test_report(outcome="passed", when="setup")
+        call = test_report(outcome="passed", when="call")
+        call.user_properties = [("dd_retry_outcome", "passed")]
+        teardown = test_report(outcome="failed", longrepr="Error during teardown", when="teardown")
 
-        mock_excinfo = Mock()
-        mock_excinfo.type = AssertionError
-        mock_excinfo.value = AssertionError("test failed")
-        mock_excinfo.tb = None
+        # Replicate what log_test_report does (without the pytest logging hook).
+        retry_reports.reports_by_outcome["passed"].append(setup)
+        retry_reports.reports_by_outcome["passed"].append(call)
+        # Track teardown — this is the fix.
+        retry_reports.track_report_outcome({"teardown": teardown}, "teardown")
 
-        plugin.reports_by_nodeid["test_id"] = {
-            "setup": setup_report,
-            "call": call_report,
-            "teardown": teardown_report,
-        }
-        plugin.excinfo_by_report = {
-            setup_report: None,
-            call_report: mock_excinfo,
-            teardown_report: None,
-        }
+        test_ref = TestDataFactory.create_test_ref()
+        test = mock_test(test_ref)
+        item = pytest_item_mock("test_module/test_suite.py::test_function").build()
 
-        status, tags = plugin._get_test_outcome("test_id")
+        final_report = retry_reports.make_final_report(test, item, TestStatus.FAIL)
 
-        assert status == TestStatus.FAIL
-        assert "error.type" in tags
+        assert final_report.outcome == "failed"
+        assert final_report.longrepr == "Error during teardown"
 
-    def test_get_test_outcome_cleans_up_teardown_excinfo(self) -> None:
-        """Teardown excinfo is consumed even though it doesn't affect the status."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
+    def test_make_final_report_without_teardown_tracking_hits_index_error(self) -> None:
+        """Without teardown tracking, make_final_report falls into the IndexError branch.
 
-        setup_report = test_report(outcome="passed", when="setup")
-        call_report = test_report(outcome="passed", when="call")
-        teardown_report = test_report(outcome="failed", when="teardown")
+        This reproduces the original bug: only setup/call are tracked, teardown is not.
+        The retry handler returns FAIL (from teardown), but "failed" is missing from
+        reports_by_outcome, so make_final_report produces a degraded report with longrepr=None.
+        """
+        from ddtrace.testing.internal.pytest.plugin import RetryReports
 
-        teardown_excinfo = Mock()
+        retry_reports = RetryReports()
 
-        plugin.reports_by_nodeid["test_id"] = {
-            "setup": setup_report,
-            "call": call_report,
-            "teardown": teardown_report,
-        }
-        plugin.excinfo_by_report = {
-            setup_report: None,
-            call_report: None,
-            teardown_report: teardown_excinfo,
-        }
+        setup = test_report(outcome="passed", when="setup")
+        call = test_report(outcome="passed", when="call")
+        call.user_properties = [("dd_retry_outcome", "passed")]
+        # Teardown NOT tracked — pre-fix behavior.
 
-        plugin._get_test_outcome("test_id")
+        retry_reports.reports_by_outcome["passed"].append(setup)
+        retry_reports.reports_by_outcome["passed"].append(call)
 
-        # Teardown excinfo should be consumed to avoid leaking references.
-        assert teardown_report not in plugin.excinfo_by_report
+        test_ref = TestDataFactory.create_test_ref()
+        test = mock_test(test_ref)
+        item = pytest_item_mock("test_module/test_suite.py::test_function").build()
+
+        final_report = retry_reports.make_final_report(test, item, TestStatus.FAIL)
+
+        # Degraded report — the bug's symptom.
+        assert final_report.outcome == "failed"
+        assert final_report.longrepr is None

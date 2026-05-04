@@ -626,6 +626,11 @@ class TestOptPlugin:
         retry_reports.log_test_report(item, reports, TestPhase.SETUP)
         # The call report may not exist if setup failed or skipped.
         retry_reports.log_test_report(item, reports, TestPhase.CALL)
+        # Track teardown outcome without logging it: _get_test_outcome considers teardown when determining
+        # the test_run status, so we must also track it in reports_by_outcome for make_final_report to find
+        # a matching source report. We don't log teardown to pytest because other plugins expect only one
+        # teardown per test (see comment below).
+        retry_reports.track_report_outcome(reports, TestPhase.TEARDOWN)
 
         test_run = test.last_test_run
         retry_handler.set_tags_for_test_run(test_run)
@@ -644,6 +649,7 @@ class TestOptPlugin:
             # multiple setups for a test does not seem to cause an issue with junitxml, at least.)
             if not retry_reports.log_test_report(item, reports, TestPhase.CALL):
                 retry_reports.log_test_report(item, reports, TestPhase.SETUP)
+            retry_reports.track_report_outcome(reports, TestPhase.TEARDOWN)
 
             test_run.finish()
 
@@ -790,16 +796,13 @@ class TestOptPlugin:
 
         This methods consumes the test reports and exception information for the specified test, and removes them from
         the dictionaries.
-
-        Only setup and call phases determine the test status. Teardown failures are infrastructure errors that do not
-        affect the test's own outcome — consistent with how pytest reports them as ERRORs rather than FAILUREs.
         """
         status = TestStatus.PASS
         tags = {}
 
         reports_dict = self.reports_by_nodeid.pop(nodeid, {})
 
-        for phase in (TestPhase.SETUP, TestPhase.CALL):
+        for phase in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
             report = reports_dict.get(phase)
             if not report:
                 continue
@@ -820,10 +823,6 @@ class TestOptPlugin:
                 reason = str(excinfo.value) if excinfo else "Unknown skip reason"
                 tags[TestTag.SKIP_REASON] = reason
                 break
-
-        # Consume teardown excinfo to avoid leaking references, but don't let it affect the test status.
-        if teardown_report := reports_dict.get(TestPhase.TEARDOWN):
-            self.excinfo_by_report.pop(teardown_report, None)
 
         return status, tags
 
@@ -927,6 +926,18 @@ class RetryReports:
     def __init__(self):
         self.reports_by_outcome = defaultdict(lambda: [])
 
+    def track_report_outcome(self, reports: _ReportGroup, when: str) -> None:
+        """Track a report's outcome in reports_by_outcome without logging it to pytest.
+
+        This is used for teardown reports: _get_test_outcome considers teardown when determining the test_run status
+        (e.g., a teardown failure makes the test_run FAIL), so reports_by_outcome must include teardown outcomes for
+        make_final_report to find a matching source report. However, teardown reports cannot be logged to pytest during
+        retries because other plugins expect only one teardown per test.
+        """
+        if report := reports.get(when):
+            outcome = _get_user_property(report, "dd_retry_outcome") or report.outcome
+            self.reports_by_outcome[outcome].append(report)
+
     def log_test_report(self, item: pytest.Item, reports: _ReportGroup, when: str) -> bool:
         """
         Collect and log the test report for a given test phase, if it exists.
@@ -972,7 +983,13 @@ class RetryReports:
             longrepr = source_report.longrepr
             wasxfail = getattr(source_report, "wasxfail", None)
         except IndexError:
-            log.warning("Test %s has final outcome %r, but no retry had this outcome; this should never happen", test)
+            log.warning(
+                "Test %s has final outcome %r, but no retry had this outcome; this should never happen. "
+                "Outcomes seen: %s",
+                test,
+                outcome,
+                sorted(self.reports_by_outcome.keys()),
+            )
             longrepr = None
             wasxfail = None
 
