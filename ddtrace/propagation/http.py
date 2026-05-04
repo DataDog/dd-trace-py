@@ -953,16 +953,37 @@ class _BaggageHeader:
             return Context(baggage={})
 
         baggage = {}
+        total_size = 0
         baggages = header_value.split(",")
-        for key_value in baggages:
+        for pair_index, key_value in enumerate(baggages):
+            if pair_index >= DD_TRACE_BAGGAGE_MAX_ITEMS:
+                log.warning("Baggage item limit exceeded, dropping excess items")
+                telemetry_writer.add_count_metric(
+                    namespace=TELEMETRY_NAMESPACE.TRACERS,
+                    name="context_header.truncated",
+                    value=1,
+                    tags=(("truncation_reason", "baggage_item_count_exceeded"),),
+                )
+                break
             if "=" not in key_value:
                 return _BaggageHeader._record_malformed_and_return_empty()
+            segment_bytes = len(key_value.encode("utf-8")) + (1 if baggage else 0)
+            if total_size + segment_bytes > DD_TRACE_BAGGAGE_MAX_BYTES:
+                log.warning("Baggage header size exceeded, dropping excess items")
+                telemetry_writer.add_count_metric(
+                    namespace=TELEMETRY_NAMESPACE.TRACERS,
+                    name="context_header.truncated",
+                    value=1,
+                    tags=(("truncation_reason", "baggage_byte_count_exceeded"),),
+                )
+                break
             key, value = key_value.split("=", 1)
             key = urllib.parse.unquote(key.strip())
             value = urllib.parse.unquote(value.strip())
             if not key or not value:
                 return _BaggageHeader._record_malformed_and_return_empty()
             baggage[key] = value
+            total_size += segment_bytes
 
         return Context(baggage=baggage)
 
