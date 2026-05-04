@@ -207,7 +207,7 @@ def test_lock_patching_survives_module_reimport():
     import sys
     import threading
 
-    from ddtrace.profiling.collector._lock import LockAllocatorWrapper
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
@@ -244,7 +244,7 @@ def test_lock_unpatch_after_module_reimport():
     import sys
     import threading
 
-    from ddtrace.profiling.collector._lock import LockAllocatorWrapper
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
     collector = ThreadingLockCollector()
