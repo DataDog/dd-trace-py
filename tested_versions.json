@@ -1,0 +1,4970 @@
+[
+  {
+    "dependency_name": "aiobotocore",
+    "integration_name": "aiobotocore",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "1.0.7",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.4.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.0.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.13.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.0.7",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.4.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.0.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.13.3",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.0.7",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.4.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.0.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.13.3",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.13.3",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.16.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.24.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "aiohttp",
+    "integration_name": "aiohttp",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "3.13.4",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.7.4.post0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.13.4",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.13.4",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.13.4",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.13.4",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.13.4",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "aiohttp-jinja2",
+    "integration_name": "aiohttp_jinja2",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.5.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.6",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.5.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.6",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.5.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.6",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.5.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.6",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.5.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.6",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.5.1",
+        "python_version": "3.14"
+      },
+      {
+        "version": "1.6",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "aiokafka",
+    "integration_name": "aiokafka",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.12.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.9.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.13.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.9.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.13.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.9.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.13.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.9.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.13.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.9.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.13.0",
+        "python_version": "3.14"
+      },
+      {
+        "version": "0.9.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "aiomysql",
+    "integration_name": "aiomysql",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.1.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.3.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.1.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.3.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.1.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.3.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.1.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.3.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.1.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.3.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.1.1",
+        "python_version": "3.14"
+      },
+      {
+        "version": "0.3.2",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "aiopg",
+    "integration_name": "aiopg",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.16.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.4.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.4.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.4.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.4.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.4.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.4.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "algoliasearch",
+    "integration_name": "algoliasearch",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "2.6.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.6.3",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.6.3",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.6.3",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.6.3",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.6.3",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "anthropic",
+    "integration_name": "anthropic",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.28.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.74.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.28.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.74.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.28.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.74.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.28.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.74.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.74.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.74.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "aredis",
+    "integration_name": "aredis",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.1.8",
+        "python_version": "3.9"
+      }
+    ]
+  },
+  {
+    "dependency_name": "asyncpg",
+    "integration_name": "asyncpg",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.23.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.31.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.24.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.31.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.31.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.31.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.31.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.31.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "avro",
+    "integration_name": "avro",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.12.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.12.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.12.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.12.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.12.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.12.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "azure-cosmos",
+    "integration_name": "azure_cosmos",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "4.15.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "4.9.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "4.15.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "4.9.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "4.15.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "4.9.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "4.15.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "4.9.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "4.15.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "4.9.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "4.15.0",
+        "python_version": "3.14"
+      },
+      {
+        "version": "4.9.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "azure-eventhub",
+    "integration_name": "azure_eventhubs",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "5.12.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "5.15.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "5.12.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "5.15.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "5.12.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "5.15.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "5.12.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "5.15.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "5.12.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "5.15.0",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "azure-functions",
+    "integration_name": "azure_durable_functions",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.24.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.24.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.24.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.24.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.24.0",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "azure-functions",
+    "integration_name": "azure_functions",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.10.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.23.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.10.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.23.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.10.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.23.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.24.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.10.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.24.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.10.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.24.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.0.0",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "azure-functions-durable",
+    "integration_name": "azure_durable_functions",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.2.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.4.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.2.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.4.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.2.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.4.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.2.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.5.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.2.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.5.0",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "azure-servicebus",
+    "integration_name": "azure_servicebus",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "7.14.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "7.14.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "7.14.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "7.14.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "7.14.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "7.14.2",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "boto3",
+    "integration_name": "botocore",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.34.49",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.38.26",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.34.49",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.38.26",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.34.49",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.38.26",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.34.49",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.38.26",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.34.49",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.38.26",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.34.49",
+        "python_version": "3.14"
+      },
+      {
+        "version": "1.38.26",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "botocore",
+    "integration_name": "botocore",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.34.49",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.38.26",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.34.49",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.38.26",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.34.49",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.38.26",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.34.49",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.38.26",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.34.49",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.38.26",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.34.49",
+        "python_version": "3.14"
+      },
+      {
+        "version": "1.38.26",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "bottle",
+    "integration_name": "bottle",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.12.25",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.13.4",
+        "python_version": "3.9"
+      }
+    ]
+  },
+  {
+    "dependency_name": "celery",
+    "integration_name": "celery",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "5.5.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "5.5.3",
+        "python_version": "3.10"
+      },
+      {
+        "version": "5.5.3",
+        "python_version": "3.11"
+      },
+      {
+        "version": "5.5.3",
+        "python_version": "3.12"
+      },
+      {
+        "version": "5.5.3",
+        "python_version": "3.13"
+      },
+      {
+        "version": "5.5.3",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "cherrypy",
+    "integration_name": "cherrypy",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "17.0.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "17.4.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "18.10.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "17.0.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "17.4.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "18.10.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "18.10.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "18.10.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "18.10.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "18.10.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "claude-agent-sdk",
+    "integration_name": "claude_agent_sdk",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.0.23",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.1.21",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.1.29",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.1.49",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.0.23",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.1.21",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.1.29",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.1.49",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.0.23",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.1.21",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.1.29",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.1.49",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.0.23",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.1.21",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.1.29",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.1.49",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.0.23",
+        "python_version": "3.14"
+      },
+      {
+        "version": "0.1.21",
+        "python_version": "3.14"
+      },
+      {
+        "version": "0.1.29",
+        "python_version": "3.14"
+      },
+      {
+        "version": "0.1.49",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "confluent-kafka",
+    "integration_name": "kafka",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.9.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.3.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.9.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.3.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.3.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.4.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.6.2",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "crewai",
+    "integration_name": "crewai",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.102.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.157.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.102.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.157.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.102.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.157.0",
+        "python_version": "3.12"
+      }
+    ]
+  },
+  {
+    "dependency_name": "datadog-lambda",
+    "integration_name": "aws_lambda",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "6.105.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "6.105.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "6.105.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "6.105.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "6.105.0",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "django",
+    "integration_name": "django",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "2.2.28",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.0.14",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.2.25",
+        "python_version": "3.9"
+      },
+      {
+        "version": "4.2.17",
+        "python_version": "3.9"
+      },
+      {
+        "version": "4.2.20",
+        "python_version": "3.9"
+      },
+      {
+        "version": "4.2.21",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.2.25",
+        "python_version": "3.10"
+      },
+      {
+        "version": "4.2.17",
+        "python_version": "3.10"
+      },
+      {
+        "version": "4.2.20",
+        "python_version": "3.10"
+      },
+      {
+        "version": "4.2.21",
+        "python_version": "3.10"
+      },
+      {
+        "version": "4.2.17",
+        "python_version": "3.11"
+      },
+      {
+        "version": "4.2.20",
+        "python_version": "3.11"
+      },
+      {
+        "version": "4.2.21",
+        "python_version": "3.11"
+      },
+      {
+        "version": "4.2.17",
+        "python_version": "3.12"
+      },
+      {
+        "version": "4.2.20",
+        "python_version": "3.12"
+      },
+      {
+        "version": "4.2.21",
+        "python_version": "3.12"
+      },
+      {
+        "version": "5.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "4.2.17",
+        "python_version": "3.13"
+      },
+      {
+        "version": "4.2.20",
+        "python_version": "3.13"
+      },
+      {
+        "version": "4.2.21",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "dogpile-cache",
+    "integration_name": "dogpile_cache",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.6.8",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.9.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.3.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.6.8",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.9.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.3.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.9.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.3.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.9.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.3.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.9.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.3.3",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.9.2",
+        "python_version": "3.14"
+      },
+      {
+        "version": "1.4.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "dramatiq",
+    "integration_name": "dramatiq",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.10.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.17.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.17.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.17.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.17.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.17.0",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "elastic-transport",
+    "integration_name": "elasticsearch",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "8.17.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "9.1.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "8.17.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "9.2.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "8.17.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "9.2.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "8.17.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "9.2.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "8.17.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "9.2.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "8.17.1",
+        "python_version": "3.14"
+      },
+      {
+        "version": "9.1.0",
+        "python_version": "3.14"
+      },
+      {
+        "version": "9.2.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "elasticsearch",
+    "integration_name": "elasticsearch",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "7.13.4",
+        "python_version": "3.9"
+      },
+      {
+        "version": "7.17.13",
+        "python_version": "3.9"
+      },
+      {
+        "version": "8.0.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "9.0.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "9.1.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "7.13.4",
+        "python_version": "3.10"
+      },
+      {
+        "version": "7.17.13",
+        "python_version": "3.10"
+      },
+      {
+        "version": "8.0.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "9.0.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "9.3.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "7.13.4",
+        "python_version": "3.11"
+      },
+      {
+        "version": "7.17.13",
+        "python_version": "3.11"
+      },
+      {
+        "version": "8.0.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "9.0.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "9.3.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "7.13.4",
+        "python_version": "3.12"
+      },
+      {
+        "version": "7.17.13",
+        "python_version": "3.12"
+      },
+      {
+        "version": "8.0.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "9.0.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "9.3.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "7.13.4",
+        "python_version": "3.13"
+      },
+      {
+        "version": "7.17.13",
+        "python_version": "3.13"
+      },
+      {
+        "version": "8.0.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "9.0.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "9.3.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "7.13.4",
+        "python_version": "3.14"
+      },
+      {
+        "version": "7.17.13",
+        "python_version": "3.14"
+      },
+      {
+        "version": "8.0.1",
+        "python_version": "3.14"
+      },
+      {
+        "version": "9.1.0",
+        "python_version": "3.14"
+      },
+      {
+        "version": "9.3.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "elasticsearch1",
+    "integration_name": "elasticsearch",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.10.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.10.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.10.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.10.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.10.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.10.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "elasticsearch2",
+    "integration_name": "elasticsearch",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "2.5.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.5.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.5.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.5.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.5.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.5.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "elasticsearch5",
+    "integration_name": "elasticsearch",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "5.5.6",
+        "python_version": "3.9"
+      },
+      {
+        "version": "5.5.6",
+        "python_version": "3.10"
+      },
+      {
+        "version": "5.5.6",
+        "python_version": "3.11"
+      },
+      {
+        "version": "5.5.6",
+        "python_version": "3.12"
+      },
+      {
+        "version": "5.5.6",
+        "python_version": "3.13"
+      },
+      {
+        "version": "5.5.6",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "elasticsearch6",
+    "integration_name": "elasticsearch",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "6.8.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "6.8.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "6.8.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "6.8.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "6.8.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "6.8.2",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "elasticsearch7",
+    "integration_name": "elasticsearch",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "7.13.4",
+        "python_version": "3.9"
+      },
+      {
+        "version": "7.17.12",
+        "python_version": "3.9"
+      },
+      {
+        "version": "7.17.13",
+        "python_version": "3.9"
+      },
+      {
+        "version": "7.13.4",
+        "python_version": "3.10"
+      },
+      {
+        "version": "7.17.12",
+        "python_version": "3.10"
+      },
+      {
+        "version": "7.17.13",
+        "python_version": "3.10"
+      },
+      {
+        "version": "7.13.4",
+        "python_version": "3.11"
+      },
+      {
+        "version": "7.17.12",
+        "python_version": "3.11"
+      },
+      {
+        "version": "7.17.13",
+        "python_version": "3.11"
+      },
+      {
+        "version": "7.13.4",
+        "python_version": "3.12"
+      },
+      {
+        "version": "7.17.12",
+        "python_version": "3.12"
+      },
+      {
+        "version": "7.17.13",
+        "python_version": "3.12"
+      },
+      {
+        "version": "7.13.4",
+        "python_version": "3.13"
+      },
+      {
+        "version": "7.17.12",
+        "python_version": "3.13"
+      },
+      {
+        "version": "7.17.13",
+        "python_version": "3.13"
+      },
+      {
+        "version": "7.13.4",
+        "python_version": "3.14"
+      },
+      {
+        "version": "7.17.12",
+        "python_version": "3.14"
+      },
+      {
+        "version": "7.17.13",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "falcon",
+    "integration_name": "falcon",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "3.0.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.1.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "4.0.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.0.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.1.3",
+        "python_version": "3.10"
+      },
+      {
+        "version": "4.0.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.0.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.1.3",
+        "python_version": "3.11"
+      },
+      {
+        "version": "4.0.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.0.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.1.3",
+        "python_version": "3.12"
+      },
+      {
+        "version": "4.0.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "4.0.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "4.1.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "fastapi",
+    "integration_name": "fastapi",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.128.8",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.64.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.90.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.136.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.64.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.90.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.136.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.86.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.136.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.86.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.136.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.86.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.136.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "flask",
+    "integration_name": "flask",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.1.4",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.3.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.0.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.1.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.3.3",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.0.3",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.1.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.3.3",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.0.3",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.1.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.3.3",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.0.3",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.1.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.3.3",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.0.3",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.1.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.3.3",
+        "python_version": "3.14"
+      },
+      {
+        "version": "3.0.3",
+        "python_version": "3.14"
+      },
+      {
+        "version": "3.1.2",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "flask-cache",
+    "integration_name": "flask_cache",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "0.13.1",
+        "python_version": "3.9"
+      }
+    ]
+  },
+  {
+    "dependency_name": "flask-caching",
+    "integration_name": "flask_cache",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "1.10.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.1.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.10.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.1.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.10.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.1.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.10.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.3.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.10.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.3.0",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "gevent",
+    "integration_name": "gevent",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "21.1.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "21.12.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "25.9.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "22.10.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "25.9.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "25.9.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "25.9.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "25.9.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "google-adk",
+    "integration_name": "google_adk",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.0.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.18.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.28.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.28.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.28.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.28.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.14"
+      },
+      {
+        "version": "1.28.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "google-cloud-aiplatform",
+    "integration_name": "vertexai",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.71.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.71.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.71.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.71.1",
+        "python_version": "3.12"
+      }
+    ]
+  },
+  {
+    "dependency_name": "google-cloud-pubsub",
+    "integration_name": "google_cloud_pubsub",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "2.10.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.37.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.10.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.37.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.10.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.37.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.14.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.37.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.37.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.37.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "google-genai",
+    "integration_name": "google_genai",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.21.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.21.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.21.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.21.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.21.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.41.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "graphql-core",
+    "integration_name": "graphql",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "3.1.7",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.2.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.2.6",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.1.7",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.2.3",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.2.6",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.1.7",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.2.3",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.2.6",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.1.7",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.2.3",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.2.6",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.1.7",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.2.4",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.2.6",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.2.6",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "grpcio",
+    "integration_name": "grpc",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.34.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.59.5",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.66.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.42.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.59.5",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.66.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.49.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.59.5",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.66.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.59.5",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.66.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.68.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.75.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "gunicorn",
+    "integration_name": "gunicorn",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "20.0.4",
+        "python_version": "3.9"
+      },
+      {
+        "version": "23.0.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "20.0.4",
+        "python_version": "3.10"
+      },
+      {
+        "version": "23.0.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "20.0.4",
+        "python_version": "3.11"
+      },
+      {
+        "version": "23.0.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "20.0.4",
+        "python_version": "3.12"
+      },
+      {
+        "version": "23.0.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "20.0.4",
+        "python_version": "3.13"
+      },
+      {
+        "version": "23.0.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "20.0.4",
+        "python_version": "3.14"
+      },
+      {
+        "version": "23.0.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "httpx",
+    "integration_name": "httpx",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.25.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.26.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.27.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.25.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.26.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.27.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.25.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.26.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.27.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.25.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.26.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.27.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.25.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.27.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.28.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.25.2",
+        "python_version": "3.14"
+      },
+      {
+        "version": "0.27.2",
+        "python_version": "3.14"
+      },
+      {
+        "version": "0.28.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "jinja2",
+    "integration_name": "jinja2",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "2.10.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.0.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.1.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.0.3",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.1.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.0.3",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.1.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.0.3",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.1.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.0.3",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.1.4",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.0.3",
+        "python_version": "3.14"
+      },
+      {
+        "version": "3.1.6",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "kombu",
+    "integration_name": "kombu",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "4.6.11",
+        "python_version": "3.9"
+      },
+      {
+        "version": "5.0.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "5.6.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "5.2.4",
+        "python_version": "3.10"
+      },
+      {
+        "version": "5.6.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "5.2.4",
+        "python_version": "3.11"
+      },
+      {
+        "version": "5.6.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "5.6.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "5.6.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "5.6.2",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "langchain-core",
+    "integration_name": "langchain",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.1.53",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.3.84",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.1.53",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.3.84",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.2.31",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.1.53",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.3.84",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.2.31",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.1.53",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.3.84",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.2.31",
+        "python_version": "3.12"
+      }
+    ]
+  },
+  {
+    "dependency_name": "langgraph",
+    "integration_name": "langgraph",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.2.23",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.3.21",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.3.22",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.6.11",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.2.23",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.3.21",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.3.22",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.0.5",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.2.23",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.3.21",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.3.22",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.0.5",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.2.23",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.3.21",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.3.22",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.0.5",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.2.23",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.3.21",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.3.22",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.0.5",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.2.23",
+        "python_version": "3.14"
+      },
+      {
+        "version": "0.3.21",
+        "python_version": "3.14"
+      },
+      {
+        "version": "0.3.22",
+        "python_version": "3.14"
+      },
+      {
+        "version": "1.0.5",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "langgraph-checkpoint",
+    "integration_name": "langgraph",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.0.12",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.1.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.0.12",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.1.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.0.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.0.12",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.1.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.0.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.0.12",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.1.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.0.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.0.12",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.1.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.0.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.0.12",
+        "python_version": "3.14"
+      },
+      {
+        "version": "2.1.2",
+        "python_version": "3.14"
+      },
+      {
+        "version": "3.0.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "langgraph-prebuilt",
+    "integration_name": "langgraph",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.1.8",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.6.5",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.1.8",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.0.5",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.1.8",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.0.5",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.1.8",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.0.5",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.1.8",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.0.5",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.1.8",
+        "python_version": "3.14"
+      },
+      {
+        "version": "1.0.5",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "litellm",
+    "integration_name": "litellm",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.65.4",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.80.16",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.65.4",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.80.16",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.65.4",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.80.16",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.65.4",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.80.16",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.65.4",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.80.16",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "llama-index-core",
+    "integration_name": "llama_index",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.11.23",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.14.18",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.11.23",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.14.18",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.11.23",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.14.18",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.11.23",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.14.18",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "logbook",
+    "integration_name": "logbook",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.0.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.9.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.9.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.9.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.9.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.9.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.14"
+      },
+      {
+        "version": "1.9.2",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "loguru",
+    "integration_name": "loguru",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.4.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.7.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.4.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.7.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.4.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.7.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.4.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.7.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.4.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.7.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.4.1",
+        "python_version": "3.14"
+      },
+      {
+        "version": "0.7.3",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "mako",
+    "integration_name": "mako",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.0.14",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.3.8",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.0.14",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.3.8",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.0.14",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.3.8",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.0.14",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.3.8",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.0.14",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.3.8",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.0.14",
+        "python_version": "3.14"
+      },
+      {
+        "version": "1.3.10",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "mariadb",
+    "integration_name": "mariadb",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.0.11",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.1.14",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.0.11",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.1.14",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.1.14",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.1.14",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.1.14",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.1.14",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "mcp",
+    "integration_name": "mcp",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.10.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.27.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.10.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.27.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.10.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.27.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.10.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.27.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.10.1",
+        "python_version": "3.14"
+      },
+      {
+        "version": "1.27.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "mlflow",
+    "integration_name": "mlflow",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "2.11.4",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.11.4",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.10.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.10.1",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "mlflow-skinny",
+    "integration_name": "mlflow",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "3.10.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.10.1",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "mlflow-tracing",
+    "integration_name": "mlflow",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "3.10.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.10.1",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "molten",
+    "integration_name": "molten",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.0.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.0.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.0.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.0.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.0.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.0.2",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "mysql-connector-python",
+    "integration_name": "mysql",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "8.0.5",
+        "python_version": "3.9"
+      },
+      {
+        "version": "8.2.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "8.0.33",
+        "python_version": "3.10"
+      },
+      {
+        "version": "8.2.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "8.0.33",
+        "python_version": "3.11"
+      },
+      {
+        "version": "8.2.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "9.0.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "9.0.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "9.4.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "mysqlclient",
+    "integration_name": "mysqldb",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "2.2.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.2.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.2.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.2.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.2.6",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.2.6",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "openai",
+    "integration_name": "openai",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.0.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.109.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.30.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.66.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.76.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.3.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.109.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.30.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.66.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.76.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.3.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.109.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.30.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.66.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.76.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.2.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.109.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.66.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.76.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.3.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.109.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.66.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.76.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.3.0",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "openai-agents",
+    "integration_name": "openai_agents",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.0.16",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.0.8",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.0.16",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.0.8",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.0.16",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.0.8",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.0.16",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.0.8",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.0.16",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.0.8",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "opensearch-py",
+    "integration_name": "elasticsearch",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.1.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.0.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.8.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.1.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.0.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.8.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.1.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.0.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.8.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.1.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.0.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.8.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.1.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.0.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.8.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.1.0",
+        "python_version": "3.14"
+      },
+      {
+        "version": "2.0.1",
+        "python_version": "3.14"
+      },
+      {
+        "version": "3.0.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "protobuf",
+    "integration_name": "protobuf",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "6.33.6",
+        "python_version": "3.9"
+      },
+      {
+        "version": "7.34.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "7.34.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "7.34.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "7.34.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "7.34.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "psycopg",
+    "integration_name": "psycopg",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "3.0.18",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.2.9",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.2.9",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.2.9",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.2.9",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.2.10",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.2.10",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "psycopg2-binary",
+    "integration_name": "psycopg",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "2.9.10",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.9.10",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.9.10",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.9.10",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.9.10",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.9.10",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "pydantic-ai-slim",
+    "integration_name": "pydantic_ai",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.8.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.8.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.63.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.8.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.63.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.8.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.63.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.8.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.63.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.8.1",
+        "python_version": "3.14"
+      },
+      {
+        "version": "1.0.0",
+        "python_version": "3.14"
+      },
+      {
+        "version": "1.63.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "pylibmc",
+    "integration_name": "pylibmc",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.6.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.6.3",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.6.3",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.6.3",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.6.3",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.6.3",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "pymemcache",
+    "integration_name": "pymemcache",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "3.4.4",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.5.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "4.0.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.4.4",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.5.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "4.0.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.4.4",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.5.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "4.0.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.4.4",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.5.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "4.0.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.4.4",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.5.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "4.0.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.4.4",
+        "python_version": "3.14"
+      },
+      {
+        "version": "3.5.2",
+        "python_version": "3.14"
+      },
+      {
+        "version": "4.0.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "pymongo",
+    "integration_name": "pymongo",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "3.13.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.8.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.9.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "4.17.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.12.3",
+        "python_version": "3.10"
+      },
+      {
+        "version": "4.17.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.12.3",
+        "python_version": "3.11"
+      },
+      {
+        "version": "4.17.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.12.3",
+        "python_version": "3.12"
+      },
+      {
+        "version": "4.17.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.12.3",
+        "python_version": "3.13"
+      },
+      {
+        "version": "4.17.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.12.3",
+        "python_version": "3.14"
+      },
+      {
+        "version": "4.17.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "pymysql",
+    "integration_name": "pymysql",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.10.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.1.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.1.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.1.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.1.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.1.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.1.2",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "pynamodb",
+    "integration_name": "pynamodb",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "5.5.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "5.5.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "5.5.1",
+        "python_version": "3.11"
+      }
+    ]
+  },
+  {
+    "dependency_name": "pyodbc",
+    "integration_name": "pyodbc",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "4.0.39",
+        "python_version": "3.9"
+      },
+      {
+        "version": "5.3.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "4.0.39",
+        "python_version": "3.10"
+      },
+      {
+        "version": "5.3.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "5.3.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "5.3.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "5.3.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "5.3.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "pyramid",
+    "integration_name": "pyramid",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.10.8",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.0.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.0.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.0.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.0.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.0.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.0.2",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "pytest",
+    "integration_name": "pytest",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "6.2.5",
+        "python_version": "3.9"
+      },
+      {
+        "version": "7.4.4",
+        "python_version": "3.9"
+      },
+      {
+        "version": "8.4.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "8.4.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "6.2.5",
+        "python_version": "3.10"
+      },
+      {
+        "version": "7.4.4",
+        "python_version": "3.10"
+      },
+      {
+        "version": "8.4.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "8.4.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "9.0.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "9.0.3",
+        "python_version": "3.10"
+      },
+      {
+        "version": "6.2.5",
+        "python_version": "3.11"
+      },
+      {
+        "version": "7.4.4",
+        "python_version": "3.11"
+      },
+      {
+        "version": "8.4.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "8.4.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "9.0.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "9.0.3",
+        "python_version": "3.11"
+      },
+      {
+        "version": "6.2.5",
+        "python_version": "3.12"
+      },
+      {
+        "version": "7.4.4",
+        "python_version": "3.12"
+      },
+      {
+        "version": "8.4.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "8.4.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "9.0.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "9.0.3",
+        "python_version": "3.12"
+      },
+      {
+        "version": "6.2.5",
+        "python_version": "3.13"
+      },
+      {
+        "version": "7.4.4",
+        "python_version": "3.13"
+      },
+      {
+        "version": "8.4.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "9.0.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "9.0.3",
+        "python_version": "3.13"
+      },
+      {
+        "version": "8.4.2",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "pytest-bdd",
+    "integration_name": "pytest_bdd",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "4.1.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "6.0.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "6.0.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "6.0.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "6.0.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "6.0.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "6.0.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "python-consul",
+    "integration_name": "consul",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.1.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.1.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.1.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.1.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.1.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "1.1.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "ray",
+    "integration_name": "ray",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "2.46.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.49.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.46.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.49.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.46.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.49.2",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "redis",
+    "integration_name": "redis",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "4.6.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "5.0.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "4.6.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "5.0.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "4.6.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "5.0.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "5.2.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "5.1.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "6.4.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "redis-py-cluster",
+    "integration_name": "rediscluster",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "2.0.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.1.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.0.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.1.3",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.0.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.1.3",
+        "python_version": "3.11"
+      }
+    ]
+  },
+  {
+    "dependency_name": "requests",
+    "integration_name": "requests",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "2.25.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.31.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.31.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.28.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.31.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.32.3",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.32.3",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.32.5",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "rq",
+    "integration_name": "rq",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.10.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.15.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.8.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.0.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.15.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.15.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.15.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "1.16.2",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "sanic",
+    "integration_name": "sanic",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "20.12.7",
+        "python_version": "3.9"
+      },
+      {
+        "version": "21.12.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "22.12.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "21.12.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "22.12.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "22.12.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "23.12.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "23.12.2",
+        "python_version": "3.12"
+      }
+    ]
+  },
+  {
+    "dependency_name": "snowflake-connector-python",
+    "integration_name": "snowflake",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "2.4.6",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.9.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.6.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.7.12",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.9.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.6.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "3.6.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "3.11.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "3.12.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "3.17.2",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "sqlalchemy",
+    "integration_name": "sqlalchemy",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "1.3.24",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.0.40",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.3.24",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.0.40",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.3.24",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.0.40",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.3.24",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.0.40",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.0.40",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.0.43",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "starlette",
+    "integration_name": "starlette",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.14.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.20.4",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.33.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.49.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.15.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.20.4",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.33.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.52.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.21.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.33.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.52.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.52.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.52.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "0.52.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "stdlib.asyncio",
+    "integration_name": "asyncio",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "",
+        "python_version": "3.9"
+      },
+      {
+        "version": "",
+        "python_version": "3.10"
+      },
+      {
+        "version": "",
+        "python_version": "3.11"
+      },
+      {
+        "version": "",
+        "python_version": "3.12"
+      },
+      {
+        "version": "",
+        "python_version": "3.13"
+      },
+      {
+        "version": "",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "stdlib.logging",
+    "integration_name": "logging",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "",
+        "python_version": "3.9"
+      },
+      {
+        "version": "",
+        "python_version": "3.10"
+      },
+      {
+        "version": "",
+        "python_version": "3.11"
+      },
+      {
+        "version": "",
+        "python_version": "3.12"
+      },
+      {
+        "version": "",
+        "python_version": "3.13"
+      },
+      {
+        "version": "",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "stdlib.sqlite3",
+    "integration_name": "sqlite3",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "",
+        "python_version": "3.9"
+      },
+      {
+        "version": "",
+        "python_version": "3.10"
+      },
+      {
+        "version": "",
+        "python_version": "3.11"
+      },
+      {
+        "version": "",
+        "python_version": "3.12"
+      }
+    ]
+  },
+  {
+    "dependency_name": "stdlib.subprocess",
+    "integration_name": "subprocess",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "",
+        "python_version": "3.9"
+      },
+      {
+        "version": "",
+        "python_version": "3.10"
+      },
+      {
+        "version": "",
+        "python_version": "3.11"
+      },
+      {
+        "version": "",
+        "python_version": "3.12"
+      },
+      {
+        "version": "",
+        "python_version": "3.13"
+      },
+      {
+        "version": "",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "stdlib.unittest",
+    "integration_name": "unittest",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "",
+        "python_version": "3.9"
+      },
+      {
+        "version": "",
+        "python_version": "3.10"
+      },
+      {
+        "version": "",
+        "python_version": "3.11"
+      },
+      {
+        "version": "",
+        "python_version": "3.12"
+      },
+      {
+        "version": "",
+        "python_version": "3.13"
+      },
+      {
+        "version": "",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "structlog",
+    "integration_name": "structlog",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "20.2.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "25.5.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "20.2.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "25.5.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "20.2.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "25.5.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "20.2.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "25.5.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "20.2.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "25.5.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "20.2.0",
+        "python_version": "3.14"
+      },
+      {
+        "version": "25.5.0",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "tornado",
+    "integration_name": "tornado",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "6.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "6.5.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "6.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "6.3.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "6.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "6.3.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "6.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "6.3.1",
+        "python_version": "3.12"
+      },
+      {
+        "version": "6.4.1",
+        "python_version": "3.13"
+      },
+      {
+        "version": "6.4.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "urllib3",
+    "integration_name": "urllib3",
+    "auto_instrumented": false,
+    "tested_versions": [
+      {
+        "version": "1.25.8",
+        "python_version": "3.9"
+      },
+      {
+        "version": "2.6.3",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.26.6",
+        "python_version": "3.10"
+      },
+      {
+        "version": "2.6.3",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.26.8",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.6.3",
+        "python_version": "3.11"
+      },
+      {
+        "version": "2.0.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.6.3",
+        "python_version": "3.12"
+      },
+      {
+        "version": "2.0.0",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.6.3",
+        "python_version": "3.13"
+      },
+      {
+        "version": "2.0.0",
+        "python_version": "3.14"
+      },
+      {
+        "version": "2.6.3",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "valkey",
+    "integration_name": "valkey",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "6.0.2",
+        "python_version": "3.9"
+      },
+      {
+        "version": "6.0.2",
+        "python_version": "3.10"
+      },
+      {
+        "version": "6.0.2",
+        "python_version": "3.11"
+      },
+      {
+        "version": "6.0.2",
+        "python_version": "3.12"
+      },
+      {
+        "version": "6.0.2",
+        "python_version": "3.13"
+      },
+      {
+        "version": "6.1.1",
+        "python_version": "3.14"
+      }
+    ]
+  },
+  {
+    "dependency_name": "vertexai",
+    "integration_name": "vertexai",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "1.71.1",
+        "python_version": "3.9"
+      },
+      {
+        "version": "1.71.1",
+        "python_version": "3.10"
+      },
+      {
+        "version": "1.71.1",
+        "python_version": "3.11"
+      },
+      {
+        "version": "1.71.1",
+        "python_version": "3.12"
+      }
+    ]
+  },
+  {
+    "dependency_name": "vertica-python",
+    "integration_name": "vertica",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.6.14",
+        "python_version": "3.9"
+      },
+      {
+        "version": "0.7.4",
+        "python_version": "3.9"
+      }
+    ]
+  },
+  {
+    "dependency_name": "vllm",
+    "integration_name": "vllm",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "0.13.0",
+        "python_version": "3.10"
+      },
+      {
+        "version": "0.13.0",
+        "python_version": "3.11"
+      },
+      {
+        "version": "0.13.0",
+        "python_version": "3.12"
+      },
+      {
+        "version": "0.13.0",
+        "python_version": "3.13"
+      }
+    ]
+  },
+  {
+    "dependency_name": "yaaredis",
+    "integration_name": "yaaredis",
+    "auto_instrumented": true,
+    "tested_versions": [
+      {
+        "version": "2.0.4",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.0.0",
+        "python_version": "3.9"
+      },
+      {
+        "version": "3.0.0",
+        "python_version": "3.10"
+      }
+    ]
+  }
+]

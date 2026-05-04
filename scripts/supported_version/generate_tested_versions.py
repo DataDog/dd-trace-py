@@ -13,7 +13,7 @@ sys.path.append(str(PROJECT_ROOT))
 CONTRIB_INTERNAL_ROOT = PROJECT_ROOT / "ddtrace" / "contrib" / "internal"
 DDTRACE_MONKEY_PATH = PROJECT_ROOT / "ddtrace" / "_monkey.py"
 DEPENDENCY_NAMES_PATH = PROJECT_ROOT / "scripts" / "supported_version" / "dependency_names.json"
-CI_TESTED_VERSIONS_PATH = PROJECT_ROOT / "ci_tested_versions.json"
+CI_TESTED_VERSIONS_PATH = PROJECT_ROOT / "tested_versions.json"
 
 REQUIREMENTS_DIR = PROJECT_ROOT / ".riot" / "requirements"
 REQUIREMENT_RE = re.compile(r"^([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?==([^;\s]+)")
