@@ -17,6 +17,7 @@ components:
     - ddtrace/contrib/internal/webbrowser/*
   ai_guard:
     - ddtrace/appsec/ai_guard/*
+    - ddtrace/appsec/_ai_guard/*
   sca:
     - ddtrace/appsec/sca/*
 suites:

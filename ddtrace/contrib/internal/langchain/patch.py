@@ -305,8 +305,9 @@ def traced_chat_stream(func, instance, args, kwargs):
     # AIDEV-NOTE: guard.reset() MUST fire on the stream's terminal event —
     # exhaustion, error, early break (generator ``finally`` runs on close),
     # AND never-consumed abandonment (weakref.finalize runs on GC). Otherwise
-    # ``_ai_guard_active`` leaks into the Context and silently disables
-    # provider-level evaluation (e.g. direct OpenAI calls) for its remainder.
+    # the AI Guard active counter for this task stays positive and silently
+    # disables provider-level evaluation (e.g. direct OpenAI calls) for the
+    # rest of the task's lifetime.
     guard = AIGuardStreamGuard()
 
     try:

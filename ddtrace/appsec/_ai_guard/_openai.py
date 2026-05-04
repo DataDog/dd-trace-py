@@ -10,9 +10,9 @@ Message conversion:
     ``ToolCall`` / ``Function`` format expected by the API.
 
 Collision handling:
-    If a framework integration (LangChain, Strands) has already set
-    ``_ai_guard_active`` in the current context, these listeners skip
-    evaluation to avoid double-scanning.
+    If a framework integration (LangChain, Strands) has already called
+    ``set_aiguard_context_active()`` for the current task, these listeners
+    skip evaluation to avoid double-scanning.
 
 Block error type:
     When AI Guard blocks a request, the listeners raise

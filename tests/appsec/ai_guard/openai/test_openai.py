@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 
 import ddtrace.appsec._ai_guard as ai_guard_mod
-from ddtrace.appsec._ai_guard._context import _ai_guard_active
+from ddtrace.appsec._ai_guard._context import AIGuardStreamGuard
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active
 from ddtrace.appsec._ai_guard._context import set_aiguard_context_active
@@ -28,11 +28,10 @@ from tests.appsec.ai_guard.utils import override_ai_guard_config
 
 @pytest.fixture
 def aiguard_active_context():
-    """Mark the current Context as under active AI Guard evaluation for the test.
+    """Mark the current task as under active AI Guard evaluation for the test.
 
-    Sets ``_ai_guard_active=True`` via a token and always resets on teardown —
-    even if the test raises — so subsequent tests do not observe a leaked
-    ContextVar value.
+    Always resets on teardown — even if the test raises — so subsequent tests
+    do not observe a leaked active counter.
     """
     token = set_aiguard_context_active()
     try:
@@ -735,13 +734,22 @@ def test_collision_avoidance_skips_evaluation(mock_execute_request, openai_clien
 
 @pytest.mark.asyncio
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-async def test_collision_avoidance_async_skips_evaluation(
-    mock_execute_request, async_openai_client, aiguard_active_context
-):
-    """Async collision avoidance: when _ai_guard_active is True, evaluate is NOT called."""
+async def test_collision_avoidance_async_skips_evaluation(mock_execute_request, async_openai_client):
+    """Async collision avoidance: when the calling task has already claimed
+    AI Guard evaluation, the provider listener MUST NOT call evaluate.
+
+    The active flag is set inline (rather than via a sync fixture) so it lives
+    in the same asyncio task that runs the OpenAI call — this mirrors how
+    production framework integrations (LangChain, Strands) acquire the flag
+    inside the async invocation that owns the LLM call.
+    """
+    from ddtrace.appsec._ai_guard._context import aiguard_context
+
     mock_execute_request.return_value = mock_evaluate_response("DENY")
 
-    resp = await async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+    with aiguard_context():
+        resp = await async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
     assert resp is not None
     mock_execute_request.assert_not_called()
 
@@ -963,25 +971,52 @@ def test_concurrent_threads_isolate_ai_guard_active():
     assert is_aiguard_context_active() is False
 
 
-def test_reset_cross_context_does_not_raise():
+def test_reset_cross_context_clears_parent():
     # Simulates LangChain stream iteration: set() happens in the outer Context,
-    # but reset() runs inside context.run() — a copied Context. ContextVar.reset
-    # would raise ValueError for a foreign token; the helper must degrade to
-    # clearing the flag in the current Context copy instead.
+    # but reset() runs inside ``context.run(...)`` — a copied Context. The
+    # token carries the owning task/thread, so the reset decrements the parent
+    # owner's counter and the parent observes ``is_aiguard_context_active`` as
+    # False after the reset.
     token = set_aiguard_context_active()
+    cleanup_needed = True
     try:
         ctx = contextvars.copy_context()
 
         def _reset_in_child_context():
-            assert _ai_guard_active.get() is True
+            assert is_aiguard_context_active() is True
             reset_aiguard_context_active(token)
-            assert _ai_guard_active.get() is False
+            assert is_aiguard_context_active() is False
 
         ctx.run(_reset_in_child_context)
-        assert is_aiguard_context_active() is True
+        # Parent observes the reset because the token records the owner, not
+        # the originating Context.
+        assert is_aiguard_context_active() is False
+        cleanup_needed = False
     finally:
-        reset_aiguard_context_active(token)
+        if cleanup_needed:
+            reset_aiguard_context_active(token)
     assert is_aiguard_context_active() is False
+
+
+def test_stream_guard_reset_in_copied_context_clears_parent():
+    """AIGuardStreamGuard.reset() must clear the parent's active flag even
+    when the finalizer fires inside ``context.run(...)``. This pins the fix
+    for the LangChain streaming scenario: ``_on_span_finished`` and the
+    weakref finalizer typically run in a copied Context, and a leaking
+    ``active=True`` would silently disable later provider-level evaluation
+    in the same task.
+    """
+    guard = AIGuardStreamGuard()
+    try:
+        assert is_aiguard_context_active() is True
+
+        ctx = contextvars.copy_context()
+        ctx.run(guard.reset)
+
+        assert is_aiguard_context_active() is False
+    finally:
+        # Idempotent — guard is already done, but exercise the no-op path.
+        guard.reset()
 
 
 @pytest.mark.asyncio
