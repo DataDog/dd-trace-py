@@ -1,5 +1,6 @@
 import itertools
 import re
+from typing import Dict  # noqa:F401
 from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union
@@ -952,7 +953,7 @@ class _BaggageHeader:
         if not header_value:
             return Context(baggage={})
 
-        baggage = {}
+        baggage: Dict[str, str] = {}
         total_size = 0
         baggages = header_value.split(",")
         for pair_index, key_value in enumerate(baggages):
