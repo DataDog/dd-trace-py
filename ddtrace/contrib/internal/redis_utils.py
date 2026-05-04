@@ -89,6 +89,35 @@ def _extract_conn_tags(conn_kwargs) -> dict[str, str]:
         return {}
 
 
+def _extract_cluster_conn_tags(instance) -> dict:
+    # AIDEV-NOTE: RedisCluster has no connection_pool. startup_nodes is a list in redis-py 4.x
+    # and a dict keyed by "host:port" in 5.x; first node is used as the representative host.
+    # Node values may be ClusterNode objects (.host/.port) or plain dicts depending on the version.
+    try:
+        startup_nodes = instance.nodes_manager.startup_nodes
+        if isinstance(startup_nodes, dict):
+            first_node = next(iter(startup_nodes.values()), None)
+        else:
+            first_node = startup_nodes[0] if startup_nodes else None
+        if first_node is None:
+            return {}
+        if isinstance(first_node, dict):
+            host = first_node.get("host")
+            port = first_node.get("port")
+        else:
+            host = first_node.host
+            port = first_node.port
+        if not host:
+            return {}
+        return {
+            net.TARGET_HOST: host,
+            net.TARGET_PORT: port,
+            net.SERVER_ADDRESS: host,
+        }
+    except Exception:
+        return {}
+
+
 def _build_tags(query, instance, integration_name):
     ret = dict()
     ret[SPAN_KIND] = SpanKind.CLIENT
@@ -101,6 +130,8 @@ def _build_tags(query, instance, integration_name):
     if hasattr(instance, "connection_pool"):
         for key, value in _extract_conn_tags(instance.connection_pool.connection_kwargs).items():
             ret[key] = value
+    elif hasattr(instance, "nodes_manager"):
+        ret.update(_extract_cluster_conn_tags(instance))
     return ret
 
 

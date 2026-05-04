@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    redis: Fixes missing ``out.host`` and ``server.address`` tags on spans produced by
+    ``redis.cluster.RedisCluster`` and ``redis.asyncio.cluster.RedisCluster`` (redis-py >=4.1).
+    These clients do not expose a ``connection_pool`` attribute, so connection metadata was never
+    extracted and the Datadog inferred-entity feature fell back to the generic
+    ``peer.db.system: redis`` identifier instead of resolving to the specific cluster hostname.
+    Spans now include ``out.host`` and ``server.address`` derived from the cluster's startup node,
+    enabling the service map to display a host-specific Redis entity.

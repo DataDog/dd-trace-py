@@ -4,6 +4,7 @@ import redis
 
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
+from ddtrace.ext import net
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.contrib.config import REDISCLUSTER_CONFIG
 from tests.utils import assert_is_measured
@@ -65,6 +66,27 @@ async def test_basics(traced_redis_cluster):
     assert span.get_tag("db.system") == "redis"
     assert span.get_metric("redis.args_length") == 2
     assert span.resource == "GET"
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
+@pytest.mark.asyncio
+async def test_connection_tags(traced_redis_cluster):
+    """RedisCluster spans must include out.host and server.address for inferred entity resolution."""
+    cluster, test_spans = traced_redis_cluster
+    await cluster.get("cheese")
+
+    traces = test_spans.pop_traces()
+    all_spans = [span for trace in traces for span in trace]
+    get_spans = [
+        s
+        for s in all_spans
+        if s.get_tag("component") == "redis" and s.resource == "GET" and s.get_tag("redis.raw_command") == "GET cheese"
+    ]
+    assert len(get_spans) == 1
+    span = get_spans[0]
+    assert span.get_tag("out.host") is not None, "out.host tag should be set on RedisCluster spans"
+    assert span.get_tag("server.address") is not None, "server.address tag should be set on RedisCluster spans"
+    assert span.get_metric(net.TARGET_PORT) is not None
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
