@@ -1,6 +1,6 @@
 fixes:
   - |
-    tracing: Parsing incoming ``baggage`` HTTP headers now respects ``DD_TRACE_BAGGAGE_MAX_ITEMS``
-    and ``DD_TRACE_BAGGAGE_MAX_BYTES``, consistent with baggage injection. Previously, extraction
+    tracing: Parsing incoming ``baggage`` HTTP headers now respects ``DD_TRACE_BAGGAGE_MAX_ITEMS`` [default 64]
+    and ``DD_TRACE_BAGGAGE_MAX_BYTES`` [default 8192], consistent with baggage injection. Previously, extraction
     could retain every comma-separated entry regardless of those limits. The tracer drops excess
     pairs and records truncation telemetry when limits apply.
