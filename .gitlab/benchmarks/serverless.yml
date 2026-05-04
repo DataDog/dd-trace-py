@@ -10,6 +10,12 @@ benchmark-serverless:
   needs:
     - job: "upload serverless"
   rules:
+    # dont run on merges to release branches ("X.Y" where X and Y are integers)
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^\d+\.\d+$/'
+      when: never
+    # dont run on pushes to release branches
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^\d+\.\d+$/'
+      when: never
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
     - allow_failure: false
