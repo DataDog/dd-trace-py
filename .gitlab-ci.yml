@@ -52,6 +52,10 @@ workflow:
     - when: always
 
 include:
+  # AIDEV-NOTE: external-refs.yml MUST be the first include — it defines the
+  # EXT_* variables used by other includes (cross-project triggers, scopes,
+  # etc.). See docs/github-org-migration-audit.md (APMLP-1185).
+  - local: ".gitlab/external-refs.yml"
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
@@ -96,7 +100,7 @@ tests-gen:
       if [ -z ${GH_TOKEN} ]
       then
         # Use dd-octo-sts to get GitHub token
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+        export GH_TOKEN=$(dd-octo-sts token --scope "$EXT_GITHUB_DD_TRACE_PY" --policy gitlab.github-access.read)
       fi
     - scripts/gen_gitlab_config.py --verbose
   needs: []
@@ -126,7 +130,7 @@ run-tests-trigger:
 serverless lambda tests:
   stage: tests
   trigger:
-    project: DataDog/datadog-lambda-python
+    project: $EXT_GITLAB_LAMBDA_PYTHON
     strategy: depend
     branch: main
   needs:
@@ -191,7 +195,7 @@ apm-sdk-benchmarks:
   needs:
     - job: "upload all"
   trigger:
-    project: DataDog/apm-reliability/apm-sdks-benchmarks
+    project: $EXT_GITLAB_APM_SDKS_BENCHMARKS
     branch: main
   variables:
     TARGET_REF: $CI_PIPELINE_ID
@@ -318,6 +322,16 @@ check_ci_dependencies:
   extends: .testrunner
   script:
     - scripts/check-ci-dependencies
+
+external-refs-lint:
+  # AIDEV-NOTE: enforces the GitHub org split mitigation policy
+  # (APMLP-1185). See docs/github-org-migration-audit.md.
+  stage: tests
+  needs: []
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/mirror/python:3.14.0
+  script:
+    - python scripts/check-external-refs.py
 
 codeowners:
   stage: tests
@@ -471,7 +485,7 @@ deploy_to_di_backend:manual:
     - when: manual
       allow_failure: true
   trigger:
-    project: DataDog/debugger-demos
+    project: $EXT_GITLAB_DEBUGGER_DEMOS
     branch: main
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
@@ -508,13 +522,13 @@ prof-correctness:
   script:
     - |
       if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)
+        export GH_TOKEN=$(dd-octo-sts token --scope "$EXT_GITHUB_PROF_CORRECTNESS" --policy dd-trace-py.gitlab.trigger-ci)
       fi
     - |
       echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA}"
       # Trigger pipeline, but do not wait for the job to complete
       gh workflow run downstream-python.yml \
-        --repo DataDog/prof-correctness \
+        --repo "$EXT_GITHUB_PROF_CORRECTNESS" \
         -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}"
 
 lib_injection_tests:

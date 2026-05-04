@@ -273,7 +273,7 @@ variables:
     if [ -z ${GH_TOKEN} ]
     then
       # Use dd-octo-sts to get GitHub token
-      dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
+      dd-octo-sts token --scope "$EXT_GITHUB_DD_TRACE_PY" --policy gitlab.github-access.read > token
       gh auth login --with-token < token
       rm token
     fi

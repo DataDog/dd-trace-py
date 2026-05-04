@@ -70,7 +70,7 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+      - uses: ./.github/actions/dd-octo-sts-token
         id: octo-sts
         with:
           scope: DataDog/dd-trace-py
@@ -122,15 +122,15 @@ jobs:
           echo "target-branch=${TARGET_BRANCH}" >> "$GITHUB_OUTPUT"
 
       - name: Push Commit
-        uses: DataDog/commit-headless@05d7b7ee023e2c7d01c47832d420c2503cd416f3 # action/v2.0.3
+        uses: ./.github/actions/commit-headless
         with:
           branch: ${{ steps.create-commit.outputs.branch }}
           head-sha: ${{ steps.create-commit.outputs.branch-from }}
           target: "DataDog/dd-trace-py"
-          create-branch: true
+          create-branch: 'true'
           command: push
           commits: ${{ steps.create-commit.outputs.commit }}
-          force: true
+          force: 'true'
 
       - name: Create PR
         env:

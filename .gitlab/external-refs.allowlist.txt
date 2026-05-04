@@ -1,0 +1,76 @@
+# Allowlist of external-reference literals that the `external-refs-lint` job
+# permits even though they are not centralized in `.gitlab/external-refs.yml`.
+#
+# Format: each line is `<file>:<line> <justification>` or `<file>:* <justification>`.
+# `<file>:*` whitelists every line in the file. Lines starting with `#` are comments.
+#
+# Prefer fixing the underlying file (use a variable from external-refs.yml)
+# over adding entries here. New entries should describe WHY the literal cannot
+# be replaced. See docs/github-org-migration-audit.md.
+
+# ===== Files exempt by design =====
+# These files exist to enumerate or define external references. They will not
+# be scanned at all by check-external-refs.py (see EXEMPT_FILES there), but we
+# document the policy here for code reviewers.
+#
+#   .gitlab/external-refs.yml                 — the registry itself
+#   .gitlab/external-refs.allowlist.txt       — this file
+#   .github/chainguard/*.yaml                 — STS policies pin GitLab/GitHub
+#                                                paths by design
+#   docs/github-org-migration-audit.md        — the audit doc lists every ref
+
+
+# ===== Public OSS Datadog GitHub repos (no migration risk expected) =====
+# These repos are open source and are expected to remain on `Datadog/`.
+# If that assumption changes, update the audit doc and these references.
+
+.gitlab/system-tests.yml:50 OSS DataDog/system-tests, expected to stay public
+.github/workflows/system-tests.yml:96 OSS DataDog/system-tests, expected to stay public
+.github/workflows/system-tests.yml:149 OSS DataDog/system-tests, expected to stay public
+.github/workflows/system-tests.yml:342 OSS DataDog/system-tests reusable action
+.github/workflows/system-tests.yml:369 OSS DataDog/datadog-lambda-python checkout
+.github/workflows/system-tests.yml:391 OSS DataDog/system-tests reusable workflow
+.github/workflows/system-tests.yml:421 OSS DataDog/system-tests reusable workflow
+.github/workflows/system-tests.yml:431 OSS DataDog/system-tests reusable workflow
+
+
+# ===== Internal benchmarking platform =====
+# `DataDog/benchmarking-platform` is internal but is currently fetched from a
+# public mirror at github.com via internal CI token; the URL rewrite in
+# microbenchmarks.yml reroutes it through gitlab.ddbuild.io.
+
+.gitlab/benchmarks/microbenchmarks.yml:36 URL rewrite for internal benchmarking-platform clone
+.gitlab/benchmarks/microbenchmarks.yml:38 internal benchmarking-platform clone (rerouted via insteadOf)
+.gitlab/benchmarks/microbenchmarks.yml:93 dd-trace-py.git URL set as origin in benchmarking script
+.gitlab/benchmarks/microbenchmarks.yml:173 URL rewrite for internal benchmarking-platform clone
+.gitlab/benchmarks/microbenchmarks.yml:175 internal benchmarking-platform clone (rerouted via insteadOf)
+.gitlab/benchmarks/macrobenchmarks.yml:61 internal benchmarking-platform clone via gitlab.ddbuild.io
+
+
+# ===== CodeQL scan =====
+# scripts/codeql_scan.sh sets up the gitlab.ddbuild.io URL rewrite and clones
+# DataDog/codescanning (internal). Both remain hardcoded for now; the audit
+# doc tracks them.
+
+scripts/codeql_scan.sh:10 URL rewrite for internal codescanning clone
+scripts/codeql_scan.sh:11 internal DataDog/codescanning clone (rerouted via insteadOf)
+
+
+# ===== Internal GitHub Actions still pinned by SHA in workflows =====
+# Wrapper composite actions live under .github/actions/. The wrappers
+# themselves still reference `DataDog/<action>` by SHA — that is exactly the
+# centralization point we want, so the wrappers are allowlisted here.
+
+.github/actions/dd-octo-sts-token/action.yml:* wrapper for DataDog/dd-octo-sts-action
+.github/actions/commit-headless/action.yml:* wrapper for DataDog/commit-headless
+.github/actions/dd-sts-token/action.yml:* wrapper for DataDog/dd-sts-action
+
+
+# ===== Cross-project GitLab `include:` directives =====
+# `include: - project:` is resolved at YAML parse time (before `variables:`
+# is applied), so these cannot be replaced with $EXT_GITLAB_* variables.
+# See the comment block at the bottom of .gitlab/external-refs.yml.
+
+.gitlab/benchmarks/macrobenchmarks.yml:8 include of DataDog/benchmarking-platform-tools (cannot use variable in `include:`)
+.gitlab/benchmarks/macrobenchmarks.yml:10 include of DataDog/benchmarking-platform-tools (cannot use variable in `include:`)
+.gitlab/benchmarks/microbenchmarks.yml:2 include of DataDog/benchmarking-platform-tools (cannot use variable in `include:`)

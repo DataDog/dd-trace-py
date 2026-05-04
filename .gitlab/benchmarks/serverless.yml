@@ -4,7 +4,7 @@ variables:
 benchmark-serverless:
   stage: benchmarks
   trigger:
-    project: DataDog/serverless-tools
+    project: $EXT_GITLAB_SERVERLESS_TOOLS
     branch: dd-trace-py-pinned-ref
     strategy: depend
   needs:
