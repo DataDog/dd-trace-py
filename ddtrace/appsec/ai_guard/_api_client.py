@@ -322,10 +322,17 @@ class AIGuardClient:
                     # stale IP from an earlier request that shared this context tree.
                     client_ip = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
                     core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
+                    entry_span = root_span._service_entry_span
                     if client_ip:
-                        entry_span = root_span._service_entry_span
                         entry_span._set_attribute(http.CLIENT_IP, client_ip)
                         entry_span._set_attribute("network.client.ip", client_ip)
+                    # Copy anomaly-detection attributes from the service-entry span onto the
+                    # ai_guard span with the `ai_guard.` prefix, so intake processing has them
+                    # even when the entry span arrives in a later trace chunk.
+                    for tag_name in AI_GUARD.ANOMALY_DETECTION_TAGS:
+                        tag_value = entry_span.get_tag(tag_name)
+                        if tag_value is not None:
+                            span.set_tag(f"{AI_GUARD.TAG}.{tag_name}", tag_value)
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    AI Guard: Copies anomaly-detection attributes from the local root (service-entry) span
+    onto every ``ai_guard`` span: ``ai_guard.http.useragent``, ``ai_guard.http.client_ip``, 
+    ``ai_guard.network.client.ip``, ``ai_guard.usr.id`` and ``ai_guard.session.id``.

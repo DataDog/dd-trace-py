@@ -462,6 +462,18 @@ class AI_GUARD(metaclass=Constant_Class):
     # applied to the service-entry span only if an ai_guard span is actually created.
     CLIENT_IP_CORE_KEY: Literal["ai_guard.http.client_ip"] = "ai_guard.http.client_ip"
 
+    # Tags copied from the local root (service-entry) span to every AI Guard span with the
+    # `ai_guard.` prefix, so anomaly detection at intake can correlate without waiting for
+    # the service-entry span to arrive in the same trace chunk.
+    # Spec: https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6596165672
+    ANOMALY_DETECTION_TAGS: tuple = (
+        "http.useragent",
+        "http.client_ip",
+        "network.client.ip",
+        "usr.id",
+        "session.id",
+    )
+
     # meta struct
     STRUCT: Literal["ai_guard"] = "ai_guard"
 
