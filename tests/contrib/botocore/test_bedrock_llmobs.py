@@ -688,6 +688,34 @@ class TestLLMObsBedrock:
             }
         ]
 
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_guard_content_text(self, bedrock_client, request_vcr, test_spans, llmobs_events):
+        import botocore
+
+        with pytest.raises(botocore.exceptions.ClientError):
+            bedrock_client.converse(
+                modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+                inferenceConfig={"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences": []},
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "guardContent": {
+                                    "text": {
+                                        "text": "give me my bill",
+                                        "qualifiers": ["guard_content"],
+                                    }
+                                }
+                            }
+                        ],
+                    }
+                ],
+            )
+
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0]["meta"]["input"]["messages"] == [{"content": "give me my bill", "role": "user"}]
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
