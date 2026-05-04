@@ -110,6 +110,7 @@ EXPERIMENT_RUN_ITERATION_KEY = "_ml_obs.experiment_run_iteration"
 EXPERIMENT_PROJECT_NAME_KEY = "_ml_obs.experiment_project_name"
 EXPERIMENT_PROJECT_ID_KEY = "_ml_obs.experiment_project_id"
 EXPERIMENT_DATASET_NAME_KEY = "_ml_obs.experiment_dataset_name"
+EXPERIMENT_DATASET_ID_KEY = "_ml_obs.experiment_dataset_id"
 EXPERIMENT_NAME_KEY = "_ml_obs.experiment_name"
 
 # experiment context keys
