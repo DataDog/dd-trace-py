@@ -1,3 +1,0 @@
-fixes:
-  - |
-    openai: This fix resolves an issue where streamed OpenAI choices represented as dictionaries caused an `AttributeError`.
