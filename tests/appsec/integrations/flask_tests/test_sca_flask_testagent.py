@@ -368,14 +368,6 @@ _SCA_EXTENDED_HEARTBEAT_ENV = {
 }
 
 
-def _collect_all_deps_extended(events):
-    """Flatten dependencies from app-extended-heartbeat events."""
-    all_deps = []
-    for event in events:
-        all_deps.extend(event.get("payload", {}).get("dependencies", []))
-    return all_deps
-
-
 def _find_dep_with_cve_in_extended(events, dep_name, cve_id):
     """Find a dependency carrying a specific CVE in the most recent extended-heartbeat event.
 
@@ -431,7 +423,7 @@ class TestSCAFlaskExtendedHeartbeat:
                 f"app-extended-heartbeat missing configuration: {event['payload']}"
             )
 
-        all_deps = _collect_all_deps_extended(events)
+        all_deps = _collect_all_deps(events)
         assert len(all_deps) > 0, (
             f"Expected dependencies in app-extended-heartbeat with SCA enabled, got none. Events: {events[:1]}"
         )
@@ -489,16 +481,17 @@ class TestSCAFlaskExtendedHeartbeat:
         assert hit.get("line", 0) > 0
 
     def test_extended_heartbeat_dependency_list_is_full_snapshot(self, iast_test_token):
-        """The extended-heartbeat dependency list must be a full snapshot, not a delta.
+        """The extended-heartbeat dependency list must be a superset of the delta channel.
 
         Compares the union of dependencies seen across app-dependencies-loaded
         (the per-tick delta) against a single app-extended-heartbeat payload
         (the latest one received). The contract is that one extended-heartbeat
-        event re-sends the *full* dependency snapshot, so the backend can
-        reconcile state from any single such payload without needing to
-        accumulate prior deltas. Asserting against the aggregate of all
-        extended events would mask the exact regression we want to catch:
-        per-event partial slices would still union to the full set.
+        event must contain at least every dep ever reported via the delta
+        channel, so the backend can reconcile state from any single such
+        payload without needing to accumulate prior deltas. Asserting against
+        the aggregate of all extended events would mask the exact regression
+        we want to catch: per-event partial slices would still union to the
+        full set.
         """
         with flask_server(
             appsec_enabled="false",
