@@ -68,7 +68,7 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
     ) as ctx:
         result = wrapped(*args, **kwargs)
         _, headers = result
-        ctx.set_item("sub_status_code", headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus))
+        ctx.set_item("sub_statu_code", headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus))
 
         return result
 
