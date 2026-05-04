@@ -4431,6 +4431,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="ai_guard_openai",
+            command="pytest {cmdargs} tests/appsec/ai_guard/openai/",
+            pys=select_pys(),
+            pkgs={
+                "pytest-asyncio": "==0.23.7",
+                "openai": ["==1.102.0", latest],
+            },
+        ),
+        Venv(
             name="claude_agent_sdk",
             command="pytest {cmdargs} tests/contrib/claude_agent_sdk/",
             pys=select_pys(min_version="3.10"),

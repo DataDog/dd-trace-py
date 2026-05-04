@@ -1,10 +1,13 @@
 import sys
 from typing import Any
 from typing import Optional
+import weakref
 
 import langchain_core
 
 from ddtrace import config
+from ddtrace.appsec._ai_guard._context import AIGuardStreamGuard
+from ddtrace.appsec._ai_guard._context import aiguard_context
 from ddtrace.contrib.internal.langchain.utils import shared_stream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -91,9 +94,10 @@ def traced_llm_generate(func, instance, args, kwargs):
     integration.llmobs_set_prompt_tag(instance, span)
 
     try:
-        _raising_dispatch("langchain.llm.generate.before", (prompts,))
-        completions = func(*args, **kwargs)
-        core.dispatch("langchain.llm.generate.after", (prompts, completions))
+        with aiguard_context():
+            _raising_dispatch("langchain.llm.generate.before", (prompts,))
+            completions = func(*args, **kwargs)
+            core.dispatch("langchain.llm.generate.after", (prompts, completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -123,9 +127,10 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
 
     completions = None
     try:
-        _raising_dispatch("langchain.llm.agenerate.before", (prompts,))
-        completions = await func(*args, **kwargs)
-        core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
+        with aiguard_context():
+            _raising_dispatch("langchain.llm.agenerate.before", (prompts,))
+            completions = await func(*args, **kwargs)
+            core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -154,9 +159,10 @@ def traced_chat_model_generate(func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        _raising_dispatch("langchain.chatmodel.generate.before", (chat_messages,))
-        chat_completions = func(*args, **kwargs)
-        core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
+        with aiguard_context():
+            _raising_dispatch("langchain.chatmodel.generate.before", (chat_messages,))
+            chat_completions = func(*args, **kwargs)
+            core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -185,9 +191,10 @@ async def traced_chat_model_agenerate(func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        _raising_dispatch("langchain.chatmodel.agenerate.before", (chat_messages,))
-        chat_completions = await func(*args, **kwargs)
-        core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
+        with aiguard_context():
+            _raising_dispatch("langchain.chatmodel.agenerate.before", (chat_messages,))
+            chat_completions = await func(*args, **kwargs)
+            core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -318,12 +325,25 @@ def traced_chat_stream(func, instance, args, kwargs):
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
-    _raising_dispatch("langchain.chatmodel.stream.before", (instance, args, kwargs))
+    # AIDEV-NOTE: guard.reset() MUST fire on the stream's terminal event —
+    # exhaustion, error, early break (generator ``finally`` runs on close),
+    # AND never-consumed abandonment (weakref.finalize runs on GC). Otherwise
+    # the AI Guard active counter for this task stays positive and silently
+    # disables provider-level evaluation (e.g. direct OpenAI calls) for the
+    # rest of the task's lifetime.
+    guard = AIGuardStreamGuard()
+
+    try:
+        _raising_dispatch("langchain.chatmodel.stream.before", (instance, args, kwargs))
+    except Exception:
+        guard.reset()
+        raise
 
     def _on_span_started(span: Span):
         integration.record_instance(instance, span)
 
     def _on_span_finished(span: Span, streamed_chunks):
+        guard.reset()
         kwargs["_dd.identifying_params"] = instance._identifying_params
         if len(streamed_chunks):
             joined_chunks = streamed_chunks[0]
@@ -333,18 +353,24 @@ def traced_chat_stream(func, instance, args, kwargs):
             joined_chunks = []
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=joined_chunks, operation="chat")
 
-    return shared_stream(
-        integration=integration,
-        func=func,
-        instance=instance,
-        args=args,
-        kwargs=kwargs,
-        interface_type="chat_model",
-        on_span_started=_on_span_started,
-        on_span_finished=_on_span_finished,
-        provider=llm_provider,
-        model=model,
-    )
+    try:
+        stream = shared_stream(
+            integration=integration,
+            func=func,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+            interface_type="chat_model",
+            on_span_started=_on_span_started,
+            on_span_finished=_on_span_finished,
+            provider=llm_provider,
+            model=model,
+        )
+    except Exception:
+        guard.reset()
+        raise
+    weakref.finalize(stream, guard.reset)
+    return stream
 
 
 def traced_llm_stream(func, instance, args, kwargs):
@@ -352,35 +378,49 @@ def traced_llm_stream(func, instance, args, kwargs):
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
-    _raising_dispatch(
-        "langchain.llm.stream.before",
-        (
-            instance,
-            args,
-            kwargs,
-        ),
-    )
+    # AIDEV-NOTE: see traced_chat_stream — same abandonment-safety contract.
+    guard = AIGuardStreamGuard()
+
+    try:
+        _raising_dispatch(
+            "langchain.llm.stream.before",
+            (
+                instance,
+                args,
+                kwargs,
+            ),
+        )
+    except Exception:
+        guard.reset()
+        raise
 
     def _on_span_start(span: Span):
         integration.record_instance(instance, span)
 
     def _on_span_finished(span: Span, streamed_chunks):
+        guard.reset()
         content = "".join([str(chunk) for chunk in streamed_chunks])
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="llm")
 
-    return shared_stream(
-        integration=integration,
-        func=func,
-        instance=instance,
-        args=args,
-        kwargs=kwargs,
-        interface_type="llm",
-        on_span_started=_on_span_start,
-        on_span_finished=_on_span_finished,
-        provider=llm_provider,
-        model=model,
-    )
+    try:
+        stream = shared_stream(
+            integration=integration,
+            func=func,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+            interface_type="llm",
+            on_span_started=_on_span_start,
+            on_span_finished=_on_span_finished,
+            provider=llm_provider,
+            model=model,
+        )
+    except Exception:
+        guard.reset()
+        raise
+    weakref.finalize(stream, guard.reset)
+    return stream
 
 
 def traced_base_tool_invoke(func, instance, args, kwargs):

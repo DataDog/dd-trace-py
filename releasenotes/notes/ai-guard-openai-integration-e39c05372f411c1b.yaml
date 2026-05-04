@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    ai_guard: add AI Guard evaluation support to the OpenAI SDK chat completions
+    instrumentation. Requests and responses are evaluated through the configured AI
+    Guard client, and evaluation is automatically skipped when a framework integration
+    (LangChain, Strands Agents) is already evaluating the same call.
