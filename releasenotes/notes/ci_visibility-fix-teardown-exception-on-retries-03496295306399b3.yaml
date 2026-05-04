@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an ``IndexError`` in retry bookkeeping that occurred when a test's teardown phase failed. The error produced ``--- Logging error ---`` tracebacks in stderr, which could pollute test output and cause spurious test failures during retries.
