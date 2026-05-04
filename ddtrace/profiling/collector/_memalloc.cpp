@@ -1,4 +1,3 @@
-#include <atomic>
 #include <mutex>
 #include <stdbool.h>
 #include <stdint.h>
@@ -18,6 +17,8 @@
 
 typedef struct
 {
+    /* The original allocator saved at start() and restored at stop(). */
+    PyMemAllocatorEx saved_allocator;
     /* The domain we are tracking */
     PyMemAllocatorDomain domain;
     /* The maximum number of frames collected in stack traces */
@@ -25,134 +26,63 @@ typedef struct
 
 } memalloc_context_t;
 
-/* We only support being started once, so we use a global context for the whole
-   module. If we ever want to be started multiple twice, we'd need a more
-   object-oriented approach and allocate a context per object.
-*/
-static memalloc_context_t global_memalloc_ctx;
+/* One context per domain.  Both OBJ and MEM hooks share the same four hook
+ * functions (memalloc_free/malloc/calloc/realloc); the ctx pointer selects
+ * which domain's saved allocator to call through. */
+static memalloc_context_t global_memalloc_ctx;     /* PYMEM_DOMAIN_OBJ */
+static memalloc_context_t global_memalloc_ctx_mem; /* PYMEM_DOMAIN_MEM */
 
 static bool memalloc_enabled = false;
 static std::once_flag memalloc_fork_handler_once_flag;
 
-/* Two-slot buffer for atomically publishing the saved (original) allocator.
- *
- * Each start() cycle writes into the slot at index g_saved_alloc_slot (then
- * flips the index) and then atomically publishes the pointer via
- * g_saved_alloc_pub.  Hooks load the pointer atomically, so a hook from
- * cycle N always refers to g_saved_alloc_buf[N%2] while start() for cycle
- * N+1 writes to g_saved_alloc_buf[(N+1)%2].  These are disjoint memory
- * locations, so no data race exists on the struct fields themselves. */
-static PyMemAllocatorEx g_saved_alloc_buf[2];
-static int g_saved_alloc_slot = 0;
-static std::atomic<const PyMemAllocatorEx*> g_saved_alloc_pub{ nullptr };
-
-/* MEM domain saved-allocator — same two-slot scheme as OBJ above.
- * Only installed on Python 3.12+ (see _PY312_AND_LATER guards below). */
-static PyMemAllocatorEx g_saved_alloc_mem_buf[2];
-static int g_saved_alloc_mem_slot = 0;
-static std::atomic<const PyMemAllocatorEx*> g_saved_alloc_mem_pub{ nullptr };
-
-static memalloc_context_t global_memalloc_ctx_mem;
-
 /* ---------------------------------------------------------------------------
- * Shared hook helpers — domain-agnostic core logic.
+ * Allocator hooks — shared by PYMEM_DOMAIN_OBJ and PYMEM_DOMAIN_MEM.
  *
- * Each function takes the saved-allocator atomic for the relevant domain by
- * reference so that OBJ and MEM hooks share a single implementation.  The
- * two-slot buffer scheme (written by start(), published atomically) guarantees
- * the struct copy is data-race-free; the NULL guard is a belt-and-suspenders
- * safety check against a torn publish or a call after stop().
+ * The same four functions serve both domains.  start() registers them twice
+ * with different ctx pointers (global_memalloc_ctx vs global_memalloc_ctx_mem),
+ * so every call reads the saved allocator from the correct context.
  * --------------------------------------------------------------------------- */
 
 static void
-_memalloc_do_free(void* ptr, std::atomic<const PyMemAllocatorEx*>& saved_pub)
+memalloc_free(void* ctx, void* ptr)
 {
     if (!ptr)
         return;
-    const PyMemAllocatorEx* const saved = saved_pub.load(std::memory_order_acquire);
-    if (!saved)
-        return;
-    PyMemAllocatorEx alloc = *saved;
-    if (!alloc.free)
-        return;
-    memalloc_heap_untrack_no_cpython(ptr);
-    alloc.free(alloc.ctx, ptr);
-}
-
-static void*
-_memalloc_do_alloc(int use_calloc,
-                   memalloc_context_t* memalloc_ctx,
-                   size_t nelem,
-                   size_t elsize,
-                   std::atomic<const PyMemAllocatorEx*>& saved_pub)
-{
-    const PyMemAllocatorEx* const saved = saved_pub.load(std::memory_order_acquire);
-    if (!saved)
-        return nullptr;
-    PyMemAllocatorEx alloc = *saved;
-    void* ptr;
-    if (use_calloc) {
-        if (!alloc.calloc)
-            return nullptr;
-        ptr = alloc.calloc(alloc.ctx, nelem, elsize);
-    } else {
-        if (!alloc.malloc)
-            return nullptr;
-        ptr = alloc.malloc(alloc.ctx, nelem * elsize);
-    }
-    if (ptr)
-        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
-    return ptr;
-}
-
-static void*
-_memalloc_do_realloc(memalloc_context_t* memalloc_ctx,
-                     void* ptr,
-                     size_t new_size,
-                     std::atomic<const PyMemAllocatorEx*>& saved_pub)
-{
-    const PyMemAllocatorEx* const saved = saved_pub.load(std::memory_order_acquire);
-    if (!saved)
-        return nullptr;
-    PyMemAllocatorEx alloc = *saved;
-    if (!alloc.realloc)
-        return nullptr;
-    void* ptr2 = alloc.realloc(alloc.ctx, ptr, new_size);
-    if (ptr2) {
-        memalloc_heap_untrack_no_cpython(ptr);
-        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
-    } else if (new_size == 0 && ptr != NULL) {
-        // realloc(ptr, 0) is implementation-defined: some allocators (including
-        // glibc) free ptr and return NULL.  Untrack so allocs_m doesn't keep a
-        // dangling entry; when new_size > 0 and ptr2 == NULL the allocation failed
-        // and ptr is still valid, so we only act on new_size == 0.
-        memalloc_heap_untrack_no_cpython(ptr);
-    }
-    return ptr2;
-}
-
-/* ---------------------------------------------------------------------------
- * PYMEM_DOMAIN_OBJ hooks — thin wrappers over the shared helpers above.
- * --------------------------------------------------------------------------- */
-
-static void
-memalloc_free(void* Py_UNUSED(ctx), void* ptr)
-{
 #ifdef MEMALLOC_ASSERT_ON_REENTRY
     /* Abort in test builds if we're re-entering from the malloc hook.
      * In production we can't abort or skip untrack (skipping would leak
      * heap tracker entries), so we just let it proceed — direct struct
      * access frame walking avoids calling CPython APIs that could free and is thus safe. */
-    if (_MEMALLOC_ON_THREAD)
+    if (_MEMALLOC_ON_THREAD) {
         _memalloc_abort_free_reentry();
+    }
 #endif // MEMALLOC_ASSERT_ON_REENTRY
-    _memalloc_do_free(ptr, g_saved_alloc_pub);
+    const memalloc_context_t* const memalloc_ctx = (const memalloc_context_t*)ctx;
+    const PyMemAllocatorEx* const alloc = &memalloc_ctx->saved_allocator;
+    if (!alloc->free)
+        return;
+    memalloc_heap_untrack_no_cpython(ptr);
+    alloc->free(alloc->ctx, ptr);
 }
 
 static void*
 memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
 {
-    return _memalloc_do_alloc(use_calloc, (memalloc_context_t*)ctx, nelem, elsize, g_saved_alloc_pub);
+    const memalloc_context_t* const memalloc_ctx = (const memalloc_context_t*)ctx;
+    const PyMemAllocatorEx* const alloc = &memalloc_ctx->saved_allocator;
+    void* ptr;
+    if (use_calloc) {
+        if (!alloc->calloc)
+            return nullptr;
+        ptr = alloc->calloc(alloc->ctx, nelem, elsize);
+    } else {
+        if (!alloc->malloc)
+            return nullptr;
+        ptr = alloc->malloc(alloc->ctx, nelem * elsize);
+    }
+    if (ptr)
+        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
+    return ptr;
 }
 
 static void*
@@ -169,51 +99,23 @@ memalloc_calloc(void* ctx, size_t nelem, size_t elsize)
 static void*
 memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 {
-    // GIL is held here (PYMEM_DOMAIN_OBJ). With Python free-threading,
-    // allocators must be thread-safe even for non-RAW domains — synchronization
-    // between realloc and untrack will be needed. See also _memalloc_heap.cpp.
-    return _memalloc_do_realloc((memalloc_context_t*)ctx, ptr, new_size, g_saved_alloc_pub);
+    const memalloc_context_t* const memalloc_ctx = (const memalloc_context_t*)ctx;
+    const PyMemAllocatorEx* const alloc = &memalloc_ctx->saved_allocator;
+    if (!alloc->realloc)
+        return nullptr;
+    void* ptr2 = alloc->realloc(alloc->ctx, ptr, new_size);
+    if (ptr2) {
+        memalloc_heap_untrack_no_cpython(ptr);
+        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+    } else if (new_size == 0 && ptr != NULL) {
+        // realloc(ptr, 0) is implementation-defined: some allocators (including
+        // glibc) free ptr and return NULL.  Untrack so allocs_m doesn't keep a
+        // dangling entry; when new_size > 0 and ptr2 == NULL the allocation failed
+        // and ptr is still valid, so we only act on new_size == 0.
+        memalloc_heap_untrack_no_cpython(ptr);
+    }
+    return ptr2;
 }
-
-/* ---------------------------------------------------------------------------
- * PYMEM_DOMAIN_MEM hooks — Python 3.12+ only.
- *
- * Gated on _PY312_AND_LATER because on Python 3.12+ the GC no
- * longer runs inline during allocation; instead a flag is set and GC runs at
- * a safe interpreter checkpoint.  This makes the realloc+GC use-after-free
- * crash (PROF-11496, PR #14550) impossible here.  On 3.10–3.11 the OBJ hooks
- * use pygc_temp_disable_guard_t in memalloc_heap_track_invokes_cpython as a
- * workaround for the same crash pattern; extending that to MEM domain is
- * deferred until MEM hooks are re-evaluated for those versions.
- *
- * The reentrancy guard in memalloc_heap_track_invokes_cpython prevents a MEM
- * allocation triggered inside an OBJ hook (or vice versa) from causing
- * re-entrant tracking.
- * --------------------------------------------------------------------------- */
-#ifdef _PY312_AND_LATER
-
-static void
-memalloc_free_mem(void* Py_UNUSED(ctx), void* ptr)
-{
-    _memalloc_do_free(ptr, g_saved_alloc_mem_pub);
-}
-static void*
-memalloc_malloc_mem(void* ctx, size_t size)
-{
-    return _memalloc_do_alloc(0, (memalloc_context_t*)ctx, 1, size, g_saved_alloc_mem_pub);
-}
-static void*
-memalloc_calloc_mem(void* ctx, size_t nelem, size_t elsize)
-{
-    return _memalloc_do_alloc(1, (memalloc_context_t*)ctx, nelem, elsize, g_saved_alloc_mem_pub);
-}
-static void*
-memalloc_realloc_mem(void* ctx, void* ptr, size_t new_size)
-{
-    return _memalloc_do_realloc((memalloc_context_t*)ctx, ptr, new_size, g_saved_alloc_mem_pub);
-}
-
-#endif // _PY312_AND_LATER
 
 PyDoc_STRVAR(memalloc_start__doc__,
              "start($module, max_nframe, heap_sample_interval)\n"
@@ -273,8 +175,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return nullptr;
     }
 
-    global_memalloc_ctx.max_nframe = (uint16_t)max_nframe;
-
     if (heap_sample_size < 0 || heap_sample_size > MAX_HEAP_SAMPLE_SIZE) {
         PyErr_Format(PyExc_ValueError, "the heap sample size must be in range [0; %u]", MAX_HEAP_SAMPLE_SIZE);
         return nullptr;
@@ -285,47 +185,26 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return nullptr;
     }
 
+    /* Hook function pointers are the same for both domains; only ctx differs. */
     PyMemAllocatorEx alloc;
-
     alloc.malloc = memalloc_malloc;
     alloc.calloc = memalloc_calloc;
     alloc.realloc = memalloc_realloc;
     alloc.free = memalloc_free;
 
-    alloc.ctx = &global_memalloc_ctx;
-
+    /* Install OBJ domain hooks. */
     global_memalloc_ctx.domain = PYMEM_DOMAIN_OBJ;
-
-    /* Write the saved (original) allocator into whichever slot is NOT
-     * currently being read by hooks from the previous cycle, then publish the
-     * pointer atomically.  Because start() and the previous stop() hold the
-     * GIL sequentially, all in-flight hooks from the prior cycle are already
-     * using the *old* slot; writing to the new slot is therefore data-race-free. */
-    const int slot = g_saved_alloc_slot;
-    g_saved_alloc_slot = 1 - slot;
-    PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &g_saved_alloc_buf[slot]);
-    g_saved_alloc_pub.store(&g_saved_alloc_buf[slot], std::memory_order_release);
+    global_memalloc_ctx.max_nframe = (uint16_t)max_nframe;
+    PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.saved_allocator);
+    alloc.ctx = &global_memalloc_ctx;
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
 
-#ifdef _PY312_AND_LATER
-    {
-        PyMemAllocatorEx alloc_mem;
-        alloc_mem.malloc = memalloc_malloc_mem;
-        alloc_mem.calloc = memalloc_calloc_mem;
-        alloc_mem.realloc = memalloc_realloc_mem;
-        alloc_mem.free = memalloc_free_mem;
-        alloc_mem.ctx = &global_memalloc_ctx_mem;
-
-        global_memalloc_ctx_mem.max_nframe = (uint16_t)max_nframe;
-        global_memalloc_ctx_mem.domain = PYMEM_DOMAIN_MEM;
-
-        const int mem_slot = g_saved_alloc_mem_slot;
-        g_saved_alloc_mem_slot = 1 - mem_slot;
-        PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &g_saved_alloc_mem_buf[mem_slot]);
-        g_saved_alloc_mem_pub.store(&g_saved_alloc_mem_buf[mem_slot], std::memory_order_release);
-        PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &alloc_mem);
-    }
-#endif // _PY312_AND_LATER
+    /* Install MEM domain hooks. */
+    global_memalloc_ctx_mem.domain = PYMEM_DOMAIN_MEM;
+    global_memalloc_ctx_mem.max_nframe = (uint16_t)max_nframe;
+    PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &global_memalloc_ctx_mem.saved_allocator);
+    alloc.ctx = &global_memalloc_ctx_mem;
+    PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &alloc);
 
     memalloc_enabled = true;
 
@@ -347,29 +226,11 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         return NULL;
     }
 
-    /* First, uninstall our wrappers. There may still be calls to our wrapper in progress,
-     * if they happened to release the GIL.
+    /* Uninstall our wrappers and restore the original allocators for both domains.
      * NB: We're assuming here that this is not called concurrently with iter_events
-     * or memalloc_heap. The higher-level collector deals with this.
-     *
-     * Load atomically so we see the fully-written slot published by start(). */
-    const PyMemAllocatorEx* saved = g_saved_alloc_pub.load(std::memory_order_acquire);
-    if (saved) {
-        PyMemAllocatorEx restore = *saved;
-        PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &restore);
-    }
-
-#ifdef _PY312_AND_LATER
-    {
-        const PyMemAllocatorEx* saved_mem = g_saved_alloc_mem_pub.load(std::memory_order_acquire);
-        if (saved_mem) {
-            PyMemAllocatorEx restore_mem = *saved_mem;
-            PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &restore_mem);
-        }
-        /* Null out so the MEM free hook fast-exits after stop. */
-        g_saved_alloc_mem_pub.store(nullptr, std::memory_order_release);
-    }
-#endif // _PY312_AND_LATER
+     * or memalloc_heap. The higher-level collector deals with this. */
+    PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.saved_allocator);
+    PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &global_memalloc_ctx_mem.saved_allocator);
 
     memalloc_heap_tracker_deinit_no_cpython();
 
