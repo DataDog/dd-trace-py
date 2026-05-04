@@ -1281,12 +1281,17 @@ def test_full_span_meta_struct_cycle_is_collectable():
     with the tracer flow. Mirrors the regression seen in production where a
     cycle formed via meta_struct caused live-heap accumulation proportional
     to traced call volume.
+
+    Uses weakrefs to the specific spans we create instead of a global object
+    count so the assertion is immune to incidental Span instances created by
+    background tracer/telemetry threads in the same process.
     """
     import gc
+    import weakref
 
     from ddtrace._trace.span import Span
 
-    initial = _count_objects_of_type("Span")
+    refs: list[weakref.ReferenceType] = []
     gc_was_enabled = gc.isenabled()
     gc.disable()
     try:
@@ -1297,12 +1302,18 @@ def test_full_span_meta_struct_cycle_is_collectable():
             span._set_struct_tag("self_ref", {"holder": cycle_list})
             cycle_list.append(span)
             span.finish()
+            refs.append(weakref.ref(span))
             del span
             del cycle_list
-        assert _count_objects_of_type("Span") - initial == N
-        freed = gc.collect()
-        assert freed > 0, "gc.collect freed nothing — Span/SpanData is not GC-tracked"
-        assert _count_objects_of_type("Span") == initial
+        # All N spans are kept alive by the cycle (gc disabled, refcount alone
+        # cannot break the cycle).
+        alive = sum(1 for r in refs if r() is not None)
+        assert alive == N, f"expected {N} live spans before gc, got {alive}"
+        gc.collect()
+        gc.collect()
+        # All N must be reclaimed after a cyclic-GC pass.
+        alive = sum(1 for r in refs if r() is not None)
+        assert alive == 0, f"{alive}/{N} cyclic spans uncollectable after gc.collect"
     finally:
         if gc_was_enabled:
             gc.enable()
@@ -1386,12 +1397,17 @@ def test_tracer_trace_meta_struct_cycle_is_collectable():
     This is the exact pattern used by integrations writing per-request data
     into ``meta_struct`` (AppSec/IAST and similar) on a high-throughput
     service, which is what surfaced the regression in production.
+
+    Uses weakrefs to the specific spans we create so the assertion is robust
+    against background tracer activity that may incidentally create or
+    finalize unrelated Span instances during the test.
     """
     import gc
+    import weakref
 
     from ddtrace.trace import tracer
 
-    initial = _count_objects_of_type("Span")
+    refs: list[weakref.ReferenceType] = []
     gc_was_enabled = gc.isenabled()
     gc.disable()
     try:
@@ -1402,12 +1418,19 @@ def test_tracer_trace_meta_struct_cycle_is_collectable():
             span._set_struct_tag("self_ref", {"holder": cycle_list})
             cycle_list.append(span)
             span.finish()
+            refs.append(weakref.ref(span))
             del span
             del cycle_list
-        assert _count_objects_of_type("Span") - initial == N
-        freed = gc.collect()
-        assert freed > 0, "gc.collect freed nothing — Span/SpanData is not GC-tracked"
-        assert _count_objects_of_type("Span") == initial
+        # The context provider's contextvar still holds the last finished
+        # span; clear it so the only remaining strong references are the
+        # cycles we deliberately built.
+        tracer.context_provider.activate(None)
+        alive = sum(1 for r in refs if r() is not None)
+        assert alive == N, f"expected {N} live spans before gc, got {alive}"
+        gc.collect()
+        gc.collect()
+        alive = sum(1 for r in refs if r() is not None)
+        assert alive == 0, f"{alive}/{N} cyclic spans uncollectable after gc.collect"
     finally:
         if gc_was_enabled:
             gc.enable()
