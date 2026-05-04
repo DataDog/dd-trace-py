@@ -471,20 +471,17 @@ class TestLangGraphLLMObs:
         )
         spans = _collect_spans(test_spans)
 
-        # Filter to LLMObs-bearing spans (some APM-only spans may be present from langchain/openai patching)
+        # APM-only spans may be present from langchain/openai patching
         llmobs_spans = [s for s in spans if _get_llmobs_data_metastruct(s)]
         llmobs_spans.sort(key=lambda s: s.start_ns)
 
-        # Both langchain (ChatOpenAI) and openai chat spans are kind="llm" here (langchain stays
-        # is_workflow=False since the conftest patches openai via low-level patch(), which doesn't
-        # update _PATCHED_MODULES). Filter to innermost llm spans — openai dispatches LLM_TOOL_CHOICE
-        # / TOOL_CALL_OUTPUT_USED first, so the LinkTracker links land on the openai spans.
+        # LinkTracker (first-dispatcher-wins) attaches links to the innermost llm span
         llm_spans = [s for s in llmobs_spans if get_llmobs_span_kind(s) == "llm"]
         llm_parent_ids = {s.parent_id for s in llm_spans}
-        llm_spans = [s for s in llm_spans if s.span_id not in llm_parent_ids]
+        nested_llm_spans = [s for s in llm_spans if s.span_id not in llm_parent_ids]
         tool_spans = [s for s in llmobs_spans if get_llmobs_span_kind(s) == "tool"]
-        first_llm_span = llm_spans[0]
-        second_llm_span = llm_spans[1]
+        first_llm_span = nested_llm_spans[0]
+        second_llm_span = nested_llm_spans[1]
         tool_span = tool_spans[0]
 
         tool_links = get_llmobs_span_links(tool_span) or []
