@@ -391,6 +391,70 @@ def _find_dep_with_cve_in_extended(events, dep_name, cve_id):
     return None, None
 
 
+def _wait_for_extended_heartbeat_events(token, min_count=1, timeout=20.0, interval=0.5):
+    """Poll the test agent until ``min_count`` app-extended-heartbeat events have arrived.
+
+    Replaces fixed ``time.sleep`` waits so slow CI runners (where SCA-enabled
+    subprocess startup can eat several seconds) do not race the heartbeat
+    interval. Returns whatever events are available at timeout — callers must
+    still assert on the result.
+    """
+    deadline = time.monotonic() + timeout
+    events: list = []
+    while time.monotonic() < deadline:
+        events = _get_extended_heartbeat_events(token)
+        if len(events) >= min_count:
+            return events
+        time.sleep(interval)
+    return events
+
+
+def _wait_for_cve_reached_in_extended(token, dep_name, cve_id, timeout=20.0, interval=0.5):
+    """Poll until an extended-heartbeat carries ``cve_id`` on ``dep_name`` with a non-empty reached list.
+
+    A heartbeat that fires before the vulnerable call would snapshot the CVE
+    with ``reached=[]``; this waits for a tick that captures the populated
+    entry. Returns ``(events, dep, cve_value)``; ``dep``/``cve_value`` may be
+    ``None`` on timeout so the caller can produce a useful assertion message.
+    """
+    deadline = time.monotonic() + timeout
+    events: list = []
+    while time.monotonic() < deadline:
+        events = _get_extended_heartbeat_events(token)
+        dep, cve_value = _find_dep_with_cve_in_extended(events, dep_name, cve_id)
+        if dep is not None and cve_value and len(cve_value.get("reached", [])) >= 1:
+            return events, dep, cve_value
+        time.sleep(interval)
+    return events, None, None
+
+
+def _wait_for_extended_snapshot_covers_delta(token, timeout=20.0, interval=0.5):
+    """Poll until the latest extended-heartbeat snapshot is a superset of the delta channel.
+
+    Within a single ``periodic()`` tick, ``_report_dependencies`` (delta) and
+    ``_report_heartbeat`` (snapshot) hold the same DependencyTracker lock and
+    run sequentially, so the snapshot is at least as fresh as the delta. This
+    poll waits for at least one such tick to have fired AFTER the in-test
+    requests so the latest snapshot reflects every dep the deltas reported.
+
+    Returns ``(delta_events, extended_events)`` — possibly stale on timeout.
+    """
+    deadline = time.monotonic() + timeout
+    delta_events: list = []
+    extended_events: list = []
+    while time.monotonic() < deadline:
+        delta_events = _get_dependency_events(token)
+        extended_events = _get_extended_heartbeat_events(token)
+        if delta_events and extended_events:
+            delta_names = {d["name"] for d in _collect_all_deps(delta_events) if d.get("name")}
+            latest = extended_events[-1].get("payload", {}).get("dependencies", [])
+            latest_names = {d["name"] for d in latest if d.get("name")}
+            if delta_names and delta_names <= latest_names:
+                return delta_events, extended_events
+        time.sleep(interval)
+    return delta_events, extended_events
+
+
 class TestSCAFlaskExtendedHeartbeat:
     """SCA telemetry e2e tests asserting the app-extended-heartbeat payload.
 
@@ -412,9 +476,10 @@ class TestSCAFlaskExtendedHeartbeat:
             _, flask_client, pid = context
             response = flask_client.get("/", headers={"X-Datadog-Test-Session-Token": iast_test_token})
             assert response.status_code == 200
-            time.sleep(4)
+            # Wait for at least one extended-heartbeat tick — bounded poll
+            # avoids racing slow-CI startup against a fixed sleep window.
+            events = _wait_for_extended_heartbeat_events(iast_test_token, min_count=1, timeout=20.0)
 
-        events = _get_extended_heartbeat_events(iast_test_token)
         assert len(events) > 0, "No app-extended-heartbeat events found"
 
         # Configuration must always be present in the extended payload.
@@ -456,15 +521,14 @@ class TestSCAFlaskExtendedHeartbeat:
             response = flask_client.get("/sca-test-requests", headers={"X-Datadog-Test-Session-Token": iast_test_token})
             assert response.status_code == 200
 
-            # Allow at least one heartbeat tick AFTER the vulnerable call so the
-            # extended heartbeat payload re-snapshots tracked deps with the new
-            # metadata.
-            time.sleep(5)
+            # Wait for a heartbeat tick AFTER the vulnerable call that captures
+            # the populated reached entry. Polls instead of sleeping a fixed
+            # window so a slow CI runner doesn't miss the post-call tick.
+            events, dep, cve_value = _wait_for_cve_reached_in_extended(
+                iast_test_token, "requests", "CVE-2024-35195", timeout=20.0
+            )
 
-        events = _get_extended_heartbeat_events(iast_test_token)
         assert len(events) > 0, "No app-extended-heartbeat events found"
-
-        dep, cve_value = _find_dep_with_cve_in_extended(events, "requests", "CVE-2024-35195")
         assert dep is not None, (
             "CVE-2024-35195 not present in any app-extended-heartbeat dependency metadata. "
             f"Extended events: {json.dumps(events, indent=2)[:2000]}"
@@ -510,10 +574,12 @@ class TestSCAFlaskExtendedHeartbeat:
             response = flask_client.get("/sca-test-requests", headers={"X-Datadog-Test-Session-Token": iast_test_token})
             assert response.status_code == 200
 
-            time.sleep(5)
-
-        delta_events = _get_dependency_events(iast_test_token)
-        extended_events = _get_extended_heartbeat_events(iast_test_token)
+            # Poll for a heartbeat tick AFTER the request that already shows
+            # delta ⊆ latest extended snapshot. Within a tick, both reports run
+            # under the same DependencyTracker lock, so this is the natural
+            # synchronization point — superior to a fixed sleep that can miss
+            # the post-request tick on slow runners.
+            delta_events, extended_events = _wait_for_extended_snapshot_covers_delta(iast_test_token, timeout=20.0)
 
         assert len(delta_events) > 0, "No app-dependencies-loaded events to compare against"
         assert len(extended_events) > 0, "No app-extended-heartbeat events found"
