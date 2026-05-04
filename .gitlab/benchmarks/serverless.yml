@@ -1,5 +1,6 @@
 variables:
   SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
+  SLS_CI_BRANCH: onzia/support-release-branches
 
 benchmark-serverless:
   stage: benchmarks
@@ -23,4 +24,7 @@ benchmark-serverless:
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
     UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
     UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
+    # only available on Merge Requests
+    UPSTREAM_MERGE_TARGET_BRANCH: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    DD_TAGS: "SLS_CI_BRANCH:$SLS_CI_BRANCH"
 
