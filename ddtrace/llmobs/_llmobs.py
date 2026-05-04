@@ -125,6 +125,7 @@ from ddtrace.llmobs._prompt_optimization import validate_test_dataset
 from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
+from ddtrace.llmobs._unsampled import LLMObsUnsampledStripProcessor
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -841,6 +842,10 @@ class LLMObs(Service):
             # Add APM trace filter to drop all APM traces when DD_APM_TRACING_ENABLED is falsy
             apm_filter = APMTracingEnabledFilter()
             cls._instance.tracer._span_aggregator.dd_processors.append(apm_filter)
+
+            # Strip large LLMObs I/O from APM-attached meta_struct on traces APM sampling rejected,
+            # so the unsampled-LLMObs metrics path doesn't ship full prompts for spans that won't be indexed.
+            cls._instance.tracer._span_aggregator.post_sampling_processors.append(LLMObsUnsampledStripProcessor())
 
             cls.enabled = True
             # Align config._llmobs_enabled with effective state for user-initiated calls.

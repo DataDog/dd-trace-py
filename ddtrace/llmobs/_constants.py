@@ -71,6 +71,12 @@ EXPERIMENT_CSV_FIELD_MAX_SIZE = 10 * 1024 * 1024
 
 DROPPED_IO_COLLECTION_ERROR = "dropped_io"
 DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the 5MB size limit.]"
+DROPPED_IO_COLLECTION_ERROR_UNSAMPLED = "dropped_io_unsampled"
+# Tag surfaced into meta_struct["_llmobs"]["tags"] for spans the SDK shipped because the trace was APM-unsampled.
+# Read by the dd-go LLMObs trace-indexer to route the span through the metrics-only fast path. Per-span signal,
+# necessary because APM places _sampling_priority_v1 only on the local trace root and TSP fan-outs trace chunks
+# into individual span messages downstream.
+DD_LLMOBS_UNSAMPLED_TAG_KEY = "_dd.llmobs.unsampled"
 
 ROOT_PARENT_ID = "undefined"
 
