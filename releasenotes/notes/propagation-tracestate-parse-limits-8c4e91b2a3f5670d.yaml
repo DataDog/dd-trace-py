@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    propagation: Limits parsing of the W3C ``tracestate`` header during ``tracecontext`` extraction to 32
+    list-members and 512 UTF-8 bytes, consistent with the W3C Trace Context specification
+    (https://www.w3.org/TR/trace-context/). Extra list-members and trailing whole entries that would
+    exceed the byte budget are ignored, so unusually large headers no longer expand unbounded work
+    during extraction.

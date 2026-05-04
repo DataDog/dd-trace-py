@@ -19,10 +19,13 @@ from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ddtrace.internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
@@ -1115,6 +1118,47 @@ TRACECONTEXT_HEADERS_VALID_64_bit = {
 def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_priority_ts, expected_sampling_priority):
     traceparent_values = _TraceContext._get_sampling_priority(sampling_priority_tp, sampling_priority_ts)
     assert traceparent_values == expected_sampling_priority
+
+
+def test_tracecontext_get_context_truncates_tracestate_list_member_count():
+    many_members = ",".join("z%d=%d" % (i, i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS + 3))
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, many_members, {})
+    stored = ctx._meta[W3C_TRACESTATE_KEY]
+    assert stored.count(",") == DD_TRACE_TRACESTATE_MAX_ITEMS - 1
+    assert ("z%d=" % (DD_TRACE_TRACESTATE_MAX_ITEMS - 1)) in stored
+    assert ("z%d=" % DD_TRACE_TRACESTATE_MAX_ITEMS) not in stored
+
+
+def test_tracecontext_get_context_truncates_tracestate_byte_length():
+    short_dd = "dd=s:2;o:rum"
+    # First member (12 B) + comma + second must exceed DD_TRACE_TRACESTATE_MAX_BYTES so the second is dropped.
+    ys = DD_TRACE_TRACESTATE_MAX_BYTES - len(short_dd.encode("utf-8")) - 2
+    long_second = "b=" + ("y" * ys)
+    ts = short_dd + "," + long_second
+    assert len(ts.encode("utf-8")) > DD_TRACE_TRACESTATE_MAX_BYTES
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    assert ctx._meta[W3C_TRACESTATE_KEY] == short_dd
+    assert ctx.sampling_priority == 2
+
+
+def test_tracecontext_get_context_max_items_plus_one_each_max_bytes_plus_one():
+    """MAX_ITEMS+1 members each longer than MAX_BYTES: item cap then byte cap leaves nothing stored."""
+    member_len = DD_TRACE_TRACESTATE_MAX_BYTES + 1
+
+    def one_member(i: int) -> str:
+        prefix = "k%02d=" % i
+        pad = member_len - len(prefix.encode("utf-8"))
+        assert pad >= 0
+        return prefix + ("x" * pad)
+
+    members = [one_member(i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS + 1)]
+    for m in members:
+        assert len(m.encode("utf-8")) == member_len
+    ts = ",".join(members)
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    assert ctx._meta[W3C_TRACESTATE_KEY] == ""
+    assert ctx.sampling_priority == 1
+    assert ctx.dd_origin is None
 
 
 @pytest.mark.parametrize(

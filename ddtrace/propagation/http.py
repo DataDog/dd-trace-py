@@ -33,6 +33,8 @@ from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import BAGGAGE_TAG_PREFIX
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+from ..internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
+from ..internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -818,7 +820,25 @@ class _TraceContext:
         if ts:
             # whitespace is allowed, but whitespace to start or end values should be trimmed
             # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"
-            ts_l = [member.strip() for member in ts.split(",")]
+            members_stripped = [member.strip() for member in ts.split(",")]
+            if len(members_stripped) > DD_TRACE_TRACESTATE_MAX_ITEMS:
+                log.debug(
+                    "tracestate list-member count exceeds maximum (%d), truncating",
+                    DD_TRACE_TRACESTATE_MAX_ITEMS,
+                )
+                members_stripped = members_stripped[:DD_TRACE_TRACESTATE_MAX_ITEMS]
+            ts_l = []
+            total_bytes = 0
+            for member in members_stripped:
+                segment_len = len(member.encode("utf-8")) + (1 if ts_l else 0)
+                if total_bytes + segment_len > DD_TRACE_TRACESTATE_MAX_BYTES:
+                    log.debug(
+                        "tracestate byte length exceeds maximum (%d), truncating whole entries",
+                        DD_TRACE_TRACESTATE_MAX_BYTES,
+                    )
+                    break
+                ts_l.append(member)
+                total_bytes += segment_len
             ts = ",".join(ts_l)
             # the value MUST contain only ASCII characters in the
             # range of 0x20 to 0x7E

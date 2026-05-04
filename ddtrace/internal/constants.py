@@ -102,6 +102,11 @@ DD_TRACE_BAGGAGE_MAX_ITEMS = 64
 DD_TRACE_BAGGAGE_MAX_BYTES = 8192
 BAGGAGE_TAG_PREFIX = "baggage."
 
+# W3C Trace Context tracestate (https://www.w3.org/TR/trace-context/):
+# max 32 list-members; vendors SHOULD propagate at least 512 characters (we cap parsing to that size).
+DD_TRACE_TRACESTATE_MAX_ITEMS = 32
+DD_TRACE_TRACESTATE_MAX_BYTES = 512
+
 SPAN_EVENTS_HAS_EXCEPTION = "_dd.span_events.has_exception"
 COLLECTOR_MAX_SIZE_PER_SPAN = 100
 
