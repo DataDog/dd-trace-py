@@ -1,0 +1,572 @@
+{
+  "integrations": [
+    {
+      "integration_name": "aiobotocore",
+      "dependency_names": [
+        "aiobotocore"
+      ]
+    },
+    {
+      "integration_name": "aiohttp",
+      "dependency_names": [
+        "aiohttp"
+      ]
+    },
+    {
+      "integration_name": "aiohttp_jinja2",
+      "dependency_names": [
+        "aiohttp-jinja2",
+        "aiohttp_jinja2"
+      ]
+    },
+    {
+      "integration_name": "aiokafka",
+      "dependency_names": [
+        "aiokafka"
+      ]
+    },
+    {
+      "integration_name": "aiomysql",
+      "dependency_names": [
+        "aiomysql"
+      ]
+    },
+    {
+      "integration_name": "aiopg",
+      "dependency_names": [
+        "aiopg"
+      ]
+    },
+    {
+      "integration_name": "algoliasearch",
+      "dependency_names": [
+        "algoliasearch"
+      ]
+    },
+    {
+      "integration_name": "anthropic",
+      "dependency_names": [
+        "anthropic"
+      ]
+    },
+    {
+      "integration_name": "aredis",
+      "dependency_names": [
+        "aredis"
+      ]
+    },
+    {
+      "integration_name": "asyncpg",
+      "dependency_names": [
+        "asyncpg"
+      ]
+    },
+    {
+      "integration_name": "avro",
+      "dependency_names": [
+        "avro"
+      ]
+    },
+    {
+      "integration_name": "aws_lambda",
+      "dependency_names": [
+        "datadog-lambda",
+        "datadog_lambda"
+      ]
+    },
+    {
+      "integration_name": "azure_cosmos",
+      "dependency_names": [
+        "azure-cosmos"
+      ]
+    },
+    {
+      "integration_name": "azure_durable_functions",
+      "dependency_names": [
+        "azure-functions",
+        "azure-functions-durable"
+      ]
+    },
+    {
+      "integration_name": "azure_eventhubs",
+      "dependency_names": [
+        "azure-eventhub"
+      ]
+    },
+    {
+      "integration_name": "azure_functions",
+      "dependency_names": [
+        "azure-functions"
+      ]
+    },
+    {
+      "integration_name": "azure_servicebus",
+      "dependency_names": [
+        "azure-servicebus"
+      ]
+    },
+    {
+      "integration_name": "boto",
+      "dependency_names": [
+        "boto"
+      ]
+    },
+    {
+      "integration_name": "botocore",
+      "dependency_names": [
+        "boto3",
+        "botocore"
+      ]
+    },
+    {
+      "integration_name": "bottle",
+      "dependency_names": [
+        "bottle"
+      ]
+    },
+    {
+      "integration_name": "celery",
+      "dependency_names": [
+        "celery"
+      ]
+    },
+    {
+      "integration_name": "cherrypy",
+      "dependency_names": [
+        "cherrypy"
+      ]
+    },
+    {
+      "integration_name": "claude_agent_sdk",
+      "dependency_names": [
+        "claude-agent-sdk"
+      ]
+    },
+    {
+      "integration_name": "consul",
+      "dependency_names": [
+        "python-consul"
+      ]
+    },
+    {
+      "integration_name": "coverage",
+      "dependency_names": [
+        "coverage"
+      ]
+    },
+    {
+      "integration_name": "crewai",
+      "dependency_names": [
+        "crewai"
+      ]
+    },
+    {
+      "integration_name": "django",
+      "dependency_names": [
+        "django"
+      ]
+    },
+    {
+      "integration_name": "dogpile_cache",
+      "dependency_names": [
+        "dogpile-cache",
+        "dogpile.cache",
+        "dogpile_cache"
+      ]
+    },
+    {
+      "integration_name": "dramatiq",
+      "dependency_names": [
+        "dramatiq"
+      ]
+    },
+    {
+      "integration_name": "elasticsearch",
+      "dependency_names": [
+        "elastic-transport",
+        "elasticsearch",
+        "elasticsearch1",
+        "elasticsearch2",
+        "elasticsearch5",
+        "elasticsearch6",
+        "elasticsearch7",
+        "opensearch-py"
+      ]
+    },
+    {
+      "integration_name": "falcon",
+      "dependency_names": [
+        "falcon"
+      ]
+    },
+    {
+      "integration_name": "fastapi",
+      "dependency_names": [
+        "fastapi"
+      ]
+    },
+    {
+      "integration_name": "flask",
+      "dependency_names": [
+        "flask"
+      ]
+    },
+    {
+      "integration_name": "flask_cache",
+      "dependency_names": [
+        "flask-cache",
+        "flask-caching"
+      ]
+    },
+    {
+      "integration_name": "gevent",
+      "dependency_names": [
+        "gevent"
+      ]
+    },
+    {
+      "integration_name": "google_adk",
+      "dependency_names": [
+        "google-adk"
+      ]
+    },
+    {
+      "integration_name": "google_cloud_pubsub",
+      "dependency_names": [
+        "google-cloud-pubsub"
+      ]
+    },
+    {
+      "integration_name": "google_genai",
+      "dependency_names": [
+        "google-genai"
+      ]
+    },
+    {
+      "integration_name": "graphql",
+      "dependency_names": [
+        "graphql-core"
+      ]
+    },
+    {
+      "integration_name": "grpc",
+      "dependency_names": [
+        "grpcio"
+      ]
+    },
+    {
+      "integration_name": "gunicorn",
+      "dependency_names": [
+        "gunicorn"
+      ]
+    },
+    {
+      "integration_name": "httpx",
+      "dependency_names": [
+        "httpx"
+      ]
+    },
+    {
+      "integration_name": "jinja2",
+      "dependency_names": [
+        "jinja2"
+      ]
+    },
+    {
+      "integration_name": "kafka",
+      "dependency_names": [
+        "confluent-kafka"
+      ]
+    },
+    {
+      "integration_name": "kombu",
+      "dependency_names": [
+        "kombu"
+      ]
+    },
+    {
+      "integration_name": "langchain",
+      "dependency_names": [
+        "langchain-core"
+      ]
+    },
+    {
+      "integration_name": "langgraph",
+      "dependency_names": [
+        "langgraph",
+        "langgraph-checkpoint",
+        "langgraph-prebuilt"
+      ]
+    },
+    {
+      "integration_name": "litellm",
+      "dependency_names": [
+        "litellm"
+      ]
+    },
+    {
+      "integration_name": "llama_index",
+      "dependency_names": [
+        "llama-index",
+        "llama-index-core",
+        "llama_index"
+      ]
+    },
+    {
+      "integration_name": "logbook",
+      "dependency_names": [
+        "logbook"
+      ]
+    },
+    {
+      "integration_name": "loguru",
+      "dependency_names": [
+        "loguru"
+      ]
+    },
+    {
+      "integration_name": "mako",
+      "dependency_names": [
+        "mako"
+      ]
+    },
+    {
+      "integration_name": "mariadb",
+      "dependency_names": [
+        "mariadb"
+      ]
+    },
+    {
+      "integration_name": "mcp",
+      "dependency_names": [
+        "mcp"
+      ]
+    },
+    {
+      "integration_name": "mlflow",
+      "dependency_names": [
+        "mlflow",
+        "mlflow-skinny",
+        "mlflow-tracing"
+      ]
+    },
+    {
+      "integration_name": "molten",
+      "dependency_names": [
+        "molten"
+      ]
+    },
+    {
+      "integration_name": "mysql",
+      "dependency_names": [
+        "mysql-connector-python"
+      ]
+    },
+    {
+      "integration_name": "mysqldb",
+      "dependency_names": [
+        "mysqlclient"
+      ]
+    },
+    {
+      "integration_name": "openai",
+      "dependency_names": [
+        "openai"
+      ]
+    },
+    {
+      "integration_name": "openai_agents",
+      "dependency_names": [
+        "openai-agents"
+      ]
+    },
+    {
+      "integration_name": "protobuf",
+      "dependency_names": [
+        "protobuf"
+      ]
+    },
+    {
+      "integration_name": "psycopg",
+      "dependency_names": [
+        "psycopg",
+        "psycopg2-binary"
+      ]
+    },
+    {
+      "integration_name": "pydantic_ai",
+      "dependency_names": [
+        "pydantic-ai-slim"
+      ]
+    },
+    {
+      "integration_name": "pylibmc",
+      "dependency_names": [
+        "pylibmc"
+      ]
+    },
+    {
+      "integration_name": "pymemcache",
+      "dependency_names": [
+        "pymemcache"
+      ]
+    },
+    {
+      "integration_name": "pymongo",
+      "dependency_names": [
+        "pymongo"
+      ]
+    },
+    {
+      "integration_name": "pymysql",
+      "dependency_names": [
+        "pymysql"
+      ]
+    },
+    {
+      "integration_name": "pynamodb",
+      "dependency_names": [
+        "pynamodb"
+      ]
+    },
+    {
+      "integration_name": "pyodbc",
+      "dependency_names": [
+        "pyodbc"
+      ]
+    },
+    {
+      "integration_name": "pyramid",
+      "dependency_names": [
+        "pyramid"
+      ]
+    },
+    {
+      "integration_name": "pytest",
+      "dependency_names": [
+        "pytest"
+      ]
+    },
+    {
+      "integration_name": "pytest_bdd",
+      "dependency_names": [
+        "pytest-bdd"
+      ]
+    },
+    {
+      "integration_name": "pytest_benchmark",
+      "dependency_names": [
+        "pytest_benchmark"
+      ]
+    },
+    {
+      "integration_name": "ray",
+      "dependency_names": [
+        "ray"
+      ]
+    },
+    {
+      "integration_name": "redis",
+      "dependency_names": [
+        "redis"
+      ]
+    },
+    {
+      "integration_name": "rediscluster",
+      "dependency_names": [
+        "redis-py-cluster"
+      ]
+    },
+    {
+      "integration_name": "requests",
+      "dependency_names": [
+        "requests"
+      ]
+    },
+    {
+      "integration_name": "rq",
+      "dependency_names": [
+        "rq"
+      ]
+    },
+    {
+      "integration_name": "sanic",
+      "dependency_names": [
+        "sanic"
+      ]
+    },
+    {
+      "integration_name": "selenium",
+      "dependency_names": [
+        "selenium"
+      ]
+    },
+    {
+      "integration_name": "snowflake",
+      "dependency_names": [
+        "snowflake-connector-python"
+      ]
+    },
+    {
+      "integration_name": "sqlalchemy",
+      "dependency_names": [
+        "sqlalchemy"
+      ]
+    },
+    {
+      "integration_name": "starlette",
+      "dependency_names": [
+        "starlette"
+      ]
+    },
+    {
+      "integration_name": "structlog",
+      "dependency_names": [
+        "structlog"
+      ]
+    },
+    {
+      "integration_name": "tornado",
+      "dependency_names": [
+        "tornado"
+      ]
+    },
+    {
+      "integration_name": "urllib3",
+      "dependency_names": [
+        "urllib3"
+      ]
+    },
+    {
+      "integration_name": "valkey",
+      "dependency_names": [
+        "valkey"
+      ]
+    },
+    {
+      "integration_name": "vertexai",
+      "dependency_names": [
+        "google-cloud-aiplatform",
+        "vertexai"
+      ]
+    },
+    {
+      "integration_name": "vertica",
+      "dependency_names": [
+        "vertica-python"
+      ]
+    },
+    {
+      "integration_name": "vllm",
+      "dependency_names": [
+        "vllm"
+      ]
+    },
+    {
+      "integration_name": "yaaredis",
+      "dependency_names": [
+        "yaaredis"
+      ]
+    }
+  ]
+}
