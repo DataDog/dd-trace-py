@@ -228,6 +228,60 @@ macrobenchmarks:
     - when: manual
       allow_failure: true
 
+# Side-by-side profile comparison: triggers dd-trace-doe twice in parallel,
+# once with the merge-base of origin/main as LIBRARY_VERSION (baseline) and
+# once with the current commit (candidate). Each downstream pipeline runs the
+# `benchmark-profiling-remote` matrix and then posts its own half of the
+# comparison as a PR comment via dd-trace-doe's `sxs-report-half` job.
+# Click `doe-sxs-prep` from the GitLab UI to start the workflow.
+# JIRA: PROF-14016.
+doe-sxs-prep:
+  stage: benchmarks
+  tags: ["arch:amd64"]
+  rules:
+    - when: manual
+      allow_failure: true
+  script:
+    - git fetch origin main --depth=200
+    - echo "BASELINE_SHA=$(git merge-base origin/main HEAD)" > sxs.env
+    - echo "CANDIDATE_SHA=${CI_COMMIT_SHA}" >> sxs.env
+    - cat sxs.env
+  artifacts:
+    reports:
+      dotenv: sxs.env
+
+# UPSTREAM_COMMIT_SHA + UPSTREAM_REPO + SXS_SIDE are consumed by dd-trace-doe's
+# `sxs-report-half` job, which posts this side's `doe report --markdown` table
+# back to this PR. The two trigger jobs below each cause one comment to land,
+# under header "SxS profile comparison (baseline)" / "...(candidate)".
+doe-sxs-baseline:
+  stage: benchmarks
+  needs: [doe-sxs-prep]
+  trigger:
+    project: DataDog/apm-reliability/dd-trace-doe
+    branch: main
+    strategy: depend
+  variables:
+    LANGUAGE: python
+    LIBRARY_VERSION: $BASELINE_SHA
+    UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA
+    UPSTREAM_REPO: DataDog/dd-trace-py
+    SXS_SIDE: baseline
+
+doe-sxs-candidate:
+  stage: benchmarks
+  needs: [doe-sxs-prep]
+  trigger:
+    project: DataDog/apm-reliability/dd-trace-doe
+    branch: main
+    strategy: depend
+  variables:
+    LANGUAGE: python
+    LIBRARY_VERSION: $CANDIDATE_SHA
+    UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA
+    UPSTREAM_REPO: DataDog/dd-trace-py
+    SXS_SIDE: candidate
+
 check_new_flaky_tests:
   stage: tests
   needs: ["run-tests-trigger"]
