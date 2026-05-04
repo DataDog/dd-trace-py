@@ -58,6 +58,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
+from ddtrace.llmobs._constants import EXPERIMENT_DATASET_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_DATASET_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_NAME_KEY
@@ -460,6 +461,12 @@ class LLMObs(Service):
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
         self._export_directly_to_llmobs = _env.get("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
+        # Test-only: when set, _on_span_finish skips the meta_struct["_llmobs"] scrub
+        # so spans captured by tests' DummyWriter retain LLMObsSpanData for assertion.
+        # Set by integration test conftests via the _DD_LLMOBS_TEST_KEEP_META_STRUCT env
+        # var. Remove once agent-mode also stops scrubbing meta_struct (post APM/LLMObs
+        # convergence rollout).
+        self._test_mode_keep_meta_struct = asbool(_env.get("_DD_LLMOBS_TEST_KEEP_META_STRUCT", False))
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
@@ -526,7 +533,8 @@ class LLMObs(Service):
         if self._export_directly_to_llmobs:
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
-            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            if not self._test_mode_keep_meta_struct:
+                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
@@ -1934,6 +1942,7 @@ class LLMObs(Service):
             (EXPERIMENT_RUN_ID_KEY, "run_id"),
             (EXPERIMENT_RUN_ITERATION_KEY, "run_iteration"),
             (EXPERIMENT_DATASET_NAME_KEY, "dataset_name"),
+            (EXPERIMENT_DATASET_ID_KEY, "dataset_id"),
             (EXPERIMENT_PROJECT_ID_KEY, "project_id"),
             (EXPERIMENT_PROJECT_NAME_KEY, "project_name"),
             (EXPERIMENT_NAME_KEY, "experiment_name"),
@@ -2226,6 +2235,7 @@ class LLMObs(Service):
         run_id: Optional[str] = None,
         run_iteration: Optional[int] = None,
         dataset_name: Optional[str] = None,
+        dataset_id: Optional[str] = None,
         project_name: Optional[str] = None,
         project_id: Optional[str] = None,
         experiment_name: Optional[str] = None,
@@ -2257,6 +2267,9 @@ class LLMObs(Service):
         if dataset_name:
             span.context.set_baggage_item(EXPERIMENT_DATASET_NAME_KEY, dataset_name)
             _annotate_llmobs_span_data(span, tags={"dataset_name": dataset_name})
+        if dataset_id:
+            span.context.set_baggage_item(EXPERIMENT_DATASET_ID_KEY, dataset_id)
+            _annotate_llmobs_span_data(span, tags={"dataset_id": dataset_id})
         if project_id:
             span.context.set_baggage_item(EXPERIMENT_PROJECT_ID_KEY, project_id)
             _annotate_llmobs_span_data(span, tags={"project_id": project_id})

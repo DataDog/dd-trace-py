@@ -14,6 +14,7 @@ except ImportError:
 
 import ddtrace
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
@@ -1043,3 +1044,98 @@ async def anext_stream(stream):
             await stream.__anext__()
         except StopAsyncIteration:
             break
+
+
+def assert_llmobs_span_data(
+    actual,
+    *,
+    span_kind,
+    name=None,
+    parent_id=None,
+    model_name=None,
+    model_provider=None,
+    input_messages=None,
+    input_value=None,
+    output_messages=None,
+    output_value=None,
+    input_documents=None,
+    output_documents=None,
+    error=None,
+    tool_definitions=None,
+    metadata=None,
+    tags=None,
+    metrics=None,
+):
+    """Assert against an LLMObsSpanData payload from ``meta_struct['_llmobs']``.
+
+    Structural fields (``span_kind``, ``name``, ``parent_id``, ``model_name``,
+    ``model_provider``, input/output messages/values/documents, ``error``,
+    ``tool_definitions``) are strict-equality, checked only when provided.
+
+    ``metadata``, ``tags``, ``metrics`` are top-level subset only: declared
+    top-level keys must equal exactly, extras tolerated. Nested values compare
+    via ``==`` (no recursion) — pinning ``metadata={"_dd": {...}}`` requires
+    the full ``_dd`` dict to match. The ``_dd`` block lives under
+    ``metadata._dd``; pass via ``metadata``.
+    """
+    # If meta_struct is empty there's nothing else to assert against; fail fast with a
+    # clear hint about the most common cause.
+    assert actual, "expected LLMObsSpanData on span, got {!r} (was meta_struct scrubbed?)".format(actual)
+
+    actual_meta = actual.get(LLMOBS_STRUCT.META, {})
+    actual_input = actual_meta.get(LLMOBS_STRUCT.INPUT, {})
+    actual_output = actual_meta.get(LLMOBS_STRUCT.OUTPUT, {})
+
+    failures = []
+
+    def _check_eq(label, expected_value, actual_value):
+        if actual_value != expected_value:
+            failures.append(
+                "{} mismatch:\n    expected={!r}\n    actual={!r}".format(label, expected_value, actual_value)
+            )
+
+    def _check_subset(label, expected_subset, actual_dict):
+        if not expected_subset.items() <= actual_dict.items():
+            failures.append(
+                "{} subset mismatch:\n    expected={!r}\n    actual={!r}".format(label, expected_subset, actual_dict)
+            )
+
+    # Structural — strict equality on each declared field.
+    _check_eq("span.kind", span_kind, actual_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND))
+    if name is not None:
+        _check_eq("name", name, actual.get(LLMOBS_STRUCT.NAME))
+    if parent_id is not None:
+        _check_eq("parent_id", parent_id, actual.get(LLMOBS_STRUCT.PARENT_ID))
+    if model_name is not None:
+        _check_eq("meta.model_name", model_name, actual_meta.get(LLMOBS_STRUCT.MODEL_NAME))
+    if model_provider is not None:
+        _check_eq("meta.model_provider", model_provider, actual_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER))
+    if input_messages is not None:
+        _check_eq("meta.input.messages", input_messages, actual_input.get(LLMOBS_STRUCT.MESSAGES))
+    if input_value is not None:
+        _check_eq("meta.input.value", input_value, actual_input.get(LLMOBS_STRUCT.VALUE))
+    if input_documents is not None:
+        _check_eq("meta.input.documents", input_documents, actual_input.get(LLMOBS_STRUCT.DOCUMENTS))
+    if output_messages is not None:
+        _check_eq("meta.output.messages", output_messages, actual_output.get(LLMOBS_STRUCT.MESSAGES))
+    if output_value is not None:
+        _check_eq("meta.output.value", output_value, actual_output.get(LLMOBS_STRUCT.VALUE))
+    if output_documents is not None:
+        _check_eq("meta.output.documents", output_documents, actual_output.get(LLMOBS_STRUCT.DOCUMENTS))
+    if error is not None:
+        _check_eq("meta.error", error, actual_meta.get(LLMOBS_STRUCT.ERROR))
+    if tool_definitions is not None:
+        _check_eq("meta.tool_definitions", tool_definitions, actual_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS))
+
+    # Subset (shallow) — extra keys tolerated, declared keys must match exactly.
+    if metadata is not None:
+        _check_subset("meta.metadata", metadata, actual_meta.get(LLMOBS_STRUCT.METADATA, {}))
+    if tags is not None:
+        _check_subset("tags", tags, actual.get(LLMOBS_STRUCT.TAGS, {}))
+    if metrics is not None:
+        _check_subset("metrics", metrics, actual.get(LLMOBS_STRUCT.METRICS, {}))
+
+    if failures:
+        raise AssertionError(
+            "assert_llmobs_span_data found {} mismatch(es):\n  - {}".format(len(failures), "\n  - ".join(failures))
+        )
