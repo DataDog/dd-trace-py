@@ -714,6 +714,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_confi
             span,
             int_config.myint,
             request_headers={"x-real-ip": "8.8.8.8"},
+            peer_ip="9.9.9.9",
         )
         result_keys = list(span.get_tags().keys())
         result_keys.sort(reverse=True)
@@ -728,6 +729,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
             span,
             int_config.myint,
             request_headers={"x-real-ip": "8.8.8.8"},
+            peer_ip="9.9.9.9",
         )
         result_keys = list(span.get_tags().keys())
         result_keys.sort(reverse=True)
@@ -742,11 +744,13 @@ def test_set_http_meta_headers_ip_asm_disabled_env_true(span, int_config):
             span,
             int_config.myint,
             request_headers={"x-real-ip": "8.8.8.8"},
+            peer_ip="9.9.9.9",
         )
         result_keys = list(span.get_tags().keys())
         result_keys.sort(reverse=True)
         assert result_keys == ["runtime-id", "network.client.ip", http.CLIENT_IP, _SERVICE_SOURCE]
         assert span.get_tag(http.CLIENT_IP) == "8.8.8.8"
+        assert span.get_tag("network.client.ip") == "9.9.9.9"
 
 
 def test_ip_subnet_regression():

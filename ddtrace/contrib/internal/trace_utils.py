@@ -509,7 +509,9 @@ def set_http_meta(
 
         if request_ip:
             span._set_attribute(http.CLIENT_IP, request_ip)
-            span._set_attribute("network.client.ip", request_ip)
+
+        if peer_ip:
+            span._set_attribute("network.client.ip", peer_ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(response_headers, span, integration_config)
