@@ -2944,10 +2944,10 @@ class SyncExperiment:
     def __init__(
         self,
         name: str,
-        task: Optional[Union[TaskType, AsyncTaskType]] = None,
-        dataset: Optional[Dataset] = None,
-        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]] = (),
-        project_name: str = "",
+        task: Union[TaskType, AsyncTaskType],
+        dataset: Dataset,
+        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
+        project_name: str,
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
@@ -3057,6 +3057,22 @@ class SyncExperiment:
     @property
     def url(self) -> str:
         return self._experiment.url
+
+    @property
+    def name(self) -> str:
+        return self._experiment.name
+
+    @property
+    def _id(self) -> Optional[str]:
+        return self._experiment._id
+
+    @property
+    def _project_id(self) -> Optional[str]:
+        return self._experiment._project_id
+
+    @property
+    def _dataset_id(self) -> Optional[str]:
+        return self._experiment._dataset_id
 
 
 def _get_base_url() -> str:

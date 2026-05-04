@@ -971,11 +971,12 @@ class LLMObs(Service):
         return ds
 
     @classmethod
-    def pull_experiment(cls, experiment_id: str) -> Experiment:
-        """Fetch a previously-run experiment by ID and return an ``Experiment`` whose ``.result`` is populated.
+    def pull_experiment(cls, experiment_id: str) -> SyncExperiment:
+        """Fetch a previously-run experiment by ID and return a ``SyncExperiment`` whose ``.result`` is populated.
 
-        The returned experiment has ``task=None`` and ``dataset=None``. It is intended as input to
-        ``rerun_evaluators()``; calling ``run()`` on it will raise (task and dataset are required to run).
+        The returned object has no task or dataset attached. Call ``rerun_evaluators()`` on it to
+        re-score the stored results with new or updated evaluators without re-executing the original task.
+        Calling ``run()`` on the returned object will raise because task and dataset are required for that.
 
         :param experiment_id: UUID of an experiment that has already been run.
         :raises ValueError: if LLMObs is not enabled or the backend call fails.
@@ -993,7 +994,7 @@ class LLMObs(Service):
         project_name = experiment_meta._project_name or cls._project_name or "default"
         dataset_id = experiment_meta._dataset._id if experiment_meta._dataset is not None else None
 
-        exp = Experiment(
+        inner_exp = Experiment(
             name=experiment_meta.name,
             task=None,
             dataset=None,
@@ -1001,11 +1002,14 @@ class LLMObs(Service):
             project_name=project_name,
             _llmobs_instance=cls._instance,
         )
-        exp._id = str(experiment_id)
-        exp._project_id = experiment_meta._project_id
-        exp._dataset_id = dataset_id
-        exp.result = result
-        return exp
+        inner_exp._id = str(experiment_id)
+        inner_exp._project_id = experiment_meta._project_id
+        inner_exp._dataset_id = dataset_id
+
+        pulled = SyncExperiment.__new__(SyncExperiment)
+        pulled._experiment = inner_exp
+        pulled.result = result
+        return pulled
 
     @classmethod
     def create_dataset(
@@ -1317,9 +1321,9 @@ class LLMObs(Service):
     def experiment(
         cls,
         name: str,
-        task: Optional[TaskType] = None,
-        dataset: Optional[Dataset] = None,
-        evaluators: Sequence[EvaluatorType] = (),
+        task: TaskType,
+        dataset: Dataset,
+        evaluators: Sequence[EvaluatorType],
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
@@ -1331,9 +1335,7 @@ class LLMObs(Service):
 
         :param name: The name of the experiment.
         :param task: The task function to run. Must accept parameters ``input_data`` and ``config``.
-                     Optional — omit only when using ``LLMObs.pull_experiment()`` + ``rerun_evaluators()`` workflows.
         :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
-                        Optional — omit only when using ``LLMObs.pull_experiment()`` + ``rerun_evaluators()`` workflows.
         :param evaluators: A list of evaluator functions or BaseEvaluator instances to evaluate the task output.
                            Function-based evaluators must accept parameters ``input_data``, ``output_data``,
                            and ``expected_output``.
@@ -1351,9 +1353,8 @@ class LLMObs(Service):
         :param runs: The number of times to run the experiment, or, run the task for every dataset record the defined
                      number of times.
         """
-        if task is not None:
-            _validate_task_signature(task, is_async=False)
-        if dataset is not None and not isinstance(dataset, Dataset):
+        _validate_task_signature(task, is_async=False)
+        if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
         if not evaluators:
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
@@ -1412,9 +1413,9 @@ class LLMObs(Service):
     def async_experiment(
         cls,
         name: str,
-        task: Optional[AsyncTaskType] = None,
-        dataset: Optional[Dataset] = None,
-        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]] = (),
+        task: AsyncTaskType,
+        dataset: Dataset,
+        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
@@ -1449,9 +1450,8 @@ class LLMObs(Service):
                                    BaseAsyncSummaryEvaluator and implement the evaluate method.
         :param runs: The number of times to run the experiment.
         """
-        if task is not None:
-            _validate_task_signature(task, is_async=True)
-        if dataset is not None and not isinstance(dataset, Dataset):
+        _validate_task_signature(task, is_async=True)
+        if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
         if not evaluators:
             raise TypeError(
@@ -1553,7 +1553,8 @@ class LLMObs(Service):
             raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`")
         experiment = cls._instance._dne_client.experiment_get(experiment_id)
         experiment._llmobs_instance = cls._instance
-        assert experiment._dataset is not None  # nosec B101
+        if experiment._dataset is None:
+            raise ValueError("Cannot run experiment: dataset is not available.")
         experiment._dataset._records = dataset_records
         experiment._task = task
         experiment._evaluators = evaluators

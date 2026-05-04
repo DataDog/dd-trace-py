@@ -5043,6 +5043,36 @@ MOCK_PULL_RESPONSE = {
 }
 
 
+def _make_pulled_experiment(
+    llmobs,
+    name="test_experiment",
+    exp_id="mock-original-exp-id",
+    project_id="mock-project-id",
+    dataset_id="mock-dataset-id",
+    project_name="my-project",
+    evaluators=None,
+    summary_evaluators=None,
+):
+    """Build a SyncExperiment as returned by LLMObs.pull_experiment() without backend calls."""
+    from ddtrace.llmobs._experiment import Experiment
+    from ddtrace.llmobs._experiment import SyncExperiment
+
+    inner = Experiment(
+        name=name,
+        project_name=project_name,
+        evaluators=evaluators or [],
+        summary_evaluators=summary_evaluators,
+        _llmobs_instance=llmobs._instance,
+    )
+    inner._id = exp_id
+    inner._project_id = project_id
+    inner._dataset_id = dataset_id
+    pulled = SyncExperiment.__new__(SyncExperiment)
+    pulled._experiment = inner
+    pulled.result = None
+    return pulled
+
+
 def _mock_experiment_meta(
     name="test-exp",
     project_name="mock-project-name",
@@ -5060,8 +5090,8 @@ def _mock_experiment_meta(
 
 
 def test_pull_experiment_by_id(llmobs):
-    """pull_experiment() calls experiment_get and experiment_events_get, returns populated Experiment."""
-    from ddtrace.llmobs._experiment import Experiment
+    """pull_experiment() calls experiment_get and experiment_events_get, returns populated SyncExperiment."""
+    from ddtrace.llmobs._experiment import SyncExperiment
 
     with (
         mock.patch.object(
@@ -5075,7 +5105,7 @@ def test_pull_experiment_by_id(llmobs):
 
     mock_meta.assert_called_once_with("mock-experiment-id")
     mock_events.assert_called_once_with(experiment_id="mock-experiment-id")
-    assert isinstance(exp, Experiment)
+    assert isinstance(exp, SyncExperiment)
     assert exp.result is not None
     assert exp._id == "mock-experiment-id"
     assert exp.name == "test-exp"
@@ -5135,7 +5165,7 @@ def test_pull_experiment_requires_id(llmobs):
 
 
 def test_run_without_task_raises(llmobs):
-    """Calling run() on an experiment without task/dataset must raise ValueError."""
-    exp = llmobs.experiment("test_experiment", evaluators=[dummy_evaluator], project_name="my-project")
+    """Calling run() on a pulled experiment (no task/dataset) must raise ValueError."""
+    exp = _make_pulled_experiment(llmobs, evaluators=[dummy_evaluator])
     with pytest.raises(ValueError, match="task and dataset are required to run an experiment from scratch"):
         exp.run()
