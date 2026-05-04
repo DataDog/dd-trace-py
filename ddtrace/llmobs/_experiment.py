@@ -1306,6 +1306,8 @@ def _parse_experiment_result(response: dict) -> "ExperimentResult":
                 "type": metric_type,
                 "reasoning": em.get("reasoning"),
                 "assessment": em.get("assessment"),
+                "status": em.get("status"),
+                "error": em.get("error"),
             }
 
         # Normalise error: the API returns an empty dict {} when there is no error.
@@ -1354,6 +1356,8 @@ def _parse_experiment_result(response: dict) -> "ExperimentResult":
             "type": metric_type,
             "reasoning": sm.get("reasoning"),
             "assessment": sm.get("assessment"),
+            "status": sm.get("status"),
+            "error": sm.get("error"),
         }
 
     run_info = _ExperimentRunInfo(run_interation=0)
@@ -2205,9 +2209,8 @@ class Experiment:
         if self._task is None or self._dataset is None:
             raise ValueError(
                 "task and dataset are required to run an experiment from scratch. "
-                "Either provide them when creating the experiment, or use "
-                "`LLMObs.pull_experiment(experiment_id)` and call "
-                "`rerun_evaluators()` to re-score the stored results."
+                "Provide them when creating the experiment, or use "
+                "`LLMObs.pull_experiment(experiment_id)` to load a previously-run experiment."
             )
 
         self._setup_experiment(

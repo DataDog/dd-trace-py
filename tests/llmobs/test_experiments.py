@@ -4963,10 +4963,38 @@ def test_parse_experiment_result_all_metric_types():
 
     result = _parse_experiment_result(response)
     evals = result["runs"][0].rows[0]["evaluations"]
-    assert evals["score_metric"] == {"value": 0.95, "type": "score", "reasoning": None, "assessment": None}
-    assert evals["bool_metric"] == {"value": False, "type": "boolean", "reasoning": None, "assessment": None}
-    assert evals["cat_metric"] == {"value": "good", "type": "categorical", "reasoning": None, "assessment": None}
-    assert evals["json_metric"] == {"value": {"k": "v"}, "type": "json", "reasoning": None, "assessment": None}
+    assert evals["score_metric"] == {
+        "value": 0.95,
+        "type": "score",
+        "reasoning": None,
+        "assessment": None,
+        "status": None,
+        "error": None,
+    }
+    assert evals["bool_metric"] == {
+        "value": False,
+        "type": "boolean",
+        "reasoning": None,
+        "assessment": None,
+        "status": None,
+        "error": None,
+    }
+    assert evals["cat_metric"] == {
+        "value": "good",
+        "type": "categorical",
+        "reasoning": None,
+        "assessment": None,
+        "status": None,
+        "error": None,
+    }
+    assert evals["json_metric"] == {
+        "value": {"k": "v"},
+        "type": "json",
+        "reasoning": None,
+        "assessment": None,
+        "status": None,
+        "error": None,
+    }
 
 
 def test_parse_experiment_result_summary_metrics():
@@ -4990,9 +5018,70 @@ def test_parse_experiment_result_summary_metrics():
 
     result = _parse_experiment_result(response)
     summary_evals = result["runs"][0].summary_evaluations
-    assert summary_evals["overall_score"] == {"value": 0.88, "type": "score", "reasoning": None, "assessment": None}
-    assert summary_evals["overall_pass"] == {"value": True, "type": "boolean", "reasoning": None, "assessment": None}
-    assert summary_evals["quality"] == {"value": "high", "type": "categorical", "reasoning": None, "assessment": None}
+    assert summary_evals["overall_score"] == {
+        "value": 0.88,
+        "type": "score",
+        "reasoning": None,
+        "assessment": None,
+        "status": None,
+        "error": None,
+    }
+    assert summary_evals["overall_pass"] == {
+        "value": True,
+        "type": "boolean",
+        "reasoning": None,
+        "assessment": None,
+        "status": None,
+        "error": None,
+    }
+    assert summary_evals["quality"] == {
+        "value": "high",
+        "type": "categorical",
+        "reasoning": None,
+        "assessment": None,
+        "status": None,
+        "error": None,
+    }
+
+
+def test_parse_experiment_result_preserves_status_and_error():
+    """_parse_experiment_result surfaces status and error from eval metric events."""
+    from ddtrace.llmobs._experiment import _parse_experiment_result
+
+    response = {
+        "data": {
+            "id": "exp-1",
+            "type": "experiment_events",
+            "attributes": {
+                "spans": [
+                    {
+                        "span_id": "s1",
+                        "trace_id": "t1",
+                        "name": "task",
+                        "start_ns": 0,
+                        "duration": 1,
+                        "meta": {"input": {}, "output": "out", "expected_output": None, "metadata": {}, "error": {}},
+                        "tags": [],
+                        "eval_metrics": [
+                            {
+                                "label": "correctness",
+                                "metric_type": "score",
+                                "score_value": None,
+                                "status": "error",
+                                "error": {"type": "RuntimeError", "message": "evaluator crashed"},
+                            }
+                        ],
+                    }
+                ],
+                "summary_metrics": [],
+            },
+        }
+    }
+
+    result = _parse_experiment_result(response)
+    ev = result["runs"][0].rows[0]["evaluations"]["correctness"]
+    assert ev["status"] == "error"
+    assert ev["error"] == {"type": "RuntimeError", "message": "evaluator crashed"}
 
 
 # ---------------------------------------------------------------------------
