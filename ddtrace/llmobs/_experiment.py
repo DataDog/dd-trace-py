@@ -1133,6 +1133,8 @@ class _TaskResultRequired(TypedDict):
 class TaskResult(_TaskResultRequired, total=False):
     duration: int
     span_name: str
+    input: "JSONType"
+    expected_output: "JSONType"
 
 
 class EvaluationResult(TypedDict):
@@ -1340,7 +1342,9 @@ def _task_results_from_previous(
             "timestamp": row["timestamp"],
             "duration": row["duration"],
             "span_name": row["span_name"],
+            "input": row["input"],
             "output": row["output"],
+            "expected_output": row["expected_output"],
             "metadata": row["metadata"],
             "error": row["error"],
         }
@@ -1958,6 +1962,9 @@ class Experiment:
         self._run_name: Optional[str] = None
         self.experiment_span: Optional["ExportedLLMObsSpan"] = None
         self.result: Optional[ExperimentResult] = None
+        self._run_results: list["ExperimentRun"] = []
+        self._interrupted: bool = False
+        self._has_errors: bool = False
 
     @property
     def url(self) -> str:
@@ -2217,11 +2224,6 @@ class Experiment:
         list[dict[str, Any]],
         dict[str, list[JSONType]],
     ]:
-        if self._dataset is None:
-            raise RuntimeError(
-                "Error in Experiment._prepare_summary_evaluator_data(): missing dataset. "
-                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
-            )
         inputs: list[JSONType] = []
         outputs: list[JSONType] = []
         expected_outputs: list[JSONType] = []
@@ -2230,11 +2232,17 @@ class Experiment:
 
         for idx, task_result in enumerate(task_results):
             outputs.append(task_result["output"])
-            record: DatasetRecord = self._dataset[idx]
-            inputs.append(record["input_data"])
-            expected_outputs.append(record["expected_output"])
-            record_metadata = record.get("metadata") or {}
-            metadata_list.append({**record_metadata, "experiment_config": self._config})
+            if self._dataset is not None:
+                record: DatasetRecord = self._dataset[idx]
+                inputs.append(record["input_data"])
+                expected_outputs.append(record["expected_output"])
+                record_metadata = record.get("metadata") or {}
+                metadata_list.append({**record_metadata, "experiment_config": self._config})
+            else:
+                # rerun path: dataset is None, but task_results carry input/expected_output
+                inputs.append(task_result.get("input"))
+                expected_outputs.append(task_result.get("expected_output"))
+                metadata_list.append(task_result.get("metadata") or {})
 
             eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
             for name, eval_value in eval_result_at_idx_by_name.items():
@@ -2296,7 +2304,8 @@ class Experiment:
                             or if dataset information cannot be resolved from the loaded
                             dataset or span tags from a prior pull().
         """
-        assert self._llmobs_instance is not None and self._llmobs_instance.enabled  # nosec B101
+        if self._llmobs_instance is None or not self._llmobs_instance.enabled:
+            raise ValueError("LLMObs is not enabled. Enable LLMObs before calling rerun_evaluators().")
 
         # Resolve project_id lazily — not set if the experiment was never run() in this session
         if not self._project_id:
@@ -2886,6 +2895,8 @@ class Experiment:
         raise_errors: bool = False,
         jobs: int = 10,
     ) -> list[EvaluationResult]:
+        if not self._summary_evaluators:
+            return []
         (
             inputs,
             outputs,
