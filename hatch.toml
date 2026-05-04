@@ -72,6 +72,7 @@ checks = [
     "suitespec-check",
     "profiling-native-check",
     "error-log-check",
+    "supported-config-check",
     "sg",
     "sg-test",
 ]
@@ -98,6 +99,9 @@ profiling-native-check = [
 ]
 error-log-check = [
     "python scripts/check_constant_log_message.py"
+]
+supported-config-check = [
+    "python scripts/supported_configurations.py --check",
 ]
 sg = [
     "ast-grep scan {args:.}",

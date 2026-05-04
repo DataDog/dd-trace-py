@@ -2998,6 +2998,13 @@
         "default": "true"
       }
     ],
+    "DD_PROFILING_LOCK_EXCLUDE_MODULES": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
+      }
+    ],
     "DD_PROFILING_LOCK_NAME_INSPECT_DIR": [
       {
         "implementation": "A",
