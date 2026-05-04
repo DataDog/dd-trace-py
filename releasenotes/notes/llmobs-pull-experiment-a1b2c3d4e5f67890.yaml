@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    LLM Observability: Add ``LLMObs.pull_experiment(experiment_id)`` to fetch
+    a previously-run experiment from the Datadog backend by UUID. The returned
+    ``Experiment`` has its ``.result`` populated and is ready to be passed to
+    ``rerun_evaluators()`` for re-scoring without re-executing the original
+    task or supplying a dataset.
+    ``task`` and ``dataset`` are now optional when creating an experiment via
+    ``LLMObs.experiment()`` / ``LLMObs.async_experiment()``, supporting
+    pull-based workflows. Calling ``run()`` without providing ``task`` and
+    ``dataset`` raises a ``ValueError``.

@@ -4827,3 +4827,315 @@ def test_prepare_summary_evaluator_data_handles_none_metadata():
     eval_results = [{"idx": 0, "evaluations": {"dummy_evaluator": {"value": True, "error": None}}}]
     _, _, _, metadata_list, _ = exp._prepare_summary_evaluator_data(task_results, eval_results)
     assert metadata_list == [{"experiment_config": {}}]
+
+
+# ---------------------------------------------------------------------------
+# _parse_experiment_result tests
+# ---------------------------------------------------------------------------
+
+
+def test_parse_experiment_result_new_format():
+    """_parse_experiment_result correctly extracts all fields from the JSON:API single-object format."""
+    from ddtrace.llmobs._experiment import _parse_experiment_result
+
+    response = {
+        "data": {
+            "id": "328ee888-f8b4-4338-966e-1ec58d4f2f00",
+            "type": "experiment_events",
+            "attributes": {
+                "spans": [
+                    {
+                        "duration": 798_832_000,
+                        "eval_metrics": [
+                            {
+                                "timestamp_ms": 1776188906109,
+                                "metric_type": "boolean",
+                                "label": "exact_match",
+                                "boolean_value": True,
+                            }
+                        ],
+                        "meta": {
+                            "error": {},
+                            "input": {"question": "What is the capital of China?"},
+                            "output": "Beijing",
+                            "expected_output": "Beijing",
+                            "metadata": {"difficulty": "easy"},
+                        },
+                        "name": "generate_capital",
+                        "span_id": "18038324847088772928",
+                        "start_ns": 1776188906109254000,
+                        "status": "ok",
+                        "tags": [
+                            "dataset_record_id:5dc422e6efd7435daef344390aaab33d",
+                            "experiment_id:328ee888-f8b4-4338-966e-1ec58d4f2f00",
+                        ],
+                        "trace_id": "trace-abc",
+                    },
+                    {
+                        "duration": 836_075_000,
+                        "eval_metrics": [],
+                        "meta": {
+                            "error": {},
+                            "input": {"question": "Which city is the capital of Canada?"},
+                            "output": "Ottawa",
+                            "expected_output": "Ottawa",
+                            "metadata": {},
+                        },
+                        "name": "generate_capital",
+                        "span_id": "14723195948267668179",
+                        "start_ns": 1776188906107593000,
+                        "status": "ok",
+                        "tags": [
+                            "dataset_record_id:0087dc9f23c94d82b3afc08a3db8268b",
+                        ],
+                        "trace_id": "trace-def",
+                    },
+                ],
+                "summary_metrics": [],
+            },
+        }
+    }
+
+    result = _parse_experiment_result(response)
+    rows = result["runs"][0].rows
+    assert len(rows) == 2
+
+    row0 = rows[0]
+    assert row0["span_id"] == "18038324847088772928"
+    assert row0["trace_id"] == "trace-abc"
+    assert row0["timestamp"] == 1776188906109254000
+    assert row0["duration"] == 798_832_000
+    assert row0["span_name"] == "generate_capital"
+    assert row0["input"] == {"question": "What is the capital of China?"}
+    assert row0["output"] == "Beijing"
+    assert row0["expected_output"] == "Beijing"
+    assert row0["metadata"] == {"difficulty": "easy"}
+    assert row0["record_id"] == "5dc422e6efd7435daef344390aaab33d"
+    assert row0["error"] == {"type": None, "message": None, "stack": None}
+    assert "exact_match" in row0["evaluations"]
+    assert row0["evaluations"]["exact_match"]["value"] is True
+    assert row0["evaluations"]["exact_match"]["type"] == "boolean"
+
+    row1 = rows[1]
+    assert row1["span_id"] == "14723195948267668179"
+    assert row1["duration"] == 836_075_000
+    assert row1["span_name"] == "generate_capital"
+    assert row1["record_id"] == "0087dc9f23c94d82b3afc08a3db8268b"
+    assert row1["evaluations"] == {}
+
+
+def test_parse_experiment_result_all_metric_types():
+    """_parse_experiment_result correctly reads score, boolean, categorical, and json metric values."""
+    from ddtrace.llmobs._experiment import _parse_experiment_result
+
+    def _span(span_id, eval_metrics):
+        return {
+            "span_id": span_id,
+            "trace_id": "trace-x",
+            "name": "task",
+            "start_ns": 0,
+            "duration": 1,
+            "meta": {"input": {}, "output": "out", "expected_output": None, "metadata": {}, "error": {}},
+            "tags": [],
+            "eval_metrics": eval_metrics,
+        }
+
+    response = {
+        "data": {
+            "id": "exp-1",
+            "type": "experiment_events",
+            "attributes": {
+                "spans": [
+                    _span(
+                        "s1",
+                        [
+                            {"label": "score_metric", "metric_type": "score", "score_value": 0.95},
+                            {"label": "bool_metric", "metric_type": "boolean", "boolean_value": False},
+                            {"label": "cat_metric", "metric_type": "categorical", "categorical_value": "good"},
+                            {"label": "json_metric", "metric_type": "json", "json_value": {"k": "v"}},
+                        ],
+                    )
+                ],
+                "summary_metrics": [],
+            },
+        }
+    }
+
+    result = _parse_experiment_result(response)
+    evals = result["runs"][0].rows[0]["evaluations"]
+    assert evals["score_metric"] == {"value": 0.95, "type": "score", "reasoning": None, "assessment": None}
+    assert evals["bool_metric"] == {"value": False, "type": "boolean", "reasoning": None, "assessment": None}
+    assert evals["cat_metric"] == {"value": "good", "type": "categorical", "reasoning": None, "assessment": None}
+    assert evals["json_metric"] == {"value": {"k": "v"}, "type": "json", "reasoning": None, "assessment": None}
+
+
+def test_parse_experiment_result_summary_metrics():
+    """_parse_experiment_result populates summary_evaluations from attributes.summary_metrics."""
+    from ddtrace.llmobs._experiment import _parse_experiment_result
+
+    response = {
+        "data": {
+            "id": "exp-1",
+            "type": "experiment_events",
+            "attributes": {
+                "spans": [],
+                "summary_metrics": [
+                    {"label": "overall_score", "metric_type": "score", "score_value": 0.88},
+                    {"label": "overall_pass", "metric_type": "boolean", "boolean_value": True},
+                    {"label": "quality", "metric_type": "categorical", "categorical_value": "high"},
+                ],
+            },
+        }
+    }
+
+    result = _parse_experiment_result(response)
+    summary_evals = result["runs"][0].summary_evaluations
+    assert summary_evals["overall_score"] == {"value": 0.88, "type": "score", "reasoning": None, "assessment": None}
+    assert summary_evals["overall_pass"] == {"value": True, "type": "boolean", "reasoning": None, "assessment": None}
+    assert summary_evals["quality"] == {"value": "high", "type": "categorical", "reasoning": None, "assessment": None}
+
+
+# ---------------------------------------------------------------------------
+# LLMObs.pull_experiment tests
+# ---------------------------------------------------------------------------
+
+MOCK_PULL_RESPONSE = {
+    "data": {
+        "id": "mock-experiment-id",
+        "type": "experiment_events",
+        "attributes": {
+            "spans": [
+                {
+                    "duration": 500_000_000,
+                    "eval_metrics": [
+                        {
+                            "label": "correctness",
+                            "metric_type": "score",
+                            "score_value": 0.9,
+                            "timestamp_ms": MOCK_TIMESTAMP_NS // 1_000_000,
+                            "assessment": "pass",
+                            "reasoning": "Correct",
+                        }
+                    ],
+                    "meta": {
+                        "input": {"question": "What is the capital of France?"},
+                        "output": {"answer": "Paris"},
+                        "expected_output": {"answer": "Paris"},
+                        "metadata": {"experiment_name": "test-exp"},
+                        "error": {},
+                    },
+                    "name": "my_task",
+                    "span_id": "abc123",
+                    "start_ns": MOCK_TIMESTAMP_NS,
+                    "status": "ok",
+                    "tags": [
+                        "dataset_record_id:rec-uuid-1",
+                        "experiment_id:mock-experiment-id",
+                        "dataset_id:mock-dataset-id",
+                        "project_id:mock-project-id",
+                    ],
+                    "trace_id": "def456",
+                }
+            ],
+            "summary_metrics": [],
+        },
+    }
+}
+
+
+def _mock_experiment_meta(
+    name="test-exp",
+    project_name="mock-project-name",
+    project_id="mock-project-id",
+    dataset_id="mock-dataset-id",
+):
+    """Return a MagicMock mimicking the Experiment object returned by DNEClient.experiment_get."""
+    m = mock.MagicMock()
+    m.name = name
+    m._project_name = project_name
+    m._project_id = project_id
+    m._dataset = mock.MagicMock()
+    m._dataset._id = dataset_id
+    return m
+
+
+def test_pull_experiment_by_id(llmobs):
+    """pull_experiment() calls experiment_get and experiment_events_get, returns populated Experiment."""
+    from ddtrace.llmobs._experiment import Experiment
+
+    with (
+        mock.patch.object(
+            llmobs._instance._dne_client, "experiment_get", return_value=_mock_experiment_meta()
+        ) as mock_meta,
+        mock.patch.object(
+            llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE
+        ) as mock_events,
+    ):
+        exp = llmobs.pull_experiment("mock-experiment-id")
+
+    mock_meta.assert_called_once_with("mock-experiment-id")
+    mock_events.assert_called_once_with(experiment_id="mock-experiment-id")
+    assert isinstance(exp, Experiment)
+    assert exp.result is not None
+    assert exp._id == "mock-experiment-id"
+    assert exp.name == "test-exp"
+    rows = exp.result["runs"][0].rows
+    assert len(rows) == 1
+    assert rows[0]["span_id"] == "abc123"
+    assert rows[0]["trace_id"] == "def456"
+    assert rows[0]["input"] == {"question": "What is the capital of France?"}
+    assert rows[0]["output"] == {"answer": "Paris"}
+
+
+def test_pull_experiment_sets_metadata_from_response(llmobs):
+    """pull_experiment() populates _id, _project_id, and _dataset_id from experiment_get."""
+    with (
+        mock.patch.object(llmobs._instance._dne_client, "experiment_get", return_value=_mock_experiment_meta()),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE),
+    ):
+        exp = llmobs.pull_experiment("mock-experiment-id")
+
+    assert exp._id == "mock-experiment-id"
+    assert exp._dataset_id == "mock-dataset-id"
+    assert exp._project_id == "mock-project-id"
+
+
+def test_pull_experiment_parses_eval_metrics(llmobs):
+    """pull_experiment() correctly parses evaluations onto result rows."""
+    with (
+        mock.patch.object(llmobs._instance._dne_client, "experiment_get", return_value=_mock_experiment_meta()),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE),
+    ):
+        exp = llmobs.pull_experiment("mock-experiment-id")
+
+    evals = exp.result["runs"][0].rows[0]["evaluations"]
+    assert "correctness" in evals
+    assert evals["correctness"]["value"] == 0.9
+    assert evals["correctness"]["type"] == "score"
+    assert evals["correctness"]["assessment"] == "pass"
+
+
+def test_pull_experiment_populates_duration_and_span_name(llmobs):
+    """pull_experiment() correctly populates duration and span_name on each result row."""
+    with (
+        mock.patch.object(llmobs._instance._dne_client, "experiment_get", return_value=_mock_experiment_meta()),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE),
+    ):
+        exp = llmobs.pull_experiment("mock-experiment-id")
+
+    row = exp.result["runs"][0].rows[0]
+    assert row["duration"] == 500_000_000
+    assert row["span_name"] == "my_task"
+
+
+def test_pull_experiment_requires_id(llmobs):
+    """pull_experiment('') raises ValueError."""
+    with pytest.raises(ValueError, match="experiment_id is required"):
+        llmobs.pull_experiment("")
+
+
+def test_run_without_task_raises(llmobs):
+    """Calling run() on an experiment without task/dataset must raise ValueError."""
+    exp = llmobs.experiment("test_experiment", evaluators=[dummy_evaluator], project_name="my-project")
+    with pytest.raises(ValueError, match="task and dataset are required to run an experiment from scratch"):
+        exp.run()
