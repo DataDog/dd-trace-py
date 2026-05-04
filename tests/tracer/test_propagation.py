@@ -19,6 +19,7 @@ from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ddtrace.internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
 from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
 from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
@@ -1159,6 +1160,74 @@ def test_tracecontext_get_context_max_items_plus_one_each_max_bytes_plus_one():
     assert ctx._meta[W3C_TRACESTATE_KEY] == ""
     assert ctx.sampling_priority == 1
     assert ctx.dd_origin is None
+
+
+def test_tracecontext_get_context_keeps_dd_when_oversized_vendor_members_fill_budget():
+    """``dd=`` is retained first; oversized non-dd members do not displace it."""
+    member_len = DD_TRACE_TRACESTATE_MAX_BYTES + 1
+
+    def one_member(i: int) -> str:
+        prefix = "k%02d=" % i
+        pad = member_len - len(prefix.encode("utf-8"))
+        return prefix + ("x" * pad)
+
+    members = [one_member(i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS + 1)]
+    dd_mem = "dd=s:2;o:rum"
+    ts = ",".join(members + [dd_mem])
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    assert ctx._meta[W3C_TRACESTATE_KEY] == dd_mem
+    assert ctx.sampling_priority == 2
+    assert ctx.dd_origin == "rum"
+
+
+def test_tracecontext_get_context_dd_preferred_when_not_first_and_byte_capped():
+    long_first = "b=" + ("y" * (DD_TRACE_TRACESTATE_MAX_BYTES - 1))
+    short_dd = "dd=s:2;o:rum"
+    ts = long_first + "," + short_dd
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    assert ctx._meta[W3C_TRACESTATE_KEY] == short_dd
+    assert ctx.sampling_priority == 2
+    assert ctx.dd_origin == "rum"
+
+
+def test_tracecontext_get_context_dd_survives_list_member_count_when_last():
+    # 32 small vendors + dd = 33 list-members; trim non-dd to 31 so dd + 31 vendors remain.
+    prefix_members = ["z%d=%d" % (i, i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS)]
+    ts = ",".join(prefix_members + ["dd=s:1"])
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    stored = ctx._meta[W3C_TRACESTATE_KEY]
+    assert stored.startswith("dd=")
+    assert "z0=0" in stored
+    assert "z30=30" in stored
+    assert "z31=31" not in stored
+    assert stored.count(",") == DD_TRACE_TRACESTATE_MAX_ITEMS - 1
+
+
+def test_tracecontext_get_context_drops_oversized_vendor_before_small_when_item_capped():
+    # 31 small keys + one oversized + ``dd`` => 32 non-dd slots would be exceeded by one extra
+    # small vendor; ``others`` length 32 must shrink to 31: drop ``h=`` (oversized) first, not z30.
+    small = ["z%d=%d" % (i, i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS - 1)]  # z0..z30
+    huge = "h=" + ("x" * (DD_TRACE_TRACESTATE_ITEM_MAX_CHARS + 50))
+    assert len(huge) > DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+    ts = ",".join(small + [huge] + ["dd=s:1"])
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    stored = ctx._meta[W3C_TRACESTATE_KEY]
+    assert "h=" not in stored
+    assert "z30=30" in stored
+    assert stored.startswith("dd=")
+
+
+def test_tracecontext_get_context_skips_oversized_member_under_byte_budget_after_dd():
+    # ``dd`` first; next member alone would exceed byte cap and is over ITEM_MAX_CHARS, so it is
+    # skipped and a later small member is still included.
+    huge = "a=" + ("x" * (DD_TRACE_TRACESTATE_MAX_BYTES - 1))
+    assert len(huge) > DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+    ts = "dd=s:2;o:rum," + huge + ",z=9"
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    stored = ctx._meta[W3C_TRACESTATE_KEY]
+    assert stored.startswith("dd=")
+    assert "z=9" in stored
+    assert huge not in stored
 
 
 @pytest.mark.parametrize(
