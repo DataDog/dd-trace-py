@@ -1,0 +1,66 @@
+[[
+  {
+    "name": "sqlite.query",
+    "service": "sqlite",
+    "resource": "select 'blah'",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.sqlite3",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69eaab7100000000",
+      "_dd.svc_src": "sqlite",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.sqlite3",
+      "component": "sqlite",
+      "db.system": "sqlite",
+      "language": "python",
+      "runtime-id": "52410c275b454954b1bc4cfa4b3363b6",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": -1.0,
+      "process_id": 76550.0
+    },
+    "duration": 430000,
+    "start": 1776986993877345000
+  }],
+[
+  {
+    "name": "sqlite.query",
+    "service": "sqlite",
+    "resource": "select 'blah'",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.sqlite3",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69eaab7100000000",
+      "_dd.svc_src": "sqlite",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.sqlite3",
+      "component": "sqlite",
+      "db.system": "sqlite",
+      "language": "python",
+      "runtime-id": "52410c275b454954b1bc4cfa4b3363b6",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": -1.0,
+      "process_id": 76550.0
+    },
+    "duration": 52000,
+    "start": 1776986993879016000
+  }]]

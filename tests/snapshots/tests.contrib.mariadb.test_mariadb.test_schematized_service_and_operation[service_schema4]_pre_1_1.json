@@ -11,8 +11,8 @@
     "meta": {
       "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de460100000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69eb92e500000000",
+      "_dd.svc_src": "mariadb",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "mariadb",
       "db.name": "test",
@@ -20,7 +20,7 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "d8c3e847e79d4abdaf56a45f2ab38002",
+      "runtime-id": "0fd7ee937bb3433aaacaa33451da0d33",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
@@ -31,8 +31,8 @@
       "_sampling_priority_v1": 1.0,
       "db.row_count": 0.0,
       "network.destination.port": 3306.0,
-      "process_id": 62404.0
+      "process_id": 18676.0
     },
-    "duration": 170000,
-    "start": 1776174593907833341
+    "duration": 175458,
+    "start": 1777046245203257972
   }]]

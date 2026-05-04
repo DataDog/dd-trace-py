@@ -11,25 +11,25 @@
     "meta": {
       "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de954800000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69ebafaa00000000",
+      "_dd.svc_src": "rq",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "c4e8aca3-8f05-4c1b-aa99-402efba4d3d4",
+      "job.id": "ad50d150-3ef9-4b64-8c2e-c565121200eb",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "6a01082606b940feb84197d38404ca13",
+      "runtime-id": "c291c5d77b15483685e620c76193a901",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 62795.0
+      "process_id": 45019.0
     },
-    "duration": 1129500,
-    "start": 1776194888310105177
+    "duration": 978208,
+    "start": 1777053610889108631
   }],
 [
   {
@@ -44,25 +44,25 @@
     "meta": {
       "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de954800000000",
+      "_dd.p.tid": "69ebafaa00000000",
       "_dd.svc_src": "rq_worker",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
       "component": "rq",
-      "job.id": "c4e8aca3-8f05-4c1b-aa99-402efba4d3d4",
+      "job.id": "ad50d150-3ef9-4b64-8c2e-c565121200eb",
       "job.origin": "q",
       "job.status": "finished",
       "language": "python",
-      "runtime-id": "6a01082606b940feb84197d38404ca13",
+      "runtime-id": "c291c5d77b15483685e620c76193a901",
       "span.kind": "consumer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 62795.0
+      "process_id": 45019.0
     },
-    "duration": 2583333,
-    "start": 1776194888317616844
+    "duration": 2334333,
+    "start": 1777053610894305631
   },
      {
        "name": "rq.job.perform",
@@ -77,8 +77,8 @@
          "_dd.base_service": "tests.contrib.rq",
          "_dd.svc_src": "rq",
          "component": "rq",
-         "job.id": "c4e8aca3-8f05-4c1b-aa99-402efba4d3d4"
+         "job.id": "ad50d150-3ef9-4b64-8c2e-c565121200eb"
        },
-       "duration": 365125,
-       "start": 1776194888318465302
+       "duration": 567791,
+       "start": 1777053610894920881
      }]]

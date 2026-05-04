@@ -87,7 +87,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_eventhubs",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
          "messaging.message_id": "2e3400d9-aa1d-415f-ba66-3dcea93400e4",

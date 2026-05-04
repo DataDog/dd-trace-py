@@ -10,20 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dea42100000000",
-      "_dd.svc_src": "tests.contrib.aws_lambda",
+      "_dd.p.tid": "69f23c7600000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aws_lambda",
       "language": "python",
-      "runtime-id": "a684e05d0a384664989624077f99be0b"
+      "runtime-id": "435578c192ea463496f59e205b1cdaa9"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 88660.0
+      "process_id": 39235.0
     },
-    "duration": 223250,
-    "start": 1776198689295257508
+    "duration": 195834,
+    "start": 1777482870425523261
   },
      {
        "name": "result-trace",
@@ -34,9 +33,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "_dd.svc_src": "tests.contrib.aws_lambda"
-       },
-       "duration": 31583,
-       "start": 1776198689295413967
+       "duration": 38083,
+       "start": 1777482870425647470
      }]]

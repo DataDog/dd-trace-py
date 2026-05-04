@@ -11,8 +11,7 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de789f00000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f39c3500000000",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "kafka",
       "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
@@ -25,7 +24,7 @@
       "messaging.destination.name": "test_service_override_env_var",
       "messaging.system": "kafka",
       "pathway.hash": "129630962231005456",
-      "runtime-id": "544c6700735a4002b96c60bc06898c32",
+      "runtime-id": "5f93fc3bbdf64c1ead57d153209a68d7",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -33,12 +32,12 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "kafka.message_offset": 1.0,
+      "kafka.message_offset": -1.0,
       "kafka.partition": 0.0,
-      "process_id": 36852.0
+      "process_id": 57826.0
     },
-    "duration": 3444094835,
-    "start": 1776187548531880552
+    "duration": 3355045654,
+    "start": 1777572914358139180
   }],
 [
   {
@@ -53,8 +52,7 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de789c00000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f39c3200000000",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "kafka",
       "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
@@ -66,7 +64,7 @@
       "messaging.kafka.bootstrap.servers": "127.0.0.1:29092",
       "messaging.system": "kafka",
       "pathway.hash": "14722941679670948566",
-      "runtime-id": "544c6700735a4002b96c60bc06898c32",
+      "runtime-id": "5f93fc3bbdf64c1ead57d153209a68d7",
       "span.kind": "producer"
     },
     "metrics": {
@@ -75,8 +73,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
       "kafka.partition": -1.0,
-      "process_id": 36852.0
+      "process_id": 57826.0
     },
-    "duration": 1175375,
-    "start": 1776187548317794469
+    "duration": 1323708,
+    "start": 1777572914102800680
   }]]

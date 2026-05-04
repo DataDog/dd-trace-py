@@ -10,20 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de7abc00000000",
-      "_dd.svc_src": "tests.opentelemetry",
+      "_dd.p.tid": "69eb932c00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "language": "python",
-      "runtime-id": "70ff513e149c4275a000e61227618926"
+      "runtime-id": "ee6949b03b33475481d3858e92bfdb34"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 42232.0
+      "process_id": 20204.0
     },
-    "duration": 89001334,
-    "start": 1776188092933977304
+    "duration": 89643583,
+    "start": 1777046316033733463
   },
      {
        "name": "internal",
@@ -35,15 +34,14 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "tests.opentelemetry",
-         "runtime-id": "70ff513e149c4275a000e61227618926"
+         "runtime-id": "ee6949b03b33475481d3858e92bfdb34"
        },
        "metrics": {
          "_dd.top_level": 1.0,
-         "process_id": 42232.0
+         "process_id": 20204.0
        },
-       "duration": 87528541,
-       "start": 1776188092934431513
+       "duration": 88479125,
+       "start": 1777046316034686963
      },
         {
           "name": "internal",
@@ -54,11 +52,8 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.svc_src": "tests.opentelemetry"
-          },
-          "duration": 21651917,
-          "start": 1776188092934508846
+          "duration": 21920208,
+          "start": 1777046316034824588
         },
         {
           "name": "internal",
@@ -69,11 +64,8 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.svc_src": "tests.opentelemetry"
-          },
-          "duration": 65604709,
-          "start": 1776188092956236179
+          "duration": 66125042,
+          "start": 1777046316056936879
         },
      {
        "name": "internal",
@@ -85,15 +77,14 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "tests.opentelemetry",
-         "runtime-id": "70ff513e149c4275a000e61227618926"
+         "runtime-id": "ee6949b03b33475481d3858e92bfdb34"
        },
        "metrics": {
          "_dd.top_level": 1.0,
-         "process_id": 42232.0
+         "process_id": 20204.0
        },
-       "duration": 87510250,
-       "start": 1776188092934776721
+       "duration": 86734500,
+       "start": 1777046316035315921
      },
         {
           "name": "internal",
@@ -104,11 +95,8 @@
           "parent_id": 3,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.svc_src": "tests.opentelemetry"
-          },
-          "duration": 21147125,
-          "start": 1776188092934848929
+          "duration": 20866208,
+          "start": 1777046316035458713
         },
         {
           "name": "internal",
@@ -119,11 +107,8 @@
           "parent_id": 3,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.svc_src": "tests.opentelemetry"
-          },
-          "duration": 66155333,
-          "start": 1776188092956068388
+          "duration": 65390333,
+          "start": 1777046316056554088
         },
      {
        "name": "internal",
@@ -135,15 +120,14 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "tests.opentelemetry",
-         "runtime-id": "70ff513e149c4275a000e61227618926"
+         "runtime-id": "ee6949b03b33475481d3858e92bfdb34"
        },
        "metrics": {
          "_dd.top_level": 1.0,
-         "process_id": 42232.0
+         "process_id": 20204.0
        },
-       "duration": 87580625,
-       "start": 1776188092935069013
+       "duration": 82918042,
+       "start": 1777046316035913046
      },
         {
           "name": "internal",
@@ -154,11 +138,8 @@
           "parent_id": 4,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.svc_src": "tests.opentelemetry"
-          },
-          "duration": 21183584,
-          "start": 1776188092935135304
+          "duration": 21328750,
+          "start": 1777046316036020713
         },
         {
           "name": "internal",
@@ -169,11 +150,8 @@
           "parent_id": 4,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.svc_src": "tests.opentelemetry"
-          },
-          "duration": 66165916,
-          "start": 1776188092956377388
+          "duration": 61118458,
+          "start": 1777046316057456463
         },
      {
        "name": "internal",
@@ -185,15 +163,14 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "tests.opentelemetry",
-         "runtime-id": "70ff513e149c4275a000e61227618926"
+         "runtime-id": "ee6949b03b33475481d3858e92bfdb34"
        },
        "metrics": {
          "_dd.top_level": 1.0,
-         "process_id": 42232.0
+         "process_id": 20204.0
        },
-       "duration": 87495334,
-       "start": 1776188092935360679
+       "duration": 86472584,
+       "start": 1777046316036430254
      },
         {
           "name": "internal",
@@ -204,11 +181,8 @@
           "parent_id": 5,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.svc_src": "tests.opentelemetry"
-          },
-          "duration": 20288875,
-          "start": 1776188092935425929
+          "duration": 20514167,
+          "start": 1777046316036571921
         },
         {
           "name": "internal",
@@ -219,9 +193,6 @@
           "parent_id": 5,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.svc_src": "tests.opentelemetry"
-          },
-          "duration": 66915083,
-          "start": 1776188092955880721
+          "duration": 65583917,
+          "start": 1777046316057209504
         }]]

@@ -10,8 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e9211700000000",
-      "_dd.svc_src": "tests.contrib.openai_agents",
+      "_dd.p.tid": "69e6440500000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.openai_agents",
       "language": "python",
       "runtime-id": "4c7a3a33068a418293b3a5b0c3c73d51"
@@ -35,9 +34,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "_dd.svc_src": "tests.contrib.openai_agents"
-       },
        "metrics": {
          "_dd.measured": 1.0
        },
@@ -53,9 +49,6 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.svc_src": "tests.contrib.openai_agents"
-          },
           "metrics": {
             "_dd.measured": 1.0
           },
@@ -71,9 +64,6 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.svc_src": "tests.contrib.openai_agents"
-          },
           "metrics": {
             "_dd.measured": 1.0
           },
@@ -89,9 +79,6 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.svc_src": "tests.contrib.openai_agents"
-          },
           "metrics": {
             "_dd.measured": 1.0
           },

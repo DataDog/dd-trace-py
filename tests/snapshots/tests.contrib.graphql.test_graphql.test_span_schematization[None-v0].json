@@ -11,22 +11,22 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de9e4100000000",
+      "_dd.p.tid": "69f39bbb00000000",
       "_dd.svc_src": "graphql",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "graphql",
       "language": "python",
-      "runtime-id": "511317cabce145c0be7e840ec72dc314"
+      "runtime-id": "431ad24fa2dd4f2dba10733a3391904a"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 75803.0
+      "process_id": 56710.0
     },
-    "duration": 1280750,
-    "start": 1776197185895890965
+    "duration": 807167,
+    "start": 1777572795354011555
   },
      {
        "name": "graphql.parse",
@@ -43,8 +43,8 @@
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 187417,
-       "start": 1776197185896062132
+       "duration": 114292,
+       "start": 1777572795354159555
      },
      {
        "name": "graphql.validate",
@@ -61,8 +61,8 @@
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 701625,
-       "start": 1776197185896285299
+       "duration": 442083,
+       "start": 1777572795354301722
      },
      {
        "name": "graphql.execute",
@@ -84,6 +84,6 @@
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 90500,
-       "start": 1776197185897073132
+       "duration": 47375,
+       "start": 1777572795354765764
      }]]

@@ -11,14 +11,14 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e27a8f00000000",
+      "_dd.p.tid": "69eba7db00000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:project,entrypoint.name:python_-m_unittest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:python_-m_unittest",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "7bb2caa842e5400a97044976f412864d",
+      "runtime-id": "ce84ca95db6e423cbfe325cd0ed6a497",
       "server.address": "localhost",
       "span.kind": "client",
       "valkey.raw_command": "GET cheese"
@@ -31,11 +31,11 @@
       "db.row_count": 0.0,
       "network.destination.port": 6379.0,
       "out.valkey_db": 0.0,
-      "process_id": 38358.0,
+      "process_id": 41773.0,
       "valkey.args_length": 2.0
     },
-    "duration": 662709,
-    "start": 1776450191337281052
+    "duration": 534833,
+    "start": 1777051611456741918
   }],
 [
   {
@@ -50,14 +50,14 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e27a8f00000000",
+      "_dd.p.tid": "69eba7db00000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:project,entrypoint.name:python_-m_unittest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:python_-m_unittest",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "7bb2caa842e5400a97044976f412864d",
+      "runtime-id": "ce84ca95db6e423cbfe325cd0ed6a497",
       "server.address": "localhost",
       "span.kind": "client",
       "valkey.raw_command": "GET cheese"
@@ -70,11 +70,11 @@
       "db.row_count": 0.0,
       "network.destination.port": 6379.0,
       "out.valkey_db": 0.0,
-      "process_id": 38358.0,
+      "process_id": 41773.0,
       "valkey.args_length": 2.0
     },
-    "duration": 155625,
-    "start": 1776450191338447427
+    "duration": 137334,
+    "start": 1777051611457758376
   }],
 [
   {
@@ -89,14 +89,14 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e27a8f00000000",
+      "_dd.p.tid": "69eba7db00000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:project,entrypoint.name:python_-m_unittest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:python_-m_unittest",
       "component": "valkey",
       "db.system": "valkey",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "7bb2caa842e5400a97044976f412864d",
+      "runtime-id": "ce84ca95db6e423cbfe325cd0ed6a497",
       "server.address": "localhost",
       "span.kind": "client",
       "valkey.raw_command": "GET cheese"
@@ -109,9 +109,9 @@
       "db.row_count": 0.0,
       "network.destination.port": 6379.0,
       "out.valkey_db": 0.0,
-      "process_id": 38358.0,
+      "process_id": 41773.0,
       "valkey.args_length": 2.0
     },
-    "duration": 116125,
-    "start": 1776450191338756552
+    "duration": 117250,
+    "start": 1777051611458043085
   }]]

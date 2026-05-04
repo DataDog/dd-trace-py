@@ -48,6 +48,7 @@ from .integration import IntegrationConfig
 log = get_logger(__name__)
 
 ENDPOINT_FETCHED_CONFIG = fetch_config_from_endpoint()
+DEFAULT_SERVICE_KEYS = frozenset(["_default_service", "_default_service_worker", "_default_service_producer"])
 
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"(?ix)"
@@ -207,6 +208,14 @@ INTEGRATION_CONFIGS = frozenset(
         "google_cloud_pubsub",
     }
 )
+
+
+def _integration_default_service_names_from_config(int_config: IntegrationConfig) -> set[str]:
+    names: set[str] = set()
+    for attribute in DEFAULT_SERVICE_KEYS:
+        if value := int_config.get(attribute):
+            names.add(value)
+    return names
 
 
 def _parse_propagation_styles(styles_str: str) -> Optional[list[str]]:
@@ -447,6 +456,8 @@ class Config(object):
 
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs: dict[str, IntegrationConfig] = {}
+        # Union of `_default_service*` string values from integrations registered via `_add`.
+        self._integration_default_services: frozenset[str] = frozenset()
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
@@ -772,6 +783,12 @@ class Config(object):
             self._extra_services.pop()
         return self._extra_services
 
+    def _recompute_integration_default_services(self) -> None:
+        names: set[str] = set()
+        for int_conf in self._integration_configs.values():
+            names.update(_integration_default_service_names_from_config(int_conf))
+        self._integration_default_services = frozenset(names)
+
     def _add(self, integration, settings, merge=True):
         """Internal API that registers an integration with given default
         settings.
@@ -808,6 +825,8 @@ class Config(object):
             )
         else:
             self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
+
+        self._recompute_integration_default_services()
 
     @cachedmethod()
     def _header_tag_name(self, header_name: str) -> Optional[str]:

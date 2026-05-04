@@ -1,7 +1,7 @@
 [[
   {
-    "name": "rq.queue.enqueue_job",
-    "service": "rq",
+    "name": "rq.worker.perform_job",
+    "service": "custom-worker-service",
     "resource": "tests.contrib.rq.jobs.job_add1",
     "trace_id": 0,
     "span_id": 1,
@@ -9,65 +9,32 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de954500000000",
-      "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
-      "component": "rq",
-      "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "edab78af-7f76-40dc-a4bf-c475dac6320e",
-      "language": "python",
-      "queue.name": "q",
-      "runtime-id": "6a01082606b940feb84197d38404ca13",
-      "span.kind": "producer"
-    },
-    "metrics": {
-      "_dd.top_level": 1.0,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 62795.0
-    },
-    "duration": 1979125,
-    "start": 1776194885918205176
-  }],
-[
-  {
-    "name": "rq.worker.perform_job",
-    "service": "custom-worker-service",
-    "resource": "tests.contrib.rq.jobs.job_add1",
-    "trace_id": 1,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "worker",
-    "error": 0,
-    "meta": {
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de954600000000",
+      "_dd.p.tid": "69ebafad00000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:rq,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "rq",
-      "job.id": "edab78af-7f76-40dc-a4bf-c475dac6320e",
+      "job.id": "538ea017-f165-4d0a-93cc-74a2185ba647",
       "job.origin": "q",
       "job.status": "finished",
       "language": "python",
-      "runtime-id": "fef0946063d94aca8d389f0647f823f4",
+      "runtime-id": "94770630d71a49efa659e49d62564921",
       "span.kind": "consumer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 62869.0
+      "process_id": 45105.0
     },
-    "duration": 6749208,
-    "start": 1776194886423798593
+    "duration": 7322375,
+    "start": 1777053613674853424
   },
      {
        "name": "rq.job.perform",
        "service": "custom-worker-service",
        "resource": "tests.contrib.rq.jobs.job_add1",
-       "trace_id": 1,
+       "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "",
@@ -75,8 +42,41 @@
        "meta": {
          "_dd.svc_src": "rq",
          "component": "rq",
-         "job.id": "edab78af-7f76-40dc-a4bf-c475dac6320e"
+         "job.id": "538ea017-f165-4d0a-93cc-74a2185ba647"
        },
-       "duration": 3645042,
-       "start": 1776194886425352884
-     }]]
+       "duration": 3812666,
+       "start": 1777053613676508424
+     }],
+[
+  {
+    "name": "rq.queue.enqueue_job",
+    "service": "rq",
+    "resource": "tests.contrib.rq.jobs.job_add1",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.rq",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69ebafad00000000",
+      "_dd.svc_src": "rq",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
+      "component": "rq",
+      "job.func_name": "tests.contrib.rq.jobs.job_add1",
+      "job.id": "538ea017-f165-4d0a-93cc-74a2185ba647",
+      "language": "python",
+      "queue.name": "q",
+      "runtime-id": "c291c5d77b15483685e620c76193a901",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 45019.0
+    },
+    "duration": 967875,
+    "start": 1777053613127512048
+  }]]
