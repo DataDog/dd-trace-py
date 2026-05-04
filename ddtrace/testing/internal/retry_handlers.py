@@ -198,12 +198,12 @@ class AttemptToFixHandler(RetryHandler):
             status_counts[test_run.get_status()] += 1
             total_count += 1
 
-        if status_counts[TestStatus.PASS] > 0:
+        if status_counts[TestStatus.PASS] == total_count:
             final_status = TestStatus.PASS
-        elif status_counts[TestStatus.FAIL] > 0:
-            final_status = TestStatus.FAIL
-        else:
+        elif status_counts[TestStatus.SKIP] == total_count:
             final_status = TestStatus.SKIP
+        else:
+            final_status = TestStatus.FAIL
 
         if status_counts[TestStatus.PASS] == total_count:
             final_tags[TestTag.ATTEMPT_TO_FIX_PASSED] = TAG_TRUE
