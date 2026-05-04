@@ -809,9 +809,7 @@ class _TraceContext:
                 items.pop()
 
     @staticmethod
-    def _tracestate_pack_members_to_byte_limit(
-        members: list[str], *, never_skip_first: bool = False
-    ) -> list[str]:
+    def _tracestate_pack_members_to_byte_limit(members: list[str], *, never_skip_first: bool = False) -> list[str]:
         """Append members until the UTF-8 byte budget is exhausted.
 
         When a member does not fit, it is skipped if it exceeds ``DD_TRACE_TRACESTATE_ITEM_MAX_CHARS``
