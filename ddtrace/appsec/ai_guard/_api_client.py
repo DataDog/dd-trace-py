@@ -72,9 +72,11 @@ class Options(TypedDict, total=False):
     Attributes:
         block: Controls whether non-ALLOW decisions raise ``AIGuardAbortError``. Defaults to
             following the AI Guard response ``is_blocking_enabled`` setting when omitted.
+        tags: Optional dictionary holding extra tags to be included in the evaluation span
     """
 
     block: bool
+    tags: Optional[dict[str, Any]]
 
 
 class Error(TypedDict, total=False):
@@ -115,7 +117,7 @@ class AIGuardAbortError(Exception):
 class AIGuardClient:
     """HTTP client for communicating with AI Guard security service."""
 
-    def __init__(self, endpoint: str, api_key: str, app_key: str):
+    def __init__(self, endpoint: str, api_key: str, app_key: str, headers: Optional[dict[str, str]] = None):
         """Initialize AI Guard client.
 
         Args:
@@ -132,6 +134,9 @@ class AIGuardClient:
             "DD-AI-GUARD-SOURCE": "SDK",
             "DD-AI-GUARD-LANGUAGE": "python",
         }
+        if headers:
+            for key, value in headers.items():
+                self._headers[key] = value
         self._meta = {"service": config.service, "env": config.env}
         self._timeout = ai_guard_config._ai_guard_timeout // 1000
 
@@ -245,6 +250,9 @@ class AIGuardClient:
             raise ValueError("Messages must not be empty")
 
         with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
+            if options and options.get("tags", None):
+                for key, value in options.get("tags").items():
+                    span.set_tag(key, value)
             try:
                 payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
                 last = messages[-1]
@@ -347,6 +355,7 @@ class AIGuardClient:
 
 def new_ai_guard_client(
     endpoint: Optional[str] = None,
+    headers: Optional[dict[str, str]] = None,
 ) -> AIGuardClient:
     api_key = config._dd_api_key
     app_key = config._dd_app_key
@@ -359,4 +368,4 @@ def new_ai_guard_client(
         site = f"app.{config._dd_site}" if config._dd_site.count(".") == 1 else config._dd_site
         endpoint = f"https://{site}/api/v2/ai-guard"
 
-    return AIGuardClient(endpoint, api_key, app_key)
+    return AIGuardClient(endpoint, api_key, app_key, headers)
