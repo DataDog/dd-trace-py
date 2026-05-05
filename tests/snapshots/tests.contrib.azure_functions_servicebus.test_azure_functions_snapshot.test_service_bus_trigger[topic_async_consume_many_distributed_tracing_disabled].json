@@ -43,7 +43,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_servicebus",
          "component": "azure_servicebus",
          "messaging.destination.name": "topic.1",
          "messaging.message_id": "862eea0d-29a4-404c-9936-188a8c85f14a",
@@ -68,7 +68,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_servicebus",
          "component": "azure_servicebus",
          "messaging.destination.name": "topic.1",
          "messaging.message_id": "31828e7a-09a5-4b62-aec4-33247781b107",
@@ -93,7 +93,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_servicebus",
          "component": "azure_servicebus",
          "messaging.batch_count": "2",
          "messaging.destination.name": "topic.1",

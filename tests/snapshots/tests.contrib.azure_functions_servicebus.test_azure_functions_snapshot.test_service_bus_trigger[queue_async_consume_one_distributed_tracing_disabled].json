@@ -43,7 +43,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_servicebus",
          "component": "azure_servicebus",
          "messaging.destination.name": "queue.1",
          "messaging.message_id": "5875e14f-989b-46d4-bf84-5d252add32f5",
