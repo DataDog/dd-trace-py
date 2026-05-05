@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes a concurrency hazard in the Bedrock Agent integration where
+    overlapping ``invoke_agent`` calls in the same process shared class-level state, which
+    could orphan pending step or inner spans and cross-attribute spans between concurrent
+    invocations. Per-invocation state is now used.
