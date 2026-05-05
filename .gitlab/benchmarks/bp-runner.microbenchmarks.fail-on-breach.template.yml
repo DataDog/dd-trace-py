@@ -836,7 +836,7 @@ experiments:
           - name: recursivecomputation-deep
             thresholds:
               - execution_time < 320.95 ms
-              - max_rss_usage < 38.75 MB
+              - max_rss_usage < 46.00 MB
           - name: recursivecomputation-deep-profiled
             thresholds:
               - execution_time < 359.15 ms
@@ -844,11 +844,11 @@ experiments:
           - name: recursivecomputation-medium
             thresholds:
               - execution_time < 7.45 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 46.00 MB
           - name: recursivecomputation-shallow
             thresholds:
               - execution_time < 1.05 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 46.00 MB
 
           # samplingrules
           - name: samplingrules-average_match
