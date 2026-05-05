@@ -211,6 +211,19 @@ class ProfilingConfig(DDConfig):
         help="**Deprecated**: whether to ignore the profiler in the generated data",
     )
 
+    mem_domain_enabled = DDConfig.v(
+        bool,
+        "mem_domain_enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Whether to track MEM-domain allocations (PyMem_Malloc/Calloc/Realloc) in "
+            "the heap profiler. When enabled, allocations such as list internal buffers "
+            "and array.array data are captured in addition to PyObject_Malloc allocations. "
+            "Disabled by default; enable with DD_PROFILING_MEM_DOMAIN_ENABLED=true."
+        ),
+    )
+
     max_time_usage_pct = DDConfig.v(
         float,
         "max_time_usage_pct",
