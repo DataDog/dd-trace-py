@@ -877,6 +877,100 @@ impl SpanData {
     fn _has_events(&self) -> bool {
         !self.data.span_events.is_empty()
     }
+
+    // --- Cyclic GC support ---
+    //
+    // Without these, any reference cycle that passes through `meta_struct`
+    // (`Py<PyDict>`) or `_trace_id_py` (`Py<PyAny>`) is invisible to CPython's
+    // cyclic GC and leaks forever. This was the root cause of a memory
+    // regression in 4.x where pure-Python span attributes were migrated to
+    // native storage (libdatadog `Span<PyTraceData>`) without preserving the
+    // implicit GC traversal that `__slots__` on the Python `Span` class used
+    // to provide. See repro: a span -> meta_struct -> dict -> list -> span
+    // cycle is uncollectable in 4.x but collectable in 3.x.
+    fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        if let Some(o) = &self._trace_id_py {
+            visit.call(o)?;
+        }
+        if let Some(d) = &self.meta_struct {
+            visit.call(d)?;
+        }
+        // PyBackedString fields hold `Py<PyAny>` storage for str/bytes/None.
+        // Atomic types can't form cycles, but visit them for correct refcount
+        // accounting.
+        self.span_api.traverse(&visit)?;
+        self.data.service.traverse(&visit)?;
+        self.data.name.traverse(&visit)?;
+        self.data.resource.traverse(&visit)?;
+        self.data.r#type.traverse(&visit)?;
+        // The libdatadog Span struct also holds `meta`, `metrics` (HashMaps of
+        // PyBackedString) and `span_links`, `span_events` (Vecs of native
+        // structs whose attributes are HashMap<PyBackedString, ...>). Currently
+        // `meta`/`metrics` are not written from Rust (the Python subclass
+        // stores them in __slots__), and link/event attribute values are
+        // primitives or PyBackedStrings. Visit conservatively.
+        for link in self.data.span_links.iter() {
+            link.tracestate.traverse(&visit)?;
+            for (k, v) in link.attributes.iter() {
+                k.traverse(&visit)?;
+                v.traverse(&visit)?;
+            }
+        }
+        for event in self.data.span_events.iter() {
+            event.name.traverse(&visit)?;
+            for (k, v) in event.attributes.iter() {
+                k.traverse(&visit)?;
+                // AttributeAnyValue can wrap an `AttributeArrayValue::String`
+                // (or an Array of them) whose `PyBackedString` storage holds a
+                // `Py<PyAny>` — typically a `PyString`, but possibly a `str`
+                // subclass with a `__dict__` that closes a cycle back to the
+                // span. Recurse so the GC sees the SpanData -> attribute-value
+                // edge.
+                traverse_attr_any(v, &visit)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn __clear__(&mut self) {
+        // Drop every owned Python reference so CPython can break cycles.
+        self._trace_id_py = None;
+        self.meta_struct = None;
+        self.span_api = crate::py_string::PyBackedString::default();
+        self.data = libdd_trace_utils::span::v04::Span::<PyTraceData>::default();
+    }
+}
+
+// --- Cyclic GC helpers ---
+
+/// Traverse the Python references reachable through an
+/// `AttributeAnyValue<PyTraceData>` (used by span-event attribute values).
+fn traverse_attr_any(
+    val: &AttributeAnyValue<PyTraceData>,
+    visit: &pyo3::PyVisit<'_>,
+) -> Result<(), pyo3::PyTraverseError> {
+    match val {
+        AttributeAnyValue::SingleValue(v) => traverse_attr_array(v, visit),
+        AttributeAnyValue::Array(items) => {
+            for item in items {
+                traverse_attr_array(item, visit)?;
+            }
+            Ok(())
+        }
+    }
+}
+
+/// Traverse the Python references reachable through an
+/// `AttributeArrayValue<PyTraceData>`. Only the `String` variant carries a
+/// `PyBackedString`; the rest are primitive Rust types.
+fn traverse_attr_array(
+    val: &AttributeArrayValue<PyTraceData>,
+    visit: &pyo3::PyVisit<'_>,
+) -> Result<(), pyo3::PyTraverseError> {
+    if let AttributeArrayValue::String(s) = val {
+        s.traverse(visit)?;
+    }
+    Ok(())
 }
 
 // --- Conversion helpers ---
