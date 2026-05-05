@@ -2392,28 +2392,3 @@ def test_exclude_modules_multiple() -> None:
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
         assert not isinstance(lock, _ProfiledLock), "Lock from excluded module should be native"
-
-
-@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES=""))
-def test_always_excluded_modules_cannot_be_overridden() -> None:
-    """Even with an empty user exclude list, stdlib modules (threading, asyncio, concurrent)
-    remain excluded via _ALWAYS_EXCLUDED_MODULES — the internal lock inside Condition
-    must be a native lock.
-    """
-    import threading
-
-    from ddtrace.profiling.collector._lock import _ProfiledLock
-    from ddtrace.profiling.collector.threading import ThreadingLockCollector
-    from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
-    from tests.profiling.collector.test_utils import init_ddup
-
-    init_ddup("test_always_excluded")
-
-    with ThreadingLockCollector(capture_pct=100), ThreadingSemaphoreCollector(capture_pct=100):
-        sem = threading.Semaphore(1)
-        assert isinstance(sem, _ProfiledLock), "User semaphore should be profiled"
-
-        internal_lock = sem._cond._lock
-        assert not isinstance(internal_lock, _ProfiledLock), (
-            "Stdlib-internal lock must remain native even when DD_PROFILING_LOCK_EXCLUDE_MODULES is empty"
-        )

@@ -6,6 +6,7 @@ from ddtrace.trace import Tracer
 
 ACQUIRE_RELEASE_CO_NAMES: frozenset[str]
 ENTER_EXIT_CO_NAMES: frozenset[str]
+_ALWAYS_EXCLUDED_MODULES: frozenset[str]
 
 def _get_original_lock_class(module_name: str, class_name: str) -> typing.Callable[..., typing.Any]: ...
 def _create_original_lock_instance(module_name: str, class_name: str) -> typing.Any: ...

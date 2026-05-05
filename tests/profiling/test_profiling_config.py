@@ -102,3 +102,41 @@ class TestExcludeModulesConfig:
 
         cfg = ProfilingConfigLock()
         assert cfg.exclude_modules == frozenset({"uvicorn", "asyncio"})
+
+
+def test_always_excluded_modules_contains_required_entries() -> None:
+    """_ALWAYS_EXCLUDED_MODULES must always contain the core stdlib concurrency modules.
+
+    These modules are excluded unconditionally to prevent double-counting and
+    to ensure stdlib-internal locks (e.g. inside Condition/Semaphore) stay native.
+    """
+    from ddtrace.profiling.collector._lock import _ALWAYS_EXCLUDED_MODULES
+
+    assert "threading" in _ALWAYS_EXCLUDED_MODULES
+    assert "asyncio" in _ALWAYS_EXCLUDED_MODULES
+    assert "concurrent" in _ALWAYS_EXCLUDED_MODULES
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES=""))
+def test_always_excluded_modules_cannot_be_overridden() -> None:
+    """Even with an empty user exclude list, stdlib modules (threading, asyncio, concurrent)
+    remain excluded via _ALWAYS_EXCLUDED_MODULES — the internal lock inside Condition
+    must be a native lock.
+    """
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_always_excluded")
+
+    with ThreadingLockCollector(capture_pct=100), ThreadingSemaphoreCollector(capture_pct=100):
+        sem = threading.Semaphore(1)
+        assert isinstance(sem, _ProfiledLock), "User semaphore should be profiled"
+
+        internal_lock = sem._cond._lock
+        assert not isinstance(internal_lock, _ProfiledLock), (
+            "Stdlib-internal lock must remain native even when DD_PROFILING_LOCK_EXCLUDE_MODULES is empty"
+        )
