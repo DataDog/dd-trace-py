@@ -1,6 +1,6 @@
 id: core-raising-dispatch
 message: Avoid using `raising_dispatch()` - prefer `core.dispatch()` with explicit try/except
-severity: warning
+severity: error
 language: python
 ignores:
   # Implementation and re-export
