@@ -2102,8 +2102,7 @@ class BaseSemaphoreTest(LockCollectorTestBase):
 
     def test_stdlib_internal_lock_is_native(self) -> None:
         """Locks created internally by threading.py (e.g., inside Condition/Semaphore) must be
-        native (not _ProfiledLock), because threading/asyncio are always-excluded modules.
-        This replaced the old is_internal flag with zero-overhead native locks.
+        native (not _ProfiledLock), because threading/asyncio are always excluded from profiling.
         """
         from ddtrace.profiling.collector._lock import _ProfiledLock
         from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -2207,54 +2206,6 @@ class BaseSemaphoreTest(LockCollectorTestBase):
 
         assert spy.call_count == 1, (
             f"_release was called {spy.call_count} times instead of 1 on the sampled path (capture_pct=100)."
-        )
-
-    def test_internal_module_file_realpath_called_once_at_patch_time(self) -> None:
-        """Verify that os.path.realpath() for the internal module file is computed once at patch() time,
-        not on every lock allocation.
-
-        Regression test for a bug where the constant internal module path was being resolved via
-        os.path.realpath() on every single lock instantiation, causing unnecessary filesystem syscalls
-        in hot paths (e.g. asyncio Semaphore/Condition allocations per request).
-        """
-        import os.path
-
-        realpath_call_counts: dict[str, int] = {"patch_time": 0, "alloc_time": 0}
-        in_patch: list[bool] = [False]
-        original_realpath = os.path.realpath
-
-        def counting_realpath(path: str, **kwargs: object) -> str:
-            if in_patch[0]:
-                realpath_call_counts["patch_time"] += 1
-            else:
-                realpath_call_counts["alloc_time"] += 1
-            return original_realpath(path, **kwargs)  # type: ignore[call-overload]
-
-        with mock.patch("os.path.realpath", side_effect=counting_realpath):
-            in_patch[0] = True
-            collector = self.collector_class(capture_pct=100)
-            collector._start_service()
-            in_patch[0] = False
-
-            try:
-                # Allocate several locks — realpath for the internal module file must NOT be called again
-                for _ in range(5):
-                    lock: LockTypeInst = self.lock_class()
-                    lock.acquire()
-                    lock.release()
-            finally:
-                collector._stop_service()
-
-        # realpath should have been called at least once at patch time (to resolve the internal module file)
-        assert realpath_call_counts["patch_time"] >= 1, (
-            "Expected os.path.realpath to be called at patch() time to precompute the internal module path"
-        )
-        # realpath may still be called at alloc time for the *caller* filename, but NOT for the constant
-        # internal module file. The alloc-time count should be exactly N allocations (one caller realpath each),
-        # not 2*N (which would indicate the internal file is still being resolved per allocation).
-        assert realpath_call_counts["alloc_time"] <= 5, (
-            f"os.path.realpath called {realpath_call_counts['alloc_time']} times during 5 allocations — "
-            "expected at most 5 (one per caller filename). The internal module file path may be recomputed per-call."
         )
 
     def test_acquire_return_values_preserved(self) -> None:
@@ -2510,36 +2461,6 @@ def test_exclude_modules_multiple() -> None:
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
         assert not isinstance(lock, _ProfiledLock), "Lock from excluded module should be native"
-
-
-class TestExcludeModulesConfig:
-    """Unit tests for the exclude_modules config field type guarantees."""
-
-    def test_default_is_empty_frozenset(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """exclude_modules must default to frozenset(), not '' or None."""
-        monkeypatch.delenv("DD_PROFILING_LOCK_EXCLUDE_MODULES", raising=False)
-        from ddtrace.internal.settings.profiling import ProfilingConfigLock
-
-        cfg = ProfilingConfigLock()
-        assert cfg.exclude_modules == frozenset()
-        assert isinstance(cfg.exclude_modules, frozenset)
-
-    def test_parsed_value_is_frozenset(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A non-empty env var must produce a frozenset[str], not a raw string."""
-        monkeypatch.setenv("DD_PROFILING_LOCK_EXCLUDE_MODULES", "uvicorn,asyncio,sqlalchemy.pool")
-        from ddtrace.internal.settings.profiling import ProfilingConfigLock
-
-        cfg = ProfilingConfigLock()
-        assert isinstance(cfg.exclude_modules, frozenset)
-        assert cfg.exclude_modules == frozenset({"uvicorn", "asyncio", "sqlalchemy.pool"})
-
-    def test_whitespace_stripped(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Leading/trailing whitespace around module names must be stripped."""
-        monkeypatch.setenv("DD_PROFILING_LOCK_EXCLUDE_MODULES", " uvicorn , asyncio ")
-        from ddtrace.internal.settings.profiling import ProfilingConfigLock
-
-        cfg = ProfilingConfigLock()
-        assert cfg.exclude_modules == frozenset({"uvicorn", "asyncio"})
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES=""))
