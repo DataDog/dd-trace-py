@@ -1088,6 +1088,24 @@ def assert_llmobs_span_data(
 
     failures = []
 
+    def _normalize_messages(msgs):
+        """Default ``role`` to ``""`` on any message dict that omits it.
+
+        SDKs default the role to ``""`` at projection time when it isn't explicitly set
+        (matches the existing ``_expected_llmobs_llm_span_event`` helper). Normalizing
+        both sides of the comparison keeps tests writable without forcing every entry to
+        spell out ``"role": ""``.
+        """
+        if not isinstance(msgs, list):
+            return msgs
+        out = []
+        for m in msgs:
+            if isinstance(m, dict) and m.get("role") is None:
+                out.append({**m, "role": ""})
+            else:
+                out.append(m)
+        return out
+
     def _check_eq(label, expected_value, actual_value):
         if actual_value != expected_value:
             failures.append(
@@ -1111,13 +1129,21 @@ def assert_llmobs_span_data(
     if model_provider is not None:
         _check_eq("meta.model_provider", model_provider, actual_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER))
     if input_messages is not None:
-        _check_eq("meta.input.messages", input_messages, actual_input.get(LLMOBS_STRUCT.MESSAGES))
+        _check_eq(
+            "meta.input.messages",
+            _normalize_messages(input_messages),
+            _normalize_messages(actual_input.get(LLMOBS_STRUCT.MESSAGES)),
+        )
     if input_value is not None:
         _check_eq("meta.input.value", input_value, actual_input.get(LLMOBS_STRUCT.VALUE))
     if input_documents is not None:
         _check_eq("meta.input.documents", input_documents, actual_input.get(LLMOBS_STRUCT.DOCUMENTS))
     if output_messages is not None:
-        _check_eq("meta.output.messages", output_messages, actual_output.get(LLMOBS_STRUCT.MESSAGES))
+        _check_eq(
+            "meta.output.messages",
+            _normalize_messages(output_messages),
+            _normalize_messages(actual_output.get(LLMOBS_STRUCT.MESSAGES)),
+        )
     if output_value is not None:
         _check_eq("meta.output.value", output_value, actual_output.get(LLMOBS_STRUCT.VALUE))
     if output_documents is not None:
