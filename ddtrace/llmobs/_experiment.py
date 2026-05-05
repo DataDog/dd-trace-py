@@ -1878,7 +1878,11 @@ class Experiment:
         summary_evaluations: Optional[list[EvaluationResult]],
     ) -> ExperimentRun:
         if self._dataset is None:
-            raise RuntimeError("_merge_results called with dataset=None; this is a bug")
+            raise RuntimeError(
+                "Internal: cannot merge experiment results without a dataset attached. "
+                "This typically means an experiment was run that has no dataset "
+                "(e.g., one returned by LLMObs.pull_experiment())."
+            )
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
@@ -2055,7 +2059,11 @@ class Experiment:
     def _get_subset_dataset(self, sample_size: Optional[int]) -> Dataset:
         """Get dataset containing the first sample_size records of the original dataset."""
         if self._dataset is None:
-            raise RuntimeError("_get_subset_dataset called with dataset=None; this is a bug")
+            raise RuntimeError(
+                "Internal: cannot subset records without a dataset attached. "
+                "This typically means an experiment was run that has no dataset "
+                "(e.g., one returned by LLMObs.pull_experiment())."
+            )
         if sample_size is not None and sample_size < len(self._dataset):
             subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
             subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
@@ -2116,7 +2124,11 @@ class Experiment:
         dict[str, list[JSONType]],
     ]:
         if self._dataset is None:
-            raise RuntimeError("_prepare_summary_evaluator_data called with dataset=None; this is a bug")
+            raise RuntimeError(
+                "Internal: cannot prepare summary evaluator inputs without a dataset attached. "
+                "This typically means an experiment was run that has no dataset "
+                "(e.g., one returned by LLMObs.pull_experiment())."
+            )
         inputs: list[JSONType] = []
         outputs: list[JSONType] = []
         expected_outputs: list[JSONType] = []
@@ -2151,7 +2163,11 @@ class Experiment:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(llmobs_not_enabled_error)
         if self._dataset is None:
-            raise RuntimeError("_setup_experiment called with dataset=None; this is a bug")
+            raise RuntimeError(
+                "Internal: cannot set up an experiment run without a dataset attached. "
+                "This typically means run() was invoked on an experiment that has no dataset "
+                "(e.g., one returned by LLMObs.pull_experiment())."
+            )
 
         project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
         self._project_id = project.get("_id", "")
@@ -2336,7 +2352,11 @@ class Experiment:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
         if self._task is None or self._dataset is None:
-            raise RuntimeError("_process_record called with task=None or dataset=None; this is a bug")
+            raise RuntimeError(
+                "Internal: cannot process records without a task and dataset attached. "
+                "This typically means run() was invoked on an experiment that has no task or dataset "
+                "(e.g., one returned by LLMObs.pull_experiment())."
+            )
         async with semaphore:
             idx, record = idx_record
             with self._llmobs_instance._experiment(
@@ -2618,7 +2638,11 @@ class Experiment:
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
         if self._dataset is None:
-            raise RuntimeError("_evaluate_records called with dataset=None; this is a bug")
+            raise RuntimeError(
+                "Internal: cannot evaluate records without a dataset attached. "
+                "This typically means run() was invoked on an experiment that has no dataset "
+                "(e.g., one returned by LLMObs.pull_experiment())."
+            )
         asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
         coros = [
@@ -2946,18 +2970,26 @@ class SyncExperiment:
     def __init__(
         self,
         name: str,
-        task: Union[TaskType, AsyncTaskType],
-        dataset: Dataset,
-        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
-        project_name: str,
+        task: Optional[Union[TaskType, AsyncTaskType]] = None,
+        dataset: Optional[Dataset] = None,
+        evaluators: Optional[Sequence[Union[EvaluatorType, AsyncEvaluatorType]]] = None,
+        project_name: Optional[str] = None,
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
+        _experiment: Optional["Experiment"] = None,
+        _result: Optional[ExperimentResult] = None,
     ) -> None:
-        self.result: Optional[ExperimentResult] = None
+        if _experiment is not None:
+            self._experiment = _experiment
+            self.result = _result
+            return
+        if task is None or dataset is None or evaluators is None or project_name is None:
+            raise TypeError("SyncExperiment requires name, task, dataset, evaluators, and project_name")
+        self.result = None
         self._experiment = Experiment(
             name=name,
             task=task,

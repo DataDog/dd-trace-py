@@ -1006,13 +1006,7 @@ class LLMObs(Service):
         inner_exp._project_id = experiment_meta._project_id
         inner_exp._dataset_id = dataset_id
 
-        # Bypass SyncExperiment.__init__: it requires task/dataset, which a pulled
-        # experiment does not carry. We build the underlying Experiment above and
-        # attach it directly, keeping __init__'s signature unchanged for callers.
-        pulled = SyncExperiment.__new__(SyncExperiment)
-        pulled._experiment = inner_exp
-        pulled.result = result
-        return pulled
+        return SyncExperiment(name=experiment_meta.name, _experiment=inner_exp, _result=result)
 
     @classmethod
     def create_dataset(
