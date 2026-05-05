@@ -178,7 +178,6 @@ class BedrockIntegration(BaseLLMIntegration):
         """Translate bedrock agent traces to LLMObs span events."""
         if not traces or not self.llmobs_enabled:
             return
-        # Per-invocation state. Held on the class previously, which raced across concurrent invoke_agent calls.
         spans: dict[str, LLMObsSpanEvent] = {}
         active_span_by_step_id: dict[str, LLMObsSpanEvent] = {}
         for trace in traces:
