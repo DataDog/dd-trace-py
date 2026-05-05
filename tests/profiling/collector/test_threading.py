@@ -11,7 +11,7 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 from typing import cast
-from unittest import mock  # type: ignore[import-untyped]
+from unittest import mock
 import uuid
 
 import pytest
@@ -581,7 +581,7 @@ def test_all_exceptions_suppressed_by_default() -> None:
     """
     import threading
 
-    import mock
+    import mock  # type: ignore[import-untyped]
 
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector.test_utils import init_ddup
