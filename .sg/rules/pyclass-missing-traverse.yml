@@ -1,0 +1,88 @@
+id: pyclass-missing-traverse
+message: "PyO3 #[pyclass] holds Python references (Py<...>, PyObject, or PyBackedString) but does not implement __traverse__ — cycles through this type will leak"
+severity: warning
+language: rust
+files:
+  - "src/native/**/*.rs"
+rule:
+  all:
+    - kind: struct_item
+    - follows:
+        stopBy: end
+        kind: attribute_item
+        regex: "pyclass"
+    # Has at least one field whose type mentions a Python-owning reference.
+    # PyBackedString is included because it opaquely holds Option<Py<PyAny>>;
+    # without traversal, a str subclass with __dict__ stored in such a field
+    # can close an uncollectable cycle (see test_span_event_string_attribute_*
+    # cases in tests/tracer/test_span_data.py).
+    - has:
+        kind: field_declaration_list
+        has:
+          kind: field_declaration
+          has:
+            field: type
+            stopBy: end
+            regex: "Py<|PyObject|PyBackedString"
+    # No __traverse__ method exists in any sibling impl block in the same file.
+    # We check both directions (precedes / follows) because impl blocks may
+    # appear before or after the struct.
+    - not:
+        precedes:
+          stopBy: end
+          kind: impl_item
+          has:
+            stopBy: end
+            kind: function_item
+            has:
+              field: name
+              regex: "^__traverse__$"
+    - not:
+        follows:
+          stopBy: end
+          kind: impl_item
+          has:
+            stopBy: end
+            kind: function_item
+            has:
+              field: name
+              regex: "^__traverse__$"
+note: |
+  PyO3 does not auto-derive Python's cyclic-GC protocol. A #[pyclass] that
+  holds a Py<...>, PyObject, or PyBackedString field without implementing
+  __traverse__ is born without Py_TPFLAGS_HAVE_GC, so CPython's cyclic
+  collector never inspects its instances. Any reference cycle that passes
+  through such a field leaks for the lifetime of the process.
+
+  This was the root cause of the SpanData/SpanLink/SpanEvent leak fixed by
+  the PR that introduced this lint. See:
+  - releasenotes/notes/fix-span-cyclic-gc-leak-*.yaml
+  - tests/tracer/test_span_data.py (cyclic GC support tests)
+  - PyO3 RFC #5663 ("automatic garbage collector derives", open)
+
+  How to fix:
+
+    #[pymethods]
+    impl MyClass {
+        fn __traverse__(&self, visit: pyo3::PyVisit<'_>)
+            -> Result<(), pyo3::PyTraverseError>
+        {
+            // Visit every owned Py<...> / PyObject / wrapper that holds one.
+            visit.call(&self.some_py_dict)?;
+            self.some_pybacked_string.traverse(&visit)?;
+            Ok(())
+        }
+
+        // Only if the class is not `frozen`. If frozen, traversal alone is
+        // usually sufficient because the cycle can be broken on the mutable
+        // (Python-side) participant.
+        fn __clear__(&mut self) {
+            // Drop owned Python references that may participate in cycles.
+        }
+    }
+
+  If the field is known to hold only atomic Python objects (e.g. PyString,
+  PyLong, PyNone) AND will never be exposed to user-supplied subclasses with
+  a __dict__, traversal is technically optional for cycle-breaking — but it
+  is still required for correct refcount accounting from CPython's
+  perspective (`gc.get_referents`, debugger tooling). Implement it.

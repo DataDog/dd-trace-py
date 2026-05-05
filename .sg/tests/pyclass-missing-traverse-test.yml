@@ -1,0 +1,112 @@
+id: pyclass-missing-traverse
+valid:
+  # pyclass with no Python-owning fields — OK
+  - |
+    #[pyclass]
+    pub struct PureRust {
+        value: String,
+        count: u64,
+    }
+  # pyclass with Py<PyDict> AND a __traverse__ impl in the same file — OK
+  - |
+    #[pyclass]
+    pub struct WithTraverse {
+        attrs: Py<PyDict>,
+    }
+
+    #[pymethods]
+    impl WithTraverse {
+        fn __traverse__(&self, visit: pyo3::PyVisit<'_>)
+            -> Result<(), pyo3::PyTraverseError>
+        {
+            visit.call(&self.attrs)?;
+            Ok(())
+        }
+    }
+  # pyclass with PyBackedString field plus __traverse__ — OK
+  - |
+    #[pyclass(frozen)]
+    pub struct FrozenWithTraverse {
+        name: PyBackedString,
+    }
+
+    #[pymethods]
+    impl FrozenWithTraverse {
+        fn __traverse__(&self, visit: pyo3::PyVisit<'_>)
+            -> Result<(), pyo3::PyTraverseError>
+        {
+            self.name.traverse(&visit)?;
+            Ok(())
+        }
+    }
+  # __traverse__ defined in a separately attributed impl block — OK
+  - |
+    #[pyclass]
+    pub struct SplitImpl {
+        attrs: Py<PyDict>,
+    }
+
+    impl SplitImpl {
+        fn helper(&self) {}
+    }
+
+    #[pymethods]
+    impl SplitImpl {
+        fn __traverse__(&self, visit: pyo3::PyVisit<'_>)
+            -> Result<(), pyo3::PyTraverseError>
+        {
+            visit.call(&self.attrs)?;
+            Ok(())
+        }
+    }
+  # Plain (non-pyclass) struct that happens to hold Py<...> — OK,
+  # not exposed to Python so no GC protocol concern.
+  - |
+    pub struct NotAPyclass {
+        attrs: Py<PyDict>,
+    }
+invalid:
+  # Owned Py<PyDict> field, no __traverse__
+  - |
+    #[pyclass]
+    pub struct LeakDict {
+        attrs: Py<PyDict>,
+    }
+  # Owned Py<PyAny> wrapped in Option, no __traverse__
+  - |
+    #[pyclass]
+    pub struct LeakAny {
+        cached: Option<Py<PyAny>>,
+    }
+  # PyBackedString field, no __traverse__ (the str-subclass-with-__dict__
+  # cycle is real — see test_span_event_string_attribute_value_cycle_*)
+  - |
+    #[pyclass(frozen)]
+    pub struct LeakBacked {
+        name: PyBackedString,
+    }
+  # Fully-qualified pyo3::pyclass attribute — also covered
+  - |
+    #[pyo3::pyclass(name = "Leaky", module = "x")]
+    pub struct LeakQualified {
+        attrs: Py<PyDict>,
+    }
+  # Multiple attributes between #[pyclass] and the struct (e.g. derive)
+  # — `follows: stopBy: end` must walk past them.
+  - |
+    #[pyclass]
+    #[derive(Default)]
+    pub struct LeakDerive {
+        attrs: Option<Py<PyDict>>,
+    }
+  # Sibling impl exists but does NOT define __traverse__
+  - |
+    #[pyclass]
+    pub struct LeakWrongImpl {
+        attrs: Py<PyDict>,
+    }
+
+    #[pymethods]
+    impl LeakWrongImpl {
+        fn other(&self) {}
+    }
