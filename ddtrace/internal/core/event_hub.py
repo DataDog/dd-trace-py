@@ -126,3 +126,11 @@ def dispatch_with_results(event_id: str, args: tuple[Any, ...] = ()) -> EventRes
             results[name] = EventResult(ResultType.RESULT_EXCEPTION, None, e)
 
     return results
+
+
+def raising_dispatch(event_id: str, args: tuple[Any, ...] = ()) -> None:
+    results = dispatch_with_results(event_id, args)
+    for event in results.values():
+        # we explicitly set the exception as a value to prevent caught exceptions from leaking
+        if isinstance(event.value, Exception):
+            raise event.value
