@@ -164,3 +164,21 @@ invalid:
     impl LeakySibling {
         fn other(&self) {}
     }
+  # __traverse__ defined in a plain `impl` block (no #[pymethods]).
+  # PyO3 only wires __traverse__ into tp_traverse when it lives inside a
+  # #[pymethods] block; a regular impl method is invisible to the GC
+  # slot, so the type still leaks. Regression test for Codex P2 #3.
+  - |
+    #[pyclass]
+    pub struct LeakyPlainImpl {
+        attrs: Py<PyDict>,
+    }
+
+    impl LeakyPlainImpl {
+        fn __traverse__(&self, visit: pyo3::PyVisit<'_>)
+            -> Result<(), pyo3::PyTraverseError>
+        {
+            visit.call(&self.attrs)?;
+            Ok(())
+        }
+    }
