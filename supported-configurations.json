@@ -5888,6 +5888,13 @@
         "type": "string",
         "default": null
       }
+    ],
+    "DD_TEST_REGISTRY_SMOKE_TEST": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
     ]
   }
 }
