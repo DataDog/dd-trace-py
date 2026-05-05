@@ -6,7 +6,7 @@ benchmark-serverless:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
-    branch: onzia/test-noble
+    branch: $SLS_CI_BRANCH
     strategy: depend
   needs:
     - job: "upload serverless"
