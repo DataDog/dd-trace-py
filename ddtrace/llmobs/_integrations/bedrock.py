@@ -175,11 +175,14 @@ class BedrockIntegration(BaseLLMIntegration):
             return
         _annotate_llmobs_span_data(span, output_value=str(response))
 
-    def translate_bedrock_traces(self, traces, root_span) -> None:
-        """Translate bedrock agent traces to back-dated APM child spans of ``root_span``."""
-        # Each trace event is now a real APM span (was 1 root span pre-migration); acceptable.
+    def translate_bedrock_traces(self, traces, root_span) -> int:
+        """Translate bedrock agent traces to back-dated APM child spans of ``root_span``.
+
+        Returns the latest child end time (ns), or 0 if no children were created. Caller uses it
+        to push ``root_span``'s finish forward so the root covers its back-dated children.
+        """
         if not traces or not self.llmobs_enabled:
-            return
+            return 0
         # Per-invocation state. Held on the class previously, which raced across concurrent invoke_agent calls.
         step_spans_by_step_id: dict[str, Span] = {}
         active_span_by_step_id: dict[str, Span] = {}
@@ -200,11 +203,14 @@ class BedrockIntegration(BaseLLMIntegration):
                 if not finished:
                     active_span_by_step_id[trace_step_id] = inner_span
                 _propagate_inner_io_to_step_span(step_span, inner_span)
-        # Finish inner spans first (default = start + 1ms so back-dated orphans don't pick up
-        # `time.time_ns()` and span months), then stretch each step span over its children:
-        # Bedrock's top-level eventTime can land AFTER the inner's start when metadata.startTime
-        # is missing and the inner falls back to root.start_ns (common for guardrail/failure
-        # traces). `Span.finish()` is idempotent, so re-finishing already-finished inners no-ops.
+        # Inner spans get start + 1ms so back-dated orphans don't pick up `time.time_ns()` and
+        # span months. Each step is then stretched over its children's full timeline: Bedrock's
+        # top-level eventTime can land AFTER the inner's start when metadata.startTime is missing
+        # and the inner falls back to root.start_ns (common for guardrail/failure traces). After
+        # the step is sized, fold its window into earliest_start_ns / latest_end_ns so the caller
+        # can stretch the root over back-dated children too.
+        earliest_start_ns = int(root_span.start_ns or 0)
+        latest_end_ns = 0
         for step_id, step_span in step_spans_by_step_id.items():
             inners = inner_spans_by_step_id.get(step_id, [])
             for inner in inners:
@@ -215,6 +221,15 @@ class BedrockIntegration(BaseLLMIntegration):
             else:
                 step_finish_ns = int(step_span.start_ns or 0) + DEFAULT_SPAN_DURATION_NS
             step_span.finish(finish_time=step_finish_ns / 1e9)
+            step_start = int(step_span.start_ns or 0)
+            if step_start:
+                earliest_start_ns = min(earliest_start_ns, step_start)
+            latest_end_ns = max(latest_end_ns, _max_finish_ns(step_span))
+        # Stretch root over back-dated children (clock skew or fast-replay can push events outside
+        # the wall-clock window). Caller extends finish forward via the returned latest_end_ns.
+        if earliest_start_ns < int(root_span.start_ns or 0):
+            root_span.start_ns = earliest_start_ns
+        return latest_end_ns
 
     @staticmethod
     def _extract_input_message_for_converse(prompt: list[dict[str, Any]]) -> list[Message]:
