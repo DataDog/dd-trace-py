@@ -445,12 +445,6 @@ class BaseModuleWatchdog(abc.ABC):
             loader = getattr(spec, "loader", None)
 
             if not isinstance(loader, _ImportHookChainedLoader):
-                # Reuse the existing loader to preserve accumulated state (e.g. _dd_get_code)
-                # and avoid re-wrapping on reload.
-                existing_module = sys.modules.get(fullname)
-                existing_loader = getattr(existing_module, "__loader__", None)
-                if existing_loader is not None and not isinstance(existing_loader, _ImportHookChainedLoader):
-                    loader = existing_loader
                 spec.loader = t.cast("Loader", _ImportHookChainedLoader(loader, spec))
 
             t.cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
