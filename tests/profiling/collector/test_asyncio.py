@@ -21,6 +21,7 @@ from ddtrace.profiling.collector.asyncio import AsyncioLockCollector
 from ddtrace.profiling.collector.asyncio import AsyncioSemaphoreCollector
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
+from tests.profiling.collector.lock_test_common import assert_internal_lock_is_native
 from tests.profiling.collector.lock_test_common import assert_pep604_type_union_syntax
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
@@ -228,7 +229,7 @@ class BaseAsyncioLockCollectorTest:
             assert isinstance(self.lock_class, LockAllocatorWrapper)
 
             # This should NOT raise TypeError
-            class CustomLock(self.lock_class):  # type: ignore[misc]
+            class CustomLock(self.lock_class):  # type: ignore[name-defined]
                 def __init__(self) -> None:
                     super().__init__()
 
@@ -325,3 +326,14 @@ class TestAsyncGenericLockProfiling:
         """
         with self.collector_class(capture_pct=100):
             assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
+
+    def test_asyncio_internal_lock_is_native(self) -> None:
+        """asyncio.Condition creates an internal Lock inside the asyncio module.
+        That lock must be native (not profiled), because asyncio is always excluded.
+        """
+        with self.collector_class(capture_pct=100), AsyncioSemaphoreCollector(capture_pct=100):
+            assert_internal_lock_is_native(
+                user_lock_factory=asyncio.Lock,
+                condition_factory=asyncio.Condition,
+                module_name="asyncio",
+            )

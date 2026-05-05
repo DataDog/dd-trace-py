@@ -101,7 +101,7 @@ class TestExcludeModulesConfig:
         from ddtrace.internal.settings.profiling import ProfilingConfigLock
 
         cfg = ProfilingConfigLock()
-        assert cfg.exclude_modules == frozenset({"uvicorn", "asyncio"})
+        assert cfg.exclude_modules == frozenset({"uvicorn", "asyncio", "threading", "concurrent"})
 
 
 def test_always_excluded_modules_contains_required_entries() -> None:
@@ -110,7 +110,7 @@ def test_always_excluded_modules_contains_required_entries() -> None:
     These modules are excluded unconditionally to prevent double-counting and
     to ensure stdlib-internal locks (e.g. inside Condition/Semaphore) stay native.
     """
-    from ddtrace.profiling.collector._lock import _ALWAYS_EXCLUDED_MODULES
+    from ddtrace.internal.settings.profiling import _ALWAYS_EXCLUDED_MODULES
 
     assert "threading" in _ALWAYS_EXCLUDED_MODULES
     assert "asyncio" in _ALWAYS_EXCLUDED_MODULES
@@ -120,7 +120,7 @@ def test_always_excluded_modules_contains_required_entries() -> None:
 @pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES=""))
 def test_always_excluded_modules_cannot_be_overridden() -> None:
     """Even with an empty user exclude list, stdlib modules (threading, asyncio, concurrent)
-    remain excluded via _ALWAYS_EXCLUDED_MODULES — the internal lock inside Condition
+    are always included by the config parser — the internal lock inside Condition
     must be a native lock.
     """
     import threading

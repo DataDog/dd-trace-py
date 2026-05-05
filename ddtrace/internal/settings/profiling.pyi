@@ -34,6 +34,8 @@ class ProfilingConfigStack(DDConfig):
     native_frames: bool
     fast_copy: bool
 
+_ALWAYS_EXCLUDED_MODULES: frozenset[str]
+
 class ProfilingConfigLock(DDConfig):
     enabled: bool
     name_inspect_dir: bool

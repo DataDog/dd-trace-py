@@ -40,14 +40,6 @@ ENTER_EXIT_CO_NAMES: frozenset[str] = frozenset(
     ["acquire", "release", "__enter__", "__exit__", "__aenter__", "__aexit__"]
 )
 
-# Modules whose internal lock allocations are always excluded from profiling,
-# regardless of user config. Do NOT remove stdlib entries — they prevent double-counting when
-# multiple collectors (Lock + Semaphore + Condition) are active simultaneously.
-_ALWAYS_EXCLUDED_MODULES: frozenset = frozenset({
-    "threading",
-    "asyncio",
-    "concurrent",
-})
 
 # Cython-compiled def/cpdef functions do not create Python frame objects
 # visible to sys._getframe(). All intermediate calls within this module
@@ -576,12 +568,7 @@ class LockCollector(collector.CaptureSamplerCollector):
             return
         self._original_lock = original_lock
 
-        # Merge user-configured exclusions with the always-excluded stdlib modules.
-        # _ALWAYS_EXCLUDED_MODULES prevents double-counting when multiple collectors
-        # (Lock + Semaphore + Condition) are active.
-        exclude_exact: frozenset[str] = (
-            config.lock.exclude_modules | _ALWAYS_EXCLUDED_MODULES
-        )
+        exclude_exact: frozenset[str] = config.lock.exclude_modules
         exclude_dotted: tuple[str, ...] = tuple(p + "." for p in exclude_exact)
 
         def _profiled_allocate_lock(*args: Any, **kwargs: Any) -> Any:

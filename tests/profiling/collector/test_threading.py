@@ -30,6 +30,7 @@ from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
+from tests.profiling.collector.lock_test_common import assert_internal_lock_is_native
 from tests.profiling.collector.lock_test_common import assert_pep604_type_union_syntax
 from tests.profiling.collector.lock_utils import LineNo
 from tests.profiling.collector.lock_utils import get_lock_linenos
@@ -208,7 +209,7 @@ def test_lock_patching_survives_module_reimport():
     import sys
     import threading
 
-    from ddtrace.profiling.collector._lock import LockAllocatorWrapper
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
@@ -245,7 +246,7 @@ def test_lock_unpatch_after_module_reimport():
     import sys
     import threading
 
-    from ddtrace.profiling.collector._lock import LockAllocatorWrapper
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
     collector = ThreadingLockCollector()
@@ -303,7 +304,7 @@ def test_all_threading_collectors_survive_module_reimport(
 def test_user_threads_have_native_id():
     from os import getpid
     from threading import Thread
-    from threading import _MainThread
+    from threading import _MainThread  # pyright: ignore[reportAttributeAccessIssue]
     from threading import current_thread
     from time import sleep
 
@@ -323,7 +324,7 @@ def test_user_threads_have_native_id():
     for _ in range(10):
         try:
             # The TID should be higher than the PID, but not too high
-            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())
+            assert 0 < t.native_id - getpid() < 100, (t.native_id, getpid())  # pyright: ignore[reportOperatorIssue]
         except AttributeError:
             # The native_id attribute is set by the thread so we might have to
             # wait a bit for it to be set.
@@ -345,7 +346,7 @@ def test_user_threads_have_native_id():
     env=dict(DD_PROFILING_FILE_PATH=__file__),
 )
 def test_lock_gevent_tasks() -> None:
-    from gevent import monkey
+    from gevent import monkey  # pyright: ignore[reportMissingImports]
 
     monkey.patch_all()
 
@@ -434,7 +435,7 @@ def test_lock_gevent_tasks() -> None:
     env=dict(DD_PROFILING_FILE_PATH=__file__),
 )
 def test_rlock_gevent_tasks() -> None:
-    from gevent import monkey
+    from gevent import monkey  # pyright: ignore[reportMissingImports]
 
     monkey.patch_all()
 
@@ -531,7 +532,7 @@ def test_assertion_error_raised_with_enable_asserts():
         lock = threading.Lock()
 
         # Patch _update_name to raise AssertionError
-        lock._update_name = mock.Mock(side_effect=AssertionError("test: unexpected frame in stack"))
+        lock._update_name = mock.Mock(side_effect=AssertionError("test: unexpected frame in stack"))  # pyright: ignore[reportAttributeAccessIssue]
 
         with pytest.raises(AssertionError):
             # AssertionError should be propagated when enable_asserts=True
@@ -1502,7 +1503,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             True,
         ):
             with self.collector_class(capture_pct=100):
-                foo: Foo = Foo(self.lock_class)
+                foo = Foo(self.lock_class)
                 foo.foo()
 
         ddup.upload()  # pyright: ignore[reportCallIssue]
@@ -1549,7 +1550,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         bar_class = Bar
 
         with self.collector_class(capture_pct=100):
-            bar: Bar = Bar(self.lock_class)
+            bar = Bar(self.lock_class)
             bar.bar()
 
         ddup.upload()  # pyright: ignore[reportCallIssue]
@@ -2104,21 +2105,13 @@ class BaseSemaphoreTest(LockCollectorTestBase):
         """Locks created internally by threading.py (e.g., inside Condition/Semaphore) must be
         native (not _ProfiledLock), because threading/asyncio are always excluded from profiling.
         """
-        from ddtrace.profiling.collector._lock import _ProfiledLock
         from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
         with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
-            regular_lock: LockTypeInst = threading.Lock()
-            assert isinstance(regular_lock, _ProfiledLock), "User lock should be profiled"
-
-            sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
-            assert isinstance(sem, _ProfiledLock), "User semaphore should be profiled"
-
-            # Internal lock (Semaphore -> Condition -> Lock, allocated inside threading.py)
-            # must be a native lock, NOT a _ProfiledLock
-            internal_lock = sem._cond._lock
-            assert not isinstance(internal_lock, _ProfiledLock), (
-                f"Lock created by threading.py (inside Condition) should be native, got {type(internal_lock).__name__}"
+            assert_internal_lock_is_native(
+                user_lock_factory=threading.Lock,
+                condition_factory=threading.Condition,
+                module_name="threading",
             )
 
     def test_unsampled_acquire_bypasses_inner_acquire(self) -> None:

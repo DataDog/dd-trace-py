@@ -349,6 +349,17 @@ class ProfilingConfigStack(DDConfig):
     )
 
 
+# Stdlib modules that MUST always be excluded from lock profiling regardless of user config.
+# Profiling locks inside these would cause double-counting when multiple collectors
+# (Lock + Semaphore + Condition) are active, or infinite recursion.
+_ALWAYS_EXCLUDED_MODULES: frozenset[str] = frozenset({"threading", "asyncio", "concurrent"})
+
+
+def _parse_exclude_modules(raw: str) -> frozenset[str]:
+    user_set = frozenset(p.strip() for p in raw.split(",") if p.strip())
+    return user_set | _ALWAYS_EXCLUDED_MODULES
+
+
 class ProfilingConfigLock(DDConfig):
     __item__ = __prefix__ = "lock"
 
@@ -374,10 +385,10 @@ class ProfilingConfigLock(DDConfig):
     exclude_modules = DDConfig.v(
         frozenset,
         "exclude_modules",
-        parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
+        parser=_parse_exclude_modules,
         default=frozenset(
             {
-                # Datadog internals (profiling our own profileris noise)
+                # Datadog internals (profiling our own profiler is noise)
                 "ddtrace",
                 "ddsketch",
                 "datadog",
@@ -390,7 +401,7 @@ class ProfilingConfigLock(DDConfig):
                 "werkzeug",
                 "h11",  # HTTP/1.1 protocol parser; no real contention
                 "anyio",  # async abstraction; locks are bookkeeping
-                # Stdlib internal lock allocations
+                # Stdlib internal lock allocations (also in _ALWAYS_EXCLUDED_MODULES)
                 "asyncio",
                 "threading",
                 "concurrent",  # also covers concurrent.futures.ThreadPoolExecutor's work queue
@@ -402,8 +413,8 @@ class ProfilingConfigLock(DDConfig):
         help=(
             "Comma-separated list of module or package names to exclude from lock profiling. "
             "Locks created from these modules are not profiled. Setting this environment variable "
-            "REPLACES the in-tree default rather than appending to it; users who only need to add "
-            "an entry should reproduce the full default list and append to it. "
+            "REPLACES the in-tree default rather than appending to it, but threading/asyncio/concurrent "
+            "are always excluded for safety. "
             "Examples: ``ddtrace`` (excludes profiler overhead), ``django.db,sqlalchemy.pool,urllib3``"
         ),
     )

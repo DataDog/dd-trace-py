@@ -9,11 +9,13 @@ from __future__ import annotations
 import types
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import Callable
 from typing import Optional
 
 import pytest
 
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
+from ddtrace.profiling.collector._lock import _ProfiledLock
 
 
 if TYPE_CHECKING:
@@ -42,3 +44,23 @@ def assert_pep604_type_union_syntax(lock_class: _LockAllocatorWrapper) -> None:
     runion: UnionType = None | lock_class
     assert isinstance(runion, types.UnionType)
     assert runion.__args__ == (type(None), original)
+
+
+def assert_internal_lock_is_native(
+    user_lock_factory: Callable[[], Any],
+    condition_factory: Callable[[], Any],
+    module_name: str,
+) -> None:
+    """Assert that a Condition's internally-created lock is native, not _ProfiledLock.
+
+    Verifies that locks allocated inside always-excluded stdlib modules (threading, asyncio)
+    bypass profiling, while user-created locks are still profiled.
+    """
+    user_lock = user_lock_factory()
+    assert isinstance(user_lock, _ProfiledLock), f"User {module_name}.Lock should be profiled"
+
+    cond = condition_factory()
+    internal_lock = cond._lock  # pyright: ignore[reportAttributeAccessIssue]
+    assert not isinstance(internal_lock, _ProfiledLock), (
+        f"Lock created internally by {module_name}.Condition should be native, got {type(internal_lock).__name__}"
+    )
