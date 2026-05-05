@@ -395,6 +395,31 @@ detect_circular_imports:
     - exit $COMPARE_EXIT
 
 
+"summarize failures":
+  stage: .post
+  extends: .testrunner
+  rules:
+    - when: on_failure
+      allow_failure: true
+  dependencies: []
+  timeout: 30m
+  retry: 0
+  variables:
+    CI_FAILURE_LOGS_DIR: "$CI_PROJECT_DIR/ci-failure-logs"
+  before_script:
+    - !reference [.testrunner, before_script]
+  script:
+    - .gitlab/scripts/summarize_failures.py
+  after_script: []
+  artifacts:
+    when: always
+    paths:
+      - ci-failure-logs/
+      - summary.md
+      - claude.stdout.log
+    expire_in: 1 month
+
+
 package-oci:
   needs:
     - job: "package version"
