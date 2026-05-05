@@ -61,6 +61,17 @@ BTI_BASE_URL = "https://bti-ci-api.us1.ddbuild.io/internal/ci"
 AUTHANYWHERE_URL = "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64"
 AI_GATEWAY_BASE_URL = "https://ai-gateway.us1.ddbuild.io"
 
+# Maps known GitLab project IDs → (GitHub owner, repo) for BTI trace downloads.
+# Add entries here as child pipeline projects are identified (check the project's
+# GitLab URL for the numeric ID, e.g. gitlab.ddbuild.io/DataDog/foo/-/settings).
+# The main project (CI_PROJECT_ID → GH_OWNER/GH_REPO) is handled implicitly.
+KNOWN_PROJECT_REPOS: dict[str, tuple[str, str]] = {
+    "358": ("DataDog", "dd-trace-py"),
+    "1611": ("DataDog", "datadog-lambda-python"),
+    "4339": ("DataDog", "serverless-tools"),
+    "6260": ("DataDog", "datadog-packages"),
+}
+
 
 def get_authanywhere_bin(tmpdir: str) -> str:
     """Return path to authanywhere binary, downloading it on Linux if needed."""
@@ -124,10 +135,11 @@ def paginate(client: httpx.Client, url: str, **params) -> list[dict]:
 
 
 def get_pipeline(client: httpx.Client, bti_auth_header: str, project_id: str, pipeline_id: str) -> dict:
-    """Fetch pipeline details via BTI for the main repo, GitLab API for child pipelines."""
-    if project_id == CI_PROJECT_ID:
+    """Fetch pipeline details via BTI for known repos, GitLab API for unknown projects."""
+    gh_owner, gh_repo = KNOWN_PROJECT_REPOS.get(project_id, ("", ""))
+    if gh_owner:
         r = httpx.get(
-            f"{BTI_BASE_URL}/gitlab/pipeline/{GH_OWNER}/{GH_REPO}/{pipeline_id}",
+            f"{BTI_BASE_URL}/gitlab/pipeline/{gh_owner}/{gh_repo}/{pipeline_id}",
             headers={"Authorization": bti_auth_header.removeprefix("Authorization: ")},
             timeout=30,
         )
@@ -140,11 +152,19 @@ def get_pipeline(client: httpx.Client, bti_auth_header: str, project_id: str, pi
 
 
 def get_failed_jobs(client: httpx.Client, project_id: str, pipeline_id: str) -> list[dict]:
-    jobs = paginate(
-        client,
-        f"{CI_API_V4_URL}/projects/{project_id}/pipelines/{pipeline_id}/jobs",
-        include_retried="true",
-    )
+    try:
+        jobs = paginate(
+            client,
+            f"{CI_API_V4_URL}/projects/{project_id}/pipelines/{pipeline_id}/jobs",
+            include_retried="true",
+        )
+    except httpx.HTTPStatusError as exc:
+        print(
+            f"  [warn] Cannot list jobs for pipeline {pipeline_id} in project {project_id}:"
+            f" HTTP {exc.response.status_code} — PAT may lack access to this project",
+            file=sys.stderr,
+        )
+        return []
     # Keep only the latest attempt for each job name that ended in failure.
     # GitLab returns jobs newest-first so the first occurrence of a name is
     # the most recent attempt.
@@ -160,31 +180,60 @@ def get_failed_jobs(client: httpx.Client, project_id: str, pipeline_id: str) -> 
 
 
 def get_bridges(client: httpx.Client, project_id: str, pipeline_id: str) -> list[dict]:
-    return paginate(
-        client,
-        f"{CI_API_V4_URL}/projects/{project_id}/pipelines/{pipeline_id}/bridges",
-    )
+    try:
+        return paginate(
+            client,
+            f"{CI_API_V4_URL}/projects/{project_id}/pipelines/{pipeline_id}/bridges",
+        )
+    except httpx.HTTPStatusError as exc:
+        print(
+            f"  [warn] Cannot list bridges for pipeline {pipeline_id} in project {project_id}:"
+            f" HTTP {exc.response.status_code}",
+            file=sys.stderr,
+        )
+        return []
 
 
-def download_trace(bti_auth_header: str, job: dict, pipeline_id: str) -> str | None:
-    """Fetch job log via the BTI trace endpoint (returns JSON {"trace": "..."})."""
+def download_trace(
+    client: httpx.Client, bti_auth_header: str, project_id: str, job: dict, pipeline_id: str
+) -> str | None:
+    """Fetch job log via BTI (known repos) or GitLab API (unknown projects).
+
+    BTI is scoped to known GitHub repos; for unrecognised project IDs we fall
+    back to the GitLab API trace endpoint, which may 403 if the PAT lacks access.
+    """
     job_id = job["id"]
     job_name = _safe_name(job["name"])
     log_dir = LOGS_DIR / str(pipeline_id)
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"{job_id}-{job_name}.log"
 
+    gh_owner, gh_repo = KNOWN_PROJECT_REPOS.get(project_id, ("", ""))
+
     try:
-        r = httpx.get(
-            f"{BTI_BASE_URL}/gitlab/repository/{GH_OWNER}/{GH_REPO}/jobs/{job_id}/trace",
-            headers={"Authorization": bti_auth_header.removeprefix("Authorization: ")},
-            timeout=60,
-        )
-        if r.status_code == 404:
-            print(f"  [warn] No trace for job {job_id} ({job['name']})", file=sys.stderr)
-            return None
-        r.raise_for_status()
-        log_path.write_text(r.json().get("trace", ""), encoding="utf-8")
+        if gh_owner:
+            r = httpx.get(
+                f"{BTI_BASE_URL}/gitlab/repository/{gh_owner}/{gh_repo}/jobs/{job_id}/trace",
+                headers={"Authorization": bti_auth_header.removeprefix("Authorization: ")},
+                timeout=60,
+            )
+            if r.status_code == 404:
+                print(f"  [warn] No trace for job {job_id} ({job['name']})", file=sys.stderr)
+                return None
+            r.raise_for_status()
+            log_path.write_text(r.json().get("trace", ""), encoding="utf-8")
+        else:
+            # Unknown project — try GitLab API directly (may 403 for external projects).
+            r = client.get(f"{CI_API_V4_URL}/projects/{project_id}/jobs/{job_id}/trace", timeout=60)
+            if r.status_code in (403, 404):
+                print(
+                    f"  [warn] No trace for job {job_id} ({job['name']}) in project {project_id}"
+                    f" — add to KNOWN_PROJECT_REPOS to enable BTI fetch",
+                    file=sys.stderr,
+                )
+                return None
+            r.raise_for_status()
+            log_path.write_text(r.text, encoding="utf-8")
         return str(log_path)
     except Exception as exc:
         print(f"  [warn] Failed to download trace for job {job_id}: {exc}", file=sys.stderr)
@@ -232,7 +281,7 @@ def collect_for_pipeline(
     all_failed_jobs: list[dict] = []
     for job in failed_jobs:
         print(f"{indent}  Downloading trace: {job['name']}", file=sys.stderr)
-        log_path = download_trace(bti_auth_header, job, pipeline_id)
+        log_path = download_trace(client, bti_auth_header, project_id, job, pipeline_id)
         artifact_path = download_artifacts(client, project_id, job, pipeline_id)
         log_size = Path(log_path).stat().st_size if log_path and Path(log_path).exists() else 0
 

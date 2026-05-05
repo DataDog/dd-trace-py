@@ -34,7 +34,8 @@ Keep it tight. An engineer should be able to read the whole thing in under two m
 **Why:** One or two sentences on the root cause — what changed, what's missing, what conflicts.
 
 **Evidence:**
-```
+
+```text
 <paste 1–3 stripped log lines that prove the diagnosis>
 ```
 
@@ -51,7 +52,8 @@ Keep it tight. An engineer should be able to read the whole thing in under two m
 
 - One section per distinct root cause, never one per job or shard.
 - Strip ANSI escape codes from any quoted log output.
-- If a failure is clearly a flake (no code change caused it, random timing/network issue), label it `[FLAKE]` in the title and skip the Fix line.
+- **GFM formatting:** Always put a blank line before and after every fenced code block, before every `**bold**` label at the start of a line, and between any two block-level elements. Omitting blank lines causes GFM renderers to treat them as inline text rather than separate blocks.
+- If a failure is clearly a flake (no code change caused it, random timing/network issue), label it `[FLAKE]` in the title. Still include a **Fix** if the log makes the root cause obvious (e.g. a specific race condition, port collision, or retry-able network call); omit it only if the flake is genuinely opaque.
 - If the root cause is genuinely unknown after reading the logs, say so in one sentence and name what extra information would resolve it.
 - Do not speculate beyond what the logs show.
 - No preamble, no conclusion paragraph, no "I hope this helps".
