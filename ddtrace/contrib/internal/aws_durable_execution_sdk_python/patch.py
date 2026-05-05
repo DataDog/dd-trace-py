@@ -102,6 +102,12 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
     if user_func is None or not callable(user_func):
         return wrapped(*args, **kwargs)
 
+    qualname = (
+        getattr(user_func, "__qualname__", None) or getattr(user_func, "__name__", None) or type(user_func).__name__
+    )
+    module = getattr(user_func, "__module__", None)
+    resource = "{}.{}".format(module, qualname) if module else qualname
+
     @functools.wraps(user_func)
     def traced_user_func(*inner_args, **inner_kwargs):
         durable_context = get_argument_value(inner_args, inner_kwargs, 1, "durable_context", optional=True)
@@ -112,7 +118,7 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
             operation_name="aws.durable.execute",
             span_type="serverless",
             span_kind="internal",
-            resource="{}.{}".format(user_func.__module__, user_func.__qualname__),
+            resource=resource,
             tags=_execution_tags(durable_context),
         )
 
@@ -131,6 +137,9 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
             ctx.dispatch_ended_event()
             return result
 
+    if "func" in kwargs:
+        kwargs["func"] = traced_user_func
+        return wrapped(*args, **kwargs)
     return wrapped(traced_user_func, *args[1:], **kwargs)
 
 
