@@ -199,25 +199,11 @@ def _handle_agent_action_result(client: AIGuardClient, result, args, kwargs):
 
 
 def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists):
-    """``langchain.chatmodel.[a]generate.before`` listener.
-
-    AI Guard owns its own collision-avoidance lifecycle here so the contrib
-    patch stays product-agnostic: ``set_aiguard_context_active()`` runs on
-    entry, the matching ``.after`` listener decrements the counter on
-    success.  When this listener returns a block decision, the contrib's
-    ``_raising_dispatch`` raises and ``.after`` will not fire — release the
-    counter inline on that path so the active flag does not leak.
-    """
     set_aiguard_context_active()
-    try:
-        for messages in message_lists:
-            result = _evaluate_langchain_messages(client, messages)
-            if result is not None:
-                reset_aiguard_context_active_current()
-                return result
-    except BaseException:
-        reset_aiguard_context_active_current()
-        raise
+    for messages in message_lists:
+        result = _evaluate_langchain_messages(client, messages)
+        if result is not None:
+            return result
     return None
 
 
@@ -226,34 +212,27 @@ def _langchain_llm_generate_before(client: AIGuardClient, prompts):
     from langchain_core.messages import HumanMessage
 
     set_aiguard_context_active()
-    try:
-        for prompt in prompts:
-            result = _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
-            if result is not None:
-                reset_aiguard_context_active_current()
-                return result
-    except BaseException:
-        reset_aiguard_context_active_current()
-        raise
+    for prompt in prompts:
+        result = _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
+        if result is not None:
+            return result
     return None
 
 
-def _langchain_generate_after(*args, **kwargs):
-    """Paired ``.after`` listener for the four langchain ``generate`` events.
+def _langchain_generate_finally(*args, **kwargs):
+    """Paired ``.finally`` listener for the four langchain ``generate`` events.
 
     Releases the AI Guard active counter that the matching ``.before``
-    listener bumped.  The dispatch args (``prompts, completions`` or
-    ``messages, completions``) are accepted but unused — this listener's
-    sole responsibility is to close the collision-avoidance context window.
+    listener bumped. Dispatched from the contrib's ``finally`` block so it
+    fires on every exit path — success, block (``_raising_dispatch`` raises
+    out of ``.before``), or exception inside the underlying LLM call. The
+    counter reset is a no-op when the counter is already zero, so listener
+    invocations that don't pair with a ``.before`` set are safe.
     """
     reset_aiguard_context_active_current()
 
 
 def _langchain_chatmodel_stream_before(client: AIGuardClient, instance, args, kwargs):
-    # AIDEV-NOTE: stream paths intentionally do NOT bump the active counter:
-    # there is no matching stream-after event to release it, and provider-level
-    # streaming is already bypassed (see ``_openai_chat_completion_before``'s
-    # ``stream`` short-circuit), so collision avoidance is unnecessary here.
     input_arg = get_argument_value(args, kwargs, 0, "input")
     messages = instance._convert_input(input_arg).to_messages()
     return _evaluate_langchain_messages(client, messages)

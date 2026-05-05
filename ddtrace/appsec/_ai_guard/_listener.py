@@ -7,7 +7,7 @@ from typing import Union
 from ddtrace._trace.span import Span
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_generate_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_stream_before
-from ddtrace.appsec._ai_guard._langchain import _langchain_generate_after
+from ddtrace.appsec._ai_guard._langchain import _langchain_generate_finally
 from ddtrace.appsec._ai_guard._langchain import _langchain_llm_generate_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_llm_stream_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_patch
@@ -42,16 +42,15 @@ def _langchain_listen(client: AIGuardClient):
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
 
-    # AIDEV-NOTE: ``.after`` listeners release the AI Guard active-context
-    # counter that the matching ``.before`` listener bumped. Pairing the
-    # set/reset across two listeners (rather than wrapping the dispatch in a
-    # context manager inside the langchain contrib patch) keeps the
-    # contrib product-agnostic — it dispatches generic events, AI Guard
-    # owns its own collision-avoidance lifecycle here.
-    core.on("langchain.chatmodel.generate.after", _langchain_generate_after)
-    core.on("langchain.chatmodel.agenerate.after", _langchain_generate_after)
-    core.on("langchain.llm.generate.after", _langchain_generate_after)
-    core.on("langchain.llm.agenerate.after", _langchain_generate_after)
+    # AIDEV-NOTE: ``.finally`` listeners release the AI Guard active-context
+    # counter that the matching ``.before`` listener bumped. We listen on
+    # ``.finally`` (always fires from the contrib's ``finally`` block) rather
+    # than ``.after`` (only fires on success) so the counter does not leak
+    # when the underlying LLM call raises.
+    core.on("langchain.chatmodel.generate.finally", _langchain_generate_finally)
+    core.on("langchain.chatmodel.agenerate.finally", _langchain_generate_finally)
+    core.on("langchain.llm.generate.finally", _langchain_generate_finally)
+    core.on("langchain.llm.agenerate.finally", _langchain_generate_finally)
 
 
 def _openai_listen(client: AIGuardClient):

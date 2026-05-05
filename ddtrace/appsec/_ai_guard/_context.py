@@ -5,22 +5,7 @@ messages through AI Guard, provider-level integrations (e.g. OpenAI) must
 skip their own evaluation to avoid double-scanning. The framework calls
 ``set_aiguard_context_active()`` around its dispatch + LLM call block and
 the provider listener calls ``is_aiguard_context_active()`` to decide
-whether to short-circuit.
-
-Implementation follows the IAST request-context pattern
-(``ddtrace/appsec/_iast/_iast_request_context_base.py``): a single
-``contextvars.ContextVar`` carries the depth counter, with isolation
-provided by Python's standard Context propagation (per-thread on first
-access, per-asyncio-task via ``copy_context()`` at task creation).
-
-Why a counter rather than a boolean: nested framework calls (e.g.
-``langchain.chatmodel.generate`` invoked transitively from another
-``langchain`` integration) need to keep the active flag set for the full
-duration of the outermost scope. Token-based reset already handles this
-correctly, but keeping the depth value visible makes the
-:func:`reset_aiguard_context_active_current` companion (used when the
-token isn't threaded through, e.g. across separate dispatch listeners
-``.before`` / ``.after``) trivial.
+whether to short-circuit
 """
 
 import contextlib
