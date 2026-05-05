@@ -126,6 +126,10 @@ class DataDogProvider(AbstractProvider):
         """Returns provider metadata."""
         return self._metadata
 
+    def get_configuration(self) -> typing.Optional[ffe.Configuration]:
+        """Returns the currently loaded FFE configuration, or None if not yet received."""
+        return _get_ffe_config()
+
     def get_provider_hooks(self) -> list[typing.Any]:
         """
         Returns provider-level hooks.

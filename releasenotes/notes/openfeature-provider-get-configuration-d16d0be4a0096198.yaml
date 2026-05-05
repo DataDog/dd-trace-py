@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    openfeature: ``DataDogProvider`` now exposes a ``get_configuration()`` method that returns the
+    currently loaded ``ffe.Configuration`` object, or ``None`` if no configuration has been received
+    yet from Remote Configuration.

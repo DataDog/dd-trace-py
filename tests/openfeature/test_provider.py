@@ -562,3 +562,17 @@ class TestInvalidFlagData:
         result = provider.resolve_boolean_details("invalid-type-flag", False)
         # Should return default since config is invalid
         assert result.value is False
+
+
+class TestGetConfiguration:
+    """Test get_configuration method on DataDogProvider."""
+
+    def test_get_configuration_returns_none_when_no_config_loaded(self, provider):
+        """Should return None when no configuration has been loaded."""
+        assert provider.get_configuration() is None
+
+    def test_get_configuration_returns_loaded_config(self, provider):
+        """Should return the configuration object after config is loaded."""
+        config = create_config(create_boolean_flag("test-flag", enabled=True, default_value=True))
+        process_ffe_configuration(config)
+        assert provider.get_configuration() is not None
