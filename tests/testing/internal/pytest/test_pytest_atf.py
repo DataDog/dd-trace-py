@@ -3,6 +3,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
+import pytest
 
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.test_data import ModuleRef
@@ -94,7 +95,9 @@ class TestAttemptToFix:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                pytester.inline_run("--ddtrace", "-v", "-s")
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 1
 
         test_events = list(event_capture.events_by_test_name("TestNotFixed::test_broken"))
         # 1 initial (pass) + 1 retry (fail) = 2 events, NOT 1 + 20 retries
@@ -106,6 +109,7 @@ class TestAttemptToFix:
         assert test_events[1]["content"]["meta"].get("test.status") == "fail"
         assert test_events[1]["content"]["meta"].get("test.is_retry") == "true"
         assert test_events[1]["content"]["meta"].get("test.retry_reason") == "attempt_to_fix"
+        assert test_events[1]["content"]["meta"].get("test.test_management.attempt_to_fix_passed") == "false"
 
     def test_atf_always_failing_exits_after_first(self, pytester: Pytester) -> None:
         """Test that ATF stops retrying an always-failing test after the first run."""
@@ -144,3 +148,46 @@ class TestAttemptToFix:
         # Final ATF tags must still be set even without retries
         assert test_events[0]["content"]["meta"].get("test.test_management.attempt_to_fix_passed") == "false"
         assert test_events[0]["content"]["meta"].get("test.has_failed_all_retries") == "true"
+
+    @pytest.mark.parametrize(
+        "test_properties",
+        [
+            TestProperties(quarantined=True, attempt_to_fix=True),
+            TestProperties(disabled=True, attempt_to_fix=True),
+        ],
+    )
+    def test_atf_failures_are_not_masked_by_quarantine_or_disable(
+        self, pytester: Pytester, test_properties: TestProperties
+    ) -> None:
+        """Test that ATF takes precedence over quarantine/disable and failed attempts fail pytest."""
+        pytester.makepyfile(
+            test_foo="""
+            def test_not_fixed():
+                assert False
+        """
+        )
+
+        test_ref = TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_not_fixed")
+        known_tests: set[TestRef] = {test_ref}
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    test_management_enabled=True,
+                    known_tests_enabled=True,
+                    known_tests=known_tests,
+                    test_management_properties={test_ref: test_properties},
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 1
+
+        test_events = list(event_capture.events_by_test_name("test_not_fixed"))
+        assert len(test_events) == 1
+        assert test_events[0]["content"]["meta"].get("test.status") == "fail"
+        assert test_events[0]["content"]["meta"].get("test.test_management.attempt_to_fix_passed") == "false"
