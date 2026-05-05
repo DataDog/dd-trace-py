@@ -129,7 +129,7 @@ def dispatch_with_results(event_id: str, args: tuple[Any, ...] = ()) -> EventRes
 
 
 def raising_dispatch(event_id: str, args: tuple[Any, ...] = ()) -> None:
-    """Deprecated: use ``dispatch`` with try/except instead```
+    """Deprecated: use ``dispatch`` with try/except instead."""
     results = dispatch_with_results(event_id, args)
     for event in results.values():
         # we explicitly set the exception as a value to prevent caught exceptions from leaking
