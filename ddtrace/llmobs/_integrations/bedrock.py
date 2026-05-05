@@ -132,6 +132,31 @@ class BedrockIntegration(BaseLLMIntegration):
             tool_definitions=tool_definitions if tool_definitions else None,
         )
 
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        if operation == "agent":
+            span_kind = "agent"
+            usage_metrics = {}
+            model_id = None
+        else:
+            ctx = args[0]
+            span_kind = "workflow" if ctx.get_item(PROXY_REQUEST) else "llm"
+            usage_metrics = dict(ctx.get_item("llmobs.usage") or {})
+            normalize_input_tokens(usage_metrics)
+            if "total_tokens" not in usage_metrics and (
+                "input_tokens" in usage_metrics or "output_tokens" in usage_metrics
+            ):
+                usage_metrics["total_tokens"] = usage_metrics.get("input_tokens", 0) + usage_metrics.get(
+                    "output_tokens", 0
+                )
+            model_id = ctx.get_item("model_id") or ctx.get_item("model_name")
+        self._apply_shadow_metrics(
+            span,
+            usage_metrics,
+            span_kind,
+            model_name=model_id,
+            model_provider="bedrock",
+        )
+
     def _llmobs_set_tags_agent(self, span, args, kwargs, response):
         if not self.llmobs_enabled or not span:
             return

@@ -10,21 +10,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de7ab300000000",
-      "_dd.svc_src": "tests.opentelemetry",
+      "_dd.p.tid": "69eb932d00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "events": "[{\"name\": \"Web page unresponsive\",\"time_unix_nano\": 1714536311886000,\"attributes\": {\"error.code\": \"403\",\"unknown values\": [1,\"['h', 'a', [False]]\"]}}]",
       "language": "python",
-      "runtime-id": "70ff513e149c4275a000e61227618926"
+      "runtime-id": "ee6949b03b33475481d3858e92bfdb34"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 42232.0
+      "process_id": 20204.0
     },
-    "duration": 50875,
-    "start": 1776188083615110675
+    "duration": 65958,
+    "start": 1777046317941178464
   }],
 [
   {
@@ -38,19 +37,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de7ab300000000",
-      "_dd.svc_src": "tests.opentelemetry",
+      "_dd.p.tid": "69eb932d00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.opentelemetry",
       "events": "[{\"name\": \"Web page loaded\",\"time_unix_nano\": 1714537311986000},{\"name\": \"Button changed color\",\"time_unix_nano\": 1714537311986000,\"attributes\": {\"colors\": [112,215,70],\"response.time\": 134.3,\"success\": true}}]",
       "language": "python",
-      "runtime-id": "70ff513e149c4275a000e61227618926"
+      "runtime-id": "ee6949b03b33475481d3858e92bfdb34"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 42232.0
+      "process_id": 20204.0
     },
-    "duration": 28458,
-    "start": 1776188083615310675
+    "duration": 33209,
+    "start": 1777046317941400130
   }]]

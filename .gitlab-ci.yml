@@ -556,7 +556,6 @@ lib_injection_tests:
     - export PYENV_VERSION=${PYTHON_VERSION}
   script:
     - python --version
-    - if [ "${MEMCPY_MODE}" == "fast" ]; then export ECHION_USE_FAST_COPY_MEMORY=1; else export ECHION_USE_FAST_COPY_MEMORY=0; fi
     # All profiling tests use EXPECT_EXIT (death tests) which fork child processes.
     # LSAN's signal handler in forked children conflicts with gtest, causing spurious crashes.
     # Disable leak detection for "safety" - Valgrind jobs already cover leak detection.
@@ -604,18 +603,13 @@ profiling_native:
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-        MEMCPY_MODE: ["default"]
         SANITIZER: ["safety", "thread", ""]
       # Valgrind on subset only: ASAN/LSAN (in "safety") already cover leaks, buffer overflows,
       # and use-after-free. Valgrind's main added value is detecting uninitialized memory usage,
       # which is worth checking on a few versions without the slowdown on all runs.
       # If needed, please add more versions to the list.
       - PYTHON_VERSION: ["3.12", "3.14"]
-        MEMCPY_MODE: ["default"]
         SANITIZER: ["valgrind"]
-      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-        MEMCPY_MODE: ["fast"]
-        SANITIZER: ["safety", "thread"]
 
 test-dd-sts:
   stage: tests

@@ -54,7 +54,7 @@ elif PY >= (3, 14):
 
         presend:
             send                            @send
-            yield_value                     0
+            yield_value                     1
             resume                          3
             jump_backward_no_interrupt      @presend
         send:
@@ -179,7 +179,7 @@ elif PY >= (3, 13):
 
         presend:
             send                            @send
-            yield_value                     0
+            yield_value                     1
             resume                          3
             jump_backward_no_interrupt      @presend
         send:

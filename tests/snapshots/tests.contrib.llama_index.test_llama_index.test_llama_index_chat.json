@@ -9,22 +9,29 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.model_name": "gpt-4o-mini",
+      "_dd.llmobs.model_provider": "openai",
+      "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e643bc00000000",
+      "_dd.p.tid": "69e91fd900000000",
       "_dd.svc_src": "llama_index",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.llama_index",
       "language": "python",
       "llama_index.request.model": "gpt-4o-mini",
       "llama_index.request.provider": "openai",
-      "runtime-id": "8949bb0bdbd04e09b952eaa13e5246e1"
+      "runtime-id": "1c61162da4a047f8bfb7b65619734e8b"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
+      "_dd.llmobs.input_tokens": 8.0,
+      "_dd.llmobs.output_tokens": 9.0,
+      "_dd.llmobs.total_tokens": 17.0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 453.0
+      "process_id": 605.0
     },
-    "duration": 5318083,
-    "start": 1776698300949666549
+    "duration": 6409292,
+    "start": 1776885721949039672
   }]]

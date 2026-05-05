@@ -340,6 +340,7 @@ class _ProfilerInstance(service.Service):
         :param flush: Flush a last profile.
         """
         LOG.debug("Stopping profiler")
+
         # Prevent doing more initialisation now that we are shutting down.
         if self._collectors_on_import:
             for module, hook in self._collectors_on_import:

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: Adds ``step`` spans to the Claude Agent SDK integration. Each inference cycle
+    is now represented by a ``step`` container span with an ``llm`` child span for the model call and
+    ``tool`` child spans for any tool invocations.

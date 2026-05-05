@@ -58,7 +58,7 @@ fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 /// Python wrapper for FlareAction
-#[pyclass(name = "FlareAction")]
+#[pyclass(from_py_object, name = "FlareAction")]
 #[derive(Clone)]
 pub struct FlareActionPy {
     inner: FlareAction,

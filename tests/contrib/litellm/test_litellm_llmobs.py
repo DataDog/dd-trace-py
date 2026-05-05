@@ -791,3 +791,27 @@ LLMObs.disable()
     )
 
     assert ("LLMObs.enable() called after litellm was imported but before it was patched") not in err.decode()
+
+
+def test_shadow_tags_completion_when_llmobs_disabled(tracer):
+    """Verify shadow tags are set on LiteLLM spans when LLMObs is disabled."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.litellm import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(MagicMock())
+
+    response = MagicMock()
+    response.usage.prompt_tokens = 7
+    response.usage.completion_tokens = 3
+    response.usage.total_tokens = 10
+
+    with tracer.trace("litellm.request") as span:
+        integration._set_apm_shadow_tags(span, ["gpt-3.5-turbo"], {}, response=response, operation="chat")
+
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "gpt-3.5-turbo"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+    assert span.get_metric("_dd.llmobs.input_tokens") == 7
+    assert span.get_metric("_dd.llmobs.output_tokens") == 3
+    assert span.get_metric("_dd.llmobs.total_tokens") == 10

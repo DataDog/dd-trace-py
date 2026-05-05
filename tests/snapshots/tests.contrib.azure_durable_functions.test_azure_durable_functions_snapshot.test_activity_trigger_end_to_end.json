@@ -9,7 +9,9 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6981be8d00000000",
+      "_dd.p.tid": "69e7a81b00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "start_activity",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -19,17 +21,17 @@
       "http.url": "http://0.0.0.0:7072/api/startactivity",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "d9c2e4a35aeb421ca8f4196c7d45a6f1",
+      "runtime-id": "952f361b6987494e889b935cac6a0167",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 1405.0
+      "process_id": 61229.0
     },
-    "duration": 1216397292,
-    "start": 1770110605174766961
+    "duration": 1049920000,
+    "start": 1776789531798186000
   },
      {
        "name": "aiohttp.request",
@@ -40,17 +42,17 @@
        "parent_id": 1,
        "type": "http",
        "meta": {
+         "_dd.svc_src": "aiohttp_client",
          "component": "aiohttp_client",
          "http.method": "POST",
          "http.status_code": "202",
          "http.status_msg": "Accepted",
          "http.url": "http://127.0.0.1:17071/durabletask/orchestrators/activity_orchestrator",
          "out.host": "127.0.0.1",
-         "span.kind": "client",
-         "test.deployment_verification": "pmartinez-aiohttp-test-20260129"
+         "span.kind": "client"
        },
-       "duration": 131553792,
-       "start": 1770110605175859044
+       "duration": 35883000,
+       "start": 1776789531798404000
      },
         {
           "name": "TCPConnector.connect",
@@ -60,11 +62,12 @@
           "span_id": 5,
           "parent_id": 2,
           "meta": {
-            "_dd.p.tid": "6981be8d00000000",
+            "_dd.p.tid": "69e7a81b00000000",
+            "_dd.svc_src": "aiohttp_client",
             "component": "aiohttp"
           },
-          "duration": 1331250,
-          "start": 1770110605178443253
+          "duration": 521000,
+          "start": 1776789531798674000
         },
      {
        "name": "aiohttp.request",
@@ -75,18 +78,18 @@
        "parent_id": 1,
        "type": "http",
        "meta": {
-         "_dd.p.tid": "6981be8d00000000",
+         "_dd.p.tid": "69e7a81b00000000",
+         "_dd.svc_src": "aiohttp_client",
          "component": "aiohttp_client",
          "http.method": "GET",
          "http.status_code": "202",
          "http.status_msg": "Accepted",
-         "http.url": "http://127.0.0.1:17071/durabletask/instances/f58cbe129bc4470698155cd7b6edd58d",
+         "http.url": "http://127.0.0.1:17071/durabletask/instances/e9526e0b78dd42a3b4226c2b62dbfb4b",
          "out.host": "127.0.0.1",
-         "span.kind": "client",
-         "test.deployment_verification": "pmartinez-aiohttp-test-20260129"
+         "span.kind": "client"
        },
-       "duration": 60587292,
-       "start": 1770110605309143086
+       "duration": 8038000,
+       "start": 1776789531834711000
      },
         {
           "name": "TCPConnector.connect",
@@ -96,11 +99,12 @@
           "span_id": 6,
           "parent_id": 3,
           "meta": {
-            "_dd.p.tid": "6981be8d00000000",
+            "_dd.p.tid": "69e7a81b00000000",
+            "_dd.svc_src": "aiohttp_client",
             "component": "aiohttp"
           },
-          "duration": 384834,
-          "start": 1770110605309441544
+          "duration": 463000,
+          "start": 1776789531834862000
         },
      {
        "name": "aiohttp.request",
@@ -111,18 +115,18 @@
        "parent_id": 1,
        "type": "http",
        "meta": {
-         "_dd.p.tid": "6981be8d00000000",
+         "_dd.p.tid": "69e7a81b00000000",
+         "_dd.svc_src": "aiohttp_client",
          "component": "aiohttp_client",
          "http.method": "GET",
          "http.status_code": "200",
          "http.status_msg": "OK",
-         "http.url": "http://127.0.0.1:17071/durabletask/instances/f58cbe129bc4470698155cd7b6edd58d",
+         "http.url": "http://127.0.0.1:17071/durabletask/instances/e9526e0b78dd42a3b4226c2b62dbfb4b",
          "out.host": "127.0.0.1",
-         "span.kind": "client",
-         "test.deployment_verification": "pmartinez-aiohttp-test-20260129"
+         "span.kind": "client"
        },
-       "duration": 15842791,
-       "start": 1770110606374362420
+       "duration": 3010000,
+       "start": 1776789532844529000
      },
         {
           "name": "TCPConnector.connect",
@@ -132,11 +136,12 @@
           "span_id": 7,
           "parent_id": 4,
           "meta": {
-            "_dd.p.tid": "6981be8d00000000",
+            "_dd.p.tid": "69e7a81b00000000",
+            "_dd.svc_src": "aiohttp_client",
             "component": "aiohttp"
           },
-          "duration": 453125,
-          "start": 1770110606374682628
+          "duration": 480000,
+          "start": 1776789532844777000
         }],
 [
   {
@@ -149,20 +154,22 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6981be8d00000000",
+      "_dd.p.tid": "69e7a81b00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "durable_activity",
       "aas.function.trigger": "Activity",
       "component": "azure_functions",
       "language": "python",
-      "runtime-id": "d9c2e4a35aeb421ca8f4196c7d45a6f1",
+      "runtime-id": "952f361b6987494e889b935cac6a0167",
       "span.kind": "internal"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 1405.0
+      "process_id": 61229.0
     },
-    "duration": 53583,
-    "start": 1770110605603371961
+    "duration": 103000,
+    "start": 1776789531902091000
   }]]
