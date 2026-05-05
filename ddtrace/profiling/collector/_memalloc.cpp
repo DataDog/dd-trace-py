@@ -33,6 +33,7 @@ static memalloc_context_t global_memalloc_ctx;     /* PYMEM_DOMAIN_OBJ */
 static memalloc_context_t global_memalloc_ctx_mem; /* PYMEM_DOMAIN_MEM */
 
 static bool memalloc_enabled = false;
+static bool memalloc_mem_installed = false; /* true only when MEM domain hook is active */
 static std::once_flag memalloc_fork_handler_once_flag;
 
 /* ---------------------------------------------------------------------------
@@ -103,6 +104,8 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     const PyMemAllocatorEx* const alloc = &memalloc_ctx->saved_allocator;
     if (!alloc->realloc)
         return nullptr;
+    // AIDEV-NOTE: With Python free-threading, allocators must be thread-safe even for non-RAW domains.
+    // Synchronization between realloc and untrack will be needed. See also _memalloc_heap.cpp.
     void* ptr2 = alloc->realloc(alloc->ctx, ptr, new_size);
     if (ptr2) {
         memalloc_heap_untrack_no_cpython(ptr);
@@ -118,7 +121,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 }
 
 PyDoc_STRVAR(memalloc_start__doc__,
-             "start($module, max_nframe, heap_sample_interval)\n"
+             "start($module, max_nframe, heap_sample_interval, mem_domain_enabled)\n"
              "--\n"
              "\n"
              "Start tracing Python memory allocations.\n"
@@ -127,7 +130,9 @@ PyDoc_STRVAR(memalloc_start__doc__,
              "trace to max_nframe.\n"
              "Sets the average number of bytes allocated between samples to\n"
              "heap_sample_interval.\n"
-             "If heap_sample_interval is set to 0, it is disabled entirely.\n");
+             "If heap_sample_interval is set to 0, it is disabled entirely.\n"
+             "If mem_domain_enabled is true, MEM-domain allocations (PyMem_Malloc/\n"
+             "Calloc/Realloc) are tracked in addition to OBJ-domain allocations.\n");
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
@@ -163,9 +168,10 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 
     long max_nframe;
     long long int heap_sample_size;
+    int enable_mem_domain;
 
     /* Store short ints in ints so we're sure they fit */
-    if (!PyArg_ParseTuple(args, "lL", &max_nframe, &heap_sample_size)) {
+    if (!PyArg_ParseTuple(args, "lLp", &max_nframe, &heap_sample_size, &enable_mem_domain)) {
         // Don't set an error string, ParseTuple will set it to a TypeError already.
         return nullptr;
     }
@@ -199,12 +205,15 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     alloc.ctx = &global_memalloc_ctx;
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
 
-    /* Install MEM domain hooks. */
-    global_memalloc_ctx_mem.domain = PYMEM_DOMAIN_MEM;
-    global_memalloc_ctx_mem.max_nframe = (uint16_t)max_nframe;
-    PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &global_memalloc_ctx_mem.saved_allocator);
-    alloc.ctx = &global_memalloc_ctx_mem;
-    PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &alloc);
+    /* Install MEM domain hooks when requested by the caller. */
+    memalloc_mem_installed = (enable_mem_domain != 0);
+    if (memalloc_mem_installed) {
+        global_memalloc_ctx_mem.domain = PYMEM_DOMAIN_MEM;
+        global_memalloc_ctx_mem.max_nframe = (uint16_t)max_nframe;
+        PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &global_memalloc_ctx_mem.saved_allocator);
+        alloc.ctx = &global_memalloc_ctx_mem;
+        PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &alloc);
+    }
 
     memalloc_enabled = true;
 
@@ -230,7 +239,10 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
      * NB: We're assuming here that this is not called concurrently with iter_events
      * or memalloc_heap. The higher-level collector deals with this. */
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.saved_allocator);
-    PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &global_memalloc_ctx_mem.saved_allocator);
+    if (memalloc_mem_installed) {
+        PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &global_memalloc_ctx_mem.saved_allocator);
+        memalloc_mem_installed = false;
+    }
 
     memalloc_heap_tracker_deinit_no_cpython();
 

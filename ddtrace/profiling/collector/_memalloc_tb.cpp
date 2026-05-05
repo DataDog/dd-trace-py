@@ -125,7 +125,7 @@ traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe)
     push_stacktrace_to_sample_no_refcount(sample, max_nframe);
 }
 
-// Constructor calls init_sample() which reads CPython structs directly
+// AIDEV-NOTE: Constructor calls init_sample() which reads CPython structs directly
 traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
   : sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
