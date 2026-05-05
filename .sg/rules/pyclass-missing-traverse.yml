@@ -1,6 +1,6 @@
 id: pyclass-missing-traverse
 message: "PyO3 #[pyclass] holds Python references (Py<...>, PyObject, or PyBackedString) but does not implement __traverse__ — cycles through this type will leak"
-severity: warning
+severity: error
 language: rust
 files:
   - "src/native/**/*.rs"
