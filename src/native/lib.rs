@@ -6,6 +6,7 @@ mod config;
 mod data_pipeline;
 #[cfg(feature = "stats")]
 mod ddsketch;
+mod event_hub;
 #[cfg(feature = "ffe")]
 mod ffe;
 mod library_config;
@@ -51,6 +52,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     shared_runtime::register_shared_runtime(m)?;
     data_pipeline::register_data_pipeline(m)?;
     span::register_native_span(m)?;
+    event_hub::register_event_hub(m)?;
     rand::register_rand(m)?;
     m.add_function(wrap_pyfunction!(utils::flatten_key_value, m)?)?;
     m.add_function(wrap_pyfunction!(utils::is_sequence, m)?)?;
