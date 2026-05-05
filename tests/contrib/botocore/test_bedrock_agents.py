@@ -23,6 +23,7 @@ def test_agent_invoke(bedrock_agent_client, request_vcr):
 @pytest.mark.skipif(BOTO_VERSION < (1, 36, 0), reason="Streaming configurations not supported in this boto3 version")
 @pytest.mark.snapshot(token="tests.contrib.botocore.test_bedrock_agents.test_agent_invoke")
 def test_agent_invoke_stream(bedrock_agent_client, request_vcr):
+    """Snapshot with LLMObs disabled."""
     with request_vcr.use_cassette("agent_invoke.yaml"):
         response = bedrock_agent_client.invoke_agent(
             agentAliasId=AGENT_ALIAS_ID,

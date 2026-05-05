@@ -269,3 +269,27 @@ def test_translate_bedrock_traces_finishes_orphaned_step_spans(bedrock_agents_ll
 
     names = sorted(e["name"] for e in llmobs_events)
     assert names == sorted(["modelInvocation", "orchestrationTrace Step"])
+
+
+def test_step_spans_carry_inner_io_in_production(
+    bedrock_agent_client, request_vcr, bedrock_agents_llmobs, llmobs_events
+):
+    """Regression test: step spans should propagate first input and last output from their inner spans."""
+    with request_vcr.use_cassette("agent_invoke.yaml"):
+        response = bedrock_agent_client.invoke_agent(
+            agentAliasId=AGENT_ALIAS_ID,
+            agentId=AGENT_ID,
+            sessionId="test_session",
+            enableTrace=True,
+            inputText=AGENT_INPUT,
+        )
+        for _ in response["completion"]:
+            pass
+    orchestration_steps = [e for e in llmobs_events if e["name"].startswith("orchestrationTrace Step")]
+    assert orchestration_steps, "expected at least one orchestrationTrace Step event"
+    for step in orchestration_steps:
+        meta = step.get("meta") or {}
+        # workflow step spans should carry the propagated input messages from the first inner
+        # modelInvocation child, and an output value from the last inner observation/output.
+        assert meta.get("input"), f"orchestrationTrace Step {step.get('span_id')} missing input"
+        assert meta.get("output"), f"orchestrationTrace Step {step.get('span_id')} missing output"
