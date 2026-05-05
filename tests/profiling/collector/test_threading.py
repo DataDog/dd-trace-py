@@ -198,7 +198,7 @@ def test_patch():
 # Run in a subprocess: pops threading from sys.modules to simulate gevent's
 # cleanup_loaded_modules(), which would corrupt ModuleWatchdog state in-process.
 @pytest.mark.subprocess(err=b"re-applying lock profiling patches")
-def test_lock_patching_survives_module_reimport():
+def test_lock_patching_survives_module_reimport() -> None:
     """Test that lock patches are re-applied when threading is re-imported.
 
     This simulates what cleanup_loaded_modules() does when gevent is installed:
@@ -240,7 +240,7 @@ def test_lock_patching_survives_module_reimport():
 # Run in a subprocess: pops threading from sys.modules to simulate gevent's
 # cleanup_loaded_modules(), which would corrupt ModuleWatchdog state in-process.
 @pytest.mark.subprocess(err=b"re-applying lock profiling patches")
-def test_lock_unpatch_after_module_reimport():
+def test_lock_unpatch_after_module_reimport() -> None:
     """Test that stop/unpatch works correctly after module has been swapped."""
     import importlib
     import sys
