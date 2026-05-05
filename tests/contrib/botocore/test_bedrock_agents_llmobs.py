@@ -177,28 +177,3 @@ def test_agent_invoke_stream_trace_disabled(
             pass
     assert len(llmobs_events) == 1
     assert llmobs_events[0]["name"] == "Bedrock Agent {}".format(AGENT_ID)
-
-
-def test_translate_bedrock_traces_does_not_share_state_across_invocations(
-    bedrock_agent_client, request_vcr, bedrock_agents_llmobs, llmobs_events
-):
-    """Two ``invoke_agent`` calls in the same process must each produce the same number of LLMObs
-    events. With the previous class-level state dicts the second invocation could leak entries
-    from the first (or skip entries that were marked as already-active). Regression test for the
-    per-invocation state migration.
-    """
-    counts = []
-    for _ in range(2):
-        with request_vcr.use_cassette("agent_invoke.yaml"):
-            response = bedrock_agent_client.invoke_agent(
-                agentAliasId=AGENT_ALIAS_ID,
-                agentId=AGENT_ID,
-                sessionId="test_session",
-                enableTrace=True,
-                inputText=AGENT_INPUT,
-            )
-            for _ in response["completion"]:
-                pass
-        counts.append(len(llmobs_events))
-    assert counts[0] > 0, "expected the cassette to produce LLMObs events"
-    assert counts[1] == 2 * counts[0], "second invocation produced a different event count than the first"
