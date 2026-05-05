@@ -176,10 +176,12 @@ before commit, and the CI ``check`` job will enforce it on every PR.
 **2. Central Configuration Registry** (FPD)
 
 The key must also be added to the `Datadog Configuration Registry <https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations>`_
-by an **internal contributor**. If the key already exists because another tracer language already
-registered it, this step can be skipped.
+by an **internal contributor**. If the key already exists with the same settings (default value, type)
+because another tracer language already registered it, this step can be skipped. If the existing entry's
+data doesn't match (e.g. different type or default), create a new implementation version in the registry
+and reference that version's letter in ``supported-configurations.json``.
 
-Not adding the key to the central registry will cause the
+Not adding the config and implementation details to the central registry will cause the
 ``validate_supported_configurations_v2_local_file`` GitLab CI job to fail, displaying the missing keys
 in its output. A Datadog maintainer must add the key to the registry before the PR can merge.
 
