@@ -106,10 +106,17 @@ class TestExtractClusterNodeConnTags:
         assert _extract_cluster_node_conn_tags(instance) == {}
 
     def test_returns_empty_when_node_host_raises(self):
-        node = mock.MagicMock()
-        type(node).host = mock.PropertyMock(side_effect=AttributeError)
+        # PropertyMock(side_effect=...) on a MagicMock type is unreliable in Python 3.14+;
+        # use a real descriptor instead to verify that AttributeError on .host is caught.
+        class _BadNode:
+            @property
+            def host(self):
+                raise AttributeError("no host")
+
+            port = 7000
+
         instance = mock.MagicMock()
-        instance.get_default_node.return_value = node
+        instance.get_default_node.return_value = _BadNode()
         assert _extract_cluster_node_conn_tags(instance) == {}
 
     def test_returns_exactly_three_keys(self):
