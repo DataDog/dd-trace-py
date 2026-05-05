@@ -220,7 +220,7 @@ class _ProfilerInstance(service.Service):
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
             # if their import is detected at runtime.
-            def start_lock_collector(collector_class: type[collector.Collector]) -> None:
+            def start_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
                     if any(type(c) is collector_class for c in self._collectors):
                         return
@@ -241,15 +241,15 @@ class _ProfilerInstance(service.Service):
                     self._collectors.append(col)
 
             self._collectors_on_import = [
-                ("threading", lambda _: start_lock_collector(threading.ThreadingLockCollector)),
-                ("threading", lambda _: start_lock_collector(threading.ThreadingRLockCollector)),
-                ("threading", lambda _: start_lock_collector(threading.ThreadingSemaphoreCollector)),
-                ("threading", lambda _: start_lock_collector(threading.ThreadingBoundedSemaphoreCollector)),
-                ("threading", lambda _: start_lock_collector(threading.ThreadingConditionCollector)),
-                ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioLockCollector)),
-                ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioSemaphoreCollector)),
-                ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
-                ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioConditionCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
+                ("threading", lambda _: start_collector(threading.ThreadingConditionCollector)),
+                ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
+                ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
+                ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
+                ("asyncio", lambda _: start_collector(asyncio.AsyncioConditionCollector)),
             ]
 
             for module, hook in self._collectors_on_import:
