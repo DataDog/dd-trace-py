@@ -231,6 +231,11 @@ class LiteLLMIntegration(BaseLLMIntegration):
                 metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_tokens
 
         # Extract cache read tokens from litellm's normalized prompt_tokens_details
+        # NOTE: the truthiness checks below (`if cached_tokens:`, `if cache_creation_tokens:`)
+        # drop legitimate zero-valued cache metrics. A provider explicitly reporting 0
+        # cache reads/writes is currently indistinguishable from "not reported" here.
+        # Switching to `is not None` would surface those zeroes (and propagate them as
+        # `_dd.llmobs.cache_*` shadow metrics on APM spans). Tracked as a follow-up.
         prompt_tokens_details = _get_attr(token_usage, "prompt_tokens_details", None)
         if prompt_tokens_details is not None:
             cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)

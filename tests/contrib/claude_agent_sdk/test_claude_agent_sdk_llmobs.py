@@ -884,3 +884,34 @@ class TestLLMObsClaudeAgentSdk:
             error_message=MOCK_TOOL_ERROR_MESSAGE,
             tags=COMMON_TAGS,
         )
+
+
+def test_shadow_tags_llm_with_cache_tokens(tracer):
+    """Verify cache-token shadow metrics propagate from claude_agent_sdk usage to APM span."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.claude_agent_sdk import ClaudeAgentSdkIntegration
+
+    integration = ClaudeAgentSdkIntegration(MagicMock())
+
+    response = MagicMock()
+    response.model = "claude-sonnet-4-5-20250929"
+    response.usage = {
+        "input_tokens": 12,
+        "output_tokens": 8,
+        "cache_creation_input_tokens": 5,
+        "cache_read_input_tokens": 3,
+    }
+
+    with tracer.trace("claude_agent_sdk.request") as span:
+        integration._set_apm_shadow_tags(span, [], {}, response=response, operation="llm")
+
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "claude-sonnet-4-5-20250929"
+    assert span.get_tag("_dd.llmobs.model_provider") == "anthropic"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+    # input_tokens is the sum of base + cache_creation + cache_read in this integration
+    assert span.get_metric("_dd.llmobs.input_tokens") == 12 + 5 + 3
+    assert span.get_metric("_dd.llmobs.output_tokens") == 8
+    assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 3
+    assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 5
