@@ -36,6 +36,42 @@ def test_agent_invoke_stream(bedrock_agent_client, request_vcr):
             pass
 
 
+@pytest.mark.skipif(BOTO_VERSION < (1, 38, 0), reason="LLMObs bedrock agent step spans require boto3 > 1.36.0")
+@pytest.mark.snapshot(ignores=["meta.llmobs_trace_id", "meta.llmobs_parent_id", "meta._dd.p.tid"])
+def test_agent_invoke_with_step_spans(bedrock_agent_client, request_vcr, bedrock_agents_llmobs):
+    """Snapshot of the full trace including step + inner APM spans (only created when LLMObs is enabled)."""
+    with request_vcr.use_cassette("agent_invoke.yaml"):
+        response = bedrock_agent_client.invoke_agent(
+            agentAliasId=AGENT_ALIAS_ID,
+            agentId=AGENT_ID,
+            sessionId="test_session",
+            enableTrace=True,
+            inputText=AGENT_INPUT,
+        )
+        for _ in response["completion"]:
+            pass
+
+
+@pytest.mark.skipif(BOTO_VERSION < (1, 38, 0), reason="LLMObs bedrock agent step spans require boto3 > 1.36.0")
+@pytest.mark.snapshot(
+    token="tests.contrib.botocore.test_bedrock_agents.test_agent_invoke_with_step_spans",
+    ignores=["meta.llmobs_trace_id", "meta.llmobs_parent_id", "meta._dd.p.tid"],
+)
+def test_agent_invoke_stream_with_step_spans(bedrock_agent_client, request_vcr, bedrock_agents_llmobs):
+    """Same trace as ``test_agent_invoke_with_step_spans`` but exercises the streaming code path."""
+    with request_vcr.use_cassette("agent_invoke.yaml"):
+        response = bedrock_agent_client.invoke_agent(
+            agentAliasId=AGENT_ALIAS_ID,
+            agentId=AGENT_ID,
+            sessionId="test_session",
+            enableTrace=True,
+            inputText=AGENT_INPUT,
+            streamingConfigurations={"applyGuardrailInterval": 50, "streamFinalResponse": True},
+        )
+        for _ in response["completion"]:
+            pass
+
+
 def test_span_finishes_after_generator_exit(bedrock_agent_client, request_vcr, test_spans):
     with request_vcr.use_cassette("agent_invoke.yaml"):
         response = bedrock_agent_client.invoke_agent(

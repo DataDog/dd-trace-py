@@ -5,22 +5,23 @@ from typing import Optional
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._integrations import BaseLLMIntegration
-from ddtrace.llmobs._integrations.bedrock_agents import _create_or_update_bedrock_trace_step_span
+from ddtrace.llmobs._integrations.bedrock_agents import DEFAULT_SPAN_DURATION_NS
+from ddtrace.llmobs._integrations.bedrock_agents import _create_bedrock_trace_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
+from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_type
+from ddtrace.llmobs._integrations.bedrock_agents import _max_finish_ns
+from ddtrace.llmobs._integrations.bedrock_agents import _propagate_inner_io_to_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
 from ddtrace.llmobs._integrations.bedrock_utils import normalize_input_tokens
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
-from ddtrace.llmobs._telemetry import record_bedrock_agent_span_event_created
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.trace import Span
@@ -31,8 +32,6 @@ log = get_logger(__name__)
 
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
-    _spans: dict[str, LLMObsSpanEvent] = {}  # Maps LLMObs span ID to LLMObs span events
-    _active_span_by_step_id: dict[str, LLMObsSpanEvent] = {}  # Maps trace step ID to currently active span
 
     def _llmobs_set_tags(
         self,
@@ -177,27 +176,38 @@ class BedrockIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(span, output_value=str(response))
 
     def translate_bedrock_traces(self, traces, root_span) -> None:
-        """Translate bedrock agent traces to LLMObs span events."""
+        """Translate bedrock agent traces to back-dated APM child spans of ``root_span``."""
         if not traces or not self.llmobs_enabled:
             return
+        # Per-invocation state. Held on the class previously, which raced across concurrent invoke_agent calls.
+        step_spans_by_step_id: dict[str, Span] = {}
+        active_span_by_step_id: dict[str, Span] = {}
+        inner_spans_by_step_id: dict[str, list[Span]] = {}
         for trace in traces:
             trace_step_id = _extract_trace_step_id(trace)
-            current_active_span_event = self._active_span_by_step_id.pop(trace_step_id, None)
-            translated_span_event, finished = translate_bedrock_trace(
-                trace, root_span, current_active_span_event, trace_step_id
+            if trace_step_id is None:
+                log.debug("Skipping Bedrock trace event with no traceId (type=%s)", _extract_trace_type(trace))
+                continue
+            step_span = _create_bedrock_trace_step_span(trace, trace_step_id, root_span, step_spans_by_step_id)
+            current_active_span = active_span_by_step_id.pop(trace_step_id, None)
+            inner_span, finished = translate_bedrock_trace(
+                trace, root_span, step_span, current_active_span, trace_step_id
             )
-            if translated_span_event:
-                self._spans[translated_span_event["span_id"]] = translated_span_event
+            if inner_span is not None:
+                if inner_span is not current_active_span:
+                    inner_spans_by_step_id.setdefault(trace_step_id, []).append(inner_span)
                 if not finished:
-                    self._active_span_by_step_id[trace_step_id] = translated_span_event
-            _create_or_update_bedrock_trace_step_span(
-                trace, trace_step_id, translated_span_event, root_span, self._spans
+                    active_span_by_step_id[trace_step_id] = inner_span
+                _propagate_inner_io_to_step_span(step_span, inner_span)
+        # Default finish_time = start_ns + 1ms (not wall-clock now) so back-dated orphans get a sane duration.
+        for step_id, step_span in step_spans_by_step_id.items():
+            inners = inner_spans_by_step_id.get(step_id, [])
+            for inner in inners:
+                inner.finish(finish_time=(int(inner.start_ns or 0) + DEFAULT_SPAN_DURATION_NS) / 1e9)
+            latest_inner_end_ns = max((_max_finish_ns(s) for s in inners), default=0)
+            step_span.finish(
+                finish_time=(latest_inner_end_ns or int(step_span.start_ns or 0) + DEFAULT_SPAN_DURATION_NS) / 1e9
             )
-        for _, span_event in self._spans.items():
-            LLMObs._instance._llmobs_span_writer.enqueue(span_event)
-            record_bedrock_agent_span_event_created(span_event)
-        self._spans.clear()
-        self._active_span_by_step_id.clear()
 
     @staticmethod
     def _extract_input_message_for_converse(prompt: list[dict[str, Any]]) -> list[Message]:
