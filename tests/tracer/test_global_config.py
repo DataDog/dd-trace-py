@@ -4,6 +4,7 @@ import pytest
 
 from ddtrace import config as global_config
 from ddtrace.internal.settings._config import Config
+from ddtrace.internal.settings._config import _integration_default_service_names_from_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 
 from ..utils import override_env
@@ -15,6 +16,25 @@ class GlobalConfigTestCase(TestCase):
     def setUp(self):
         self.config = Config()
         self.config.web = IntegrationConfig(self.config, "web")
+
+    def test_integration_default_service_names_from_config(self):
+        ic = IntegrationConfig(self.config, "celery")
+        ic["_default_service_worker"] = "worker-svc"
+        ic["_default_service_producer"] = "producer-svc"
+        assert _integration_default_service_names_from_config(ic) == {"worker-svc", "producer-svc"}
+
+    def test_integration_default_services_updates_on_singleton_add(self):
+        from ddtrace.internal.settings import _config as cfg_mod
+
+        unique = "ddtrace-global-config-test-default-service-name"
+        cfg_mod.config._add("structlog", {"_default_service": unique})
+        assert unique in cfg_mod.config._integration_default_services
+
+    def test_integration_default_services_updates_on_instance_add(self):
+        unique = "ddtrace-isolated-config-test-default-service-name"
+        assert unique not in self.config._integration_default_services
+        self.config._add("structlog", {"_default_service": unique})
+        assert unique in self.config._integration_default_services
 
     def test_registration(self):
         # ensure an integration can register a new list of settings
