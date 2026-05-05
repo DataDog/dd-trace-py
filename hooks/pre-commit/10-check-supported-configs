@@ -13,20 +13,7 @@ echo "$staged_files" | grep -qE '(supported-configurations\.json|ddtrace/interna
 
 if [ "$should_run" = true ]; then
     echo "Checking supported-configurations registry..."
-    if ! hatch -v run lint:supported-config-check; then
-        echo ""
-        echo "╔══════════════════════════════════════════════════════════════════╗"
-        echo "║  Supported-configurations check failed. To fix:                 ║"
-        echo "║                                                                 ║"
-        echo "║  1. Add the missing var(s) to supported-configurations.json     ║"
-        echo "║  2. Run: python scripts/supported_configurations.py             ║"
-        echo "║  3. Stage the updated files and retry your commit               ║"
-        echo "║                                                                 ║"
-        echo "║  See docs/contributing.rst for full instructions, including     ║"
-        echo "║  how to register the var in the central Configuration Registry. ║"
-        echo "╚══════════════════════════════════════════════════════════════════╝"
-        exit 1
-    fi
+    hatch -v run lint:supported-config-check || exit 1
 else
     echo 'Supported-config check skipped: no config-related files staged'
 fi
