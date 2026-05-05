@@ -200,22 +200,20 @@ class BedrockIntegration(BaseLLMIntegration):
                 if not finished:
                     active_span_by_step_id[trace_step_id] = inner_span
                 _propagate_inner_io_to_step_span(step_span, inner_span)
-        # Finish inner spans first, then stretch each step span over its children's full
-        # timeline. Bedrock's top-level eventTime (used to anchor step.start_ns) can land
-        # AFTER the inner span's start when metadata.startTime is missing and the inner
-        # falls back to root.start_ns (common for guardrail/failure traces); without this
-        # stretch, the step would have a negative duration and not contain its children.
-        # Span.finish() is idempotent, so re-finishing already-finished inner spans is a no-op.
+        # Finish inner spans first (default = start + 1ms so back-dated orphans don't pick up
+        # `time.time_ns()` and span months), then stretch each step span over its children:
+        # Bedrock's top-level eventTime can land AFTER the inner's start when metadata.startTime
+        # is missing and the inner falls back to root.start_ns (common for guardrail/failure
+        # traces). `Span.finish()` is idempotent, so re-finishing already-finished inners no-ops.
         for step_id, step_span in step_spans_by_step_id.items():
             inners = inner_spans_by_step_id.get(step_id, [])
             for inner in inners:
                 inner.finish(finish_time=(int(inner.start_ns or 0) + DEFAULT_SPAN_DURATION_NS) / 1e9)
             if inners:
                 step_span.start_ns = min(int(step_span.start_ns or 0), *(int(s.start_ns or 0) for s in inners))
-                latest_inner_end_ns = max(_max_finish_ns(s) for s in inners)
+                step_finish_ns = max(_max_finish_ns(s) for s in inners)
             else:
-                latest_inner_end_ns = int(step_span.start_ns or 0) + DEFAULT_SPAN_DURATION_NS
-            step_finish_ns = max(latest_inner_end_ns, int(step_span.start_ns or 0) + DEFAULT_SPAN_DURATION_NS)
+                step_finish_ns = int(step_span.start_ns or 0) + DEFAULT_SPAN_DURATION_NS
             step_span.finish(finish_time=step_finish_ns / 1e9)
 
     @staticmethod
