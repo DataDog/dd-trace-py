@@ -799,14 +799,23 @@ class _TraceContext:
 
         Removes list-members with more than ``DD_TRACE_TRACESTATE_ITEM_MAX_CHARS`` characters
         first (left to right), then drops from the end if still over the cap.
+
+        Runs in O(len(items)) so attacker-controlled headers with many short list-members cannot
+        force quadratic work when trimming to ``max_count``.
         """
-        while len(items) > max_count:
-            for i, m in enumerate(items):
-                if _TraceContext._tracestate_member_exceeds_item_char_cap(m):
-                    del items[i]
-                    break
-            else:
-                items.pop()
+        if len(items) <= max_count:
+            return
+        excess = len(items) - max_count
+        removed = 0
+        kept: list[str] = []
+        for m in items:
+            if removed < excess and _TraceContext._tracestate_member_exceeds_item_char_cap(m):
+                removed += 1
+                continue
+            kept.append(m)
+        items[:] = kept
+        if len(items) > max_count:
+            del items[max_count:]
 
     @staticmethod
     def _tracestate_pack_members_to_byte_limit(members: list[str], *, never_skip_first: bool = False) -> list[str]:
