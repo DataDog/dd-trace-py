@@ -47,8 +47,8 @@
          "_dd.llmobs.submitted": "1",
          "_dd.svc_src": "botocore"
        },
-       "duration": 0,
-       "start": 1748626089251740928
+       "duration": 364999936,
+       "start": 1748626088886678016
      },
         {
           "name": "guardrail",
@@ -336,8 +336,8 @@
          "_dd.llmobs.submitted": "1",
          "_dd.svc_src": "botocore"
        },
-       "duration": 0,
-       "start": 1748626110820916992
+       "duration": 229999872,
+       "start": 1748626110590828800
      },
         {
           "name": "guardrail",
