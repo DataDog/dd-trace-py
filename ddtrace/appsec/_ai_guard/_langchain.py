@@ -3,6 +3,8 @@ from typing import Any
 from typing import Sequence
 import uuid
 
+from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active_current
+from ddtrace.appsec._ai_guard._context import set_aiguard_context_active
 from ddtrace.appsec._ai_guard.messages import try_format_json
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClient
@@ -197,24 +199,61 @@ def _handle_agent_action_result(client: AIGuardClient, result, args, kwargs):
 
 
 def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists):
-    for messages in message_lists:
-        result = _evaluate_langchain_messages(client, messages)
-        if result:
-            return result
+    """``langchain.chatmodel.[a]generate.before`` listener.
+
+    AI Guard owns its own collision-avoidance lifecycle here so the contrib
+    patch stays product-agnostic: ``set_aiguard_context_active()`` runs on
+    entry, the matching ``.after`` listener decrements the counter on
+    success.  When this listener returns a block decision, the contrib's
+    ``_raising_dispatch`` raises and ``.after`` will not fire — release the
+    counter inline on that path so the active flag does not leak.
+    """
+    set_aiguard_context_active()
+    try:
+        for messages in message_lists:
+            result = _evaluate_langchain_messages(client, messages)
+            if result is not None:
+                reset_aiguard_context_active_current()
+                return result
+    except BaseException:
+        reset_aiguard_context_active_current()
+        raise
     return None
 
 
 def _langchain_llm_generate_before(client: AIGuardClient, prompts):
+    """``langchain.llm.[a]generate.before`` listener — see chatmodel variant."""
     from langchain_core.messages import HumanMessage
 
-    for prompt in prompts:
-        result = _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
-        if result:
-            return result
+    set_aiguard_context_active()
+    try:
+        for prompt in prompts:
+            result = _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
+            if result is not None:
+                reset_aiguard_context_active_current()
+                return result
+    except BaseException:
+        reset_aiguard_context_active_current()
+        raise
     return None
 
 
+def _langchain_generate_after(*args, **kwargs):
+    """Paired ``.after`` listener for the four langchain ``generate`` events.
+
+    Releases the AI Guard active counter that the matching ``.before``
+    listener bumped.  The dispatch args (``prompts, completions`` or
+    ``messages, completions``) are accepted but unused — this listener's
+    sole responsibility is to close the collision-avoidance context window.
+    """
+    reset_aiguard_context_active_current()
+
+
 def _langchain_chatmodel_stream_before(client: AIGuardClient, instance, args, kwargs):
+    # AIDEV-NOTE: stream paths intentionally do NOT bump the active counter:
+    # there is no matching stream-after event to release it, and provider-level
+    # streaming is already bypassed (see ``_openai_chat_completion_before``'s
+    # ``stream`` short-circuit), so collision avoidance is unnecessary here.
     input_arg = get_argument_value(args, kwargs, 0, "input")
     messages = instance._convert_input(input_arg).to_messages()
     return _evaluate_langchain_messages(client, messages)
@@ -229,6 +268,13 @@ def _langchain_llm_stream_before(client: AIGuardClient, instance, args, kwargs):
 
 
 def _evaluate_langchain_messages(client: AIGuardClient, messages):
+    """Evaluate the prompt and surface a block as a returned ``AIGuardAbortError``.
+
+    Returns the abort error so the contrib's dispatcher can re-raise it; the
+    ``AIGuardClient`` already gates on ``ai_guard_config._ai_guard_block``,
+    so a returned error always represents a blocking decision.
+    Allow / skip paths return ``None``.
+    """
     from langchain_core.messages import HumanMessage
 
     # only call evaluator when the last message is an actual user prompt

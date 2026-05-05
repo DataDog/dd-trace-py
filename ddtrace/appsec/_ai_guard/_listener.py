@@ -7,10 +7,13 @@ from typing import Union
 from ddtrace._trace.span import Span
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_generate_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_stream_before
+from ddtrace.appsec._ai_guard._langchain import _langchain_generate_after
 from ddtrace.appsec._ai_guard._langchain import _langchain_llm_generate_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_llm_stream_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_patch
 from ddtrace.appsec._ai_guard._langchain import _langchain_unpatch
+from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_after
+from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_before
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard import new_ai_guard_client
@@ -23,6 +26,7 @@ from ddtrace.internal.settings.asm import ai_guard_config
 def ai_guard_listen():
     client = new_ai_guard_client()
     _langchain_listen(client)
+    _openai_listen(client)
     core.on("set_http_meta_for_asm", _on_set_http_meta_for_ai_guard)
 
 
@@ -37,6 +41,22 @@ def _langchain_listen(client: AIGuardClient):
     core.on("langchain.llm.generate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
+
+    # AIDEV-NOTE: ``.after`` listeners release the AI Guard active-context
+    # counter that the matching ``.before`` listener bumped. Pairing the
+    # set/reset across two listeners (rather than wrapping the dispatch in a
+    # context manager inside the langchain contrib patch) keeps the
+    # contrib product-agnostic — it dispatches generic events, AI Guard
+    # owns its own collision-avoidance lifecycle here.
+    core.on("langchain.chatmodel.generate.after", _langchain_generate_after)
+    core.on("langchain.chatmodel.agenerate.after", _langchain_generate_after)
+    core.on("langchain.llm.generate.after", _langchain_generate_after)
+    core.on("langchain.llm.agenerate.after", _langchain_generate_after)
+
+
+def _openai_listen(client: AIGuardClient):
+    core.on("openai.chat.completions.create.before", partial(_openai_chat_completion_before, client))
+    core.on("openai.chat.completions.create.after", partial(_openai_chat_completion_after, client))
 
 
 def _on_set_http_meta_for_ai_guard(
