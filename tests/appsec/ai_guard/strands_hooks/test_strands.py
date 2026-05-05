@@ -802,3 +802,69 @@ class TestConstructorParameters:
         plugin = make_plugin(detailed_error=True, raise_error_on_tool_calls=True)
         assert plugin._detailed_error is True
         assert plugin._raise_error_on_tool_calls is True
+
+
+# ---------------------------------------------------------------------------
+# Lazy-import regression
+# ---------------------------------------------------------------------------
+
+
+class TestLazyImport:
+    """Regression test: importing siblings of ``AIGuardStrandsPlugin`` from
+    ``ddtrace.appsec.ai_guard`` must not eagerly load the strands integration.
+
+    Eager loading binds ``BeforeModelCallEvent`` (and friends) to whatever
+    class object exists at that moment. Under ``ddtrace.auto`` the user's
+    later ``import strands`` re-instantiates the event dataclasses with new
+    class identities, leaving the plugin's @hook callbacks registered against
+    the wrong (stale) classes — so they never fire when the agent dispatches.
+    The integration must be loaded lazily, after the user has imported
+    ``strands`` themselves.
+    """
+
+    def test_ai_guard_abort_error_import_does_not_load_strands_integration(self):
+        import subprocess
+        import sys
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys;"
+                    "from ddtrace.appsec.ai_guard import AIGuardAbortError;"
+                    "loaded = 'ddtrace.appsec.ai_guard.integrations.strands' in sys.modules;"
+                    "print('LOADED' if loaded else 'NOT_LOADED')"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert "NOT_LOADED" in result.stdout, (
+            "Importing AIGuardAbortError must not eagerly load the strands integration. "
+            f"stdout={result.stdout!r}, stderr={result.stderr!r}"
+        )
+
+    def test_strands_plugin_access_loads_integration(self):
+        import subprocess
+        import sys
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys;"
+                    "from ddtrace.appsec.ai_guard import AIGuardStrandsPlugin;"
+                    "assert AIGuardStrandsPlugin is not None;"
+                    "loaded = 'ddtrace.appsec.ai_guard.integrations.strands' in sys.modules;"
+                    "print('LOADED' if loaded else 'NOT_LOADED')"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert "LOADED" in result.stdout, (
+            "Accessing AIGuardStrandsPlugin must trigger the lazy import. "
+            f"stdout={result.stdout!r}, stderr={result.stderr!r}"
+        )
