@@ -157,9 +157,15 @@ def _create_bedrock_trace_step_span(
 
 
 def _propagate_inner_io_to_step_span(step_span: Span, inner_span: Span) -> None:
-    # Direct meta_struct copy (bypasses _annotate_llmobs_span_data) so a child llm span's
-    # list[Message] input/output is not re-serialized into a JSON value string on the
-    # workflow-kind step span. First non-empty input wins; last output wins.
+    """Direct meta_struct copy (bypasses ``_annotate_llmobs_span_data``) so a child llm span's
+    ``list[Message]`` input/output is not re-serialized into a JSON value string on the
+    workflow-kind step span. First non-empty input wins; last output wins.
+
+    MUST be called before ``inner_span.finish()`` — once an LLMObs APM span finishes,
+    ``LLMObs._on_span_finish`` enqueues its event and (outside of the
+    ``_DD_LLMOBS_TEST_KEEP_META_STRUCT`` test mode) scrubs the ``meta_struct[LLMOBS_STRUCT.KEY]``
+    entry, leaving us with nothing to read here.
+    """
     inner_meta = _get_llmobs_data_metastruct(inner_span).get("meta", {})
     inner_input = inner_meta.get("input") or {}
     inner_output = inner_meta.get("output") or {}
@@ -340,7 +346,7 @@ def _model_invocation_input_span(
     input_messages: list[Message] = [Message(content=text.get("system", ""), role="system")]
     for message in text.get("messages", []):
         input_messages.append(Message(content=message.get("content", ""), role=message.get("role", "")))
-    return _build_step_span(
+    span = _build_step_span(
         "modelInvocation",
         root_span,
         parent,
@@ -349,6 +355,8 @@ def _model_invocation_input_span(
         metadata={"model_name": model_name, "model_provider": model_provider},
         input_val=input_messages,
     )
+    _propagate_inner_io_to_step_span(parent, span)
+    return span
 
 
 def _model_invocation_output_span(
@@ -378,6 +386,9 @@ def _model_invocation_output_span(
     _annotate_llmobs_span_data(
         current_active_span, output_messages=output_messages, metrics=token_metrics, metadata=metadata_update
     )
+    # Propagate IO before finish — see _propagate_inner_io_to_step_span docstring.
+    if current_active_span._parent is not None:
+        _propagate_inner_io_to_step_span(current_active_span._parent, current_active_span)
     current_active_span.finish(finish_time=(start_ns + duration_ns) / 1e9)
     return current_active_span
 
@@ -386,6 +397,7 @@ def _rationale_span(rationale: dict[str, Any], parent: Span, start_ns: int, root
     span = _build_step_span(
         "reasoning", root_span, parent, "task", start_ns=start_ns, output_val=rationale.get("text", "")
     )
+    _propagate_inner_io_to_step_span(parent, span)
     span.finish(finish_time=(start_ns + DEFAULT_SPAN_DURATION_NS) / 1e9)
     return span
 
@@ -418,9 +430,11 @@ def _invocation_input_span(
         bedrock_tool_call = invocation_input.get("knowledgeBaseLookupInput", {})
         span_name = bedrock_tool_call.get("knowledgeBaseId")
         tool_args = {"text": str(bedrock_tool_call.get("text", ""))}
-    return _build_step_span(
+    span = _build_step_span(
         span_name or "", root_span, parent, "tool", start_ns, metadata=tool_metadata, input_val=safe_json(tool_args)
     )
+    _propagate_inner_io_to_step_span(parent, span)
+    return span
 
 
 def _observation_span(
@@ -456,6 +470,9 @@ def _observation_span(
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(bedrock_metadata, root_span)
     current_active_span.start_ns = int(start_ns)
     _annotate_llmobs_span_data(current_active_span, output_value=output_value)
+    # Propagate IO before finish — see _propagate_inner_io_to_step_span docstring.
+    if current_active_span._parent is not None:
+        _propagate_inner_io_to_step_span(current_active_span._parent, current_active_span)
     current_active_span.finish(finish_time=(start_ns + duration_ns) / 1e9)
     return current_active_span
 

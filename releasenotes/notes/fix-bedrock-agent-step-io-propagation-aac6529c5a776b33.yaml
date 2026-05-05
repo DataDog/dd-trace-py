@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes propagation of the first input and last output of each
+    ``Bedrock Agent`` step span. Previously, inputs and outputs were copied from inner model
+    or tool spans onto the parent step span after those inner spans had already been finished
+    and their LLM Observability ``meta_struct`` scrubbed by the trace finish hook, so the
+    propagation read empty data in production (only test runs that retained ``meta_struct``
+    were unaffected). The propagation now happens before each inner span is finished, so step
+    spans show the correct first input and last output.

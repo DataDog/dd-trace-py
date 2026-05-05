@@ -15,7 +15,6 @@ from ddtrace.llmobs._integrations.bedrock_agents import _create_bedrock_trace_st
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_type
 from ddtrace.llmobs._integrations.bedrock_agents import _max_finish_ns
-from ddtrace.llmobs._integrations.bedrock_agents import _propagate_inner_io_to_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
 from ddtrace.llmobs._integrations.bedrock_utils import normalize_input_tokens
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
@@ -202,7 +201,6 @@ class BedrockIntegration(BaseLLMIntegration):
                     inner_spans_by_step_id.setdefault(trace_step_id, []).append(inner_span)
                 if not finished:
                     active_span_by_step_id[trace_step_id] = inner_span
-                _propagate_inner_io_to_step_span(step_span, inner_span)
         # Inner spans get start + 1ms so back-dated orphans don't pick up `time.time_ns()` and
         # span months. Each step is then stretched over its children's full timeline: Bedrock's
         # top-level eventTime can land AFTER the inner's start when metadata.startTime is missing
