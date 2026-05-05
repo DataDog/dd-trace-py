@@ -1,8 +1,0 @@
----
-features:
-  - |
-    LLM Observability: forwards prompt-cache token counts (``cache_read_input_tokens``,
-    ``cache_write_input_tokens``, and the anthropic ephemeral 1h/5m cache-write
-    breakdowns) as ``_dd.llmobs.*`` shadow metrics on APM spans for the
-    integrations that already extract them (openai, anthropic, litellm, bedrock,
-    google_genai, vertexai, claude_agent_sdk).
