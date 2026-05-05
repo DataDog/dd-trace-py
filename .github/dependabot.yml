@@ -14,5 +14,5 @@ updates:
         patterns:
           - "*"
     ignore:
-      - dependency-name: "commit-headless:*"
+      - dependency-name: "DataDog/commit-headless:*"
         update-types: ["version-update:semver-major"]
