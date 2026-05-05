@@ -13,3 +13,6 @@ updates:
       gh-actions-packages:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: "commit-headless:*"
+        update-types: ["version-update:semver-major"]
