@@ -25,6 +25,19 @@ OTHER_MESSAGE_SCHEMA_DEF = (
 OTHER_MESSAGE_SCHEMA_ID = "2475724054364642627"
 
 
+def test_unpatch_does_not_raise_after_message_class_wrapped():
+    """
+    Regression test to confirm that unpatch() should not throw AttributeErrors
+    on SerializeToString since Protobuf 5.x+ had a change in the upb/C extension.
+    """
+    from tests.utils import override_global_config
+
+    with override_global_config({"_data_streams_enabled": True}):
+        patch()
+        importlib.reload(other_message_pb2)  # _traced_build can trigger errors
+        unpatch()  # should not raise AttributeErrors
+
+
 def test_patching(protobuf):
     """
     When patching protobuf library
