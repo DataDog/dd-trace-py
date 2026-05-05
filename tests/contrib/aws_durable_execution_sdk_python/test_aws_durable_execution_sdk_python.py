@@ -122,9 +122,9 @@ def test_parse_durable_execution_arn():
     from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import _parse_durable_execution_arn
 
     name, eid = _parse_durable_execution_arn(
-        "arn:aws:lambda:us-east-1:123456789012:function:sample-durable-fn:dex:abc-123"
+        "arn:aws:lambda:us-east-1:123456789012:function:sample-durable-fn:$LATEST/durable-execution/my-execution/abc-123"
     )
-    assert name == "sample-durable-fn"
+    assert name == "my-execution"
     assert eid == "abc-123"
 
     assert _parse_durable_execution_arn("arn:aws:invalid") == (None, None)
