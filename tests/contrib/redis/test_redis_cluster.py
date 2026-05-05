@@ -255,6 +255,7 @@ class TestRedisClusterPatch(TracerTestCase):
 
     def test_connection_tags_present_after_multiple_commands(self):
         """Connection tags are set on every command span, not just the first."""
+        self.pop_spans()  # clear setUp spans (cluster discovery + flushall)
         self.r.set("a", 1)
         self.r.set("b", 2)
         self.r.get("a")
@@ -285,8 +286,12 @@ class TestRedisClusterPatch(TracerTestCase):
         assert span.get_metric("network.destination.port") is not None
 
     def test_connection_tags_mget(self):
-        """MGET command spans also carry connection tags."""
-        self.r.mget("key1", "key2")
+        """MGET command spans also carry connection tags.
+        Use hash-tagged keys so both land on the same slot — otherwise RedisCluster
+        splits MGET into individual GETs and no MGET span is produced.
+        """
+        self.pop_spans()  # clear setUp spans
+        self.r.mget("{tag}key1", "{tag}key2")
         spans = [s for s in self.get_spans() if s.get_tag("component") == "redis" and s.resource == "MGET"]
         assert spans, "Expected at least one MGET span"
         for span in spans:
@@ -294,6 +299,7 @@ class TestRedisClusterPatch(TracerTestCase):
 
     def test_connection_tags_new_client_instance(self):
         """A freshly created RedisCluster client also gets connection tags (not cached from setUp)."""
+        self.pop_spans()  # clear setUp spans before creating fresh client
         startup_nodes = [redis.cluster.ClusterNode(self.TEST_HOST, int(p)) for p in self.TEST_PORTS.split(",")]
         fresh_client = redis.cluster.RedisCluster(startup_nodes=startup_nodes)
         fresh_client.get("freshcheck")
