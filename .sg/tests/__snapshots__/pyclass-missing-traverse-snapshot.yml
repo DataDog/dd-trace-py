@@ -13,6 +13,10 @@ snapshots:
       style: primary
       start: 19
       end: 70
+    - source: LeakBacked
+      style: secondary
+      start: 30
+      end: 40
     - source: '#[pyclass(frozen)]'
       style: secondary
       start: 0
@@ -46,6 +50,10 @@ snapshots:
       style: primary
       start: 30
       end: 86
+    - source: LeakDerive
+      style: secondary
+      start: 41
+      end: 51
     - source: '#[pyclass]'
       style: secondary
       start: 0
@@ -67,6 +75,62 @@ snapshots:
       end: 86
   ? |
     #[pyclass]
+    pub struct GoodOne {
+        attrs: Py<PyDict>,
+    }
+
+    #[pymethods]
+    impl GoodOne {
+        fn __traverse__(&self, visit: pyo3::PyVisit<'_>)
+            -> Result<(), pyo3::PyTraverseError>
+        {
+            visit.call(&self.attrs)?;
+            Ok(())
+        }
+    }
+
+    #[pyclass]
+    pub struct LeakySibling {
+        attrs: Py<PyDict>,
+    }
+
+    #[pymethods]
+    impl LeakySibling {
+        fn other(&self) {}
+    }
+  : labels:
+    - source: |-
+        pub struct LeakySibling {
+            attrs: Py<PyDict>,
+        }
+      style: primary
+      start: 259
+      end: 309
+    - source: LeakySibling
+      style: secondary
+      start: 270
+      end: 282
+    - source: '#[pyclass]'
+      style: secondary
+      start: 248
+      end: 258
+    - source: Py<PyDict>
+      style: secondary
+      start: 296
+      end: 306
+    - source: 'attrs: Py<PyDict>'
+      style: secondary
+      start: 289
+      end: 306
+    - source: |-
+        {
+            attrs: Py<PyDict>,
+        }
+      style: secondary
+      start: 283
+      end: 309
+  ? |
+    #[pyclass]
     pub struct LeakAny {
         cached: Option<Py<PyAny>>,
     }
@@ -78,6 +142,10 @@ snapshots:
       style: primary
       start: 11
       end: 64
+    - source: LeakAny
+      style: secondary
+      start: 22
+      end: 29
     - source: '#[pyclass]'
       style: secondary
       start: 0
@@ -110,6 +178,10 @@ snapshots:
       style: primary
       start: 11
       end: 57
+    - source: LeakDict
+      style: secondary
+      start: 22
+      end: 30
     - source: '#[pyclass]'
       style: secondary
       start: 0
@@ -147,6 +219,10 @@ snapshots:
       style: primary
       start: 11
       end: 62
+    - source: LeakWrongImpl
+      style: secondary
+      start: 22
+      end: 35
     - source: '#[pyclass]'
       style: secondary
       start: 0
@@ -179,6 +255,10 @@ snapshots:
       style: primary
       start: 47
       end: 98
+    - source: LeakQualified
+      style: secondary
+      start: 58
+      end: 71
     - source: '#[pyo3::pyclass(name = "Leaky", module = "x")]'
       style: secondary
       start: 0
