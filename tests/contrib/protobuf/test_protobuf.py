@@ -35,6 +35,9 @@ def test_unpatch_does_not_raise_after_message_class_wrapped():
     with override_global_config({"_data_streams_enabled": True}):
         patch()
         importlib.reload(other_message_pb2)  # _traced_build can trigger errors
+        OtherMessage = other_message_pb2.OtherMessage
+        other_message = OtherMessage()
+        other_message.SerializeToString()
         unpatch()  # should not raise AttributeErrors
 
 
