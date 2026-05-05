@@ -28,7 +28,7 @@ log = get_logger(__name__)
 
 INTEGRATION_TAG = {LLMOBS_STRUCT.INTEGRATION: "bedrock_agents"}
 
-# Used when AWS event has no duration (e.g. rationale); 1 ms matches pre-migration default.
+# Used when an AWS event has no duration (e.g. rationale).
 DEFAULT_SPAN_DURATION_NS = 1_000_000
 
 
@@ -157,14 +157,14 @@ def _create_bedrock_trace_step_span(
 
 
 def _propagate_inner_io_to_step_span(step_span: Span, inner_span: Span) -> None:
-    """Direct meta_struct copy (bypasses ``_annotate_llmobs_span_data``) so a child llm span's
-    ``list[Message]`` input/output is not re-serialized into a JSON value string on the
-    workflow-kind step span. First non-empty input wins; last output wins.
+    """Copy first non-empty input and last output from ``inner_span`` onto ``step_span``.
 
-    MUST be called before ``inner_span.finish()`` — once an LLMObs APM span finishes,
-    ``LLMObs._on_span_finish`` enqueues its event and (outside of the
-    ``_DD_LLMOBS_TEST_KEEP_META_STRUCT`` test mode) scrubs the ``meta_struct[LLMOBS_STRUCT.KEY]``
-    entry, leaving us with nothing to read here.
+    Direct meta_struct copy (bypasses ``_annotate_llmobs_span_data``) so a child llm span's
+    ``list[Message]`` input/output isn't re-serialized into a JSON value string on the
+    workflow-kind step span.
+
+    MUST be called before ``inner_span.finish()``: ``LLMObs._on_span_finish`` enqueues the event
+    and scrubs ``meta_struct[LLMOBS_STRUCT.KEY]`` on finish, leaving nothing to read.
     """
     inner_meta = _get_llmobs_data_metastruct(inner_span).get("meta", {})
     inner_input = inner_meta.get("input") or {}
@@ -386,7 +386,6 @@ def _model_invocation_output_span(
     _annotate_llmobs_span_data(
         current_active_span, output_messages=output_messages, metrics=token_metrics, metadata=metadata_update
     )
-    # Propagate IO before finish — see _propagate_inner_io_to_step_span docstring.
     if current_active_span._parent is not None:
         _propagate_inner_io_to_step_span(current_active_span._parent, current_active_span)
     current_active_span.finish(finish_time=(start_ns + duration_ns) / 1e9)
@@ -470,7 +469,6 @@ def _observation_span(
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(bedrock_metadata, root_span)
     current_active_span.start_ns = int(start_ns)
     _annotate_llmobs_span_data(current_active_span, output_value=output_value)
-    # Propagate IO before finish — see _propagate_inner_io_to_step_span docstring.
     if current_active_span._parent is not None:
         _propagate_inner_io_to_step_span(current_active_span._parent, current_active_span)
     current_active_span.finish(finish_time=(start_ns + duration_ns) / 1e9)

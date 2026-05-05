@@ -176,10 +176,8 @@ class BedrockIntegration(BaseLLMIntegration):
 
     def translate_bedrock_traces(self, traces, root_span) -> None:
         """Translate bedrock agent traces to back-dated APM child spans of ``root_span``."""
-        # Each trace event is now a real APM span (was 1 root span pre-migration); acceptable.
         if not traces or not self.llmobs_enabled:
             return
-        # Per-invocation state. Held on the class previously, which raced across concurrent invoke_agent calls.
         step_spans_by_step_id: dict[str, Span] = {}
         active_span_by_step_id: dict[str, Span] = {}
         inner_spans_by_step_id: dict[str, list[Span]] = {}
@@ -198,11 +196,10 @@ class BedrockIntegration(BaseLLMIntegration):
                     inner_spans_by_step_id.setdefault(trace_step_id, []).append(inner_span)
                 if not finished:
                     active_span_by_step_id[trace_step_id] = inner_span
-        # Finish inner spans first (default = start + 1ms so back-dated orphans don't pick up
-        # `time.time_ns()` and span months), then stretch each step span over its children:
-        # Bedrock's top-level eventTime can land AFTER the inner's start when metadata.startTime
-        # is missing and the inner falls back to root.start_ns (common for guardrail/failure
-        # traces). `Span.finish()` is idempotent, so re-finishing already-finished inners no-ops.
+        # Default each inner to start + 1ms (back-dated spans must not pick up wall-clock
+        # `time.time_ns()`). Then size each step to span its children — Bedrock's top-level
+        # eventTime can land after the inner's start when metadata.startTime is missing.
+        # `Span.finish()` is idempotent, so re-finishing already-completed inners no-ops.
         for step_id, step_span in step_spans_by_step_id.items():
             inners = inner_spans_by_step_id.get(step_id, [])
             for inner in inners:

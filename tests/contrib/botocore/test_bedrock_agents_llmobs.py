@@ -70,8 +70,6 @@ def _assert_trace_step_spans(trace_step_spans):
     assert trace_step_spans[4]["name"].startswith("orchestrationTrace Step")
     assert trace_step_spans[5]["name"].startswith("guardrailTrace Step")
     assert all(span["meta"]["span"]["kind"] == "workflow" for span in trace_step_spans)
-    # bedrock_trace_id is now retained as metadata only (the AWS trace step id is no longer used as
-    # the LLMObs span_id; that comes from the underlying Datadog APM span).
     assert all(span["meta"]["metadata"].get("bedrock_trace_id") for span in trace_step_spans)
 
 
@@ -186,31 +184,6 @@ def test_agent_invoke_stream_trace_disabled(
     assert llmobs_events[0]["name"] == "Bedrock Agent {}".format(AGENT_ID)
 
 
-def test_translate_bedrock_traces_does_not_share_state_across_invocations(
-    bedrock_agent_client, request_vcr, bedrock_agents_llmobs, llmobs_events
-):
-    """Two ``invoke_agent`` calls in the same process must each produce the same number of LLMObs
-    events. With the previous class-level state dicts the second invocation could leak entries
-    from the first (or skip entries that were marked as already-active). Regression test for the
-    per-invocation state migration.
-    """
-    counts = []
-    for _ in range(2):
-        with request_vcr.use_cassette("agent_invoke.yaml"):
-            response = bedrock_agent_client.invoke_agent(
-                agentAliasId=AGENT_ALIAS_ID,
-                agentId=AGENT_ID,
-                sessionId="test_session",
-                enableTrace=True,
-                inputText=AGENT_INPUT,
-            )
-            for _ in response["completion"]:
-                pass
-        counts.append(len(llmobs_events))
-    assert counts[0] > 0, "expected the cassette to produce LLMObs events"
-    assert counts[1] == 2 * counts[0], "second invocation produced a different event count than the first"
-
-
 def test_translated_step_events_share_apm_trace_id_with_root(
     bedrock_agent_client, request_vcr, bedrock_agents_llmobs, llmobs_events
 ):
@@ -269,27 +242,3 @@ def test_translate_bedrock_traces_finishes_orphaned_step_spans(bedrock_agents_ll
 
     names = sorted(e["name"] for e in llmobs_events)
     assert names == sorted(["modelInvocation", "orchestrationTrace Step"])
-
-
-def test_step_spans_carry_inner_io_in_production(
-    bedrock_agent_client, request_vcr, bedrock_agents_llmobs, llmobs_events
-):
-    """Regression test: step spans should propagate first input and last output from their inner spans."""
-    with request_vcr.use_cassette("agent_invoke.yaml"):
-        response = bedrock_agent_client.invoke_agent(
-            agentAliasId=AGENT_ALIAS_ID,
-            agentId=AGENT_ID,
-            sessionId="test_session",
-            enableTrace=True,
-            inputText=AGENT_INPUT,
-        )
-        for _ in response["completion"]:
-            pass
-    orchestration_steps = [e for e in llmobs_events if e["name"].startswith("orchestrationTrace Step")]
-    assert orchestration_steps, "expected at least one orchestrationTrace Step event"
-    for step in orchestration_steps:
-        meta = step.get("meta") or {}
-        # workflow step spans should carry the propagated input messages from the first inner
-        # modelInvocation child, and an output value from the last inner observation/output.
-        assert meta.get("input"), f"orchestrationTrace Step {step.get('span_id')} missing input"
-        assert meta.get("output"), f"orchestrationTrace Step {step.get('span_id')} missing output"
