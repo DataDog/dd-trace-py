@@ -201,8 +201,7 @@ def _convert_openai_messages(messages):
 
 
 def _tool_call_from(tc):
-    """Build a ``ToolCall`` from an OpenAI tool_call (dict or SDK object).
-    """
+    """Build a ``ToolCall`` from an OpenAI tool_call (dict or SDK object)."""
     fn = _get(tc, "function") or {}
     return ToolCall(
         id=_get(tc, "id", ""),
@@ -214,8 +213,7 @@ def _tool_call_from(tc):
 
 
 def _convert_openai_response(resp):
-    """Convert an OpenAI ChatCompletion response to AI Guard ``Message`` list.
-    """
+    """Convert an OpenAI ChatCompletion response to AI Guard ``Message`` list."""
     result = []
     choices = _get(resp, "choices") or []
     for choice in choices:
@@ -254,8 +252,7 @@ def _convert_openai_response(resp):
 
 
 def _openai_chat_completion_before(client, kwargs):
-    """Listener for ``openai.chat.completions.create.before``.
-    """
+    """Listener for ``openai.chat.completions.create.before``."""
     if is_aiguard_context_active():
         return None
 
