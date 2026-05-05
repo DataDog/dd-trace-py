@@ -34,10 +34,18 @@ rule:
             field: type
             stopBy: end
             regex: "Py<|PyObject|PyBackedString"
-    # No __traverse__ method exists in an `impl <THIS_STRUCT>` block in the
-    # same file. We bind the impl target to $NAME so a sibling pyclass with
-    # its own __traverse__ does not silently mask this one (which was the
-    # cross-pyclass false negative caught in code review).
+    # No __traverse__ method exists in a `#[pymethods] impl <THIS_STRUCT>`
+    # block in the same file.
+    #
+    # Three constraints on the impl block:
+    #   1. The impl target type must be $NAME (so a sibling pyclass's
+    #      __traverse__ does not satisfy this struct's check).
+    #   2. The impl must be annotated with #[pymethods]. PyO3 only wires
+    #      __traverse__ into tp_traverse from impls inside a #[pymethods]
+    #      block; a plain `impl Foo { fn __traverse__ ... }` is a regular
+    #      Rust method and the type's GC slot stays empty.
+    #   3. The impl must contain a function named __traverse__.
+    #
     # We check both directions because impl blocks may appear before or
     # after the struct definition.
     - not:
@@ -48,6 +56,12 @@ rule:
             - has:
                 field: type
                 pattern: $NAME
+            - follows:
+                stopBy:
+                  not:
+                    kind: attribute_item
+                kind: attribute_item
+                regex: "pymethods"
             - has:
                 stopBy: end
                 kind: function_item
@@ -62,6 +76,12 @@ rule:
             - has:
                 field: type
                 pattern: $NAME
+            - follows:
+                stopBy:
+                  not:
+                    kind: attribute_item
+                kind: attribute_item
+                regex: "pymethods"
             - has:
                 stopBy: end
                 kind: function_item
