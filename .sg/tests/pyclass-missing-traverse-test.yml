@@ -65,6 +65,29 @@ valid:
     pub struct NotAPyclass {
         attrs: Py<PyDict>,
     }
+  # Plain Rust helper struct following a correctly-traversed pyclass —
+  # OK. Regression test: an earlier version of this rule used
+  # `follows: stopBy: end` for the pyclass attribute, which made this
+  # helper match the earlier struct's #[pyclass] attribute.
+  - |
+    #[pyclass]
+    pub struct PyExposed {
+        attrs: Py<PyDict>,
+    }
+
+    #[pymethods]
+    impl PyExposed {
+        fn __traverse__(&self, visit: pyo3::PyVisit<'_>)
+            -> Result<(), pyo3::PyTraverseError>
+        {
+            visit.call(&self.attrs)?;
+            Ok(())
+        }
+    }
+
+    pub struct InternalHelper {
+        cached: Py<PyAny>,
+    }
 invalid:
   # Owned Py<PyDict> field, no __traverse__
   - |
@@ -108,5 +131,36 @@ invalid:
 
     #[pymethods]
     impl LeakWrongImpl {
+        fn other(&self) {}
+    }
+  # Two pyclasses in the same file: one correctly traverses, the other
+  # does not. Regression test: an earlier version of this rule treated
+  # any sibling __traverse__ in the file as satisfying every pyclass,
+  # so adding a leaky pyclass next to an already-fixed one went
+  # undetected. The rule must now match __traverse__ to the specific
+  # impl target.
+  - |
+    #[pyclass]
+    pub struct GoodOne {
+        attrs: Py<PyDict>,
+    }
+
+    #[pymethods]
+    impl GoodOne {
+        fn __traverse__(&self, visit: pyo3::PyVisit<'_>)
+            -> Result<(), pyo3::PyTraverseError>
+        {
+            visit.call(&self.attrs)?;
+            Ok(())
+        }
+    }
+
+    #[pyclass]
+    pub struct LeakySibling {
+        attrs: Py<PyDict>,
+    }
+
+    #[pymethods]
+    impl LeakySibling {
         fn other(&self) {}
     }

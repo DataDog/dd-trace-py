@@ -6,9 +6,19 @@ files:
   - "src/native/**/*.rs"
 rule:
   all:
+    # Capture the struct name so we can match impl blocks that target it.
     - kind: struct_item
+      has:
+        field: name
+        pattern: $NAME
+    # The #[pyclass] attribute must be attached to THIS struct: walk only
+    # through other attribute_items (e.g. #[derive(Default)]) and stop at
+    # anything else. Without the stopBy constraint, an unrelated helper
+    # struct after a pyclass would falsely match the earlier #[pyclass].
     - follows:
-        stopBy: end
+        stopBy:
+          not:
+            kind: attribute_item
         kind: attribute_item
         regex: "pyclass"
     # Has at least one field whose type mentions a Python-owning reference.
@@ -24,29 +34,40 @@ rule:
             field: type
             stopBy: end
             regex: "Py<|PyObject|PyBackedString"
-    # No __traverse__ method exists in any sibling impl block in the same file.
-    # We check both directions (precedes / follows) because impl blocks may
-    # appear before or after the struct.
+    # No __traverse__ method exists in an `impl <THIS_STRUCT>` block in the
+    # same file. We bind the impl target to $NAME so a sibling pyclass with
+    # its own __traverse__ does not silently mask this one (which was the
+    # cross-pyclass false negative caught in code review).
+    # We check both directions because impl blocks may appear before or
+    # after the struct definition.
     - not:
         precedes:
           stopBy: end
           kind: impl_item
-          has:
-            stopBy: end
-            kind: function_item
-            has:
-              field: name
-              regex: "^__traverse__$"
+          all:
+            - has:
+                field: type
+                pattern: $NAME
+            - has:
+                stopBy: end
+                kind: function_item
+                has:
+                  field: name
+                  regex: "^__traverse__$"
     - not:
         follows:
           stopBy: end
           kind: impl_item
-          has:
-            stopBy: end
-            kind: function_item
-            has:
-              field: name
-              regex: "^__traverse__$"
+          all:
+            - has:
+                field: type
+                pattern: $NAME
+            - has:
+                stopBy: end
+                kind: function_item
+                has:
+                  field: name
+                  regex: "^__traverse__$"
 note: |
   PyO3 does not auto-derive Python's cyclic-GC protocol. A #[pyclass] that
   holds a Py<...>, PyObject, or PyBackedString field without implementing
