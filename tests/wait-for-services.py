@@ -137,7 +137,10 @@ def check_agent(url):
 
 @try_until_timeout(Exception, args={"url": "http://{host}:{port}/status".format(**SELENIUM_CONFIG)})
 def check_selenium(url):
-    requests.get(url).raise_for_status()
+    resp = requests.get(url)
+    resp.raise_for_status()
+    if not resp.json().get("value", {}).get("ready"):
+        raise Exception("Selenium not ready")
 
 
 @try_until_timeout(Exception, args={"url": "http://{host}:{port}/".format(**ELASTICSEARCH_CONFIG)})
