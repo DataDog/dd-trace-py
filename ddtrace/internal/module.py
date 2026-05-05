@@ -432,10 +432,7 @@ class BaseModuleWatchdog(abc.ABC):
                 _find_spec = getattr(finder, "find_spec", None)
                 if _find_spec is None:
                     continue
-                try:
-                    spec = _find_spec(fullname, path, target)
-                except Exception:
-                    spec = None
+                spec = _find_spec(fullname, path, target)
                 if spec is not None:
                     break
 
