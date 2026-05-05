@@ -76,6 +76,17 @@ class TracedThreadPoolExecutor(ThreadPoolExecutor):
         return super().submit(_wrapped, *args, **kwargs)
 
 
+def _parse_durable_execution_arn(arn):
+    """Extract execution_name and execution_id from a durable execution ARN.
+
+    Expected format: arn:aws:lambda:{region}:{account}:function:{name}:dex:{id}
+    """
+    parts = arn.split(":")
+    if len(parts) >= 9 and parts[7] == "dex":
+        return parts[6], parts[8]
+    return None, None
+
+
 def _read_execution_state(durable_context):
     """Return (execution_arn, is_replay_execution) from a DurableContext."""
     state = getattr(durable_context, "state", None)
@@ -114,6 +125,12 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
         )
 
         with core.context_with_event(event) as ctx:
+            if arn is not None and ctx.span is not None:
+                execution_name, execution_id = _parse_durable_execution_arn(arn)
+                if execution_name:
+                    ctx.span.set_tag("aws_lambda.durable_execution.execution_name", execution_name)
+                if execution_id:
+                    ctx.span.set_tag("aws_lambda.durable_execution.execution_id", execution_id)
             try:
                 return user_func(*inner_args, **inner_kwargs)
             except SuspendExecution:
