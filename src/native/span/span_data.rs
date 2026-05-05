@@ -646,9 +646,11 @@ impl SpanData {
     }
 
     fn __clear__(&mut self) {
-        // Drop our owned Python references so CPython can break cycles.
+        // Drop every owned Python reference so CPython can break cycles.
         self._trace_id_py = None;
         self.meta_struct = None;
+        self.span_api = crate::py_string::PyBackedString::default();
+        self.data = libdd_trace_utils::span::v04::Span::<PyTraceData>::default();
     }
 }
 
