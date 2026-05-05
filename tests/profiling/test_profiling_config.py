@@ -53,12 +53,13 @@ class TestAdaptiveSamplingConfig:
 class TestExcludeModulesConfig:
     """Unit tests for the exclude_modules config field type guarantees."""
 
-    def test_default_is_empty_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_default_is_empty_frozenset(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """exclude_modules must default to frozenset(), not '' or None."""
         monkeypatch.delenv("DD_PROFILING_LOCK_EXCLUDE_MODULES", raising=False)
         from ddtrace.internal.settings.profiling import ProfilingConfigLock
 
         cfg = ProfilingConfigLock()
+        assert cfg.exclude_modules == frozenset()
         assert isinstance(cfg.exclude_modules, frozenset)
 
     def test_parsed_value_is_frozenset(self, monkeypatch: pytest.MonkeyPatch) -> None:
