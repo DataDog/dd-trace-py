@@ -41,9 +41,7 @@ ENTER_EXIT_CO_NAMES: frozenset[str] = frozenset(
 )
 
 # Modules whose internal lock allocations are always excluded from profiling,
-# regardless of user config.  This replaces the old per-lock `is_internal` flag:
-# instead of wrapping-then-silencing these locks, we return native locks (zero overhead).
-# AIDEV-NOTE: do NOT remove stdlib entries — they prevent double-counting when
+# regardless of user config. Do NOT remove stdlib entries — they prevent double-counting when
 # multiple collectors (Lock + Semaphore + Condition) are active simultaneously.
 _ALWAYS_EXCLUDED_MODULES: frozenset = frozenset({
     "threading",
@@ -580,8 +578,7 @@ class LockCollector(collector.CaptureSamplerCollector):
 
         # Merge user-configured exclusions with the always-excluded stdlib modules.
         # _ALWAYS_EXCLUDED_MODULES prevents double-counting when multiple collectors
-        # (Lock + Semaphore + Condition) are active — the same role `is_internal` used
-        # to play, but with zero overhead (native lock returned, not wrapped-then-silenced).
+        # (Lock + Semaphore + Condition) are active.
         exclude_exact: frozenset[str] = (
             config.lock.exclude_modules | _ALWAYS_EXCLUDED_MODULES
         )
