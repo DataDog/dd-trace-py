@@ -1,6 +1,7 @@
 import os
 from typing import Any
 from typing import Iterator
+from unittest import mock
 from unittest.mock import Mock
 from unittest.mock import patch as mock_patch
 
@@ -17,13 +18,24 @@ from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE_STREAM
 from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE_STREAM
-from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import override_global_config
 
 
 @pytest.fixture
-def ddtrace_global_config():
-    return {}
+def genai_llmobs(monkeypatch):
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+    LLMObs.disable()
+    with override_global_config(
+        {
+            "_llmobs_ml_app": "<ml-app-name>",
+            "_dd_api_key": "<not-a-real-key>",
+        }
+    ):
+        LLMObs.enable(integrations_enabled=False)
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        yield LLMObs
+    LLMObs.disable()
 
 
 @pytest.fixture(params=["google_genai", "vertex_ai"], ids=["google_genai", "vertex_ai"])
@@ -47,44 +59,17 @@ def genai_client_vcr(genai):
 
 
 @pytest.fixture
-def genai_llmobs(tracer, llmobs_span_writer):
-    LLMObs.disable()
-    with override_global_config(
-        {
-            "_dd_api_key": "<not-a-real-api_key>",
-            "_llmobs_ml_app": "<ml-app-name>",
-            "service": "tests.contrib.google_genai",
-        }
-    ):
-        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
-        LLMObs._instance._llmobs_span_writer = llmobs_span_writer
-        yield LLMObs
-    LLMObs.disable()
-
-
-@pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
-
-
-@pytest.fixture
-def llmobs_events(genai_llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events
-
-
-@pytest.fixture
-def genai(ddtrace_global_config):
+def genai():
     # tests require that these environment variables are set (especially for remote CI testing)
     os.environ["GOOGLE_CLOUD_LOCATION"] = "<not-a-real-location>"
     os.environ["GOOGLE_CLOUD_PROJECT"] = "<not-a-real-project>"
     os.environ["GOOGLE_API_KEY"] = "<not-a-real-key>"
 
-    with override_global_config(ddtrace_global_config):
-        patch()
-        from google import genai
+    patch()
+    from google import genai
 
-        yield genai
-        unpatch()
+    yield genai
+    unpatch()
 
 
 @pytest.fixture
