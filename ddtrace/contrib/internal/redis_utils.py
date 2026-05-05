@@ -89,6 +89,23 @@ def _extract_conn_tags(conn_kwargs) -> dict[str, str]:
         return {}
 
 
+def _extract_cluster_node_conn_tags(instance) -> dict[str, str]:
+    # AIDEV-NOTE: redis.cluster.RedisCluster (redis-py >= 4.1) has no single connection_pool;
+    # it manages one pool per node via nodes_manager. Use get_default_node() to get a
+    # representative host/port for span tags (needed for inferred services in APM).
+    try:
+        node = instance.get_default_node()
+        if node is None:
+            return {}
+        return {
+            net.TARGET_HOST: node.host,
+            net.TARGET_PORT: node.port,
+            net.SERVER_ADDRESS: node.host,
+        }
+    except Exception:
+        return {}
+
+
 def _build_tags(query, instance, integration_name):
     ret = dict()
     ret[SPAN_KIND] = SpanKind.CLIENT
@@ -100,6 +117,10 @@ def _build_tags(query, instance, integration_name):
     # some redis clients do not have a connection_pool attribute (ex. aioredis v1.3)
     if hasattr(instance, "connection_pool"):
         for key, value in _extract_conn_tags(instance.connection_pool.connection_kwargs).items():
+            ret[key] = value
+    elif hasattr(instance, "nodes_manager"):
+        # redis.cluster.RedisCluster (redis-py >= 4.1) manages one connection pool per node
+        for key, value in _extract_cluster_node_conn_tags(instance).items():
             ret[key] = value
     return ret
 

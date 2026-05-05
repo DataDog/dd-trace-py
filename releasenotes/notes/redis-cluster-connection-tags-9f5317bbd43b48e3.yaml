@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    redis: Fix missing connection tags (``out.host``, ``network.destination.port``,
+    ``server.address``) on spans produced by ``redis.cluster.RedisCluster``
+    (redis-py >= 4.1). The ``RedisCluster`` client manages one connection pool per
+    node internally and does not expose a single ``connection_pool`` attribute, so
+    connection attributes were never populated. Spans now report the default node's
+    host and port, enabling inferred service detection in APM.

@@ -485,6 +485,117 @@ def test_service_precedence_v0():
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
+@pytest.mark.asyncio
+async def test_connection_tags_get(traced_redis_cluster):
+    """Async GET command span has out.host, network.destination.port, server.address."""
+    cluster, test_spans = traced_redis_cluster
+    await cluster.get("cheese")
+
+    traces = test_spans.pop_traces()
+    all_spans = [span for trace in traces for span in trace]
+    get_spans = [
+        s
+        for s in all_spans
+        if s.get_tag("component") == "redis" and s.resource == "GET" and s.get_tag("redis.raw_command") == "GET cheese"
+    ]
+    assert len(get_spans) == 1, f"Expected 1 GET span, got {len(get_spans)}"
+    span = get_spans[0]
+    assert span.get_tag("out.host") == TEST_HOST
+    assert span.get_tag("server.address") == TEST_HOST
+    expected_ports = [int(p) for p in TEST_PORTS.split(",")]
+    port = span.get_metric("network.destination.port")
+    assert port is not None, "network.destination.port not set"
+    assert port in expected_ports
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
+@pytest.mark.asyncio
+async def test_connection_tags_set(traced_redis_cluster):
+    """Async SET command span also carries connection tags."""
+    cluster, test_spans = traced_redis_cluster
+    await cluster.set("mykey", "myvalue")
+
+    traces = test_spans.pop_traces()
+    all_spans = [span for trace in traces for span in trace]
+    set_spans = [s for s in all_spans if s.get_tag("component") == "redis" and s.resource == "SET"]
+    assert set_spans, "No SET span found"
+    span = set_spans[0]
+    assert span.get_tag("out.host") == TEST_HOST
+    assert span.get_tag("server.address") == TEST_HOST
+    assert span.get_metric("network.destination.port") is not None
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
+@pytest.mark.asyncio
+async def test_connection_tags_host_is_string(traced_redis_cluster):
+    """out.host and server.address must be strings in async spans."""
+    cluster, test_spans = traced_redis_cluster
+    await cluster.get("typecheck")
+
+    traces = test_spans.pop_traces()
+    all_spans = [span for trace in traces for span in trace]
+    get_spans = [s for s in all_spans if s.get_tag("component") == "redis" and s.resource == "GET"]
+    assert get_spans
+    span = get_spans[0]
+    assert isinstance(span.get_tag("out.host"), str)
+    assert isinstance(span.get_tag("server.address"), str)
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
+@pytest.mark.asyncio
+async def test_connection_tags_port_is_numeric(traced_redis_cluster):
+    """network.destination.port must be a number in async spans."""
+    cluster, test_spans = traced_redis_cluster
+    await cluster.get("portcheck")
+
+    traces = test_spans.pop_traces()
+    all_spans = [span for trace in traces for span in trace]
+    get_spans = [s for s in all_spans if s.get_tag("component") == "redis" and s.resource == "GET"]
+    assert get_spans
+    port = get_spans[0].get_metric("network.destination.port")
+    assert port is not None
+    assert isinstance(port, (int, float))
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
+@pytest.mark.asyncio
+async def test_connection_tags_out_host_equals_server_address(traced_redis_cluster):
+    """out.host and server.address must be the same value in async spans."""
+    cluster, test_spans = traced_redis_cluster
+    await cluster.get("tagparity")
+
+    traces = test_spans.pop_traces()
+    all_spans = [span for trace in traces for span in trace]
+    get_spans = [s for s in all_spans if s.get_tag("component") == "redis" and s.resource == "GET"]
+    assert get_spans
+    span = get_spans[0]
+    assert span.get_tag("out.host") == span.get_tag("server.address")
+
+
+@pytest.mark.skipif(
+    redis.VERSION < (4, 3, 2) or PYTHON_VERSION_INFO >= (3, 14),
+    reason="redis.asyncio.cluster pipeline is not implemented in redis<4.3.2. This test also fails under Python 3.14",
+)
+@pytest.mark.asyncio
+async def test_connection_tags_pipeline(traced_redis_cluster):
+    """Async pipeline span also carries connection tags."""
+    cluster, test_spans = traced_redis_cluster
+    async with cluster.pipeline(transaction=False) as p:
+        p.set("x", 1)
+        p.get("x")
+        await p.execute()
+
+    traces = test_spans.pop_traces()
+    all_spans = [span for trace in traces for span in trace]
+    pipeline_spans = [s for s in all_spans if s.get_tag("component") == "redis" and s.resource == "SET\nGET"]
+    assert pipeline_spans, "No pipeline span found"
+    span = pipeline_spans[0]
+    assert span.get_tag("out.host") == TEST_HOST
+    assert span.get_tag("server.address") == TEST_HOST
+    assert span.get_metric("network.destination.port") is not None
+
+
+@pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
 @pytest.mark.subprocess(
     env=dict(DD_SERVICE="mysvc", DD_REDIS_SERVICE="myrediscluster", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"),
     err=None,  # avoid checking stderr because of an expected deprecation warning
