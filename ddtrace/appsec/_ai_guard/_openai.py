@@ -2,33 +2,7 @@
 
 Provides listener functions for ``openai.chat.completions.create.before``
 and ``openai.chat.completions.create.after`` events dispatched from the
-OpenAI contrib patching layer.
-
-Message conversion:
-    OpenAI messages are nearly identical to the AI Guard ``Message``
-    TypedDict.  The main work is extracting ``tool_calls`` into the
-    ``ToolCall`` / ``Function`` format expected by the API.
-
-Collision handling:
-    If a framework integration (LangChain, Strands) has already called
-    ``set_aiguard_context_active()`` for the current task, these listeners
-    skip evaluation to avoid double-scanning.
-
-Block signaling:
-    When AI Guard blocks a request, listeners *return* an
-    ``OpenAIAIGuardAbortError`` (or plain ``AIGuardAbortError`` when the
-    OpenAI SDK is not importable) as the dispatch result value, mirroring
-    the WAF's ``asm.get_blocked`` data-flow pattern. The shared
-    :func:`ddtrace.appsec._ai_guard._dispatch.dispatch_ai_guard_evaluation`
-    helper inspects ``result.value.action`` and raises the returned error
-    when the decision blocks the call. This keeps dispatch as a pure
-    data-collection step and confines the raise/inspection to a single,
-    explicit boundary in the contrib layer.
-
-    ``OpenAIAIGuardAbortError`` is a subclass of both
-    ``openai.UnprocessableEntityError`` (HTTP 422) and ``AIGuardAbortError``,
-    so callers can handle a block via either ``except openai.APIError`` or
-    the Datadog-specific ``except AIGuardAbortError``.
+OpenAI contrib patching layer
 """
 
 from collections import deque
@@ -53,11 +27,12 @@ logger = ddlogger.get_logger(__name__)
 # dependency — eagerly importing ``openai`` here would break AI Guard
 # initialization in environments that only use a different provider.
 #
+_openai_abort_error_cls = None
+
 # The lazy build uses double-checked locking: the unsynchronised check-then-act
 # pattern would let two threads simultaneously enter the build branch and each
 # create their own class, so callers that captured ``type(err)`` from one block
 # would silently stop matching errors from a concurrent block.
-_openai_abort_error_cls = None
 _openai_abort_error_cls_lock = threading.Lock()
 
 
@@ -227,9 +202,6 @@ def _convert_openai_messages(messages):
 
 def _tool_call_from(tc):
     """Build a ``ToolCall`` from an OpenAI tool_call (dict or SDK object).
-
-    Hoists ``_get(tc, "function")`` to a single lookup — this runs once per
-    tool call on the OpenAI hot path.
     """
     fn = _get(tc, "function") or {}
     return ToolCall(
@@ -243,13 +215,6 @@ def _tool_call_from(tc):
 
 def _convert_openai_response(resp):
     """Convert an OpenAI ChatCompletion response to AI Guard ``Message`` list.
-
-    Iterates over ``resp.choices`` and extracts the assistant message
-    (content + tool_calls) from each choice. Legacy ``function_call``
-    responses are translated to a synthetic ``ToolCall`` (see
-    ``_convert_openai_messages`` for rationale); response-side uses
-    ``fc_<id():x>`` since each choice is independent and there is no
-    pairing within a single response.
     """
     result = []
     choices = _get(resp, "choices") or []
@@ -290,18 +255,6 @@ def _convert_openai_response(resp):
 
 def _openai_chat_completion_before(client, kwargs):
     """Listener for ``openai.chat.completions.create.before``.
-
-    Evaluates the request messages before the LLM call.  Skips when a
-    framework-level evaluation is already in progress (collision avoidance)
-    and when ``stream=True`` (streaming is not yet supported — see the after
-    hook, which has the same gate; full streaming evaluation will land in a
-    follow-up PR that wraps the SDK ``Stream`` / ``AsyncStream`` to
-    reconstruct the assistant message and dispatch a synthetic after-event).
-
-    On block: returns an ``OpenAIAIGuardAbortError`` (or plain
-    ``AIGuardAbortError`` if the OpenAI SDK is not importable) as the
-    dispatch result value.  The shared dispatch helper inspects ``.action``
-    and raises.  Allow / skip paths return ``None``.
     """
     if is_aiguard_context_active():
         return None
@@ -318,12 +271,7 @@ def _openai_chat_completion_before(client, kwargs):
     messages = kwargs.get("messages")
     if messages is None:
         return None
-    # AIDEV-NOTE: ``chat.completions.create`` types ``messages`` as
-    # ``Iterable[ChatCompletionMessageParam]``, so callers may pass a generator
-    # or other one-shot iterator. Iterating it here for AI Guard evaluation
-    # would exhaust the input before the SDK serializes it, leaving the API
-    # call with no messages. Materialize once and write back so the SDK (and
-    # the after-hook) re-read the same list.
+
     if not isinstance(messages, (list, tuple)):
         messages = list(messages)
         kwargs["messages"] = messages
@@ -334,15 +282,6 @@ def _openai_chat_completion_before(client, kwargs):
     if not ai_guard_messages:
         return None
 
-    # AIDEV-NOTE: Before-model evaluation fires when the last message is
-    # role="user" (new user prompt) or role="tool" (tool result feeding back
-    # into the next model call). Per the AI Guard spec ("Anatomy of an AI
-    # Guard evaluation"), tool results are evaluated either "after tool"
-    # (framework hook) or at "next before model" — provider SDKs have no
-    # after-tool hook, so this is the prevention window that catches indirect
-    # prompt injection in tool output before the LLM processes it.
-    # Framework collisions (LangChain/Strands wrapping the loop) are already
-    # prevented by the is_aiguard_context_active() check above.
     if ai_guard_messages[-1].get("role") not in ("user", "tool"):
         return None
 
