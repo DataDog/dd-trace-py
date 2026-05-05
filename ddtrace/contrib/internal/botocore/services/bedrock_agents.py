@@ -1,4 +1,5 @@
 import sys
+import time
 
 import wrapt
 
@@ -35,14 +36,18 @@ class TracedBotocoreEventStream(wrapt.ObjectProxy):
             if not self._dd_span.finished:
                 traces, chunks = _extract_traces_response_from_chunks(self._stream_chunks)
                 response = _process_streamed_response_chunks(chunks)
+                latest_child_ns = 0
                 try:
-                    self._dd_integration.translate_bedrock_traces(traces, self._dd_span)
+                    latest_child_ns = self._dd_integration.translate_bedrock_traces(traces, self._dd_span)
                 except Exception:
                     log.error("Error translating Bedrock traces", exc_info=True)
                 self._dd_integration.llmobs_set_tags(
                     self._dd_span, self._args, self._kwargs, response, operation="agent"
                 )
-                self._dd_span.finish()
+                # Push finish past wall-clock now if any back-dated child ended later (AWS clock
+                # skew or fast-replay).
+                finish_ns = max(time.time_ns(), int(latest_child_ns or 0))
+                self._dd_span.finish(finish_time=finish_ns / 1e9)
 
 
 def _extract_traces_response_from_chunks(chunks):

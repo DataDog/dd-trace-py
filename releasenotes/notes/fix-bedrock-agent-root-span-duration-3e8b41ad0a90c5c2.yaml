@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes the duration of the ``Bedrock Agent <agent_id>`` span so it
+    encompasses its back-dated step / inner child spans. Previously the root span's window
+    only spanned the local ``invoke_agent`` round-trip, leaving children (which use AWS-side
+    ``eventTime`` for their ``start_ns``) appearing before and after the parent on the trace
+    timeline. The root span is now stretched to cover the earliest child start and latest
+    child end.
