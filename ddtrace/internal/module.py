@@ -3,6 +3,7 @@ from collections import defaultdict
 from importlib._bootstrap import _init_module_attrs
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
+from importlib.util import spec_from_loader
 from pathlib import Path
 import sys
 from types import CodeType
@@ -430,9 +431,16 @@ class BaseModuleWatchdog(abc.ABC):
                 if finder is self:
                     continue
                 _find_spec = getattr(finder, "find_spec", None)
-                if _find_spec is None:
-                    continue
-                spec = _find_spec(fullname, path, target)
+                if _find_spec is not None:
+                    spec = _find_spec(fullname, path, target)
+                else:
+                    # Fallback for legacy finders that only implement find_module()
+                    # (deprecated in 3.4, removed in 3.12) — mirrors CPython _find_spec().
+                    _find_module = getattr(finder, "find_module", None)
+                    if _find_module is None:
+                        continue
+                    loader = _find_module(fullname, path)
+                    spec = spec_from_loader(fullname, loader) if loader is not None else None
                 if spec is not None:
                     break
 
