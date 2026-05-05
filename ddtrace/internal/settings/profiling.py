@@ -363,6 +363,12 @@ def _parse_exclude_modules(raw: str) -> frozenset[str]:
 class ProfilingConfigLock(DDConfig):
     __item__ = __prefix__ = "lock"
 
+    def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
+        super().__init__(*args, **kwargs)
+        # envier uses the default value directly without invoking the parser,
+        # so we enforce _ALWAYS_EXCLUDED_MODULES unconditionally here.
+        self.exclude_modules = self.exclude_modules | _ALWAYS_EXCLUDED_MODULES  # pyright: ignore[reportOperatorIssue]
+
     enabled = DDConfig.v(
         bool,
         "enabled",
@@ -401,10 +407,6 @@ class ProfilingConfigLock(DDConfig):
                 "werkzeug",
                 "h11",  # HTTP/1.1 protocol parser; no real contention
                 "anyio",  # async abstraction; locks are bookkeeping
-                # Stdlib internal lock allocations (also in _ALWAYS_EXCLUDED_MODULES)
-                "asyncio",
-                "threading",
-                "concurrent",  # also covers concurrent.futures.ThreadPoolExecutor's work queue
                 "logging",  # per-handler Handler.lock; almost never user-actionable
                 "http",  # http.client connection-handling internals
             }
