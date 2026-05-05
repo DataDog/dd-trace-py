@@ -44,22 +44,17 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         else:
             self._llmobs_set_agent_tags(span, args, kwargs, response)
 
+    _APM_SHADOW_SPAN_KIND_BY_OPERATION = {"tool": "tool", "step": "step", "llm": "llm"}
+
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
-        if operation == "tool":
-            span_kind = "tool"
-        elif operation == "step":
-            span_kind = "step"
-        elif operation == "llm":
-            span_kind = "llm"
-        else:
-            span_kind = "agent"
+        span_kind = self._APM_SHADOW_SPAN_KIND_BY_OPERATION.get(operation, "agent")
         metrics: dict[str, int] = {}
         model_name = None
         model_provider = None
         if span_kind == "llm":
             model_provider = "anthropic"
             if response is not None:
-                model_name = _get_attr(response, "model", "") or None
+                model_name = _get_attr(response, "model", None)
                 if _get_attr(response, "usage", None):
                     metrics = self._extract_usage(response)
         self._apply_shadow_metrics(
