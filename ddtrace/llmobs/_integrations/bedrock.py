@@ -175,10 +175,14 @@ class BedrockIntegration(BaseLLMIntegration):
             return
         _annotate_llmobs_span_data(span, output_value=str(response))
 
-    def translate_bedrock_traces(self, traces, root_span) -> None:
-        """Translate bedrock agent traces to back-dated APM child spans of ``root_span``."""
+    def translate_bedrock_traces(self, traces, root_span) -> int:
+        """Translate bedrock agent traces to back-dated APM child spans of ``root_span``.
+
+        Returns the latest child end time (ns), or 0 if no children were created. Caller uses it
+        to push ``root_span``'s finish forward so the root covers its back-dated children.
+        """
         if not traces or not self.llmobs_enabled:
-            return
+            return 0
         # Per-invocation state. Held on the class previously, which raced across concurrent invoke_agent calls.
         step_spans_by_step_id: dict[str, Span] = {}
         active_span_by_step_id: dict[str, Span] = {}
@@ -199,15 +203,31 @@ class BedrockIntegration(BaseLLMIntegration):
                 if not finished:
                     active_span_by_step_id[trace_step_id] = inner_span
                 _propagate_inner_io_to_step_span(step_span, inner_span)
-        # Default finish_time = start_ns + 1ms (not wall-clock now) so back-dated orphans get a sane duration.
+        # Default finish_time = start_ns + 1ms (not wall-clock now) so back-dated orphans get a
+        # sane duration. Track earliest across both step and inner spans: guardrail inners can
+        # start before their step when AWS metadata predates the trace event's eventTime.
+        earliest_start_ns = int(root_span.start_ns or 0)
+        latest_end_ns = 0
         for step_id, step_span in step_spans_by_step_id.items():
             inners = inner_spans_by_step_id.get(step_id, [])
             for inner in inners:
                 inner.finish(finish_time=(int(inner.start_ns or 0) + DEFAULT_SPAN_DURATION_NS) / 1e9)
+                inner_start = int(inner.start_ns or 0)
+                if inner_start:
+                    earliest_start_ns = min(earliest_start_ns, inner_start)
             latest_inner_end_ns = max((_max_finish_ns(s) for s in inners), default=0)
             step_span.finish(
                 finish_time=(latest_inner_end_ns or int(step_span.start_ns or 0) + DEFAULT_SPAN_DURATION_NS) / 1e9
             )
+            step_start = int(step_span.start_ns or 0)
+            if step_start:
+                earliest_start_ns = min(earliest_start_ns, step_start)
+            latest_end_ns = max(latest_end_ns, _max_finish_ns(step_span))
+        # Stretch root over back-dated children (clock skew or fast-replay can push events outside
+        # the wall-clock window). Caller extends finish forward via the returned latest_end_ns.
+        if earliest_start_ns < int(root_span.start_ns or 0):
+            root_span.start_ns = earliest_start_ns
+        return latest_end_ns
 
     @staticmethod
     def _extract_input_message_for_converse(prompt: list[dict[str, Any]]) -> list[Message]:

@@ -14,13 +14,13 @@
       "_dd.llmobs.span_kind": "agent",
       "_dd.llmobs.submitted": "1",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69fa05c900000000",
+      "_dd.p.tid": "69fa072a00000000",
       "_dd.svc_src": "botocore",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.botocore",
       "language": "python",
-      "llmobs_parent_id": "10962284287018574249",
-      "llmobs_trace_id": "69fa05c9000000004893ddbfe74ce8da",
-      "runtime-id": "15c0a173560d4946b58c6752975f5873"
+      "llmobs_parent_id": "1252656382048455110",
+      "llmobs_trace_id": "69fa072a00000000d950a185895c1739",
+      "runtime-id": "708aa414986548358a22bfb72e013e00"
     },
     "metrics": {
       "_dd.llmobs.enabled": 1.0,
@@ -28,10 +28,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 26242.0
+      "process_id": 37297.0
     },
-    "duration": 11314000,
-    "start": 1777993161204838000
+    "duration": 29367425746636032,
+    "start": 1748626088886678016
   },
      {
        "name": "guardrailTrace Step",
