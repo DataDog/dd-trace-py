@@ -399,7 +399,22 @@ detect_circular_imports:
   stage: .post
   extends: .testrunner
   rules:
-    - when: on_failure
+    - if: !reference [.is_main]
+      when: on_failure
+      allow_failure: true
+    - if: !reference [.is_release]
+      when: on_failure
+      allow_failure: true
+    - if: !reference [.is_release_branch]
+      when: on_failure
+      allow_failure: true
+    - if: !reference [.is_gh_merge_queue]
+      when: on_failure
+      allow_failure: true
+    - if: !reference [.is_devflow_merge_queue]
+      when: on_failure
+      allow_failure: true
+    - when: manual
       allow_failure: true
   dependencies: []
   timeout: 30m
