@@ -178,27 +178,14 @@ def _step_id(name: str, execution_arn: str) -> str:
 _TRACEPARENT_RE = re.compile(r"^([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$")
 
 
-def _grandparent_span_id(span) -> Optional[int]:
-    """Walk two levels up the in-process span tree.
+def _checkpoint_anchor_span_id(span) -> Optional[int]:
+    """Return the span id to use for the first checkpoint save.
 
-    Span layout when saving a checkpoint::
-
-        aws.durable-execution    ← grandparent (root, created by datadog-lambda)
-          aws.lambda             ← parent
-            aws.durable.execute  ← `span` argument (current)
-
-    The grandparent is the durable-execution root span; its id is the value
-    we want to stamp into ``x-datadog-parent-id`` so every replay's children
-    hang off the same root in the backend.
+    We anchor cross-invocation durable replay linkage to the first
+    ``aws.durable.execute`` span id. This mirrors the JS implementation.
     """
-    parent = getattr(span, "_parent", None)
-    if parent is None:
-        return None
-    grandparent = getattr(parent, "_parent", None)
-    if grandparent is None:
-        # The current span's direct parent already is the local root.
-        return parent.span_id
-    return grandparent.span_id
+    span_id = getattr(span, "span_id", None)
+    return span_id if span_id is not None else None
 
 
 def _read_prior_checkpoint_payload(state) -> Optional[dict]:
@@ -210,7 +197,7 @@ def _read_prior_checkpoint_payload(state) -> Optional[dict]:
 
     - **Parent id reuse** — its ``x-datadog-parent-id`` is the value to stamp
       into the new save (so all checkpoints across all invocations parent off
-      the same root span; see ``_resolve_override_parent_id``).
+      the same execute-span anchor; see ``_resolve_override_parent_id``).
     - **Diff suppression** — comparing its stable headers to ours tells us
       whether the trace context actually changed since the last save.
     """
@@ -262,24 +249,23 @@ def _resolve_override_parent_id(span, state) -> Optional[str]:
        state (i.e. this is a replay invocation), reuse its saved parent id
        verbatim. Across all invocations of the same durable execution this
        stays stable.
-    2. **Grandparent span** — on the very first save, the durable-execution
-       root span exists in this process; walk two levels up from the active
-       ``aws.durable.execute`` span and use the root's id.
+    2. **Current execute span** — on the very first save, anchor to the
+       current ``aws.durable.execute`` span id.
     """
     prior = _get_prior_payload(state)
     if prior is not None:
         pid = prior.get("x-datadog-parent-id")
         if pid is not None:
             return str(pid)
-    grandparent_id = _grandparent_span_id(span)
-    return str(grandparent_id) if grandparent_id is not None else None
+    anchor_span_id = _checkpoint_anchor_span_id(span)
+    return str(anchor_span_id) if anchor_span_id is not None else None
 
 
 def _override_parent_id(headers: dict, parent_id: str) -> None:
     """Stamp ``parent_id`` into the Datadog and W3C parent-id fields.
 
     ``HTTPPropagator.inject`` writes the *current* span id; we replace it
-    with the resolved root id so all replays parent off the same span.
+    with the resolved anchor id so all replays parent off the same span.
     ``tracestate``'s ``dd=`` segment also carries a parent id, but rewriting
     it would mean re-encoding the vendor section — the Datadog extractor on
     the other end uses ``x-datadog-parent-id`` as the source of truth, so we
@@ -327,12 +313,12 @@ def maybe_save_trace_context_checkpoint(durable_context: "DurableContext", span:
             return
 
         # Stamp the parent id *before* the diff and the save, so every
-        # persisted checkpoint references the same root span across every
-        # replay. The resolved value is either (a) the grandparent's actual
-        # span id (first-invocation save: aws.durable-execution → aws.lambda
-        # → aws.durable.execute) or (b) whatever a prior checkpoint already
-        # stored (replay save). Without this, each invocation would inject
-        # its own internal span id and fragment the trace tree.
+        # persisted checkpoint references the same durable execute anchor
+        # across every replay. The resolved value is either (a) the current
+        # execute span id (first-invocation save) or (b) whatever a prior
+        # checkpoint already stored (replay save). Without this, each
+        # invocation would inject its own internal span id and fragment the
+        # trace tree.
         override_pid = _resolve_override_parent_id(span, state)
         if override_pid is not None:
             _override_parent_id(headers, override_pid)
