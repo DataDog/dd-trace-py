@@ -989,14 +989,10 @@ def test_tags(ddtrace_global_config, llmobs, monkeypatch):
 def test_ml_app_override(llmobs):
     with llmobs.task(name="test_task", ml_app="test_app") as span:
         pass
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(span), span_kind="task", tags={"ml_app": "test_app"}
-    )
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="task", tags={"ml_app": "test_app"})
     with llmobs.tool(name="test_tool", ml_app="test_app") as span:
         pass
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(span), span_kind="tool", tags={"ml_app": "test_app"}
-    )
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="tool", tags={"ml_app": "test_app"})
     with llmobs.llm(model_name="model_name", name="test_llm", ml_app="test_app") as span:
         pass
     assert_llmobs_span_data(
@@ -1017,19 +1013,13 @@ def test_ml_app_override(llmobs):
     )
     with llmobs.workflow(name="test_workflow", ml_app="test_app") as span:
         pass
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(span), span_kind="workflow", tags={"ml_app": "test_app"}
-    )
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="workflow", tags={"ml_app": "test_app"})
     with llmobs.agent(name="test_agent", ml_app="test_app") as span:
         pass
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(span), span_kind="agent", tags={"ml_app": "test_app"}
-    )
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="agent", tags={"ml_app": "test_app"})
     with llmobs.retrieval(name="test_retrieval", ml_app="test_app") as span:
         pass
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(span), span_kind="retrieval", tags={"ml_app": "test_app"}
-    )
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="retrieval", tags={"ml_app": "test_app"})
 
 
 def test_export_span_specified_span_is_incorrect_type_raises(llmobs):
