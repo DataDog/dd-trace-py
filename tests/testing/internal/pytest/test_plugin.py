@@ -421,32 +421,6 @@ class TestReportGeneration:
 
         assert result == ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
 
-    def test_pytest_report_teststatus_attempt_to_fix_teardown(self) -> None:
-        """Test report status for attempt-to-fix tests: QUARANTINED shown only on teardown."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_report = test_report()
-        mock_report.when = "teardown"
-        mock_report.user_properties = [("dd_disabled_attempt_to_fix", True)]
-
-        result = plugin.pytest_report_teststatus(mock_report)
-
-        assert result == ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
-
-    def test_pytest_report_teststatus_attempt_to_fix_call(self) -> None:
-        """Test report status for attempt-to-fix tests: suppressed on call phase."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_report = test_report()
-        mock_report.when = "call"
-        mock_report.user_properties = [("dd_disabled_attempt_to_fix", True)]
-
-        result = plugin.pytest_report_teststatus(mock_report)
-
-        assert result == ("", "", "")
-
     def test_pytest_report_teststatus_normal(self) -> None:
         """Test report status for normal tests."""
         mock_manager = session_manager_mock().build_mock()
@@ -943,43 +917,6 @@ class TestPrivateMethods:
 
         assert result is None
 
-    def test_mark_attempt_to_fix_report_as_skipped_call_phase(self) -> None:
-        """Test attempt-to-fix test report modification for call phase."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_report = test_report()
-        mock_report.when = "call"
-
-        plugin._mark_attempt_to_fix_report_as_skipped(mock_item, mock_report)
-
-        assert mock_report.outcome == "skipped"
-        assert mock_report.longrepr == (str(mock_item.path), 10, "Quarantined (Attempt to Fix)")
-
-    def test_mark_attempt_to_fix_report_as_skipped_teardown_phase(self) -> None:
-        """Test attempt-to-fix test report modification for teardown phase."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_report = test_report()
-        mock_report.when = "teardown"
-
-        plugin._mark_attempt_to_fix_report_as_skipped(mock_item, mock_report)
-
-        assert mock_report.outcome == "passed"
-
-    def test_mark_attempt_to_fix_report_as_skipped_none_report(self) -> None:
-        """Test attempt-to-fix test report modification with None report."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-
-        # Should not raise exception
-        plugin._mark_attempt_to_fix_report_as_skipped(mock_item, None)
-
 
 # =============================================================================
 # COVERAGE GAPS - Additional tests for missing methods
@@ -1132,53 +1069,6 @@ class TestReportAndLoggingMethods:
 
         # Should mark setup report
         assert mock_setup_report.outcome == "rerun"
-
-
-class TestAttemptToFixHandling:
-    """Test attempt-to-fix report handling methods."""
-
-    def test_mark_attempt_to_fix_report_group_as_skipped_with_call(self) -> None:
-        """Test ATF group marking when call report exists."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_call = Mock()
-        mock_setup = Mock()
-        mock_teardown = Mock()
-
-        reports = {
-            "call": mock_call,
-            "setup": mock_setup,
-            "teardown": mock_teardown,
-        }
-
-        plugin._mark_attempt_to_fix_report_group_as_skipped(mock_item, reports)
-
-        # Call should be marked as skipped, others as passed
-        assert mock_call.outcome == "skipped"
-        assert mock_setup.outcome == "passed"
-        assert mock_teardown.outcome == "passed"
-
-    def test_mark_attempt_to_fix_report_group_as_skipped_no_call(self) -> None:
-        """Test ATF group marking when call report is missing."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_setup = Mock()
-        mock_teardown = Mock()
-
-        reports = {
-            "setup": mock_setup,
-            "teardown": mock_teardown,
-        }
-
-        plugin._mark_attempt_to_fix_report_group_as_skipped(mock_item, reports)
-
-        # Setup should be marked as skipped, teardown as passed
-        assert mock_setup.outcome == "skipped"
-        assert mock_teardown.outcome == "passed"
 
 
 class TestXdistPlugin:
@@ -1400,3 +1290,87 @@ class TestOutcomeProcessing:
         assert status == TestStatus.SKIP
         assert tags[TestTag.XFAIL_REASON] == "reason: no fun"
         assert tags[TestTag.TEST_RESULT] == "xfail"
+
+
+class TestRetryReportsTeardownTracking:
+    """Regression tests: teardown outcomes must be tracked in reports_by_outcome during retries.
+
+    Root cause of the IndexError in make_final_report: _get_test_outcome considers all three phases
+    (setup, call, teardown) when determining the test_run status. A teardown failure makes the
+    test_run FAIL. But reports_by_outcome only tracked setup/call outcomes — teardown was not logged
+    during retries to avoid confusing other pytest plugins. So "failed" was never recorded in
+    reports_by_outcome, causing reports_by_outcome["failed"][0] to raise IndexError.
+
+    The fix: track_report_outcome records teardown outcomes in reports_by_outcome without logging
+    them to pytest, keeping both systems in sync.
+    """
+
+    def test_track_report_records_outcome(self) -> None:
+        """track_report should record a report's outcome in reports_by_outcome."""
+        from ddtrace.testing.internal.pytest.plugin import RetryReports
+
+        retry_reports = RetryReports()
+        teardown = test_report(outcome="failed", longrepr="Error during teardown", when="teardown")
+
+        retry_reports.track_report(teardown)
+
+        assert len(retry_reports.reports_by_outcome["failed"]) == 1
+        assert retry_reports.reports_by_outcome["failed"][0] is teardown
+
+    def test_make_final_report_with_teardown_failure(self) -> None:
+        """Regression: make_final_report should find the teardown report when final status is FAIL.
+
+        When teardown fails, _get_test_outcome returns FAIL, the retry handler returns FAIL, and
+        make_final_report needs "failed" in reports_by_outcome. With teardown tracking, it finds it.
+        """
+        from ddtrace.testing.internal.pytest.plugin import RetryReports
+
+        retry_reports = RetryReports()
+
+        # Simulate the retry path: setup and call pass, teardown fails.
+        setup = test_report(outcome="passed", when="setup")
+        call = test_report(outcome="passed", when="call")
+        call.user_properties = [("dd_retry_outcome", "passed")]
+        teardown = test_report(outcome="failed", longrepr="Error during teardown", when="teardown")
+
+        retry_reports.track_report(setup)
+        retry_reports.track_report(call)
+        retry_reports.track_report(teardown)
+
+        test_ref = TestDataFactory.create_test_ref()
+        test = mock_test(test_ref)
+        item = pytest_item_mock("test_module/test_suite.py::test_function").build()
+
+        final_report = retry_reports.make_final_report(test, item, TestStatus.FAIL)
+
+        assert final_report.outcome == "failed"
+        assert final_report.longrepr == "Error during teardown"
+
+    def test_make_final_report_without_teardown_tracking_hits_index_error(self) -> None:
+        """Without teardown tracking, make_final_report falls into the IndexError branch.
+
+        This reproduces the original bug: only setup/call are tracked, teardown is not.
+        The retry handler returns FAIL (from teardown), but "failed" is missing from
+        reports_by_outcome, so make_final_report produces a degraded report with longrepr=None.
+        """
+        from ddtrace.testing.internal.pytest.plugin import RetryReports
+
+        retry_reports = RetryReports()
+
+        setup = test_report(outcome="passed", when="setup")
+        call = test_report(outcome="passed", when="call")
+        call.user_properties = [("dd_retry_outcome", "passed")]
+
+        retry_reports.track_report(setup)
+        retry_reports.track_report(call)
+        # Teardown NOT tracked — pre-fix behavior.
+
+        test_ref = TestDataFactory.create_test_ref()
+        test = mock_test(test_ref)
+        item = pytest_item_mock("test_module/test_suite.py::test_function").build()
+
+        final_report = retry_reports.make_final_report(test, item, TestStatus.FAIL)
+
+        # Degraded report — the bug's symptom.
+        assert final_report.outcome == "failed"
+        assert final_report.longrepr is None
