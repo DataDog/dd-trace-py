@@ -1,3 +1,4 @@
+import socket
 import time
 
 import pytest
@@ -10,6 +11,15 @@ from tests.contrib.config import VALKEY_CLUSTER_CONFIG
 def wait_for_valkey_cluster():
     host = VALKEY_CLUSTER_CONFIG["host"]
     port = int(VALKEY_CLUSTER_CONFIG["ports"].split(",")[0])
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(1)
+    try:
+        if s.connect_ex((host, port)) != 0:
+            return
+    except Exception:
+        return
+    finally:
+        s.close()
     timeout = 20
     client = valkey.Valkey(host=host, port=port)
     deadline = time.time() + timeout
