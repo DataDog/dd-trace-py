@@ -12,7 +12,7 @@ sys.path.append(str(PROJECT_ROOT))
 
 CONTRIB_INTERNAL_ROOT = PROJECT_ROOT / "ddtrace" / "contrib" / "internal"
 DDTRACE_MONKEY_PATH = PROJECT_ROOT / "ddtrace" / "_monkey.py"
-DEPENDENCY_NAMES_PATH = PROJECT_ROOT / "scripts" / "supported_version" / "dependency_names.json"
+DEPENDENCY_NAMES_PATH = PROJECT_ROOT / "scripts" / "tested_versions" / "dependency_names.json"
 CI_TESTED_VERSIONS_PATH = PROJECT_ROOT / "tested_versions.json"
 PYPROJECT_TOML_PATH = PROJECT_ROOT / "pyproject.toml"
 
