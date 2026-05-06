@@ -11,13 +11,9 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY
@@ -166,8 +162,6 @@ class BaseLLMIntegration:
                 (TOTAL_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY),
                 (CACHE_READ_INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY),
                 (CACHE_WRITE_INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY),
-                (CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY),
-                (CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY),
             ):
                 value = metrics.get(llmobs_key)
                 if value is not None:

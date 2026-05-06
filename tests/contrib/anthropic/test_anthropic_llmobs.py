@@ -1723,10 +1723,6 @@ def test_shadow_tags_chat_with_cache_tokens(tracer):
     response.usage.output_tokens = 8
     response.usage.cache_creation_input_tokens = 5
     response.usage.cache_read_input_tokens = 3
-    # cache_creation breakdown (anthropic ephemeral 1h/5m TTL)
-    response.usage.cache_creation = MagicMock()
-    response.usage.cache_creation.ephemeral_1h_input_tokens = 2
-    response.usage.cache_creation.ephemeral_5m_input_tokens = 3
 
     with tracer.trace("anthropic.request") as span:
         span._set_attribute("anthropic.request.model", "claude-3-sonnet")
@@ -1734,5 +1730,3 @@ def test_shadow_tags_chat_with_cache_tokens(tracer):
 
     assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 3
     assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 5
-    assert span.get_metric("_dd.llmobs.ephemeral_1h_input_tokens") == 2
-    assert span.get_metric("_dd.llmobs.ephemeral_5m_input_tokens") == 3

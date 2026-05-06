@@ -848,13 +848,9 @@ def test_shadow_tags_completion_with_cache_tokens(tracer):
     # litellm normalizes provider cache info under prompt_tokens_details
     response.usage.prompt_tokens_details.cached_tokens = 7
     response.usage.prompt_tokens_details.cache_creation_tokens = 4
-    response.usage.prompt_tokens_details.cache_creation_token_details.ephemeral_1h_input_tokens = 2
-    response.usage.prompt_tokens_details.cache_creation_token_details.ephemeral_5m_input_tokens = 2
 
     with tracer.trace("litellm.request") as span:
         integration._set_apm_shadow_tags(span, ["gpt-3.5-turbo"], {}, response=response, operation="chat")
 
     assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 7
     assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 4
-    assert span.get_metric("_dd.llmobs.ephemeral_1h_input_tokens") == 2
-    assert span.get_metric("_dd.llmobs.ephemeral_5m_input_tokens") == 2

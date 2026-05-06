@@ -10,8 +10,6 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY
@@ -840,15 +838,11 @@ class TestAPMShadowTags:
                 "total_tokens": 30,
                 "cache_read_input_tokens": 7,
                 "cache_write_input_tokens": 4,
-                "ephemeral_1h_input_tokens": 3,
-                "ephemeral_5m_input_tokens": 1,
             }
             integration._apply_shadow_metrics(span, metrics, "llm")
 
         assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY) == 7
         assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY) == 4
-        assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY) == 3
-        assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY) == 1
 
     def test_shadow_metrics_cache_tokens_absent_when_not_extracted(self, tracer):
         """Cache shadow metrics are absent when the integration didn't extract them."""
@@ -859,8 +853,6 @@ class TestAPMShadowTags:
 
         assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY) is None
         assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY) is None
-        assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY) is None
-        assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY) is None
 
     def test_shadow_metrics_cache_tokens_not_set_on_workflow_span(self, tracer):
         """Cache shadow metrics are not set on non-llm/embedding spans."""

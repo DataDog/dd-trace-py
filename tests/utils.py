@@ -71,8 +71,6 @@ _LLMOBS_SHADOW_IGNORES = [
     "metrics._dd.llmobs.total_tokens",
     "metrics._dd.llmobs.cache_read_input_tokens",
     "metrics._dd.llmobs.cache_write_input_tokens",
-    "metrics._dd.llmobs.ephemeral_1h_input_tokens",
-    "metrics._dd.llmobs.ephemeral_5m_input_tokens",
 ]
 
 
