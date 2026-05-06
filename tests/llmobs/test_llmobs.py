@@ -24,7 +24,6 @@ from ddtrace.llmobs._utils import get_llmobs_cost_tags
 from ddtrace.llmobs._utils import get_llmobs_input
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
-from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_model_name
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_output
@@ -32,6 +31,7 @@ from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
+from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs.types import Prompt
 from tests.llmobs._utils import assert_llmobs_span_data
@@ -43,14 +43,14 @@ class TestMLApp:
         """Test that no ml_app defaults to the environment variable DD_LLMOBS_ML_APP."""
         with llmobs.workflow("root_llm_span") as span:
             pass
-        assert get_llmobs_ml_app(span) == "<not-a-real-app-name>"
+        assert get_llmobs_tags(span)["ml_app"] == "<not-a-real-app-name>"
 
     @pytest.mark.parametrize("llmobs_env", [{"DD_LLMOBS_ML_APP": "<not-a-real-app-name>"}])
     def test_tag_overrides_env_var(self, llmobs, tracer, llmobs_env, test_spans):
         """Test that when ml_app is set on the span, it overrides the environment variable DD_LLMOBS_ML_APP."""
         with llmobs.workflow("root_llm_span", ml_app="test-ml-app") as span:
             pass
-        assert get_llmobs_ml_app(span) == "test-ml-app"
+        assert get_llmobs_tags(span)["ml_app"] == "test-ml-app"
 
     def test_propagates_ignore_non_llmobs_spans(self, llmobs, tracer, test_spans):
         """
@@ -65,7 +65,7 @@ class TestMLApp:
         spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
         assert len(spans) == 3
         for span in spans:
-            assert get_llmobs_ml_app(span) == "test-ml-app"
+            assert get_llmobs_tags(span)["ml_app"] == "test-ml-app"
 
 
 def test_set_correct_parent_id(llmobs, tracer):
