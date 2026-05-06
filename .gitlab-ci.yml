@@ -238,6 +238,11 @@ macrobenchmarks:
 doe-sxs-prep:
   stage: benchmarks
   tags: ["arch:amd64"]
+  # `needs: []` makes this a free-floating DAG node so the manual play button
+  # is offered regardless of earlier-stage outcomes. Without it, GitLab marks
+  # downstream manual jobs as "skipped" when any earlier non-allow_failure
+  # job in the pipeline has failed.
+  needs: []
   rules:
     - when: manual
       allow_failure: true
@@ -268,9 +273,14 @@ doe-sxs-baseline:
     UPSTREAM_REPO: DataDog/dd-trace-py
     SXS_SIDE: baseline
 
+# Candidate also needs the wheel for the current commit to be uploaded so
+# dd-trace-doe can install it. Baseline does not, since its SHA is from
+# origin/main and the wheel is already published from a prior pipeline.
 doe-sxs-candidate:
   stage: benchmarks
-  needs: [doe-sxs-prep]
+  needs:
+    - job: doe-sxs-prep
+    - job: "upload manylinux2014_x86_64"
   trigger:
     project: DataDog/apm-reliability/dd-trace-doe
     branch: main
