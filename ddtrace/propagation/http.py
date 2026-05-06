@@ -837,6 +837,11 @@ class _TraceContext:
                 ts_l.append(member)
                 total_bytes += segment_len
                 continue
+            if _TraceContext._tracestate_member_exceeds_item_char_cap(member):
+                log.debug(
+                    "tracestate skipping list-member over item char limit while fitting byte budget",
+                )
+                continue
             log.debug(
                 "tracestate byte length exceeds maximum (%d), truncating whole entries",
                 DD_TRACE_TRACESTATE_MAX_BYTES,
