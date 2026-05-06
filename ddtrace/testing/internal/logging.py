@@ -11,6 +11,25 @@ testing_logger = logging.getLogger("ddtrace.testing")
 F = t.TypeVar("F", bound=t.Callable[..., t.Any])
 
 
+class _SafeStreamHandler(logging.StreamHandler):
+    """StreamHandler that silences I/O errors on closed streams.
+
+    Background threads (e.g. the periodic writer flush) may attempt to log
+    after the interpreter has started tearing down and ``sys.stderr`` is
+    already closed.  The default ``StreamHandler`` lets the resulting
+    ``ValueError`` propagate to ``handleError``, which prints a noisy
+    ``--- Logging error ---`` traceback.  That output can pollute
+    subprocess stdout/stderr and cause otherwise-passing tests to fail.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            super().emit(record)
+        except ValueError:
+            # Stream was closed during interpreter shutdown — nothing we can do.
+            pass
+
+
 def setup_logging() -> None:
     testing_logger.propagate = False
 
@@ -22,7 +41,7 @@ def setup_logging() -> None:
     for handler in list(testing_logger.handlers):
         testing_logger.removeHandler(handler)
 
-    handler = logging.StreamHandler()
+    handler = _SafeStreamHandler()
     handler.setFormatter(
         logging.Formatter("[Datadog Test Optimization] %(levelname)-8s %(name)s:%(filename)s:%(lineno)d %(message)s")
     )
