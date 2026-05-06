@@ -1,11 +1,13 @@
 """Tests for ddtrace.testing.internal.logging module."""
 
+import io
 import logging
 import os
 from typing import Optional
 from unittest.mock import Mock
 from unittest.mock import patch
 
+from ddtrace.testing.internal.logging import _SafeStreamHandler
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.logging import testing_logger
@@ -137,7 +139,7 @@ class TestCatchAndLogExceptions:
         # Test failing call
         result = function_with_args(1, 2)
         assert result is None
-        mock_exception.assert_called_once_with("Error while calling %s", "function_with_args")  # type: ignore[unreachable]
+        mock_exception.assert_called_once_with("Error while calling %s", "function_with_args")
 
     @patch.object(testing_logger, "exception")
     def test_decorator_preserves_function_metadata(self, mock_exception: Mock) -> None:
@@ -152,3 +154,85 @@ class TestCatchAndLogExceptions:
         # Check that function name is preserved for logging
         decorated()
         assert decorated.__name__ == "original_function"  # functools.wraps preserves original name
+
+
+class TestSafeStreamHandler:
+    """Tests for _SafeStreamHandler — regression tests for closed-stream errors during shutdown."""
+
+    def test_emit_to_closed_stream_does_not_produce_logging_error(self) -> None:
+        """Writing to a closed stream must not print '--- Logging error ---'.
+
+        Reproduces the scenario where a daemon thread logs after sys.stderr is
+        closed during interpreter shutdown.  A plain StreamHandler would call
+        handleError() which prints a noisy traceback; _SafeStreamHandler must
+        suppress it silently.
+        """
+        # Use a real stderr-like object we can close to simulate shutdown.
+        stream = io.StringIO()
+        stream.close()
+
+        handler = _SafeStreamHandler(stream)
+        handler.setFormatter(logging.Formatter("%(message)s"))
+
+        # Capture anything handleError might write to the real stderr.
+        real_stderr = io.StringIO()
+        record = logging.LogRecord(
+            name="test",
+            level=logging.WARNING,
+            pathname="",
+            lineno=0,
+            msg="should be silently dropped",
+            args=(),
+            exc_info=None,
+        )
+
+        with patch("sys.stderr", real_stderr):
+            handler.emit(record)
+
+        assert "Logging error" not in real_stderr.getvalue()
+
+    def test_emit_to_open_stream_works_normally(self) -> None:
+        """_SafeStreamHandler must behave identically to StreamHandler for open streams."""
+        stream = io.StringIO()
+        handler = _SafeStreamHandler(stream)
+        handler.setFormatter(logging.Formatter("%(message)s"))
+
+        record = logging.LogRecord(
+            name="test",
+            level=logging.WARNING,
+            pathname="",
+            lineno=0,
+            msg="hello",
+            args=(),
+            exc_info=None,
+        )
+        handler.emit(record)
+
+        assert "hello" in stream.getvalue()
+
+    def test_non_value_error_still_calls_default_handle_error(self) -> None:
+        """Errors other than ValueError must still go through the default handleError path."""
+        stream = io.StringIO()
+        handler = _SafeStreamHandler(stream)
+
+        # Use a formatter that raises a TypeError to trigger handleError with a non-ValueError.
+        bad_formatter = Mock()
+        bad_formatter.format.side_effect = TypeError("bad format")
+        handler.setFormatter(bad_formatter)
+
+        record = logging.LogRecord(
+            name="test",
+            level=logging.WARNING,
+            pathname="",
+            lineno=0,
+            msg="test",
+            args=(),
+            exc_info=None,
+        )
+
+        real_stderr = io.StringIO()
+        with patch("sys.stderr", real_stderr):
+            handler.emit(record)
+
+        # The default handleError should have printed the traceback for the TypeError.
+        assert "Logging error" in real_stderr.getvalue()
