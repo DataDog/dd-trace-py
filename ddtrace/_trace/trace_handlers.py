@@ -1671,6 +1671,7 @@ def _on_azure_cosmos_request_finish(
             span._set_attribute(http.STATUS_CODE, status_code)
 
     _finish_span(ctx, exc_info)
+    print('hi')
 
 
 def listen():
