@@ -2595,7 +2595,9 @@ class Experiment:
                 "metadata": {
                     "dataset_record_index": idx,
                     "experiment_name": self.name,
-                    "dataset_name": self._dataset.name,
+                    "dataset_name": self._dataset.name
+                    if self._dataset is not None
+                    else self._tags.get("dataset_name", ""),
                 },
                 "error": {
                     "message": span.get_tag(ERROR_MSG),
