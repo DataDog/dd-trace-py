@@ -553,6 +553,9 @@ class LockCollector(collector.CaptureSamplerCollector):
                 self.MODULE.__name__,
                 self.PATCHED_LOCK_NAME,
             )
+
+            # preserve for unpatch()
+            self._original_lock = original_lock._original_class
             return
         self._original_lock = original_lock
 
