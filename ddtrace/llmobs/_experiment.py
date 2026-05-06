@@ -47,6 +47,8 @@ from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.ext import git
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
@@ -1722,6 +1724,11 @@ class Experiment:
         self._tags["project_name"] = project_name
         self._tags["dataset_name"] = dataset.name
         self._tags["experiment_name"] = name
+        repository_url, commit_sha, _ = gitmetadata.get_git_tags()
+        if repository_url and git.REPOSITORY_URL not in self._tags:
+            self._tags[git.REPOSITORY_URL] = repository_url
+        if commit_sha and git.COMMIT_SHA not in self._tags:
+            self._tags[git.COMMIT_SHA] = commit_sha
         self._config: dict[str, JSONType] = config or {}
         # Write dataset tags to experiment config
         if dataset.filter_tags:

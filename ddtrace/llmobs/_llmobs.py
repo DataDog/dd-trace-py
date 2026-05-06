@@ -26,9 +26,11 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import git
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
@@ -1936,6 +1938,11 @@ class LLMObs(Service):
             "ddtrace.version": __version__,
             "language": "python",
         }
+        repository_url, commit_sha, _ = gitmetadata.get_git_tags()
+        if repository_url:
+            initial_tags[git.REPOSITORY_URL] = repository_url
+        if commit_sha:
+            initial_tags[git.COMMIT_SHA] = commit_sha
         if session_id:
             initial_tags["session_id"] = session_id
         for baggage_key, tag_key in (

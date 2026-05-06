@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: tags LLM Observability spans and experiments with ``git.commit.sha`` and
+    ``git.repository_url`` when git metadata is available, sourced from the existing
+    ``DD_GIT_COMMIT_SHA`` / ``DD_GIT_REPOSITORY_URL`` environment variables or the main package's
+    ``Project-URL`` metadata. Honors ``DD_TRACE_GIT_METADATA_ENABLED``. User-supplied experiment
+    tags with the same keys take precedence.

@@ -4827,3 +4827,55 @@ def test_prepare_summary_evaluator_data_handles_none_metadata():
     eval_results = [{"idx": 0, "evaluations": {"dummy_evaluator": {"value": True, "error": None}}}]
     _, _, _, metadata_list, _ = exp._prepare_summary_evaluator_data(task_results, eval_results)
     assert metadata_list == [{"experiment_config": {}}]
+
+
+def test_experiment_tags_include_git_metadata():
+    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
+    with mock.patch(
+        "ddtrace.llmobs._experiment.gitmetadata.get_git_tags",
+        return_value=("https://github.com/example/repo", "abc123def456", ""),
+    ):
+        exp = Experiment(
+            name="test",
+            task=dummy_task,
+            dataset=dataset,
+            evaluators=[dummy_evaluator],
+            project_name="test-project",
+        )
+    assert exp._tags["git.commit.sha"] == "abc123def456"
+    assert exp._tags["git.repository_url"] == "https://github.com/example/repo"
+
+
+def test_experiment_tags_omit_git_metadata_when_unavailable():
+    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
+    with mock.patch(
+        "ddtrace.llmobs._experiment.gitmetadata.get_git_tags",
+        return_value=("", "", ""),
+    ):
+        exp = Experiment(
+            name="test",
+            task=dummy_task,
+            dataset=dataset,
+            evaluators=[dummy_evaluator],
+            project_name="test-project",
+        )
+    assert "git.commit.sha" not in exp._tags
+    assert "git.repository_url" not in exp._tags
+
+
+def test_experiment_user_supplied_git_tags_take_precedence():
+    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
+    with mock.patch(
+        "ddtrace.llmobs._experiment.gitmetadata.get_git_tags",
+        return_value=("https://github.com/example/repo", "abc123def456", ""),
+    ):
+        exp = Experiment(
+            name="test",
+            task=dummy_task,
+            dataset=dataset,
+            evaluators=[dummy_evaluator],
+            project_name="test-project",
+            tags={"git.commit.sha": "user-override"},
+        )
+    assert exp._tags["git.commit.sha"] == "user-override"
+    assert exp._tags["git.repository_url"] == "https://github.com/example/repo"
