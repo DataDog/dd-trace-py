@@ -524,9 +524,7 @@ class LLMObs(Service):
             )
 
         if not span_event:
-            # No event will be exported (prepare returned False, _llmobs_span_event raised, or
-            # assembly returned None). Clear meta_struct so the underlying APM span carries no
-            # LLMObs data — otherwise the LLMObs backend would receive it post-convergence.
+            # clear meta_struct if no event to export (dropped by user processor / error during preparation/assembly)
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             return
 
