@@ -4,12 +4,12 @@ import sys
 import pytest
 
 
-# Add the project root to sys.path so scripts.supported_version is importable.
+# Add the project root to sys.path so scripts.tested_versions is importable.
 _project_root = str(pathlib.Path(__file__).parent.parent.parent)
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-from scripts.supported_version.dependency_name_updater import dependency_name_updater  # noqa: E402
+from scripts.tested_versions.dependency_name_updater import dependency_name_updater  # noqa: E402
 
 
 _MISSING_TESTED_VERSIONS_KEY = "_missing_tested_versions"
