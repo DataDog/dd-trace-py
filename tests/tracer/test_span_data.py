@@ -1043,3 +1043,66 @@ def test_span_api_invalid_utf8_falls_back_to_empty_string(invalid_bytes):
     span = SpanData(name="test")
     span._span_api = invalid_bytes
     assert span._span_api == ""
+
+
+# =============================================================================
+# Cyclic GC support
+# =============================================================================
+#
+# Regression tests for the memory leak fix backported from #17867: native
+# pyclasses (SpanData, SpanEvent) used to hold `Py<...>` slots without
+# implementing `__traverse__` / `__clear__`, so any reference cycle that
+# passed through `SpanEvent.attributes` was invisible to CPython's cyclic
+# garbage collector and leaked.
+#
+# These tests build the canonical cycle (event -> attributes dict -> list ->
+# event) and assert that `gc.collect()` reclaims the events.
+
+
+def test_span_data_is_gc_tracked():
+    """Without `__traverse__`/`__clear__`, PyO3 leaves the class as a non-GC-
+    tracked type, hiding any cycles passing through its `Py<...>` fields.
+    """
+    import gc
+
+    assert gc.is_tracked(SpanData(name="probe"))
+
+
+def test_span_event_is_gc_tracked():
+    import gc
+
+    from ddtrace.internal.native._native import SpanEvent
+
+    assert gc.is_tracked(SpanEvent(name="evt"))
+
+
+def test_span_event_attributes_cycle_is_collectable():
+    """Cycles formed via SpanEvent.attributes must be reclaimable.
+
+    Pre-fix: `SpanEvent` held `attributes: Py<PyDict>` without GC traversal.
+    """
+    import gc
+
+    from ddtrace.internal.native._native import SpanEvent
+
+    initial = sum(1 for o in gc.get_objects() if type(o).__name__ == "SpanEvent")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            event = SpanEvent(name="cycle.via.event_attrs")
+            cycle_list = []
+            event.attributes["self_ref"] = cycle_list
+            cycle_list.append(event)
+            del event
+            del cycle_list
+        live = sum(1 for o in gc.get_objects() if type(o).__name__ == "SpanEvent")
+        assert live - initial == N
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — SpanEvent is not GC-tracked"
+        live = sum(1 for o in gc.get_objects() if type(o).__name__ == "SpanEvent")
+        assert live == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()

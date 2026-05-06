@@ -399,4 +399,29 @@ impl SpanData {
     fn set_span_api(&mut self, value: &Bound<'_, PyAny>) {
         self.span_api = extract_backed_string_or_default(value);
     }
+
+    // --- Cyclic GC support ---
+    //
+    // Without these, any reference cycle that passes through a `Py<...>` slot
+    // owned by this Rust pyclass is invisible to CPython's cyclic GC and leaks
+    // forever. On 4.7, `_trace_id_py` is the only such slot directly on
+    // `SpanData` (the cached PyLong for `trace_id`); even though PyLong is
+    // atomic and cannot itself form a cycle, we visit it for refcount-
+    // accounting correctness so the type is properly registered as GC-
+    // tracked. The companion fix on `SpanEvent` covers the cycle-vector case
+    // (`SpanEvent.attributes: Py<PyDict>`).
+    //
+    // Backport of #17867 (4.x). The full upstream fix also traverses
+    // `meta_struct` and `SpanLink.attributes`, but those storages do not
+    // exist on this branch.
+    fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        if let Some(o) = &self._trace_id_py {
+            visit.call(o)?;
+        }
+        Ok(())
+    }
+
+    fn __clear__(&mut self) {
+        self._trace_id_py = None;
+    }
 }

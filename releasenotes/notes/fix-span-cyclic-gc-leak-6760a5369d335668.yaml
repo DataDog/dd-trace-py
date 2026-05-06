@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves a memory leak where reference cycles through a
+    span event's ``attributes`` were invisible to Python's cyclic garbage
+    collector and accumulated proportionally to the number of cyclic events
+    created. The native ``SpanData`` and ``SpanEvent`` classes now implement
+    the cyclic-GC protocol.
