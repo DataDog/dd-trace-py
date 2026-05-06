@@ -296,11 +296,14 @@ class DataStreamsProcessor(PeriodicService):
         try:
             self._flush_stats_with_backoff(compressed)
         except Exception:
-            log.error(
-                "retry limit exceeded submitting pathway stats to the Datadog agent at %s",
+            log.warning(
+                "retry limit exceeded submitting pathway stats to %s; "
+                "this 10s pipeline_stats window is dropped, DSM continues "
+                "normally on the next flush. Frequent occurrences indicate "
+                "agent->backend round-trip latency above 1s.",
                 self._agent_endpoint,
-                exc_info=True,
             )
+            log.debug("pathway stats flush exception", exc_info=True)
 
     def shutdown(self, timeout: Optional[float]) -> None:
         self.periodic()

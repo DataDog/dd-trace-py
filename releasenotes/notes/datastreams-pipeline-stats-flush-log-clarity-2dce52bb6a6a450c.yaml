@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    datastreams: Reduces log noise when the Data Streams Monitoring processor exhausts
+    its retry budget while flushing pipeline stats. The customer-facing message is now
+    logged at WARNING (was ERROR), no longer includes a multi-line traceback at the
+    default level (a separate DEBUG record carries it for engineers), and explains the
+    impact: a single 10s pipeline_stats window is dropped and DSM continues normally on
+    the next flush. Frequent occurrences indicate agent-to-backend round-trip latency
+    above the processor's 1 second timeout. The leading phrase
+    ``retry limit exceeded submitting pathway stats`` is preserved so existing
+    customer log-based alerts continue to match.
