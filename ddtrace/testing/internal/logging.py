@@ -1,5 +1,6 @@
 from functools import wraps
 import logging
+import sys
 import typing as t
 
 from ddtrace.internal.settings import env
@@ -16,18 +17,25 @@ class _SafeStreamHandler(logging.StreamHandler):
 
     Background threads (e.g. the periodic writer flush) may attempt to log
     after the interpreter has started tearing down and ``sys.stderr`` is
-    already closed.  The default ``StreamHandler`` lets the resulting
-    ``ValueError`` propagate to ``handleError``, which prints a noisy
-    ``--- Logging error ---`` traceback.  That output can pollute
-    subprocess stdout/stderr and cause otherwise-passing tests to fail.
+    already closed.  The base ``StreamHandler.emit()`` catches the resulting
+    ``ValueError`` internally and delegates to ``handleError()``, which
+    prints a noisy ``--- Logging error ---`` traceback to stderr.  That
+    output can pollute subprocess stdout/stderr and cause otherwise-passing
+    tests to fail.
+
+    We override ``handleError`` so that closed-stream errors are silently
+    discarded instead of producing the traceback.
     """
 
-    def emit(self, record: logging.LogRecord) -> None:
-        try:
-            super().emit(record)
-        except ValueError:
-            # Stream was closed during interpreter shutdown — nothing we can do.
-            pass
+    def handleError(self, record: logging.LogRecord) -> None:
+        # If the current exception is a ValueError (I/O on closed file),
+        # swallow it — the process is shutting down and there's nowhere
+        # useful to write.  For any other error, fall back to the default
+        # behaviour so real logging misconfigurations remain visible.
+        _, exc, _ = sys.exc_info()
+        if isinstance(exc, ValueError):
+            return
+        super().handleError(record)
 
 
 def setup_logging() -> None:
