@@ -52,8 +52,9 @@ def test_periodic_logs_warning_on_flush_failure(caplog):
     # AIDEV-NOTE: DSMS-144 — when retry-budget is exhausted, the customer-facing log
     # must (a) be WARNING (not ERROR) so it doesn't trip alerting on benign flush
     # failures, (b) preserve the leading phrase for customers' existing log-based
-    # alerts, (c) explain impact, and (d) keep the traceback off the default record
-    # (a separate DEBUG record carries it for engineers).
+    # alerts, (c) explain impact, (d) include the exception cause inline for triage,
+    # and (e) NOT include a multi-line traceback (which is what made the original
+    # ERROR-level message look like a crash).
     processor = DataStreamsProcessor("http://localhost:8126")
     try:
         with mock.patch.object(
@@ -70,19 +71,13 @@ def test_periodic_logs_warning_on_flush_failure(caplog):
             for r in caplog.records
             if r.levelno == logging.WARNING and r.name == "ddtrace.internal.datastreams.processor"
         ]
-        debug_records = [
-            r
-            for r in caplog.records
-            if r.levelno == logging.DEBUG and r.name == "ddtrace.internal.datastreams.processor"
-        ]
 
         assert len(warning_records) == 1
         msg = warning_records[0].getMessage()
         assert "retry limit exceeded submitting pathway stats" in msg
         assert "last 10 seconds of DSM data is dropped" in msg
+        assert "timed out" in msg
         assert warning_records[0].exc_info is None
-
-        assert any(r.exc_info is not None and r.exc_info[0] is TimeoutError for r in debug_records)
     finally:
         processor.stop()
         processor.join()
