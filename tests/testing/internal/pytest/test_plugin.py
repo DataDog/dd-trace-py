@@ -421,32 +421,6 @@ class TestReportGeneration:
 
         assert result == ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
 
-    def test_pytest_report_teststatus_attempt_to_fix_teardown(self) -> None:
-        """Test report status for attempt-to-fix tests: QUARANTINED shown only on teardown."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_report = test_report()
-        mock_report.when = "teardown"
-        mock_report.user_properties = [("dd_disabled_attempt_to_fix", True)]
-
-        result = plugin.pytest_report_teststatus(mock_report)
-
-        assert result == ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
-
-    def test_pytest_report_teststatus_attempt_to_fix_call(self) -> None:
-        """Test report status for attempt-to-fix tests: suppressed on call phase."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_report = test_report()
-        mock_report.when = "call"
-        mock_report.user_properties = [("dd_disabled_attempt_to_fix", True)]
-
-        result = plugin.pytest_report_teststatus(mock_report)
-
-        assert result == ("", "", "")
-
     def test_pytest_report_teststatus_normal(self) -> None:
         """Test report status for normal tests."""
         mock_manager = session_manager_mock().build_mock()
@@ -943,43 +917,6 @@ class TestPrivateMethods:
 
         assert result is None
 
-    def test_mark_attempt_to_fix_report_as_skipped_call_phase(self) -> None:
-        """Test attempt-to-fix test report modification for call phase."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_report = test_report()
-        mock_report.when = "call"
-
-        plugin._mark_attempt_to_fix_report_as_skipped(mock_item, mock_report)
-
-        assert mock_report.outcome == "skipped"
-        assert mock_report.longrepr == (str(mock_item.path), 10, "Quarantined (Attempt to Fix)")
-
-    def test_mark_attempt_to_fix_report_as_skipped_teardown_phase(self) -> None:
-        """Test attempt-to-fix test report modification for teardown phase."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_report = test_report()
-        mock_report.when = "teardown"
-
-        plugin._mark_attempt_to_fix_report_as_skipped(mock_item, mock_report)
-
-        assert mock_report.outcome == "passed"
-
-    def test_mark_attempt_to_fix_report_as_skipped_none_report(self) -> None:
-        """Test attempt-to-fix test report modification with None report."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-
-        # Should not raise exception
-        plugin._mark_attempt_to_fix_report_as_skipped(mock_item, None)
-
 
 # =============================================================================
 # COVERAGE GAPS - Additional tests for missing methods
@@ -1132,53 +1069,6 @@ class TestReportAndLoggingMethods:
 
         # Should mark setup report
         assert mock_setup_report.outcome == "rerun"
-
-
-class TestAttemptToFixHandling:
-    """Test attempt-to-fix report handling methods."""
-
-    def test_mark_attempt_to_fix_report_group_as_skipped_with_call(self) -> None:
-        """Test ATF group marking when call report exists."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_call = Mock()
-        mock_setup = Mock()
-        mock_teardown = Mock()
-
-        reports = {
-            "call": mock_call,
-            "setup": mock_setup,
-            "teardown": mock_teardown,
-        }
-
-        plugin._mark_attempt_to_fix_report_group_as_skipped(mock_item, reports)
-
-        # Call should be marked as skipped, others as passed
-        assert mock_call.outcome == "skipped"
-        assert mock_setup.outcome == "passed"
-        assert mock_teardown.outcome == "passed"
-
-    def test_mark_attempt_to_fix_report_group_as_skipped_no_call(self) -> None:
-        """Test ATF group marking when call report is missing."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_setup = Mock()
-        mock_teardown = Mock()
-
-        reports = {
-            "setup": mock_setup,
-            "teardown": mock_teardown,
-        }
-
-        plugin._mark_attempt_to_fix_report_group_as_skipped(mock_item, reports)
-
-        # Setup should be marked as skipped, teardown as passed
-        assert mock_setup.outcome == "skipped"
-        assert mock_teardown.outcome == "passed"
 
 
 class TestXdistPlugin:
