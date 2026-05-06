@@ -31,6 +31,21 @@ INTEGRATION_TAG = {LLMOBS_STRUCT.INTEGRATION: "bedrock_agents"}
 # Used when an AWS event has no duration (e.g. rationale).
 DEFAULT_SPAN_DURATION_NS = 1_000_000
 
+# Operation names are kept low-cardinality and namespaced under the integration so APM trace
+# metrics roll up cleanly. AWS-side identifiers (model name, action group, knowledge base id,
+# trace step type, etc.) live in the resource instead — same pattern as the langchain and
+# openai_agents integrations.
+_OP_STEP = "bedrock_agents.step"
+_OP_MODEL_INVOCATION = "bedrock_agents.model_invocation"
+_OP_REASONING = "bedrock_agents.reasoning"
+_OP_GUARDRAIL = "bedrock_agents.guardrail"
+_OP_FAILURE = "bedrock_agents.failure"
+_OP_CUSTOM_ORCHESTRATION = "bedrock_agents.custom_orchestration"
+_OP_ACTION_GROUP = "bedrock_agents.action_group"
+_OP_AGENT_COLLABORATOR = "bedrock_agents.agent_collaborator"
+_OP_CODE_INTERPRETER = "bedrock_agents.code_interpreter"
+_OP_KNOWLEDGE_BASE = "bedrock_agents.knowledge_base"
+
 
 class BedrockGuardrailTriggeredException(Exception):
     """Custom exception to represent Bedrock Agent Guardrail Triggered trace events."""
@@ -49,6 +64,7 @@ def _build_step_span(
     root_span: Span,
     parent: Span,
     span_kind: str,
+    resource: Optional[str] = None,
     start_ns: Optional[int] = None,
     metadata: Optional[dict[str, Any]] = None,
     input_val: Optional[Any] = None,
@@ -57,6 +73,8 @@ def _build_step_span(
     # activate=False so the post-stream reconstructed spans don't pollute the active context.
     span = tracer.start_span(span_name, child_of=parent, span_type=SpanTypes.LLM, activate=False)
     span.start_ns = int(start_ns if start_ns is not None else root_span.start_ns)
+    if resource:
+        span.resource = resource
 
     # TODO: drop the explicit trace_id once LLMObs trace_id derivation is unified with APM trace_id.
     annotate_kwargs: dict[str, Any] = {
@@ -143,12 +161,13 @@ def _create_bedrock_trace_step_span(
     step_span = step_spans_by_step_id.get(trace_step_id)
     if step_span is not None:
         return step_span
-    trace_type = _extract_trace_type(trace) or "Bedrock Agent"
+    trace_type = _extract_trace_type(trace) or "bedrock_agent"
     step_span = _build_step_span(
-        "{} Step".format(trace_type),
+        _OP_STEP,
         root_span,
         root_span,
         "workflow",
+        resource=trace_type,
         start_ns=_extract_start_ns(trace, root_span),
         metadata={"bedrock_trace_id": trace_step_id},
     )
@@ -191,10 +210,11 @@ def _translate_custom_orchestration_trace(
     if not custom_orchestration_event or not isinstance(custom_orchestration_event, dict):
         return None, False
     span = _build_step_span(
-        span_name="customOrchestration",
+        span_name=_OP_CUSTOM_ORCHESTRATION,
         root_span=root_span,
         parent=parent,
         span_kind="task",
+        resource="custom_orchestration",
         start_ns=start_ns,
         output_val=custom_orchestration_event.get("text", ""),
     )
@@ -237,10 +257,12 @@ def _translate_failure_trace(
     error_msg = failure_trace.get("failureReason", "")
     error_type = failure_trace.get("failureType", "")
     span = _build_step_span(
-        span_name="failureEvent",
+        span_name=_OP_FAILURE,
         root_span=root_span,
         parent=parent,
         span_kind="task",
+        # ``failureType`` is a fixed AWS enum (e.g. INTERNAL_SERVER_ERROR) — safe in resource.
+        resource=error_type or "failure",
         start_ns=start_ns,
     )
     # Set error tags directly (instead of set_exc_info) so the LLMObs payload exposes the AWS
@@ -266,10 +288,12 @@ def _translate_guardrail_trace(
     }
     guardrail_triggered = bool(action == "INTERVENED")
     span = _build_step_span(
-        span_name="guardrail",
+        span_name=_OP_GUARDRAIL,
         root_span=root_span,
         parent=parent,
         span_kind="task",
+        # ``action`` is a fixed AWS enum (INTERVENED / NONE).
+        resource=action or "guardrail",
         start_ns=start_ns,
         output_val=safe_json(guardrail_output),
     )
@@ -347,10 +371,14 @@ def _model_invocation_input_span(
     for message in text.get("messages", []):
         input_messages.append(Message(content=message.get("content", ""), role=message.get("role", "")))
     span = _build_step_span(
-        "modelInvocation",
+        _OP_MODEL_INVOCATION,
         root_span,
         parent,
         "llm",
+        # Model name (e.g. ``claude-3-5-sonnet-20240620-v1:0``) is the most useful low-cardinality
+        # breakdown for an LLM call — mirrors how ``bedrock-runtime.command`` puts the operation
+        # (Converse / InvokeModel) in resource.
+        resource=model_name or "model_invocation",
         start_ns=start_ns,
         metadata={"model_name": model_name, "model_provider": model_provider},
         input_val=input_messages,
@@ -394,7 +422,13 @@ def _model_invocation_output_span(
 
 def _rationale_span(rationale: dict[str, Any], parent: Span, start_ns: int, root_span: Span) -> Optional[Span]:
     span = _build_step_span(
-        "reasoning", root_span, parent, "task", start_ns=start_ns, output_val=rationale.get("text", "")
+        _OP_REASONING,
+        root_span,
+        parent,
+        "task",
+        resource="reasoning",
+        start_ns=start_ns,
+        output_val=rationale.get("text", ""),
     )
     _propagate_inner_io_to_step_span(parent, span)
     span.finish(finish_time=(start_ns + DEFAULT_SPAN_DURATION_NS) / 1e9)
@@ -404,13 +438,24 @@ def _rationale_span(rationale: dict[str, Any], parent: Span, start_ns: int, root
 def _invocation_input_span(
     invocation_input: dict[str, Any], parent: Span, start_ns: int, root_span: Span
 ) -> Optional[Span]:
-    span_name = ""
-    tool_metadata = {}
-    tool_args = {}
+    """Translate a Bedrock invocation_input event into a tool span.
+
+    Operation name is a low-cardinality verb namespaced under ``bedrock_agents``; the
+    user-defined identifier (action group name, agent collaborator, knowledge base id, …)
+    goes into the resource so per-tool aggregation is possible without exploding the
+    operation-name index.
+    """
+    span_name = "bedrock_agents.tool"
+    resource = ""
+    tool_metadata: dict[str, Any] = {}
+    tool_args: dict[str, str] = {}
     invocation_type = invocation_input.get("invocationType", "")
     if invocation_type == "ACTION_GROUP":
         bedrock_tool_call = invocation_input.get("actionGroupInvocationInput", {})
-        span_name = bedrock_tool_call.get("actionGroupName")
+        span_name = _OP_ACTION_GROUP
+        # ``function`` is kept in metadata rather than the resource — its cardinality varies
+        # widely across deployments and would fragment APM rollups.
+        resource = bedrock_tool_call.get("actionGroupName") or ""
         params = bedrock_tool_call.get("parameters", {})
         tool_args = {arg["name"]: str(arg["value"]) for arg in params}
         tool_metadata = {
@@ -419,18 +464,28 @@ def _invocation_input_span(
         }
     elif invocation_type == "AGENT_COLLABORATOR":
         bedrock_tool_call = invocation_input.get("agentCollaboratorInvocationInput", {})
-        span_name = bedrock_tool_call.get("agentCollaboratorName")
+        span_name = _OP_AGENT_COLLABORATOR
+        resource = bedrock_tool_call.get("agentCollaboratorName") or ""
         tool_args = {"text": str(bedrock_tool_call.get("input", {}).get("text", ""))}
     elif invocation_type == "ACTION_GROUP_CODE_INTERPRETER":
         bedrock_tool_call = invocation_input.get("codeInterpreterInvocationInput", {})
-        span_name = bedrock_tool_call.get("actionGroupName")
+        span_name = _OP_CODE_INTERPRETER
+        resource = bedrock_tool_call.get("actionGroupName") or ""
         tool_args = {"code": str(bedrock_tool_call.get("code", "")), "files": str(bedrock_tool_call.get("files", ""))}
     elif invocation_type == "KNOWLEDGE_BASE":
         bedrock_tool_call = invocation_input.get("knowledgeBaseLookupInput", {})
-        span_name = bedrock_tool_call.get("knowledgeBaseId")
+        span_name = _OP_KNOWLEDGE_BASE
+        resource = bedrock_tool_call.get("knowledgeBaseId") or ""
         tool_args = {"text": str(bedrock_tool_call.get("text", ""))}
     span = _build_step_span(
-        span_name or "", root_span, parent, "tool", start_ns, metadata=tool_metadata, input_val=safe_json(tool_args)
+        span_name,
+        root_span,
+        parent,
+        "tool",
+        resource=resource or span_name,
+        start_ns=start_ns,
+        metadata=tool_metadata,
+        input_val=safe_json(tool_args),
     )
     _propagate_inner_io_to_step_span(parent, span)
     return span

@@ -35,20 +35,15 @@ MODEL_PROVIDER = "anthropic"
 
 
 def _extract_trace_step_spans(events):
-    trace_step_spans = []
-    for span in events:
-        if span["name"].endswith("Step"):
-            trace_step_spans.append(span)
-    return trace_step_spans
+    return [span for span in events if span["meta"]["span"]["kind"] == "workflow"]
 
 
 def _extract_inner_spans(events):
-    inner_spans = []
-    for span in events:
-        if span["name"].endswith("Step") or span["name"].startswith("Bedrock Agent"):
-            continue
-        inner_spans.append(span)
-    return inner_spans
+    return [
+        span
+        for span in events
+        if span["meta"]["span"]["kind"] != "workflow" and not span["name"].startswith("Bedrock Agent")
+    ]
 
 
 def _assert_agent_span(agent_span, resp_str):
@@ -62,29 +57,34 @@ def _assert_agent_span(agent_span, resp_str):
 
 
 def _assert_trace_step_spans(trace_step_spans):
+    # ``name`` resolves to the APM span resource for bedrock_agents step spans (registered in
+    # ``_STANDARD_INTEGRATION_SPAN_NAMES``), i.e. the AWS trace-step type.
     assert len(trace_step_spans) == 6
-    assert trace_step_spans[0]["name"].startswith("guardrailTrace Step")
-    assert trace_step_spans[1]["name"].startswith("orchestrationTrace Step")
-    assert trace_step_spans[2]["name"].startswith("orchestrationTrace Step")
-    assert trace_step_spans[3]["name"].startswith("orchestrationTrace Step")
-    assert trace_step_spans[4]["name"].startswith("orchestrationTrace Step")
-    assert trace_step_spans[5]["name"].startswith("guardrailTrace Step")
+    assert trace_step_spans[0]["name"] == "guardrailTrace"
+    assert trace_step_spans[1]["name"] == "orchestrationTrace"
+    assert trace_step_spans[2]["name"] == "orchestrationTrace"
+    assert trace_step_spans[3]["name"] == "orchestrationTrace"
+    assert trace_step_spans[4]["name"] == "orchestrationTrace"
+    assert trace_step_spans[5]["name"] == "guardrailTrace"
     assert all(span["meta"]["span"]["kind"] == "workflow" for span in trace_step_spans)
     assert all(span["meta"]["metadata"].get("bedrock_trace_id") for span in trace_step_spans)
 
 
 def _assert_inner_span(span):
-    assert span["name"] in ["guardrail", "modelInvocation", "reasoning", "location_suggestion"]
-    if span["name"] == "guardrail" or span["name"] == "reasoning":
+    # Resolved name = APM resource: model name for model invocations, action group name for
+    # tool spans, and the operation verb for reasoning/guardrail.
+    name = span["name"]
+    assert name in ["guardrail", MODEL_NAME, "reasoning", "location_suggestion"]
+    if name in ("guardrail", "reasoning"):
         assert span["meta"]["span"]["kind"] == "task"
         assert span["meta"]["output"].get("value") is not None
-    elif span["name"] == "modelInvocation":
+    elif name == MODEL_NAME:
         assert span["meta"]["span"]["kind"] == "llm"
         assert span["meta"]["metadata"]["model_name"] == MODEL_NAME
         assert span["meta"]["metadata"]["model_provider"] == MODEL_PROVIDER
         assert span["metrics"].get("input_tokens") is not None
         assert span["metrics"].get("output_tokens") is not None
-    elif span["name"] == "location_suggestion":
+    elif name == "location_suggestion":
         assert span["meta"]["span"]["kind"] == "tool"
         assert span["meta"]["output"].get("value") is not None
 
@@ -240,5 +240,7 @@ def test_translate_bedrock_traces_finishes_orphaned_step_spans(bedrock_agents_ll
         traces = [_build_model_invocation_input_trace("step-orphan", datetime.now(tz=timezone.utc))]
         integration.translate_bedrock_traces(traces, root_span)
 
+    # Resolved LLMObs names = APM resources: model name for the model invocation, trace-step
+    # type for the workflow step span.
     names = sorted(e["name"] for e in llmobs_events)
-    assert names == sorted(["modelInvocation", "orchestrationTrace Step"])
+    assert names == sorted(["claude-3-5-sonnet-20240620-v1:0", "orchestrationTrace"])

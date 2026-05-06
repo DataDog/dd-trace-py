@@ -29,6 +29,24 @@ LITELLM_APM_SPAN_NAME = "litellm.request"
 OPENAI_APM_SPAN_NAME = "openai.request"
 VERTEXAI_APM_SPAN_NAME = "vertexai.request"
 
+# Generic, low-cardinality operation names used by the bedrock-agents integration's reconstructed
+# step/inner spans. The meaningful per-call identifier (model name, action group, knowledge base
+# id, trace step type, …) lives in ``span.resource``; registering these names below in
+# ``_STANDARD_INTEGRATION_SPAN_NAMES`` lets the LLMObs UI keep showing the resource as the span
+# name (same UX as today) while APM trace metrics aggregate cleanly by operation.
+BEDROCK_AGENTS_APM_SPAN_NAMES = (
+    "bedrock_agents.step",
+    "bedrock_agents.model_invocation",
+    "bedrock_agents.reasoning",
+    "bedrock_agents.guardrail",
+    "bedrock_agents.failure",
+    "bedrock_agents.custom_orchestration",
+    "bedrock_agents.action_group",
+    "bedrock_agents.agent_collaborator",
+    "bedrock_agents.code_interpreter",
+    "bedrock_agents.knowledge_base",
+)
+
 INPUT_TOKENS_METRIC_KEY = "input_tokens"
 OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
 TOTAL_TOKENS_METRIC_KEY = "total_tokens"

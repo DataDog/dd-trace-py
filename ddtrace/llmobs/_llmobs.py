@@ -46,6 +46,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
+from ddtrace.llmobs._constants import BEDROCK_AGENTS_APM_SPAN_NAMES
 from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
@@ -177,6 +178,7 @@ _STANDARD_INTEGRATION_SPAN_NAMES = (
     LANGCHAIN_APM_SPAN_NAME,
     LITELLM_APM_SPAN_NAME,
     VERTEXAI_APM_SPAN_NAME,
+    *BEDROCK_AGENTS_APM_SPAN_NAMES,
 )
 
 

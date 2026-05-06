@@ -34,9 +34,9 @@
     "start": 1748626088886678016
   },
      {
-       "name": "guardrailTrace Step",
+       "name": "bedrock_agents.step",
        "service": "aws",
-       "resource": "guardrailTrace Step",
+       "resource": "guardrailTrace",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
@@ -51,7 +51,7 @@
        "start": 1748626088886678016
      },
         {
-          "name": "guardrail",
+          "name": "bedrock_agents.guardrail",
           "service": "aws",
           "resource": "guardrail",
           "trace_id": 0,
@@ -68,9 +68,9 @@
           "start": 1748626088886678016
         },
      {
-       "name": "orchestrationTrace Step",
+       "name": "bedrock_agents.step",
        "service": "aws",
-       "resource": "orchestrationTrace Step",
+       "resource": "orchestrationTrace",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
@@ -85,9 +85,9 @@
        "start": 1748626089287908096
      },
         {
-          "name": "modelInvocation",
+          "name": "bedrock_agents.model_invocation",
           "service": "aws",
-          "resource": "modelInvocation",
+          "resource": "claude-3-5-sonnet-20240620-v1:0",
           "trace_id": 0,
           "span_id": 9,
           "parent_id": 3,
@@ -102,7 +102,7 @@
           "start": 1748626089288150016
         },
         {
-          "name": "reasoning",
+          "name": "bedrock_agents.reasoning",
           "service": "aws",
           "resource": "reasoning",
           "trace_id": 0,
@@ -119,7 +119,7 @@
           "start": 1748626095542091008
         },
         {
-          "name": "location_suggestion",
+          "name": "bedrock_agents.action_group",
           "service": "aws",
           "resource": "location_suggestion",
           "trace_id": 0,
@@ -136,9 +136,9 @@
           "start": 1748626095543778048
         },
      {
-       "name": "orchestrationTrace Step",
+       "name": "bedrock_agents.step",
        "service": "aws",
-       "resource": "orchestrationTrace Step",
+       "resource": "orchestrationTrace",
        "trace_id": 0,
        "span_id": 4,
        "parent_id": 1,
@@ -153,9 +153,9 @@
        "start": 1748626095908092928
      },
         {
-          "name": "modelInvocation",
+          "name": "bedrock_agents.model_invocation",
           "service": "aws",
-          "resource": "modelInvocation",
+          "resource": "claude-3-5-sonnet-20240620-v1:0",
           "trace_id": 0,
           "span_id": 12,
           "parent_id": 4,
@@ -170,7 +170,7 @@
           "start": 1748626095908442880
         },
         {
-          "name": "reasoning",
+          "name": "bedrock_agents.reasoning",
           "service": "aws",
           "resource": "reasoning",
           "trace_id": 0,
@@ -187,7 +187,7 @@
           "start": 1748626098432940032
         },
         {
-          "name": "location_suggestion",
+          "name": "bedrock_agents.action_group",
           "service": "aws",
           "resource": "location_suggestion",
           "trace_id": 0,
@@ -204,9 +204,9 @@
           "start": 1748626098434763008
         },
      {
-       "name": "orchestrationTrace Step",
+       "name": "bedrock_agents.step",
        "service": "aws",
-       "resource": "orchestrationTrace Step",
+       "resource": "orchestrationTrace",
        "trace_id": 0,
        "span_id": 5,
        "parent_id": 1,
@@ -221,9 +221,9 @@
        "start": 1748626098453121024
      },
         {
-          "name": "modelInvocation",
+          "name": "bedrock_agents.model_invocation",
           "service": "aws",
-          "resource": "modelInvocation",
+          "resource": "claude-3-5-sonnet-20240620-v1:0",
           "trace_id": 0,
           "span_id": 15,
           "parent_id": 5,
@@ -238,7 +238,7 @@
           "start": 1748626098453502976
         },
         {
-          "name": "reasoning",
+          "name": "bedrock_agents.reasoning",
           "service": "aws",
           "resource": "reasoning",
           "trace_id": 0,
@@ -255,7 +255,7 @@
           "start": 1748626101670398976
         },
         {
-          "name": "location_suggestion",
+          "name": "bedrock_agents.action_group",
           "service": "aws",
           "resource": "location_suggestion",
           "trace_id": 0,
@@ -272,9 +272,9 @@
           "start": 1748626101672205824
         },
      {
-       "name": "orchestrationTrace Step",
+       "name": "bedrock_agents.step",
        "service": "aws",
-       "resource": "orchestrationTrace Step",
+       "resource": "orchestrationTrace",
        "trace_id": 0,
        "span_id": 6,
        "parent_id": 1,
@@ -289,9 +289,9 @@
        "start": 1748626101689204992
      },
         {
-          "name": "modelInvocation",
+          "name": "bedrock_agents.model_invocation",
           "service": "aws",
-          "resource": "modelInvocation",
+          "resource": "claude-3-5-sonnet-20240620-v1:0",
           "trace_id": 0,
           "span_id": 18,
           "parent_id": 6,
@@ -306,7 +306,7 @@
           "start": 1748626101689591040
         },
         {
-          "name": "reasoning",
+          "name": "bedrock_agents.reasoning",
           "service": "aws",
           "resource": "reasoning",
           "trace_id": 0,
@@ -323,9 +323,9 @@
           "start": 1748626110589977088
         },
      {
-       "name": "guardrailTrace Step",
+       "name": "bedrock_agents.step",
        "service": "aws",
-       "resource": "guardrailTrace Step",
+       "resource": "guardrailTrace",
        "trace_id": 0,
        "span_id": 7,
        "parent_id": 1,
@@ -340,7 +340,7 @@
        "start": 1748626110590828800
      },
         {
-          "name": "guardrail",
+          "name": "bedrock_agents.guardrail",
           "service": "aws",
           "resource": "guardrail",
           "trace_id": 0,
