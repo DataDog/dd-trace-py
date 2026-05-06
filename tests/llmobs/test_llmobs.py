@@ -191,20 +191,19 @@ class TestLLMIOProcessing:
         return span
 
     @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_omit_span_processor)])
-    def test_processor_omit_span(self, llmobs, llmobs_enable_opts, llmobs_events):
-        """Test that a processor that returns None omits the span from being sent."""
-        # Create a span that should be omitted
-        with llmobs.llm() as llm_span:
-            llmobs.annotate(llm_span, input_data="omit me", output_data="response", tags={"omit_span": "true"})
+    def test_processor_omit_span(self, llmobs, llmobs_enable_opts):
+        """Test that a processor that returns None clears the LLMObs payload off the span."""
+        with llmobs.llm() as omit_span:
+            llmobs.annotate(omit_span, input_data="omit me", output_data="response", tags={"omit_span": "true"})
 
-        # Create a span that should be kept
-        with llmobs.llm() as llm_span:
-            llmobs.annotate(llm_span, input_data="keep me", output_data="response", tags={"omit_span": "false"})
+        with llmobs.llm() as keep_span:
+            llmobs.annotate(keep_span, input_data="keep me", output_data="response", tags={"omit_span": "false"})
 
-        # Only the second span should be in the events (suppression is a side effect on the wire,
-        # not on the meta_struct payload — keep this assertion on llmobs_events).
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0]["meta"]["input"]["messages"][0]["content"] == "keep me"
+        # Dropped: meta_struct["_llmobs"] is cleared so the APM-shipped span
+        # carries no LLMObs data to the backend.
+        assert _get_llmobs_data_metastruct(omit_span) == {}
+        # Kept: payload is intact for export.
+        assert get_llmobs_input_messages(keep_span) == [{"content": "keep me", "role": ""}]
 
     def test_ddtrace_run_register_processor(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Users using ddtrace-run can register a processor to be called on each LLMObs span."""
@@ -430,14 +429,14 @@ def test_model_and_provider_are_set(llmobs, tracer):
     )
 
 
-def test_malformed_span_logs_error_instead_of_raising(tracer, llmobs_events, mock_llmobs_logs):
-    """Test that a trying to create a span event from a malformed span will log an error instead of crashing."""
+def test_malformed_span_logs_error_instead_of_raising(llmobs, tracer, mock_llmobs_logs):
+    """A malformed span (missing span kind) is dropped and its meta_struct cleared."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         pass  # span does not have SPAN_KIND tag
     mock_llmobs_logs.error.assert_called_with(
         "Error preparing LLMObs span event for span %s, missing span kind in span context.", llm_span
     )
-    assert len(llmobs_events) == 0
+    assert _get_llmobs_data_metastruct(llm_span) == {}
 
 
 def test_only_generate_span_events_from_llmobs_spans(llmobs, tracer, test_spans):
