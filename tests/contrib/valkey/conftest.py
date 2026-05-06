@@ -16,7 +16,7 @@ def wait_for_valkey_cluster():
     while time.time() < deadline:
         try:
             info = client.execute_command("CLUSTER INFO")
-            if b"cluster_state:ok" in info:
+            if info.get("cluster_state") == "ok":
                 return
         except Exception:
             pass
