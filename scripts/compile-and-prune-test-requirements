@@ -21,4 +21,7 @@ do
     fi
 done
 
+echo "Generating tested versions from requirements lockfiles"
+${PYTHON:-python} scripts/supported_version/generate_tested_versions.py
+
 echo "All done!"
