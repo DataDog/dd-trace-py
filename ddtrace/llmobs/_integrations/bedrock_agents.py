@@ -65,12 +65,9 @@ def _build_step_span(
         "trace_id": get_llmobs_trace_id(root_span) or format_trace_id(root_span.trace_id),
         "ml_app": get_llmobs_ml_app(root_span),
         "tags": INTEGRATION_TAG,
+        "session_id": get_llmobs_session_id(root_span) or None,
+        "metadata": metadata or None,
     }
-    session_id = get_llmobs_session_id(root_span)
-    if session_id:
-        annotate_kwargs["session_id"] = session_id
-    if metadata is not None:
-        annotate_kwargs["metadata"] = metadata
     if input_val is not None:
         annotate_kwargs["input_messages" if span_kind == "llm" else "input_value"] = input_val
     if output_val is not None:
@@ -83,6 +80,10 @@ def _build_step_span(
 def _max_finish_ns(span: Span) -> int:
     """Return the absolute end time of a finished span in nanoseconds (start_ns + duration_ns)."""
     return int(span.start_ns or 0) + int(span.duration_ns or 0)
+
+
+def _min_start_ns(span: Span) -> int:
+    return int(span.start_ns or 0)
 
 
 def _extract_trace_step_id(bedrock_trace_obj):
@@ -133,7 +134,7 @@ def _extract_start_and_duration_from_metadata(bedrock_metadata, root_span):
     return int(start_ns), int(duration_ns)
 
 
-def _create_bedrock_trace_step_span(
+def _get_or_create_bedrock_trace_step_span(
     trace: dict[str, Any],
     trace_step_id: str,
     root_span: Span,
@@ -389,7 +390,7 @@ def _model_invocation_output_span(
     if current_active_span._parent is not None:
         _propagate_inner_io_to_step_span(current_active_span._parent, current_active_span)
     current_active_span.finish(finish_time=(start_ns + duration_ns) / 1e9)
-    return current_active_span
+    return None
 
 
 def _rationale_span(rationale: dict[str, Any], parent: Span, start_ns: int, root_span: Span) -> Optional[Span]:
@@ -472,7 +473,7 @@ def _observation_span(
     if current_active_span._parent is not None:
         _propagate_inner_io_to_step_span(current_active_span._parent, current_active_span)
     current_active_span.finish(finish_time=(start_ns + duration_ns) / 1e9)
-    return current_active_span
+    return None
 
 
 # Maps Bedrock trace object names to their corresponding translation methods.

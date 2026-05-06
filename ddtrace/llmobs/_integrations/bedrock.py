@@ -11,10 +11,11 @@ from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._integrations.bedrock_agents import DEFAULT_SPAN_DURATION_NS
-from ddtrace.llmobs._integrations.bedrock_agents import _create_bedrock_trace_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_type
+from ddtrace.llmobs._integrations.bedrock_agents import _get_or_create_bedrock_trace_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import _max_finish_ns
+from ddtrace.llmobs._integrations.bedrock_agents import _min_start_ns
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
 from ddtrace.llmobs._integrations.bedrock_utils import normalize_input_tokens
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
@@ -179,36 +180,38 @@ class BedrockIntegration(BaseLLMIntegration):
         if not traces or not self.llmobs_enabled:
             return
         step_spans_by_step_id: dict[str, Span] = {}
-        active_span_by_step_id: dict[str, Span] = {}
-        inner_spans_by_step_id: dict[str, list[Span]] = {}
+        # Holds a span whose output event hasn't arrived yet (e.g. modelInvocationInput waiting
+        # for its matching modelInvocationOutput).
+        pending_span_by_step_id: dict[str, Span] = {}
+        child_spans_by_step_id: dict[str, list[Span]] = {}
         for trace in traces:
             trace_step_id = _extract_trace_step_id(trace)
             if trace_step_id is None:
+                # Malformed AWS response: traceId is missing. Skip rather than key a step span on None.
                 log.debug("Skipping Bedrock trace event with no traceId (type=%s)", _extract_trace_type(trace))
                 continue
-            step_span = _create_bedrock_trace_step_span(trace, trace_step_id, root_span, step_spans_by_step_id)
-            current_active_span = active_span_by_step_id.pop(trace_step_id, None)
-            inner_span, finished = translate_bedrock_trace(
-                trace, root_span, step_span, current_active_span, trace_step_id
+            step_span = _get_or_create_bedrock_trace_step_span(trace, trace_step_id, root_span, step_spans_by_step_id)
+            pending_span = pending_span_by_step_id.pop(trace_step_id, None)
+            translated_span, finished = translate_bedrock_trace(
+                trace, root_span, step_span, pending_span, trace_step_id
             )
-            if inner_span is not None:
-                if inner_span is not current_active_span:
-                    inner_spans_by_step_id.setdefault(trace_step_id, []).append(inner_span)
+            if translated_span is not None:
+                child_spans_by_step_id.setdefault(trace_step_id, []).append(translated_span)
                 if not finished:
-                    active_span_by_step_id[trace_step_id] = inner_span
-        # Default each inner to start + 1ms (back-dated spans must not pick up wall-clock
-        # `time.time_ns()`). Then size each step to span its children — Bedrock's top-level
-        # eventTime can land after the inner's start when metadata.startTime is missing.
-        # `Span.finish()` is idempotent, so re-finishing already-completed inners no-ops.
+                    pending_span_by_step_id[trace_step_id] = translated_span
+        # Safety-net finish for any input span that never got a matching output event (e.g. a
+        # truncated response). Back-dated spans must not use wall-clock time.time_ns(), so we
+        # default to start + 1ms. finish() is idempotent, so already-finished spans are no-ops.
+        # Then size each step span to cover its children.
         for step_id, step_span in step_spans_by_step_id.items():
-            inners = inner_spans_by_step_id.get(step_id, [])
-            for inner in inners:
-                inner.finish(finish_time=(int(inner.start_ns or 0) + DEFAULT_SPAN_DURATION_NS) / 1e9)
-            if inners:
-                step_span.start_ns = min(int(step_span.start_ns or 0), *(int(s.start_ns or 0) for s in inners))
-                step_finish_ns = max(_max_finish_ns(s) for s in inners)
+            child_spans = child_spans_by_step_id.get(step_id, [])
+            for child in child_spans:
+                child.finish(finish_time=(_min_start_ns(child) + DEFAULT_SPAN_DURATION_NS) / 1e9)
+            if child_spans:
+                step_span.start_ns = min(_min_start_ns(step_span), *(_min_start_ns(s) for s in child_spans))
+                step_finish_ns = max(_max_finish_ns(s) for s in child_spans)
             else:
-                step_finish_ns = int(step_span.start_ns or 0) + DEFAULT_SPAN_DURATION_NS
+                step_finish_ns = _min_start_ns(step_span) + DEFAULT_SPAN_DURATION_NS
             step_span.finish(finish_time=step_finish_ns / 1e9)
 
     @staticmethod
