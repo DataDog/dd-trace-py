@@ -26,6 +26,10 @@ impl AttrKey {
         self.0.bind(py).clone()
     }
 
+    pub(crate) fn traverse(&self, visit: &pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        visit.call(&self.0)
+    }
+
     fn as_str(&self) -> &str {
         // SAFETY: GIL is held by every caller (see type-level contract above).
         // `PyUnicode_AsUTF8AndSize` caches the UTF-8 encoding on the PyUnicode object;
@@ -91,6 +95,13 @@ pub(crate) enum AttributeValue {
 }
 
 impl AttributeValue {
+    pub(crate) fn traverse(&self, visit: &pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        if let AttributeValue::Str(s) = self {
+            visit.call(s)?;
+        }
+        Ok(())
+    }
+
     /// Return the natural Python object for this value (no v0.4 projection).
     /// Str → str, Int → int, Float → float.
     pub(crate) fn as_py<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
