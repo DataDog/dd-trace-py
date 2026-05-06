@@ -360,6 +360,8 @@ def test_data_streams_kafka_enabled():
     )
 
     try:
+        import time
+
         consumer.subscribe([topic_name])
 
         assignment_deadline = time.time() + 5
