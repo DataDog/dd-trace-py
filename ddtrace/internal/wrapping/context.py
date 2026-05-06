@@ -295,78 +295,17 @@ elif sys.version_info >= (3, 9):
 
 # On the bytecode path __enter__ is invoked directly from inside the wrapped
 # function, so the monitored frame is one level up. On the monitoring path
-# (3.15+) the stack is: monitored function → _on_py_start callback → __enter__,
-# so the monitored frame is two levels up.
-_ENTER_FRAME_DEPTH = 2 if sys.version_info >= (3, 15) else 1
+# (3.15+) the stack is:
+#   monitored function → monitoring._on_py_start → uwc.on_py_start → __enter__
+# so the monitored frame is three levels up.
+_ENTER_FRAME_DEPTH = 3 if sys.version_info >= (3, 15) else 1
 
 if sys.version_info >= (3, 15):
-    # Monitoring-based wrapping state (Python 3.15+). Keyed by code object so
-    # that the registry stays alive as long as the code is in use.
-    _monitoring_registry: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
-    _monitoring_tool_id: t.Optional[int] = None
-    _monitoring_lock = Lock()
+    from ddtrace.internal import monitoring as _monitoring
 
-    _E = sys.monitoring.events
-    _MONITORING_EVENTS = _E.PY_START | _E.PY_RETURN | _E.PY_UNWIND
-    del _E
-
-    # TODO: This needs to be done at a higher module level to allow line-level
-    # instrumentation to reuse the same tool ID.
-    def _setup_monitoring() -> int:
-        global _monitoring_tool_id
-
-        if _monitoring_tool_id is not None:
-            return _monitoring_tool_id
-
-        with _monitoring_lock:
-            if _monitoring_tool_id is not None:
-                return _monitoring_tool_id
-
-            # Find a free tool slot for our monitoring tool.
-            for tid in range(6):
-                try:
-                    sys.monitoring.use_tool_id(tid, "ddtrace-wrapping")
-                    _monitoring_tool_id = tid
-                    break
-                except ValueError:
-                    continue
-            else:
-                raise RuntimeError("No free sys.monitoring tool slots for ddtrace wrapping")
-
-            E = sys.monitoring.events
-
-            def _on_py_start(code: t.Any, instruction_offset: int) -> None:
-                ctx = _monitoring_registry.get(code)
-                if ctx is None:
-                    return sys.monitoring.DISABLE  # type: ignore[return-value]
-                try:
-                    ctx.__enter__()
-                except Exception:
-                    log.exception("ddtrace: error in PY_START callback for %s", code.co_qualname)
-
-            def _on_py_return(code: t.Any, instruction_offset: int, retval: t.Any) -> None:
-                ctx = _monitoring_registry.get(code)
-                if ctx is None:
-                    return sys.monitoring.DISABLE  # type: ignore[return-value]
-                try:
-                    ctx.__return__(retval)
-                except Exception:
-                    log.exception("ddtrace: error in PY_RETURN callback for %s", code.co_qualname)
-
-            def _on_py_unwind(code: t.Any, instruction_offset: int, exception: BaseException) -> None:
-                ctx = _monitoring_registry.get(code)
-                if ctx is None:
-                    return sys.monitoring.DISABLE  # type: ignore[return-value]
-                try:
-                    ctx.__exit__(type(exception), exception, exception.__traceback__)
-                except Exception:
-                    log.exception("ddtrace: error in PY_UNWIND callback for %s", code.co_qualname)
-
-            sys.monitoring.register_callback(tid, E.PY_START, _on_py_start)
-            sys.monitoring.register_callback(tid, E.PY_RETURN, _on_py_return)
-            sys.monitoring.register_callback(tid, E.PY_UNWIND, _on_py_unwind)
-
-            return _monitoring_tool_id
+    # Keyed by code object solely for is_wrapped/extract lookups (not dispatch).
+    _ctx_registry: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+    _ctx_registry_lock = Lock()
 
 
 # This is abstract and should not be used directly
@@ -589,9 +528,19 @@ class ContextWrappedFunction(Protocol):
         pass
 
 
+# On 3.15+ _UniversalWrappingContext also implements MonitoringEventHandler so
+# it can be registered directly with the multiplexer via register(code, self).
+if sys.version_info >= (3, 15):
+    from ddtrace.internal.monitoring import MonitoringEventHandler as _MonitoringEventHandler
+
+    _UWC_BASES: tuple = (BaseWrappingContext, _MonitoringEventHandler)
+else:
+    _UWC_BASES = (BaseWrappingContext,)
+
+
 # This class provides an interface between single bytecode wrapping and multiple
 # logical context wrapping
-class _UniversalWrappingContext(BaseWrappingContext):
+class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
     def __init__(self, f: FunctionType) -> None:
         super().__init__(f)
 
@@ -675,16 +624,34 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
     if sys.version_info >= (3, 15):
 
+        def on_py_start(self, code: t.Any, instruction_offset: int) -> None:
+            try:
+                self.__enter__()
+            except Exception:
+                log.exception("ddtrace: error in PY_START callback for %s", code.co_qualname)
+
+        def on_py_return(self, code: t.Any, instruction_offset: int, retval: t.Any) -> None:
+            try:
+                self.__return__(retval)
+            except Exception:
+                log.exception("ddtrace: error in PY_RETURN callback for %s", code.co_qualname)
+
+        def on_py_unwind(self, code: t.Any, instruction_offset: int, exception: BaseException) -> None:
+            try:
+                self.__exit__(type(exception), exception, exception.__traceback__)
+            except Exception:
+                log.exception("ddtrace: error in PY_UNWIND callback for %s", code.co_qualname)
+
         @classmethod
         def is_wrapped(cls, f: FunctionType) -> bool:
             try:
-                return get_function_code(f) in _monitoring_registry
+                return get_function_code(f) in _ctx_registry
             except Exception:
                 return False
 
         @classmethod
         def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":
-            ctx = _monitoring_registry.get(get_function_code(f))
+            ctx = _ctx_registry.get(get_function_code(f))
             if ctx is None:
                 raise ValueError("Function is not wrapped")
             return ctx
@@ -692,22 +659,21 @@ class _UniversalWrappingContext(BaseWrappingContext):
         def wrap(self) -> None:
             f = self.__wrapped__
             code = get_function_code(f)
-            tool_id = _setup_monitoring()
-            with _monitoring_lock:
-                if code in _monitoring_registry:
+            with _ctx_registry_lock:
+                if code in _ctx_registry:
                     raise ValueError("Function already wrapped")
-                _monitoring_registry[code] = self
-                sys.monitoring.set_local_events(tool_id, code, _MONITORING_EVENTS)
+                _ctx_registry[code] = self
+            _monitoring.register(code, self)
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
 
         def unwrap(self) -> None:
             f = self.__wrapped__
             code = get_function_code(f)
-            with _monitoring_lock:
-                if code not in _monitoring_registry:
+            with _ctx_registry_lock:
+                if code not in _ctx_registry:
                     return
-                del _monitoring_registry[code]
-                sys.monitoring.set_local_events(_monitoring_tool_id, code, 0)
+                del _ctx_registry[code]
+            _monitoring.unregister(code, self)
             try:
                 del t.cast(ContextWrappedFunction, f).__dd_context_wrapped__
             except AttributeError:
