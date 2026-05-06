@@ -91,10 +91,15 @@ def _extract_conn_tags(conn_kwargs) -> dict[str, str]:
 
 def _extract_cluster_node_conn_tags(instance) -> dict[str, str]:
     # AIDEV-NOTE: redis.cluster.RedisCluster (redis-py >= 4.1) has no single connection_pool;
-    # it manages one pool per node via nodes_manager. Use get_default_node() to get a
-    # representative host/port for span tags (needed for inferred services in APM).
+    # it manages one pool per node via nodes_manager.
+    # Sync RedisCluster and sync ClusterPipeline (which extends RedisCluster) expose
+    # get_default_node(). Async ClusterPipeline has nodes_manager as a property but does
+    # NOT inherit get_default_node(), so we fall back to nodes_manager.default_node.
     try:
-        node = instance.get_default_node()
+        if hasattr(instance, "get_default_node"):
+            node = instance.get_default_node()
+        else:
+            node = instance.nodes_manager.default_node
         if node is None:
             return {}
         return {

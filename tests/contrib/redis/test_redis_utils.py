@@ -119,6 +119,18 @@ class TestExtractClusterNodeConnTags:
         instance.get_default_node.return_value = _BadNode()
         assert _extract_cluster_node_conn_tags(instance) == {}
 
+    def test_uses_nodes_manager_default_node_when_no_get_default_node(self):
+        # Async ClusterPipeline has nodes_manager but not get_default_node.
+        node = mock.MagicMock()
+        node.host = "async-cluster-host"
+        node.port = 7003
+        instance = mock.MagicMock(spec=["nodes_manager"])
+        instance.nodes_manager.default_node = node
+        tags = _extract_cluster_node_conn_tags(instance)
+        assert tags[net.TARGET_HOST] == "async-cluster-host"
+        assert tags[net.TARGET_PORT] == 7003
+        assert tags[net.SERVER_ADDRESS] == "async-cluster-host"
+
     def test_returns_exactly_three_keys(self):
         tags = _extract_cluster_node_conn_tags(self._make_instance())
         assert len(tags) == 3
