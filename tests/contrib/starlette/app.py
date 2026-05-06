@@ -1,10 +1,12 @@
 import asyncio
+from contextlib import asynccontextmanager
 import functools
 from tempfile import NamedTemporaryFile
 import time
 
 import databases
 import sqlalchemy
+import starlette
 from starlette.applications import Starlette
 from starlette.background import BackgroundTasks
 from starlette.responses import FileResponse
@@ -14,6 +16,11 @@ from starlette.responses import Response
 from starlette.responses import StreamingResponse
 from starlette.routing import Mount
 from starlette.routing import Route
+
+from ddtrace.vendor.packaging.version import parse as parse_version
+
+
+STARLETTE_SUPPORTS_LIFESPAN = parse_version(getattr(starlette, "__version__", "0.0.0")) >= parse_version("1.0.0rc1")
 
 
 def create_test_database(engine):
@@ -156,5 +163,16 @@ def get_app(engine):
         Route("/backgroundtask", endpoint=background_task, name="200", methods=["GET"]),
     ]
 
-    app = Starlette(routes=routes, on_startup=[database.connect], on_shutdown=[database.disconnect])
+    @asynccontextmanager
+    async def lifespan(app):
+        await database.connect()
+        try:
+            yield
+        finally:
+            await database.disconnect()
+
+    if STARLETTE_SUPPORTS_LIFESPAN:
+        app = Starlette(routes=routes, lifespan=lifespan)
+    else:
+        app = Starlette(routes=routes, on_startup=[database.connect], on_shutdown=[database.disconnect])
     return app
