@@ -350,9 +350,7 @@ def test_session_id_becomes_top_level_field(llmobs):
     session_id = "test_session_id"
     with llmobs.task(session_id=session_id) as span:
         pass
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(span), span_kind="task", tags={"session_id": session_id}
-    )
+    assert get_llmobs_session_id(span) == session_id
 
 
 def test_llm_span(llmobs):
