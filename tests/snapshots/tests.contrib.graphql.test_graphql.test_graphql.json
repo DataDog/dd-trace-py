@@ -11,22 +11,22 @@
     "meta": {
       "_dd.base_service": "tests.contrib.graphql",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de9e3e00000000",
+      "_dd.p.tid": "69f39bb900000000",
       "_dd.svc_src": "graphql",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.graphql",
       "component": "graphql",
       "language": "python",
-      "runtime-id": "6b5a1e496034457f826b52cf30d11ad4"
+      "runtime-id": "639e6096e4f7483aad7f4c6516daf391"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 75639.0
+      "process_id": 56549.0
     },
-    "duration": 2416542,
-    "start": 1776197182351845797
+    "duration": 2320208,
+    "start": 1777572793660148013
   },
      {
        "name": "graphql.parse",
@@ -43,8 +43,8 @@
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 393416,
-       "start": 1776197182352392589
+       "duration": 285666,
+       "start": 1777572793660786513
      },
      {
        "name": "graphql.validate",
@@ -61,8 +61,8 @@
          "component": "graphql",
          "graphql.source": "query HELLO { hello }"
        },
-       "duration": 1170041,
-       "start": 1776197182352907589
+       "duration": 1073084,
+       "start": 1777572793661152554
      },
      {
        "name": "graphql.execute",
@@ -84,6 +84,6 @@
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 127333,
-       "start": 1776197182354121047
+       "duration": 182750,
+       "start": 1777572793662271221
      }]]

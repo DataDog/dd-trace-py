@@ -510,9 +510,12 @@ class Tracer(object):
                 service = parent.service
                 service_source = parent.get_tag(_SERVICE_SOURCE) or ""
             else:
-                service = service_source = config.service
+                service = config.service
         else:
-            service_source = "m"
+            if service in config._integration_default_services:
+                service_source = service
+            else:
+                service_source = "m"
 
         # Update the service name based on any mapping
         if service is not None:

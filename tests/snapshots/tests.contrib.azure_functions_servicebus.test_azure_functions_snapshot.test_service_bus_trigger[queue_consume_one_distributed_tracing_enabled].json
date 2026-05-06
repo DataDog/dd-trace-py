@@ -9,7 +9,7 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69eba56600000000",
+      "_dd.p.tid": "69e9293d00000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "queue_send_single_message",
@@ -43,7 +43,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_servicebus",
          "component": "azure_servicebus",
          "messaging.destination.name": "queue.1",
          "messaging.message_id": "5402356d-8ad7-42f6-a6b7-c39ad785670d",
