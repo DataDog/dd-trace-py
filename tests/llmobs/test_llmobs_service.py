@@ -2236,7 +2236,7 @@ def test_submit_evaluation_enqueues_writer_with_reasoning(llmobs, mock_llmobs_ev
     mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
 
 
-def test_llmobs_parenting_with_root_apm_span(llmobs, tracer, test_spans):
+def test_llmobs_parenting_with_root_apm_span(llmobs, tracer):
     # orphaned llmobs spans with apm root have undefined parent_id
     with tracer.trace("no_llm_span"):
         with llmobs.task("llm_span") as llm_span:
@@ -2252,7 +2252,7 @@ def test_llmobs_parenting_with_root_apm_span(llmobs, tracer, test_spans):
     assert get_llmobs_trace_id(llm_span) != get_llmobs_trace_id(llm_span_2)
 
 
-def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer, test_spans):
+def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer):
     with llmobs.task("level_1_llm") as level_1_span:
         with tracer.trace("intermediate_apm"):  # APM span
             with tracer.trace("intermediate_apm_2"):  # APM span

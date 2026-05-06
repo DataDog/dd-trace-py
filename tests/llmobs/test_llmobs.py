@@ -24,9 +24,14 @@ from ddtrace.llmobs._utils import get_llmobs_cost_tags
 from ddtrace.llmobs._utils import get_llmobs_input
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
+from ddtrace.llmobs._utils import get_llmobs_input_value
+from ddtrace.llmobs._utils import get_llmobs_metadata
+from ddtrace.llmobs._utils import get_llmobs_metrics
 from ddtrace.llmobs._utils import get_llmobs_model_name
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_output
+from ddtrace.llmobs._utils import get_llmobs_output_messages
+from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -34,19 +39,18 @@ from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs.types import Prompt
-from tests.llmobs._utils import assert_llmobs_span_data
 
 
 class TestMLApp:
     @pytest.mark.parametrize("llmobs_env", [{"DD_LLMOBS_ML_APP": "<not-a-real-app-name>"}])
-    def test_tag_defaults_to_env_var(self, llmobs, tracer, llmobs_env, test_spans):
+    def test_tag_defaults_to_env_var(self, llmobs, tracer, llmobs_env):
         """Test that no ml_app defaults to the environment variable DD_LLMOBS_ML_APP."""
         with llmobs.workflow("root_llm_span") as span:
             pass
         assert get_llmobs_tags(span)["ml_app"] == "<not-a-real-app-name>"
 
     @pytest.mark.parametrize("llmobs_env", [{"DD_LLMOBS_ML_APP": "<not-a-real-app-name>"}])
-    def test_tag_overrides_env_var(self, llmobs, tracer, llmobs_env, test_spans):
+    def test_tag_overrides_env_var(self, llmobs, tracer, llmobs_env):
         """Test that when ml_app is set on the span, it overrides the environment variable DD_LLMOBS_ML_APP."""
         with llmobs.workflow("root_llm_span", ml_app="test-ml-app") as span:
             pass
@@ -95,7 +99,7 @@ class TestSessionId:
         for span in spans:
             assert get_llmobs_session_id(span) == "test_session_id"
 
-    def test_if_set_manually(self, llmobs, tracer, test_spans):
+    def test_if_set_manually(self, llmobs, tracer):
         """Test that session_id is extracted from the span if it is already set manually."""
         with llmobs.workflow("root_llm_span", session_id="test_session_id") as workflow_span:
             with tracer.trace("child_span"):
@@ -131,7 +135,7 @@ class TestLLMIOProcessing:
         return span
 
     @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_remove_input_output)])
-    def test_input_output_processor_remove(self, llmobs, llmobs_enable_opts, test_spans):
+    def test_input_output_processor_remove(self, llmobs, llmobs_enable_opts):
         with llmobs.llm() as messages_span:
             llmobs.annotate(messages_span, input_data="value", output_data="value")
 
@@ -152,7 +156,7 @@ class TestLLMIOProcessing:
         return span
 
     @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_mutate_input_output_messages)])
-    def test_input_output_processor_mutate(self, llmobs, llmobs_enable_opts, test_spans):
+    def test_input_output_processor_mutate(self, llmobs, llmobs_enable_opts):
         with llmobs.llm() as llm_span:
             llmobs.annotate(llm_span, input_data="value", output_data=[{"content": "value"}, {"content": "value2"}])
         assert get_llmobs_input(llm_span) == {"messages": [{"content": "value processed", "role": ""}]}
@@ -167,7 +171,7 @@ class TestLLMIOProcessing:
         return span
 
     @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_conditional_input_output_processor)])
-    def test_annotated_span(self, llmobs, llmobs_enable_opts, test_spans):
+    def test_annotated_span(self, llmobs, llmobs_enable_opts):
         with llmobs.annotation_context(tags={"scrub_values": "1"}):
             with llmobs.llm() as llm_span:
                 llmobs.annotate(llm_span, input_data="value", output_data="value")
@@ -178,7 +182,7 @@ class TestLLMIOProcessing:
         return "not a span"
 
     @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_bad_return_type_processor)])
-    def test_processor_bad_return_type(self, llmobs, llmobs_enable_opts, test_spans):
+    def test_processor_bad_return_type(self, llmobs, llmobs_enable_opts):
         """Test that a processor that returns a non-LLMObsSpan type is ignored."""
         with llmobs.llm() as llm_span:
             llmobs.annotate(llm_span, input_data="value", output_data="value")
@@ -248,7 +252,7 @@ class TestLLMIOProcessing:
         assert traces[1]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "value"
         assert traces[1]["spans"][0]["meta"]["output"]["messages"][0]["content"] == "value"
 
-    def test_register_unregister_processor(self, llmobs, test_spans):
+    def test_register_unregister_processor(self, llmobs):
         def _sp(s):
             s.input = [{"content": "scrubbed"}]
             return s
@@ -306,36 +310,28 @@ def test_input_value_is_set(llmobs, tracer):
     """Test that input value is set on the span event if they are present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm", input_value="value")
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(llm_span), span_kind="llm", input_value="value")
+    assert get_llmobs_input_value(llm_span) == "value"
 
 
 def test_input_messages_are_set(llmobs, tracer):
     """Test that input messages are set on the span event if they are present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm", input_messages=[{"content": "message", "role": "user"}])
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(llm_span),
-        span_kind="llm",
-        input_messages=[{"content": "message", "role": "user"}],
-    )
+    assert get_llmobs_input_messages(llm_span) == [{"content": "message", "role": "user"}]
 
 
 def test_output_messages_are_set(llmobs, tracer):
     """Test that output messages are set on the span event if they are present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm", output_messages=[{"content": "message", "role": "user"}])
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(llm_span),
-        span_kind="llm",
-        output_messages=[{"content": "message", "role": "user"}],
-    )
+    assert get_llmobs_output_messages(llm_span) == [{"content": "message", "role": "user"}]
 
 
 def test_output_value_is_set(llmobs, tracer):
     """Test that output value is set on the span event if they are present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm", output_value="value")
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(llm_span), span_kind="llm", output_value="value")
+    assert get_llmobs_output_value(llm_span) == "value"
 
 
 def test_prompt_is_set(llmobs, tracer):
@@ -356,14 +352,14 @@ def test_metadata_is_set(llmobs, tracer):
     """Test that metadata is set on the span event if it is present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm", metadata={"key": "value"})
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(llm_span), span_kind="llm", metadata={"key": "value"})
+    assert get_llmobs_metadata(llm_span) == {"key": "value"}
 
 
 def test_metrics_are_set(llmobs, tracer):
     """Test that metadata is set on the span event if it is present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm", metrics={"tokens": 100})
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(llm_span), span_kind="llm", metrics={"tokens": 100})
+    assert get_llmobs_metrics(llm_span) == {"tokens": 100}
 
 
 def test_cost_tags_are_set_on_span_event(llmobs, tracer):
@@ -382,7 +378,7 @@ def test_langchain_span_name_is_set_to_class_name(llmobs, tracer):
     """Test span names for langchain auto-instrumented spans is set correctly."""
     with tracer.trace(LANGCHAIN_APM_SPAN_NAME, resource="expected_name", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm")
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(llm_span), span_kind="llm", name="expected_name")
+    assert get_llmobs_span_name(llm_span) == "expected_name"
 
 
 def test_error_is_set(llmobs, tracer):
@@ -401,12 +397,8 @@ def test_model_provider_defaults_to_unknown(llmobs, tracer):
     """Test that model provider defaults to "unknown" if not provided."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm", model_name="model_name")
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(llm_span),
-        span_kind="llm",
-        model_name="model_name",
-        model_provider=UNKNOWN_MODEL_PROVIDER,
-    )
+    assert get_llmobs_model_name(llm_span) == "model_name"
+    assert get_llmobs_model_provider(llm_span) == UNKNOWN_MODEL_PROVIDER
 
 
 def test_model_not_set_if_not_llm_kind_span(llmobs, tracer):
@@ -421,12 +413,8 @@ def test_model_and_provider_are_set(llmobs, tracer):
     """Test that model and provider are set on the span event if they are present on the LLM-kind span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm", model_name="model_name", model_provider="model_provider")
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(llm_span),
-        span_kind="llm",
-        model_name="model_name",
-        model_provider="model_provider",
-    )
+    assert get_llmobs_model_name(llm_span) == "model_name"
+    assert get_llmobs_model_provider(llm_span) == "model_provider"
 
 
 def test_malformed_span_logs_error_instead_of_raising(llmobs, tracer, mock_llmobs_logs):
@@ -447,7 +435,7 @@ def test_only_generate_span_events_from_llmobs_spans(llmobs, tracer, test_spans)
             pass
     spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
     assert len(spans) == 1
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="llm")
+    assert get_llmobs_span_kind(spans[0]) == "llm"
 
 
 def test_utf_non_ascii_io(llmobs, llmobs_backend):
@@ -620,7 +608,7 @@ def test_annotate_with_tool_definitions_non_dict(llmobs, llmobs_backend):
 
 
 @pytest.mark.asyncio
-async def test_asyncio_trace_id_propagation(llmobs, test_spans):
+async def test_asyncio_trace_id_propagation(llmobs):
     """Test that LLMObs trace ID and APM trace ID are properly propagated in async contexts."""
     inner_span = None
     another_span = None
@@ -650,7 +638,7 @@ async def test_asyncio_trace_id_propagation(llmobs, test_spans):
     assert get_llmobs_trace_id(outer_span) != outer_apm_trace_id
 
 
-def test_trace_id_propagation_with_non_llm_parent(llmobs, test_spans):
+def test_trace_id_propagation_with_non_llm_parent(llmobs):
     """Test that LLMObs trace ID and APM trace ID propagate correctly with non-LLM parent spans."""
     with llmobs._instance.tracer.trace("parent_non_llm") as parent:
         with llmobs.workflow("first_child") as first_child:
@@ -880,4 +868,5 @@ def test_apm_traces_dropped_when_disabled(llmobs, tracer, llmobs_env):
     assert len(dummy_writer.traces) == 0, "APM traces should be dropped when DD_APM_TRACING_ENABLED=false"
 
     # But LLMObs spans should still carry the LLMObsSpanData payload
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(llm_span), span_kind="llm", model_name="test-model")
+    assert get_llmobs_span_kind(llm_span) == "llm"
+    assert get_llmobs_model_name(llm_span) == "test-model"
