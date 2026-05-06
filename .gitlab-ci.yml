@@ -238,6 +238,10 @@ macrobenchmarks:
 doe-sxs-prep:
   stage: benchmarks
   tags: ["arch:amd64"]
+  # Need an image with `git` available; the default GitLab runner image is
+  # minimal and lacks git. Reusing the dd-octo-sts-ci-base used by
+  # prof-correctness elsewhere in this file.
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   # `needs: []` makes this a free-floating DAG node so the manual play button
   # is offered regardless of earlier-stage outcomes. Without it, GitLab marks
   # downstream manual jobs as "skipped" when any earlier non-allow_failure
