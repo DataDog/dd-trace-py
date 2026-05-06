@@ -954,7 +954,7 @@ class TestLLMObsOpenaiV1:
     )
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_chat_completion_tool_call_preserves_assistant_content(
-        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
+        self, mock_completions_post, openai, openai_llmobs, test_spans
     ):
         """MLOS-605: assistant messages carrying both prose content and structured tool_calls
         on the same message must preserve the prose in the LLMObs span. OpenAI's native
@@ -984,21 +984,37 @@ class TestLLMObsOpenaiV1:
         client = openai.OpenAI()
         client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
 
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        tagged_inputs = mock_llmobs_writer.enqueue.call_args.args[0]["meta"]["input"]["messages"]
-        assistant_tagged = tagged_inputs[1]
-        assert assistant_tagged["role"] == "assistant"
-        assert assistant_tagged["content"] == assistant_prose
-        assert assistant_tagged["tool_calls"] == [
-            {"name": "extract_student_info", "arguments": {}, "tool_id": tool_call_id, "type": "function"}
-        ]
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            input_messages=[
+                {"role": "user", "content": chat_completion_input_description},
+                {
+                    "role": "assistant",
+                    "content": assistant_prose,
+                    "tool_calls": [
+                        {"name": "extract_student_info", "arguments": {}, "tool_id": tool_call_id, "type": "function"}
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "content": "",
+                    "tool_results": [
+                        {"name": "", "result": '{"verified": true}', "tool_id": tool_call_id, "type": "tool_result"}
+                    ],
+                },
+                {"role": "user", "content": "Thanks, can you summarize?"},
+            ],
+        )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_chat_completion_tool_call_with_none_content_does_not_leak_string(
-        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
+        self, mock_completions_post, openai, openai_llmobs, test_spans
     ):
         """MLOS-605: OpenAI returns `content=None` alongside `tool_calls` when the model issues
         a pure function call with no narration. Earlier logic ran `str(None)` → "None" and
@@ -1026,21 +1042,37 @@ class TestLLMObsOpenaiV1:
         client = openai.OpenAI()
         client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
 
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        tagged_inputs = mock_llmobs_writer.enqueue.call_args.args[0]["meta"]["input"]["messages"]
-        assistant_tagged = tagged_inputs[1]
-        assert assistant_tagged["role"] == "assistant"
-        assert assistant_tagged["content"] == ""
-        assert assistant_tagged["tool_calls"] == [
-            {"name": "extract_student_info", "arguments": {}, "tool_id": tool_call_id, "type": "function"}
-        ]
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            input_messages=[
+                {"role": "user", "content": chat_completion_input_description},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {"name": "extract_student_info", "arguments": {}, "tool_id": tool_call_id, "type": "function"}
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "content": "",
+                    "tool_results": [
+                        {"name": "", "result": '{"verified": true}', "tool_id": tool_call_id, "type": "tool_result"}
+                    ],
+                },
+                {"role": "user", "content": "Thanks, can you summarize?"},
+            ],
+        )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_chat_completion_react_style_content_still_deduplicates(
-        self, mock_completions_post, openai, ddtrace_global_config, mock_llmobs_writer, test_spans
+        self, mock_completions_post, openai, openai_llmobs, test_spans
     ):
         """Regression guard for ReAct-style agents: when content literally contains the
         `Action:/Action Input:` pattern and structured tool_calls are extracted from it,
@@ -1055,12 +1087,22 @@ class TestLLMObsOpenaiV1:
         client = openai.OpenAI()
         client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
 
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        tagged_inputs = mock_llmobs_writer.enqueue.call_args.args[0]["meta"]["input"]["messages"]
-        assistant_tagged = tagged_inputs[1]
-        assert assistant_tagged["role"] == "assistant"
-        assert assistant_tagged["content"] == ""
-        assert assistant_tagged["tool_calls"][0]["name"] == "extract_student_info"
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            input_messages=[
+                {"role": "user", "content": chat_completion_input_description},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {"name": "extract_student_info", "arguments": {}, "tool_id": "", "type": "function"}
+                    ],
+                },
+            ],
+        )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66),
