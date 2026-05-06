@@ -9,6 +9,8 @@ components:
   aiokafka:
     - ddtrace/contrib/internal/aiokafka/*
     - ddtrace/ext/kafka.py
+  faststream:
+    - ddtrace/contrib/internal/faststream/*
   algoliasearch:
     - ddtrace/contrib/internal/algoliasearch/*
   asgi:
@@ -99,6 +101,8 @@ components:
     - ddtrace/contrib/internal/falcon/*
   fastapi:
     - ddtrace/contrib/internal/fastapi/*
+  faststream:
+    - ddtrace/contrib/internal/faststream/*
   flask:
     - ddtrace/contrib/internal/flask/*
     - ddtrace/contrib/flask_cache.py
@@ -734,6 +738,17 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     venvs_per_job: 2
+  faststream:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@faststream'
+      - tests/contrib/faststream/*
+    pattern: faststream$
+    runner: riot
+    snapshot: false
   flask:
     env:
       TEST_MEMCACHED_HOST: memcached

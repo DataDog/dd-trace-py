@@ -1848,6 +1848,24 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="faststream",
+            command="pytest {cmdargs} tests/contrib/faststream",
+            pkgs={
+                "pytest-asyncio": latest,
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={"faststream": ["~=0.5.0", latest]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.14"),
+                    pkgs={"faststream": latest},
+                ),
+            ],
+        ),
+        Venv(
             name="fastapi",
             command="pytest {cmdargs} tests/contrib/fastapi",
             pkgs={

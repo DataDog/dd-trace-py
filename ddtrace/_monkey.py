@@ -40,6 +40,7 @@ PATCH_MODULES = {
     "dramatiq": True,
     "elasticsearch": True,
     "algoliasearch": True,
+    "faststream": True,
     "futures": True,
     "google_adk": True,
     "google_cloud_pubsub": True,
