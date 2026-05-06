@@ -2,6 +2,7 @@ import operator
 import os
 from typing import Annotated
 from typing import TypedDict
+from unittest import mock
 
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
@@ -17,8 +18,7 @@ from ddtrace.contrib.internal.langgraph.patch import patch
 from ddtrace.contrib.internal.langgraph.patch import unpatch
 from ddtrace.contrib.internal.openai.patch import patch as patch_openai
 from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
-from ddtrace.llmobs import LLMObs as llmobs_service
-from tests.llmobs._utils import TestLLMObsSpanWriter
+from ddtrace.llmobs import LLMObs
 from tests.utils import override_global_config
 
 
@@ -50,27 +50,22 @@ def langchain():
     unpatch_langchain()
 
 
-def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "unnamed-ml-app", "service": "tests.llmobs"}
-
-
 @pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
-
-
-@pytest.fixture
-def llmobs(tracer, llmobs_span_writer):
-    with override_global_config(default_global_config()):
-        llmobs_service.enable(_tracer=tracer)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-        yield llmobs_service
-    llmobs_service.disable()
-
-
-@pytest.fixture
-def llmobs_events(llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events
+def langgraph_llmobs(tracer, monkeypatch):
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+    LLMObs.disable()
+    with override_global_config(
+        {
+            "_llmobs_ml_app": "unnamed-ml-app",
+            "_dd_api_key": "<not-a-real-api_key>",
+            "service": "tests.llmobs",
+        }
+    ):
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        yield LLMObs
+    LLMObs.disable()
 
 
 class State(TypedDict):
