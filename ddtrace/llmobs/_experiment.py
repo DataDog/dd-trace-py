@@ -1879,9 +1879,8 @@ class Experiment:
     ) -> ExperimentRun:
         if self._dataset is None:
             raise RuntimeError(
-                "Internal: cannot merge experiment results without a dataset attached. "
-                "This typically means an experiment was run that has no dataset "
-                "(e.g., one returned by LLMObs.pull_experiment())."
+                "Error in Experiment._merge_results(): missing dataset. "
+                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
             )
         experiment_results = []
         for idx, task_result in enumerate(task_results):
@@ -2060,9 +2059,8 @@ class Experiment:
         """Get dataset containing the first sample_size records of the original dataset."""
         if self._dataset is None:
             raise RuntimeError(
-                "Internal: cannot subset records without a dataset attached. "
-                "This typically means an experiment was run that has no dataset "
-                "(e.g., one returned by LLMObs.pull_experiment())."
+                "Error in Experiment._get_subset_dataset(): missing dataset. "
+                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
             )
         if sample_size is not None and sample_size < len(self._dataset):
             subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
@@ -2125,9 +2123,8 @@ class Experiment:
     ]:
         if self._dataset is None:
             raise RuntimeError(
-                "Internal: cannot prepare summary evaluator inputs without a dataset attached. "
-                "This typically means an experiment was run that has no dataset "
-                "(e.g., one returned by LLMObs.pull_experiment())."
+                "Error in Experiment._prepare_summary_evaluator_data(): missing dataset. "
+                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
             )
         inputs: list[JSONType] = []
         outputs: list[JSONType] = []
@@ -2164,9 +2161,8 @@ class Experiment:
             raise ValueError(llmobs_not_enabled_error)
         if self._dataset is None:
             raise RuntimeError(
-                "Internal: cannot set up an experiment run without a dataset attached. "
-                "This typically means run() was invoked on an experiment that has no dataset "
-                "(e.g., one returned by LLMObs.pull_experiment())."
+                "Error in Experiment._setup_experiment(): missing dataset. "
+                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
             )
 
         project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
@@ -2353,9 +2349,8 @@ class Experiment:
             return None
         if self._task is None or self._dataset is None:
             raise RuntimeError(
-                "Internal: cannot process records without a task and dataset attached. "
-                "This typically means run() was invoked on an experiment that has no task or dataset "
-                "(e.g., one returned by LLMObs.pull_experiment())."
+                "Error in Experiment._process_record(): missing task or dataset. "
+                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
             )
         async with semaphore:
             idx, record = idx_record
@@ -2639,9 +2634,8 @@ class Experiment:
     ) -> list[EvaluationResult]:
         if self._dataset is None:
             raise RuntimeError(
-                "Internal: cannot evaluate records without a dataset attached. "
-                "This typically means run() was invoked on an experiment that has no dataset "
-                "(e.g., one returned by LLMObs.pull_experiment())."
+                "Error in Experiment._run_evaluators(): missing dataset. "
+                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
             )
         asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
@@ -3073,7 +3067,7 @@ class SyncExperiment:
             ) from e
 
         if self.result is None:
-            raise ValueError("No result found. Call run() or LLMObs.pull_experiment() before as_dataframe().")
+            raise ValueError("No result found. Call run() or LLMObs.pull_experiment() before calling as_dataframe().")
 
         frames = []
         for run in self.result.get("runs", []):
