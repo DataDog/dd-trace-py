@@ -671,6 +671,34 @@ def _make_server(port, request_handler):
     return server, t
 
 
+def _make_blocking_server():
+    request_started = threading.Event()
+    release_response = threading.Event()
+
+    class _BlockingRequestHandler(_BaseHTTPRequestHandler):
+        def do_PUT(self):
+            content_length = int(self.headers.get("Content-Length", 0))
+            if content_length:
+                self.rfile.read(content_length)
+            request_started.set()
+            release_response.wait(timeout=5)
+            body = b"{}"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            self.do_PUT()
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), _BlockingRequestHandler)
+    t = threading.Thread(target=server.serve_forever)
+    t.daemon = True
+    t.start()
+    return server, t, request_started, release_response
+
+
 @pytest.fixture(scope="module")
 def endpoint_test_timeout_server():
     server, thread = _make_server(_TIMEOUT_PORT, _TimeoutAPIEndpointRequestHandlerTest)
@@ -831,6 +859,68 @@ def test_periodic_thread_uds_callback_unblocks_with_timeout():
         if os.path.exists(sock_path):
             os.unlink(sock_path)
         os.rmdir(sock_dir)
+
+
+def test_native_writer_on_shutdown_waits_for_in_flight_send():
+    # AIDEV-NOTE: Keep this test on the real NativeWriter. A mock exporter cannot
+    # reproduce PyO3's active shared borrow while TraceExporter.send() releases the GIL.
+    server, server_thread, request_started, release_response = _make_blocking_server()
+    writer = NativeWriter("http://127.0.0.1:%d" % server.server_port, api_version="v0.4")
+    periodic_can_return = threading.Event()
+    periodic_about_to_return = threading.Event()
+    flush_errors = []
+    shutdown_errors = []
+    original_periodic = writer.periodic
+
+    def blocked_periodic():
+        original_periodic()
+        periodic_about_to_return.set()
+        periodic_can_return.wait(timeout=5)
+
+    def flush_writer():
+        try:
+            writer.flush_queue(raise_exc=True)
+        except Exception as e:
+            flush_errors.append(e)
+
+    def shutdown_writer():
+        try:
+            writer.on_shutdown()
+        except Exception as e:
+            shutdown_errors.append(e)
+
+    writer.periodic = blocked_periodic
+    writer._encoder.put([Span("foobar")])
+    flush_thread = threading.Thread(target=flush_writer)
+    shutdown_thread = threading.Thread(target=shutdown_writer)
+
+    try:
+        flush_thread.start()
+        assert request_started.wait(timeout=2)
+
+        shutdown_thread.start()
+        assert periodic_about_to_return.wait(timeout=2)
+        periodic_can_return.set()
+
+        # Give on_shutdown() a chance to enter TraceExporter.shutdown() while
+        # TraceExporter.send() is still blocked in native I/O.
+        shutdown_thread.join(timeout=0.5)
+        assert shutdown_thread.is_alive()
+        release_response.set()
+        flush_thread.join(timeout=2)
+        shutdown_thread.join(timeout=5)
+
+        assert not flush_thread.is_alive()
+        assert not shutdown_thread.is_alive()
+        assert flush_errors == []
+        assert shutdown_errors == []
+    finally:
+        release_response.set()
+        periodic_can_return.set()
+        flush_thread.join(timeout=1)
+        shutdown_thread.join(timeout=1)
+        server.shutdown()
+        server_thread.join()
 
 
 @pytest.mark.parametrize("writer_class", (CIVisibilityWriter, NativeWriter))
