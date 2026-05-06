@@ -2920,3 +2920,29 @@ def test_shadow_tags_chat_completion_when_llmobs_disabled(tracer):
     assert span.get_metric("_dd.llmobs.input_tokens") == 10
     assert span.get_metric("_dd.llmobs.output_tokens") == 5
     assert span.get_metric("_dd.llmobs.total_tokens") == 15
+
+
+def test_shadow_tags_chat_completion_with_cache_tokens(tracer):
+    """Verify cache-token shadow metrics propagate from openai usage to APM span."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.openai import OpenAIIntegration
+
+    mock_openai = MagicMock()
+    mock_openai.version.VERSION = "1.0.0"
+    integration = OpenAIIntegration(MagicMock(), mock_openai)
+    integration._client = MagicMock(_base_url="https://api.openai.com/v1")
+
+    response = MagicMock()
+    response.usage.prompt_tokens = 50
+    response.usage.completion_tokens = 10
+    response.usage.total_tokens = 60
+    response.usage.prompt_tokens_details.cached_tokens = 12
+    # responses-API style fallback: input_tokens_details.cached_tokens
+    response.usage.input_tokens_details.cached_tokens = 12
+
+    with tracer.trace("openai.request") as span:
+        span._set_attribute("openai.response.model", "gpt-4o-mini")
+        integration._set_apm_shadow_tags(span, [], {}, response=response, operation="chat")
+
+    assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 12

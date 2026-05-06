@@ -9,6 +9,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObsSpan
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY
@@ -824,6 +826,44 @@ class TestAPMShadowTags:
             integration._apply_shadow_metrics(span, {"input_tokens": 10, "total_tokens": 10}, "llm")
 
         assert span.get_metric(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY) == 0
+
+    def test_shadow_metrics_cache_tokens_on_llm_span(self, tracer):
+        """Cache token shadow metrics are forwarded for llm spans."""
+        integration = self._make_integration()
+
+        with tracer.trace("test") as span:
+            metrics = {
+                "input_tokens": 10,
+                "output_tokens": 20,
+                "total_tokens": 30,
+                "cache_read_input_tokens": 7,
+                "cache_write_input_tokens": 4,
+            }
+            integration._apply_shadow_metrics(span, metrics, "llm")
+
+        assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY) == 7
+        assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY) == 4
+
+    def test_shadow_metrics_cache_tokens_absent_when_not_extracted(self, tracer):
+        """Cache shadow metrics are absent when the integration didn't extract them."""
+        integration = self._make_integration()
+
+        with tracer.trace("test") as span:
+            integration._apply_shadow_metrics(span, {"input_tokens": 10, "total_tokens": 10}, "llm")
+
+        assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY) is None
+        assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY) is None
+
+    def test_shadow_metrics_cache_tokens_not_set_on_workflow_span(self, tracer):
+        """Cache shadow metrics are not set on non-llm/embedding spans."""
+        integration = self._make_integration()
+
+        with tracer.trace("test") as span:
+            metrics = {"cache_read_input_tokens": 5, "cache_write_input_tokens": 3}
+            integration._apply_shadow_metrics(span, metrics, "workflow")
+
+        assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY) is None
+        assert span.get_metric(LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY) is None
 
 
 def test_no_llmobs_trace_id_without_llmobs_context(llmobs, llmobs_events):
