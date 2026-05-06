@@ -3464,6 +3464,65 @@ def test_baggageheader_maxbytes_inject():
     assert "key2" in header_value
 
 
+def test_baggageheader_maxitems_extract():
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+
+    pairs = [f"k{i}=v{i}" for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 3)]
+    header_value = ",".join(pairs)
+    context = _BaggageHeader._extract({"baggage": header_value})
+    assert len(context._baggage) == DD_TRACE_BAGGAGE_MAX_ITEMS
+    for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS):
+        assert context._baggage[f"k{i}"] == f"v{i}"
+    assert f"k{DD_TRACE_BAGGAGE_MAX_ITEMS}" not in context._baggage
+
+
+def test_baggageheader_maxitems_maxbytes_extract():
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+
+    pairs = []
+    for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 3):
+        prefix = f"k{i}="
+        pad_len = DD_TRACE_BAGGAGE_MAX_BYTES - len(prefix.encode("utf-8"))
+        val = "v" * pad_len
+        pair = f"k{i}={val}"
+        assert len(pair.encode("utf-8")) == DD_TRACE_BAGGAGE_MAX_BYTES
+        pairs.append(pair)
+
+    header_value = ",".join(pairs)
+    context = _BaggageHeader._extract({"baggage": header_value})
+    # First segment fills the byte budget; comma + next segment exceed DD_TRACE_BAGGAGE_MAX_BYTES.
+    assert len(context._baggage) == 1
+    assert context._baggage["k0"] == pairs[0].split("=", 1)[1]
+    assert f"k{DD_TRACE_BAGGAGE_MAX_ITEMS}" not in context._baggage
+
+
+def test_baggageheader_maxbytes_extract():
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+
+    # Single pair whose raw segment exceeds the byte limit — nothing parsed into baggage.
+    huge = "x" * (DD_TRACE_BAGGAGE_MAX_BYTES + 1)
+    context = _BaggageHeader._extract({"baggage": f"k={huge}"})
+    assert context._baggage == {}
+
+    # Multiple pairs: keep a prefix whose comma-separated wire size stays within the limit.
+    chunk = "a" * (DD_TRACE_BAGGAGE_MAX_BYTES // 3)
+    header_value = ",".join([f"key{i}={chunk}" for i in range(4)])
+    context = _BaggageHeader._extract({"baggage": header_value})
+    total_size = 0
+    expected_baggage = {}
+    for seg in header_value.split(","):
+        segment_bytes = len(seg.encode("utf-8")) + (1 if expected_baggage else 0)
+        if total_size + segment_bytes > DD_TRACE_BAGGAGE_MAX_BYTES:
+            break
+        key, _, value = seg.partition("=")
+        expected_baggage[key] = value
+        total_size += segment_bytes
+    assert context._baggage == expected_baggage
+    assert total_size <= DD_TRACE_BAGGAGE_MAX_BYTES
+    assert "key3" not in context._baggage
+
+
 @pytest.mark.parametrize(
     "headers,expected_baggage",
     [

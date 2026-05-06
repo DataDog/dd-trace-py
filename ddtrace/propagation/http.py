@@ -66,6 +66,7 @@ _HTTP_HEADER_TAGS: Literal["x-datadog-tags"] = "x-datadog-tags"
 _HTTP_HEADER_TRACEPARENT: Literal["traceparent"] = "traceparent"
 _HTTP_HEADER_TRACESTATE: Literal["tracestate"] = "tracestate"
 _HTTP_HEADER_BAGGAGE: Literal["baggage"] = "baggage"
+BAGGAGE_DELIMITER = ","
 
 
 def _possible_header(header: str) -> frozenset[str]:
@@ -952,19 +953,47 @@ class _BaggageHeader:
         if not header_value:
             return Context(baggage={})
 
-        baggage = {}
-        baggages = header_value.split(",")
-        for key_value in baggages:
+        baggage_data: dict[str, str] = {}
+        total_size = 0
+        splitted_header = header_value.split(BAGGAGE_DELIMITER)
+        for pair_index, key_value in enumerate(splitted_header):
+            if pair_index >= DD_TRACE_BAGGAGE_MAX_ITEMS:
+                log.warning(
+                    "Baggage item limit exceeded, dropping excess items, skipped: %d items",
+                    len(splitted_header) - DD_TRACE_BAGGAGE_MAX_ITEMS,
+                )
+                telemetry_writer.add_count_metric(
+                    namespace=TELEMETRY_NAMESPACE.TRACERS,
+                    name="context_header.truncated",
+                    value=1,
+                    tags=(("truncation_reason", "baggage_item_count_exceeded"),),
+                )
+                break
             if "=" not in key_value:
                 return _BaggageHeader._record_malformed_and_return_empty()
+            base_size_bytes = len(key_value) if key_value.isascii() else len(key_value.encode("utf-8"))
+            segment_bytes = base_size_bytes + (len(BAGGAGE_DELIMITER) if baggage_data else 0)
+            if total_size + segment_bytes > DD_TRACE_BAGGAGE_MAX_BYTES:
+                log.warning(
+                    "Baggage header size exceeded, dropping excess items. size would be %d bytes",
+                    total_size + segment_bytes,
+                )
+                telemetry_writer.add_count_metric(
+                    namespace=TELEMETRY_NAMESPACE.TRACERS,
+                    name="context_header.truncated",
+                    value=1,
+                    tags=(("truncation_reason", "baggage_byte_count_exceeded"),),
+                )
+                break
             key, value = key_value.split("=", 1)
             key = urllib.parse.unquote(key.strip())
             value = urllib.parse.unquote(value.strip())
             if not key or not value:
                 return _BaggageHeader._record_malformed_and_return_empty()
-            baggage[key] = value
+            baggage_data[key] = value
+            total_size += segment_bytes
 
-        return Context(baggage=baggage)
+        return Context(baggage=baggage_data)
 
 
 _PROP_STYLES = {
