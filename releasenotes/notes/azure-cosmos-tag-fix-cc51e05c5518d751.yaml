@@ -1,0 +1,5 @@
+fixes:
+  - |
+    azure_cosmos: This change removes the http.status_code tags from Azure CosmosDB spans and replaces them
+    with the use of the db.response.status_code metric.
+    
