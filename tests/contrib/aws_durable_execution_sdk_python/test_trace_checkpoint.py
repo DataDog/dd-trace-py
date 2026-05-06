@@ -125,7 +125,7 @@ def _span_chain(*span_ids):
     return cur
 
 
-def test_save_uses_grandparent_span_id_on_first_invocation():
+def test_save_uses_execute_span_id_on_first_invocation():
     state = _make_state()
     durable = SimpleNamespace(state=state, _parent_id=None)
     # span tree: root(0xR) → aws.lambda(0xL) → aws.durable.execute(0xX)
@@ -143,8 +143,8 @@ def test_save_uses_grandparent_span_id_on_first_invocation():
     assert update.name == "_datadog_0"
     assert update.parent_id is None  # AWS-side parent stays None at top level
     payload = ujson.loads(update.payload)
-    # Grandparent id (the durable-execution root) is stamped into the Datadog header.
-    assert payload["x-datadog-parent-id"] == str(0x4242_4242_4242_4242)
+    # First invocation anchors to aws.durable.execute span id.
+    assert payload["x-datadog-parent-id"] == str(0x1234_1234_1234_1234)
 
 
 def test_save_reuses_prior_checkpoint_parent_id_on_replay():
@@ -162,10 +162,8 @@ def test_save_reuses_prior_checkpoint_parent_id_on_replay():
         }
     )
     durable = SimpleNamespace(state=state, _parent_id=None)
-    # On replay datadog-lambda doesn't emit aws.durable-execution; the local
-    # span tree only has aws.lambda → aws.durable.execute. Grandparent walk
-    # would yield aws.lambda's id, which is wrong — we should reuse the prior
-    # checkpoint instead.
+    # On replay we should always reuse the parent id already persisted in the
+    # prior checkpoint.
     span = _span_chain(0xDEAD_BEEF_DEAD_BEEF, 0x1234_1234_1234_1234)
 
     def _inject(_span, headers):
@@ -196,23 +194,23 @@ def test_save_rewrites_traceparent_parent_segment():
     parts = payload["traceparent"].split("-")
     assert parts[0] == "00"
     assert parts[1] == "0000000000000000000000000000007b"
-    assert parts[2] == format(0x4242_4242_4242_4242, "016x")
+    assert parts[2] == format(0x1234_1234_1234_1234, "016x")
     assert parts[3] == "01"
 
 
 def test_save_first_invocation_then_replay_share_parent_id():
-    """End-to-end: invocation 1 stamps grandparent id; invocation 2 (replay)
+    """End-to-end: invocation 1 stamps execute span id; invocation 2 (replay)
     reads the saved checkpoint and reuses the same parent id. Both saved
     payloads must carry the identical ``x-datadog-parent-id``.
     """
     arn = "arn:aws:lambda:us-east-2:1:function:f:1/durable-execution/wf/abc-123"
-    root_id = 0xCAFE_BABE_CAFE_BABE
+    anchor_id = 0xBBBB
 
-    # Invocation 1: root span exists in the process, no prior checkpoint.
+    # Invocation 1: no prior checkpoint, anchor to execute span id.
     state1 = _make_state()
     state1.durable_execution_arn = arn
     durable1 = SimpleNamespace(state=state1, _parent_id=None)
-    span1 = _span_chain(root_id, 0xAAAA, 0xBBBB)
+    span1 = _span_chain(0xCAFE_BABE_CAFE_BABE, 0xAAAA, anchor_id)
 
     def _inject(_span, headers):
         headers["x-datadog-trace-id"] = "111"
@@ -222,10 +220,10 @@ def test_save_first_invocation_then_replay_share_parent_id():
         trace_checkpoint.maybe_save_trace_context_checkpoint(durable1, span1)
 
     pid_1 = ujson.loads(state1._captured[0][0].payload)["x-datadog-parent-id"]
-    assert pid_1 == str(root_id)
+    assert pid_1 == str(anchor_id)
 
-    # Invocation 2 (replay): root span no longer in this process, but the
-    # prior checkpoint is in state.operations. The save reuses pid_1.
+    # Invocation 2 (replay): prior checkpoint is in state.operations.
+    # The save reuses pid_1.
     persisted = state1._captured[0][0]
     state2 = _make_state(
         operations={
