@@ -3,7 +3,7 @@ set -euo pipefail
 
 DDTEST_CMD=scripts/ddtest
 
-pkgs=$(python scripts/freshvenvs.py output)
+pkgs=$(python scripts/freshvenvs.py)
 echo "Outdated packages: $pkgs"
 
 if [[ -z "$pkgs" ]]; then

@@ -1,11 +1,11 @@
-name: Generate Supported Integration Versions
+name: Generate Tested Integration Versions
 
 on:
   workflow_dispatch: # can be triggered manually
 
 jobs:
-  generate-supported-versions:
-    name: Generate supported integration versions
+  generate-tested-versions:
+    name: Generate tested integration versions
     runs-on: ubuntu-22.04
     permissions:
       actions: read
@@ -64,10 +64,8 @@ jobs:
         run: |
           curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
-      - run: python scripts/freshvenvs.py generate
-
-      - name: Generate table
-        run: python scripts/generate_table.py
+      - name: Generate tested versions
+        run: python scripts/tested_versions/generate_tested_versions.py
 
       - run: git diff
 
@@ -82,13 +80,13 @@ jobs:
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
           token: ${{ steps.octo-sts.outputs.token }}
-          branch: "update-supported-versions"
-          commit-message: "Update supported versions table"
+          branch: "update-tested-versions"
+          commit-message: "Update tested versions"
           delete-branch: true
           base: main
-          title: "chore: update supported versions"
+          title: "chore: update tested versions"
           labels: changelog/no-changelog
           body: |
-            Generates / updates the supported versions table for integrations.
+            Generates / updates tested_versions.json for integrations.
             This should be tied to releases, or triggered manually.
-            Workflow runs: [Generate Supported Integration Versions](https://github.com/DataDog/dd-trace-py/actions/workflows/generate-supported-versions.yml)
+            Workflow runs: [Generate Tested Integration Versions](https://github.com/DataDog/dd-trace-py/actions/workflows/generate-supported-versions.yml)

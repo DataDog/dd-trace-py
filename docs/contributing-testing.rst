@@ -198,8 +198,8 @@ when the riotfile changes. Thus, if you make changes to the riotfile, you need t
 
   $ scripts/ddtest scripts/compile-and-prune-test-requirements
 
-You can commit and pull request the resulting changes to files in ``.riot/requirements`` alongside the
-changes you made to ``riotfile.py``.
+You can commit and pull request the resulting changes to files in ``.riot/requirements`` and
+``tested_versions.json`` alongside the changes you made to ``riotfile.py``.
 
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
@@ -299,7 +299,7 @@ environment object.
 2. ``export VENV_NAME=<name_you_noted_above>``
 3. Delete all of the requirements lockfiles for the chosen environment, then regenerate them:
    ``for h in `riot list --hash-only "^${VENV_NAME}$"`; do rm .riot/requirements/${h}.txt; done; scripts/compile-and-prune-test-requirements``
-4. Commit the resulting changes to the ``.riot`` directory, and open a pull request against the trunk branch.
+4. Commit the resulting changes to the ``.riot`` directory and ``tested_versions.json``, and open a pull request against the trunk branch.
 
 Why isn't my hatch config change taking effect?
 -----------------------------------------------

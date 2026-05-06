@@ -23,7 +23,7 @@ This PR enables the **`<integration>`** integration on Python 3.15.
 - [ ] Lifted `max_version="3.13"` / `"3.14"` cap on the affected venv(s) (if present)
 - [ ] Ran `riot generate <suite-pattern>` and committed the regenerated `.riot/requirements/*.txt` lockfiles
 - [ ] Ran the suite locally on 3.15 via `scripts/run-tests <suite>` (paste a link or summary of the result)
-- [ ] Updated `supported_versions_table.csv` / `supported_versions_output.json` if integration min/max versions changed
+- [ ] Updated `tested_versions.json` if tested dependency versions changed
 - [ ] Release note added under `releasenotes/notes/`, **or** PR labeled `changelog/no-changelog` (test/CI-only changes)
 
 ## Testing
