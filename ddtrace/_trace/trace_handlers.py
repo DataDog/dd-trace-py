@@ -1668,7 +1668,7 @@ def _on_azure_cosmos_request_finish(
             span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
         status_code = getattr(exception, "status_code", None)
         if status_code:
-            span._set_attribute("db.response.status_code", status_code)
+            span._set_attribute(db.STATUS_CODE, str(status_code))
 
     _finish_span(ctx, exc_info)
 
