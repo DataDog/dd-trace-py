@@ -2230,10 +2230,10 @@ class Experiment:
         metadata_list: list[dict[str, Any]] = []
         eval_results_by_name: dict[str, list[JSONType]] = {}
 
-        for idx, task_result in enumerate(task_results):
+        for loop_idx, task_result in enumerate(task_results):
             outputs.append(task_result["output"])
             if self._dataset is not None:
-                record: DatasetRecord = self._dataset[idx]
+                record: DatasetRecord = self._dataset[task_result["idx"]]
                 inputs.append(record["input_data"])
                 expected_outputs.append(record["expected_output"])
                 record_metadata = record.get("metadata") or {}
@@ -2244,7 +2244,7 @@ class Experiment:
                 expected_outputs.append(task_result.get("expected_output"))
                 metadata_list.append(task_result.get("metadata") or {})
 
-            eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
+            eval_result_at_idx_by_name = eval_results[loop_idx]["evaluations"]
             for name, eval_value in eval_result_at_idx_by_name.items():
                 if name not in eval_results_by_name:
                     eval_results_by_name[name] = []
@@ -2500,19 +2500,21 @@ class Experiment:
         asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
-        if self._task is None or self._dataset is None:
+        if self._task is None:
             raise RuntimeError(
-                "Error in Experiment._process_record(): missing task or dataset. "
+                "Error in Experiment._process_record(): missing task. "
                 "Likely due to running an experiment returned by LLMObs.pull_experiment()."
             )
         async with semaphore:
             idx, record = idx_record
+            dataset_name = self._dataset.name if self._dataset is not None else self._tags.get("dataset_name", "")
+            dataset_id = str(self._dataset._id if self._dataset is not None else self._dataset_id or "")
             with self._llmobs_instance._experiment(
                 name=self._task.__name__,
                 experiment_id=self._id,
                 run_id=str(run._id),
                 run_iteration=run._run_iteration,
-                dataset_name=self._dataset.name,
+                dataset_name=dataset_name,
                 project_name=self._project_name,
                 project_id=self._project_id,
                 experiment_name=self.name,
@@ -2530,7 +2532,7 @@ class Experiment:
                 canonical_id = record.get("canonical_id")
                 tags = {
                     **self._tags,
-                    "dataset_id": str(self._dataset._id),
+                    "dataset_id": dataset_id,
                     "dataset_record_id": str(record_id),
                     "experiment_id": str(self._id),
                 }
@@ -3282,7 +3284,8 @@ class SyncExperiment:
 
     def rerun_evaluators(
         self,
-        evaluators: "Optional[Sequence[Union[EvaluatorType, AsyncEvaluatorType]]]" = None,
+        evaluators: "Sequence[Union[EvaluatorType, AsyncEvaluatorType]]",
+        task: Optional[Union[TaskType, AsyncTaskType]] = None,
         missing_task_strategy: str = "raise",
         jobs: int = 1,
         raise_errors: bool = False,
@@ -3306,10 +3309,10 @@ class SyncExperiment:
         Reads task outputs from ``self.result`` — call ``run()`` first or use
         ``LLMObs.pull_experiment()`` to load a prior run.
 
-        :param evaluators: Evaluators to run against the stored outputs. When omitted (or ``None``),
-                           the experiment's own evaluators (set at construction time) are reused.
-                           Pass an explicit list to override — for example to fix a bug in an
-                           evaluator or add a new one — without modifying the original experiment.
+        :param evaluators: Evaluators to run against the stored outputs.
+        :param task: Task function to use when retrying failed rows on a pulled experiment
+                     (one returned by ``LLMObs.pull_experiment()``). Required when
+                     ``missing_task_strategy='retry'`` and the experiment has no task set.
         :param missing_task_strategy: How to handle rows with task errors.
                                       ``"raise"`` (default) raises immediately, ``"skip"``
                                       drops failed rows, ``"retry"`` re-executes failed tasks.
@@ -3321,20 +3324,12 @@ class SyncExperiment:
         :param summary_evaluators: Optional summary evaluators to run after all rows are evaluated.
                                    When omitted, the experiment's own summary evaluators are used.
         :return: New ``SyncExperiment`` representing the rerun, with its own ID and result.
-        :raises ValueError: if no evaluators are available (neither provided nor set on the experiment),
-                            or ``self.result`` is ``None``.
+        :raises ValueError: if ``evaluators`` is empty, ``self.result`` is ``None``, or
+                            ``missing_task_strategy='retry'`` is used on a pulled experiment
+                            without providing a ``task``.
         """
-        # Resolve evaluators: use provided list or fall back to the experiment's own evaluators.
-        resolved_evaluators: "Sequence[Union[EvaluatorType, AsyncEvaluatorType]]"
-        if evaluators is not None:
-            resolved_evaluators = evaluators
-        else:
-            resolved_evaluators = self._experiment._evaluators
-        if not resolved_evaluators:
-            raise ValueError(
-                "No evaluators available for rerun_evaluators(). "
-                "Either pass an evaluators list or set evaluators when creating the experiment."
-            )
+        if not evaluators:
+            raise ValueError("No evaluators provided for rerun_evaluators(). Pass a non-empty evaluators list.")
         if self.result is None:
             raise ValueError(
                 "No previous result found. Run the experiment first via `run()` or use "
@@ -3342,19 +3337,21 @@ class SyncExperiment:
             )
         return self._rerun_evaluators(
             self.result,
-            list(resolved_evaluators),
+            list(evaluators),
+            task,
             missing_task_strategy,
             jobs,
             raise_errors,
             max_retries,
             retry_delay,
-            list(summary_evaluators) if summary_evaluators else None,
+            list(summary_evaluators) if summary_evaluators is not None else None,
         )
 
     def _rerun_evaluators(
         self,
         previous_result: ExperimentResult,
         evaluators: "list[Union[EvaluatorType, AsyncEvaluatorType]]",
+        task: Optional[Union[TaskType, AsyncTaskType]],
         missing_task_strategy: str,
         jobs: int,
         raise_errors: bool,
@@ -3459,10 +3456,15 @@ class SyncExperiment:
             # original experiment is left untouched regardless of success or failure.
             original_id = self._experiment._id
             original_tags = dict(self._experiment._tags)
+            original_task = self._experiment._task
+            original_task_accepts_metadata = self._experiment._task_accepts_metadata
             self._experiment._id = new_experiment_id
             self._experiment._tags["experiment_id"] = new_experiment_id
             self._experiment._tags["run_id"] = str(run._id)
             self._experiment._tags["run_iteration"] = str(run._run_iteration)
+            if task is not None:
+                self._experiment._task = task
+                self._experiment._task_accepts_metadata = "metadata" in inspect.signature(task).parameters
 
             try:
                 # Step 2 — build span copies: new UUIDs, shared trace_id, offset timestamps.
@@ -3479,16 +3481,16 @@ class SyncExperiment:
 
                 # Step 4 — re-execute failed rows (creates new spans via the normal task path).
                 if rows_to_retry:
-                    if self._experiment._dataset is None:
+                    if self._experiment._task is None:
                         raise ValueError(
-                            "Cannot retry failed rows without a dataset. "
-                            "Provide a dataset when creating the experiment or use "
-                            "missing_task_strategy='skip'."
+                            "Cannot retry failed rows without a task. "
+                            "Pass a task to rerun_evaluators() when using "
+                            "missing_task_strategy='retry' on a pulled experiment."
                         )
                     semaphore = asyncio.Semaphore(jobs)
                     retry_coros = [
                         self._experiment._process_record(
-                            (row["idx"], self._experiment._dataset[row["idx"]]),
+                            (row["idx"], _get_record(row["idx"])),
                             run,
                             semaphore,
                             max_retries=max_retries,
@@ -3614,6 +3616,8 @@ class SyncExperiment:
                 # Restore original identity so this experiment object is unchanged.
                 self._experiment._id = original_id
                 self._experiment._tags = original_tags
+                self._experiment._task = original_task
+                self._experiment._task_accepts_metadata = original_task_accepts_metadata
 
         try:
             asyncio.get_running_loop()
