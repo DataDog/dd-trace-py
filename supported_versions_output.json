@@ -31,7 +31,7 @@
         "dependency": "aiokafka",
         "integration": "aiokafka",
         "minimum_tracer_supported": "0.9.0",
-        "max_tracer_supported": "0.13.0",
+        "max_tracer_supported": "0.14.0",
         "auto-instrumented": true
     },
     {
@@ -418,21 +418,21 @@
         "dependency": "langgraph",
         "integration": "langgraph",
         "minimum_tracer_supported": "0.2.23",
-        "max_tracer_supported": "1.0.5",
+        "max_tracer_supported": "1.1.10",
         "auto-instrumented": true
     },
     {
         "dependency": "langgraph-checkpoint",
         "integration": "langgraph",
         "minimum_tracer_supported": "1.0.12",
-        "max_tracer_supported": "3.0.1",
+        "max_tracer_supported": "4.0.3",
         "auto-instrumented": true
     },
     {
         "dependency": "langgraph-prebuilt",
         "integration": "langgraph",
         "minimum_tracer_supported": "0.1.8",
-        "max_tracer_supported": "1.0.5",
+        "max_tracer_supported": "1.0.13",
         "auto-instrumented": true
     },
     {
@@ -566,7 +566,7 @@
         "dependency": "psycopg",
         "integration": "psycopg",
         "minimum_tracer_supported": "3.0.18",
-        "max_tracer_supported": "3.2.10",
+        "max_tracer_supported": "3.3.4",
         "auto-instrumented": true
     },
     {

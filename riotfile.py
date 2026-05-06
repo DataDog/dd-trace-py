@@ -802,9 +802,10 @@ venv = Venv(
         ),
         Venv(
             name="logging",
-            command="pytest {cmdargs} tests/contrib/logging",
+            command="pytest -n auto {cmdargs} tests/contrib/logging",
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             pys=select_pys(),
         ),
@@ -2302,9 +2303,10 @@ venv = Venv(
         ),
         Venv(
             name="urllib3",
-            command="pytest {cmdargs} tests/contrib/urllib3",
+            command="pytest -n auto {cmdargs} tests/contrib/urllib3",
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             venvs=[
                 Venv(
@@ -3623,10 +3625,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # process_vm_readv fallback (safe_memcpy is now default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "0",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3679,10 +3681,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # process_vm_readv fallback (safe_memcpy is now default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "0",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3721,10 +3723,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # process_vm_readv fallback (safe_memcpy is now default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "0",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3764,10 +3766,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # process_vm_readv fallback (safe_memcpy is now default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "0",
                             },
                             pkgs={
                                 "protobuf": latest,
