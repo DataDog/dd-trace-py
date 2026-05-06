@@ -160,18 +160,6 @@ import opentelemetry
     assert configurations
     configurations.sort(key=lambda x: x["name"])
 
-    def _normalize_frozenset_str(val: object) -> object:
-        """Normalize frozenset string representations so ordering doesn't matter."""
-        if isinstance(val, str) and val.startswith("frozenset("):
-            try:
-                return str(sorted(eval(val)))
-            except Exception:
-                pass
-        return val
-
-    for cfg in configurations:
-        cfg["value"] = _normalize_frozenset_str(cfg["value"])
-
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
@@ -326,7 +314,7 @@ import opentelemetry
         {
             "name": "DD_PROFILING_LOCK_EXCLUDE_MODULES",
             "origin": "default",
-            "value": str(
+            "value": ",".join(
                 sorted(
                     [
                         "anyio",
