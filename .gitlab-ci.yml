@@ -251,6 +251,7 @@ doe-sxs-prep:
     - when: manual
       allow_failure: true
   script:
+    - git config --global --add safe.directory "${CI_PROJECT_DIR}"
     - git fetch origin main --depth=200
     - echo "BASELINE_SHA=$(git merge-base origin/main HEAD)" > sxs.env
     - echo "CANDIDATE_SHA=${CI_COMMIT_SHA}" >> sxs.env
