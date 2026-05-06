@@ -1,3 +1,4 @@
+import ast
 import json
 import os
 from pathlib import Path
@@ -6,10 +7,37 @@ import subprocess
 
 import pytest
 
-from tests.contrib.integration_registry.test_contrib_versions import _get_integration_supported_versions
-
 
 internal_contrib_dir = Path(os.path.dirname(__file__)) / ".." / ".." / "ddtrace" / "contrib" / "internal"
+
+
+def _get_integration_supported_versions(internal_contrib_dir: Path, integration_name: str) -> dict[str, str]:
+    """Extract _supported_versions without importing optional integration dependencies."""
+    integration_dir = internal_contrib_dir / integration_name
+    if not integration_dir.is_dir():
+        return {}
+
+    for py_file in integration_dir.glob("*.py"):
+        try:
+            content = py_file.read_text(encoding="utf-8")
+
+            pattern = r"def _supported_versions\([^)]*\).*?return\s+(\{[^}]*\})"
+            match = re.search(pattern, content, re.DOTALL)
+            if not match:
+                continue
+
+            return_dict_str = match.group(1)
+            try:
+                return ast.literal_eval(return_dict_str)
+            except (ValueError, SyntaxError):
+                matches = re.findall(r'"([^"]+)":\s*"([^"]*)"', return_dict_str)
+                if matches:
+                    return dict(matches)
+        except OSError:
+            pass
+
+    return {}
+
 
 anthropic_spec = _get_integration_supported_versions(internal_contrib_dir, "anthropic")["anthropic"]
 pymemcache_spec = _get_integration_supported_versions(internal_contrib_dir, "pymemcache")["pymemcache"]

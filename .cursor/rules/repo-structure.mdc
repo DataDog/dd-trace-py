@@ -29,12 +29,11 @@ dd-trace-py/
 │   │   ├── psycopg/          # PostgreSQL adapter integration
 │   │   ├── aiobotocore/      # Async AWS SDK tracing
 │   │   ├── langchain/        # LLM framework integration
-│   └── ├── …                 # Many more (see “Integration Registry" for full list)
+│   └── ├── …                 # Many more
 │   │   ├── internal/         # Shared utilities for integrations
 │   │   │   ├── asgi.py       # ASGI framework utilities
 │   │   │   ├── wsgi.py       # WSGI framework utilities
 │   │   │   └── utils.py      # Common integration helpers
-│   │   └── integration_registry/ # Integration discovery and management
 │   │
 │   ├── appsec/               # Application Security features
 │   │   ├── __init__.py       # AppSec public API
@@ -108,7 +107,6 @@ dd-trace-py/
 ├── scripts/                # Development and maintenance utilities
 │   ├── ci_visibility/      # CI pipeline automation scripts
 │   ├── iast/              # IAST development tools
-│   ├── integration_registry/ # Integration management scripts
 │   └── profiles/          # Profiling analysis tools
 │
 ├── docs/                   # Documentation

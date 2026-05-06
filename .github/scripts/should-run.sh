@@ -48,7 +48,6 @@ is_ignored() {
     [[ "$f" == scripts/docs/* ]] && return 0
     [[ "$f" == scripts/iast/* ]] && return 0
     [[ "$f" == scripts/import-analysis/* ]] && return 0
-    [[ "$f" == scripts/integration_registry/* ]] && return 0
     [[ "$f" == scripts/profiles/* ]] && return 0
     [[ "$f" == scripts/trace_flares/* ]] && return 0
     [[ "$f" == scripts/vcr/* ]] && return 0

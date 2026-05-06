@@ -117,8 +117,6 @@ components:
     - ddtrace/contrib/internal/httplib/*
   httpx:
     - ddtrace/contrib/internal/httpx/*
-  integration_registry:
-    - scripts/integration_registry/*
   jinja2:
     - ddtrace/contrib/internal/jinja2/*
   kafka:
@@ -842,16 +840,6 @@ suites:
     services:
       - httpbin
     snapshot: true
-  integration_registry:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@integration_registry'
-      - tests/contrib/integration_registry/*
-    snapshot: false
-    parallelism: 1
   jinja2:
     parallelism: 2
     paths:
