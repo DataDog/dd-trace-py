@@ -91,10 +91,9 @@ echion_fuzz_copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void
 // Stubs for symbols from vm.cc that sampler.cpp references.
 // We cannot compile vm.cc with ECHION_FUZZING because it defines copy_memory(),
 // which conflicts with the inline fuzz version from vm.h.
-bool
-use_alternative_copy_memory()
+void
+set_fast_copy_enabled(bool)
 {
-    return false;
 }
 
 void

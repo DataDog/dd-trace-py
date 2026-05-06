@@ -94,6 +94,7 @@ class Sampler
     // update the next rate with the latest interval. This is not perfect because the adjustment is based on
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
+    bool is_running() const { return thread_running.load(); }
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
     void set_target_overhead(double value) { target_overhead = value; }
     void set_max_sampling_period(microsecond_t max_interval_us)

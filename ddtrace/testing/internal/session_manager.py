@@ -497,6 +497,10 @@ class SessionManager:
             log.debug("Auto Test Retries is disabled by environment variable")
             self.settings.auto_test_retries.enabled = False
 
+        if not asbool(env.get("DD_TEST_MANAGEMENT_ENABLED", "true")):
+            log.debug("Test Management is disabled by environment variable")
+            self.settings.test_management.enabled = False
+
         _coverage_upload_env = env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "")
         if _coverage_upload_env.lower() in ("false", "0"):
             log.debug("Coverage report upload is disabled by environment variable")

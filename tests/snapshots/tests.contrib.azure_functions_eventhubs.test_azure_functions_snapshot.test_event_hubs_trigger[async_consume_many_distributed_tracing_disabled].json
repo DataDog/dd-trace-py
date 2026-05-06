@@ -78,7 +78,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_eventhubs",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
          "messaging.operation": "create",
@@ -102,7 +102,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_eventhubs",
          "component": "azure_eventhubs",
          "messaging.destination.name": "eh1",
          "messaging.operation": "create",
@@ -126,7 +126,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "azure_eventhubs",
          "component": "azure_eventhubs",
          "messaging.batch_count": "2",
          "messaging.destination.name": "eh1",
