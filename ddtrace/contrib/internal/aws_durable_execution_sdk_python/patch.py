@@ -136,9 +136,9 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
             if arn is not None and ctx.span is not None:
                 execution_name, execution_id = _parse_durable_execution_arn(arn)
                 if execution_name:
-                    ctx.span.set_tag("aws_lambda.durable_execution.execution_name", execution_name)
+                    ctx.span.set_tag("aws_lambda.durable_function.execution_name", execution_name)
                 if execution_id:
-                    ctx.span.set_tag("aws_lambda.durable_execution.execution_id", execution_id)
+                    ctx.span.set_tag("aws_lambda.durable_function.execution_id", execution_id)
             try:
                 return user_func(*inner_args, **inner_kwargs)
             except SuspendExecution:
