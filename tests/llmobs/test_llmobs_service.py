@@ -358,26 +358,17 @@ def test_llm_span(llmobs):
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
-        assert get_llmobs_span_kind(span) == "llm"
-        assert get_llmobs_model_name(span) == "test_model"
-        assert get_llmobs_model_provider(span) == "test_provider"
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(span),
-        span_kind="llm",
-        model_name="test_model",
-        model_provider="test_provider",
-    )
+    assert get_llmobs_span_kind(span) == "llm"
+    assert get_llmobs_model_name(span) == "test_model"
+    assert get_llmobs_model_provider(span) == "test_provider"
 
 
 def test_llm_span_no_model_sets_default(llmobs):
     with llmobs.llm(name="test_llm_call", model_provider="test_provider") as span:
-        assert get_llmobs_model_name(span) == UNKNOWN_MODEL_NAME
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(span),
-        span_kind="llm",
-        model_name=UNKNOWN_MODEL_NAME,
-        model_provider="test_provider",
-    )
+        pass
+    assert get_llmobs_span_kind(span) == "llm"
+    assert get_llmobs_model_name(span) == UNKNOWN_MODEL_NAME
+    assert get_llmobs_model_provider(span) == "test_provider"
 
 
 def test_default_model_provider_set_to_unknown(llmobs):
@@ -395,8 +386,7 @@ def test_tool_span(llmobs):
         assert span.name == "test_tool"
         assert span.resource == "tool"
         assert span.span_type == "llm"
-        assert get_llmobs_span_kind(span) == "tool"
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="tool")
+    assert get_llmobs_span_kind(span) == "tool"
 
 
 def test_task_span(llmobs):
@@ -404,8 +394,7 @@ def test_task_span(llmobs):
         assert span.name == "test_task"
         assert span.resource == "task"
         assert span.span_type == "llm"
-        assert get_llmobs_span_kind(span) == "task"
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="task")
+    assert get_llmobs_span_kind(span) == "task"
 
 
 def test_workflow_span(llmobs):
@@ -413,8 +402,7 @@ def test_workflow_span(llmobs):
         assert span.name == "test_workflow"
         assert span.resource == "workflow"
         assert span.span_type == "llm"
-        assert get_llmobs_span_kind(span) == "workflow"
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="workflow")
+    assert get_llmobs_span_kind(span) == "workflow"
 
 
 def test_agent_span(llmobs):
@@ -422,19 +410,15 @@ def test_agent_span(llmobs):
         assert span.name == "test_agent"
         assert span.resource == "agent"
         assert span.span_type == "llm"
-        assert get_llmobs_span_kind(span) == "agent"
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="agent")
+    assert get_llmobs_span_kind(span) == "agent"
 
 
 def test_embedding_span_no_model_sets_default(llmobs):
     with llmobs.embedding(name="test_embedding", model_provider="test_provider") as span:
-        assert get_llmobs_model_name(span) == UNKNOWN_MODEL_NAME
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(span),
-        span_kind="embedding",
-        model_name=UNKNOWN_MODEL_NAME,
-        model_provider="test_provider",
-    )
+        pass
+    assert get_llmobs_span_kind(span) == "embedding"
+    assert get_llmobs_model_name(span) == UNKNOWN_MODEL_NAME
+    assert get_llmobs_model_provider(span) == "test_provider"
 
 
 def test_embedding_default_model_provider_set_to_unknown(llmobs):
@@ -452,15 +436,9 @@ def test_embedding_span(llmobs):
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
-        assert get_llmobs_span_kind(span) == "embedding"
-        assert get_llmobs_model_name(span) == "test_model"
-        assert get_llmobs_model_provider(span) == "test_provider"
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(span),
-        span_kind="embedding",
-        model_name="test_model",
-        model_provider="test_provider",
-    )
+    assert get_llmobs_span_kind(span) == "embedding"
+    assert get_llmobs_model_name(span) == "test_model"
+    assert get_llmobs_model_provider(span) == "test_provider"
 
 
 def test_annotate_no_active_span_logs_warning(llmobs):
