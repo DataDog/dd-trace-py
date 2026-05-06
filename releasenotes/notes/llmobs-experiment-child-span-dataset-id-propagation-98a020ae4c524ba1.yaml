@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    llmobs: fixes child spans created within an experiment task not inheriting the ``dataset_id``
+    tag. Previously only ``dataset_name`` was propagated via baggage to child spans; ``dataset_id``
+    is now propagated as well, making dataset, project, and experiment context (name and ID) consistent
+    across all spans in an experiment trace.

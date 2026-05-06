@@ -257,6 +257,24 @@ class TestSessionManagerEnvVarOverrides:
             session_manager = SessionManager(self.session)
             assert session_manager.settings.itr_enabled is expected_setting
 
+    @pytest.mark.parametrize("env_var_value, expected_setting", [(None, True), ("true", True), ("false", False)])
+    def test_session_manager_test_management_kill_switch(self, monkeypatch, env_var_value, expected_setting):
+        with self.mock_settings(test_management_enabled=True):
+            if env_var_value is not None:
+                monkeypatch.setenv("DD_TEST_MANAGEMENT_ENABLED", env_var_value)
+            session_manager = SessionManager(self.session)
+            assert session_manager.settings.test_management.enabled is expected_setting
+
+    def test_session_manager_test_management_kill_switch_skips_properties_fetch(self, monkeypatch):
+        mock_client = mock_api_client_settings(test_management_enabled=True)
+        monkeypatch.setenv("DD_TEST_MANAGEMENT_ENABLED", "0")
+
+        with patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client):
+            with setup_standard_mocks():
+                SessionManager(self.session)
+
+        mock_client.get_test_management_properties.assert_not_called()
+
     @pytest.mark.parametrize("env_var_value, expected_setting", [(None, True), ("true", False), ("false", True)])
     def test_session_manager_skipping_kill_switch(self, monkeypatch, env_var_value, expected_setting):
         with self.mock_settings(skipping_enabled=True):
@@ -280,6 +298,7 @@ class TestSessionManagerEnvVarOverrides:
             ("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "false", "early_flake_detection.enabled", False),
             ("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "false", "auto_test_retries.enabled", False),
             ("DD_CIVISIBILITY_ITR_ENABLED", "false", "itr_enabled", False),
+            ("DD_TEST_MANAGEMENT_ENABLED", "false", "test_management.enabled", False),
         ],
     )
     def test_kill_switches_honored_after_require_git_refetch(
@@ -295,7 +314,7 @@ class TestSessionManagerEnvVarOverrides:
             require_git=True,
             early_flake_detection=EarlyFlakeDetectionSettings(enabled=True),
             auto_test_retries=AutoTestRetriesSettings(enabled=True),
-            test_management=TestManagementSettings(enabled=False),
+            test_management=TestManagementSettings(enabled=True),
         )
         # Second fetch (after git upload) returns the same backend-enabled values but
         # without require_git, simulating the normal post-git-upload response.
@@ -305,7 +324,7 @@ class TestSessionManagerEnvVarOverrides:
             require_git=False,
             early_flake_detection=EarlyFlakeDetectionSettings(enabled=True),
             auto_test_retries=AutoTestRetriesSettings(enabled=True),
-            test_management=TestManagementSettings(enabled=False),
+            test_management=TestManagementSettings(enabled=True),
         )
 
         mock_client = Mock()

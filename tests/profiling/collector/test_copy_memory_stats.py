@@ -38,12 +38,12 @@ def test_copy_memory_error_count_present():
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_memory_disabled",
         DD_PROFILING_UPLOAD_INTERVAL="1",
-        ECHION_USE_FAST_COPY_MEMORY="",
+        _DD_PROFILING_STACK_FAST_COPY="false",
     ),
     err=None,
 )
 def test_fast_copy_memory_disabled():
-    """fast_copy_memory_enabled is False when ECHION_USE_FAST_COPY_MEMORY is not set."""
+    """fast_copy_memory_enabled is False when _DD_PROFILING_STACK_FAST_COPY=false."""
     import glob
     import json
     import os
@@ -68,7 +68,7 @@ def test_fast_copy_memory_disabled():
         if not is_last_file:
             assert "fast_copy_memory_enabled" in metadata, f"Missing fast_copy_memory_enabled in {f}: {metadata}"
             assert metadata["fast_copy_memory_enabled"] is False, (
-                f"Expected fast_copy_memory_enabled=false when ECHION_USE_FAST_COPY_MEMORY is unset: {metadata}"
+                f"Expected fast_copy_memory_enabled=false when _DD_PROFILING_STACK_FAST_COPY=false: {metadata}"
             )
 
 
@@ -76,12 +76,12 @@ def test_fast_copy_memory_disabled():
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_memory_enabled",
         DD_PROFILING_UPLOAD_INTERVAL="1",
-        ECHION_USE_FAST_COPY_MEMORY="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
     ),
     err=None,
 )
 def test_fast_copy_memory_enabled():
-    """fast_copy_memory_enabled is True when ECHION_USE_FAST_COPY_MEMORY=1."""
+    """fast_copy_memory_enabled is True when _DD_PROFILING_STACK_FAST_COPY=1."""
     import glob
     import json
     import os
@@ -106,5 +106,5 @@ def test_fast_copy_memory_enabled():
         if not is_last_file:
             assert "fast_copy_memory_enabled" in metadata, f"Missing fast_copy_memory_enabled in {f}: {metadata}"
             assert metadata["fast_copy_memory_enabled"] is True, (
-                f"Expected fast_copy_memory_enabled=true when ECHION_USE_FAST_COPY_MEMORY=1: {metadata}"
+                f"Expected fast_copy_memory_enabled=true by default: {metadata}"
             )

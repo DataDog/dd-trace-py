@@ -44,15 +44,23 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
     producer.produce(kafka_topic, payload, key=key, headers=test_headers)
     producer.flush()
     consumer.poll()
-    buckets = dsm_processor._buckets
-    assert len(buckets) == 1
-    first = list(buckets.values())[0].pathway_stats
-    for _bucket_name, bucket in first.items():
-        assert bucket.payload_size.count >= 1
 
-        expected_sketch = DDSketch()
-        expected_sketch.add(expected_payload_size)
-        assert bucket.payload_size.to_proto() == expected_sketch.to_proto()
+    # DSM aggregates into 10s wall-clock buckets; produce and consume checkpoints
+    # can land in different buckets when the test straddles a boundary. Iterate
+    # all buckets and assert each recorded sketch matches expected_payload_size.
+    # Hold _lock so the periodic flusher can't mutate _buckets mid-iteration.
+    expected_sketch = DDSketch()
+    expected_sketch.add(expected_payload_size)
+    expected_proto = expected_sketch.to_proto()
+
+    pathway_stats_count = 0
+    with dsm_processor._lock:
+        for bucket in dsm_processor._buckets.values():
+            for stats in bucket.pathway_stats.values():
+                pathway_stats_count += 1
+                assert stats.payload_size.count >= 1
+                assert stats.payload_size.to_proto() == expected_proto
+    assert pathway_stats_count >= 1, "no DSM pathway stats recorded for produce/consume"
 
 
 def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):
@@ -344,18 +352,30 @@ def test_data_streams_kafka_enabled():
 
     producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
     consumer = confluent_kafka.Consumer(
-        {"bootstrap.servers": BOOTSTRAP_SERVERS, "group.id": "test_group", "auto.offset.reset": "earliest"}
+        {
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "group.id": "test_group_data_streams_kafka_enabled",
+            "auto.offset.reset": "earliest",
+        }
     )
 
     try:
+        import time
+
         consumer.subscribe([topic_name])
+
+        assignment_deadline = time.time() + 5
+        while not consumer.assignment() and time.time() < assignment_deadline:
+            consumer.poll(timeout=0.1)
+
         producer.produce(topic_name, b"test")
         producer.flush()
 
-        import time
+        message = None
+        message_deadline = time.time() + 5
+        while message is None and time.time() < message_deadline:
+            message = consumer.poll(timeout=0.5)
 
-        time.sleep(0.5)
-        message = consumer.poll(timeout=5.0)
         assert message is not None
         assert "dd-pathway-ctx-base64" in [h[0] for h in message.headers()]
 
