@@ -614,6 +614,11 @@ class TestOptPlugin:
         retry_reports.log_test_report(item, reports, TestPhase.SETUP)
         # The call report may not exist if setup failed or skipped.
         retry_reports.log_test_report(item, reports, TestPhase.CALL)
+        # Track teardown outcome without logging it to pytest (other plugins expect only one teardown per
+        # test). We still need it in reports_by_outcome because _get_test_outcome considers teardown when
+        # setting the test_run status, and make_final_report must be able to find a matching source report.
+        if teardown_report := reports.get(TestPhase.TEARDOWN):
+            retry_reports.track_report(teardown_report)
 
         test_run = test.last_test_run
         retry_handler.set_tags_for_test_run(test_run)
@@ -632,6 +637,8 @@ class TestOptPlugin:
             # multiple setups for a test does not seem to cause an issue with junitxml, at least.)
             if not retry_reports.log_test_report(item, reports, TestPhase.CALL):
                 retry_reports.log_test_report(item, reports, TestPhase.SETUP)
+            if teardown_report := reports.get(TestPhase.TEARDOWN):
+                retry_reports.track_report(teardown_report)
 
             test_run.finish()
 
@@ -856,6 +863,11 @@ class RetryReports:
     def __init__(self):
         self.reports_by_outcome = defaultdict(lambda: [])
 
+    def track_report(self, report: pytest.TestReport) -> None:
+        """Track a report's outcome in reports_by_outcome without logging it to pytest."""
+        outcome = _get_user_property(report, "dd_retry_outcome") or report.outcome
+        self.reports_by_outcome[outcome].append(report)
+
     def log_test_report(self, item: pytest.Item, reports: _ReportGroup, when: str) -> bool:
         """
         Collect and log the test report for a given test phase, if it exists.
@@ -865,8 +877,7 @@ class RetryReports:
         """
         if report := reports.get(when):
             item.ihook.pytest_runtest_logreport(report=report)
-            outcome = _get_user_property(report, "dd_retry_outcome") or report.outcome
-            self.reports_by_outcome[outcome].append(report)
+            self.track_report(report)
             return True
 
         return False
