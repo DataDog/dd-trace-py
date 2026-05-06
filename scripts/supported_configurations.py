@@ -107,8 +107,13 @@ def check_registry(data: dict) -> int:
         and isinstance(node.targets[0], ast.Name)
         and node.targets[0].id in ("PATCH_MODULES", "_NOT_PATCHABLE_VIA_ENVVAR")
     }
-    patch_modules = [k.value for k in assigns["PATCH_MODULES"].keys if isinstance(k, ast.Constant)]
-    not_patchable = {e.value for e in assigns["_NOT_PATCHABLE_VIA_ENVVAR"].elts if isinstance(e, ast.Constant)}
+    pm_node = assigns["PATCH_MODULES"]
+    assert isinstance(pm_node, ast.Dict)  # nosec B101
+    patch_modules = [k.value for k in pm_node.keys if isinstance(k, ast.Constant)]
+
+    np_node = assigns["_NOT_PATCHABLE_VIA_ENVVAR"]
+    assert isinstance(np_node, (ast.Set, ast.List, ast.Tuple))  # nosec B101
+    not_patchable = {e.value for e in np_node.elts if isinstance(e, ast.Constant)}
 
     for name in patch_modules:
         n = name.upper()
@@ -121,9 +126,14 @@ def check_registry(data: dict) -> int:
     if missing:
         print(
             f"ERROR: {len(missing)} var(s) found in ddtrace/ but missing from {INPUT_FILE.name}.\n"
-            f"Add them to the registry and re-run this script to regenerate the module:\n"
-            f"\n  python scripts/supported_configurations.py\n"
-            f"\nUnregistered vars:"
+            f"\n"
+            f"To fix:\n"
+            f"  1. Add the missing var(s) to supported-configurations.json\n"
+            f"  2. Run: python scripts/supported_configurations.py\n"
+            f"  3. Register the var in the central Configuration Registry (internal contributors): https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations\n"
+            f"  4. Stage the updated files and commit\n"
+            f"\n"
+            f"Unregistered vars:"
         )
         for var in sorted(missing):
             print(f"  {var}")

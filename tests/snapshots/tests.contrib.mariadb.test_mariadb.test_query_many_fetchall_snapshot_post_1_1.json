@@ -11,8 +11,8 @@
     "meta": {
       "_dd.base_service": "tests.contrib.mariadb",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de45e400000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69eb930b00000000",
+      "_dd.svc_src": "mariadb",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mariadb",
       "component": "mariadb",
       "db.name": "test",
@@ -20,7 +20,7 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "a1beec7d092b490b94db1a7fa9b813f4",
+      "runtime-id": "600b078ac2e148688c6948b542a1207c",
       "server.address": "127.0.0.1",
       "span.kind": "client",
       "sql.executemany": "true"
@@ -32,10 +32,10 @@
       "_sampling_priority_v1": 1.0,
       "db.row_count": 2.0,
       "network.destination.port": 3306.0,
-      "process_id": 61364.0
+      "process_id": 19414.0
     },
-    "duration": 292708,
-    "start": 1776174564380222466
+    "duration": 347833,
+    "start": 1777046283227360628
   }],
 [
   {
@@ -50,8 +50,8 @@
     "meta": {
       "_dd.base_service": "tests.contrib.mariadb",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de45e400000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69eb930b00000000",
+      "_dd.svc_src": "mariadb",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mariadb",
       "component": "mariadb",
       "db.name": "test",
@@ -59,7 +59,7 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "a1beec7d092b490b94db1a7fa9b813f4",
+      "runtime-id": "600b078ac2e148688c6948b542a1207c",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
@@ -70,10 +70,10 @@
       "_sampling_priority_v1": 1.0,
       "db.row_count": 2.0,
       "network.destination.port": 3306.0,
-      "process_id": 61364.0
+      "process_id": 19414.0
     },
-    "duration": 202084,
-    "start": 1776174564380879382
+    "duration": 272125,
+    "start": 1777046283228311795
   }],
 [
   {
@@ -88,8 +88,8 @@
     "meta": {
       "_dd.base_service": "tests.contrib.mariadb",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de45e400000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69eb930b00000000",
+      "_dd.svc_src": "mariadb",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mariadb",
       "component": "mariadb",
       "db.name": "test",
@@ -97,7 +97,7 @@
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "a1beec7d092b490b94db1a7fa9b813f4",
+      "runtime-id": "600b078ac2e148688c6948b542a1207c",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
@@ -107,8 +107,8 @@
       "_sampling_priority_v1": 1.0,
       "db.row_count": 2.0,
       "network.destination.port": 3306.0,
-      "process_id": 61364.0
+      "process_id": 19414.0
     },
-    "duration": 49750,
-    "start": 1776174564381380007
+    "duration": 52458,
+    "start": 1777046283228769795
   }]]
