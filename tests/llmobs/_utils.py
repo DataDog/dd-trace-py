@@ -20,6 +20,7 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._llmobs import _STANDARD_INTEGRATION_SPAN_NAMES
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
@@ -1006,18 +1007,14 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
         super().enqueue(event)
 
 
-def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
-    """
-    Assert that a span link exists between two span events, specifically the correct span ID and from/to specification.
-    """
-    found = False
-    expected_to_span_id = "undefined" if not from_span_event else from_span_event["span_id"]
-    for span_link in to_span_event["span_links"]:
+def _assert_span_link(from_span, to_span, from_io, to_io):
+    """Assert a span link from ``from_span`` (or None for "undefined") to ``to_span``."""
+    expected_to_span_id = "undefined" if from_span is None else str(from_span.span_id)
+    for span_link in get_llmobs_span_links(to_span) or []:
         if span_link["span_id"] == expected_to_span_id:
             assert span_link["attributes"] == {"from": from_io, "to": to_io}
-            found = True
-            break
-    assert found
+            return
+    assert False, "expected span link not found"
 
 
 def iterate_stream(stream):
@@ -1069,8 +1066,11 @@ def assert_llmobs_span_data(
     """Assert against an LLMObsSpanData payload from ``meta_struct['_llmobs']``.
 
     Structural fields (``span_kind``, ``name``, ``parent_id``, ``model_name``,
-    ``model_provider``, input/output messages/values/documents, ``error``,
+    ``model_provider``, input/output messages/values/documents,
     ``tool_definitions``) are strict-equality, checked only when provided.
+
+    ``error`` defaults to asserting no error payload is present. Pass
+    ``error=mock.ANY`` to skip the check.
 
     ``metadata``, ``tags``, ``metrics`` are top-level subset only: declared
     top-level keys must equal exactly, extras tolerated. Nested values compare
@@ -1087,6 +1087,24 @@ def assert_llmobs_span_data(
     actual_output = actual_meta.get(LLMOBS_STRUCT.OUTPUT, {})
 
     failures = []
+
+    def _normalize_messages(msgs):
+        """Default ``role`` to ``""`` on any message dict that omits it.
+
+        SDKs default the role to ``""`` at projection time when it isn't explicitly set
+        (matches the existing ``_expected_llmobs_llm_span_event`` helper). Normalizing
+        both sides of the comparison keeps tests writable without forcing every entry to
+        spell out ``"role": ""``.
+        """
+        if not isinstance(msgs, list):
+            return msgs
+        out = []
+        for m in msgs:
+            if isinstance(m, dict) and m.get("role") is None:
+                out.append({**m, "role": ""})
+            else:
+                out.append(m)
+        return out
 
     def _check_eq(label, expected_value, actual_value):
         if actual_value != expected_value:
@@ -1111,18 +1129,32 @@ def assert_llmobs_span_data(
     if model_provider is not None:
         _check_eq("meta.model_provider", model_provider, actual_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER))
     if input_messages is not None:
-        _check_eq("meta.input.messages", input_messages, actual_input.get(LLMOBS_STRUCT.MESSAGES))
+        _check_eq(
+            "meta.input.messages",
+            _normalize_messages(input_messages),
+            _normalize_messages(actual_input.get(LLMOBS_STRUCT.MESSAGES)),
+        )
     if input_value is not None:
         _check_eq("meta.input.value", input_value, actual_input.get(LLMOBS_STRUCT.VALUE))
     if input_documents is not None:
         _check_eq("meta.input.documents", input_documents, actual_input.get(LLMOBS_STRUCT.DOCUMENTS))
     if output_messages is not None:
-        _check_eq("meta.output.messages", output_messages, actual_output.get(LLMOBS_STRUCT.MESSAGES))
+        _check_eq(
+            "meta.output.messages",
+            _normalize_messages(output_messages),
+            _normalize_messages(actual_output.get(LLMOBS_STRUCT.MESSAGES)),
+        )
     if output_value is not None:
         _check_eq("meta.output.value", output_value, actual_output.get(LLMOBS_STRUCT.VALUE))
     if output_documents is not None:
         _check_eq("meta.output.documents", output_documents, actual_output.get(LLMOBS_STRUCT.DOCUMENTS))
-    if error is not None:
+    if error is None:
+        actual_error = actual_meta.get(LLMOBS_STRUCT.ERROR)
+        if actual_error:
+            failures.append(
+                "meta.error unexpectedly present:\n    expected=<absent>\n    actual={!r}".format(actual_error)
+            )
+    else:
         _check_eq("meta.error", error, actual_meta.get(LLMOBS_STRUCT.ERROR))
     if tool_definitions is not None:
         _check_eq("meta.tool_definitions", tool_definitions, actual_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS))
