@@ -20,7 +20,18 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_cost_tags
+from ddtrace.llmobs._utils import get_llmobs_input
+from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_input_prompt
+from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_model_name
+from ddtrace.llmobs._utils import get_llmobs_model_provider
+from ddtrace.llmobs._utils import get_llmobs_output
 from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_session_id
+from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs.types import Prompt
 from tests.llmobs._utils import assert_llmobs_span_data
@@ -32,14 +43,14 @@ class TestMLApp:
         """Test that no ml_app defaults to the environment variable DD_LLMOBS_ML_APP."""
         with llmobs.workflow("root_llm_span") as span:
             pass
-        assert _get_llmobs_data_metastruct(span)["tags"]["ml_app"] == "<not-a-real-app-name>"
+        assert get_llmobs_ml_app(span) == "<not-a-real-app-name>"
 
     @pytest.mark.parametrize("llmobs_env", [{"DD_LLMOBS_ML_APP": "<not-a-real-app-name>"}])
     def test_tag_overrides_env_var(self, llmobs, tracer, llmobs_env, test_spans):
         """Test that when ml_app is set on the span, it overrides the environment variable DD_LLMOBS_ML_APP."""
         with llmobs.workflow("root_llm_span", ml_app="test-ml-app") as span:
             pass
-        assert _get_llmobs_data_metastruct(span)["tags"]["ml_app"] == "test-ml-app"
+        assert get_llmobs_ml_app(span) == "test-ml-app"
 
     def test_propagates_ignore_non_llmobs_spans(self, llmobs, tracer, test_spans):
         """
@@ -51,10 +62,10 @@ class TestMLApp:
                 with llmobs.workflow("llm_grandchild_span"):
                     with llmobs.workflow("great_grandchild_span"):
                         pass
-        spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+        spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
         assert len(spans) == 3
         for span in spans:
-            assert _get_llmobs_data_metastruct(span)["tags"]["ml_app"] == "test-ml-app"
+            assert get_llmobs_ml_app(span) == "test-ml-app"
 
 
 def test_set_correct_parent_id(llmobs, tracer):
@@ -80,9 +91,9 @@ class TestSessionId:
             with tracer.trace("child_span"):
                 with llmobs.task("llm_span"):
                     pass
-        spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+        spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
         for span in spans:
-            assert _get_llmobs_data_metastruct(span)["session_id"] == "test_session_id"
+            assert get_llmobs_session_id(span) == "test_session_id"
 
     def test_if_set_manually(self, llmobs, tracer, test_spans):
         """Test that session_id is extracted from the span if it is already set manually."""
@@ -90,12 +101,10 @@ class TestSessionId:
             with tracer.trace("child_span"):
                 with llmobs.task("llm_span", session_id="test_different_session_id") as task_span:
                     pass
-        task_data = _get_llmobs_data_metastruct(task_span)
-        workflow_data = _get_llmobs_data_metastruct(workflow_span)
-        assert task_data["name"] == "llm_span"
-        assert task_data["session_id"] == "test_different_session_id"
-        assert workflow_data["name"] == "root_llm_span"
-        assert workflow_data["session_id"] == "test_session_id"
+        assert get_llmobs_span_name(task_span) == "llm_span"
+        assert get_llmobs_session_id(task_span) == "test_different_session_id"
+        assert get_llmobs_span_name(workflow_span) == "root_llm_span"
+        assert get_llmobs_session_id(workflow_span) == "test_session_id"
 
     def test_propagates_ignore_non_llmobs_spans(self, llmobs, tracer, test_spans):
         """
@@ -108,9 +117,9 @@ class TestSessionId:
                     with llmobs.workflow("great_grandchild_span"):
                         pass
 
-        spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+        spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
         for span in spans:
-            assert _get_llmobs_data_metastruct(span)["session_id"] == "session-123"
+            assert get_llmobs_session_id(span) == "session-123"
 
 
 class TestLLMIOProcessing:
@@ -126,20 +135,16 @@ class TestLLMIOProcessing:
         with llmobs.llm() as messages_span:
             llmobs.annotate(messages_span, input_data="value", output_data="value")
 
-        assert _get_llmobs_data_metastruct(messages_span)["meta"]["input"] == {
-            "messages": [{"content": "", "role": ""}]
-        }
-        assert _get_llmobs_data_metastruct(messages_span)["meta"]["output"] == {
-            "messages": [{"content": "", "role": ""}]
-        }
+        assert get_llmobs_input(messages_span) == {"messages": [{"content": "", "role": ""}]}
+        assert get_llmobs_output(messages_span) == {"messages": [{"content": "", "role": ""}]}
 
         # Also test input output values are removed
         with llmobs.llm() as values_span:
             _annotate_llmobs_span_data(values_span, input_value="value")
             _annotate_llmobs_span_data(values_span, output_value="value")
 
-        assert _get_llmobs_data_metastruct(values_span)["meta"]["input"] == {"value": ""}
-        assert _get_llmobs_data_metastruct(values_span)["meta"]["output"] == {"value": ""}
+        assert get_llmobs_input(values_span) == {"value": ""}
+        assert get_llmobs_output(values_span) == {"value": ""}
 
     def _mutate_input_output_messages(span: LLMObsSpan):
         for message in span.input + span.output:
@@ -150,10 +155,8 @@ class TestLLMIOProcessing:
     def test_input_output_processor_mutate(self, llmobs, llmobs_enable_opts, test_spans):
         with llmobs.llm() as llm_span:
             llmobs.annotate(llm_span, input_data="value", output_data=[{"content": "value"}, {"content": "value2"}])
-        assert _get_llmobs_data_metastruct(llm_span)["meta"]["input"] == {
-            "messages": [{"content": "value processed", "role": ""}]
-        }
-        assert _get_llmobs_data_metastruct(llm_span)["meta"]["output"] == {
+        assert get_llmobs_input(llm_span) == {"messages": [{"content": "value processed", "role": ""}]}
+        assert get_llmobs_output(llm_span) == {
             "messages": [{"content": "value processed", "role": ""}, {"content": "value2 processed", "role": ""}]
         }
 
@@ -168,12 +171,8 @@ class TestLLMIOProcessing:
         with llmobs.annotation_context(tags={"scrub_values": "1"}):
             with llmobs.llm() as llm_span:
                 llmobs.annotate(llm_span, input_data="value", output_data="value")
-        assert _get_llmobs_data_metastruct(llm_span)["meta"]["input"] == {
-            "messages": [{"content": "redacted", "role": ""}]
-        }
-        assert _get_llmobs_data_metastruct(llm_span)["meta"]["output"] == {
-            "messages": [{"content": "redacted", "role": ""}]
-        }
+        assert get_llmobs_input(llm_span) == {"messages": [{"content": "redacted", "role": ""}]}
+        assert get_llmobs_output(llm_span) == {"messages": [{"content": "redacted", "role": ""}]}
 
     def _bad_return_type_processor(span: LLMObsSpan) -> str:
         return "not a span"
@@ -183,12 +182,8 @@ class TestLLMIOProcessing:
         """Test that a processor that returns a non-LLMObsSpan type is ignored."""
         with llmobs.llm() as llm_span:
             llmobs.annotate(llm_span, input_data="value", output_data="value")
-        assert _get_llmobs_data_metastruct(llm_span)["meta"]["input"] == {
-            "messages": [{"content": "value", "role": ""}]
-        }
-        assert _get_llmobs_data_metastruct(llm_span)["meta"]["output"] == {
-            "messages": [{"content": "value", "role": ""}]
-        }
+        assert get_llmobs_input(llm_span) == {"messages": [{"content": "value", "role": ""}]}
+        assert get_llmobs_output(llm_span) == {"messages": [{"content": "value", "role": ""}]}
 
     def _omit_span_processor(span: LLMObsSpan) -> Optional[LLMObsSpan]:
         if span.get_tag("omit_span") == "true":
@@ -263,17 +258,13 @@ class TestLLMIOProcessing:
         llmobs.register_processor(_sp)
         with llmobs.llm("openai.request") as scrubbed_span:
             llmobs.annotate(scrubbed_span, input_data="value")
-        assert (
-            _get_llmobs_data_metastruct(scrubbed_span)["meta"]["input"]["messages"][0]["content"] == "scrubbed"
-        )
+        assert get_llmobs_input_messages(scrubbed_span)[0]["content"] == "scrubbed"
 
         # unregister
         llmobs.register_processor(None)
         with llmobs.llm("openai.request") as unscrubbed_span:
             llmobs.annotate(unscrubbed_span, input_data="value")
-        assert (
-            _get_llmobs_data_metastruct(unscrubbed_span)["meta"]["input"]["messages"][0]["content"] == "value"
-        )
+        assert get_llmobs_input_messages(unscrubbed_span)[0]["content"] == "value"
 
     def test_processor_error_is_logged(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Ensure that when an exception is raised an exception is logged."""
@@ -352,14 +343,14 @@ def test_prompt_is_set(llmobs, tracer):
     """Test that prompt is set on the span event if they are present on the span."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         _annotate_llmobs_span_data(llm_span, kind="llm", prompt={"variables": {"var1": "var2"}})
-    assert _get_llmobs_data_metastruct(llm_span)["meta"]["input"]["prompt"] == {"variables": {"var1": "var2"}}
+    assert get_llmobs_input_prompt(llm_span) == {"variables": {"var1": "var2"}}
 
 
 def test_prompt_is_not_set_for_non_llm_spans(llmobs, tracer):
     """Test that prompt is NOT set on the span event if the span is not an LLM span."""
     with tracer.trace("task_span", span_type=SpanTypes.LLM) as task_span:
         _annotate_llmobs_span_data(task_span, kind="task", input_value="ival", prompt={"variables": {"var1": "var2"}})
-    assert _get_llmobs_data_metastruct(task_span)["meta"]["input"].get("prompt") is None
+    assert get_llmobs_input_prompt(task_span) is None
 
 
 def test_metadata_is_set(llmobs, tracer):
@@ -385,7 +376,7 @@ def test_cost_tags_are_set_on_span_event(llmobs, tracer):
             tags={"team": "ml", "feature": "chatbot"},
             cost_tags=["team", "feature"],
         )
-    assert _get_llmobs_data_metastruct(llm_span)["meta"]["metadata"]["_dd"]["cost_tags"] == ["team", "feature"]
+    assert get_llmobs_cost_tags(llm_span) == ["team", "feature"]
 
 
 def test_langchain_span_name_is_set_to_class_name(llmobs, tracer):
@@ -423,9 +414,8 @@ def test_model_not_set_if_not_llm_kind_span(llmobs, tracer):
     """Test that model name and provider not set if non-LLM span."""
     with tracer.trace("root_workflow_span", span_type=SpanTypes.LLM) as span:
         _annotate_llmobs_span_data(span, kind="workflow", model_name="model_name")
-    meta = _get_llmobs_data_metastruct(span)["meta"]
-    assert "model_name" not in meta
-    assert "model_provider" not in meta
+    assert get_llmobs_model_name(span) is None
+    assert get_llmobs_model_provider(span) is None
 
 
 def test_model_and_provider_are_set(llmobs, tracer):
@@ -456,7 +446,7 @@ def test_only_generate_span_events_from_llmobs_spans(llmobs, tracer, test_spans)
         _annotate_llmobs_span_data(root_span, kind="llm")
         with tracer.trace("child_span"):
             pass
-    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
     assert len(spans) == 1
     assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), span_kind="llm")
 
@@ -650,19 +640,15 @@ async def test_asyncio_trace_id_propagation(llmobs, test_spans):
         results = await asyncio.gather(async_task(), another_async_task())
         assert results == [42, 43]
 
-    outer_data = _get_llmobs_data_metastruct(outer_span)
-    inner_data = _get_llmobs_data_metastruct(inner_span)
-    another_data = _get_llmobs_data_metastruct(another_span)
-
     # All spans should share the same LLMObs trace ID
-    assert outer_data["trace_id"] == inner_data["trace_id"] == another_data["trace_id"]
+    assert get_llmobs_trace_id(outer_span) == get_llmobs_trace_id(inner_span) == get_llmobs_trace_id(another_span)
     # APM trace IDs (read off the underlying spans) should also all match
     outer_apm_trace_id = format_trace_id(outer_span.trace_id)
     inner_apm_trace_id = format_trace_id(inner_span.trace_id)
     another_apm_trace_id = format_trace_id(another_span.trace_id)
     assert outer_apm_trace_id == inner_apm_trace_id == another_apm_trace_id
     # LLMObs trace ID should differ from APM trace ID
-    assert outer_data["trace_id"] != outer_apm_trace_id
+    assert get_llmobs_trace_id(outer_span) != outer_apm_trace_id
 
 
 def test_trace_id_propagation_with_non_llm_parent(llmobs, test_spans):
@@ -674,13 +660,9 @@ def test_trace_id_propagation_with_non_llm_parent(llmobs, test_spans):
             with llmobs.workflow("grandchild") as grandchild:
                 pass
 
-    first_child_data = _get_llmobs_data_metastruct(first_child)
-    second_child_data = _get_llmobs_data_metastruct(second_child)
-    grandchild_data = _get_llmobs_data_metastruct(grandchild)
-
     # First child should have different LLMObs trace ID from second child + grandchild
-    assert first_child_data["trace_id"] != second_child_data["trace_id"]
-    assert second_child_data["trace_id"] == grandchild_data["trace_id"]
+    assert get_llmobs_trace_id(first_child) != get_llmobs_trace_id(second_child)
+    assert get_llmobs_trace_id(second_child) == get_llmobs_trace_id(grandchild)
 
     # APM trace ID (read off the underlying spans) should match parent span for all
     parent_trace_id = format_trace_id(parent.trace_id)
@@ -689,8 +671,8 @@ def test_trace_id_propagation_with_non_llm_parent(llmobs, test_spans):
     assert format_trace_id(grandchild.trace_id) == parent_trace_id
 
     # LLMObs trace IDs should be different from APM trace ID
-    assert first_child_data["trace_id"] != parent_trace_id
-    assert second_child_data["trace_id"] != parent_trace_id
+    assert get_llmobs_trace_id(first_child) != parent_trace_id
+    assert get_llmobs_trace_id(second_child) != parent_trace_id
 
 
 def test_llmobs_trace_id_written_to_local_root_meta(llmobs):

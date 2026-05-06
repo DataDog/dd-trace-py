@@ -7,6 +7,9 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input_value
+from ddtrace.llmobs._utils import get_llmobs_output
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs.decorators import agent
 from ddtrace.llmobs.decorators import embedding
 from ddtrace.llmobs.decorators import llm
@@ -392,8 +395,7 @@ def test_llm_decorator_unparseable_output_logs_warning_not_raises(llmobs, mock_l
     )
     span = test_spans.pop()[0]
     # span is still created, output messages are not set
-    meta_struct = _get_llmobs_data_metastruct(span)
-    assert meta_struct.get("meta", {}).get("output", {}) == {}
+    assert get_llmobs_output(span) == {}
 
 
 async def test_llm_decorator_unparseable_output_logs_warning_not_raises_async(llmobs, mock_logs, test_spans):
@@ -410,8 +412,7 @@ async def test_llm_decorator_unparseable_output_logs_warning_not_raises_async(ll
         "llm",
     )
     span = test_spans.pop()[0]
-    meta_struct = _get_llmobs_data_metastruct(span)
-    assert meta_struct.get("meta", {}).get("output", {}) == {}
+    assert get_llmobs_output(span) == {}
 
 
 def test_llm_decorator_manual_annotation_not_overridden(llmobs, test_spans):
@@ -1076,9 +1077,8 @@ def test_generator_for_class_does_not_annotate_self(llmobs, test_spans, decorato
     test_class = TestClass()
     test_class.add(1, 2)
 
-    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
     assert len(spans) == 1
 
-    meta_struct = _get_llmobs_data_metastruct(spans[0])
-    input_value = json.loads(meta_struct["meta"]["input"]["value"])
+    input_value = json.loads(get_llmobs_input_value(spans[0]))
     assert input_value == {"a": 1, "b": 2}

@@ -38,9 +38,11 @@ from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_output_documents
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_output_value
+from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_links
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs.types import Prompt
@@ -1595,16 +1597,14 @@ def test_annotation_context_nested_maintains_trace_structure(llmobs):
                     assert {"foo": "baz", "boo": "bar"}.items() <= get_llmobs_tags(child_span).items()
                     assert {"foo": "bar", "boo": "bar"}.items() <= get_llmobs_tags(parent_span).items()
 
-    parent_data = _get_llmobs_data_metastruct(parent_span)
-    child_data = _get_llmobs_data_metastruct(child_span)
-    assert child_data["trace_id"] == parent_data["trace_id"]
+    assert get_llmobs_trace_id(child_span) == get_llmobs_trace_id(parent_span)
     assert child_span.span_id != parent_span.span_id
-    assert child_data["parent_id"] == str(parent_span.span_id)
-    assert parent_data["parent_id"] == "undefined"
+    assert get_llmobs_parent_id(child_span) == str(parent_span.span_id)
+    assert get_llmobs_parent_id(parent_span) == "undefined"
     parent_apm_trace_id = format_trace_id(parent_span.trace_id)
     child_apm_trace_id = format_trace_id(child_span.trace_id)
     assert child_apm_trace_id == parent_apm_trace_id
-    assert parent_apm_trace_id != parent_data["trace_id"]
+    assert parent_apm_trace_id != get_llmobs_trace_id(parent_span)
 
 
 def test_annotation_context_separate_traces_maintained(llmobs):
@@ -1614,12 +1614,10 @@ def test_annotation_context_separate_traces_maintained(llmobs):
         with llmobs.workflow(name="child_span") as workflow_span:
             pass
 
-    agent_data = _get_llmobs_data_metastruct(agent_span)
-    workflow_data = _get_llmobs_data_metastruct(workflow_span)
-    assert agent_data["trace_id"] != workflow_data["trace_id"]
+    assert get_llmobs_trace_id(agent_span) != get_llmobs_trace_id(workflow_span)
     assert agent_span.span_id != workflow_span.span_id
-    assert workflow_data["parent_id"] == "undefined"
-    assert agent_data["parent_id"] == "undefined"
+    assert get_llmobs_parent_id(workflow_span) == "undefined"
+    assert get_llmobs_parent_id(agent_span) == "undefined"
 
 
 def test_annotation_context_persists_across_multiple_root_span_operations(llmobs):
@@ -2245,15 +2243,13 @@ def test_llmobs_parenting_with_root_apm_span(llmobs, tracer, test_spans):
             pass
         with llmobs.task("llm_span_2") as llm_span_2:
             pass
-    llm_span_data = _get_llmobs_data_metastruct(llm_span)
-    llm_span_2_data = _get_llmobs_data_metastruct(llm_span_2)
-    assert llm_span_data["name"] == "llm_span"
-    assert llm_span_data["parent_id"] == "undefined"
-    assert llm_span_2_data["name"] == "llm_span_2"
-    assert llm_span_2_data["parent_id"] == "undefined"
+    assert get_llmobs_span_name(llm_span) == "llm_span"
+    assert get_llmobs_parent_id(llm_span) == "undefined"
+    assert get_llmobs_span_name(llm_span_2) == "llm_span_2"
+    assert get_llmobs_parent_id(llm_span_2) == "undefined"
     # document buggy `trace_id` behavior
     assert format_trace_id(llm_span.trace_id) == format_trace_id(llm_span_2.trace_id)
-    assert llm_span_data["trace_id"] != llm_span_2_data["trace_id"]
+    assert get_llmobs_trace_id(llm_span) != get_llmobs_trace_id(llm_span_2)
 
 
 def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer, test_spans):
@@ -2273,32 +2269,23 @@ def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer, test_spans):
                 level_3_llm
             level_2_llm_b
     """
-    level_1_data = _get_llmobs_data_metastruct(level_1_span)
-    level_2_a_data = _get_llmobs_data_metastruct(level_2_a_span)
-    level_2_b_data = _get_llmobs_data_metastruct(level_2_b_span)
-    level_3_data = _get_llmobs_data_metastruct(level_3_span)
+    assert get_llmobs_span_name(level_3_span) == "level_3_llm"
+    assert get_llmobs_parent_id(level_3_span) == str(level_2_a_span.span_id)
 
-    assert level_3_data["name"] == "level_3_llm"
-    assert level_3_data["parent_id"] == str(level_2_a_span.span_id)
+    assert get_llmobs_span_name(level_2_a_span) == "level_2_llm_a"
+    assert get_llmobs_parent_id(level_2_a_span) == str(level_1_span.span_id)
 
-    assert level_2_a_data["name"] == "level_2_llm_a"
-    assert level_2_a_data["parent_id"] == str(level_1_span.span_id)
+    assert get_llmobs_span_name(level_2_b_span) == "level_2_llm_b"
+    assert get_llmobs_parent_id(level_2_b_span) == str(level_1_span.span_id)
 
-    assert level_2_b_data["name"] == "level_2_llm_b"
-    assert level_2_b_data["parent_id"] == str(level_1_span.span_id)
-
-    assert level_1_data["name"] == "level_1_llm"
-    assert level_1_data["parent_id"] == "undefined"
+    assert get_llmobs_span_name(level_1_span) == "level_1_llm"
+    assert get_llmobs_parent_id(level_1_span) == "undefined"
 
     level_3_apm_trace_id = format_trace_id(level_3_span.trace_id)
-    assert level_3_apm_trace_id != level_3_data["trace_id"]
-    for span, data in (
-        (level_1_span, level_1_data),
-        (level_2_a_span, level_2_a_data),
-        (level_2_b_span, level_2_b_data),
-        (level_3_span, level_3_data),
-    ):
-        assert data["trace_id"] == level_3_data["trace_id"]
+    level_3_trace_id = get_llmobs_trace_id(level_3_span)
+    assert level_3_apm_trace_id != level_3_trace_id
+    for span in (level_1_span, level_2_a_span, level_2_b_span, level_3_span):
+        assert get_llmobs_trace_id(span) == level_3_trace_id
         assert format_trace_id(span.trace_id) == level_3_apm_trace_id
 
 
