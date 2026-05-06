@@ -1,10 +1,28 @@
-use libdd_shared_runtime::SharedRuntime;
+use libdd_shared_runtime::{SharedRuntime, SharedRuntimeError};
 use pyo3::prelude::*;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 mod exceptions;
 use exceptions::shared_runtime_error_to_pyerr;
+
+static SHARED_RUNTIME: OnceLock<Arc<SharedRuntime>> = OnceLock::new();
+static INIT_LOCK: Mutex<()> = Mutex::new(());
+
+fn global_shared_runtime() -> Result<Arc<SharedRuntime>, SharedRuntimeError> {
+    if let Some(rt) = SHARED_RUNTIME.get() {
+        return Ok(rt.clone());
+    }
+    let _guard = INIT_LOCK
+        .lock()
+        .expect("shared runtime init mutex poisoned");
+    if let Some(rt) = SHARED_RUNTIME.get() {
+        return Ok(rt.clone());
+    }
+    let rt = Arc::new(SharedRuntime::new()?);
+    let _ = SHARED_RUNTIME.set(rt.clone());
+    Ok(rt)
+}
 
 #[pyclass(name = "SharedRuntime", subclass, frozen)]
 pub struct SharedRuntimePy {
@@ -21,10 +39,8 @@ impl SharedRuntimePy {
 impl SharedRuntimePy {
     #[new]
     fn new() -> PyResult<Self> {
-        let inner = SharedRuntime::new().map_err(shared_runtime_error_to_pyerr)?;
-        Ok(Self {
-            inner: Arc::new(inner),
-        })
+        let inner = global_shared_runtime().map_err(shared_runtime_error_to_pyerr)?;
+        Ok(Self { inner })
     }
 
     fn before_fork(&self) {
