@@ -79,7 +79,7 @@ def test_periodic_logs_warning_on_flush_failure(caplog):
         assert len(warning_records) == 1
         msg = warning_records[0].getMessage()
         assert "retry limit exceeded submitting pathway stats" in msg
-        assert "10s pipeline_stats window is dropped" in msg
+        assert "last 10 seconds of DSM data is dropped" in msg
         assert warning_records[0].exc_info is None
 
         assert any(r.exc_info is not None and r.exc_info[0] is TimeoutError for r in debug_records)
