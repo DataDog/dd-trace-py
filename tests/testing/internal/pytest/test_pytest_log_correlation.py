@@ -331,14 +331,16 @@ class TestAgentlessLogSubmission:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    @pytest.mark.xfail(reason="outcome is 0 passed now")
     def test_no_handler_without_flag(self, pytester: Pytester) -> None:
         """Without DD_AGENTLESS_LOG_SUBMISSION_ENABLED or DD_LOGS_INJECTION, LogsHandler must not be installed."""
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
         pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_FLAG)
 
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
-        result.assert_outcomes(passed=1)
+        outcomes = result.parseoutcomes()
+        assert outcomes.get("passed", 0) == 1, (
+            f"Expected 1 passed, got: {outcomes}\nSTDOUT:\n{result.stdout.str()}\nSTDERR:\n{result.stderr.str()}"
+        )
 
     def test_handler_installed_via_logs_injection(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """LogsHandler must be installed when DD_LOGS_INJECTION=true, without requiring agentless mode.
@@ -354,7 +356,6 @@ class TestAgentlessLogSubmission:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    @pytest.mark.xfail(reason="outcome is 0 passed now")
     def test_no_handler_in_ci_context_provider_mode(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """DD_LOGS_INJECTION=true must not install LogsHandler when _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=1.
 
@@ -369,7 +370,10 @@ class TestAgentlessLogSubmission:
         pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_FLAG)
 
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
-        result.assert_outcomes(passed=1)
+        outcomes = result.parseoutcomes()
+        assert outcomes.get("passed", 0) == 1, (
+            f"Expected 1 passed, got: {outcomes}\nSTDOUT:\n{result.stdout.str()}\nSTDERR:\n{result.stderr.str()}"
+        )
 
     def test_root_level_filters_child_logger_records(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """Records from a child logger set below root's level must not be forwarded to Datadog.
