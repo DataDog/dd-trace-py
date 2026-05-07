@@ -8,6 +8,7 @@ __all__ = ["__version__"]
 __version__: str
 
 try:
-    __version__ = importlib.metadata.version("ddtrace")
+    distributions = importlib.metadata.packages_distributions().get(__package__ or __name__)
+    __version__ = importlib.metadata.version(distributions[0] if distributions else "ddtrace")
 except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0"
