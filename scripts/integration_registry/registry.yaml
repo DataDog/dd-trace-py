@@ -545,13 +545,13 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 1.0.5
+      max: 1.1.10
     langgraph-checkpoint:
       min: 1.0.12
-      max: 3.0.1
+      max: 4.0.3
     langgraph-prebuilt:
       min: 0.1.8
-      max: 1.0.5
+      max: 1.0.13
 
 - integration_name: litellm
   is_external_package: true
@@ -722,7 +722,7 @@ integrations:
   tested_versions_by_dependency:
     psycopg:
       min: 3.0.18
-      max: 3.2.10
+      max: 3.3.4
     psycopg2-binary:
       min: 2.9.10
       max: 2.9.10
@@ -931,7 +931,7 @@ integrations:
   tested_versions_by_dependency:
     starlette:
       min: 0.14.2
-      max: 0.52.1
+      max: 1.0.0
 
 - integration_name: structlog
   is_external_package: true
