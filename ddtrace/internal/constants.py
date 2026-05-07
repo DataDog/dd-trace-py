@@ -39,7 +39,6 @@ DEFAULT_SERVICE_NAME = "unnamed-python-service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
 HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"
-MAX_UINT_64BITS = (1 << 64) - 1
 MIN_INT_64BITS = -(2**63)
 MAX_INT_64BITS = 2**63 - 1
 SAMPLING_DECISION_MAKER_INHERITED = "_dd.dm.inherited"
