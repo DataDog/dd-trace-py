@@ -110,4 +110,14 @@ impl SpanEvent {
         )?;
         Ok(PyTuple::new(py, [cls.into_any().unbind(), args.into_any().unbind()])?.unbind())
     }
+
+    // Cyclic GC traversal: `attributes: Py<PyDict>` is user-controlled and may
+    // hold references that close cycles back to spans. Frozen class so no
+    // `__clear__`; traversal alone is enough for GC to break the cycle on the
+    // other (mutable) side.
+    fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        visit.call(&self.attributes)?;
+        self.name.traverse(&visit)?;
+        Ok(())
+    }
 }

@@ -1,0 +1,10 @@
+fixes:
+  - |
+    propagation: Limits parsing of the W3C ``tracestate`` header during ``tracecontext`` extraction to 32
+    list-members and 512 UTF-8 bytes, consistent with the W3C Trace Context specification
+    (https://www.w3.org/TR/trace-context/). Extra list-members and trailing whole entries that would
+    exceed the byte budget are ignored, so unusually large headers no longer expand unbounded work
+    during extraction. The Datadog ``dd=`` list-member is preferred: it is kept when present (including
+    when it appears late in the header or alone exceeds the byte cap), and other vendors are dropped first.
+    List-members longer than ``DD_TRACE_TRACESTATE_ITEM_MAX_CHARS`` (128) characters are removed first
+    when trimming by list-member count or byte budget, so shorter vendor entries are kept when possible.
