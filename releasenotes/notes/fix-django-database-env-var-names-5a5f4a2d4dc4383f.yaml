@@ -6,8 +6,3 @@ fixes:
     ``DD_DJANGO-DATABASE_SERVICE_NAME``. The hyphenated names were invalid POSIX identifiers
     and unusable from most shells. Hyphens in integration names are now normalized to
     underscores when building env var names.
-
-    Note: if you previously set the hyphenated form of either variable via Docker ``-e``,
-    Kubernetes ``env:``, systemd ``Environment=``, or directly through ``os.environ``,
-    those overrides will no longer take effect after upgrading and must be renamed to use
-    underscores (e.g. ``DD_DJANGO_DATABASE_SERVICE``).
