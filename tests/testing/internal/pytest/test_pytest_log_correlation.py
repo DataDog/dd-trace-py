@@ -257,6 +257,7 @@ def test_no_handler_without_submission_flag():
     assert len(logs_handlers) == 0, (
         "LogsHandler should not be installed when DD_AGENTLESS_LOG_SUBMISSION_ENABLED is not set"
     )
+    assert False
 """
 
 _TEST_ROOT_LEVEL_FILTERING = """\
@@ -355,7 +356,7 @@ class TestAgentlessLogSubmission:
         pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_FLAG)
 
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
-        result.assert_outcomes(passed=1)
+        result.assert_outcomes(failed=1)
 
     def test_handler_installed_via_logs_injection(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """LogsHandler must be installed when DD_LOGS_INJECTION=true, without requiring agentless mode.
@@ -385,7 +386,7 @@ class TestAgentlessLogSubmission:
         pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_FLAG)
 
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
-        result.assert_outcomes(passed=1)
+        result.assert_outcomes(failed=1)
 
     def test_root_level_filters_child_logger_records(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """Records from a child logger set below root's level must not be forwarded to Datadog.
