@@ -12,9 +12,6 @@ type Listeners = HashMap<String, Vec<(Py<PyAny>, Py<PyAny>)>>;
 static LISTENERS: LazyLock<RwLock<Listeners>> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
 // Cached Python objects — initialized on first use, never invalidated
-static DDTRACE_CONFIG: OnceLock<Py<PyAny>> = OnceLock::new();
-static RESULT_TYPE_OK: OnceLock<Py<PyAny>> = OnceLock::new();
-static RESULT_TYPE_EXCEPTION: OnceLock<Py<PyAny>> = OnceLock::new();
 static MISSING_EVENT: OnceLock<Py<PyAny>> = OnceLock::new();
 static MISSING_EVENT_DICT: OnceLock<Py<PyAny>> = OnceLock::new();
 
@@ -38,46 +35,56 @@ macro_rules! get_or_init {
     }};
 }
 
-fn get_ddtrace_config(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
-    get_or_init!(DDTRACE_CONFIG, py, {
-        let module = py.import("ddtrace.internal.settings._config")?;
-        Ok(module.getattr("config")?.unbind())
-    })
+/// Native equivalent of the Python ResultType enum.
+/// pyo3 automatically exposes each variant as a class attribute, so no OnceLock
+/// singletons or manual setattr calls are needed.
+#[pyclass(eq, hash, frozen, from_py_object, module = "ddtrace.internal.native._native")]
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum ResultType {
+    #[pyo3(name = "RESULT_OK")]
+    Ok = 0,
+    #[pyo3(name = "RESULT_EXCEPTION")]
+    Exception = 1,
+    #[pyo3(name = "RESULT_UNDEFINED")]
+    Undefined = -1,
 }
 
-fn should_raise(py: Python<'_>) -> bool {
-    get_ddtrace_config(py)
-        .and_then(|c| c.getattr(py, "_raise"))
-        .and_then(|v| v.extract::<bool>(py))
-        .unwrap_or(false)
+#[pymethods]
+impl ResultType {
+    #[getter]
+    fn value(&self) -> i32 {
+        match self {
+            ResultType::Ok => 0,
+            ResultType::Exception => 1,
+            ResultType::Undefined => -1,
+        }
+    }
+
+    #[getter]
+    fn name(&self) -> &'static str {
+        match self {
+            ResultType::Ok => "RESULT_OK",
+            ResultType::Exception => "RESULT_EXCEPTION",
+            ResultType::Undefined => "RESULT_UNDEFINED",
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("<ResultType.{}: {}>", self.name(), self.value())
+    }
+
+    fn __int__(&self) -> i32 {
+        self.value()
+    }
 }
 
-fn get_result_type_ok(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
-    get_or_init!(RESULT_TYPE_OK, py, {
-        // Lazy import: safe because this is called long after both modules are loaded
-        let module = py.import("ddtrace.internal.core.event_hub")?;
-        Ok(module.getattr("ResultType")?.getattr("RESULT_OK")?.unbind())
-    })
-}
-
-fn get_result_type_exception(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
-    get_or_init!(RESULT_TYPE_EXCEPTION, py, {
-        let module = py.import("ddtrace.internal.core.event_hub")?;
-        Ok(module
-            .getattr("ResultType")?
-            .getattr("RESULT_EXCEPTION")?
-            .unbind())
-    })
+fn should_raise() -> bool {
+    crate::config::get_raise()
 }
 
 fn get_missing_event(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
     get_or_init!(MISSING_EVENT, py, {
-        // Lazy import: RESULT_UNDEFINED is in the Python shim, safe after full load
-        let module = py.import("ddtrace.internal.core.event_hub")?;
-        let result_type_undefined = module
-            .getattr("ResultType")?
-            .getattr("RESULT_UNDEFINED")?
-            .unbind();
+        let result_type_undefined = ResultType::Undefined.into_pyobject(py)?.into_any().unbind();
         let event_result = Py::new(
             py,
             EventResult {
@@ -136,9 +143,8 @@ impl EventResult {
     ) -> Self {
         let is_ok = response_type
             .as_ref()
-            .and_then(|rt| rt.getattr(py, "value").ok())
-            .and_then(|v| v.extract::<i32>(py).ok())
-            .map(|v| v == 0)
+            .and_then(|rt| rt.extract::<ResultType>(py).ok())
+            .map(|rt| rt == ResultType::Ok)
             .unwrap_or(false);
         Self {
             response_type: Some(response_type.unwrap_or_else(|| py_none(py))),
@@ -302,7 +308,7 @@ pub fn dispatch(py: Python<'_>, event_id: &str, args: Option<Bound<'_, PyTuple>>
 
     for cb in &callbacks {
         if let Err(e) = cb.bind(py).call1(&call_args) {
-            if should_raise(py) {
+            if should_raise() {
                 return Err(e);
             }
         }
@@ -332,9 +338,6 @@ pub fn dispatch_with_results(
 
     let call_args = args.unwrap_or_else(|| PyTuple::empty(py));
 
-    let result_type_ok = get_result_type_ok(py)?;
-    let result_type_exception = get_result_type_exception(py)?;
-
     let result_dict_py = Py::new(py, EventResultDict)?;
     {
         let result_dict_bound = result_dict_py.bind(py);
@@ -345,7 +348,7 @@ pub fn dispatch_with_results(
                     let event_result = Py::new(
                         py,
                         EventResult {
-                            response_type: Some(result_type_ok.clone_ref(py)),
+                            response_type: Some(ResultType::Ok.into_pyobject(py)?.into_any().unbind()),
                             value: Some(value.unbind()),
                             exception: Some(py_none(py)),
                             is_ok: true,
@@ -354,14 +357,14 @@ pub fn dispatch_with_results(
                     dict.set_item(key.bind(py), event_result.bind(py))?;
                 }
                 Err(e) => {
-                    if should_raise(py) {
+                    if should_raise() {
                         return Err(e);
                     }
                     let exc = e.into_value(py).into_any();
                     let event_result = Py::new(
                         py,
                         EventResult {
-                            response_type: Some(result_type_exception.clone_ref(py)),
+                            response_type: Some(ResultType::Exception.into_pyobject(py)?.into_any().unbind()),
                             value: Some(py_none(py)),
                             exception: Some(exc),
                             is_ok: false,
@@ -377,6 +380,7 @@ pub fn dispatch_with_results(
 }
 
 pub fn register_event_hub(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<ResultType>()?;
     m.add_class::<EventResult>()?;
     m.add_class::<EventResultDict>()?;
     m.add_function(wrap_pyfunction!(has_listeners, m)?)?;

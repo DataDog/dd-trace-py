@@ -1,19 +1,12 @@
-import enum
-
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.native._native import EventResult
 from ddtrace.internal.native._native import EventResultDict
+from ddtrace.internal.native._native import ResultType
 from ddtrace.internal.native._native import dispatch
 from ddtrace.internal.native._native import dispatch_with_results
 from ddtrace.internal.native._native import has_listeners
 from ddtrace.internal.native._native import on
 from ddtrace.internal.native._native import reset
-
-
-class ResultType(enum.Enum):
-    RESULT_OK = 0
-    RESULT_EXCEPTION = 1
-    RESULT_UNDEFINED = -1
 
 
 def dispatch_event(event: Event) -> None:

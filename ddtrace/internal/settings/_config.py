@@ -633,7 +633,7 @@ class Config(object):
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
-        self._raise = _get_config("DD_TESTING_RAISE", False, asbool)
+        _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
 
         trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
         self._trace_compute_stats = _get_config(
@@ -745,6 +745,14 @@ class Config(object):
             setattr(self, "_trace_sampling_rules", "")
             self._report_hostname = True
             self._health_metrics_enabled = False
+
+    @property
+    def _raise(self) -> bool:
+        return _native_config.get_raise()
+
+    @_raise.setter
+    def _raise(self, value: bool) -> None:
+        _native_config.set_raise(bool(value))
 
     @property
     def _128_bit_trace_id_enabled(self) -> bool:
