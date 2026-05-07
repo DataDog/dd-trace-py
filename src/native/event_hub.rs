@@ -39,7 +39,13 @@ macro_rules! get_or_init {
 
 /// Native equivalent of the Python ResultType enum.
 /// pyo3 automatically exposes each variant as a class attribute.
-#[pyclass(eq, hash, frozen, from_py_object, module = "ddtrace.internal.native._native")]
+#[pyclass(
+    eq,
+    hash,
+    frozen,
+    from_py_object,
+    module = "ddtrace.internal.native._native"
+)]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ResultType {
     #[pyo3(name = "RESULT_OK")]
@@ -298,9 +304,7 @@ pub fn reset(py: Python<'_>, event_id: Option<&str>, callback: Option<Py<PyAny>>
                 // Use Python value equality so bound method objects compare correctly.
                 // Python bound methods are always new objects (`a.m is not a.m`), so
                 // pointer identity would never match. `__eq__` checks __func__ + __self__.
-                vec.retain(|(_, stored_cb)| {
-                    stored_cb.bind(py).ne(cb.bind(py)).unwrap_or(true)
-                });
+                vec.retain(|(_, stored_cb)| stored_cb.bind(py).ne(cb.bind(py)).unwrap_or(true));
             }
         }
     } else if let Some(eid) = event_id {
