@@ -7,6 +7,9 @@ valid:
   - core.dispatch("my.event", (arg,))
   # Variable (not a list literal)
   - core.dispatch("my.event", args)
+  # Non-core dispatcher — must not be flagged even with a list literal
+  - some_dispatcher.dispatch("my.event", [arg1, arg2])
+  - self.dispatcher.dispatch("my.event", [arg1, arg2])
 
 invalid:
   - core.dispatch("my.event", [arg1, arg2])

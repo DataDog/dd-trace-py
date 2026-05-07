@@ -5,6 +5,9 @@ language: python
 fix: $OBJ.dispatch($EVENT, ($ARG,))
 rule:
   pattern: $OBJ.dispatch($EVENT, [$ARG])
+constraints:
+  OBJ:
+    regex: "^(core|event_hub)$"
 note: |
   `core.dispatch()` is typed as `args: tuple[Any, ...]`. Passing a list literal
   violates the type contract. Single-element tuples require a trailing comma.

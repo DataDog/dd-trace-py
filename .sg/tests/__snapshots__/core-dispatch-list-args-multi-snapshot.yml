@@ -62,3 +62,14 @@ snapshots:
       style: primary
       start: 0
       end: 42
+  ? |
+    from ddtrace.internal.core import dispatch
+    dispatch("my.event", [arg1, arg2])
+  : fixed: |
+      from ddtrace.internal.core import dispatch
+      .dispatch("my.event", (arg1, arg2))
+    labels:
+    - source: dispatch("my.event", [arg1, arg2])
+      style: primary
+      start: 43
+      end: 77
