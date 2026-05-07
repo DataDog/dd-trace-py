@@ -228,6 +228,7 @@ services:
           - ddagent:/tmp/ddagent
           - ${DD_TEST_CACHE_DIR:-./.cache}:/home/bits/.cache
           - ./:/home/bits/project
+          - ../ddtrace-internal:/home/bits/ddtrace-internal
 
     localstack:
         image: localstack/localstack:1.4.0

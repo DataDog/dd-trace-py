@@ -2,10 +2,10 @@ import sys
 from typing import Any
 from typing import Union
 
+from ddtrace_internal import check_module_path
 import google.adk as adk
 
 from ddtrace import config
-from ddtrace.contrib.internal.trace_utils import check_module_path
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
