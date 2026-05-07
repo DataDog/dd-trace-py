@@ -561,6 +561,7 @@ dependencies = [
  "pyo3-build-config",
  "pyo3-ffi",
  "rand 0.9.4",
+ "rustc-hash",
  "serde",
  "serde_json",
  "tracing",
