@@ -24,6 +24,7 @@ def _isolate_from_outer_ci_session(monkeypatch: pytest.MonkeyPatch) -> None:
     filter and log submission — breaking tests that rely on DD_LOGS_INJECTION behaviour.
     """
     monkeypatch.delenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER", raising=False)
+    monkeypatch.setenv("DD_TEST_MANAGEMENT_ENABLED", "0")
 
 
 # Infrastructure mock plugin — loaded via "-p dd_log_corr_infra" so its pytest_configure fires
