@@ -348,7 +348,7 @@ def test_data_streams_kafka_enabled():
     from tests.contrib.config import KAFKA_CONFIG
 
     BOOTSTRAP_SERVERS = "{}:{}".format(KAFKA_CONFIG["host"], KAFKA_CONFIG["port"])
-    topic_name = "test_group_data_streams_kafka_enabled"
+    topic_name = "test_data_streams_kafka_enabled"
 
     try:
         client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
