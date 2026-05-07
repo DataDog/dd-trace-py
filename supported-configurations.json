@@ -1301,14 +1301,20 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_DJANGO-DATABASE_SERVICE"
+        ]
       }
     ],
     "DD_DJANGO_DATABASE_SERVICE_NAME": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_DJANGO-DATABASE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX": [
