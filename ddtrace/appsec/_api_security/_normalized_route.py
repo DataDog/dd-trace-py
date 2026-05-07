@@ -2,7 +2,7 @@
 
 Computes the value of the ``_dd.appsec.normalized_route`` span tag from a
 Starlette-style route declaration (the same path grammar used by both Starlette
-``Route`` and FastAPI ``APIRoute``: ``{name}`` or ``{name:convertor}``).
+``Route`` and FastAPI ``APIRoute``: ``{name}`` or ``{name:converter}``).
 
 The function is integration-agnostic: it takes the assembled route string
 (mount prefixes already prepended by the integration) and the matched
@@ -41,7 +41,7 @@ _PARAM_REGEX = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)(:[a-zA-Z_][a-zA-Z0-9_]*)?
 # with only RFC rule 3 safe characters, or exactly one ``{name}`` /
 # ``{name:type}`` parameter (excluding the ``:path`` catch-all) with no
 # surrounding static text. In that case the only required transformation is
-# stripping convertor suffixes — see _STRIP_CONVERTOR.
+# stripping converter suffixes — see _STRIP_CONVERTOR.
 _FAST_PATH_REGEX = re.compile(
     r"^(?:/(?:[A-Za-z0-9.\-~_]+|\{[a-zA-Z_][a-zA-Z0-9_]*(?::(?!path\})[a-zA-Z_][a-zA-Z0-9_]*)?\}))*/?$"
 )
