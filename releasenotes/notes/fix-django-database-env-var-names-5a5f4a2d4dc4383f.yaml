@@ -6,4 +6,4 @@ fixes:
     ``DD_DJANGO-DATABASE_SERVICE_NAME``. The hyphenated names were invalid POSIX identifiers
     and unusable from most shells. Hyphens in integration names are now normalized to
     underscores when building env var names. The old hyphenated names are preserved as
-    aliases for backward compatibility.
+    aliases for backward compatibility. #17952
