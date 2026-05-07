@@ -173,12 +173,10 @@ class TestPluginClassSelection:
         "is_quarantined,is_disabled,is_attempt_to_fix",
         [
             (True, False, False),  # quarantined
-            (False, True, True),  # disabled + ATF (ATF retries unavailable, treated same as quarantine)
-            (True, False, True),  # quarantined + ATF (same: ATF retries unavailable in base class)
         ],
     )
-    def test_base_plugin_uses_xfail_for_quarantine_and_atf(self, is_quarantined, is_disabled, is_attempt_to_fix):
-        """Base plugin (no retry control) always uses xfail for quarantine/ATF — ATF retries can't fire anyway."""
+    def test_base_plugin_uses_xfail_for_quarantine(self, is_quarantined, is_disabled, is_attempt_to_fix):
+        """Base plugin (no retry control) uses xfail for quarantined non-ATF tests."""
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
@@ -208,8 +206,10 @@ class TestPluginClassSelection:
             (True, False, True),  # quarantined + ATF
         ],
     )
-    def test_child_plugin_uses_user_property_for_atf(self, is_quarantined, is_disabled, is_attempt_to_fix):
-        """Child plugin (drives retries) uses user property for ATF so real FAIL status is captured."""
+    def test_attempt_to_fix_takes_precedence_over_test_management_markers(
+        self, is_quarantined, is_disabled, is_attempt_to_fix
+    ):
+        """ATF tests are not skipped or xfailed, even when quarantined or disabled."""
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
@@ -221,10 +221,14 @@ class TestPluginClassSelection:
         item = mock.MagicMock()
         item.user_properties = []
 
-        TestOptPluginWithProtocol._apply_test_management_markers(plugin, item=item, test=test)
+        for plugin_class in (TestOptPlugin, TestOptPluginWithProtocol):
+            item.add_marker.reset_mock()
+            item.user_properties = []
 
-        item.add_marker.assert_not_called()
-        assert ("dd_disabled_attempt_to_fix", True) in item.user_properties
+            plugin_class._apply_test_management_markers(plugin, item=item, test=test)
+
+            item.add_marker.assert_not_called()
+            assert item.user_properties == []
 
     def test_child_plugin_uses_xfail_for_quarantine_without_atf(self):
         """Child plugin uses xfail for quarantined non-ATF tests (same as base)."""

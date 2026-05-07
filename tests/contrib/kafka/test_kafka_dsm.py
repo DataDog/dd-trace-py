@@ -352,18 +352,30 @@ def test_data_streams_kafka_enabled():
 
     producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
     consumer = confluent_kafka.Consumer(
-        {"bootstrap.servers": BOOTSTRAP_SERVERS, "group.id": "test_group", "auto.offset.reset": "earliest"}
+        {
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "group.id": "test_group_data_streams_kafka_enabled",
+            "auto.offset.reset": "earliest",
+        }
     )
 
     try:
+        import time
+
         consumer.subscribe([topic_name])
+
+        assignment_deadline = time.time() + 5
+        while not consumer.assignment() and time.time() < assignment_deadline:
+            consumer.poll(timeout=0.1)
+
         producer.produce(topic_name, b"test")
         producer.flush()
 
-        import time
+        message = None
+        message_deadline = time.time() + 5
+        while message is None and time.time() < message_deadline:
+            message = consumer.poll(timeout=0.5)
 
-        time.sleep(0.5)
-        message = consumer.poll(timeout=5.0)
         assert message is not None
         assert "dd-pathway-ctx-base64" in [h[0] for h in message.headers()]
 
