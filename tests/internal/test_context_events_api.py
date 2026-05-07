@@ -239,6 +239,35 @@ class TestContextEventsApi(unittest.TestCase):
             with core.context_with_data("my.cool.context"):
                 pass
 
+    def test_core_dispatch_args_list_coerced_to_tuple(self):
+        """dispatch gracefully accepts a list in place of a tuple."""
+        received = []
+
+        def listener(a, b):
+            received.append((a, b))
+
+        core.on("my.cool.event", listener)
+        core.dispatch("my.cool.event", [1, 2])
+        assert received == [(1, 2)]
+
+    def test_core_dispatch_args_invalid_type_does_not_raise(self):
+        """dispatch with a non-iterable args value calls listener with no args and does not crash."""
+        called = []
+
+        def listener():
+            called.append(True)
+
+        core.on("my.cool.event", listener)
+        # An integer is not iterable — coerce_to_tuple falls back to empty tuple.
+        core.dispatch("my.cool.event", 42)  # type: ignore[arg-type]
+        assert called == [True]
+
+    def test_core_dispatch_with_results_args_list_coerced_to_tuple(self):
+        """dispatch_with_results gracefully accepts a list in place of a tuple."""
+        core.on("my.cool.event", lambda a, b: a + b, "res")
+        results = core.dispatch_with_results("my.cool.event", [3, 4])
+        assert results.res.value == 7
+
     def test_core_dispatch_context_ended(self):
         context_id = "my.cool.context"
         event_name = "context.ended.%s" % context_id

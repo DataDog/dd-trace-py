@@ -36,7 +36,7 @@ def update_record(ctx, record: dict[str, Any], stream: str, inject_trace_context
     if data_obj is not None:
         core.dispatch(
             "botocore.kinesis.update_record",
-            [ctx, stream, data_obj, record, inject_trace_context],
+            (ctx, stream, data_obj, record, inject_trace_context),
         )
 
         try:
@@ -86,7 +86,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
         try:
             start_ns = time_ns()
             is_getrecords_call = True
-            core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
+            core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", (params,))
             result = original_func(*args, **kwargs)
 
             records = result["Records"]
@@ -96,7 +96,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                 time_estimate = record.get("ApproximateArrivalTimestamp", datetime.now()).timestamp()
                 core.dispatch(
                     f"botocore.{endpoint_name}.{operation}.post",
-                    [
+                    (
                         parent_ctx,
                         params,
                         time_estimate,
@@ -105,7 +105,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                         result,
                         config.botocore.propagation_enabled,
                         extract_DD_json,
-                    ],
+                    ),
                 )
 
         except Exception as e:
@@ -156,7 +156,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
             ) as ctx,
             ctx.span,
         ):
-            core.dispatch("botocore.patched_kinesis_api_call.started", [ctx])
+            core.dispatch("botocore.patched_kinesis_api_call.started", (ctx,))
 
             if is_kinesis_put_operation:
                 records_to_process = select_records_for_injection(params, bool(config.botocore["distributed_tracing"]))
@@ -165,25 +165,25 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
 
             try:
                 if not is_getrecords_call:
-                    core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
+                    core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", (params,))
                     result = original_func(*args, **kwargs)
-                    core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
+                    core.dispatch(f"botocore.{endpoint_name}.{operation}.post", (params, result))
 
                 if getrecords_error:
                     raise getrecords_error
 
-                core.dispatch("botocore.patched_kinesis_api_call.success", [ctx, result])
+                core.dispatch("botocore.patched_kinesis_api_call.success", (ctx, result))
                 return result
 
             except botocore.exceptions.ClientError as e:
                 core.dispatch(
                     "botocore.patched_kinesis_api_call.exception",
-                    [
+                    (
                         ctx,
                         e.response,
                         botocore.exceptions.ClientError,
                         config.botocore.operations[ctx.span.resource].is_error_code,
-                    ],
+                    ),
                 )
                 raise
     elif is_getrecords_call:
