@@ -1,29 +1,41 @@
-# `ddtrace`
+# ddtrace (meta-repository)
 
-[![CircleCI](https://circleci.com/gh/DataDog/dd-trace-py/tree/main.svg?style=svg)](https://circleci.com/gh/DataDog/dd-trace-py/tree/main)
-[![PypiVersions](https://img.shields.io/pypi/v/ddtrace.svg)](https://pypi.org/project/ddtrace/)
-[![Pyversions](https://img.shields.io/pypi/pyversions/ddtrace.svg?style=flat)](https://pypi.org/project/ddtrace/)
+Parent checkout that composes Datadog Python tracing and internal packages as **git submodules**.
 
-<img align="right" src="https://user-images.githubusercontent.com/6321485/167082083-53f6e48f-1843-4708-9b98-587c94f7ddb3.png" alt="bits python" width="200px"/>
+## Layout
 
-This library powers [Distributed Tracing](https://docs.datadoghq.com/tracing/),
- [Continuous Profiling](https://docs.datadoghq.com/tracing/profiler/),
- [Error Tracking](https://docs.datadoghq.com/tracing/error_tracking/),
- [Test Optimization](https://docs.datadoghq.com/tests/),
- [Deployment Tracking](https://docs.datadoghq.com/tracing/deployment_tracking/),
- [Code Hotspots](https://docs.datadoghq.com/tracing/profiler/connect_traces_and_profiles/),
- [Dynamic Instrumentation](https://docs.datadoghq.com/dynamic_instrumentation/),
- and more.
+| Path               | Submodule    | Description                                      |
+|--------------------|-------------|--------------------------------------------------|
+| `dd-trace-py/`     | dd-trace-py | Public APM client ([dd-trace-py](https://github.com/DataDog/dd-trace-py)) |
+| `ddtrace-internal/`| ddtrace-internal | Internal stub package (`ddtrace-internal` distribution) |
 
-To get started with tracing, check out the [product documentation][setup docs] or the [glossary][visualization docs].
+## First-time setup
 
-For advanced usage and configuration information, check out the [library documentation][api docs].
+```bash
+git clone <this-repo-url> ddtrace
+cd ddtrace
+git submodule update --init --recursive
+```
 
-To get started as a contributor, see [the contributing docs](https://ddtrace.readthedocs.io/en/stable/contributing.html) first.
+If you are migrating from a standalone `dd-trace-py` clone, point `dd-trace-py` at your existing remote; same for `ddtrace-internal` after its remote exists.
 
-For information about the bug/security fix and maintenance policy, see the [versioning docs][versioning docs].
+### Local submodule URL (before `ddtrace-internal` exists on GitHub)
 
-[setup docs]: https://docs.datadoghq.com/tracing/setup/python/
-[api docs]: https://ddtrace.readthedocs.io/
-[visualization docs]: https://docs.datadoghq.com/tracing/visualization/
-[versioning docs]: https://github.com/DataDog/dd-trace-py/blob/main/docs/versioning.rst#release-support
+From `ddtrace/`:
+
+```bash
+git submodule add ../ddtrace-internal ddtrace-internal
+git submodule add ../dd-trace-py dd-trace-py
+```
+
+Adjust relative paths if your clones live elsewhere. Then commit `.gitmodules` and the submodule gitlinks.
+
+## Build
+
+From this directory:
+
+```bash
+make ddtrace-internal   # editable install of the internal package
+```
+
+For `dd-trace-py`, follow that repository’s documentation (Riot, Hatch, etc.).

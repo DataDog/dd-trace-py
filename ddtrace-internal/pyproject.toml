@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ddtrace-internal"
+version = "0.0.0"
+description = "Stub internal Datadog Python package (ddtrace-internal)."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Datadog, Inc.", email = "dev@datadoghq.com" }]
+
+[tool.setuptools.packages.find]
+where = ["src"]
