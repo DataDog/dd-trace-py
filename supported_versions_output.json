@@ -718,7 +718,7 @@
         "dependency": "starlette",
         "integration": "starlette",
         "minimum_tracer_supported": "0.14.2",
-        "max_tracer_supported": "0.52.1",
+        "max_tracer_supported": "1.0.0",
         "auto-instrumented": true
     },
     {

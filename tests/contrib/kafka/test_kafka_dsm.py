@@ -348,7 +348,7 @@ def test_data_streams_kafka_enabled():
     from tests.contrib.config import KAFKA_CONFIG
 
     BOOTSTRAP_SERVERS = "{}:{}".format(KAFKA_CONFIG["host"], KAFKA_CONFIG["port"])
-    topic_name = "test_data_streams_kafka_enabled"
+    topic_name = "test_group_data_streams_kafka_enabled"
 
     try:
         client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
@@ -362,14 +362,22 @@ def test_data_streams_kafka_enabled():
     )
 
     try:
+        import time
+
         consumer.subscribe([topic_name])
+
+        assignment_deadline = time.time() + 5
+        while not consumer.assignment() and time.time() < assignment_deadline:
+            consumer.poll(timeout=0.1)
+
         producer.produce(topic_name, b"test")
         producer.flush()
 
-        import time
+        message = None
+        message_deadline = time.time() + 5
+        while message is None and time.time() < message_deadline:
+            message = consumer.poll(timeout=0.5)
 
-        time.sleep(0.5)
-        message = consumer.poll(timeout=5.0)
         assert message is not None
         assert "dd-pathway-ctx-base64" in [h[0] for h in message.headers()]
 
