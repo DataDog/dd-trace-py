@@ -36,7 +36,7 @@
      {
        "name": "aiohttp.request",
        "service": "test-durable-func",
-       "resource": "aiohttp.request",
+       "resource": "POST /durabletask/orchestrators/activity_orchestrator",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
@@ -72,7 +72,7 @@
      {
        "name": "aiohttp.request",
        "service": "test-durable-func",
-       "resource": "aiohttp.request",
+       "resource": "GET /durabletask/instances/e9526e0b78dd42a3b4226c2b62dbfb4b",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
@@ -109,7 +109,7 @@
      {
        "name": "aiohttp.request",
        "service": "test-durable-func",
-       "resource": "aiohttp.request",
+       "resource": "GET /durabletask/instances/e9526e0b78dd42a3b4226c2b62dbfb4b",
        "trace_id": 0,
        "span_id": 4,
        "parent_id": 1,
