@@ -905,7 +905,7 @@ def test_native_writer_on_shutdown_waits_for_in_flight_send():
         # Give on_shutdown() a chance to enter TraceExporter.shutdown() while
         # TraceExporter.send() is still blocked in native I/O.
         shutdown_thread.join(timeout=0.5)
-        assert shutdown_thread.is_alive()
+        assert shutdown_thread.is_alive(), f"on_shutdown() exited early; shutdown_errors={shutdown_errors}"
         release_response.set()
         flush_thread.join(timeout=2)
         shutdown_thread.join(timeout=5)
