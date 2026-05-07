@@ -4,10 +4,7 @@ The AWS Durable Execution SDK integration instruments the
 executions and the operations invoked on a ``DurableContext`` (``step``,
 ``invoke``, ``wait``, ``map``, ``parallel``, etc.).
 
-Spans are tagged with ``service``, ``env``, and ``version`` (see the
-`Unified Service Tagging docs
-<https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging>`_)
-along with the following integration-specific tags:
+Integration-specific tags:
 
 - ``aws.durable.execution_arn``: ARN of the durable execution. Set on the
   execute span.
