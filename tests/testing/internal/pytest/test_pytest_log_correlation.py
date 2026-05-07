@@ -24,6 +24,7 @@ def _isolate_from_outer_ci_session(monkeypatch: pytest.MonkeyPatch) -> None:
     filter and log submission — breaking tests that rely on DD_LOGS_INJECTION behaviour.
     """
     monkeypatch.delenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER", raising=False)
+    monkeypatch.setenv("DD_TEST_MANAGEMENT_ENABLED", "0")
 
 
 # Infrastructure mock plugin — loaded via "-p dd_log_corr_infra" so its pytest_configure fires
@@ -331,7 +332,6 @@ class TestAgentlessLogSubmission:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    @pytest.mark.xfail(reason="outcome is 0 passed now")
     def test_no_handler_without_flag(self, pytester: Pytester) -> None:
         """Without DD_AGENTLESS_LOG_SUBMISSION_ENABLED or DD_LOGS_INJECTION, LogsHandler must not be installed."""
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
@@ -354,7 +354,6 @@ class TestAgentlessLogSubmission:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    @pytest.mark.xfail(reason="outcome is 0 passed now")
     def test_no_handler_in_ci_context_provider_mode(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """DD_LOGS_INJECTION=true must not install LogsHandler when _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=1.
 
