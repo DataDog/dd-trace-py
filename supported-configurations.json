@@ -3817,10 +3817,7 @@
       {
         "implementation": "B",
         "type": "map",
-        "default": "",
-        "aliases": [
-          "OTEL_RESOURCE_ATTRIBUTES"
-        ]
+        "default": ""
       }
     ],
     "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED": [
@@ -4376,10 +4373,7 @@
       {
         "implementation": "B",
         "type": "boolean",
-        "default": "true",
-        "aliases": [
-          "OTEL_TRACES_EXPORTER"
-        ]
+        "default": "true"
       }
     ],
     "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED": [
