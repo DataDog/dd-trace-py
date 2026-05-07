@@ -24,11 +24,13 @@ def _isolate_from_outer_ci_session(monkeypatch: pytest.MonkeyPatch) -> None:
     filter and log submission — breaking tests that rely on DD_LOGS_INJECTION behaviour.
     """
     monkeypatch.delenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER", raising=False)
-    monkeypatch.setenv("DD_TEST_MANAGEMENT_ENABLED", "0")
 
 
 # Infrastructure mock plugin — loaded via "-p dd_log_corr_infra" so its pytest_configure fires
 # BEFORE pytest_load_initial_conftests (where SessionManager is constructed and makes network calls).
+#
+# Mirrors the mocking done by tests.testing.mocks.network_mocks(), inlined here because the
+# subprocess cannot import from the test helpers.
 _INFRA_PLUGIN = """\
 from unittest.mock import Mock, patch
 
@@ -53,11 +55,20 @@ def pytest_configure(config):
     mock_api.get_test_management_properties.return_value = {}
     mock_api.get_skippable_tests.return_value = (set(), None)
 
+    # Session manager dependencies (matches network_mocks / setup_standard_mocks)
     patch.object(BackendConnectorSetup, "detect_setup", return_value=_MockConnectorSetup()).start()
     patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api).start()
     patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}).start()
     patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}).start()
     patch("ddtrace.testing.internal.session_manager.Git").start()
+
+    # HTTP connector (prevents any real HTTP calls that bypass the connector setup)
+    patch("ddtrace.testing.internal.http.BackendConnector", return_value=Mock()).start()
+
+    # Writers (prevents HTTP calls from event/coverage writers)
+    mock_writer = Mock()
+    patch("ddtrace.testing.internal.writer.TestOptWriter", return_value=mock_writer).start()
+    patch("ddtrace.testing.internal.writer.TestCoverageWriter", return_value=mock_writer).start()
 """
 
 
@@ -96,6 +107,12 @@ def pytest_configure(config):
     patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}).start()
     patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}).start()
     patch("ddtrace.testing.internal.session_manager.Git").start()
+
+    patch("ddtrace.testing.internal.http.BackendConnector", return_value=Mock()).start()
+
+    mock_writer = Mock()
+    patch("ddtrace.testing.internal.writer.TestOptWriter", return_value=mock_writer).start()
+    patch("ddtrace.testing.internal.writer.TestCoverageWriter", return_value=mock_writer).start()
 """
 
 
