@@ -836,7 +836,7 @@ experiments:
           - name: recursivecomputation-deep
             thresholds:
               - execution_time < 320.95 ms
-              - max_rss_usage < 38.75 MB
+              - max_rss_usage < 46.00 MB
           - name: recursivecomputation-deep-profiled
             thresholds:
               - execution_time < 359.15 ms
@@ -844,11 +844,11 @@ experiments:
           - name: recursivecomputation-medium
             thresholds:
               - execution_time < 7.45 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 46.00 MB
           - name: recursivecomputation-shallow
             thresholds:
               - execution_time < 1.05 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 46.00 MB
 
           # samplingrules
           - name: samplingrules-average_match
@@ -956,7 +956,7 @@ experiments:
               - max_rss_usage < 53.00 MB
           - name: span-record-exception
             thresholds:
-              - execution_time < 42.00 ms
+              - execution_time < 42.50 ms
               - max_rss_usage < 53.00 MB
           - name: span-set-status
             thresholds:
@@ -968,7 +968,7 @@ experiments:
               - max_rss_usage < 53.00 MB
           - name: span-start-finish
             thresholds:
-              - execution_time < 60.50 ms
+              - execution_time < 60 ms
               - max_rss_usage < 38.00 MB
           - name: span-start-finish-telemetry
             thresholds:

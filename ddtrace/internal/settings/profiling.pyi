@@ -32,10 +32,12 @@ class ProfilingConfigStack(DDConfig):
     adaptive_sampling_max_interval: int
     max_threads: int
     native_frames: bool
+    fast_copy: bool
 
 class ProfilingConfigLock(DDConfig):
     enabled: bool
     name_inspect_dir: bool
+    exclude_modules: frozenset[str]
 
 class ProfilingConfigMemory(DDConfig):
     enabled: bool

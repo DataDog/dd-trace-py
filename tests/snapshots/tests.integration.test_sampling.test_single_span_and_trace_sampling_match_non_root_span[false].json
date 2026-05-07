@@ -11,21 +11,20 @@
     "meta": {
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "69dfabd100000000",
-      "_dd.svc_src": "animals",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpjhti_fmt,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "_dd.p.tid": "69f39df900000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpxvuj8i8c,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "language": "python",
-      "runtime-id": "3b6855734c264dcbae1e8087ef54545e"
+      "runtime-id": "a4b049e74a4e45189fd855f5e7f7081f"
     },
     "metrics": {
       "_dd.rule_psr": 0.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1.0,
-      "process_id": 4397.0
+      "process_id": 62591.0
     },
-    "duration": 115125,
-    "start": 1776266193570972305
+    "duration": 111417,
+    "start": 1777573369106392876
   },
      {
        "name": "monkey",
@@ -36,15 +35,12 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "_dd.svc_src": "animals"
-       },
        "metrics": {
          "_dd.span_sampling.mechanism": 8.0,
          "_dd.span_sampling.rule_rate": 1.0
        },
-       "duration": 44292,
-       "start": 1776266193571024680
+       "duration": 41459,
+       "start": 1777573369106445834
      },
         {
           "name": "human_monkey",
@@ -55,11 +51,8 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
-          "meta": {
-            "_dd.svc_src": "animals"
-          },
-          "duration": 9166,
-          "start": 1776266193571045514
+          "duration": 9875,
+          "start": 1777573369106467168
         },
      {
        "name": "donkey_monkey",
@@ -70,9 +63,6 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "_dd.svc_src": "animals"
-       },
-       "duration": 7125,
-       "start": 1776266193571076805
+       "duration": 5500,
+       "start": 1777573369106495084
      }]]

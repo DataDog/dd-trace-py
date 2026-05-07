@@ -66,7 +66,7 @@
        "parent_id": 1,
        "meta": {
          "_dd.base_service": "",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "django",
          "component": "django"
        },
        "duration": 1502416,
@@ -81,7 +81,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "django",
             "component": "django"
           },
           "duration": 28917,
@@ -96,7 +96,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "django",
             "component": "django"
           },
           "duration": 1373125,
@@ -111,7 +111,7 @@
              "parent_id": 4,
              "meta": {
                "_dd.base_service": "",
-               "_dd.svc_src": "m",
+               "_dd.svc_src": "django",
                "component": "django"
              },
              "duration": 25834,
@@ -126,7 +126,7 @@
              "parent_id": 4,
              "meta": {
                "_dd.base_service": "",
-               "_dd.svc_src": "m",
+               "_dd.svc_src": "django",
                "component": "django"
              },
              "duration": 1270833,
@@ -141,7 +141,7 @@
                 "parent_id": 7,
                 "meta": {
                   "_dd.base_service": "",
-                  "_dd.svc_src": "m",
+                  "_dd.svc_src": "django",
                   "component": "django"
                 },
                 "duration": 15167,
@@ -156,7 +156,7 @@
                 "parent_id": 7,
                 "meta": {
                   "_dd.base_service": "",
-                  "_dd.svc_src": "m",
+                  "_dd.svc_src": "django",
                   "component": "django"
                 },
                 "duration": 1188666,
@@ -171,7 +171,7 @@
                    "parent_id": 10,
                    "meta": {
                      "_dd.base_service": "",
-                     "_dd.svc_src": "m",
+                     "_dd.svc_src": "django",
                      "component": "django"
                    },
                    "duration": 46125,
@@ -186,7 +186,7 @@
                    "parent_id": 10,
                    "meta": {
                      "_dd.base_service": "",
-                     "_dd.svc_src": "m",
+                     "_dd.svc_src": "django",
                      "component": "django"
                    },
                    "duration": 1098792,
@@ -201,7 +201,7 @@
                       "parent_id": 13,
                       "meta": {
                         "_dd.base_service": "",
-                        "_dd.svc_src": "m",
+                        "_dd.svc_src": "django",
                         "component": "django"
                       },
                       "duration": 32333,
@@ -216,7 +216,7 @@
                       "parent_id": 13,
                       "meta": {
                         "_dd.base_service": "",
-                        "_dd.svc_src": "m",
+                        "_dd.svc_src": "django",
                         "component": "django"
                       },
                       "duration": 996375,
@@ -231,7 +231,7 @@
                          "parent_id": 15,
                          "meta": {
                            "_dd.base_service": "",
-                           "_dd.svc_src": "m",
+                           "_dd.svc_src": "django",
                            "component": "django"
                          },
                          "duration": 935000,
@@ -246,7 +246,7 @@
                             "parent_id": 17,
                             "meta": {
                               "_dd.base_service": "",
-                              "_dd.svc_src": "m",
+                              "_dd.svc_src": "django",
                               "component": "django"
                             },
                             "duration": 13542,
@@ -261,7 +261,7 @@
                             "parent_id": 17,
                             "meta": {
                               "_dd.base_service": "",
-                              "_dd.svc_src": "m",
+                              "_dd.svc_src": "django",
                               "component": "django"
                             },
                             "duration": 837541,
@@ -276,7 +276,7 @@
                                "parent_id": 20,
                                "meta": {
                                  "_dd.base_service": "",
-                                 "_dd.svc_src": "m",
+                                 "_dd.svc_src": "django",
                                  "component": "django"
                                },
                                "duration": 809542,
@@ -291,7 +291,7 @@
                                   "parent_id": 22,
                                   "meta": {
                                     "_dd.base_service": "",
-                                    "_dd.svc_src": "m",
+                                    "_dd.svc_src": "django",
                                     "component": "django"
                                   },
                                   "duration": 776791,
@@ -306,7 +306,7 @@
                                      "parent_id": 23,
                                      "meta": {
                                        "_dd.base_service": "",
-                                       "_dd.svc_src": "m",
+                                       "_dd.svc_src": "django",
                                        "component": "django"
                                      },
                                      "duration": 34958,
@@ -321,7 +321,7 @@
                                      "parent_id": 23,
                                      "meta": {
                                        "_dd.base_service": "",
-                                       "_dd.svc_src": "m",
+                                       "_dd.svc_src": "django",
                                        "component": "django"
                                      },
                                      "duration": 24709,
@@ -336,7 +336,7 @@
                                      "parent_id": 23,
                                      "meta": {
                                        "_dd.base_service": "",
-                                       "_dd.svc_src": "m",
+                                       "_dd.svc_src": "django",
                                        "component": "django"
                                      },
                                      "duration": 41584,
@@ -351,7 +351,7 @@
                             "parent_id": 17,
                             "meta": {
                               "_dd.base_service": "",
-                              "_dd.svc_src": "m",
+                              "_dd.svc_src": "django",
                               "component": "django"
                             },
                             "duration": 26291,
@@ -366,7 +366,7 @@
                          "parent_id": 15,
                          "meta": {
                            "_dd.base_service": "",
-                           "_dd.svc_src": "m",
+                           "_dd.svc_src": "django",
                            "component": "django"
                          },
                          "duration": 18084,
@@ -381,7 +381,7 @@
                       "parent_id": 13,
                       "meta": {
                         "_dd.base_service": "",
-                        "_dd.svc_src": "m",
+                        "_dd.svc_src": "django",
                         "component": "django"
                       },
                       "duration": 15458,
@@ -396,7 +396,7 @@
                 "parent_id": 7,
                 "meta": {
                   "_dd.base_service": "",
-                  "_dd.svc_src": "m",
+                  "_dd.svc_src": "django",
                   "component": "django"
                 },
                 "duration": 14084,
@@ -411,7 +411,7 @@
              "parent_id": 4,
              "meta": {
                "_dd.base_service": "",
-               "_dd.svc_src": "m",
+               "_dd.svc_src": "django",
                "component": "django"
              },
              "duration": 17750,
@@ -426,7 +426,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "django",
             "component": "django"
           },
           "duration": 20542,

@@ -10,7 +10,7 @@ from . import BaseFlaskTestCase
 
 base_exception_name = "builtins.Exception"
 
-EXPECTED_METADATA = {"component": "flask", "_dd.base_service": "tests.contrib.flask", "_dd.svc_src": "m"}
+EXPECTED_METADATA = {"component": "flask", "_dd.base_service": "tests.contrib.flask", "_dd.svc_src": "flask"}
 
 
 class FlaskViewTestCase(BaseFlaskTestCase):

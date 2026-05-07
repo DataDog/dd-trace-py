@@ -1,0 +1,55 @@
+id: core-raising-dispatch
+message: Avoid using `raising_dispatch()` - prefer `core.dispatch()` with explicit try/except
+severity: error
+language: python
+ignores:
+  # Implementation and re-export
+  - "ddtrace/internal/core/__init__.py"
+  - "ddtrace/internal/core/event_hub.py"
+  # Allow-listed existing callsites
+  - "ddtrace/contrib/internal/langchain/patch.py"
+  - "ddtrace/contrib/internal/openai/patch.py"
+rule:
+  any:
+    # Match function calls to raising_dispatch
+    - pattern: core.raising_dispatch($$$ARGS)
+    - pattern: raising_dispatch($$$ARGS)
+    - pattern: event_hub.raising_dispatch($$$ARGS)
+    # Match imports of raising_dispatch
+    - pattern: from ddtrace.internal.core import raising_dispatch
+    - pattern: from ddtrace.internal.core import raising_dispatch as $ALIAS
+    - pattern: from ddtrace.internal.core import $$$IMPORTS, raising_dispatch
+    - pattern: from ddtrace.internal.core import $$$IMPORTS, raising_dispatch as $ALIAS
+    - pattern: from ddtrace.internal.core import raising_dispatch, $$$IMPORTS
+    - pattern: from ddtrace.internal.core import raising_dispatch as $ALIAS, $$$IMPORTS
+    - pattern: from ddtrace.internal.core.event_hub import raising_dispatch
+    - pattern: from ddtrace.internal.core.event_hub import raising_dispatch as $ALIAS
+    - pattern: from ddtrace.internal.core.event_hub import $$$IMPORTS, raising_dispatch
+    - pattern: from ddtrace.internal.core.event_hub import $$$IMPORTS, raising_dispatch as $ALIAS
+    - pattern: from ddtrace.internal.core.event_hub import raising_dispatch, $$$IMPORTS
+    - pattern: from ddtrace.internal.core.event_hub import raising_dispatch as $ALIAS, $$$IMPORTS
+constraints:
+  ALIAS:
+    regex: ".*"
+note: |
+  `raising_dispatch()` is built on top of `dispatch_with_results()`, which is
+  itself discouraged (see the `core-dispatch-with-results` rule). New callsites
+  should not be introduced; the long-term plan is to retire this helper in
+  favor of `core.dispatch(..., allow_raise=True)` once that pattern lands.
+
+  Prefer letting the listener raise through `core.dispatch()` and handle the
+  exception at the callsite:
+
+    try:
+        core.dispatch("my.event", (args,))
+    except MyException:
+        # handle interruption
+        pass
+
+  Note: try/except will block all other listeners from running after the
+  exception is raised.
+
+  This rule does not apply to:
+  - The implementation in ddtrace/internal/core/event_hub.py
+  - The export in ddtrace/internal/core/__init__.py
+  - The allow-listed contrib callsites in langchain/patch.py and openai/patch.py
