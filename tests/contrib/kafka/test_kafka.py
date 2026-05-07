@@ -152,6 +152,23 @@ def test_produce_topicname(kafka_tracer, test_spans, producer, kafka_topic):
     assert produce_span.get_tag("messaging.destination.name") == kafka_topic
 
 
+def test_consume_span_records_group_id(kafka_tracer, test_spans, producer, consumer, kafka_topic, group_id):
+    """Verify that kafka.group_id is tagged on consume spans (not covered by snapshot due to dynamic group IDs)."""
+    with override_config("kafka", dict(trace_empty_poll_enabled=False)):
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        message = consumer.poll()
+
+    assert message is not None
+    traces = test_spans.pop_traces()
+    consume_span = next(
+        (span for trace in traces for span in trace if span.get_tag("kafka.received_message") == "True"),
+        None,
+    )
+    assert consume_span is not None
+    assert consume_span.get_tag("kafka.group_id") == group_id
+
+
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_message(producer, consumer, tombstone, kafka_topic):
@@ -382,6 +399,7 @@ from tests.contrib.kafka.conftest import should_filter_empty_polls
 
 @pytest.fixture
 def kafka_topic():
+    # Also controls group_id (via conftest.group_id which inherits kafka_topic)
     return os.environ["KAFKA_TEST_TOPIC"]
 
 from tests.contrib.kafka.conftest import consumer
@@ -580,6 +598,7 @@ from tests.contrib.kafka.conftest import should_filter_empty_polls
 
 @pytest.fixture
 def kafka_topic():
+    # Also controls group_id (via conftest.group_id which inherits kafka_topic)
     return os.environ["KAFKA_TEST_TOPIC"]
 
 from tests.contrib.kafka.conftest import consumer
