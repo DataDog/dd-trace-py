@@ -1,10 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
 import contextvars
 import functools
-import sys
 from typing import Any
 from typing import Callable
-from typing import NamedTuple
+from typing import Optional
 
 import aws_durable_execution_sdk_python
 from aws_durable_execution_sdk_python import execution
@@ -15,14 +14,17 @@ from aws_durable_execution_sdk_python.lambda_service import OperationSubType
 from aws_durable_execution_sdk_python.operation.base import OperationExecutor
 from aws_durable_execution_sdk_python.operation.step import StepOperationExecutor
 
-from ddtrace import config
-from ddtrace import tracer
-from ddtrace._trace.events import TracingEvent
+from ddtrace.contrib._events.aws_durable import AwsDurableExecuteEvent
+from ddtrace.contrib._events.aws_durable import AwsDurableInvokeEvent
+from ddtrace.contrib._events.aws_durable import AwsDurableOperationEvent
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -31,18 +33,9 @@ log = get_logger(__name__)
 config._add("aws_durable_execution_sdk_python", {})
 
 
-_SPAN_NAME_PREFIX = "aws.durable."
-_TAG_EXECUTION_ARN = "aws.durable.execution_arn"
-_TAG_REPLAYED = "aws.durable.replayed"
-_TAG_INVOCATION_STATUS = "aws.durable.invocation_status"
-_TAG_INVOKE_FUNCTION_NAME = "aws.durable.invoke.function_name"
-
-
-_SUSPEND_CAUSE_KEY = "aws_durable.suspend_cause"
-
-# Span names whose direct children should not set a resource.
+# Operations whose direct children should not set a resource.
 # Children of map/parallel can have unbounded names, increasing cardinality.
-_DYNAMIC_PARENT_SPAN_NAMES = frozenset({"aws.durable.map", "aws.durable.parallel"})
+_DYNAMIC_PARENT_OPERATIONS = frozenset({"aws.durable.map", "aws.durable.parallel"})
 
 
 def get_version() -> str:
@@ -81,18 +74,15 @@ class TracedThreadPoolExecutor(ThreadPoolExecutor):
         return super().submit(_wrapped, *args, **kwargs)
 
 
-def _execution_tags(durable_context: DurableContext):
-    """Read execution_arn and initial replay status from DurableContext."""
-    tags = {}
+def _read_execution_state(durable_context):
+    """Return (execution_arn, is_replay_execution) from a DurableContext."""
     state = getattr(durable_context, "state", None)
-    if state is not None:
-        arn = getattr(state, "durable_execution_arn", None)
-        if arn:
-            tags[_TAG_EXECUTION_ARN] = arn
-        status_enum = getattr(state, "_replay_status", None)
-        if status_enum is not None:
-            tags[_TAG_REPLAYED] = "true" if status_enum.name == "REPLAY" else "false"
-    return tags
+    if state is None:
+        return None, None
+    arn = getattr(state, "durable_execution_arn", None) or None
+    status_enum = getattr(state, "_replay_status", None)
+    is_replay = (status_enum.name == "REPLAY") if status_enum is not None else None
+    return arn, is_replay
 
 
 def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
@@ -106,41 +96,31 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
         getattr(user_func, "__qualname__", None) or getattr(user_func, "__name__", None) or type(user_func).__name__
     )
     module = getattr(user_func, "__module__", None)
-    resource = "{}.{}".format(module, qualname) if module else qualname
+    resource = f"{module}.{qualname}" if module else qualname
 
     @functools.wraps(user_func)
     def traced_user_func(*inner_args, **inner_kwargs):
         durable_context = get_argument_value(inner_args, inner_kwargs, 1, "durable_context", optional=True)
+        arn, is_replay = _read_execution_state(durable_context)
 
-        event = TracingEvent.create(
+        event = AwsDurableExecuteEvent(
             component=config.aws_durable_execution_sdk_python.integration_name,
             integration_config=config.aws_durable_execution_sdk_python,
-            operation_name="aws.durable.execute",
-            span_type="serverless",
-            span_kind="internal",
             resource=resource,
-            tags=_execution_tags(durable_context),
+            execution_arn=arn,
+            is_replay_execution=is_replay,
         )
 
-        with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        with core.context_with_event(event) as ctx:
             try:
-                result = user_func(*inner_args, **inner_kwargs)
+                return user_func(*inner_args, **inner_kwargs)
             except SuspendExecution:
-                ctx.span.set_tag(_TAG_INVOCATION_STATUS, "pending")
+                ctx.event.suspended = True
                 ctx.dispatch_ended_event()
                 raise
-            except BaseException:
-                ctx.span.set_tag(_TAG_INVOCATION_STATUS, "failed")
-                ctx.dispatch_ended_event(*sys.exc_info())
-                raise
-            ctx.span.set_tag(_TAG_INVOCATION_STATUS, "succeeded")
-            ctx.dispatch_ended_event()
-            return result
 
-    if "func" in kwargs:
-        kwargs["func"] = traced_user_func
-        return wrapped(*args, **kwargs)
-    return wrapped(traced_user_func, *args[1:], **kwargs)
+    new_args, new_kwargs = set_argument_value(args, kwargs, 0, "func", traced_user_func)
+    return wrapped(*new_args, **new_kwargs)
 
 
 def _is_top_level_for_span(operation_executor: OperationExecutor):
@@ -154,84 +134,79 @@ def _is_top_level_for_span(operation_executor: OperationExecutor):
 
 
 def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
-    """Set replayed tag based on checkpoint"""
-    active = tracer.current_span()
-    if active is not None and active.name.startswith(_SPAN_NAME_PREFIX) and _is_top_level_for_span(instance):
-        checkpoint = instance.state.get_checkpoint_result(instance.operation_identifier.operation_id)
-        active.set_tag(_TAG_REPLAYED, "true" if checkpoint.is_succeeded() else "false")
+    """Record checkpoint replay status on the active operation event."""
+    if _is_top_level_for_span(instance):
+        event = core.current.event
+        if isinstance(event, (AwsDurableInvokeEvent, AwsDurableOperationEvent)):
+            checkpoint = instance.state.get_checkpoint_result(instance.operation_identifier.operation_id)
+            event.replayed = checkpoint.is_succeeded()
     return wrapped(*args, **kwargs)
 
 
 def _traced_retry_handler(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
-    """Store retried exception to be retrieved by _traced_context"""
+    """Store retry cause on the active operation event for later use by _trace_with_event."""
     error = get_argument_value(args, kwargs, 0, "error", optional=True)
     if isinstance(error, Exception) and error.__traceback__ is not None:
-        core.set_item(_SUSPEND_CAUSE_KEY, (type(error), error, error.__traceback__))
+        event = core.current.event
+        if isinstance(event, (AwsDurableInvokeEvent, AwsDurableOperationEvent)):
+            event.suspend_cause_exc_info = (type(error), error, error.__traceback__)
     return wrapped(*args, **kwargs)
 
 
-class _ContextMethod(NamedTuple):
-    method_name: str
-    span_name: str
-    name_pos: int
+def _resolve_resource(args: tuple, kwargs: dict, name_pos: int) -> Optional[str]:
+    """Return the resource name from the call args, or None if the parent is map/parallel."""
+    parent_event = core.current.event
+    if isinstance(parent_event, AwsDurableOperationEvent) and parent_event.operation in _DYNAMIC_PARENT_OPERATIONS:
+        return None
+    return get_argument_value(args, kwargs, name_pos, "name", optional=True)
 
 
-def _traced_context(method: _ContextMethod, wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
-    is_invoke = method.method_name == "invoke"
-    tags = {}
-    if is_invoke:
-        tags[_TAG_INVOKE_FUNCTION_NAME] = get_argument_value(args, kwargs, 0, "function_name")
-
-    parent = tracer.current_span()
-    if parent is not None and parent.name in _DYNAMIC_PARENT_SPAN_NAMES:
-        resource = None
-    else:
-        resource = get_argument_value(args, kwargs, method.name_pos, "name", optional=True)
-
-    event = TracingEvent.create(
-        component=config.aws_durable_execution_sdk_python.integration_name,
-        integration_config=config.aws_durable_execution_sdk_python,
-        operation_name=method.span_name,
-        span_type="serverless",
-        span_kind="client" if is_invoke else "internal",
-        resource=resource,
-        tags=tags,
-    )
-
-    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+def _trace_with_event(event, wrapped: Callable, args: tuple, kwargs: dict):
+    """Run ``wrapped`` inside a context with ``event``, attaching the cause on suspension."""
+    with core.context_with_event(event) as ctx:
         try:
-            result = wrapped(*args, **kwargs)
+            return wrapped(*args, **kwargs)
         except SuspendExecution:
-            cause_exc_info = ctx.get_item(_SUSPEND_CAUSE_KEY)
+            cause_exc_info = ctx.event.suspend_cause_exc_info
             if cause_exc_info is not None:
                 ctx.dispatch_ended_event(*cause_exc_info)
             else:
                 ctx.dispatch_ended_event()
             raise
-        except BaseException:
-            ctx.dispatch_ended_event(*sys.exc_info())
-            raise
-        ctx.dispatch_ended_event()
-        return result
 
 
-_CONTEXT_METHODS: tuple[_ContextMethod, ...] = (
-    _ContextMethod("invoke", "aws.durable.invoke", 2),
-    _ContextMethod("step", "aws.durable.step", 1),
-    _ContextMethod("wait", "aws.durable.wait", 1),
-    _ContextMethod("wait_for_condition", "aws.durable.wait_for_condition", 2),
-    _ContextMethod("wait_for_callback", "aws.durable.wait_for_callback", 1),
-    _ContextMethod("create_callback", "aws.durable.create_callback", 0),
-    _ContextMethod("map", "aws.durable.map", 2),
-    _ContextMethod("parallel", "aws.durable.parallel", 1),
-    _ContextMethod("run_in_child_context", "aws.durable.child_context", 1),
-)
+def _traced_invoke(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
+    event = AwsDurableInvokeEvent(
+        component=config.aws_durable_execution_sdk_python.integration_name,
+        integration_config=config.aws_durable_execution_sdk_python,
+        resource=_resolve_resource(args, kwargs, 2),
+        operation="aws.durable.invoke",
+        invoke_function_name=get_argument_value(args, kwargs, 0, "function_name"),
+    )
+    return _trace_with_event(event, wrapped, args, kwargs)
+
+
+def _traced_operation(operation: str, name_pos: int) -> Callable:
+    """Build a wrapper that traces a DurableContext operation method (step/wait/map/parallel/etc.)."""
+
+    def wrapper(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
+        event = AwsDurableOperationEvent(
+            component=config.aws_durable_execution_sdk_python.integration_name,
+            integration_config=config.aws_durable_execution_sdk_python,
+            resource=_resolve_resource(args, kwargs, name_pos),
+            operation=operation,
+        )
+        return _trace_with_event(event, wrapped, args, kwargs)
+
+    return wrapper
 
 
 def patch():
     """Instrument the aws-durable-execution-sdk-python library."""
     if getattr(aws_durable_execution_sdk_python, "_datadog_patch", False):
         return
+
+    import ddtrace._trace.subscribers.aws_durable  # noqa: F401
 
     aws_durable_execution_sdk_python._datadog_patch = True
 
@@ -241,12 +216,35 @@ def patch():
     wrap("aws_durable_execution_sdk_python.execution", "durable_execution", _traced_durable_execution)
     wrap("aws_durable_execution_sdk_python", "durable_execution", _traced_durable_execution)
 
-    for method in _CONTEXT_METHODS:
-        wrap(
-            "aws_durable_execution_sdk_python.context",
-            f"DurableContext.{method.method_name}",
-            functools.partial(_traced_context, method),
-        )
+    wrap("aws_durable_execution_sdk_python.context", "DurableContext.invoke", _traced_invoke)
+    wrap("aws_durable_execution_sdk_python.context", "DurableContext.step", _traced_operation("aws.durable.step", 1))
+    wrap("aws_durable_execution_sdk_python.context", "DurableContext.wait", _traced_operation("aws.durable.wait", 1))
+    wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.wait_for_condition",
+        _traced_operation("aws.durable.wait_for_condition", 2),
+    )
+    wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.wait_for_callback",
+        _traced_operation("aws.durable.wait_for_callback", 1),
+    )
+    wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.create_callback",
+        _traced_operation("aws.durable.create_callback", 0),
+    )
+    wrap("aws_durable_execution_sdk_python.context", "DurableContext.map", _traced_operation("aws.durable.map", 2))
+    wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.parallel",
+        _traced_operation("aws.durable.parallel", 1),
+    )
+    wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.run_in_child_context",
+        _traced_operation("aws.durable.child_context", 1),
+    )
 
     executor_module.ThreadPoolExecutor = TracedThreadPoolExecutor
 
@@ -266,8 +264,15 @@ def unpatch():
     unwrap(execution, "durable_execution")
     unwrap(aws_durable_execution_sdk_python, "durable_execution")
 
-    for method in _CONTEXT_METHODS:
-        unwrap(DurableContext, method.method_name)
+    unwrap(DurableContext, "invoke")
+    unwrap(DurableContext, "step")
+    unwrap(DurableContext, "wait")
+    unwrap(DurableContext, "wait_for_condition")
+    unwrap(DurableContext, "wait_for_callback")
+    unwrap(DurableContext, "create_callback")
+    unwrap(DurableContext, "map")
+    unwrap(DurableContext, "parallel")
+    unwrap(DurableContext, "run_in_child_context")
 
     executor_module.ThreadPoolExecutor = ThreadPoolExecutor
 
