@@ -51,7 +51,7 @@ def get_config(
     canonical = envs[0]
     aliases = CONFIGURATION_ALIASES.get(canonical, [])
     if aliases:
-        envs = list(envs) + [a for a in aliases if a not in envs]
+        envs += [a for a in aliases if a not in envs]
 
     effective_val = default
     telemetry_name = envs[0]

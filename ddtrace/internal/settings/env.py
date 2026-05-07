@@ -65,13 +65,12 @@ class EnvConfig(MutableMapping):
 
     def __getitem__(self, key: str) -> str:
         _validate_key(key)
-        try:
+        if key in os.environ:
             return os.environ[key]
-        except KeyError:
-            for alias in CONFIGURATION_ALIASES.get(key, ()):
-                if alias in os.environ:
-                    return os.environ[alias]
-            raise
+        for alias in CONFIGURATION_ALIASES.get(key, ()):
+            if alias in os.environ:
+                return os.environ[alias]
+        raise KeyError(key)
 
     def __setitem__(self, key: str, value: str) -> None:
         _validate_key(key)
