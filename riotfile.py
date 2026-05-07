@@ -96,6 +96,7 @@ _base_env = {
     "CARGO_BUILD_JOBS": "12",
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
+    "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
@@ -3277,10 +3278,11 @@ venv = Venv(
             },
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} -vv tests/contrib/kafka",
+                    command="pytest -n auto {cmdargs} -vv tests/contrib/kafka",
                     venvs=[
                         Venv(
                             pys=select_pys(min_version="3.9", max_version="3.10"),
@@ -3624,10 +3626,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # process_vm_readv fallback (safe_memcpy is now default)
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "0",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3680,10 +3682,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # process_vm_readv fallback (safe_memcpy is now default)
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "0",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3722,10 +3724,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # process_vm_readv fallback (safe_memcpy is now default)
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "0",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3765,10 +3767,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # process_vm_readv fallback (safe_memcpy is now default)
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "0",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,

@@ -1636,7 +1636,7 @@ def test_cached_view():
         assert span_header.error == 0
 
         expected_meta_view = {
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "django",
             "component": "django",
             "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
             "django.cache.key": (
@@ -1646,7 +1646,7 @@ def test_cached_view():
         }
 
         expected_meta_header = {
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "django",
             "component": "django",
             "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
             "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",

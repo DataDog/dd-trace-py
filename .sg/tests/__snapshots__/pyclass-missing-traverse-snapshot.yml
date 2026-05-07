@@ -1,0 +1,325 @@
+id: pyclass-missing-traverse
+snapshots:
+  ? |
+    #[pyclass(frozen)]
+    pub struct LeakBacked {
+        name: PyBackedString,
+    }
+  : labels:
+    - source: |-
+        pub struct LeakBacked {
+            name: PyBackedString,
+        }
+      style: primary
+      start: 19
+      end: 70
+    - source: LeakBacked
+      style: secondary
+      start: 30
+      end: 40
+    - source: '#[pyclass(frozen)]'
+      style: secondary
+      start: 0
+      end: 18
+    - source: PyBackedString
+      style: secondary
+      start: 53
+      end: 67
+    - source: 'name: PyBackedString'
+      style: secondary
+      start: 47
+      end: 67
+    - source: |-
+        {
+            name: PyBackedString,
+        }
+      style: secondary
+      start: 41
+      end: 70
+  ? |
+    #[pyclass]
+    #[derive(Default)]
+    pub struct LeakDerive {
+        attrs: Option<Py<PyDict>>,
+    }
+  : labels:
+    - source: |-
+        pub struct LeakDerive {
+            attrs: Option<Py<PyDict>>,
+        }
+      style: primary
+      start: 30
+      end: 86
+    - source: LeakDerive
+      style: secondary
+      start: 41
+      end: 51
+    - source: '#[pyclass]'
+      style: secondary
+      start: 0
+      end: 10
+    - source: Option<Py<PyDict>>
+      style: secondary
+      start: 65
+      end: 83
+    - source: 'attrs: Option<Py<PyDict>>'
+      style: secondary
+      start: 58
+      end: 83
+    - source: |-
+        {
+            attrs: Option<Py<PyDict>>,
+        }
+      style: secondary
+      start: 52
+      end: 86
+  ? |
+    #[pyclass]
+    pub struct GoodOne {
+        attrs: Py<PyDict>,
+    }
+
+    #[pymethods]
+    impl GoodOne {
+        fn __traverse__(&self, visit: pyo3::PyVisit<'_>)
+            -> Result<(), pyo3::PyTraverseError>
+        {
+            visit.call(&self.attrs)?;
+            Ok(())
+        }
+    }
+
+    #[pyclass]
+    pub struct LeakySibling {
+        attrs: Py<PyDict>,
+    }
+
+    #[pymethods]
+    impl LeakySibling {
+        fn other(&self) {}
+    }
+  : labels:
+    - source: |-
+        pub struct LeakySibling {
+            attrs: Py<PyDict>,
+        }
+      style: primary
+      start: 259
+      end: 309
+    - source: LeakySibling
+      style: secondary
+      start: 270
+      end: 282
+    - source: '#[pyclass]'
+      style: secondary
+      start: 248
+      end: 258
+    - source: Py<PyDict>
+      style: secondary
+      start: 296
+      end: 306
+    - source: 'attrs: Py<PyDict>'
+      style: secondary
+      start: 289
+      end: 306
+    - source: |-
+        {
+            attrs: Py<PyDict>,
+        }
+      style: secondary
+      start: 283
+      end: 309
+  ? |
+    #[pyclass]
+    pub struct LeakAny {
+        cached: Option<Py<PyAny>>,
+    }
+  : labels:
+    - source: |-
+        pub struct LeakAny {
+            cached: Option<Py<PyAny>>,
+        }
+      style: primary
+      start: 11
+      end: 64
+    - source: LeakAny
+      style: secondary
+      start: 22
+      end: 29
+    - source: '#[pyclass]'
+      style: secondary
+      start: 0
+      end: 10
+    - source: Option<Py<PyAny>>
+      style: secondary
+      start: 44
+      end: 61
+    - source: 'cached: Option<Py<PyAny>>'
+      style: secondary
+      start: 36
+      end: 61
+    - source: |-
+        {
+            cached: Option<Py<PyAny>>,
+        }
+      style: secondary
+      start: 30
+      end: 64
+  ? |
+    #[pyclass]
+    pub struct LeakDict {
+        attrs: Py<PyDict>,
+    }
+  : labels:
+    - source: |-
+        pub struct LeakDict {
+            attrs: Py<PyDict>,
+        }
+      style: primary
+      start: 11
+      end: 57
+    - source: LeakDict
+      style: secondary
+      start: 22
+      end: 30
+    - source: '#[pyclass]'
+      style: secondary
+      start: 0
+      end: 10
+    - source: Py<PyDict>
+      style: secondary
+      start: 44
+      end: 54
+    - source: 'attrs: Py<PyDict>'
+      style: secondary
+      start: 37
+      end: 54
+    - source: |-
+        {
+            attrs: Py<PyDict>,
+        }
+      style: secondary
+      start: 31
+      end: 57
+  ? |
+    #[pyclass]
+    pub struct LeakWrongImpl {
+        attrs: Py<PyDict>,
+    }
+
+    #[pymethods]
+    impl LeakWrongImpl {
+        fn other(&self) {}
+    }
+  : labels:
+    - source: |-
+        pub struct LeakWrongImpl {
+            attrs: Py<PyDict>,
+        }
+      style: primary
+      start: 11
+      end: 62
+    - source: LeakWrongImpl
+      style: secondary
+      start: 22
+      end: 35
+    - source: '#[pyclass]'
+      style: secondary
+      start: 0
+      end: 10
+    - source: Py<PyDict>
+      style: secondary
+      start: 49
+      end: 59
+    - source: 'attrs: Py<PyDict>'
+      style: secondary
+      start: 42
+      end: 59
+    - source: |-
+        {
+            attrs: Py<PyDict>,
+        }
+      style: secondary
+      start: 36
+      end: 62
+  ? |
+    #[pyclass]
+    pub struct LeakyPlainImpl {
+        attrs: Py<PyDict>,
+    }
+
+    impl LeakyPlainImpl {
+        fn __traverse__(&self, visit: pyo3::PyVisit<'_>)
+            -> Result<(), pyo3::PyTraverseError>
+        {
+            visit.call(&self.attrs)?;
+            Ok(())
+        }
+    }
+  : labels:
+    - source: |-
+        pub struct LeakyPlainImpl {
+            attrs: Py<PyDict>,
+        }
+      style: primary
+      start: 11
+      end: 63
+    - source: LeakyPlainImpl
+      style: secondary
+      start: 22
+      end: 36
+    - source: '#[pyclass]'
+      style: secondary
+      start: 0
+      end: 10
+    - source: Py<PyDict>
+      style: secondary
+      start: 50
+      end: 60
+    - source: 'attrs: Py<PyDict>'
+      style: secondary
+      start: 43
+      end: 60
+    - source: |-
+        {
+            attrs: Py<PyDict>,
+        }
+      style: secondary
+      start: 37
+      end: 63
+  ? |
+    #[pyo3::pyclass(name = "Leaky", module = "x")]
+    pub struct LeakQualified {
+        attrs: Py<PyDict>,
+    }
+  : labels:
+    - source: |-
+        pub struct LeakQualified {
+            attrs: Py<PyDict>,
+        }
+      style: primary
+      start: 47
+      end: 98
+    - source: LeakQualified
+      style: secondary
+      start: 58
+      end: 71
+    - source: '#[pyo3::pyclass(name = "Leaky", module = "x")]'
+      style: secondary
+      start: 0
+      end: 46
+    - source: Py<PyDict>
+      style: secondary
+      start: 85
+      end: 95
+    - source: 'attrs: Py<PyDict>'
+      style: secondary
+      start: 78
+      end: 95
+    - source: |-
+        {
+            attrs: Py<PyDict>,
+        }
+      style: secondary
+      start: 72
+      end: 98
