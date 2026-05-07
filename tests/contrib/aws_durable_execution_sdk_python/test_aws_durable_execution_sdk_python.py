@@ -8,6 +8,7 @@ import pytest
 
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import patch
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import unpatch
+from ddtrace.ext import aws_durable
 
 
 SNAPSHOT_IGNORES = [
@@ -32,7 +33,7 @@ def _fast_retry(max_attempts):
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_durable_execution():
+def test_durable_execution(test_spans):
     """Happy-path workflow with no SDK operations: a single aws.durable.execute span."""
 
     @ades.durable_execution
@@ -41,6 +42,8 @@ def test_durable_execution():
 
     with DurableFunctionTestRunner(workflow) as runner:
         runner.run(input='{"hello": "world"}')
+
+    assert test_spans.find_span(name="aws.durable.execute").get_tag(aws_durable.TAG_EXECUTION_ARN)
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)

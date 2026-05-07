@@ -10,20 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e27aeb00000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpz0wgpbdh,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f39e0700000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp834wcaod,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "6809d9a450014cffb0a2292a661d095a"
+      "runtime-id": "84fa8bf6dc9947cea1ef028fdb908ec8"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 40013.0
+      "process_id": 62891.0
     },
-    "duration": 1900041,
-    "start": 1776450283251307762
+    "duration": 2398375,
+    "start": 1777573383011359383
   }],
 [
   {
@@ -38,18 +37,18 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e27aeb00000000",
+      "_dd.p.tid": "69f39e0700000000",
       "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpz0wgpbdh,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp834wcaod,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "6809d9a450014cffb0a2292a661d095a"
+      "runtime-id": "84fa8bf6dc9947cea1ef028fdb908ec8"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 40013.0
+      "process_id": 62891.0
     },
-    "duration": 49625,
-    "start": 1776450283251004678
+    "duration": 53083,
+    "start": 1777573383011056716
   }]]

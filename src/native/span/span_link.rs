@@ -137,6 +137,19 @@ impl SpanLink {
         ))
     }
 
+    // Cyclic GC traversal: `attributes: Py<PyDict>` is user-controlled and may
+    // hold references that close cycles back to spans. Without `__traverse__`,
+    // such cycles are invisible to CPython's GC. This class is frozen so we
+    // cannot implement `__clear__`, but traversal alone is enough for the GC
+    // to break the cycle on the other (mutable) side.
+    fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        visit.call(&self.attributes)?;
+        if let Some(ts) = &self.tracestate {
+            ts.traverse(&visit)?;
+        }
+        Ok(())
+    }
+
     fn __reduce__(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         let cls = py.get_type::<SpanLink>();
         let args = PyTuple::new(

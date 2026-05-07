@@ -96,6 +96,7 @@ _base_env = {
     "CARGO_BUILD_JOBS": "12",
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
+    "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
