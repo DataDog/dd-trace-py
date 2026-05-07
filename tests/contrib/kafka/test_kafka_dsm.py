@@ -122,9 +122,9 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic, grou
         parent_hash,
     )
     with dsm_processor._lock:
-        hash_pairs = [
+        hash_pairs = {
             (tag[1], tag[2]) for bucket in dsm_processor._buckets.values() for tag in bucket.pathway_stats.keys()
-        ]
+        }
     assert (parent_hash, 0) in hash_pairs
     assert (child_hash, parent_hash) in hash_pairs
 

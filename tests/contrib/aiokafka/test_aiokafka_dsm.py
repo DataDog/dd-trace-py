@@ -45,14 +45,6 @@ def _max_commit_offset(processor, key):
         )
 
 
-def _merged_pathway_stats(processor):
-    with processor._lock:
-        merged = {}
-        for bucket in processor._buckets.values():
-            merged.update(bucket.pathway_stats)
-        return merged
-
-
 @pytest.fixture
 def dsm_processor():
     processor = data_streams_processor(reset=True)
@@ -89,7 +81,11 @@ async def test_data_streams_pathway_stats(dsm_processor):
         await consumer.getone()
         await consumer.commit()
 
-    pathway_stats = _merged_pathway_stats(dsm_processor)
+    # Producer and consumer checkpoints can land in different buckets when the test
+    # straddles a 10s boundary; this test produces 1 + consumes 1, so each key
+    # appears in at most one bucket and a plain dict merge is safe.
+    with dsm_processor._lock:
+        pathway_stats = {k: v for b in dsm_processor._buckets.values() for k, v in b.pathway_stats.items()}
 
     # Compute expected hashes based on edge tags to verify pathway continuity
     ctx = DataStreamsCtx(dsm_processor, 0, 0, 0)
@@ -177,28 +173,23 @@ async def test_data_streams_getmany(dsm_processor):
         await consumer.getmany(timeout_ms=2000)
         await consumer.commit()
 
-    # Same checkpoint can recur across DSM buckets when sends straddle a 10s boundary;
-    # collect keys and SUM full_pathway_latency.count per direction across all buckets.
+    # Same checkpoint key can recur across DSM buckets when sends straddle a 10s
+    # boundary; collect keys and SUM full_pathway_latency.count per direction in
+    # a single pass.
+    producer_keys, consumer_keys = set(), set()
+    producer_count = consumer_count = 0
     with dsm_processor._lock:
-        all_keys = {k for b in dsm_processor._buckets.values() for k in b.pathway_stats.keys()}
-        producer_count = sum(
-            stats.full_pathway_latency.count
-            for b in dsm_processor._buckets.values()
-            for k, stats in b.pathway_stats.items()
-            if "direction:out" in k[0]
-        )
-        consumer_count = sum(
-            stats.full_pathway_latency.count
-            for b in dsm_processor._buckets.values()
-            for k, stats in b.pathway_stats.items()
-            if "direction:in" in k[0]
-        )
+        for bucket in dsm_processor._buckets.values():
+            for key, stats in bucket.pathway_stats.items():
+                if "direction:out" in key[0]:
+                    producer_keys.add(key)
+                    producer_count += stats.full_pathway_latency.count
+                elif "direction:in" in key[0]:
+                    consumer_keys.add(key)
+                    consumer_count += stats.full_pathway_latency.count
 
-    producer_checkpoints = [k for k in all_keys if "direction:out" in k[0]]
-    consumer_checkpoints = [k for k in all_keys if "direction:in" in k[0]]
-
-    assert len(producer_checkpoints) == 1, "Should have one producer checkpoint"
-    assert len(consumer_checkpoints) == 1, "Should have one consumer checkpoint"
+    assert len(producer_keys) == 1, "Should have one producer checkpoint"
+    assert len(consumer_keys) == 1, "Should have one consumer checkpoint"
     assert producer_count == 3, "Should track latency for all 3 producer sends"
     assert consumer_count == 3, "Should track latency for all 3 consumer reads"
 
@@ -281,15 +272,15 @@ async def test_data_streams_multiple_topics(dsm_processor):
     # Verify we got messages from both topics
     assert len(messages) >= 1, "Should receive messages"
 
-    pathway_stats = _merged_pathway_stats(dsm_processor)
-
-    # Extract all topics from pathway stats
+    # Extract all topics from pathway stats across DSM buckets (produce/consume can
+    # straddle a 10s boundary).
     checkpoint_topics = set()
-    for key in pathway_stats.keys():
-        edge_tags = key[0]
-        for tag in edge_tags.split(","):
-            if tag.startswith("topic:"):
-                checkpoint_topics.add(tag.split(":", 1)[1])
+    with dsm_processor._lock:
+        for bucket in dsm_processor._buckets.values():
+            for key in bucket.pathway_stats.keys():
+                for tag in key[0].split(","):
+                    if tag.startswith("topic:"):
+                        checkpoint_topics.add(tag.split(":", 1)[1])
 
     # Both topics should be tracked
     assert topic1 in checkpoint_topics, f"Topic {topic1} should be tracked"
