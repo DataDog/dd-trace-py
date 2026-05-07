@@ -16,6 +16,7 @@ from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._otel_remapper import ENV_VAR_MAPPINGS
 from ddtrace.internal.settings._otel_remapper import SUPPORTED_OTEL_ENV_VARS
 from ddtrace.internal.settings._otel_remapper import parse_otel_env
+from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
@@ -44,6 +45,13 @@ def get_config(
     """
     if isinstance(envs, str):
         envs = [envs]
+
+    # Expand with registered aliases of the canonical name (envs[0]) so all
+    # config sources (LOCAL_CONFIG, env, FLEET_CONFIG) honor legacy renames.
+    canonical = envs[0]
+    aliases = CONFIGURATION_ALIASES.get(canonical, [])
+    if aliases:
+        envs = list(envs) + [a for a in aliases if a not in envs]
 
     effective_val = default
     telemetry_name = envs[0]
