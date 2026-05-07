@@ -1,0 +1,32 @@
+[[
+  {
+    "name": "operation",
+    "service": "my-svc",
+    "resource": "operation",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69fca7d900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmplm683ng4,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "k": "v",
+      "language": "python",
+      "runtime-id": "b6ef0d4fe5c746a793a1048eee32072e"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "float_metric": 12.34,
+      "int_metric": 4321.0,
+      "num": 1234.0,
+      "process_id": 526.0
+    },
+    "duration": 56375,
+    "start": 1778165721085146513
+  }]]

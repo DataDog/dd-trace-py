@@ -400,6 +400,34 @@ class TraceExporterBuilder:
         """
         ...
 
+class NativeTraceBuffer:
+    """
+    Native Rust trace buffer that accepts SpanData objects directly,
+    bypassing msgpack encoding.
+
+    Takes ownership of the TraceExporter passed to the constructor;
+    after construction, the exporter's ``send()`` method will return an error.
+    """
+
+    def __init__(self, exporter: TraceExporter) -> None: ...
+    def send_chunk(self, spans: list[SpanData]) -> None:
+        """
+        Move spans into the buffer.
+
+        After this call each span in the list is in an empty/default state
+        and must not be used further.
+        """
+        ...
+    def force_flush(self) -> None:
+        """Trigger a background flush without waiting for it to complete."""
+        ...
+    def shutdown(self, timeout_ns: int) -> None:
+        """Flush and stop the background worker, waiting up to timeout_ns nanoseconds."""
+        ...
+    def wait_shutdown_done(self, timeout_ns: int) -> None:
+        """Wait until the background worker confirms shutdown (primarily for tests)."""
+        ...
+
 class AgentError(Exception):
     """
     Raised when there is an error in agent response processing.

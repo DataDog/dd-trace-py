@@ -26,6 +26,7 @@ from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_en
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import LogWriter
+from ddtrace.internal.writer import NativeTraceBuffer
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import _human_size
 from ddtrace.trace import Span
@@ -473,6 +474,60 @@ class CIVisibilityWriterTests(NativeWriterTests):
             assert unpacked_metadata[b"env"] == (config.env.encode("utf-8") if config.env else None)
             return
         pytest.fail("At least one ci visibility payload must include metadata")
+
+
+class NativeTraceBufferTests(BaseTestCase):
+    """Smoke tests for NativeTraceBuffer — covers the subset of NativeWriterTests behaviours
+    that are applicable to the buffer-based writer (no dogstatsd, no buffer-size limits)."""
+
+    def _make_writer(self):
+        return NativeTraceBuffer("http://asdf:1234")
+
+    def test_write_does_not_crash(self):
+        writer = self._make_writer()
+        writer.write([Span(name="name", trace_id=1, span_id=1, parent_id=None)])
+        writer.flush_queue()
+        writer.stop(1.0)
+
+    def test_write_empty_spans(self):
+        writer = self._make_writer()
+        writer.write([])
+        writer.write(None)
+        writer.stop(1.0)
+
+    def test_stop_before_flush(self):
+        writer = self._make_writer()
+        writer.write([Span(name="name", trace_id=1, span_id=1, parent_id=None)])
+        writer.stop(1.0)
+
+    def test_set_test_session_token_rebuilds_buffer(self):
+        writer = self._make_writer()
+        old_buffer = writer._native_buffer
+        writer.set_test_session_token("test-token-abc")
+        assert writer._test_session_token == "test-token-abc"
+        # A new buffer should have been created
+        assert writer._native_buffer is not old_buffer
+        writer.stop(1.0)
+
+    def test_set_test_session_token_none(self):
+        writer = self._make_writer()
+        writer.set_test_session_token(None)
+        assert writer._test_session_token is None
+        writer.stop(1.0)
+
+    def test_recreate_preserves_test_session_token(self):
+        writer = self._make_writer()
+        writer.set_test_session_token("tok-xyz")
+        writer2 = writer.recreate()
+        assert writer2._test_session_token == "tok-xyz"
+        writer2.stop(1.0)
+
+    def test_write_multiple_traces(self):
+        writer = self._make_writer()
+        for i in range(5):
+            writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(3)])
+        writer.flush_queue()
+        writer.stop(1.0)
 
 
 class LogWriterTests(BaseTestCase):

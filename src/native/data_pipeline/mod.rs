@@ -3,9 +3,12 @@ use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
 };
+use libdd_shared_runtime::SharedRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
+use std::sync::Arc;
 use std::time::Duration;
 mod exceptions;
+mod trace_buffer;
 use crate::shared_runtime::SharedRuntimePy;
 use exceptions::TraceExporterErrorPy;
 
@@ -193,8 +196,8 @@ impl TraceExporterBuilderPy {
     /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
     /// one without registering the fork hooks.
     fn build(&mut self, shared_runtime: PyRef<'_, SharedRuntimePy>) -> PyResult<TraceExporterPy> {
-        let shared_runtime = shared_runtime.as_arc().clone();
-        self.try_as_mut()?.set_shared_runtime(shared_runtime);
+        let runtime_arc = shared_runtime.as_arc().clone();
+        self.try_as_mut()?.set_shared_runtime(runtime_arc.clone());
         let exporter = TraceExporterPy {
             inner: Some(
                 self.builder
@@ -203,6 +206,7 @@ impl TraceExporterBuilderPy {
                     .build::<NativeCapabilities>()
                     .map_err(|err| PyValueError::new_err(format!("Builder {err}")))?,
             ),
+            runtime: runtime_arc,
         };
         Ok(exporter)
     }
@@ -216,6 +220,22 @@ impl TraceExporterBuilderPy {
 #[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
     inner: Option<TraceExporter<NativeCapabilities>>,
+    /// Kept alive so the runtime is not shut down while this exporter is in use.
+    runtime: Arc<SharedRuntime>,
+}
+
+impl TraceExporterPy {
+    /// Take the inner `TraceExporter`, leaving `inner` as `None`.
+    ///
+    /// Used by `NativeTraceBufferPy` to take ownership of the exporter.
+    pub(crate) fn take_inner(&mut self) -> Option<TraceExporter<NativeCapabilities>> {
+        self.inner.take()
+    }
+
+    /// Return a reference to the shared runtime Arc.
+    pub(crate) fn runtime_arc(&self) -> &Arc<SharedRuntime> {
+        &self.runtime
+    }
 }
 
 #[pymethods]
@@ -275,6 +295,7 @@ pub fn register_data_pipeline(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TraceExporterBuilderPy>()?;
     m.add_class::<TraceExporterPy>()?;
     exceptions::register_exceptions(m)?;
+    trace_buffer::register_trace_buffer(m)?;
 
     Ok(())
 }

@@ -224,6 +224,12 @@ impl SpanBytes for Bytes {
     }
 }
 
+impl Bytes {
+    pub(crate) fn from_vec(v: Vec<u8>) -> Self {
+        Self(v)
+    }
+}
+
 impl Borrow<[u8]> for Bytes {
     fn borrow(&self) -> &[u8] {
         &self.0

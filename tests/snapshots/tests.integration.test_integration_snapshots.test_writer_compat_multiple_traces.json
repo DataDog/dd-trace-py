@@ -1,0 +1,96 @@
+[[
+  {
+    "name": "operation1",
+    "service": "my-svc",
+    "resource": "operation1",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69fca67e00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp4k2l0om1,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "k": "v",
+      "language": "python",
+      "runtime-id": "f5a0395b952d491aa15b8c8587f84c5a"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "float_metric": 12.34,
+      "int_metric": 4321.0,
+      "num": 1234.0,
+      "process_id": 510.0
+    },
+    "duration": 83959,
+    "start": 1778165374764352088
+  },
+     {
+       "name": "child",
+       "service": "my-svc",
+       "resource": "child",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "_dd.svc_src": "m"
+       },
+       "duration": 13917,
+       "start": 1778165374764412838
+     }],
+[
+  {
+    "name": "operation2",
+    "service": "my-svc",
+    "resource": "operation2",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69fca67e00000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp4k2l0om1,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "k": "v",
+      "language": "python",
+      "runtime-id": "f5a0395b952d491aa15b8c8587f84c5a"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "float_metric": 12.34,
+      "int_metric": 4321.0,
+      "num": 1234.0,
+      "process_id": 510.0
+    },
+    "duration": 25458,
+    "start": 1778165374764621172
+  },
+     {
+       "name": "child",
+       "service": "my-svc",
+       "resource": "child",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "_dd.svc_src": "m"
+       },
+       "duration": 6875,
+       "start": 1778165374764635297
+     }]]

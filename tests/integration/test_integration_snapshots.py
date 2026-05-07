@@ -443,3 +443,104 @@ except KeyboardInterrupt:
             if proc.poll() is None:
                 proc.kill()
                 proc.wait()
+
+
+# ── Writer payload compatibility tests ────────────────────────────────────────
+# Each pair of tests shares a snapshot token so the testagent enforces that
+# NativeWriter and NativeTraceBuffer produce byte-for-byte identical payloads.
+# The NativeWriter test runs first and creates the snapshot; the
+# NativeTraceBuffer test then compares against it.  Any divergence is a bug.
+
+_TOKEN_COMPAT_SINGLE = (
+    "tests.integration.test_integration_snapshots"
+    ".test_writer_compat_single_span"
+)
+_TOKEN_COMPAT_MULTIPLE = (
+    "tests.integration.test_integration_snapshots"
+    ".test_writer_compat_multiple_traces"
+)
+
+
+@pytest.mark.snapshot(token=_TOKEN_COMPAT_SINGLE)
+@pytest.mark.subprocess()
+def test_native_writer_compat_single_span():
+    """NativeWriter baseline: single span with tags/metrics."""
+    from ddtrace.trace import tracer
+
+    s = tracer.trace("operation", service="my-svc")
+    s.set_tag("k", "v")
+    s.set_tag("num", 1234)
+    s._set_attribute("float_metric", 12.34)
+    s._set_attribute("int_metric", 4321)
+    s.finish()
+    tracer.flush()
+
+
+@pytest.mark.snapshot(token=_TOKEN_COMPAT_SINGLE, wait_for_num_traces=1)
+@pytest.mark.subprocess()
+def test_native_trace_buffer_compat_single_span():
+    """NativeTraceBuffer must produce identical output to test_native_writer_compat_single_span."""
+    from ddtrace.internal.writer import NativeTraceBuffer
+    from ddtrace.trace import tracer
+
+    writer = NativeTraceBuffer(tracer._span_aggregator.writer.intake_url)
+    tracer._span_aggregator.writer = writer
+    s = tracer.trace("operation", service="my-svc")
+    s.set_tag("k", "v")
+    s.set_tag("num", 1234)
+    s._set_attribute("float_metric", 12.34)
+    s._set_attribute("int_metric", 4321)
+    s.finish()
+    tracer.flush()
+    writer.stop(5.0)
+
+
+@pytest.mark.snapshot(token=_TOKEN_COMPAT_MULTIPLE)
+@pytest.mark.subprocess()
+def test_native_writer_compat_multiple_traces():
+    """NativeWriter baseline: multiple traces with nested spans."""
+    from ddtrace.trace import tracer
+
+    with tracer.trace("operation1", service="my-svc") as s:
+        s.set_tag("k", "v")
+        s.set_tag("num", 1234)
+        s._set_attribute("float_metric", 12.34)
+        s._set_attribute("int_metric", 4321)
+        tracer.trace("child").finish()
+
+    with tracer.trace("operation2", service="my-svc") as s:
+        s.set_tag("k", "v")
+        s.set_tag("num", 1234)
+        s._set_attribute("float_metric", 12.34)
+        s._set_attribute("int_metric", 4321)
+        tracer.trace("child").finish()
+
+    tracer.flush()
+
+
+@pytest.mark.snapshot(token=_TOKEN_COMPAT_MULTIPLE, wait_for_num_traces=2)
+@pytest.mark.subprocess()
+def test_native_trace_buffer_compat_multiple_traces():
+    """NativeTraceBuffer must produce identical output to test_native_writer_compat_multiple_traces."""
+    from ddtrace.internal.writer import NativeTraceBuffer
+    from ddtrace.trace import tracer
+
+    writer = NativeTraceBuffer(tracer._span_aggregator.writer.intake_url)
+    tracer._span_aggregator.writer = writer
+
+    with tracer.trace("operation1", service="my-svc") as s:
+        s.set_tag("k", "v")
+        s.set_tag("num", 1234)
+        s._set_attribute("float_metric", 12.34)
+        s._set_attribute("int_metric", 4321)
+        tracer.trace("child").finish()
+
+    with tracer.trace("operation2", service="my-svc") as s:
+        s.set_tag("k", "v")
+        s.set_tag("num", 1234)
+        s._set_attribute("float_metric", 12.34)
+        s._set_attribute("int_metric", 4321)
+        tracer.trace("child").finish()
+
+    tracer.flush()
+    writer.stop(5.0)

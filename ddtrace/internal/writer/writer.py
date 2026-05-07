@@ -1014,6 +1014,103 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
 
 
+class NativeTraceBuffer(TraceWriter):
+    """TraceWriter backed by the native Rust trace buffer.
+
+    Bypasses msgpack encoding by converting SpanData objects to native Rust
+    span types directly inside `send_chunk`. Spans are consumed (left in an
+    empty/default state) after each call to `write()`.
+    """
+
+    def __init__(
+        self,
+        intake_url: str,
+        compute_stats_enabled: bool = False,
+        response_callback: Optional[Callable] = None,
+        stats_opt_out: Optional[bool] = False,
+        otlp_endpoint: Optional[str] = None,
+        test_session_token: Optional[str] = None,
+    ) -> None:
+        self.intake_url = intake_url
+        self._compute_stats_enabled = compute_stats_enabled
+        self._response_cb = response_callback
+        self._stats_opt_out = stats_opt_out
+        self._otlp_endpoint = otlp_endpoint
+
+        if test_session_token is None:
+            additional_header_str = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+            if additional_header_str is not None:
+                additional_header = parse_tags_str(additional_header_str)
+                test_session_token = additional_header.get("X-Datadog-Test-Session-Token")
+        self._test_session_token = test_session_token
+
+        exporter = self._create_exporter()
+        self._native_buffer = native.NativeTraceBuffer(exporter)
+
+    def _create_exporter(self) -> native.TraceExporter:
+        _, commit_sha, _ = get_git_tags()
+        builder = (
+            native.TraceExporterBuilder()
+            .set_url(self.intake_url)
+            .set_hostname(get_hostname())
+            .set_language("python")
+            .set_language_version(compat.PYTHON_VERSION)
+            .set_language_interpreter(compat.PYTHON_INTERPRETER)
+            .set_tracer_version(__version__)
+            .set_git_commit_sha(commit_sha)
+            .set_client_computed_top_level()
+            .set_input_format("v0.5")
+            .set_output_format("v0.5")
+        )
+        if config.service:
+            builder.set_service(config.service)
+        if config.env:
+            builder.set_env(config.env)
+        if config.version:
+            builder.set_app_version(config.version)
+        if self._otlp_endpoint is not None:
+            builder.set_otlp_endpoint(self._otlp_endpoint)
+        if self._test_session_token is not None:
+            builder.set_test_session_token(self._test_session_token)
+        if self._stats_opt_out:
+            builder.set_client_computed_stats()
+        elif self._compute_stats_enabled:
+            stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            bucket_size_ns = int(stats_interval * 1e9)
+            builder.enable_stats(bucket_size_ns)
+        return builder.build(get_native_runtime())
+
+    def set_test_session_token(self, token: Optional[str]) -> None:
+        self._test_session_token = token
+        self._native_buffer.shutdown(int(1e9))
+        exporter = self._create_exporter()
+        self._native_buffer = native.NativeTraceBuffer(exporter)
+
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeTraceBuffer":
+        self.stop()
+        return self.__class__(
+            intake_url=self.intake_url,
+            compute_stats_enabled=self._compute_stats_enabled,
+            response_callback=self._response_cb,
+            stats_opt_out=self._stats_opt_out,
+            otlp_endpoint=self._otlp_endpoint,
+            test_session_token=self._test_session_token,
+        )
+
+    def write(self, spans: Optional[list] = None) -> None:
+        if not spans:
+            return
+        spans[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0)
+        self._native_buffer.send_chunk(spans)
+
+    def flush_queue(self) -> None:
+        self._native_buffer.force_flush()
+
+    def stop(self, timeout: Optional[float] = None) -> None:
+        timeout_ns = int((timeout or 1.0) * 1e9)
+        self._native_buffer.shutdown(timeout_ns)
+
+
 def _use_log_writer() -> bool:
     """Returns whether the LogWriter should be used in the environment by
     default.

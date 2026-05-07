@@ -8,7 +8,7 @@ use pyo3::{
 };
 
 use super::attributes::{AttrKey, AttributeMap, AttributeValue};
-use crate::py_string::{PyBackedString, PyTraceData};
+use crate::py_string::{Bytes, PyBackedString, PyTraceData};
 use crate::utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use libdd_trace_utils::span::{
     v04::{
@@ -61,6 +61,68 @@ impl SpanData {
         if !self.has_attribute(k) {
             let _ = self.set_attribute(k, v);
         }
+    }
+
+    /// Move all attributes and meta_struct into `self.data`, then take and return `self.data`.
+    ///
+    /// After this call, `self.data` is reset to its default value and the span should not be
+    /// used further. This is intended to be called exactly once, at write time, by the native
+    /// trace buffer's `send_chunk` path.
+    ///
+    /// # GIL requirement
+    /// The GIL must be held (`py: Python<'_>` token is required) because:
+    /// - `AttrKey::as_bound` dereferences a `Py<PyString>` pointer.
+    /// - `AttributeValue::Str` holds a `Py<PyString>` that must be bound to borrow its data.
+    /// - The msgpack import and call are Python FFI operations.
+    pub(crate) fn take_data(
+        &mut self,
+        py: Python<'_>,
+    ) -> libdd_trace_utils::span::v04::Span<PyTraceData> {
+        // Drain attributes into data.meta (Str) and data.metrics (Int/Float).
+        for (key, value) in self.attributes.drain() {
+            let key_backed = match PyBackedString::try_from(key.as_bound(py).clone()) {
+                Ok(k) => k,
+                Err(_) => continue,
+            };
+            match value {
+                AttributeValue::Str(s) => {
+                    let val = match PyBackedString::try_from(s.bind(py).clone()) {
+                        Ok(v) => v,
+                        Err(_) => continue,
+                    };
+                    self.data.meta.insert(key_backed, val);
+                }
+                AttributeValue::Int(i) => {
+                    self.data.metrics.insert(key_backed, i as f64);
+                }
+                AttributeValue::Float(f) => {
+                    self.data.metrics.insert(key_backed, f);
+                }
+            }
+        }
+
+        // Encode each meta_struct value with msgpack and move into data.meta_struct.
+        if let Some(meta_struct) = self.meta_struct.take() {
+            if let Ok(msgpack) = py.import("ddtrace.vendor.msgpack") {
+                for (k, v) in meta_struct.bind(py).iter() {
+                    let key_backed = match k.extract::<PyBackedString>() {
+                        Ok(k) => k,
+                        Err(_) => continue,
+                    };
+                    let packed_bytes: Vec<u8> =
+                        match msgpack.call_method1("packb", (&v,)) {
+                            Ok(result) => match result.extract() {
+                                Ok(b) => b,
+                                Err(_) => continue,
+                            },
+                            Err(_) => continue,
+                        };
+                    self.data.meta_struct.insert(key_backed, Bytes::from_vec(packed_bytes));
+                }
+            }
+        }
+
+        std::mem::take(&mut self.data)
     }
 }
 
