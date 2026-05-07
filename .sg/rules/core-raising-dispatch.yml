@@ -9,6 +9,8 @@ ignores:
   # Allow-listed existing callsites
   - "ddtrace/contrib/internal/langchain/patch.py"
   - "ddtrace/contrib/internal/openai/patch.py"
+  # Tests for raising_dispatch itself
+  - "tests/internal/test_context_events_api.py"
 rule:
   any:
     # Match function calls to raising_dispatch

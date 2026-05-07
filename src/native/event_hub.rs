@@ -1,6 +1,6 @@
 use pyo3::{
     prelude::*,
-    types::{PyDict, PyTuple},
+    types::{PyDict, PyList, PyTuple},
     PyTraverseError, PyVisit,
 };
 use std::collections::HashMap;
@@ -226,6 +226,31 @@ impl EventResultDict {
     }
 }
 
+// Coerce any Python object to a tuple for use as call args.
+// Accepts tuple (fast path, zero copy), list, or any iterable.
+// On failure returns an empty tuple rather than propagating an error,
+// so a misbehaving caller cannot crash the host application.
+fn coerce_to_tuple<'py>(py: Python<'py>, args: Option<Py<PyAny>>) -> Bound<'py, PyTuple> {
+    let Some(obj) = args else {
+        return PyTuple::empty(py);
+    };
+    let bound = obj.into_bound(py);
+    if let Ok(t) = bound.clone().cast_into::<PyTuple>() {
+        return t;
+    }
+    if let Ok(l) = bound.clone().cast_into::<PyList>() {
+        if let Ok(t) = PyTuple::new(py, l.iter()) {
+            return t;
+        }
+    }
+    // General iterable fallback
+    let result = bound
+        .try_iter()
+        .and_then(|iter| iter.collect::<PyResult<Vec<_>>>())
+        .and_then(|v| PyTuple::new(py, v));
+    result.unwrap_or_else(|_| PyTuple::empty(py))
+}
+
 #[pyfunction]
 pub fn has_listeners(event_id: &str) -> bool {
     LISTENERS
@@ -282,7 +307,7 @@ pub fn reset(event_id: Option<&str>, callback: Option<Py<PyAny>>) {
 
 #[pyfunction]
 #[pyo3(signature = (event_id, args=None))]
-pub fn dispatch(py: Python<'_>, event_id: &str, args: Option<Bound<'_, PyTuple>>) -> PyResult<()> {
+pub fn dispatch(py: Python<'_>, event_id: &str, args: Option<Py<PyAny>>) -> PyResult<()> {
     let callbacks = {
         let guard = LISTENERS.read().unwrap();
         let v = match guard.get(event_id) {
@@ -293,7 +318,7 @@ pub fn dispatch(py: Python<'_>, event_id: &str, args: Option<Bound<'_, PyTuple>>
         v.iter().map(|(_, cb)| cb.clone_ref(py)).collect::<Vec<_>>()
     };
 
-    let call_args = args.unwrap_or_else(|| PyTuple::empty(py));
+    let call_args = coerce_to_tuple(py, args);
 
     for cb in &callbacks {
         if let Err(e) = cb.bind(py).call1(&call_args) {
@@ -312,7 +337,7 @@ pub fn dispatch(py: Python<'_>, event_id: &str, args: Option<Bound<'_, PyTuple>>
 pub fn dispatch_with_results(
     py: Python<'_>,
     event_id: &str,
-    args: Option<Bound<'_, PyTuple>>,
+    args: Option<Py<PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     let entries = {
         let guard = LISTENERS.read().unwrap();
@@ -325,7 +350,7 @@ pub fn dispatch_with_results(
             .collect::<Vec<_>>()
     };
 
-    let call_args = args.unwrap_or_else(|| PyTuple::empty(py));
+    let call_args = coerce_to_tuple(py, args);
 
     let result_dict_py = Py::new(py, EventResultDict)?;
     {
