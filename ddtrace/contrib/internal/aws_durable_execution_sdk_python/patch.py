@@ -3,7 +3,6 @@ import contextvars
 import functools
 from typing import Any
 from typing import Callable
-from typing import Optional
 
 import aws_durable_execution_sdk_python
 from aws_durable_execution_sdk_python import execution
@@ -138,8 +137,10 @@ def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict)
     if _is_top_level_for_span(instance):
         event = core.current.event
         if isinstance(event, (AwsDurableInvokeEvent, AwsDurableOperationEvent)):
-            checkpoint = instance.state.get_checkpoint_result(instance.operation_identifier.operation_id)
+            operation_id = instance.operation_identifier.operation_id
+            checkpoint = instance.state.get_checkpoint_result(operation_id)
             event.replayed = checkpoint.is_succeeded()
+            event.id = operation_id
     return wrapped(*args, **kwargs)
 
 
@@ -153,12 +154,10 @@ def _traced_retry_handler(wrapped: Callable, instance: Any, args: tuple, kwargs:
     return wrapped(*args, **kwargs)
 
 
-def _resolve_resource(args: tuple, kwargs: dict, name_pos: int) -> Optional[str]:
-    """Return the resource name from the call args, or None if the parent is map/parallel."""
+def _is_dynamic_parent() -> bool:
+    """Return True if the active parent event is a map/parallel operation."""
     parent_event = core.current.event
-    if isinstance(parent_event, AwsDurableOperationEvent) and parent_event.operation in _DYNAMIC_PARENT_OPERATIONS:
-        return None
-    return get_argument_value(args, kwargs, name_pos, "name", optional=True)
+    return isinstance(parent_event, AwsDurableOperationEvent) and parent_event.operation in _DYNAMIC_PARENT_OPERATIONS
 
 
 def _trace_with_event(event, wrapped: Callable, args: tuple, kwargs: dict):
@@ -176,12 +175,14 @@ def _trace_with_event(event, wrapped: Callable, args: tuple, kwargs: dict):
 
 
 def _traced_invoke(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
+    name = get_argument_value(args, kwargs, 2, "name", optional=True)
     event = AwsDurableInvokeEvent(
         component=config.aws_durable_execution_sdk_python.integration_name,
         integration_config=config.aws_durable_execution_sdk_python,
-        resource=_resolve_resource(args, kwargs, 2),
+        resource=None if _is_dynamic_parent() else name,
         operation="aws.durable.invoke",
         invoke_function_name=get_argument_value(args, kwargs, 0, "function_name"),
+        name=name,
     )
     return _trace_with_event(event, wrapped, args, kwargs)
 
@@ -190,11 +191,13 @@ def _traced_operation(operation: str, name_pos: int) -> Callable:
     """Build a wrapper that traces a DurableContext operation method (step/wait/map/parallel/etc.)."""
 
     def wrapper(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
+        name = get_argument_value(args, kwargs, name_pos, "name", optional=True)
         event = AwsDurableOperationEvent(
             component=config.aws_durable_execution_sdk_python.integration_name,
             integration_config=config.aws_durable_execution_sdk_python,
-            resource=_resolve_resource(args, kwargs, name_pos),
+            resource=None if _is_dynamic_parent() else name,
             operation=operation,
+            name=name,
         )
         return _trace_with_event(event, wrapped, args, kwargs)
 

@@ -42,6 +42,8 @@
        "error": 0,
        "meta": {
          "_dd.svc_src": "aws_durable_execution_sdk_python",
+         "aws.durable.id": "1ced8f5be2db23a6513eba4d819c73806424748a7bc6fa0d792cc1c7d1775a97",
+         "aws.durable.name": "fan-out",
          "aws.durable.replayed": "false",
          "component": "aws_durable_execution_sdk_python",
          "span.kind": "internal"
@@ -63,6 +65,8 @@
           "error": 0,
           "meta": {
             "_dd.svc_src": "aws_durable_execution_sdk_python",
+            "aws.durable.id": "48550629202cb2d0e1bd4f07d826361bbd2defa71565264c01647fc2da0e9b1e",
+            "aws.durable.name": "a",
             "aws.durable.replayed": "false",
             "component": "aws_durable_execution_sdk_python",
             "span.kind": "internal"
@@ -84,6 +88,8 @@
           "error": 0,
           "meta": {
             "_dd.svc_src": "aws_durable_execution_sdk_python",
+            "aws.durable.id": "d0bd0541a3db98c1beecb6c41cd964f92910f1d367864202697b001344bd70b3",
+            "aws.durable.name": "b",
             "aws.durable.replayed": "false",
             "component": "aws_durable_execution_sdk_python",
             "span.kind": "internal"

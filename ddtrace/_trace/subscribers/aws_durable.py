@@ -41,6 +41,8 @@ class AwsDurableInvokeSubscriber(TracingSubscriber):
         event: AwsDurableInvokeEvent = ctx.event
         if event.replayed is not None:
             ctx.span._set_attribute(aws_durable.TAG_REPLAYED, "true" if event.replayed else "false")
+        if event.id is not None:
+            ctx.span._set_attribute(aws_durable.TAG_ID, event.id)
 
 
 class AwsDurableOperationSubscriber(TracingSubscriber):
@@ -55,3 +57,5 @@ class AwsDurableOperationSubscriber(TracingSubscriber):
         event: AwsDurableOperationEvent = ctx.event
         if event.replayed is not None:
             ctx.span._set_attribute(aws_durable.TAG_REPLAYED, "true" if event.replayed else "false")
+        if event.id is not None:
+            ctx.span._set_attribute(aws_durable.TAG_ID, event.id)
