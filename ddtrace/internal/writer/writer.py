@@ -604,7 +604,19 @@ class AgentlessTraceWriter(HTTPWriter):
 
 
 def _resolve_api_version(api_version: Optional[str] = None) -> str:
-    """Determine the effective trace API version given platform and product constraints."""
+    """Determine the effective trace API version given platform and product constraints.
+
+    Resolution order:
+    1. ``api_version`` argument (caller-supplied explicit override).
+    2. ``DD_TRACE_API_VERSION`` / ``config._trace_api`` environment setting.
+    3. Platform / product default (``v0.4`` on Windows, GCP Functions, Azure Functions,
+       ASM, IAST, or AI Guard; ``v0.5`` otherwise).
+
+    Note: when ``DD_TRACE_NATIVE_SPAN_EVENTS`` is enabled, the resolved version is
+    **unconditionally forced to ``v0.4``**, overriding even an explicit ``api_version``
+    argument. This is a hard constraint: the v0.5 serialisation format does not support
+    native span events.
+    """
     is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     default = "v0.5"
     if (
@@ -637,7 +649,7 @@ def _build_base_exporter_builder(
     test_session_token: Optional[str],
     compute_stats_enabled: bool,
     stats_opt_out: Optional[bool],
-) -> Any:
+) -> "native.TraceExporterBuilder":
     _, commit_sha, _ = get_git_tags()
     builder = (
         native.TraceExporterBuilder()
@@ -1026,8 +1038,20 @@ class NativeTraceBuffer(TraceWriter):
     """TraceWriter backed by the native Rust trace buffer.
 
     Bypasses msgpack encoding by converting SpanData objects to native Rust
-    span types directly inside `send_chunk`. Spans are consumed (left in an
-    empty/default state) after each call to `write()`.
+    span types directly inside ``send_chunk``. Spans are consumed (left in an
+    empty/default state) after each call to ``write()``.
+
+    Limitations compared to :class:`NativeWriter`
+    -----------------------------------------------
+    The following exporter features are intentionally not configured on this
+    writer's underlying exporter (pending follow-up work):
+
+    * **Process tags** (``set_process_tags``) — not set.
+    * **Telemetry** (``enable_telemetry``) — not emitted.
+    * **Health metrics** (``enable_health_metrics``) — not emitted.
+    * **OTLP headers / connection timeout** — ``set_otlp_endpoint`` is wired
+      when ``otlp_endpoint`` is provided, but ``set_otlp_headers`` and
+      ``set_connection_timeout`` are not.
     """
 
     def __init__(
@@ -1049,7 +1073,7 @@ class NativeTraceBuffer(TraceWriter):
         self._test_session_token = _resolve_test_session_token(test_session_token)
 
         exporter = self._create_exporter()
-        self._native_buffer = native.NativeTraceBuffer(exporter)
+        self._native_buffer = native.NativeTraceBuffer(exporter, self._response_cb)
 
     def _create_exporter(self) -> native.TraceExporter:
         builder = _build_base_exporter_builder(
@@ -1069,7 +1093,7 @@ class NativeTraceBuffer(TraceWriter):
         self._test_session_token = token
         self._native_buffer.shutdown(int(1e9))
         exporter = self._create_exporter()
-        self._native_buffer = native.NativeTraceBuffer(exporter)
+        self._native_buffer = native.NativeTraceBuffer(exporter, self._response_cb)
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeTraceBuffer":
         self.stop()
@@ -1086,6 +1110,10 @@ class NativeTraceBuffer(TraceWriter):
     def write(self, spans: Optional[list] = None) -> None:
         if not spans:
             return
+        # DEV: keep-rate is hardcoded to 1.0 (no drops reported) pending coordination
+        # with the trace exporter team on where this computation should live.
+        # libdatadog's QueueMetrics.spans_dropped_full_buffer tracks actual drops but
+        # resets on each read, requiring a Python-side SMA to compute a meaningful rate.
         spans[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0)
         self._native_buffer.send_chunk(spans)
 

@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Any
+from typing import Callable
 from typing import Iterator
 from typing import Literal
 from typing import Mapping
@@ -411,7 +412,11 @@ class NativeTraceBuffer:
     after construction, the exporter's ``send()`` method will return an error.
     """
 
-    def __init__(self, exporter: TraceExporter) -> None: ...
+    def __init__(
+        self,
+        exporter: TraceExporter,
+        response_callback: Optional[Callable[..., None]] = None,
+    ) -> None: ...
     def send_chunk(self, spans: list[SpanData]) -> None:
         """
         Move spans into the buffer.
