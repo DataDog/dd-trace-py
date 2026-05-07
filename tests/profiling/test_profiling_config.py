@@ -48,3 +48,57 @@ class TestAdaptiveSamplingConfig:
         monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_MAX_INTERVAL_US", "2000000")
         with pytest.raises(ValueError):
             ProfilingConfig()
+
+
+class TestExcludeModulesConfig:
+    """Unit tests for the exclude_modules config field type guarantees."""
+
+    def test_default_is_populated_frozenset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """exclude_modules must default to a known frozenset of modules, not '' or None."""
+        monkeypatch.delenv("DD_PROFILING_LOCK_EXCLUDE_MODULES", raising=False)
+        from ddtrace.internal.settings.profiling import ProfilingConfigLock
+
+        expected = frozenset(
+            {
+                "anyio",
+                "asyncio",
+                "bytecode",
+                "concurrent",
+                "datadog",
+                "ddsketch",
+                "ddtrace",
+                "envier",
+                "gunicorn",
+                "h11",
+                "http",
+                "logging",
+                "threading",
+                "uvicorn",
+                "werkzeug",
+                "wrapt",
+            }
+        )
+        cfg = ProfilingConfigLock()
+        assert isinstance(cfg.exclude_modules, frozenset)
+        assert cfg.exclude_modules == expected, (
+            f"Default exclude_modules changed. Update this test if intentional.\n"
+            f"  Missing: {expected - cfg.exclude_modules}\n"
+            f"  Extra:   {cfg.exclude_modules - expected}"
+        )
+
+    def test_parsed_value_is_frozenset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A non-empty env var must produce a frozenset[str], not a raw string."""
+        monkeypatch.setenv("DD_PROFILING_LOCK_EXCLUDE_MODULES", "uvicorn,asyncio,sqlalchemy.pool")
+        from ddtrace.internal.settings.profiling import ProfilingConfigLock
+
+        cfg = ProfilingConfigLock()
+        assert isinstance(cfg.exclude_modules, frozenset)
+        assert cfg.exclude_modules == frozenset({"uvicorn", "asyncio", "sqlalchemy.pool"})
+
+    def test_whitespace_stripped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Leading/trailing whitespace around module names must be stripped."""
+        monkeypatch.setenv("DD_PROFILING_LOCK_EXCLUDE_MODULES", " uvicorn , asyncio ")
+        from ddtrace.internal.settings.profiling import ProfilingConfigLock
+
+        cfg = ProfilingConfigLock()
+        assert cfg.exclude_modules == frozenset({"uvicorn", "asyncio"})
