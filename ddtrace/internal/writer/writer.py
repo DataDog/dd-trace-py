@@ -22,6 +22,7 @@ from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_en
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.threads import Lock as _UnpatchedLock
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
 
@@ -700,6 +701,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._stats_opt_out = stats_opt_out
 
         self._exporter = self._create_exporter()
+        self._exporter_lock = _UnpatchedLock()
 
     @staticmethod
     def _parse_otlp_headers() -> list:
@@ -780,7 +782,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         :param token: The test session token to use for authentication.
         """
         self._test_session_token = token
-        self._exporter = self._create_exporter()
+        with self._exporter_lock:
+            self._exporter = self._create_exporter()
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
         # Ensure AppSec metadata is encoded by setting the API version to v0.4.
@@ -811,9 +814,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def _downgrade(self, status, client):
         if client.ENDPOINT == "v0.5/traces":
-            self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
-            self._api_version = "v0.4"
-            self._exporter = self._create_exporter()
+            with self._exporter_lock:
+                self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
+                self._api_version = "v0.4"
+                self._exporter = self._create_exporter()
 
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
@@ -871,7 +875,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:
-            response_body = self._exporter.send(payload)
+            with self._exporter_lock:
+                response_body = self._exporter.send(payload)
         except native.RequestError as e:
             try:
                 # Request errors are formatted as "Error code: {code}, Response: {response}"
@@ -1011,7 +1016,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         try:
             self.periodic()
         finally:
-            self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
+            with self._exporter_lock:
+                self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
 
 
 def _use_log_writer() -> bool:
