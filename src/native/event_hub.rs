@@ -86,8 +86,8 @@ fn get_missing_event(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
             py,
             EventResult {
                 response_type: Some(result_type_undefined),
-                value: Some(py.None().into_any()),
-                exception: Some(py.None().into_any()),
+                value: None,
+                exception: None,
                 is_ok: false,
             },
         )?;
@@ -265,27 +265,12 @@ pub fn on(
 
 #[pyfunction]
 #[pyo3(signature = (event_id=None, callback=None))]
-pub fn reset(py: Python<'_>, event_id: Option<&str>, callback: Option<Py<PyAny>>) -> PyResult<()> {
+pub fn reset(event_id: Option<&str>, callback: Option<Py<PyAny>>) {
     let mut guard = LISTENERS.write().unwrap();
     if let Some(cb) = callback {
         if let Some(eid) = event_id {
             if let Some(vec) = guard.get_mut(eid) {
-                let mut err: Option<PyErr> = None;
-                vec.retain(|(_, stored_cb)| {
-                    if err.is_some() {
-                        return true;
-                    }
-                    match stored_cb.bind(py).ne(cb.bind(py)) {
-                        Ok(should_retain) => should_retain,
-                        Err(e) => {
-                            err = Some(e);
-                            true
-                        }
-                    }
-                });
-                if let Some(e) = err {
-                    return Err(e);
-                }
+                vec.retain(|(_, stored_cb)| stored_cb.as_ptr() != cb.as_ptr());
             }
         }
     } else if let Some(eid) = event_id {
@@ -293,7 +278,6 @@ pub fn reset(py: Python<'_>, event_id: Option<&str>, callback: Option<Py<PyAny>>
     } else {
         guard.clear();
     }
-    Ok(())
 }
 
 #[pyfunction]
@@ -355,7 +339,7 @@ pub fn dispatch_with_results(
                         EventResult {
                             response_type: Some(get_rt_ok(py)?.clone_ref(py)),
                             value: Some(value.unbind()),
-                            exception: Some(py.None().into_any()),
+                            exception: None,
                             is_ok: true,
                         },
                     )?;
@@ -370,7 +354,7 @@ pub fn dispatch_with_results(
                         py,
                         EventResult {
                             response_type: Some(get_rt_exception(py)?.clone_ref(py)),
-                            value: Some(py.None().into_any()),
+                            value: None,
                             exception: Some(exc),
                             is_ok: false,
                         },
