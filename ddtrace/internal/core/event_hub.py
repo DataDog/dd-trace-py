@@ -18,7 +18,6 @@ def raising_dispatch(event_id: str, args: tuple = ()) -> None:
     """Deprecated: use ``dispatch`` with try/except instead."""
     results = dispatch_with_results(event_id, args)
     for er in results.values():
-        # we explicitly set the exception as a value to prevent caught exceptions from leaking
         if isinstance(er.value, Exception):
             raise er.value
 

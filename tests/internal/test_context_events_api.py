@@ -427,8 +427,8 @@ def test_raising_dispatch_listener_returns_exception(clean_event_hub):
 
 
 def test_raising_dispatch_listener_raises_exception(clean_event_hub):
-    # dispatch_with_results captures the exception in .exception; .value stays None,
-    # so raising_dispatch does not re-raise it.
+    # dispatch_with_results stores the exception in .exception, not .value,
+    # so raising_dispatch does not re-raise listener exceptions.
     def listener():
         raise RuntimeError("not propagated")
 

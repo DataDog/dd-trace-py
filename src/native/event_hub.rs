@@ -11,13 +11,15 @@ type Listeners = HashMap<String, Vec<(Py<PyAny>, Py<PyAny>)>>;
 // (name_key, callback) pairs per event_id
 static LISTENERS: LazyLock<RwLock<Listeners>> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
-// Cached Python objects — initialized on first use, never invalidated
+// Cached Python objects — initialized on first use, never invalidated.
+// The losing thread in a race drops its Py<PyAny>; pyo3 0.28 defers the decref.
 static MISSING_EVENT: OnceLock<Py<PyAny>> = OnceLock::new();
 static MISSING_EVENT_DICT: OnceLock<Py<PyAny>> = OnceLock::new();
+// ResultType::Ok/Exception interned once so dispatch_with_results avoids per-listener allocation.
+static RT_OK_PY: OnceLock<Py<PyAny>> = OnceLock::new();
+static RT_EXCEPTION_PY: OnceLock<Py<PyAny>> = OnceLock::new();
 
 // OnceLock::get_or_try_init is unstable; use get+set pattern instead.
-// If two threads race, one wins and the other silently drops its value — both
-// end up reading the same cached object via the final get().unwrap().
 macro_rules! get_or_init {
     ($cell:expr, $py:expr, $init:expr) => {{
         if let Some(val) = $cell.get() {
@@ -36,8 +38,7 @@ macro_rules! get_or_init {
 }
 
 /// Native equivalent of the Python ResultType enum.
-/// pyo3 automatically exposes each variant as a class attribute, so no OnceLock
-/// singletons or manual setattr calls are needed.
+/// pyo3 automatically exposes each variant as a class attribute.
 #[pyclass(eq, hash, frozen, from_py_object, module = "ddtrace.internal.native._native")]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ResultType {
@@ -78,10 +79,6 @@ impl ResultType {
     }
 }
 
-fn should_raise() -> bool {
-    crate::config::get_raise()
-}
-
 fn get_missing_event(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
     get_or_init!(MISSING_EVENT, py, {
         let result_type_undefined = ResultType::Undefined.into_pyobject(py)?.into_any().unbind();
@@ -89,8 +86,8 @@ fn get_missing_event(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
             py,
             EventResult {
                 response_type: Some(result_type_undefined),
-                value: Some(py_none(py)),
-                exception: Some(py_none(py)),
+                value: Some(py.None().into_any()),
+                exception: Some(py.None().into_any()),
                 is_ok: false,
             },
         )?;
@@ -104,9 +101,16 @@ fn get_missing_event_dict(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
     })
 }
 
-fn py_none(py: Python<'_>) -> Py<PyAny> {
-    // py.None() returns Py<PyNone>; into_any() widens to Py<PyAny>
-    py.None().into_any()
+fn get_rt_ok(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
+    get_or_init!(RT_OK_PY, py, {
+        Ok(ResultType::Ok.into_pyobject(py)?.into_any().unbind())
+    })
+}
+
+fn get_rt_exception(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
+    get_or_init!(RT_EXCEPTION_PY, py, {
+        Ok(ResultType::Exception.into_pyobject(py)?.into_any().unbind())
+    })
 }
 
 fn repr_field(py: Python<'_>, field: &Option<Py<PyAny>>) -> PyResult<String> {
@@ -120,9 +124,10 @@ fn repr_field(py: Python<'_>, field: &Option<Py<PyAny>>) -> PyResult<String> {
 /// Fields are Option<Py<PyAny>> so __clear__ can drop them without a Python token —
 /// pyo3 0.28 defers Py<T> decrefs, so dropping Option::None is always safe.
 /// is_ok is a private fast path for __bool__ that avoids Python equality.
+/// response_type is get-only to keep is_ok consistent; value and exception are mutable.
 #[pyclass(module = "ddtrace.internal.native._native")]
 pub struct EventResult {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub response_type: Option<Py<PyAny>>,
     #[pyo3(get, set)]
     pub value: Option<Py<PyAny>>,
@@ -147,9 +152,9 @@ impl EventResult {
             .map(|rt| rt == ResultType::Ok)
             .unwrap_or(false);
         Self {
-            response_type: Some(response_type.unwrap_or_else(|| py_none(py))),
-            value: Some(value.unwrap_or_else(|| py_none(py))),
-            exception: Some(exception.unwrap_or_else(|| py_none(py))),
+            response_type: Some(response_type.unwrap_or_else(|| py.None().into_any())),
+            value: Some(value.unwrap_or_else(|| py.None().into_any())),
+            exception: Some(exception.unwrap_or_else(|| py.None().into_any())),
             is_ok,
         }
     }
@@ -308,7 +313,7 @@ pub fn dispatch(py: Python<'_>, event_id: &str, args: Option<Bound<'_, PyTuple>>
 
     for cb in &callbacks {
         if let Err(e) = cb.bind(py).call1(&call_args) {
-            if should_raise() {
+            if crate::config::get_raise() {
                 return Err(e);
             }
         }
@@ -348,24 +353,24 @@ pub fn dispatch_with_results(
                     let event_result = Py::new(
                         py,
                         EventResult {
-                            response_type: Some(ResultType::Ok.into_pyobject(py)?.into_any().unbind()),
+                            response_type: Some(get_rt_ok(py)?.clone_ref(py)),
                             value: Some(value.unbind()),
-                            exception: Some(py_none(py)),
+                            exception: Some(py.None().into_any()),
                             is_ok: true,
                         },
                     )?;
                     dict.set_item(key.bind(py), event_result.bind(py))?;
                 }
                 Err(e) => {
-                    if should_raise() {
+                    if crate::config::get_raise() {
                         return Err(e);
                     }
                     let exc = e.into_value(py).into_any();
                     let event_result = Py::new(
                         py,
                         EventResult {
-                            response_type: Some(ResultType::Exception.into_pyobject(py)?.into_any().unbind()),
-                            value: Some(py_none(py)),
+                            response_type: Some(get_rt_exception(py)?.clone_ref(py)),
+                            value: Some(py.None().into_any()),
                             exception: Some(exc),
                             is_ok: false,
                         },
