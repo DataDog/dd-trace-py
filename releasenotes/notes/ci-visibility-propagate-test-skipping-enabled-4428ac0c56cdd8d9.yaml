@@ -1,4 +1,0 @@
----
-features:
-  - |
-    CI Visibility: Adds the ``test.itr.tests_skipping.enabled`` tag to test suite and test spans, matching the existing test session and test module span behavior so the backend test-skipping setting is available at every test hierarchy level.
