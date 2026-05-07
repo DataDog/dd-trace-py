@@ -415,6 +415,14 @@ def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS)
 
 
+def get_llmobs_cost_tags(span: Span) -> Optional[list[str]]:
+    metadata = _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA, {})
+    metadata_dd = metadata.get(LLMOBS_STRUCT.METADATA_DD, {})
+    if not isinstance(metadata_dd, dict):
+        return None
+    return metadata_dd.get(LLMOBS_STRUCT.COST_TAGS)
+
+
 def get_llmobs_metrics(span: Span) -> Optional[dict[str, Any]]:
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS)
 
@@ -484,6 +492,7 @@ def _annotate_llmobs_span_data(
     metadata: Optional[dict[str, Any]] = None,
     metrics: Optional[dict[str, Any]] = None,
     tags: Optional[dict[str, str]] = None,
+    cost_tags: Optional[list[str]] = None,
     input_messages: Optional[list[Message]] = None,
     input_value: Optional[Any] = None,
     input_documents: Optional[list[Document]] = None,
@@ -507,6 +516,7 @@ def _annotate_llmobs_span_data(
 
     metadata, metrics, and tags are updated on any existing metadata/metrics/tags
     instead of being overwritten.
+    cost_tags must be pre-validated by the caller before being passed here.
     ml_app, session_id, and input_prompt involve being propagated to children spans
     so are additionally stored on span._store to ensure they are available at span finish time.
     """
@@ -538,9 +548,16 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
             meta[LLMOBS_STRUCT.METADATA].update(metadata)
-        if agent_manifest is not None:
+        if agent_manifest is not None or cost_tags is not None:
+            # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
             metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
-            metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
+            if agent_manifest is not None:
+                metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
+            if cost_tags is not None:
+                existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
+                for cost_tag in cost_tags:
+                    if cost_tag not in existing_cost_tags:
+                        existing_cost_tags.append(cost_tag)
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
         if tags is not None:
