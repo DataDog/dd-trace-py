@@ -103,13 +103,13 @@ impl SpanData {
 
         // Encode each meta_struct value with msgpack and move into data.meta_struct.
         if let Some(meta_struct) = self.meta_struct.take() {
-            if let Ok(msgpack) = py.import("ddtrace.vendor.msgpack") {
+            if let Ok(encoding) = py.import("ddtrace.internal._encoding") {
                 for (k, v) in meta_struct.bind(py).iter() {
                     let key_backed = match k.extract::<PyBackedString>() {
                         Ok(k) => k,
                         Err(_) => continue,
                     };
-                    let packed_bytes: Vec<u8> = match msgpack.call_method1("packb", (&v,)) {
+                    let packed_bytes: Vec<u8> = match encoding.call_method1("packb", (&v,)) {
                         Ok(result) => match result.extract() {
                             Ok(b) => b,
                             Err(_) => continue,
