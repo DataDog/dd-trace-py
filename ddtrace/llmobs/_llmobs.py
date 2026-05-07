@@ -514,9 +514,8 @@ class LLMObs(Service):
 
         span_event = None
         try:
-            if not self._prepare_llmobs_span_data(span, span_kind):
-                return
-            span_event = self._llmobs_span_event(span)
+            if self._prepare_llmobs_span_data(span, span_kind):
+                span_event = self._llmobs_span_event(span)
         except (KeyError, TypeError, ValueError):
             log.error(
                 "Error generating LLMObs span event for span %s, likely due to malformed span",
@@ -525,6 +524,8 @@ class LLMObs(Service):
             )
 
         if not span_event:
+            # clear meta_struct if no event to export (dropped by user processor / error during preparation/assembly)
+            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             return
 
         if self._evaluator_runner and span_kind == "llm":

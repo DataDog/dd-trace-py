@@ -11,16 +11,16 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de45e400000000",
+      "_dd.p.tid": "69eb930900000000",
       "_dd.svc_src": "m",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpkpdlb68,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpvpf79c4f,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "mariadb",
       "db.name": "test",
       "db.system": "mariadb",
       "db.user": "test",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "f30e7d5daca44e568855bcea51ae9917",
+      "runtime-id": "44e01679493842ba9b6acba96900a01b",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
@@ -31,8 +31,8 @@
       "_sampling_priority_v1": 1.0,
       "db.row_count": 1.0,
       "network.destination.port": 3306.0,
-      "process_id": 61549.0
+      "process_id": 19585.0
     },
-    "duration": 178708,
-    "start": 1776174564679373216
+    "duration": 278625,
+    "start": 1777046281424576919
   }]]

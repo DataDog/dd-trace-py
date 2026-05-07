@@ -15,6 +15,17 @@ from _pytest.pytester import Pytester
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _isolate_from_outer_ci_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent environment variables from the outer CI pytest session from leaking into inner subprocesses.
+
+    In CI, riotfile.py sets _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=1 globally. pytester.runpytest_subprocess()
+    inherits the full parent environment, so the inner subprocess would pick up this flag and disable the trace
+    filter and log submission — breaking tests that rely on DD_LOGS_INJECTION behaviour.
+    """
+    monkeypatch.delenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER", raising=False)
+
+
 # Infrastructure mock plugin — loaded via "-p dd_log_corr_infra" so its pytest_configure fires
 # BEFORE pytest_load_initial_conftests (where SessionManager is constructed and makes network calls).
 _INFRA_PLUGIN = """\
