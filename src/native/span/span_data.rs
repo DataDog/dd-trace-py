@@ -109,15 +109,16 @@ impl SpanData {
                         Ok(k) => k,
                         Err(_) => continue,
                     };
-                    let packed_bytes: Vec<u8> =
-                        match msgpack.call_method1("packb", (&v,)) {
-                            Ok(result) => match result.extract() {
-                                Ok(b) => b,
-                                Err(_) => continue,
-                            },
+                    let packed_bytes: Vec<u8> = match msgpack.call_method1("packb", (&v,)) {
+                        Ok(result) => match result.extract() {
+                            Ok(b) => b,
                             Err(_) => continue,
-                        };
-                    self.data.meta_struct.insert(key_backed, Bytes::from_vec(packed_bytes));
+                        },
+                        Err(_) => continue,
+                    };
+                    self.data
+                        .meta_struct
+                        .insert(key_backed, Bytes::from_vec(packed_bytes));
                 }
             }
         }

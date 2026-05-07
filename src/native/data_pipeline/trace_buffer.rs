@@ -34,11 +34,11 @@ impl Export<Span<PyTraceData>> for PyExport {
         &mut self,
         trace_chunks: Vec<Vec<Span<PyTraceData>>>,
     ) -> Pin<
-        Box<dyn std::future::Future<Output = Result<AgentResponse, TraceExporterError>> + Send + '_>,
+        Box<
+            dyn std::future::Future<Output = Result<AgentResponse, TraceExporterError>> + Send + '_,
+        >,
     > {
-        Box::pin(async {
-            self.exporter.send_trace_chunks_async(trace_chunks).await
-        })
+        Box::pin(async { self.exporter.send_trace_chunks_async(trace_chunks).await })
     }
 }
 
@@ -107,9 +107,9 @@ impl NativeTraceBufferPy {
     /// `shared_runtime`.
     #[new]
     fn new(exporter: &mut TraceExporterPy) -> PyResult<Self> {
-        let inner = exporter.take_inner().ok_or_else(|| {
-            PyValueError::new_err("TraceExporter has already been consumed")
-        })?;
+        let inner = exporter
+            .take_inner()
+            .ok_or_else(|| PyValueError::new_err("TraceExporter has already been consumed"))?;
         let runtime = exporter.runtime_arc().clone();
 
         let export_sync = ExportSync::new();
@@ -123,9 +123,9 @@ impl NativeTraceBufferPy {
 
         let (buffer, worker) = TraceBuffer::new(config, response_handler, Box::new(py_export));
 
-        let worker_handle = runtime
-            .spawn_worker(worker, true)
-            .map_err(|e| PyValueError::new_err(format!("Failed to spawn trace buffer worker: {e}")))?;
+        let worker_handle = runtime.spawn_worker(worker, true).map_err(|e| {
+            PyValueError::new_err(format!("Failed to spawn trace buffer worker: {e}"))
+        })?;
 
         Ok(Self {
             buffer,
@@ -206,7 +206,9 @@ impl NativeTraceBufferPy {
     fn wait_shutdown_done(&self, timeout_ns: u64) -> PyResult<()> {
         self.buffer
             .wait_shutdown_done(Duration::from_nanos(timeout_ns))
-            .map_err(|e| PyValueError::new_err(format!("TraceBuffer wait_shutdown_done error: {e:?}")))
+            .map_err(|e| {
+                PyValueError::new_err(format!("TraceBuffer wait_shutdown_done error: {e:?}"))
+            })
     }
 }
 
