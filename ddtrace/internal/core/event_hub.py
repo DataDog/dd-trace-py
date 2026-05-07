@@ -24,10 +24,10 @@ def dispatch_event(event: Event) -> None:
 def raising_dispatch(event_id: str, args: tuple = ()) -> None:
     """Deprecated: use ``dispatch`` with try/except instead."""
     results = dispatch_with_results(event_id, args)
-    for event in results.values():
+    for er in results.values():
         # we explicitly set the exception as a value to prevent caught exceptions from leaking
-        if isinstance(event.value, Exception):
-            raise event.value
+        if isinstance(er.value, Exception):
+            raise er.value
 
 
 __all__ = [

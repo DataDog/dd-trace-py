@@ -398,3 +398,75 @@ def test_core_in_threads(nb_threads):
         assert all(s is witness for s in res)
         loop.close()
         assert core.find_item("global_counter")["value"] == nb_threads
+
+
+# ── event hub unit tests ──────────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=False)
+def clean_event_hub():
+    core.reset_listeners()
+    yield
+    core.reset_listeners()
+
+
+def test_raising_dispatch_no_listeners(clean_event_hub):
+    core.raising_dispatch("test.event", ("arg",))
+
+
+def test_raising_dispatch_listener_returns_value(clean_event_hub):
+    core.on("test.event", lambda x: x * 2, "res")
+    core.raising_dispatch("test.event", (21,))
+
+
+def test_raising_dispatch_listener_returns_exception(clean_event_hub):
+    exc = ValueError("raised by value")
+    core.on("test.event", lambda: exc, "res")
+    with pytest.raises(ValueError, match="raised by value"):
+        core.raising_dispatch("test.event", ())
+
+
+def test_raising_dispatch_listener_raises_exception(clean_event_hub):
+    # dispatch_with_results captures the exception in .exception; .value stays None,
+    # so raising_dispatch does not re-raise it.
+    def listener():
+        raise RuntimeError("not propagated")
+
+    core.on("test.event", listener, "res")
+    original = config._raise
+    config._raise = False
+    try:
+        core.raising_dispatch("test.event", ())
+    finally:
+        config._raise = original
+
+
+def test_event_result_bool(clean_event_hub):
+    core.on("test.event", lambda: 42, "ok_res")
+    results = core.dispatch_with_results("test.event", ())
+    assert bool(results.ok_res) is True
+    assert bool(results.nonexistent_key) is False
+
+
+def test_event_result_dict_missing_key_returns_sentinel(clean_event_hub):
+    core.on("test.event", lambda: 1, "res")
+    results = core.dispatch_with_results("test.event", ())
+    missing = results["no_such_key"]
+    assert missing.response_type == core.event_hub.ResultType.RESULT_UNDEFINED
+    assert missing.value is None
+    assert bool(missing) is False
+
+
+def test_dispatch_with_results_no_listeners_returns_empty_dict(clean_event_hub):
+    results = core.dispatch_with_results("test.event.noop", ())
+    assert len(results) == 0
+    missing = results["anything"]
+    assert missing.response_type == core.event_hub.ResultType.RESULT_UNDEFINED
+
+
+def test_on_name_deduplication(clean_event_hub):
+    calls = []
+    core.on("test.event", lambda: calls.append("first"), "my_listener")
+    core.on("test.event", lambda: calls.append("second"), "my_listener")
+    core.dispatch("test.event", ())
+    assert calls == ["second"]

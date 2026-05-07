@@ -102,6 +102,13 @@ fn py_none(py: Python<'_>) -> Py<PyAny> {
     py.None().into_any()
 }
 
+fn repr_field(py: Python<'_>, field: &Option<Py<PyAny>>) -> PyResult<String> {
+    Ok(match field {
+        Some(o) => o.bind(py).repr()?.to_string(),
+        None => "None".to_string(),
+    })
+}
+
 /// Native Python class mirroring the old Python EventResult dataclass.
 /// Fields are Option<Py<PyAny>> so __clear__ can drop them without a Python token —
 /// pyo3 0.28 defers Py<T> decrefs, so dropping Option::None is always safe.
@@ -146,18 +153,9 @@ impl EventResult {
     }
 
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let rt = match &self.response_type {
-            Some(o) => o.bind(py).repr()?.to_string(),
-            None => "None".to_string(),
-        };
-        let val = match &self.value {
-            Some(o) => o.bind(py).repr()?.to_string(),
-            None => "None".to_string(),
-        };
-        let exc = match &self.exception {
-            Some(o) => o.bind(py).repr()?.to_string(),
-            None => "None".to_string(),
-        };
+        let rt = repr_field(py, &self.response_type)?;
+        let val = repr_field(py, &self.value)?;
+        let exc = repr_field(py, &self.exception)?;
         Ok(format!(
             "EventResult(response_type={rt}, value={val}, exception={exc})"
         ))
@@ -300,17 +298,10 @@ pub fn dispatch(py: Python<'_>, event_id: &str, args: Option<Bound<'_, PyTuple>>
         v.iter().map(|(_, cb)| cb.clone_ref(py)).collect::<Vec<_>>()
     };
 
-    let empty;
-    let call_args: &Bound<'_, PyTuple> = match args {
-        Some(ref a) => a,
-        None => {
-            empty = PyTuple::empty(py);
-            &empty
-        }
-    };
+    let call_args = args.unwrap_or_else(|| PyTuple::empty(py));
 
     for cb in &callbacks {
-        if let Err(e) = cb.bind(py).call1(call_args) {
+        if let Err(e) = cb.bind(py).call1(&call_args) {
             if should_raise(py) {
                 return Err(e);
             }
@@ -331,23 +322,15 @@ pub fn dispatch_with_results(
     let entries = {
         let guard = LISTENERS.read().unwrap();
         let v = match guard.get(event_id) {
-            None => return Ok(get_missing_event_dict(py)?.clone_ref(py)),
-            Some(v) if v.is_empty() => return Ok(get_missing_event_dict(py)?.clone_ref(py)),
-            Some(v) => v,
+            Some(v) if !v.is_empty() => v,
+            _ => return Ok(get_missing_event_dict(py)?.clone_ref(py)),
         };
         v.iter()
             .map(|(k, cb)| (k.clone_ref(py), cb.clone_ref(py)))
             .collect::<Vec<_>>()
     };
 
-    let empty;
-    let call_args: &Bound<'_, PyTuple> = match args {
-        Some(ref a) => a,
-        None => {
-            empty = PyTuple::empty(py);
-            &empty
-        }
-    };
+    let call_args = args.unwrap_or_else(|| PyTuple::empty(py));
 
     let result_type_ok = get_result_type_ok(py)?;
     let result_type_exception = get_result_type_exception(py)?;
@@ -357,7 +340,7 @@ pub fn dispatch_with_results(
         let result_dict_bound = result_dict_py.bind(py);
         let dict = result_dict_bound.as_any().cast::<PyDict>()?;
         for (key, cb) in entries {
-            match cb.bind(py).call1(call_args) {
+            match cb.bind(py).call1(&call_args) {
                 Ok(value) => {
                     let event_result = Py::new(
                         py,

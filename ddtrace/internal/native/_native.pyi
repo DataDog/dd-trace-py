@@ -682,9 +682,9 @@ class SpanLink:
     def __reduce__(self) -> tuple: ...
 
 class EventResult:
-    response_type: Optional[Any]
-    value: Optional[Any]
-    exception: Optional[Any]
+    response_type: Any
+    value: Any
+    exception: Any
     def __init__(
         self,
         response_type: Any = None,
