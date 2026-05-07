@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    django: Fixes the Django database sub-integration environment variables, which previously used
+    hyphens (``DD_DJANGO-DATABASE_SERVICE``, ``DD_DJANGO-DATABASE_SERVICE_NAME``) making them
+    invalid POSIX identifiers and unusable in most shells. These are now
+    ``DD_DJANGO_DATABASE_SERVICE`` and ``DD_DJANGO_DATABASE_SERVICE_NAME``.
+
+    Note: this is a breaking change for anyone who previously set ``DD_DJANGO-DATABASE_SERVICE``
+    or ``DD_DJANGO-DATABASE_SERVICE_NAME`` via container environment, systemd, or Kubernetes
+    ``env:`` — those overrides must be renamed to use underscores. Additionally, the ``component``
+    tag on Django database spans changes from ``django-database`` to ``django_database``.
