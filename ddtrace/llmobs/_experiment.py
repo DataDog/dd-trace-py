@@ -48,6 +48,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import git
+from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITE_STAGING
@@ -76,6 +77,37 @@ ContextTransformFn = Callable[["EvaluatorContext"], dict[str, Any]]
 
 TaskType = Callable[..., JSONType]
 AsyncTaskType = Callable[..., Awaitable[JSONType]]
+
+_GIT_FALLBACK_CACHE: Optional[tuple[str, str]] = None
+
+
+def _resolve_experiment_git_metadata() -> tuple[str, str]:
+    """Resolve ``(repository_url, commit_sha)`` for tagging an experiment.
+
+    Prefers the standard ``gitmetadata`` source (DD_GIT_* env vars / package
+    ``Project-URL``). When both are empty, falls back to shelling out to ``git``
+    against the current working directory — experiments commonly run from a
+    developer workstation or notebook inside a checkout. The fallback result is
+    cached for the process lifetime so repeated experiment construction does
+    not repeatedly invoke ``git``.
+    """
+    global _GIT_FALLBACK_CACHE
+    repository_url, commit_sha, _ = gitmetadata.get_git_tags()
+    if repository_url and commit_sha:
+        return repository_url, commit_sha
+    if _GIT_FALLBACK_CACHE is None:
+        fallback_url, fallback_sha = "", ""
+        try:
+            fallback_sha = git.extract_commit_sha()
+        except Exception:
+            logger.debug("git fallback: extract_commit_sha failed", exc_info=True)
+        try:
+            fallback_url = _filter_sensitive_info(git.extract_repository_url()) or ""
+        except Exception:
+            logger.debug("git fallback: extract_repository_url failed", exc_info=True)
+        _GIT_FALLBACK_CACHE = (fallback_url, fallback_sha)
+    cached_url, cached_sha = _GIT_FALLBACK_CACHE
+    return repository_url or cached_url, commit_sha or cached_sha
 
 
 class EvaluatorResult:
@@ -1724,7 +1756,7 @@ class Experiment:
         self._tags["project_name"] = project_name
         self._tags["dataset_name"] = dataset.name
         self._tags["experiment_name"] = name
-        repository_url, commit_sha, _ = gitmetadata.get_git_tags()
+        repository_url, commit_sha = _resolve_experiment_git_metadata()
         if repository_url and git.REPOSITORY_URL not in self._tags:
             self._tags[git.REPOSITORY_URL] = repository_url
         if commit_sha and git.COMMIT_SHA not in self._tags:

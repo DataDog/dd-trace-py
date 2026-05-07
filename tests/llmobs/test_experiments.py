@@ -4829,7 +4829,16 @@ def test_prepare_summary_evaluator_data_handles_none_metadata():
     assert metadata_list == [{"experiment_config": {}}]
 
 
-def test_experiment_tags_include_git_metadata():
+@pytest.fixture(autouse=False)
+def _reset_git_fallback_cache():
+    import ddtrace.llmobs._experiment as _exp_mod
+
+    _exp_mod._GIT_FALLBACK_CACHE = None
+    yield
+    _exp_mod._GIT_FALLBACK_CACHE = None
+
+
+def test_experiment_tags_include_git_metadata(_reset_git_fallback_cache):
     dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
     with mock.patch(
         "ddtrace.llmobs._experiment.gitmetadata.get_git_tags",
@@ -4846,11 +4855,21 @@ def test_experiment_tags_include_git_metadata():
     assert exp._tags["git.repository_url"] == "https://github.com/example/repo"
 
 
-def test_experiment_tags_omit_git_metadata_when_unavailable():
+def test_experiment_tags_omit_git_metadata_when_unavailable(_reset_git_fallback_cache):
     dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
-    with mock.patch(
-        "ddtrace.llmobs._experiment.gitmetadata.get_git_tags",
-        return_value=("", "", ""),
+    with (
+        mock.patch(
+            "ddtrace.llmobs._experiment.gitmetadata.get_git_tags",
+            return_value=("", "", ""),
+        ),
+        mock.patch(
+            "ddtrace.llmobs._experiment.git.extract_commit_sha",
+            side_effect=ValueError("not a git repo"),
+        ),
+        mock.patch(
+            "ddtrace.llmobs._experiment.git.extract_repository_url",
+            side_effect=ValueError("not a git repo"),
+        ),
     ):
         exp = Experiment(
             name="test",
@@ -4863,7 +4882,7 @@ def test_experiment_tags_omit_git_metadata_when_unavailable():
     assert "git.repository_url" not in exp._tags
 
 
-def test_experiment_user_supplied_git_tags_take_precedence():
+def test_experiment_user_supplied_git_tags_take_precedence(_reset_git_fallback_cache):
     dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
     with mock.patch(
         "ddtrace.llmobs._experiment.gitmetadata.get_git_tags",
@@ -4879,3 +4898,111 @@ def test_experiment_user_supplied_git_tags_take_precedence():
         )
     assert exp._tags["git.commit.sha"] == "user-override"
     assert exp._tags["git.repository_url"] == "https://github.com/example/repo"
+
+
+def test_experiment_git_fallback_shells_out_when_gitmetadata_empty(_reset_git_fallback_cache):
+    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
+    with (
+        mock.patch(
+            "ddtrace.llmobs._experiment.gitmetadata.get_git_tags",
+            return_value=("", "", ""),
+        ),
+        mock.patch(
+            "ddtrace.llmobs._experiment.git.extract_commit_sha",
+            return_value="fallbacksha789",
+        ),
+        mock.patch(
+            "ddtrace.llmobs._experiment.git.extract_repository_url",
+            return_value="https://github.com/example/fallback",
+        ),
+    ):
+        exp = Experiment(
+            name="test",
+            task=dummy_task,
+            dataset=dataset,
+            evaluators=[dummy_evaluator],
+            project_name="test-project",
+        )
+    assert exp._tags["git.commit.sha"] == "fallbacksha789"
+    assert exp._tags["git.repository_url"] == "https://github.com/example/fallback"
+
+
+def test_experiment_git_fallback_strips_credentials(_reset_git_fallback_cache):
+    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
+    with (
+        mock.patch(
+            "ddtrace.llmobs._experiment.gitmetadata.get_git_tags",
+            return_value=("", "", ""),
+        ),
+        mock.patch(
+            "ddtrace.llmobs._experiment.git.extract_commit_sha",
+            return_value="abc",
+        ),
+        mock.patch(
+            "ddtrace.llmobs._experiment.git.extract_repository_url",
+            return_value="https://x-token:secret@github.com/example/repo.git",
+        ),
+    ):
+        exp = Experiment(
+            name="test",
+            task=dummy_task,
+            dataset=dataset,
+            evaluators=[dummy_evaluator],
+            project_name="test-project",
+        )
+    assert "secret" not in exp._tags["git.repository_url"]
+
+
+def test_experiment_git_fallback_is_cached(_reset_git_fallback_cache):
+    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
+    with (
+        mock.patch(
+            "ddtrace.llmobs._experiment.gitmetadata.get_git_tags",
+            return_value=("", "", ""),
+        ),
+        mock.patch(
+            "ddtrace.llmobs._experiment.git.extract_commit_sha",
+            return_value="cached_sha",
+        ) as mock_sha,
+        mock.patch(
+            "ddtrace.llmobs._experiment.git.extract_repository_url",
+            return_value="https://github.com/example/cached",
+        ) as mock_url,
+    ):
+        for _ in range(3):
+            Experiment(
+                name="test",
+                task=dummy_task,
+                dataset=dataset,
+                evaluators=[dummy_evaluator],
+                project_name="test-project",
+            )
+    assert mock_sha.call_count == 1
+    assert mock_url.call_count == 1
+
+
+def test_experiment_git_fallback_fills_only_missing_field(_reset_git_fallback_cache):
+    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
+    with (
+        mock.patch(
+            "ddtrace.llmobs._experiment.gitmetadata.get_git_tags",
+            return_value=("https://github.com/example/from-env", "", ""),
+        ),
+        mock.patch(
+            "ddtrace.llmobs._experiment.git.extract_commit_sha",
+            return_value="fallbacksha",
+        ),
+        mock.patch(
+            "ddtrace.llmobs._experiment.git.extract_repository_url",
+            return_value="https://github.com/example/from-shellout",
+        ),
+    ):
+        exp = Experiment(
+            name="test",
+            task=dummy_task,
+            dataset=dataset,
+            evaluators=[dummy_evaluator],
+            project_name="test-project",
+        )
+    assert exp._tags["git.repository_url"] == "https://github.com/example/from-env"
+    assert exp._tags["git.commit.sha"] == "fallbacksha"
