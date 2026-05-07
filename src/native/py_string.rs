@@ -70,6 +70,20 @@ impl PyBackedString {
             None => PyString::intern(py, self.deref()).into_any(),
         }
     }
+
+    /// Visit the held Python object (if any) for the cyclic GC.
+    ///
+    /// Storage is always a `PyString`, `PyBytes`, or `PyNone` — atomic types that
+    /// cannot themselves be part of cycles, so visiting is technically optional
+    /// for cycle-breaking. We still visit for correct refcount accounting from
+    /// CPython's perspective.
+    #[inline(always)]
+    pub fn traverse(&self, visit: &pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        if let Some(obj) = &self.storage {
+            visit.call(obj)?;
+        }
+        Ok(())
+    }
 }
 
 impl<'py> pyo3::FromPyObject<'_, 'py> for PyBackedString {

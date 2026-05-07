@@ -10,18 +10,17 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de8ea300000000",
-      "_dd.svc_src": "tests.contrib.ddtrace_api",
+      "_dd.p.tid": "69f23d1700000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.ddtrace_api",
       "language": "python",
-      "runtime-id": "b7b4ee4841414860848ed1877ed3798c"
+      "runtime-id": "d5b4970d4de945f3b5f0a1d4ed0ba9e5"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 55850.0
+      "process_id": 39857.0
     },
-    "duration": 133791,
-    "start": 1776193187347583709
+    "duration": 124667,
+    "start": 1777483031262191627
   }]]

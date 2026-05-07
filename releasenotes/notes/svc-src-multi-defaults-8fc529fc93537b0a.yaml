@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: This change fixes an issue in which `svc_src` is set to `m` in cases where `service` matches the `_default_service` of an active integration config.
+    In such cases, the intended behavior is that it `svc_src` is equal to `service`. #17712

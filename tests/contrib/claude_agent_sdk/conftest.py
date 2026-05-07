@@ -1,4 +1,5 @@
 import os
+from unittest import mock
 from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 from unittest.mock import patch as mock_patch
@@ -18,53 +19,40 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT_RESPONSE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_ERROR_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_USE_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_USE_WITH_FOLLOWUP_SEQUENCE
-from tests.llmobs._utils import TestLLMObsSpanWriter
-from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
 @pytest.fixture
-def ddtrace_config_claude_agent_sdk():
-    return {}
-
-
-def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "unnamed-ml-app", "service": "tests.llmobs"}
-
-
-@pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
-
-
-@pytest.fixture
-def llmobs(tracer, llmobs_span_writer):
-    with override_global_config(default_global_config()):
+def claude_agent_sdk_llmobs(tracer, monkeypatch):
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+    LLMObs.disable()
+    with override_global_config(
+        {
+            "_llmobs_ml_app": "unnamed-ml-app",
+            "_dd_api_key": "<not-a-real-key>",
+            "service": "tests.llmobs",
+        }
+    ):
         LLMObs.enable(_tracer=tracer, integrations_enabled=False)
-        LLMObs._instance._llmobs_span_writer = llmobs_span_writer
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
         yield LLMObs
     LLMObs.disable()
 
 
 @pytest.fixture
-def llmobs_events(llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events
+def claude_agent_sdk():
+    with override_env(
+        dict(
+            ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+        )
+    ):
+        patch()
+        import claude_agent_sdk
 
-
-@pytest.fixture
-def claude_agent_sdk(ddtrace_config_claude_agent_sdk):
-    with override_config("claude_agent_sdk", ddtrace_config_claude_agent_sdk):
-        with override_env(
-            dict(
-                ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
-            )
-        ):
-            patch()
-            import claude_agent_sdk
-
-            yield claude_agent_sdk
-            unpatch()
+        yield claude_agent_sdk
+        unpatch()
 
 
 def _create_mock_internal_client(response_sequence):
