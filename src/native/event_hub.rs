@@ -290,12 +290,17 @@ pub fn on(
 
 #[pyfunction]
 #[pyo3(signature = (event_id=None, callback=None))]
-pub fn reset(event_id: Option<&str>, callback: Option<Py<PyAny>>) {
+pub fn reset(py: Python<'_>, event_id: Option<&str>, callback: Option<Py<PyAny>>) {
     let mut guard = LISTENERS.write().unwrap();
     if let Some(cb) = callback {
         if let Some(eid) = event_id {
             if let Some(vec) = guard.get_mut(eid) {
-                vec.retain(|(_, stored_cb)| stored_cb.as_ptr() != cb.as_ptr());
+                // Use Python value equality so bound method objects compare correctly.
+                // Python bound methods are always new objects (`a.m is not a.m`), so
+                // pointer identity would never match. `__eq__` checks __func__ + __self__.
+                vec.retain(|(_, stored_cb)| {
+                    stored_cb.bind(py).ne(cb.bind(py)).unwrap_or(true)
+                });
             }
         }
     } else if let Some(eid) = event_id {

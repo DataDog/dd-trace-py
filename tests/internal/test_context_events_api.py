@@ -499,3 +499,59 @@ def test_on_name_deduplication(clean_event_hub):
     core.on("test.event", lambda: calls.append("second"), "my_listener")
     core.dispatch("test.event", ())
     assert calls == ["second"]
+
+
+def test_reset_listeners_removes_bound_method(clean_event_hub):
+    """reset_listeners must remove a bound method even though Python creates a new
+    object on every attribute access (a.method is not a.method).  Using pointer
+    identity instead of Python equality silently no-ops the reset, causing
+    listeners to accumulate across disable/enable cycles.
+    """
+
+    class Listener:
+        def __init__(self):
+            self.calls = []
+
+        def handle(self):
+            self.calls.append(True)
+
+    obj = Listener()
+
+    # Register via one bound-method object, reset via a different one — same
+    # logical method, different Python objects.
+    core.on("test.event", obj.handle)
+    assert core.has_listeners("test.event")
+
+    core.reset_listeners("test.event", obj.handle)  # different object, same method
+    assert not core.has_listeners("test.event")
+
+    core.dispatch("test.event", ())
+    assert obj.calls == [], "listener was not removed; reset used pointer identity"
+
+
+def test_reset_listeners_simulate_disable_enable_cycle(clean_event_hub):
+    """Simulate what LLMObs does on every test: disable() → reset_listeners(),
+    enable() → on().  If reset silently fails, listeners accumulate and fire
+    multiple times, corrupting any state that depends on exactly one call.
+    """
+
+    class Component:
+        def __init__(self, tag):
+            self.calls = []
+            self.tag = tag
+
+        def on_event(self):
+            self.calls.append(self.tag)
+
+    c1 = Component("first")
+    c2 = Component("second")
+
+    # Cycle 1: register c1, then "disable" (reset), then "enable" c2
+    core.on("test.event", c1.on_event)
+    core.reset_listeners("test.event", c1.on_event)
+    core.on("test.event", c2.on_event)
+
+    core.dispatch("test.event", ())
+
+    assert c1.calls == [], "stale listener from cycle 1 still firing"
+    assert c2.calls == ["second"]
