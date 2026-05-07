@@ -21,7 +21,7 @@ variables:
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
   # Repository URL for CI Visibility
-  DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py-release.git"
+  DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
 
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
@@ -48,7 +48,7 @@ workflow:
         on_new_commit: none
     - if: !reference [.is_release_branch]
       variables:
-        DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
+        DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py-release.git"
       auto_cancel:
         on_new_commit: none
     - when: always
