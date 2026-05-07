@@ -1,11 +1,6 @@
 ---
 upgrade:
   - |
-    settings: Reads of canonical configuration env vars now automatically fall
-    back to their registered legacy aliases in ``CONFIGURATION_ALIASES``,
-    including for values sourced from local and fleet stable config files.
-    Consumers no longer need to pass both names to ``_get_config`` for rename
-    aliases — passing the canonical is sufficient. The dictionary's contract is
-    now restricted to "rename" aliases (same value space, different name);
-    OTEL→DD translations remain handled exclusively by the OpenTelemetry
-    remapper.
+    settings: Legacy environment variable names registered as aliases in the
+    configuration registry now also work when set via local or fleet stable
+    config files, not just shell environment variables.
