@@ -65,10 +65,12 @@ def pytest_configure(config):
     # HTTP connector (prevents any real HTTP calls that bypass the connector setup)
     patch("ddtrace.testing.internal.http.BackendConnector", return_value=Mock()).start()
 
-    # Writers (prevents HTTP calls from event/coverage writers)
+    # Writers — patch where session_manager looks them up (it imports the classes directly,
+    # so patching in the writer module alone would not take effect).
     mock_writer = Mock()
-    patch("ddtrace.testing.internal.writer.TestOptWriter", return_value=mock_writer).start()
-    patch("ddtrace.testing.internal.writer.TestCoverageWriter", return_value=mock_writer).start()
+    mock_writer.start.return_value = None
+    patch("ddtrace.testing.internal.session_manager.TestOptWriter", return_value=mock_writer).start()
+    patch("ddtrace.testing.internal.session_manager.TestCoverageWriter", return_value=mock_writer).start()
 """
 
 
@@ -111,8 +113,9 @@ def pytest_configure(config):
     patch("ddtrace.testing.internal.http.BackendConnector", return_value=Mock()).start()
 
     mock_writer = Mock()
-    patch("ddtrace.testing.internal.writer.TestOptWriter", return_value=mock_writer).start()
-    patch("ddtrace.testing.internal.writer.TestCoverageWriter", return_value=mock_writer).start()
+    mock_writer.start.return_value = None
+    patch("ddtrace.testing.internal.session_manager.TestOptWriter", return_value=mock_writer).start()
+    patch("ddtrace.testing.internal.session_manager.TestCoverageWriter", return_value=mock_writer).start()
 """
 
 
