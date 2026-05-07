@@ -1,5 +1,5 @@
 ---
-upgrade:
+features:
   - |
     LLM Observability: Bedrock Agent orchestration step events (model invocations,
     tool/action group calls, knowledge base lookups, guardrails, rationales) are

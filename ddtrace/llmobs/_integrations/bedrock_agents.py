@@ -3,7 +3,6 @@ import json
 import sys
 from typing import Any
 from typing import Optional
-from typing import cast
 
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
@@ -14,8 +13,12 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input
+from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_output_messages
+from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._utils import safe_json
@@ -25,8 +28,6 @@ from ddtrace.trace import tracer
 
 log = get_logger(__name__)
 
-
-INTEGRATION_TAG = {LLMOBS_STRUCT.INTEGRATION: "bedrock_agents"}
 
 # Used when an AWS event has no duration (e.g. rationale).
 DEFAULT_SPAN_DURATION_NS = 1_000_000
@@ -58,13 +59,12 @@ def _build_step_span(
     span = tracer.start_span(span_name, child_of=parent, span_type=SpanTypes.LLM, activate=False)
     span.start_ns = int(start_ns if start_ns is not None else root_span.start_ns)
 
-    # TODO: drop the explicit trace_id once LLMObs trace_id derivation is unified with APM trace_id.
     annotate_kwargs: dict[str, Any] = {
         "kind": span_kind,
         "parent_id": str(parent.span_id),
         "trace_id": get_llmobs_trace_id(root_span) or format_trace_id(root_span.trace_id),
         "ml_app": get_llmobs_ml_app(root_span),
-        "tags": INTEGRATION_TAG,
+        "tags": {LLMOBS_STRUCT.INTEGRATION: "bedrock_agents"},
         "session_id": get_llmobs_session_id(root_span) or None,
         "metadata": metadata or None,
     }
@@ -78,12 +78,8 @@ def _build_step_span(
 
 
 def _max_finish_ns(span: Span) -> int:
-    """Return the absolute end time of a finished span in nanoseconds (start_ns + duration_ns)."""
-    return int(span.start_ns or 0) + int(span.duration_ns or 0)
-
-
-def _min_start_ns(span: Span) -> int:
-    return int(span.start_ns or 0)
+    """Return span end time in nanoseconds for sizing step spans over their back-dated children."""
+    return span.start_ns + (span.duration_ns or 0)
 
 
 def _extract_trace_step_id(bedrock_trace_obj):
@@ -158,29 +154,21 @@ def _get_or_create_bedrock_trace_step_span(
 
 
 def _propagate_inner_io_to_step_span(step_span: Span, inner_span: Span) -> None:
-    """Copy first non-empty input and last output from ``inner_span`` onto ``step_span``.
+    """Copy first non-empty input and last output from inner_span onto step_span.
 
-    Direct meta_struct copy (bypasses ``_annotate_llmobs_span_data``) so a child llm span's
-    ``list[Message]`` input/output isn't re-serialized into a JSON value string on the
-    workflow-kind step span.
-
-    MUST be called before ``inner_span.finish()``: ``LLMObs._on_span_finish`` enqueues the event
-    and scrubs ``meta_struct[LLMOBS_STRUCT.KEY]`` on finish, leaving nothing to read.
+    MUST be called before inner_span.finish(): LLMObs._on_span_finish enqueues the event
+    and scrubs meta_struct[LLMOBS_STRUCT.KEY] on finish, leaving nothing to read.
     """
-    inner_meta = _get_llmobs_data_metastruct(inner_span).get("meta", {})
-    inner_input = inner_meta.get("input") or {}
-    inner_output = inner_meta.get("output") or {}
-    if not inner_input and not inner_output:
-        return
-
-    step_data = _get_llmobs_data_metastruct(step_span)
-    step_meta = step_data.setdefault("meta", {})
-    step_input = step_meta.get("input") or {}
-    if not step_input and inner_input:
-        step_meta["input"] = inner_input
-    if inner_output:
-        step_meta["output"] = inner_output
-    step_span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], step_data))
+    kwargs: dict[str, Any] = {}
+    if not get_llmobs_input(step_span):
+        input_val = get_llmobs_input_messages(inner_span) or get_llmobs_input_value(inner_span)
+        if input_val is not None:
+            kwargs["input_value"] = safe_json(input_val) if not isinstance(input_val, str) else input_val
+    output_val = get_llmobs_output_messages(inner_span) or get_llmobs_output_value(inner_span)
+    if output_val is not None:
+        kwargs["output_value"] = safe_json(output_val) if not isinstance(output_val, str) else output_val
+    if kwargs:
+        _annotate_llmobs_span_data(step_span, **kwargs)
 
 
 def _translate_custom_orchestration_trace(

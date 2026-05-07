@@ -15,7 +15,6 @@ from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_type
 from ddtrace.llmobs._integrations.bedrock_agents import _get_or_create_bedrock_trace_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import _max_finish_ns
-from ddtrace.llmobs._integrations.bedrock_agents import _min_start_ns
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
 from ddtrace.llmobs._integrations.bedrock_utils import normalize_input_tokens
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
@@ -206,12 +205,12 @@ class BedrockIntegration(BaseLLMIntegration):
         for step_id, step_span in step_spans_by_step_id.items():
             child_spans = child_spans_by_step_id.get(step_id, [])
             for child in child_spans:
-                child.finish(finish_time=(_min_start_ns(child) + DEFAULT_SPAN_DURATION_NS) / 1e9)
+                child.finish(finish_time=(child.start_ns + DEFAULT_SPAN_DURATION_NS) / 1e9)
             if child_spans:
-                step_span.start_ns = min(_min_start_ns(step_span), *(_min_start_ns(s) for s in child_spans))
+                step_span.start_ns = min(step_span.start_ns, *(s.start_ns for s in child_spans))
                 step_finish_ns = max(_max_finish_ns(s) for s in child_spans)
             else:
-                step_finish_ns = _min_start_ns(step_span) + DEFAULT_SPAN_DURATION_NS
+                step_finish_ns = step_span.start_ns + DEFAULT_SPAN_DURATION_NS
             step_span.finish(finish_time=step_finish_ns / 1e9)
 
     @staticmethod
