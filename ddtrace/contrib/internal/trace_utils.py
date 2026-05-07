@@ -518,7 +518,7 @@ def set_http_meta(
 
     core.dispatch(
         "set_http_meta_for_asm",
-        [
+        (
             span,
             request_ip,
             raw_uri,
@@ -534,7 +534,7 @@ def set_http_meta(
             response_cookies,
             peer_ip,
             headers_are_case_sensitive,
-        ],
+        ),
     )
 
     if route is not None:

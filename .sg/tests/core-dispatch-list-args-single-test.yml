@@ -1,0 +1,17 @@
+id: core-dispatch-list-args-single
+valid:
+  # Tuple (correct)
+  - core.dispatch("my.event", (arg,))
+  # Multi-element tuple — handled by the -multi rule
+  - core.dispatch("my.event", (arg1, arg2))
+  # Variable (not a list literal — can't statically check the type)
+  - core.dispatch("my.event", args)
+
+invalid:
+  - core.dispatch("my.event", [arg])
+  - core.dispatch("my.event", [ctx])
+  - |
+    core.dispatch(
+        "my.event",
+        [ctx],
+    )

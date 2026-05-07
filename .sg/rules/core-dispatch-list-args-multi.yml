@@ -1,0 +1,16 @@
+id: core-dispatch-list-args-multi
+message: Pass a tuple, not a list, to `core.dispatch()`
+severity: error
+language: python
+fix: $OBJ.dispatch($EVENT, ($FIRST, $$$REST))
+rule:
+  pattern: $OBJ.dispatch($EVENT, [$FIRST, $$$REST])
+note: |
+  `core.dispatch()` is typed as `args: tuple[Any, ...]`. Passing a list literal
+  violates the type contract.
+
+  Before:
+    core.dispatch("my.event", [arg1, arg2])
+
+  After:
+    core.dispatch("my.event", (arg1, arg2))

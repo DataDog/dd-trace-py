@@ -82,7 +82,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
     ):
         # If the queue is_async then add distributed tracing headers to the job
         if instance.is_async:
-            core.dispatch("rq.queue.enqueue_job", [ctx, job.meta])
+            core.dispatch("rq.queue.enqueue_job", (ctx, job.meta))
         return func(*args, **kwargs)
 
 
@@ -143,12 +143,12 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
                 except Exception:
                     job_failed = False
                 span_tags = {"job.status": status or "None", "job.origin": job.origin}
-                core.dispatch("rq.worker.perform_job", [ctx, job_failed, span_tags])
+                core.dispatch("rq.worker.perform_job", (ctx, job_failed, span_tags))
 
     finally:
         # Force flush to agent since the process `os.exit()`s
         # immediately after this method returns
-        core.dispatch("rq.worker.after.perform.job", [ctx])
+        core.dispatch("rq.worker.after.perform.job", (ctx,))
 
 
 @trace_utils.with_traced_module

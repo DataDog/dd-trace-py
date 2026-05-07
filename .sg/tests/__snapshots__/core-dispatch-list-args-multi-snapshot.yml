@@ -1,0 +1,64 @@
+id: core-dispatch-list-args-multi
+snapshots:
+  ? |
+    core.dispatch(
+        "my.event",
+        [
+            arg1,
+            arg2,
+            arg3,
+        ],
+    )
+  : fixed: |
+      core.dispatch("my.event", (arg1, arg2,
+      arg3,))
+    labels:
+    - source: |-
+        core.dispatch(
+            "my.event",
+            [
+                arg1,
+                arg2,
+                arg3,
+            ],
+        )
+      style: primary
+      start: 0
+      end: 87
+  ? |
+    core.dispatch(
+        "my.event",
+        [ctx, span, result],
+    )
+  : fixed: |
+      core.dispatch("my.event", (ctx, span, result))
+    labels:
+    - source: |-
+        core.dispatch(
+            "my.event",
+            [ctx, span, result],
+        )
+      style: primary
+      start: 0
+      end: 57
+  core.dispatch("my.event", [arg1, arg2, arg3]):
+    fixed: core.dispatch("my.event", (arg1, arg2, arg3))
+    labels:
+    - source: core.dispatch("my.event", [arg1, arg2, arg3])
+      style: primary
+      start: 0
+      end: 45
+  core.dispatch("my.event", [arg1, arg2]):
+    fixed: core.dispatch("my.event", (arg1, arg2))
+    labels:
+    - source: core.dispatch("my.event", [arg1, arg2])
+      style: primary
+      start: 0
+      end: 39
+  core.dispatch("my.event", [ctx, rowcount]):
+    fixed: core.dispatch("my.event", (ctx, rowcount))
+    labels:
+    - source: core.dispatch("my.event", [ctx, rowcount])
+      style: primary
+      start: 0
+      end: 42
