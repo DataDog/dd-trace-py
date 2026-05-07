@@ -65,9 +65,11 @@ impl ExportSync {
 
     fn on_export_complete(&self) {
         self.has_pending.store(false, Ordering::Release);
-        let mut gen = self.gen_lock.lock().unwrap();
-        *gen += 1;
-        self.gen_cvar.notify_all();
+        {
+            let mut gen = self.gen_lock.lock().unwrap();
+            *gen += 1;
+        }
+        self.gen_cvar.notify_one();
     }
 
     fn wait_for_export(&self, current_gen: u64, timeout: Duration) {
@@ -171,30 +173,30 @@ impl NativeTraceBufferPy {
     fn shutdown(&mut self, py: Python<'_>, timeout_ns: u64) -> PyResult<()> {
         let timeout = Duration::from_nanos(timeout_ns);
 
-        // Only wait if a send_chunk call has produced data that hasn't been exported yet.
-        if self.export_sync.has_pending.load(Ordering::Acquire) {
-            // Snapshot the export generation *before* triggering the flush so that a
-            // response_handler firing between the load above and force_flush still counts.
-            let current_gen = *self.export_sync.gen_lock.lock().unwrap();
+        // Snapshot the pending flag and generation *before* triggering the flush so that a
+        // response_handler firing between the load and force_flush still counts.
+        let has_pending = self.export_sync.has_pending.load(Ordering::Acquire);
+        let current_gen = has_pending.then(|| *self.export_sync.gen_lock.lock().unwrap());
 
-            // Signal the background worker to export immediately.
+        if has_pending {
             let _ = self.buffer.force_flush();
-
-            // Block (without the GIL) until the export generation advances, meaning the
-            // worker has completed exactly the export we just triggered.
-            let export_sync = self.export_sync.clone();
-            py.detach(move || {
-                export_sync.wait_for_export(current_gen, timeout);
-            });
         }
 
-        // The export is done (or timed out); now it is safe to cancel the worker.
-        if let Some(handle) = self.worker_handle.take() {
-            let runtime = self.runtime.clone();
-            py.detach(move || {
+        let export_sync = self.export_sync.clone();
+        let worker_handle = self.worker_handle.take();
+        let runtime = self.runtime.clone();
+
+        // Release the GIL for all blocking operations: waiting for the export to complete
+        // and stopping the worker.
+        py.detach(move || {
+            if let Some(gen) = current_gen {
+                export_sync.wait_for_export(gen, timeout);
+            }
+            if let Some(handle) = worker_handle {
                 let _ = runtime.block_on(handle.stop());
-            });
-        }
+            }
+        });
+
         Ok(())
     }
 

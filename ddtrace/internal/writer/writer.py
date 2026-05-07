@@ -603,6 +603,70 @@ class AgentlessTraceWriter(HTTPWriter):
         )
 
 
+def _resolve_api_version(api_version: Optional[str] = None) -> str:
+    """Determine the effective trace API version given platform and product constraints."""
+    is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+    default = "v0.5"
+    if (
+        is_windows
+        or in_gcp_function()
+        or in_azure_function()
+        or asm_config._asm_enabled
+        or asm_config._iast_enabled
+        or ai_guard_config._ai_guard_enabled
+    ):
+        default = "v0.4"
+    resolved = api_version or config._trace_api or default
+    if agent_config.trace_native_span_events:
+        log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
+        resolved = "v0.4"
+    return resolved
+
+
+def _resolve_test_session_token(token: Optional[str]) -> Optional[str]:
+    if token is not None:
+        return token
+    additional_header_str = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+    if additional_header_str is not None:
+        return parse_tags_str(additional_header_str).get("X-Datadog-Test-Session-Token")
+    return None
+
+
+def _build_base_exporter_builder(
+    intake_url: str,
+    test_session_token: Optional[str],
+    compute_stats_enabled: bool,
+    stats_opt_out: bool,
+) -> Any:
+    _, commit_sha, _ = get_git_tags()
+    builder = (
+        native.TraceExporterBuilder()
+        .set_url(intake_url)
+        .set_hostname(get_hostname())
+        .set_language("python")
+        .set_language_version(compat.PYTHON_VERSION)
+        .set_language_interpreter(compat.PYTHON_INTERPRETER)
+        .set_tracer_version(__version__)
+        .set_git_commit_sha(commit_sha)
+        .set_client_computed_top_level()
+    )
+    if config.service:
+        builder.set_service(config.service)
+    if config.env:
+        builder.set_env(config.env)
+    if config.version:
+        builder.set_app_version(config.version)
+    if test_session_token is not None:
+        builder.set_test_session_token(test_session_token)
+    if stats_opt_out:
+        builder.set_client_computed_stats()
+    elif compute_stats_enabled:
+        stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+        bucket_size_ns: int = int(stats_interval * 1e9)
+        builder.enable_stats(bucket_size_ns)
+    return builder
+
+
 class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     """Writer using a native trace exporter to send traces to an agent."""
 
@@ -635,35 +699,15 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if max_payload_size is not None and max_payload_size <= 0:
             raise ValueError("Max payload size must be positive")
 
-        # Default to v0.4 if we are on Windows since there is a known compatibility issue
-        # https://github.com/DataDog/dd-trace-py/issues/4829
-        # DEV: sys.platform on windows should be `win32` or `cygwin`, but using `startswith`
-        #      as a safety precaution.
-        #      https://docs.python.org/3/library/sys.html#sys.platform
-        is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+        self._api_version = _resolve_api_version(api_version)
 
-        default_api_version = "v0.5"
-        if (
-            is_windows
-            or in_gcp_function()
-            or in_azure_function()
-            or asm_config._asm_enabled
-            or asm_config._iast_enabled
-            or ai_guard_config._ai_guard_enabled
-        ):
-            default_api_version = "v0.4"
-
-        self._api_version = api_version or config._trace_api or default_api_version
-
-        if agent_config.trace_native_span_events:
-            log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
-            self._api_version = "v0.4"
-
-        if is_windows and self._api_version == "v0.5":
-            raise RuntimeError(
-                "There is a known compatibility issue with v0.5 API and Windows, "
-                "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
-            )
+        # DEV: https://github.com/DataDog/dd-trace-py/issues/4829
+        if sys.platform.startswith("win") or sys.platform.startswith("cygwin"):
+            if self._api_version == "v0.5":
+                raise RuntimeError(
+                    "There is a known compatibility issue with v0.5 API and Windows, "
+                    "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
+                )
 
         buffer_size = buffer_size or config._trace_writer_buffer_size
         max_payload_size = max_payload_size or config._trace_writer_payload_size
@@ -676,18 +720,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
         client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
-        additional_header_str = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
-        if test_session_token is None and additional_header_str is not None:
-            additional_header = parse_tags_str(additional_header_str)
-            if "X-Datadog-Test-Session-Token" in additional_header:
-                test_session_token = additional_header["X-Datadog-Test-Session-Token"]
-
         super(NativeWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
-        self._test_session_token = test_session_token
+        self._test_session_token = _resolve_test_session_token(test_session_token)
 
         self._clients = [client]
         self.dogstatsd = dogstatsd
@@ -721,31 +759,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         return headers
 
     def _create_exporter(self) -> native.TraceExporter:
-        """
-        Create a new TraceExporter with the current configuration.
-        :return: A configured TraceExporter instance.
-        """
-        _, commit_sha, _ = get_git_tags()
-
-        builder = (
-            native.TraceExporterBuilder()
-            .set_url(self.intake_url)
-            .set_hostname(get_hostname())
-            .set_language("python")
-            .set_language_version(compat.PYTHON_VERSION)
-            .set_language_interpreter(compat.PYTHON_INTERPRETER)
-            .set_tracer_version(__version__)
-            .set_git_commit_sha(commit_sha)
-            .set_client_computed_top_level()
-            .set_input_format(self._api_version)
-            .set_output_format(self._api_version)
+        builder = _build_base_exporter_builder(
+            self.intake_url,
+            self._test_session_token,
+            self._compute_stats_enabled,
+            self._stats_opt_out,
         )
-        if config.service:
-            builder.set_service(config.service)
-        if config.env:
-            builder.set_env(config.env)
-        if config.version:
-            builder.set_app_version(config.version)
+        builder.set_input_format(self._api_version).set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
             otlp_headers = self._parse_otlp_headers()
@@ -754,24 +774,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.set_connection_timeout(otel_config.exporter.TRACES_TIMEOUT)
         if p_tags := process_tags.process_tags:
             builder.set_process_tags(p_tags)
-        if self._test_session_token is not None:
-            builder.set_test_session_token(self._test_session_token)
-        if self._stats_opt_out:
-            builder.set_client_computed_stats()
-        elif self._compute_stats_enabled:
-            stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
-            bucket_size_ns: int = int(stats_interval * 1e9)
-            builder.enable_stats(bucket_size_ns)
-
         # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
         if config._telemetry_enabled and sys.platform.startswith("linux"):
-            heartbeat_ms = int(
-                config._telemetry_heartbeat_interval * 1000
-            )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
+            heartbeat_ms = int(config._telemetry_heartbeat_interval * 1000)
             builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
-
         return builder.build(get_native_runtime())
 
     def set_test_session_token(self, token: Optional[str]) -> None:
@@ -1025,6 +1033,7 @@ class NativeTraceBuffer(TraceWriter):
     def __init__(
         self,
         intake_url: str,
+        api_version: Optional[str] = None,
         compute_stats_enabled: bool = False,
         response_callback: Optional[Callable] = None,
         stats_opt_out: Optional[bool] = False,
@@ -1032,52 +1041,28 @@ class NativeTraceBuffer(TraceWriter):
         test_session_token: Optional[str] = None,
     ) -> None:
         self.intake_url = intake_url
+        self._api_version = _resolve_api_version(api_version)
         self._compute_stats_enabled = compute_stats_enabled
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
         self._otlp_endpoint = otlp_endpoint
-
-        if test_session_token is None:
-            additional_header_str = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
-            if additional_header_str is not None:
-                additional_header = parse_tags_str(additional_header_str)
-                test_session_token = additional_header.get("X-Datadog-Test-Session-Token")
-        self._test_session_token = test_session_token
+        self._test_session_token = _resolve_test_session_token(test_session_token)
 
         exporter = self._create_exporter()
         self._native_buffer = native.NativeTraceBuffer(exporter)
 
     def _create_exporter(self) -> native.TraceExporter:
-        _, commit_sha, _ = get_git_tags()
-        builder = (
-            native.TraceExporterBuilder()
-            .set_url(self.intake_url)
-            .set_hostname(get_hostname())
-            .set_language("python")
-            .set_language_version(compat.PYTHON_VERSION)
-            .set_language_interpreter(compat.PYTHON_INTERPRETER)
-            .set_tracer_version(__version__)
-            .set_git_commit_sha(commit_sha)
-            .set_client_computed_top_level()
-            .set_input_format("v0.5")
-            .set_output_format("v0.5")
+        builder = _build_base_exporter_builder(
+            self.intake_url,
+            self._test_session_token,
+            self._compute_stats_enabled,
+            self._stats_opt_out,
         )
-        if config.service:
-            builder.set_service(config.service)
-        if config.env:
-            builder.set_env(config.env)
-        if config.version:
-            builder.set_app_version(config.version)
+        # Input format is not set: NativeTraceBuffer passes native Span objects directly,
+        # not pre-encoded msgpack bytes, so the exporter's decode path is not used.
+        builder.set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
-        if self._test_session_token is not None:
-            builder.set_test_session_token(self._test_session_token)
-        if self._stats_opt_out:
-            builder.set_client_computed_stats()
-        elif self._compute_stats_enabled:
-            stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
-            bucket_size_ns = int(stats_interval * 1e9)
-            builder.enable_stats(bucket_size_ns)
         return builder.build(get_native_runtime())
 
     def set_test_session_token(self, token: Optional[str]) -> None:
@@ -1090,6 +1075,7 @@ class NativeTraceBuffer(TraceWriter):
         self.stop()
         return self.__class__(
             intake_url=self.intake_url,
+            api_version=self._api_version,
             compute_stats_enabled=self._compute_stats_enabled,
             response_callback=self._response_cb,
             stats_opt_out=self._stats_opt_out,
