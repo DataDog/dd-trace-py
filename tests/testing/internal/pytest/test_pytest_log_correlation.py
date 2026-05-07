@@ -26,12 +26,18 @@ def _isolate_from_outer_ci_session(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER", raising=False)
 
 
-# Infrastructure mock plugin — loaded via "-p dd_log_corr_infra" so its pytest_configure fires
-# BEFORE pytest_load_initial_conftests (where SessionManager is constructed and makes network calls).
+# Infrastructure mock plugin — loaded via "-p dd_log_corr_infra".
 #
-# Mirrors the mocking done by tests.testing.mocks.network_mocks(), inlined here because the
-# subprocess cannot import from the test helpers.
+# Uses pytest_load_initial_conftests (hookwrapper, tryfirst) so that mocks are installed
+# BEFORE the ddtrace plugin's pytest_load_initial_conftests creates SessionManager (which
+# would otherwise make real network calls).  Because this plugin is registered after the
+# ddtrace entry-point plugin (via the -p flag), its tryfirst hookwrapper becomes the
+# outermost wrapper, guaranteeing pre-yield code runs first.
+#
+# Mirrors the mocking done by tests.testing.mocks.network_mocks(), inlined here because
+# the subprocess cannot import from the test helpers.
 _INFRA_PLUGIN = """\
+import pytest
 from unittest.mock import Mock, patch
 
 from ddtrace.testing.internal.http import BackendConnectorSetup
@@ -48,7 +54,8 @@ class _MockConnectorSetup:
         return "none"
 
 
-def pytest_configure(config):
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_load_initial_conftests(early_config, parser, args):
     mock_api = Mock()
     mock_api.get_settings.return_value = Settings()
     mock_api.get_known_tests.return_value = set()
@@ -71,6 +78,8 @@ def pytest_configure(config):
     mock_writer.start.return_value = None
     patch("ddtrace.testing.internal.session_manager.TestOptWriter", return_value=mock_writer).start()
     patch("ddtrace.testing.internal.session_manager.TestCoverageWriter", return_value=mock_writer).start()
+
+    yield
 """
 
 
@@ -78,6 +87,7 @@ def pytest_configure(config):
 # simulating an environment where the contrib logging module is missing.
 _INFRA_PLUGIN_NO_LOGGING_PATCH = """\
 import sys
+import pytest
 from unittest.mock import Mock, patch
 
 from ddtrace.testing.internal.http import BackendConnectorSetup
@@ -94,7 +104,8 @@ class _MockConnectorSetup:
         return "none"
 
 
-def pytest_configure(config):
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_load_initial_conftests(early_config, parser, args):
     # Setting a module to None in sys.modules causes ImportError on subsequent imports.
     sys.modules["ddtrace.contrib.internal.logging.patch"] = None
 
@@ -116,6 +127,8 @@ def pytest_configure(config):
     mock_writer.start.return_value = None
     patch("ddtrace.testing.internal.session_manager.TestOptWriter", return_value=mock_writer).start()
     patch("ddtrace.testing.internal.session_manager.TestCoverageWriter", return_value=mock_writer).start()
+
+    yield
 """
 
 
