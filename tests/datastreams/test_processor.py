@@ -1,4 +1,5 @@
 import gzip
+import logging
 import os
 import time
 
@@ -42,6 +43,41 @@ def test_periodic_payload_process_tags():
         assert "ProcessTags" in decoded
         assert isinstance(decoded["ProcessTags"], list)
         assert all(isinstance(x, str) and ":" in x for x in decoded["ProcessTags"])
+    finally:
+        processor.stop()
+        processor.join()
+
+
+def test_periodic_logs_warning_on_flush_failure(caplog):
+    # AIDEV-NOTE: DSMS-144 — when retry-budget is exhausted, the customer-facing log
+    # must (a) be WARNING (not ERROR) so it doesn't trip alerting on benign flush
+    # failures, (b) preserve the leading phrase for customers' existing log-based
+    # alerts, (c) explain impact, (d) include the exception cause inline for triage,
+    # and (e) NOT include a multi-line traceback (which is what made the original
+    # ERROR-level message look like a crash).
+    processor = DataStreamsProcessor("http://localhost:8126")
+    try:
+        with mock.patch.object(
+            processor,
+            "_flush_stats_with_backoff",
+            side_effect=TimeoutError("timed out"),
+        ):
+            processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:topicA", "type:kafka"], 1642544540, 1, 1)
+            with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.datastreams.processor"):
+                processor.periodic()
+
+        warning_records = [
+            r
+            for r in caplog.records
+            if r.levelno == logging.WARNING and r.name == "ddtrace.internal.datastreams.processor"
+        ]
+
+        assert len(warning_records) == 1
+        msg = warning_records[0].getMessage()
+        assert "retry limit exceeded submitting pathway stats" in msg
+        assert "last 10 seconds of DSM data is dropped" in msg
+        assert "timed out" in msg
+        assert warning_records[0].exc_info is None
     finally:
         processor.stop()
         processor.join()
