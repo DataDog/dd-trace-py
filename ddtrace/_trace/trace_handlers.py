@@ -1671,7 +1671,7 @@ def _on_azure_cosmos_request_finish(
             span._set_attribute(db.STATUS_CODE, str(status_code))
 
     _finish_span(ctx, exc_info)
-    print('bye')
+    print('ye')
 
 
 def listen():
