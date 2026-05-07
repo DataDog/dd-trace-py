@@ -18,10 +18,10 @@ from ddtrace.appsec._api_security._normalized_route import normalize_route
         # Multi-param segment combined with `+` (rule 5)
         ("/photos/{id}.{format}", "/photos/{id+format}"),
         ("/files/{a}.{b}.{c}", "/files/{a+b+c}"),
-        # Convertor types are stripped from the param name
+        # Converter types are stripped from the param name
         ("/sleep/{seconds:int}", "/sleep/{seconds}"),
         ("/asm/{param_int:int}/{param_str:str}", "/asm/{param_int}/{param_str}"),
-        # Catch-all path convertor: rule 5 catch-all exception
+        # Catch-all path converter: rule 5 catch-all exception
         ("/files/{file_path:path}", "/files/{file_path}"),
         # Catch-all with in-segment static prefix: entire tail is one atomic element
         ("/files/file-{tail:path}", "/files/{tail}"),
