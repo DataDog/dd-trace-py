@@ -4,12 +4,15 @@ severity: warning
 language: python
 files:
   - "tests/**/*.py"
+ignores:
+  - "tests/subprocesstest.py"
+  - "tests/contrib/unittest/test_unittest.py"
 rule:
   kind: class_definition
   has:
     field: superclasses
     kind: argument_list
-    regex: "TestCase"
+    regex: '\bTestCase\b'
 note: |
   pytest markers (@pytest.mark.*) and fixtures do not work reliably on methods
   inside unittest.TestCase subclasses. pytest discovers these tests via a

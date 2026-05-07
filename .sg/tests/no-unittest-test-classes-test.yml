@@ -14,6 +14,19 @@ valid:
     class TestSomething(SomeOtherBase):
         def test_something(self):
             assert True
+  # Subclass with TestCase as suffix but not a standalone word — OK (regex \bTestCase\b won't match)
+  - |
+    class MyTest(TracerTestCase):
+        def test_something(self):
+            pass
+  - |
+    class MyTest(BaseTestCase):
+        def test_something(self):
+            pass
+  - |
+    class MyTest(SubprocessTestCase):
+        def test_something(self):
+            pass
 invalid:
   # Direct unittest.TestCase subclass
   - |
@@ -23,20 +36,5 @@ invalid:
   # Bare TestCase (from `from unittest import TestCase`)
   - |
     class MyTest(TestCase):
-        def test_something(self):
-            pass
-  # TracerTestCase subclass
-  - |
-    class MyTest(TracerTestCase):
-        def test_something(self):
-            pass
-  # BaseTestCase subclass
-  - |
-    class MyTest(BaseTestCase):
-        def test_something(self):
-            pass
-  # SubprocessTestCase subclass
-  - |
-    class MyTest(SubprocessTestCase):
         def test_something(self):
             pass
