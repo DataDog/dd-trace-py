@@ -1,6 +1,7 @@
 use pyo3::{
     prelude::*,
     types::{PyDict, PyTuple},
+    PyTraverseError, PyVisit,
 };
 use std::collections::HashMap;
 use std::sync::{LazyLock, OnceLock, RwLock};
@@ -80,9 +81,9 @@ fn get_missing_event(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
         let event_result = Py::new(
             py,
             EventResult {
-                response_type: result_type_undefined,
-                value: py_none(py),
-                exception: py_none(py),
+                response_type: Some(result_type_undefined),
+                value: Some(py_none(py)),
+                exception: Some(py_none(py)),
                 is_ok: false,
             },
         )?;
@@ -102,16 +103,17 @@ fn py_none(py: Python<'_>) -> Py<PyAny> {
 }
 
 /// Native Python class mirroring the old Python EventResult dataclass.
-/// Stores response_type, value, exception as Python objects.
+/// Fields are Option<Py<PyAny>> so __clear__ can drop them without a Python token —
+/// pyo3 0.28 defers Py<T> decrefs, so dropping Option::None is always safe.
 /// is_ok is a private fast path for __bool__ that avoids Python equality.
 #[pyclass(module = "ddtrace.internal.native._native")]
 pub struct EventResult {
     #[pyo3(get, set)]
-    pub response_type: Py<PyAny>,
+    pub response_type: Option<Py<PyAny>>,
     #[pyo3(get, set)]
-    pub value: Py<PyAny>,
+    pub value: Option<Py<PyAny>>,
     #[pyo3(get, set)]
-    pub exception: Py<PyAny>,
+    pub exception: Option<Py<PyAny>>,
     is_ok: bool,
 }
 
@@ -132,9 +134,9 @@ impl EventResult {
             .map(|v| v == 0)
             .unwrap_or(false);
         Self {
-            response_type: response_type.unwrap_or_else(|| py_none(py)),
-            value: value.unwrap_or_else(|| py_none(py)),
-            exception: exception.unwrap_or_else(|| py_none(py)),
+            response_type: Some(response_type.unwrap_or_else(|| py_none(py))),
+            value: Some(value.unwrap_or_else(|| py_none(py))),
+            exception: Some(exception.unwrap_or_else(|| py_none(py))),
             is_ok,
         }
     }
@@ -144,18 +146,52 @@ impl EventResult {
     }
 
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+        let rt = match &self.response_type {
+            Some(o) => o.bind(py).repr()?.to_string(),
+            None => "None".to_string(),
+        };
+        let val = match &self.value {
+            Some(o) => o.bind(py).repr()?.to_string(),
+            None => "None".to_string(),
+        };
+        let exc = match &self.exception {
+            Some(o) => o.bind(py).repr()?.to_string(),
+            None => "None".to_string(),
+        };
         Ok(format!(
-            "EventResult(response_type={}, value={}, exception={})",
-            self.response_type.bind(py).repr()?,
-            self.value.bind(py).repr()?,
-            self.exception.bind(py).repr()?,
+            "EventResult(response_type={rt}, value={val}, exception={exc})"
         ))
+    }
+
+    // __traverse__ registers this class with Python's cyclic GC. In pyo3 0.28
+    // defining this method is sufficient — no #[pyclass(gc)] needed.
+    fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
+        if let Some(ref o) = self.response_type {
+            visit.call(o)?;
+        }
+        if let Some(ref o) = self.value {
+            visit.call(o)?;
+        }
+        if let Some(ref o) = self.exception {
+            visit.call(o)?;
+        }
+        Ok(())
+    }
+
+    // __clear__ breaks reference cycles. Option fields can be taken without
+    // acquiring the GIL — pyo3 0.28 defers the decref automatically.
+    fn __clear__(&mut self) {
+        self.response_type = None;
+        self.value = None;
+        self.exception = None;
+        self.is_ok = false;
     }
 }
 
 /// Native dict subclass mirroring the old Python EventResultDict.
 /// __missing__ returns the _MissingEvent singleton for absent keys.
 /// __getattr__ enables attribute-style access: result.listener_name.
+/// GC is inherited from PyDict — no extra fields to traverse or clear.
 #[pyclass(extends=PyDict, module = "ddtrace.internal.native._native")]
 pub struct EventResultDict;
 
@@ -326,9 +362,9 @@ pub fn dispatch_with_results(
                     let event_result = Py::new(
                         py,
                         EventResult {
-                            response_type: result_type_ok.clone_ref(py),
-                            value: value.unbind(),
-                            exception: py_none(py),
+                            response_type: Some(result_type_ok.clone_ref(py)),
+                            value: Some(value.unbind()),
+                            exception: Some(py_none(py)),
                             is_ok: true,
                         },
                     )?;
@@ -342,9 +378,9 @@ pub fn dispatch_with_results(
                     let event_result = Py::new(
                         py,
                         EventResult {
-                            response_type: result_type_exception.clone_ref(py),
-                            value: py_none(py),
-                            exception: exc,
+                            response_type: Some(result_type_exception.clone_ref(py)),
+                            value: Some(py_none(py)),
+                            exception: Some(exc),
                             is_ok: false,
                         },
                     )?;
