@@ -466,13 +466,13 @@ class LibraryDownload:
     CACHE_DIR = Path(os.getenv("DD_SETUP_CACHE_DIR", HERE / ".download_cache"))
     USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "1").lower() in ("1", "yes", "on", "true")
 
-    name = None
-    download_dir = Path.cwd()
-    version = None
-    url_root = None
-    available_releases = {}
-    expected_checksums = None
-    translate_suffix = {}
+    name: t.Optional[str] = None
+    download_dir: Path = Path.cwd()
+    version: t.Optional[str] = None
+    url_root: t.Optional[str] = None
+    available_releases: dict[str, list[str]] = {}
+    expected_checksums: t.Optional[dict[str, str]] = None
+    translate_suffix: dict[str, tuple[str, ...]] = {}
 
     @classmethod
     def download_artifacts(cls):
@@ -1038,7 +1038,7 @@ class CustomBuildExt(build_ext):
         cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), f"{dep.name}_build").resolve()
         cmake_build_dir.mkdir(parents=True, exist_ok=True)
 
-        cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()
+        cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()  # type: ignore[attr-defined]
 
         cmake_args = self._base_cmake_args() + [
             f"-S{dep.cmake_dir}",
@@ -1334,7 +1334,7 @@ class CustomBuildExt(build_ext):
                 "-DCMAKE_CXX_FLAGS_%s=-O0" % ext.build_type.upper(),
             ]
         cmake_command = (
-            Path(cmake.CMAKE_BIN_DIR) / "cmake"
+            Path(cmake.CMAKE_BIN_DIR) / "cmake"  # type: ignore[attr-defined]
         ).resolve()  # explicitly use the cmake provided by the cmake package
         subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
@@ -1447,8 +1447,12 @@ def _time_phase(name: str):
 
 if DebugMetadata.enabled:
     DebugMetadata.start_ns = time.time_ns()
-    CustomBuildExt.build_extension = debug_build_extension(CustomBuildExt.build_extension)
-    CustomBuildExt._build_shared_dep = debug_build_shared_dep(CustomBuildExt._build_shared_dep)
+    CustomBuildExt.build_extension = (  # type: ignore[method-assign]
+        debug_build_extension(CustomBuildExt.build_extension)
+    )
+    CustomBuildExt._build_shared_dep = (  # type: ignore[method-assign]
+        debug_build_shared_dep(CustomBuildExt._build_shared_dep)
+    )
     build_rust.build_extension = debug_build_extension(CustomBuildRust.build_extension)
     atexit.register(DebugMetadata.dump_metadata)
 
@@ -1488,7 +1492,7 @@ class CMakeExtension(Extension):
         def is_valid_source(src: Path) -> bool:
             return (
                 src.is_file()
-                and src.suffix
+                and bool(src.suffix)
                 # Exclude compiled/generated artifacts that are not real sources:
                 # .so/.dylib/.dll/.pyd — compiled native extensions (from co-located Cython exts)
                 # .c — Cython-generated C files (present in shared source directories)
