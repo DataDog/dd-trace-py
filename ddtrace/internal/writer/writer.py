@@ -636,7 +636,7 @@ def _build_base_exporter_builder(
     intake_url: str,
     test_session_token: Optional[str],
     compute_stats_enabled: bool,
-    stats_opt_out: bool,
+    stats_opt_out: Optional[bool],
 ) -> Any:
     _, commit_sha, _ = get_git_tags()
     builder = (
