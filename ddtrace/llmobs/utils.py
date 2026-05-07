@@ -108,6 +108,14 @@ def extract_tool_definitions(tool_definitions: list[dict[str, Any]]) -> list[Too
             else:
                 validated_tool_def["schema"] = schema
 
+        # version is optional
+        version = tool_def.get("version")
+        if version is not None:
+            if not isinstance(version, str):
+                log.warning("Tool definition 'version' at index %s must be a string. Skipping version field.", i)
+            else:
+                validated_tool_def["version"] = version
+
         validated_tool_definitions.append(validated_tool_def)
 
     return validated_tool_definitions

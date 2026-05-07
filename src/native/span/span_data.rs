@@ -965,12 +965,13 @@ impl SpanData {
         self.data.name.traverse(&visit)?;
         self.data.resource.traverse(&visit)?;
         self.data.r#type.traverse(&visit)?;
-        // The libdatadog Span struct also holds `meta`, `metrics` (HashMaps of
-        // PyBackedString) and `span_links`, `span_events` (Vecs of native
-        // structs whose attributes are HashMap<PyBackedString, ...>). Currently
-        // `meta`/`metrics` are not written from Rust (the Python subclass
-        // stores them in __slots__), and link/event attribute values are
-        // primitives or PyBackedStrings. Visit conservatively.
+        // `self.attributes` is the unified tag/metric store.
+        // Keys hold `Py<PyString>`; Str values hold `Py<PyString>`. Int/Float
+        // variants are primitive Rust types with no Python references.
+        for (k, v) in self.attributes.iter() {
+            k.traverse(&visit)?;
+            v.traverse(&visit)?;
+        }
         for link in self.data.span_links.iter() {
             link.tracestate.traverse(&visit)?;
             for (k, v) in link.attributes.iter() {
@@ -998,6 +999,7 @@ impl SpanData {
         // Drop every owned Python reference so CPython can break cycles.
         self._trace_id_py = None;
         self.meta_struct = None;
+        self.attributes = AttributeMap::default();
         self.span_api = crate::py_string::PyBackedString::default();
         self.data = libdd_trace_utils::span::v04::Span::<PyTraceData>::default();
     }

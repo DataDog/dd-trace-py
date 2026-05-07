@@ -340,10 +340,10 @@ integrations:
   tested_versions_by_dependency:
     elastic-transport:
       min: 8.17.1
-      max: 9.2.1
+      max: 9.4.0
     elasticsearch:
       min: 7.13.4
-      max: 9.3.0
+      max: 9.4.0
     elasticsearch1:
       min: 1.10.0
       max: 1.10.0
@@ -513,7 +513,7 @@ integrations:
   tested_versions_by_dependency:
     confluent-kafka:
       min: 1.9.2
-      max: 2.6.2
+      max: 2.14.0
 
 - integration_name: kombu
   is_external_package: true

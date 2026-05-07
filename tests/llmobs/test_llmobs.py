@@ -531,6 +531,7 @@ def test_annotate_with_tool_definitions(llmobs, llmobs_backend):
                 "type": "object",
                 "properties": {"location": {"type": "string"}},
             },
+            "version": "1.0.0",
         }
     ]
 
@@ -607,6 +608,16 @@ def test_annotate_with_tool_definitions_non_dict(llmobs, llmobs_backend):
     events = llmobs_backend.wait_for_num_events(num=1)
     assert len(events) == 1
     assert "tool_definitions" not in events[0][0]["spans"][0]["meta"]
+
+
+def test_annotate_with_tool_definitions_invalid_version_type(llmobs, llmobs_backend):
+    """Test that tool_definitions with non-string version field have version skipped but are otherwise kept."""
+    with llmobs.llm() as span:
+        llmobs.annotate(span, tool_definitions=[{"name": "my_tool", "version": 1}])
+
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert events[0][0]["spans"][0]["meta"]["tool_definitions"] == [{"name": "my_tool"}]
 
 
 @pytest.mark.asyncio
