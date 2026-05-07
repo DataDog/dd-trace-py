@@ -451,14 +451,8 @@ except KeyboardInterrupt:
 # The NativeWriter test runs first and creates the snapshot; the
 # NativeTraceBuffer test then compares against it.  Any divergence is a bug.
 
-_TOKEN_COMPAT_SINGLE = (
-    "tests.integration.test_integration_snapshots"
-    ".test_writer_compat_single_span"
-)
-_TOKEN_COMPAT_MULTIPLE = (
-    "tests.integration.test_integration_snapshots"
-    ".test_writer_compat_multiple_traces"
-)
+_TOKEN_COMPAT_SINGLE = "tests.integration.test_integration_snapshots.test_writer_compat_single_span"
+_TOKEN_COMPAT_MULTIPLE = "tests.integration.test_integration_snapshots.test_writer_compat_multiple_traces"
 
 
 @pytest.mark.snapshot(token=_TOKEN_COMPAT_SINGLE)

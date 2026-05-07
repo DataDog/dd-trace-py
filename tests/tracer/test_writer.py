@@ -478,7 +478,8 @@ class CIVisibilityWriterTests(NativeWriterTests):
 
 class NativeTraceBufferTests(BaseTestCase):
     """Smoke tests for NativeTraceBuffer — covers the subset of NativeWriterTests behaviours
-    that are applicable to the buffer-based writer (no dogstatsd, no buffer-size limits)."""
+    that are applicable to the buffer-based writer (no dogstatsd, no buffer-size limits).
+    """
 
     def _make_writer(self):
         return NativeTraceBuffer("http://asdf:1234")
