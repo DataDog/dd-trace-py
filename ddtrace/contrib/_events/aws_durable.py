@@ -44,12 +44,16 @@ class AwsDurableInvokeEvent(TracingEvent):
 
     operation: str = event_field()
     invoke_function_name: str = event_field()
+    name: Optional[str] = event_field(default=None)
+    id: Optional[str] = event_field(default=None)
     replayed: Optional[bool] = event_field(default=None)
     suspend_cause_exc_info: Optional[tuple[type, BaseException, TracebackType]] = event_field(default=None)
 
     def __post_init__(self) -> None:
         self.operation_name = self.operation
         self.tags[aws_durable.TAG_INVOKE_FUNCTION_NAME] = self.invoke_function_name
+        if self.name is not None:
+            self.tags[aws_durable.TAG_NAME] = self.name
 
 
 @dataclass
@@ -60,8 +64,12 @@ class AwsDurableOperationEvent(TracingEvent):
     span_type = SpanTypes.SERVERLESS
 
     operation: str = event_field()
+    name: Optional[str] = event_field(default=None)
+    id: Optional[str] = event_field(default=None)
     replayed: Optional[bool] = event_field(default=None)
     suspend_cause_exc_info: Optional[tuple[type, BaseException, TracebackType]] = event_field(default=None)
 
     def __post_init__(self) -> None:
         self.operation_name = self.operation
+        if self.name is not None:
+            self.tags[aws_durable.TAG_NAME] = self.name
