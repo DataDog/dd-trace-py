@@ -37,6 +37,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings import env as _env
+from ddtrace.internal.settings.integration import _integration_env_var_id
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
@@ -1833,7 +1834,7 @@ class LLMObs(Service):
             for integration in llm_integrations
         }
         for module, _ in integrations_to_patch.items():
-            env_var = "DD_TRACE_%s_ENABLED" % module.upper()
+            env_var = "DD_TRACE_%s_ENABLED" % _integration_env_var_id(module)
             if env_var in _env:
                 integrations_to_patch[module] = asbool(_env[env_var])
         dd_patch_modules = _env.get("DD_PATCH_MODULES")

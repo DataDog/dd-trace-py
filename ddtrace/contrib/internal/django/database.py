@@ -145,7 +145,7 @@ def get_conn_config(vendor: str, service: Optional[str]) -> IntegrationConfig:
     prefix = sqlx.normalize_vendor(vendor)
     return IntegrationConfig(
         config_django.global_config,
-        "django_database",
+        "django-database",
         _default_service=service,
         _dbapi_span_name_prefix=prefix,
         trace_fetch_methods=config_django.trace_fetch_methods,

@@ -160,7 +160,7 @@ def handle_dbm_injection_asyncpg(int_config, method, span, args, kwargs):
 _DBM_STANDARD_EVENTS = {
     "aiomysql.execute",
     "dbapi.execute",
-    "django_database.execute",
+    "django-database.execute",
     "mysql.execute",
     "mysqldb.execute",
     "psycopg.execute",
