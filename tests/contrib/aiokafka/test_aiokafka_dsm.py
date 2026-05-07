@@ -9,6 +9,9 @@ from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
+from tests.datastreams.utils import max_commit_offset
+from tests.datastreams.utils import max_produce_offset
+from tests.datastreams.utils import pathway_stats_merged
 
 from .utils import BOOTSTRAP_SERVERS
 from .utils import GROUP_ID
@@ -24,25 +27,6 @@ def patch_aiokafka():
     patch()
     yield
     unpatch()
-
-
-# DSM aggregates checkpoints into 10s wall-clock buckets; produce and consume
-# can land in different buckets when a test straddles a boundary. Hold _lock
-# so the periodic flusher can't mutate _buckets mid-iteration.
-def _max_produce_offset(processor, key):
-    with processor._lock:
-        return max(
-            (bucket.latest_produce_offsets.get(key, 0) for bucket in processor._buckets.values()),
-            default=0,
-        )
-
-
-def _max_commit_offset(processor, key):
-    with processor._lock:
-        return max(
-            (bucket.latest_commit_offsets.get(key, 0) for bucket in processor._buckets.values()),
-            default=0,
-        )
 
 
 @pytest.fixture
@@ -81,11 +65,7 @@ async def test_data_streams_pathway_stats(dsm_processor):
         await consumer.getone()
         await consumer.commit()
 
-    # Producer and consumer checkpoints can land in different buckets when the test
-    # straddles a 10s boundary; this test produces 1 + consumes 1, so each key
-    # appears in at most one bucket and a plain dict merge is safe.
-    with dsm_processor._lock:
-        pathway_stats = {k: v for b in dsm_processor._buckets.values() for k, v in b.pathway_stats.items()}
+    pathway_stats = pathway_stats_merged(dsm_processor)
 
     # Compute expected hashes based on edge tags to verify pathway continuity
     ctx = DataStreamsCtx(dsm_processor, 0, 0, 0)
@@ -130,8 +110,8 @@ async def test_data_streams_offset_monitoring_auto_commit(dsm_processor):
     async with consumer_ctx([topic], enable_auto_commit=True) as consumer:
         msg = await consumer.getone()
 
-    assert _max_produce_offset(dsm_processor, PartitionKey(topic, 0, "")) == 1
-    assert _max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, "")) == msg.offset + 1
+    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, "")) == 1
+    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, "")) == msg.offset + 1
 
 
 @pytest.mark.asyncio
@@ -155,8 +135,8 @@ async def test_data_streams_offset_monitoring_commit(dsm_processor, offsets):
         msg = await consumer.getone()
         await consumer.commit(offsets)
 
-    assert _max_produce_offset(dsm_processor, PartitionKey(topic, 0, "")) == 1
-    assert _max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, "")) == msg.offset + 1
+    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, "")) == 1
+    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, "")) == msg.offset + 1
 
 
 @pytest.mark.asyncio
@@ -275,12 +255,10 @@ async def test_data_streams_multiple_topics(dsm_processor):
     # Extract all topics from pathway stats across DSM buckets (produce/consume can
     # straddle a 10s boundary).
     checkpoint_topics = set()
-    with dsm_processor._lock:
-        for bucket in dsm_processor._buckets.values():
-            for key in bucket.pathway_stats.keys():
-                for tag in key[0].split(","):
-                    if tag.startswith("topic:"):
-                        checkpoint_topics.add(tag.split(":", 1)[1])
+    for key in pathway_stats_merged(dsm_processor).keys():
+        for tag in key[0].split(","):
+            if tag.startswith("topic:"):
+                checkpoint_topics.add(tag.split(":", 1)[1])
 
     # Both topics should be tracked
     assert topic1 in checkpoint_topics, f"Topic {topic1} should be tracked"

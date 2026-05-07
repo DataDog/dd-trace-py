@@ -9,6 +9,9 @@ from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
+from tests.datastreams.utils import all_pathway_stat_keys
+from tests.datastreams.utils import max_commit_offset
+from tests.datastreams.utils import max_produce_offset
 
 
 DSM_TEST_PATH_HEADER_SIZE = 28
@@ -16,25 +19,6 @@ DSM_TEST_PATH_HEADER_SIZE = 28
 
 class CustomError(Exception):
     pass
-
-
-# DSM aggregates checkpoints into 10s wall-clock buckets; produce and consume
-# can land in different buckets when a test straddles a boundary. Hold _lock
-# so the periodic flusher can't mutate _buckets mid-iteration.
-def _max_produce_offset(processor, key):
-    with processor._lock:
-        return max(
-            (bucket.latest_produce_offsets.get(key, 0) for bucket in processor._buckets.values()),
-            default=0,
-        )
-
-
-def _max_commit_offset(processor, key):
-    with processor._lock:
-        return max(
-            (bucket.latest_commit_offsets.get(key, 0) for bucket in processor._buckets.values()),
-            default=0,
-        )
 
 
 @pytest.fixture
@@ -89,9 +73,9 @@ def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, s
     message = None
     while message is None or str(message.value()) != str(PAYLOAD):
         message = deserializing_consumer.poll()
-    with dsm_processor._lock:
-        has_stats = any(bucket.pathway_stats for bucket in dsm_processor._buckets.values())
-    assert has_stats, "no DSM pathway stats recorded for produce/consume"
+    edge_tags = [key[0] for key in all_pathway_stat_keys(dsm_processor)]
+    assert any("direction:out" in tags for tags in edge_tags), "Producer DSM checkpoint missing"
+    assert any("direction:in" in tags for tags in edge_tags), "Consumer DSM checkpoint missing"
 
 
 def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic, group_id):
@@ -121,10 +105,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic, grou
         ),
         parent_hash,
     )
-    with dsm_processor._lock:
-        hash_pairs = {
-            (tag[1], tag[2]) for bucket in dsm_processor._buckets.values() for tag in bucket.pathway_stats.keys()
-        }
+    hash_pairs = {(key[1], key[2]) for key in all_pathway_stat_keys(dsm_processor)}
     assert (parent_hash, 0) in hash_pairs
     assert (child_hash, parent_hash) in hash_pairs
 
@@ -151,14 +132,14 @@ def test_data_streams_kafka_offset_monitoring_messages(
     cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
     produce_key = PartitionKey(kafka_topic, 0, cluster_id)
     commit_key = ConsumerPartitionKey(group_id, kafka_topic, 0, cluster_id)
-    assert _max_produce_offset(dsm_processor, produce_key) > 0
+    assert max_produce_offset(dsm_processor, produce_key) > 0
     first_offset = consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset
     assert first_offset
-    assert _max_commit_offset(dsm_processor, commit_key) == first_offset
+    assert max_commit_offset(dsm_processor, commit_key) == first_offset
 
     _message = _read_single_message(consumer)  # noqa: F841
     assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == first_offset + 1
-    assert _max_commit_offset(dsm_processor, commit_key) == first_offset + 1
+    assert max_commit_offset(dsm_processor, commit_key) == first_offset + 1
 
 
 def test_data_streams_kafka_offset_monitoring_offsets(
@@ -187,14 +168,14 @@ def test_data_streams_kafka_offset_monitoring_offsets(
     cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
     produce_key = PartitionKey(kafka_topic, 0, cluster_id)
     commit_key = ConsumerPartitionKey(group_id, kafka_topic, 0, cluster_id)
-    assert _max_produce_offset(dsm_processor, produce_key) > 0
+    assert max_produce_offset(dsm_processor, produce_key) > 0
     first_offset = consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset
     assert first_offset > 0
-    assert _max_commit_offset(dsm_processor, commit_key) == first_offset
+    assert max_commit_offset(dsm_processor, commit_key) == first_offset
 
     _message = _read_single_message(consumer)  # noqa: F841
     assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == first_offset + 1
-    assert _max_commit_offset(dsm_processor, commit_key) == first_offset + 1
+    assert max_commit_offset(dsm_processor, commit_key) == first_offset + 1
 
 
 def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consumer, producer, kafka_topic, group_id):
@@ -240,7 +221,7 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     # Auto commit is enabled so we want to wait for the commit event to fire
     first_offset = _wait_for_auto_commit_and_fetch_offset()
     assert first_offset is not None, "Auto-commit did not complete within 5 seconds"
-    dsm_offset = _max_commit_offset(dsm_processor, ConsumerPartitionKey(group_id, kafka_topic, 0, cluster_id))
+    dsm_offset = max_commit_offset(dsm_processor, ConsumerPartitionKey(group_id, kafka_topic, 0, cluster_id))
     # DSM tracks offsets at poll time while the broker commits asynchronously,
     # so the DSM offset may be >= the broker's reported committed offset.
     assert dsm_offset >= first_offset
@@ -261,7 +242,7 @@ def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, p
     producer.flush()
 
     cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
-    assert _max_produce_offset(dsm_processor, PartitionKey(kafka_topic, 0, cluster_id)) == 5
+    assert max_produce_offset(dsm_processor, PartitionKey(kafka_topic, 0, cluster_id)) == 5
 
 
 def test_data_streams_kafka_offset_backlog_has_cluster_id(
