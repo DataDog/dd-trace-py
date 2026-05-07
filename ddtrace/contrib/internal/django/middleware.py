@@ -1,3 +1,4 @@
+import asyncio
 from inspect import iscoroutinefunction
 from inspect import isfunction
 from types import FunctionType
@@ -153,7 +154,9 @@ def traced_middleware_factory(func: FunctionType, args: tuple[Any], kwargs: dict
                     COMPONENT: config_django.integration_name,
                 },
                 request=request,
-            ):
+            ) as ctx:
+                # Don't flag the span as errored on routine ASGI cancellation (#17728).
+                ctx.span._ignore_exception(asyncio.CancelledError)
                 return await middleware(*args, **kwargs)
 
         return traced_async_middleware_func
@@ -200,7 +203,9 @@ def _make_async_traced_middleware_hook(mw_path: str, hook: str) -> Any:
             resource=resource,
             tags={COMPONENT: config_django.integration_name},
             request=request,
-        ):
+        ) as ctx:
+            # Don't flag the span as errored on routine ASGI cancellation (#17728).
+            ctx.span._ignore_exception(asyncio.CancelledError)
             return await func(*args, **kwargs)
 
     return wrapper

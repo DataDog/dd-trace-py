@@ -2767,6 +2767,115 @@ async def test_async_function_view(test_spans):
     assert len(list(test_spans.filter_spans(name="django.view"))) == 1
 
 
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async views require Django 4.1+")
+@pytest.mark.asyncio
+async def test_async_view_cancellation_does_not_tag_span_errored(test_spans):
+    """#17728: routine ASGI cancellation must not tag django.view as errored."""
+    import asyncio
+
+    from django.core.handlers.asgi import ASGIHandler
+
+    app = ASGIHandler()
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/async-sleep/",
+        "raw_path": b"/async-sleep/",
+        "query_string": b"",
+        "headers": [(b"host", b"localhost")],  # in ALLOWED_HOSTS; raw 127.0.0.1 hits DisallowedHost
+        "server": ("127.0.0.1", 8000),
+        "client": ("127.0.0.1", 12345),
+    }
+
+    async def cancel_one_request():
+        sent_request = False
+
+        async def receive():
+            nonlocal sent_request
+            if not sent_request:
+                sent_request = True
+                return {"type": "http.request", "body": b"", "more_body": False}
+            await asyncio.sleep(0.05)  # disconnect mid-await so the handler cancels the view task
+            return {"type": "http.disconnect"}
+
+        async def send(_msg):
+            pass
+
+        await app(scope, receive, send)
+
+    for _ in range(5):
+        await cancel_one_request()
+
+    all_spans = test_spans.get_spans()
+    view_spans = [s for s in all_spans if s.name == "django.view"]
+    assert view_spans, f"expected at least one django.view span; got spans: {sorted({s.name for s in all_spans})}"
+    errored = [s for s in view_spans if s.error]
+    assert not errored, (
+        f"{len(errored)}/{len(view_spans)} django.view spans tagged errored on routine "
+        f"client-disconnect cancellation (#17728); first: error.type="
+        f"{errored[0].get_tag('error.type')!r}"
+    )
+
+
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async middleware require Django 4.1+")
+@pytest.mark.asyncio
+async def test_async_middleware_hook_cancellation_does_not_tag_span_errored(test_spans):
+    """#17728: same as the view test, but for `_make_async_traced_middleware_hook`."""
+    import asyncio
+
+    from ddtrace.contrib.internal.django.middleware import _make_async_traced_middleware_hook
+
+    wrapper = _make_async_traced_middleware_hook("tests.contrib.django.middleware.AsyncCallMiddleware", "__call__")
+
+    class _Mw:
+        """Stand-in for a class-level `async def __call__` middleware."""
+
+    async def cancelling_inner(*_args, **_kwargs):
+        raise asyncio.CancelledError()
+
+    with pytest.raises(asyncio.CancelledError):
+        await wrapper(cancelling_inner, _Mw(), (None,), {})
+
+    mw_spans = [s for s in test_spans.get_spans() if s.name == "django.middleware"]
+    assert mw_spans, "expected at least one django.middleware span"
+    errored = [s for s in mw_spans if s.error]
+    assert not errored, (
+        f"{len(errored)}/{len(mw_spans)} django.middleware spans tagged errored on routine "
+        f"cancellation (#17728); first: error.type={errored[0].get_tag('error.type')!r}"
+    )
+
+
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async middleware require Django 4.1+")
+@pytest.mark.asyncio
+async def test_async_function_middleware_cancellation_does_not_tag_span_errored(test_spans):
+    """#17728: same as the view test, but for the function-style `traced_async_middleware_func`."""
+    import asyncio
+
+    from ddtrace.contrib.internal.django.middleware import traced_middleware_factory
+
+    async def cancelling_middleware(request):
+        raise asyncio.CancelledError()
+
+    def factory(get_response):
+        return cancelling_middleware
+
+    wrapped = traced_middleware_factory(factory, (lambda r: r,), {})
+
+    with pytest.raises(asyncio.CancelledError):
+        await wrapped(None)
+
+    mw_spans = [s for s in test_spans.get_spans() if s.name == "django.middleware"]
+    assert mw_spans, "expected at least one django.middleware span"
+    errored = [s for s in mw_spans if s.error]
+    assert not errored, (
+        f"{len(errored)}/{len(mw_spans)} django.middleware spans tagged errored on routine "
+        f"cancellation (#17728); first: error.type={errored[0].get_tag('error.type')!r}"
+    )
+
+
 @pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async middleware require Django 4.1+")
 def test_wrap_middleware_class_async_hooks():
     """wrap_middleware_class should use wrapt wrapping (not bytecode wrapping)

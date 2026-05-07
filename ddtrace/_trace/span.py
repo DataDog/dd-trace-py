@@ -136,7 +136,7 @@ class Span(SpanData):
                 self._set_link(link.trace_id, link.span_id, link.tracestate, link.flags, link.attributes)
 
         self._parent: Optional["Span"] = None
-        self._ignored_exceptions: Optional[list[type[Exception]]] = None
+        self._ignored_exceptions: Optional[list[type[BaseException]]] = None
         self._local_root_value: Optional["Span"] = None  # None means this is the root span.
         self._service_entry_span_value: Optional["Span"] = None  # None means this is the service entry span.
         self._store: Optional[dict[str, Any]] = None
@@ -148,7 +148,7 @@ class Span(SpanData):
             for metric in self.context._metrics:
                 self._metrics.setdefault(metric, self.context._metrics[metric])  # ast-grep-ignore: span-metrics-access
 
-    def _ignore_exception(self, exc: type[Exception]) -> None:
+    def _ignore_exception(self, exc: type[BaseException]) -> None:
         if self._ignored_exceptions is None:
             self._ignored_exceptions = [exc]
         else:
