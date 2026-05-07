@@ -172,7 +172,6 @@ variables:
     PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
     SCCACHE_REGION: "us-east-1"
-    TART_EXECUTOR_HOST_DIR: "true"
   script: |
     # Tart VMs default to zsh which doesn't word-split variable expansions
     setopt shwordsplit 2>/dev/null || true
