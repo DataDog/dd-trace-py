@@ -43,19 +43,24 @@ def subprocess_env(monkeypatch: pytest.MonkeyPatch) -> None:
 # DD_API_KEY=test-key so that SessionManager.detect_setup() succeeds without network
 # calls (agentless mode) and get_settings() falls back to defaults on auth failure.
 #
-# This plugin's pytest_configure then patches the writers to prevent any event data from
-# being sent to Datadog during the test.
+# This plugin's pytest_configure then replaces the writer *instances* on the already-created
+# SessionManager with mocks, preventing any event data from being sent to Datadog.
 _INFRA_PLUGIN = """\
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 
 def pytest_configure(config):
-    # Writers — patch where session_manager looks them up (it imports the classes directly,
-    # so patching in the writer module alone would not take effect).
-    mock_writer = Mock()
-    mock_writer.start.return_value = None
-    patch("ddtrace.testing.internal.session_manager.TestOptWriter", return_value=mock_writer).start()
-    patch("ddtrace.testing.internal.session_manager.TestCoverageWriter", return_value=mock_writer).start()
+    # Replace the already-created writer instances on the SessionManager with mocks.
+    # The real writers are constructed during pytest_load_initial_conftests (before this
+    # hook fires), but they only start background threads and make HTTP calls when
+    # start() is called in pytest_sessionstart (after this hook).  Swapping them here
+    # prevents any network I/O and CI Visibility data leakage.
+    from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY
+
+    session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
+    if session_manager is not None:
+        session_manager.writer = Mock()
+        session_manager.coverage_writer = Mock()
 """
 
 
@@ -63,17 +68,19 @@ def pytest_configure(config):
 # simulating an environment where the contrib logging module is missing.
 _INFRA_PLUGIN_NO_LOGGING_PATCH = """\
 import sys
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 
 def pytest_configure(config):
     # Setting a module to None in sys.modules causes ImportError on subsequent imports.
     sys.modules["ddtrace.contrib.internal.logging.patch"] = None
 
-    mock_writer = Mock()
-    mock_writer.start.return_value = None
-    patch("ddtrace.testing.internal.session_manager.TestOptWriter", return_value=mock_writer).start()
-    patch("ddtrace.testing.internal.session_manager.TestCoverageWriter", return_value=mock_writer).start()
+    from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY
+
+    session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
+    if session_manager is not None:
+        session_manager.writer = Mock()
+        session_manager.coverage_writer = Mock()
 """
 
 
