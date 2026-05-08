@@ -1,3 +1,6 @@
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+
 import faststream
 from wrapt import wrap_function_wrapper as _w
 
@@ -21,11 +24,14 @@ config._add(
 
 
 def get_version() -> str:
-    return getattr(faststream, "__version__", "")
+    try:
+        return _pkg_version("faststream")
+    except PackageNotFoundError:
+        return ""
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"faststream": ">=0.5.0"}
+    return {"faststream": ">=0.6.0"}
 
 
 # AIDEV-NOTE: We auto-instrument by appending a single Datadog middleware to the
@@ -42,7 +48,10 @@ def _traced_broker_init(func, instance, args, kwargs):
     if any(isinstance(m, _DDTraceMiddleware) for m in existing):
         return
 
-    middleware = _DDTraceMiddleware(messaging_system=detect_messaging_system(instance))
+    middleware = _DDTraceMiddleware(
+        messaging_system=detect_messaging_system(instance),
+        broker=instance,
+    )
     add = getattr(config_obj, "add_middleware", None)
     if callable(add):
         add(middleware)

@@ -3,7 +3,7 @@ from ddtrace.internal.settings._config import config
 from ...internal.utils.importlib import require_modules
 
 
-required_modules = ["confluent_kafka", "botocore", "kombu", "aiokafka"]
+required_modules = ["confluent_kafka", "botocore", "kombu", "aiokafka", "faststream"]
 _processor = None
 
 if config._data_streams_enabled:
@@ -16,6 +16,8 @@ if config._data_streams_enabled:
             from . import botocore  # noqa:F401
         if "kombu" not in missing_modules:
             from . import kombu  # noqa:F401
+        if "faststream" not in missing_modules:
+            from . import faststream  # noqa:F401
 
 
 def data_streams_processor(reset=False):

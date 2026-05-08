@@ -9,8 +9,6 @@ components:
   aiokafka:
     - ddtrace/contrib/internal/aiokafka/*
     - ddtrace/ext/kafka.py
-  faststream:
-    - ddtrace/contrib/internal/faststream/*
   algoliasearch:
     - ddtrace/contrib/internal/algoliasearch/*
   asgi:

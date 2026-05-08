@@ -393,6 +393,16 @@ integrations:
       min: 0.64.0
       max: 0.136.0
 
+- integration_name: faststream
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - faststream
+  tested_versions_by_dependency:
+    faststream:
+      min: 0.6.7
+      max: 0.6.7
+
 - integration_name: flask
   is_external_package: true
   is_tested: true

@@ -324,6 +324,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "faststream",
+        "integration": "faststream",
+        "minimum_tracer_supported": "0.6.7",
+        "max_tracer_supported": "0.6.7",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "flask",
         "integration": "flask",
         "minimum_tracer_supported": "1.1.4",
