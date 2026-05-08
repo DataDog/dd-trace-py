@@ -198,10 +198,7 @@ class BedrockIntegration(BaseLLMIntegration):
                 child_spans_by_step_id.setdefault(trace_step_id, []).append(translated_span)
                 if not finished:
                     pending_span_by_step_id[trace_step_id] = translated_span
-        # Safety-net finish for any input span that never got a matching output event (e.g. a
-        # truncated response). Back-dated spans must not use wall-clock time.time_ns(), so we
-        # default to start + 1ms. finish() is idempotent, so already-finished spans are no-ops.
-        # Then size each step span to cover its children.
+        # Safety-net: finish orphaned input spans (never got a matching output) at start+1ms, then size each step span.
         for step_id, step_span in step_spans_by_step_id.items():
             child_spans = child_spans_by_step_id.get(step_id, [])
             for child in child_spans:
