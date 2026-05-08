@@ -33,6 +33,7 @@ def subprocess_env(monkeypatch: pytest.MonkeyPatch) -> None:
     are connector-agnostic and behave identically in both modes.
     """
     monkeypatch.delenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER", raising=False)
+    monkeypatch.delenv("_CI_DD_API_KEY", raising=False)
     monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
     monkeypatch.setenv("DD_API_KEY", "test-key")
 
