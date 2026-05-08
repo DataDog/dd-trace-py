@@ -480,9 +480,7 @@ class Config(object):
 
         self._http = HttpConfig(header_tags=self._trace_http_header_tags)
         self._remote_config_enabled = _get_config("DD_REMOTE_CONFIGURATION_ENABLED", True, asbool)
-        self._remote_config_poll_interval = _get_config(
-            ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "DD_REMOTECONFIG_POLL_SECONDS"], 5.0, float
-        )
+        self._remote_config_poll_interval = _get_config("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", 5.0, float)
         self._trace_api = _get_config("DD_TRACE_API_VERSION")
         if self._trace_api == "v0.3":
             log.error(
@@ -564,7 +562,7 @@ class Config(object):
             and validate_and_report_otel_metrics_exporter_enabled()
         )
         self._runtime_metrics_runtime_id_enabled = _get_config(
-            ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"], False, asbool
+            "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", False, asbool
         )
         self._experimental_features_enabled = _get_config(
             "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: set(x.strip().upper().split(","))
@@ -597,7 +595,7 @@ class Config(object):
         if self._propagation_behavior_extract != _PROPAGATION_BEHAVIOR_IGNORE:
             self._propagation_style_extract = _parse_propagation_styles(
                 _get_config(
-                    ["DD_TRACE_PROPAGATION_STYLE_EXTRACT", "DD_TRACE_PROPAGATION_STYLE"],
+                    "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
                     _PROPAGATION_STYLE_DEFAULT,
                     otel_env="OTEL_PROPAGATORS",
                 )
@@ -610,7 +608,7 @@ class Config(object):
             self._propagation_style_extract = [_PROPAGATION_STYLE_NONE]
         self._propagation_style_inject = _parse_propagation_styles(
             _get_config(
-                ["DD_TRACE_PROPAGATION_STYLE_INJECT", "DD_TRACE_PROPAGATION_STYLE"],
+                "DD_TRACE_PROPAGATION_STYLE_INJECT",
                 _PROPAGATION_STYLE_DEFAULT,
                 otel_env="OTEL_PROPAGATORS",
             )
@@ -636,9 +634,7 @@ class Config(object):
         self._raise = _get_config("DD_TESTING_RAISE", False, asbool)
 
         trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
-        self._trace_compute_stats = _get_config(
-            ["DD_TRACE_COMPUTE_STATS", "DD_TRACE_STATS_COMPUTATION_ENABLED"], trace_compute_stats_default, asbool
-        )
+        self._trace_compute_stats = _get_config("DD_TRACE_COMPUTE_STATS", trace_compute_stats_default, asbool)
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 

@@ -120,3 +120,80 @@ def test_copy_returns_plain_dict():
     snapshot = dd_environ.copy()
     assert isinstance(snapshot, dict)
     assert snapshot == dict(os.environ)
+
+
+def _pick_alias_pair() -> tuple[str, str]:
+    """Return (canonical, legacy) for the first registered rename alias."""
+    canonical, aliases = next(iter(env_module.CONFIGURATION_ALIASES.items()))
+    return canonical, aliases[0]
+
+
+def test_getitem_falls_back_to_alias_when_canonical_missing(monkeypatch):
+    canonical, legacy = _pick_alias_pair()
+    monkeypatch.delenv(canonical, raising=False)
+    monkeypatch.setenv(legacy, "from-legacy")
+    assert dd_environ[canonical] == "from-legacy"
+
+
+def test_getitem_prefers_canonical_over_alias(monkeypatch):
+    canonical, legacy = _pick_alias_pair()
+    monkeypatch.setenv(canonical, "from-canonical")
+    monkeypatch.setenv(legacy, "from-legacy")
+    assert dd_environ[canonical] == "from-canonical"
+
+
+def test_getitem_raises_when_neither_canonical_nor_alias_set(monkeypatch):
+    canonical, legacy = _pick_alias_pair()
+    monkeypatch.delenv(canonical, raising=False)
+    monkeypatch.delenv(legacy, raising=False)
+    with pytest.raises(KeyError):
+        dd_environ[canonical]
+
+
+def test_legacy_direct_access_does_not_fall_back_to_canonical(monkeypatch):
+    canonical, legacy = _pick_alias_pair()
+    monkeypatch.setenv(canonical, "from-canonical")
+    monkeypatch.delenv(legacy, raising=False)
+    with pytest.raises(KeyError):
+        dd_environ[legacy]
+
+
+def test_contains_true_when_only_alias_is_set(monkeypatch):
+    canonical, legacy = _pick_alias_pair()
+    monkeypatch.delenv(canonical, raising=False)
+    monkeypatch.setenv(legacy, "x")
+    assert canonical in dd_environ
+
+
+def test_contains_false_when_neither_canonical_nor_alias_set(monkeypatch):
+    canonical, legacy = _pick_alias_pair()
+    monkeypatch.delenv(canonical, raising=False)
+    monkeypatch.delenv(legacy, raising=False)
+    assert canonical not in dd_environ
+
+
+def test_get_config_falls_back_to_alias_in_local_config(monkeypatch):
+    from ddtrace.internal import telemetry as telemetry_mod
+
+    canonical, legacy = _pick_alias_pair()
+    monkeypatch.delenv(canonical, raising=False)
+    monkeypatch.delenv(legacy, raising=False)
+    monkeypatch.setattr(telemetry_mod, "LOCAL_CONFIG", {legacy: "from-local"})
+    monkeypatch.setattr(telemetry_mod, "FLEET_CONFIG", {})
+
+    val = telemetry_mod.get_config(canonical, default=None, report_telemetry=False)
+    assert val == "from-local"
+
+
+def test_get_config_falls_back_to_alias_in_fleet_config(monkeypatch):
+    from ddtrace.internal import telemetry as telemetry_mod
+
+    canonical, legacy = _pick_alias_pair()
+    monkeypatch.delenv(canonical, raising=False)
+    monkeypatch.delenv(legacy, raising=False)
+    monkeypatch.setattr(telemetry_mod, "LOCAL_CONFIG", {})
+    monkeypatch.setattr(telemetry_mod, "FLEET_CONFIG", {legacy: "from-fleet"})
+    monkeypatch.setattr(telemetry_mod, "FLEET_CONFIG_IDS", {})
+
+    val = telemetry_mod.get_config(canonical, default=None, report_telemetry=False)
+    assert val == "from-fleet"
