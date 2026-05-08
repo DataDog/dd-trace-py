@@ -118,6 +118,13 @@ using safe_memcpy_return_t = ssize_t;
 using safe_memcpy_return_t = mach_vm_size_t;
 #endif
 
+// GCC 11's -Wclobbered flags `dst`/`src` as potentially clobbered by
+// siglongjmp, but they are only read once (before sigsetjmp) to initialize
+// the working copies `d`/`s`, so the warning is a false positive.
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wclobbered"
+#endif
 safe_memcpy_return_t
 safe_memcpy(void* dst, const void* src, size_t n)
 {
@@ -169,6 +176,9 @@ landing:
 
     return static_cast<safe_memcpy_return_t>(n);
 }
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 #if defined PL_LINUX
 ssize_t
