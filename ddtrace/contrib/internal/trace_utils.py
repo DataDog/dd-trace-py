@@ -39,7 +39,8 @@ from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
-import ddtrace.internal.utils.wrappers
+from ddtrace.internal.utils.wrappers import iswrapped
+from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -52,8 +53,6 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 wrap = wrapt.wrap_function_wrapper
-unwrap = ddtrace.internal.utils.wrappers.unwrap
-iswrapped = ddtrace.internal.utils.wrappers.iswrapped
 
 REQUEST = "request"
 RESPONSE = "response"
