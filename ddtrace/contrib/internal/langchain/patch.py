@@ -86,15 +86,12 @@ def traced_llm_generate(func, instance, args, kwargs):
         core.dispatch("langchain.llm.generate.before", (prompts,), allow_raise=True)
         completions = func(*args, **kwargs)
         core.dispatch("langchain.llm.generate.after", (prompts, completions))
-    except DDBlockException:
-        # AIDEV-NOTE: ``AIGuardAbortError`` (a ``DDBlockException`` subclass
-        # derived from ``BaseException``) is not caught by ``except Exception``,
-        # so handle it explicitly and tag the LLM span before propagating —
-        # blocked requests must still emit an LLMObs span finished with
-        # ``set_exc_info``.
-        span.set_exc_info(*sys.exc_info())
-        raise
-    except Exception:
+    except (DDBlockException, Exception):
+        # AIDEV-NOTE: ``DDBlockException`` is listed alongside ``Exception``
+        # because ``AIGuardAbortError`` is ``BaseException``-derived via
+        # ``DDBlockException`` and would otherwise slip past ``except
+        # Exception``, leaving the LLM span finished without ``set_exc_info``
+        # on a block.
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -127,12 +124,7 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
         core.dispatch("langchain.llm.agenerate.before", (prompts,), allow_raise=True)
         completions = await func(*args, **kwargs)
         core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
-    except DDBlockException:
-        # AIDEV-NOTE: see ``traced_llm_generate`` — block exceptions must also
-        # tag the LLM span via ``set_exc_info``
-        span.set_exc_info(*sys.exc_info())
-        raise
-    except Exception:
+    except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -164,12 +156,7 @@ def traced_chat_model_generate(func, instance, args, kwargs):
         core.dispatch("langchain.chatmodel.generate.before", (chat_messages,), allow_raise=True)
         chat_completions = func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
-    except DDBlockException:
-        # AIDEV-NOTE: see ``traced_llm_generate`` — block exceptions must also
-        # tag the LLM span via ``set_exc_info``
-        span.set_exc_info(*sys.exc_info())
-        raise
-    except Exception:
+    except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -201,12 +188,7 @@ async def traced_chat_model_agenerate(func, instance, args, kwargs):
         core.dispatch("langchain.chatmodel.agenerate.before", (chat_messages,), allow_raise=True)
         chat_completions = await func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
-    except DDBlockException:
-        # AIDEV-NOTE: see ``traced_llm_generate`` — block exceptions must also
-        # tag the LLM span via ``set_exc_info``
-        span.set_exc_info(*sys.exc_info())
-        raise
-    except Exception:
+    except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
