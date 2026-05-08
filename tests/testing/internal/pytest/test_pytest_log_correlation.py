@@ -19,67 +19,39 @@ import pytest
 def _isolate_from_outer_ci_session(monkeypatch: pytest.MonkeyPatch) -> None:
     """Prevent environment variables from the outer CI pytest session from leaking into inner subprocesses.
 
-    In CI, riotfile.py sets _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=1 globally. pytester.runpytest_subprocess()
-    inherits the full parent environment, so the inner subprocess would pick up this flag and disable the trace
-    filter and log submission — breaking tests that rely on DD_LOGS_INJECTION behaviour.
+    pytester.runpytest_subprocess() inherits the full parent environment, so the inner
+    subprocess picks up CI env vars that interfere with the test:
+
+    - _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER: disables the trace filter and log submission.
+    - Agent URL / EVP proxy vars: cause SessionManager.detect_setup() to attempt (and fail)
+      a connection to an unreachable agent.  Force agentless mode with a fake API key instead,
+      so detect_setup() succeeds without network calls and get_settings() falls back to
+      defaults on auth failure.
     """
     monkeypatch.delenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER", raising=False)
+    monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
+    monkeypatch.setenv("DD_API_KEY", "test-key")
 
 
 # Infrastructure mock plugin — loaded via "-p dd_log_corr_infra".
 #
-# Uses pytest_load_initial_conftests (hookwrapper, tryfirst) so that mocks are installed
-# BEFORE the ddtrace plugin's pytest_load_initial_conftests creates SessionManager (which
-# would otherwise make real network calls).  Because this plugin is registered after the
-# ddtrace entry-point plugin (via the -p flag), its tryfirst hookwrapper becomes the
-# outermost wrapper, guaranteeing pre-yield code runs first.
+# The _isolate_from_outer_ci_session fixture sets DD_CIVISIBILITY_AGENTLESS_ENABLED=true
+# and DD_API_KEY=test-key so that SessionManager.detect_setup() succeeds without network
+# calls (agentless mode) and get_settings() falls back to defaults on auth failure.
 #
-# Mirrors the mocking done by tests.testing.mocks.network_mocks(), inlined here because
-# the subprocess cannot import from the test helpers.
+# This plugin's pytest_configure then patches the writers to prevent any event data from
+# being sent to Datadog during the test.
 _INFRA_PLUGIN = """\
-import pytest
 from unittest.mock import Mock, patch
 
-from ddtrace.testing.internal.http import BackendConnectorSetup
-from ddtrace.testing.internal.settings_data import Settings
 
-
-class _MockConnectorSetup:
-    def get_connector_for_subdomain(self, subdomain):
-        connector = Mock()
-        connector.request.return_value = Mock(error_type=None)
-        return connector
-
-    def default_env(self):
-        return "none"
-
-
-@pytest.hookimpl(tryfirst=True, hookwrapper=True)
-def pytest_load_initial_conftests(early_config, parser, args):
-    mock_api = Mock()
-    mock_api.get_settings.return_value = Settings()
-    mock_api.get_known_tests.return_value = set()
-    mock_api.get_test_management_properties.return_value = {}
-    mock_api.get_skippable_tests.return_value = (set(), None)
-
-    # Session manager dependencies (matches network_mocks / setup_standard_mocks)
-    patch.object(BackendConnectorSetup, "detect_setup", return_value=_MockConnectorSetup()).start()
-    patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api).start()
-    patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}).start()
-    patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}).start()
-    patch("ddtrace.testing.internal.session_manager.Git").start()
-
-    # HTTP connector (prevents any real HTTP calls that bypass the connector setup)
-    patch("ddtrace.testing.internal.http.BackendConnector", return_value=Mock()).start()
-
+def pytest_configure(config):
     # Writers — patch where session_manager looks them up (it imports the classes directly,
     # so patching in the writer module alone would not take effect).
     mock_writer = Mock()
     mock_writer.start.return_value = None
     patch("ddtrace.testing.internal.session_manager.TestOptWriter", return_value=mock_writer).start()
     patch("ddtrace.testing.internal.session_manager.TestCoverageWriter", return_value=mock_writer).start()
-
-    yield
 """
 
 
@@ -87,48 +59,17 @@ def pytest_load_initial_conftests(early_config, parser, args):
 # simulating an environment where the contrib logging module is missing.
 _INFRA_PLUGIN_NO_LOGGING_PATCH = """\
 import sys
-import pytest
 from unittest.mock import Mock, patch
 
-from ddtrace.testing.internal.http import BackendConnectorSetup
-from ddtrace.testing.internal.settings_data import Settings
 
-
-class _MockConnectorSetup:
-    def get_connector_for_subdomain(self, subdomain):
-        connector = Mock()
-        connector.request.return_value = Mock(error_type=None)
-        return connector
-
-    def default_env(self):
-        return "none"
-
-
-@pytest.hookimpl(tryfirst=True, hookwrapper=True)
-def pytest_load_initial_conftests(early_config, parser, args):
+def pytest_configure(config):
     # Setting a module to None in sys.modules causes ImportError on subsequent imports.
     sys.modules["ddtrace.contrib.internal.logging.patch"] = None
-
-    mock_api = Mock()
-    mock_api.get_settings.return_value = Settings()
-    mock_api.get_known_tests.return_value = set()
-    mock_api.get_test_management_properties.return_value = {}
-    mock_api.get_skippable_tests.return_value = (set(), None)
-
-    patch.object(BackendConnectorSetup, "detect_setup", return_value=_MockConnectorSetup()).start()
-    patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api).start()
-    patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}).start()
-    patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}).start()
-    patch("ddtrace.testing.internal.session_manager.Git").start()
-
-    patch("ddtrace.testing.internal.http.BackendConnector", return_value=Mock()).start()
 
     mock_writer = Mock()
     mock_writer.start.return_value = None
     patch("ddtrace.testing.internal.session_manager.TestOptWriter", return_value=mock_writer).start()
     patch("ddtrace.testing.internal.session_manager.TestCoverageWriter", return_value=mock_writer).start()
-
-    yield
 """
 
 
@@ -359,6 +300,7 @@ class TestAgentlessLogSubmission:
         LogsHandler.
         """
         monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", "true")
+        monkeypatch.delenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", raising=False)
 
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
         pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_AGENTLESS_MODE)
