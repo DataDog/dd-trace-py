@@ -9,8 +9,8 @@ variables:
   # CI_DEBUG_SERVICES: "true"
 
 include:
-  - local: ".gitlab/services.yml"
-  - local: ".gitlab/testrunner.yml"
+  - local: dd-trace-py/.gitlab/services.yml
+  - local: dd-trace-py/.gitlab/testrunner.yml
 
 # Do not define a `needs:` in order to depend on the whole `precheck` stage
 .test_base_riot:

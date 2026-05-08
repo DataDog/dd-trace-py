@@ -1,5 +1,5 @@
 include:
-  - local: ".gitlab/testrunner.yml"
+  - local: dd-trace-py/.gitlab/testrunner.yml
 
 "rust ci":
   stage: tests

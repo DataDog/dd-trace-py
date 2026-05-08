@@ -1,6 +1,13 @@
 # Multi-OS test script for Windows
 $ErrorActionPreference = "Stop"
 
+# Monorepo layout: repo root contains dd-trace-py/ as the Python project directory.
+$ddTracePyRoot = Join-Path $env:CI_PROJECT_DIR 'dd-trace-py'
+if (Test-Path -LiteralPath $ddTracePyRoot) {
+    Set-Location $ddTracePyRoot
+    $env:CI_PROJECT_DIR = (Get-Location).Path
+}
+
 # Install uv
 Write-Host "Installing uv..."
 powershell -Command "irm https://astral.sh/uv/install.ps1 | iex"

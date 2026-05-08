@@ -52,18 +52,18 @@ workflow:
     - when: always
 
 include:
-  - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
-  - local: ".gitlab/one-pipeline.locked.yml"
-  - local: ".gitlab/services.yml" # Include early so others can use the definitions
-  - local: ".gitlab/package.yml"
-  - local: ".gitlab/release.yml"
-  - local: ".gitlab/testrunner.yml"
-  - local: ".gitlab/debugging-exploration.yml"
-  - local: ".gitlab/multi-os-tests.yml"
-  - local: ".gitlab/benchmarks/serverless.yml"
-  - local: ".gitlab/native.yml"
-  - local: ".gitlab/system-tests.yml"
-  - local: ".gitlab/fuzz.yml"
+  - local: dd-trace-py/.gitlab/ci-templates.yml # Reusable templates (setup_ci_deps, etc.)
+  - local: dd-trace-py/.gitlab/one-pipeline.locked.yml
+  - local: dd-trace-py/.gitlab/services.yml # Include early so others can use the definitions
+  - local: dd-trace-py/.gitlab/package.yml
+  - local: dd-trace-py/.gitlab/release.yml
+  - local: dd-trace-py/.gitlab/testrunner.yml
+  - local: dd-trace-py/.gitlab/debugging-exploration.yml
+  - local: dd-trace-py/.gitlab/multi-os-tests.yml
+  - local: dd-trace-py/.gitlab/benchmarks/serverless.yml
+  - local: dd-trace-py/.gitlab/native.yml
+  - local: dd-trace-py/.gitlab/system-tests.yml
+  - local: dd-trace-py/.gitlab/fuzz.yml
 
 "pipeline variables":
   stage: .pre
@@ -148,7 +148,6 @@ serverless lambda tests:
   extends: .testrunner
   stage: tests
   needs: []
-  script:
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:sg_test[collapsed=true]\r\e[0KValidate ast-grep rules"
