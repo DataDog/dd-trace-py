@@ -11,11 +11,10 @@
     "meta": {
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "69dfabcf00000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpz9xd5l8h,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f39dfd00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpuamy94j8,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "613bfdc98e3647dc801dcabe3fb70548",
+      "runtime-id": "07c6d89a9c1d4acd8f347494823e1fd6",
       "tag1": "mycooltag"
     },
     "metrics": {
@@ -23,10 +22,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1.0,
-      "process_id": 4362.0
+      "process_id": 62663.0
     },
-    "duration": 68625,
-    "start": 1776266191360369096
+    "duration": 49541,
+    "start": 1777573373122055295
   }],
 [
   {
@@ -40,21 +39,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dfabcf00000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpz9xd5l8h,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f39dfd00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpuamy94j8,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "613bfdc98e3647dc801dcabe3fb70548",
+      "runtime-id": "07c6d89a9c1d4acd8f347494823e1fd6",
       "tag1": "mycooltag"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 4362.0
+      "process_id": 62663.0
     },
-    "duration": 26417,
-    "start": 1776266191360846971
+    "duration": 26208,
+    "start": 1777573373122498128
   }],
 [
   {
@@ -68,21 +66,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dfabcf00000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpz9xd5l8h,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f39dfd00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpuamy94j8,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "banana": "True",
       "language": "python",
-      "runtime-id": "613bfdc98e3647dc801dcabe3fb70548"
+      "runtime-id": "07c6d89a9c1d4acd8f347494823e1fd6"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 4362.0
+      "process_id": 62663.0
     },
     "duration": 8958,
-    "start": 1776266191360937888
+    "start": 1777573373122593920
   }],
 [
   {
@@ -96,19 +93,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dfabcf00000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpz9xd5l8h,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f39dfd00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpuamy94j8,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "banana": "True",
       "language": "python",
-      "runtime-id": "613bfdc98e3647dc801dcabe3fb70548"
+      "runtime-id": "07c6d89a9c1d4acd8f347494823e1fd6"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 4362.0
+      "process_id": 62663.0
     },
-    "duration": 6750,
-    "start": 1776266191360977429
+    "duration": 6625,
+    "start": 1777573373122635086
   }]]

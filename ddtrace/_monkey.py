@@ -9,6 +9,7 @@ from wrapt.importer import when_imported
 
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.integration import _integration_env_var_id
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.packaging.specifiers import SpecifierSet
@@ -350,7 +351,7 @@ def _patch_all(**patch_modules: bool) -> None:
 
     # The enabled setting can be overridden by environment variables
     for module, _enabled in modules.items():
-        env_var = "DD_TRACE_%s_ENABLED" % module.upper()
+        env_var = "DD_TRACE_%s_ENABLED" % _integration_env_var_id(module)
         if module not in _NOT_PATCHABLE_VIA_ENVVAR and env_var in env:
             modules[module] = formats.asbool(env[env_var])
 
