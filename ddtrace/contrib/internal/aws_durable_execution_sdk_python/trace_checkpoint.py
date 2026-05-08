@@ -180,9 +180,7 @@ _TRACEPARENT_RE = re.compile(r"^([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-([0-
 
 def _checkpoint_anchor_span_id(span) -> Optional[int]:
     """Return the span id to use for the first checkpoint save.
-
-    We anchor cross-invocation durable replay linkage to the first
-    ``aws.durable.execute`` span id. This mirrors the JS implementation.
+    We anchor cross-invocation durable replay linkage to the first `aws.durable.execute` span id.
     """
     span_id = getattr(span, "span_id", None)
     return span_id if span_id is not None else None
