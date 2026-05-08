@@ -235,7 +235,8 @@ def _get_prior_payload(state) -> Optional[dict]:
     payload = _read_prior_checkpoint_payload(state)
     try:
         setattr(state, _STATE_PRIOR_PAYLOAD_ATTR, payload)
-    except Exception:
+    except Exception:  # nosec B110
+        # Some SDK state objects can reject dynamic attrs; this cache is best-effort.
         pass
     return payload
 
@@ -370,7 +371,8 @@ def maybe_save_trace_context_checkpoint(durable_context: "DurableContext", span:
         # avoid writing a no-op checkpoint.
         try:
             setattr(state, _STATE_LAST_HEADERS_ATTR, stable)
-        except Exception:
+        except Exception:  # nosec B110
+            # The checkpoint is already enqueued; this duplicate-write cache is best-effort.
             pass
     except Exception:
         log.debug("maybe_save_trace_context_checkpoint failed", exc_info=True)
