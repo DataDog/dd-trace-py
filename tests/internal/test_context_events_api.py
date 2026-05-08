@@ -529,6 +529,46 @@ def test_reset_listeners_removes_bound_method(clean_event_hub):
     assert obj.calls == [], "listener was not removed; reset used pointer identity"
 
 
+def test_dispatch_base_exception_propagates_regardless_of_raise_flag(clean_event_hub):
+    """BaseException subclasses must propagate even when config._raise is False.
+    Dispatch uses `except Exception:` semantics — BaseException is never swallowed."""
+
+    class BlockingException(BaseException):
+        pass
+
+    def listener():
+        raise BlockingException("blocked!")
+
+    core.on("test.event", listener)
+    original = config._raise
+    config._raise = False
+    try:
+        with pytest.raises(BlockingException, match="blocked!"):
+            core.dispatch("test.event", ())
+    finally:
+        config._raise = original
+
+
+def test_dispatch_with_results_base_exception_propagates_regardless_of_raise_flag(clean_event_hub):
+    """BaseException subclasses must propagate from dispatch_with_results even when
+    config._raise is False — they are never stored as EventResult.exception."""
+
+    class BlockingException(BaseException):
+        pass
+
+    def listener():
+        raise BlockingException("blocked!")
+
+    core.on("test.event", listener, "res")
+    original = config._raise
+    config._raise = False
+    try:
+        with pytest.raises(BlockingException, match="blocked!"):
+            core.dispatch_with_results("test.event", ())
+    finally:
+        config._raise = original
+
+
 def test_reset_listeners_simulate_disable_enable_cycle(clean_event_hub):
     """Simulate what LLMObs does on every test: disable() → reset_listeners(),
     enable() → on().  If reset silently fails, listeners accumulate and fire

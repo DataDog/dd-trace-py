@@ -331,7 +331,8 @@ pub fn dispatch(py: Python<'_>, event_id: &str, args: Option<Py<PyAny>>) -> PyRe
 
     for cb in &callbacks {
         if let Err(e) = cb.bind(py).call1(&call_args) {
-            if crate::config::get_raise() {
+            // Mirrors `except Exception:` semantics: BaseException subclasses propagate always.
+            if !e.is_instance_of::<pyo3::exceptions::PyException>(py) || crate::config::get_raise() {
                 return Err(e);
             }
         }
@@ -380,7 +381,8 @@ pub fn dispatch_with_results(
                     dict.set_item(key.bind(py), event_result.bind(py))?;
                 }
                 Err(e) => {
-                    if crate::config::get_raise() {
+                    // Mirrors `except Exception:` semantics: BaseException subclasses propagate always.
+                    if !e.is_instance_of::<pyo3::exceptions::PyException>(py) || crate::config::get_raise() {
                         return Err(e);
                     }
                     let exc = e.into_value(py).into_any();
