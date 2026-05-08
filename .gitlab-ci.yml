@@ -130,7 +130,7 @@ serverless lambda tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
-    branch: rithika.narayan/stable
+    branch: main
   needs:
     - job: "upload serverless"
   variables:
