@@ -10,6 +10,7 @@ from ddtrace.contrib.internal.openai import _endpoint_hooks
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
@@ -412,8 +413,8 @@ def _patched_endpoint_async(patch_hook):
             # Guard even when the caller never awaits the returned coroutine.
             if is_chat:
                 try:
-                    core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
-                except BaseException:
+                    core.dispatch("openai.chat.completions.create.before", (kwargs,))
+                except DDBlockException:
                     # AI Guard blocked the request — discard the unstarted SDK
                     # coroutine so Python doesn't emit a "coroutine was never
                     # awaited" warning for it.
