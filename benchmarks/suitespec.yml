@@ -1,4 +1,3 @@
----
 components:
   bootstrap:
     - ddtrace/bootstrap/*
@@ -88,7 +87,6 @@ components:
     - ddtrace/internal/wrapping/*
     - ddtrace/__init__.py
     - ddtrace/py.typed
-    - ddtrace/version.py
     - ddtrace/internal/settings/_config.py
     - src/native/*
 suites:
