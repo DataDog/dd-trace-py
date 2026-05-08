@@ -287,6 +287,71 @@ def test_symbols_injectible_line_ranges(lines, expected):
     assert _line_ranges(lines) == expected
 
 
+def test_scope_context_upload_metadata():
+    """ScopeContext exposes the upload metadata fields on the event envelope,
+    and _upload_locked populates per-batch fields on both the event and the
+    attachment payload, advancing batchNum across uploads.
+    """
+    import gzip
+    import json
+    from unittest import mock
+
+    from ddtrace.internal.symbol_db.symbols import ScopeContext
+
+    ctx = ScopeContext()
+    expected_upload_id = ctx._upload_id
+
+    # Static fields on the event envelope, set at construction time.
+    assert ctx._event_data["ddsource"] == "python"
+    assert ctx._event_data["type"] == "symdb"
+    assert ctx._event_data["language"] == "python"
+    assert "runtimeId" in ctx._event_data
+    assert "parentId" in ctx._event_data
+    assert ctx._event_data["uploadId"] == expected_upload_id
+    assert ctx._event_data["final"] is False
+
+    captured = {}
+    real_compress = gzip.compress
+
+    def capturing_compress(data, *args, **kwargs):
+        captured["bytes"] = data
+        return real_compress(data, *args, **kwargs)
+
+    mock_response = mock.MagicMock()
+    mock_response.status = 200
+    mock_conn = mock.MagicMock()
+    mock_conn.getresponse.return_value = mock_response
+
+    with (
+        mock.patch("ddtrace.internal.symbol_db.symbols.connector") as connector_mock,
+        mock.patch("ddtrace.internal.symbol_db.symbols.gzip.compress", side_effect=capturing_compress),
+    ):
+        connector_mock.return_value.return_value.__enter__.return_value = mock_conn
+
+        # First upload: batchNum starts at 1 and the attachment carries the
+        # same upload metadata as the event envelope.
+        with ctx._scopes_lock:
+            ctx._upload_locked()
+
+        assert ctx._event_data["uploadId"] == expected_upload_id
+        assert ctx._event_data["batchNum"] == 1
+        assert ctx._event_data["attachmentSize"] > 0
+
+        attachment = json.loads(captured["bytes"].decode("utf-8"))
+        assert attachment["upload_id"] == expected_upload_id
+        assert attachment["batch_num"] == 1
+        assert attachment["final"] is False
+
+        # Second upload: batchNum must increment on both the event envelope
+        # and the attachment payload.
+        with ctx._scopes_lock:
+            ctx._upload_locked()
+
+        assert ctx._event_data["batchNum"] == 2
+        attachment = json.loads(captured["bytes"].decode("utf-8"))
+        assert attachment["batch_num"] == 2
+
+
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_UPLOAD_ENABLED="1"))
 def test_symbols_upload_enabled():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -357,35 +422,78 @@ def test_symbols_fork_uploads():
     """
     Test that we disable Symbol DB on processes that are not the main one nor
     the first fork child.
+
+    In the first fork child, where SymDB stays enabled, also verify that the
+    ScopeContext's upload metadata (uploadId, runtimeId, parentId) is
+    refreshed by the post-fork hook.
     """
     import os
+    import typing as t
 
     from ddtrace.internal import forksafe
     from ddtrace.internal.remoteconfig import ConfigMetadata
     from ddtrace.internal.remoteconfig import Payload
     from ddtrace.internal.runtime import get_ancestor_runtime_id
+    from ddtrace.internal.runtime import get_runtime_id
     from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
     SymbolDatabaseUploader.install()
 
+    parent_runtime_id = get_runtime_id()
+    parent_context = t.cast(SymbolDatabaseUploader, SymbolDatabaseUploader._instance)._context
+    parent_upload_id = parent_context._upload_id
+
     pids = []
     rc_data = [Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), "test", None)]
 
+    # Fork 10 children from the same parent. In each child, re-run the RC
+    # callback and verify the install/uninstall invariant (SymDB stays
+    # enabled only in the first fork child) and, where applicable, the
+    # post-fork ScopeContext metadata refresh.
     for _ in range(10):
-        if not (pid := os.fork()):
+        if pid := os.fork():
+            # Parent: record the child's pid and move on to the next fork.
+            pids.append(pid)
+            continue
+
+        # Child path.
+        try:
+            # We're in a forked child, so the ancestor runtime id must
+            # be set.
+            assert get_ancestor_runtime_id() is not None
             # Call the RC callback multiple times to check for stability
             for i in range(10):
                 _rc_callback(rc_data)
-                assert SymbolDatabaseUploader.is_installed() != (
-                    get_ancestor_runtime_id() is not None and forksafe.has_forked()
-                ), f"iteration {i} is stable"
-            os._exit(0)
+                # SymDB stays enabled in the first fork child and is
+                # disabled in any other (subsequent or deeper) fork
+                # child to avoid duplicate uploads.
+                #
+                # forksafe._forked flips to True in the parent via an
+                # after_in_parent hook on the first fork, so children #2..N
+                # of the same parent inherit _forked=True via the fork's
+                # memory copy. Only the first child observes False here.
+                first_child = not forksafe.has_forked()
+                assert SymbolDatabaseUploader.is_installed() == first_child, f"iteration {i} is stable"
 
-        pids.append(pid)
+            if SymbolDatabaseUploader.is_installed():
+                # First fork child: the ScopeContext forksafe hook must
+                # have refreshed the upload metadata to reflect this
+                # child's runtime rather than the parent's.
+                child_context = t.cast(SymbolDatabaseUploader, SymbolDatabaseUploader._instance)._context
+                assert child_context._event_data["runtimeId"] == get_runtime_id()
+                assert child_context._event_data["runtimeId"] != parent_runtime_id
+                assert child_context._event_data["parentId"] == parent_runtime_id
+                assert child_context._upload_id != parent_upload_id
+                assert child_context._event_data["uploadId"] == child_context._upload_id
+                assert child_context._batch_counter == 0
+        except BaseException:
+            os._exit(1)
+        os._exit(0)
 
     for pid in pids:
-        os.waitpid(pid, 0)
+        _, status = os.waitpid(pid, 0)
+        assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"child {pid} exited with status {status}"
 
 
 @pytest.mark.subprocess(run_module=True, err=None)
