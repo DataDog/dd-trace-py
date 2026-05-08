@@ -22,6 +22,7 @@ Usage:
   scripts/gh/create_gh_release_rc.py bump-rc       [--base-branch main] [--dry-run] [--verbose]
   scripts/gh/create_gh_release_rc.py ensure-branch X.Y [--from A.B] [--dry-run] [--verbose]
   scripts/gh/create_gh_release_rc.py draft-release [--target main] [--version 4.9.0rc3]
+                                   [--allow-version-mismatch] [--allow-ci-failure]
                                    [--slack] [--slack-channel test|prod|auto]
                                    [--no-slack-precheck] [--test-dm]
                                    [--dry-run] [--verbose]
@@ -398,6 +399,148 @@ def fetch_ssm_parameter(name: str) -> str:
 # --------------------------------------------------------------------------- #
 # bump-rc
 # --------------------------------------------------------------------------- #
+
+
+def get_commit_ci_summary(sha: str) -> tuple[str, list[str], list[str], int]:
+    """Return CI status for a commit as ``(overall_state, failing, pending, passing_count)``.
+
+    Combines two GitHub APIs:
+
+    - ``/commits/{sha}/status`` — the legacy "combined commit status" (used by
+      GitLab CI's GitHub bridge in this repo). Returns a single ``state`` field
+      and a list of per-context statuses.
+    - ``/commits/{sha}/check-runs`` — the modern Checks API (used by GitHub
+      Actions and some other tools). Each check-run has ``status`` and
+      ``conclusion`` fields.
+
+    Both must report green for the commit to be considered "fully passing".
+    Pending or failing items show up in the ``pending``/``failing`` lists so the
+    runner can see exactly what's wrong.
+    """
+    # Legacy combined-status API. The top-level ``state`` field is the
+    # authoritative roll-up across ALL statuses (even those on later pages);
+    # the ``statuses`` array on a single response is capped, so we --paginate
+    # the per-context list separately to enumerate names.
+    state_out: str = run_out(
+        [
+            "gh",
+            "api",
+            f"repos/DataDog/dd-trace-py/commits/{sha}/status",
+            "--jq",
+            ".state",
+        ],
+        cwd=REPO_ROOT,
+    )
+    overall_state: str = state_out.strip() or "pending"
+
+    failing: list[str] = []
+    pending: list[str] = []
+    passing_count: int = 0
+
+    statuses_out: str = run_out(
+        [
+            "gh",
+            "api",
+            f"repos/DataDog/dd-trace-py/commits/{sha}/statuses",
+            "--paginate",
+            "--jq",
+            ".[] | {context, state}",
+        ],
+        cwd=REPO_ROOT,
+    )
+    # Pagination returns most-recent first; track the latest state per context
+    # so older superseded statuses don't double-count.
+    latest_state_by_ctx: dict[str, str] = {}
+    for line in statuses_out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            s: dict = json.loads(line)
+        except ValueError:
+            continue
+        ctx_name: str = s.get("context", "<unknown>")
+        latest_state_by_ctx.setdefault(ctx_name, s.get("state", ""))
+    for ctx_name, ctx_state in latest_state_by_ctx.items():
+        if ctx_state == "success":
+            passing_count += 1
+        elif ctx_state == "pending":
+            pending.append(ctx_name)
+        elif ctx_state in ("failure", "error"):
+            failing.append(ctx_name)
+
+    # Modern check-runs API.
+    runs_out: str = run_out(
+        [
+            "gh",
+            "api",
+            f"repos/DataDog/dd-trace-py/commits/{sha}/check-runs",
+            "--jq",
+            ".check_runs[] | {name, status, conclusion}",
+        ],
+        cwd=REPO_ROOT,
+    )
+    for line in runs_out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            run_obj: dict = json.loads(line)
+        except ValueError:
+            continue
+        name: str = run_obj.get("name", "<unknown>")
+        run_status: str = run_obj.get("status", "")
+        conclusion: str = run_obj.get("conclusion") or ""
+        if run_status != "completed":
+            pending.append(f"{name} (check-run)")
+            if overall_state == "success":
+                overall_state = "pending"
+        elif conclusion in ("success", "neutral", "skipped"):
+            passing_count += 1
+        else:
+            # failure, timed_out, cancelled, action_required, stale, ...
+            failing.append(f"{name} (check-run, {conclusion or 'unknown'})")
+            if overall_state == "success":
+                overall_state = "failure"
+
+    return overall_state, failing, pending, passing_count
+
+
+def ensure_ci_green(sha: str, allow_failure: bool = False) -> None:
+    """Refuse to draft a release on a commit whose CI isn't green.
+
+    Brett's ask: "validate that CI has completed and is green for the
+    target-to-be-released commit". Defensive against the "I cut a release from
+    a broken commit" foot-gun. ``allow_failure=True`` (from
+    ``--allow-ci-failure``) downgrades to a warning since some teams accept a
+    handful of flaky CI signals.
+    """
+    overall: str
+    failing: list[str]
+    pending: list[str]
+    passing: int
+    overall, failing, pending, passing = get_commit_ci_summary(sha)
+    label: str = f"CI: state={overall}, passing={passing}, pending={len(pending)}, failing={len(failing)}"
+    if overall == "success" and not failing and not pending:
+        print(label)
+        return
+    detail: str = label
+    if failing:
+        detail += "\n  failing:\n    " + "\n    ".join(failing[:10])
+        if len(failing) > 10:
+            detail += f"\n    ... and {len(failing) - 10} more"
+    if pending:
+        detail += "\n  pending:\n    " + "\n    ".join(pending[:10])
+        if len(pending) > 10:
+            detail += f"\n    ... and {len(pending) - 10} more"
+    if allow_failure:
+        print(f"WARN (--allow-ci-failure): {detail}", file=sys.stderr)
+        return
+    raise SystemExit(
+        f"refusing to draft release on a commit with non-green CI. {detail}\n"
+        "Either wait for CI to complete on origin/<target>, or pass "
+        "--allow-ci-failure to override (e.g. for known-flaky red checks)."
+    )
 
 
 def _release_tag_is_published(tag: str) -> bool:
@@ -864,6 +1007,7 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
         )
 
     check_existing_release(version, dry_run=dry_run)
+    ensure_ci_green(target_sha, allow_failure=args.allow_ci_failure)
 
     notes: str = generate_unreleased_notes(target, version)
     eol_block: Optional[str] = find_previous_rc_eol_block(version)
@@ -1072,6 +1216,14 @@ def build_parser() -> argparse.ArgumentParser:
             "skip the pre-flight that refuses when --version disagrees with the "
             "pyproject version at --target. Use only when intentionally cutting "
             "a release without bumping pyproject first."
+        ),
+    )
+    dr.add_argument(
+        "--allow-ci-failure",
+        action="store_true",
+        help=(
+            "downgrade the CI-green pre-flight to a warning. Use sparingly; the "
+            "default behavior refuses to draft on a commit with red or pending CI."
         ),
     )
     dr.add_argument("--slack", action="store_true", help="post to release channel selected by --slack-channel")

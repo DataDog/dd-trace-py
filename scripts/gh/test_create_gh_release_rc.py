@@ -33,6 +33,7 @@ from create_gh_release_rc import _merge_subsections  # noqa: E402
 from create_gh_release_rc import _strip_code_fenced_lines  # noqa: E402
 from create_gh_release_rc import check_existing_release  # noqa: E402
 from create_gh_release_rc import compute_next_rc  # noqa: E402
+from create_gh_release_rc import ensure_ci_green  # noqa: E402
 from create_gh_release_rc import load_section_order  # noqa: E402
 from create_gh_release_rc import slice_and_merge_notes  # noqa: E402
 from create_gh_release_rc import write_pyproject_version  # noqa: E402
@@ -483,6 +484,7 @@ class VersionMismatchPreflightTests(unittest.TestCase):
                 target="4.9",
                 version="4.9.0rc99",  # disagrees with pyproject (4.9.0rc1)
                 allow_version_mismatch=False,
+                allow_ci_failure=False,
                 dry_run=True,
                 slack=False,
                 slack_channel="auto",
@@ -500,6 +502,121 @@ class VersionMismatchPreflightTests(unittest.TestCase):
             mod.run_out = original_run_out  # type: ignore[assignment]
             mod.ensure_gh_auth = original_ensure_auth  # type: ignore[assignment]
             mod.read_pyproject_version_at = original_read_pyproject  # type: ignore[assignment]
+
+
+class CiGreenPreflightTests(unittest.TestCase):
+    """Coverage for Brett's "validate CI is green on the target commit" ask.
+
+    We monkey-patch run_out to return canned API responses so the test doesn't
+    need network access.
+    """
+
+    def _patch_responses(self, state: str, statuses_ndjson: str, check_runs_ndjson: str):
+        """Install a fake run_out that dispatches to one of three responses
+        by URL substring (the function makes three distinct gh-api calls).
+        """
+        import create_gh_release_rc as mod
+
+        original = mod.run_out
+
+        def fake(cmd: list[str], cwd: object = None) -> str:
+            joined: str = " ".join(cmd)
+            # Order matters: more-specific URLs first.
+            if "/check-runs" in joined:
+                return check_runs_ndjson
+            if "/statuses" in joined:
+                return statuses_ndjson
+            if "/status" in joined:
+                return state
+            return ""
+
+        mod.run_out = fake
+        return mod, original
+
+    def test_all_green_passes(self) -> None:
+        mod, original = self._patch_responses(
+            state="success",
+            statuses_ndjson='{"context": "ci", "state": "success"}\n',
+            check_runs_ndjson='{"name": "lint", "status": "completed", "conclusion": "success"}\n',
+        )
+        try:
+            ensure_ci_green("dead")
+        finally:
+            mod.run_out = original
+
+    def test_failing_status_refuses_by_default(self) -> None:
+        mod, original = self._patch_responses(
+            state="failure",
+            statuses_ndjson=(
+                '{"context": "dd-gitlab/build", "state": "failure"}\n'
+                '{"context": "dd-gitlab/test", "state": "success"}\n'
+            ),
+            check_runs_ndjson="",
+        )
+        try:
+            with self.assertRaises(SystemExit) as ctx:
+                ensure_ci_green("dead")
+            self.assertIn("non-green CI", str(ctx.exception))
+            self.assertIn("dd-gitlab/build", str(ctx.exception))
+        finally:
+            mod.run_out = original
+
+    def test_failing_check_run_refuses(self) -> None:
+        mod, original = self._patch_responses(
+            state="success",
+            statuses_ndjson="",
+            check_runs_ndjson='{"name": "test-suite", "status": "completed", "conclusion": "failure"}\n',
+        )
+        try:
+            with self.assertRaises(SystemExit) as ctx:
+                ensure_ci_green("dead")
+            self.assertIn("test-suite", str(ctx.exception))
+            self.assertIn("failure", str(ctx.exception))
+        finally:
+            mod.run_out = original
+
+    def test_pending_check_refuses(self) -> None:
+        mod, original = self._patch_responses(
+            state="success",
+            statuses_ndjson="",
+            check_runs_ndjson='{"name": "running", "status": "in_progress", "conclusion": null}\n',
+        )
+        try:
+            with self.assertRaises(SystemExit) as ctx:
+                ensure_ci_green("dead")
+            self.assertIn("running", str(ctx.exception))
+        finally:
+            mod.run_out = original
+
+    def test_allow_ci_failure_downgrades_to_warning(self) -> None:
+        mod, original = self._patch_responses(
+            state="failure",
+            statuses_ndjson='{"context": "dd-gitlab/x", "state": "failure"}\n',
+            check_runs_ndjson="",
+        )
+        try:
+            ensure_ci_green("dead", allow_failure=True)
+        finally:
+            mod.run_out = original
+
+    def test_paginated_statuses_dedupe_by_context(self) -> None:
+        """Pagination returns superseded statuses; only the most-recent state
+        per context (first occurrence) should count.
+        """
+        mod, original = self._patch_responses(
+            state="success",
+            statuses_ndjson=(
+                # Most-recent first.
+                '{"context": "dd-gitlab/test", "state": "success"}\n'
+                # Older entry for the same context — should be ignored.
+                '{"context": "dd-gitlab/test", "state": "failure"}\n'
+            ),
+            check_runs_ndjson="",
+        )
+        try:
+            ensure_ci_green("dead")
+        finally:
+            mod.run_out = original
 
 
 class CheckExistingReleasePaginationTests(unittest.TestCase):
