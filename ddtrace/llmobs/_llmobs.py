@@ -325,9 +325,9 @@ class LLMObsSpan:
 
     input: list[Message] = field(default_factory=list)
     output: list[Message] = field(default_factory=list)
+    _tags: dict[str, str] = field(default_factory=dict)
     input_documents: list[Document] = field(default_factory=list)
     output_documents: list[Document] = field(default_factory=list)
-    _tags: dict[str, str] = field(default_factory=dict)
 
     def get_tag(self, key: str) -> Optional[str]:
         """Get a tag from the span.
