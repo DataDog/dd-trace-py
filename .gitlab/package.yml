@@ -18,11 +18,8 @@ variables:
   - "cp312-cp312"
   - "cp313-cp313"
   - "cp314-cp314"
-  # TODO(py-315): cp315-cp315 is built in the separate "build linux cp315"
-  # job with allow_failure: true until the manylinux base image ships a
-  # cp315-cp315 interpreter (pypa/manylinux upstream; current image only
-  # exposes cp38-cp314 via manylinux-interpreters). Move the tag back into
-  # this anchor and delete the cp315 job once the image supports it.
+  # TODO(py-315): enable cp315 once manylinux image supports it
+  # - "cp315-cp315"
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
   - "v85383414-751efc0-manylinux2014_aarch64"
