@@ -87,11 +87,6 @@ def traced_llm_generate(func, instance, args, kwargs):
         completions = func(*args, **kwargs)
         core.dispatch("langchain.llm.generate.after", (prompts, completions))
     except (DDBlockException, Exception):
-        # AIDEV-NOTE: ``DDBlockException`` is listed alongside ``Exception``
-        # because ``AIGuardAbortError`` is ``BaseException``-derived via
-        # ``DDBlockException`` and would otherwise slip past ``except
-        # Exception``, leaving the LLM span finished without ``set_exc_info``
-        # on a block.
         span.set_exc_info(*sys.exc_info())
         raise
     finally:

@@ -413,7 +413,7 @@ def _patched_endpoint_async(patch_hook):
             # Guard even when the caller never awaits the returned coroutine.
             if is_chat:
                 try:
-                    core.dispatch("openai.chat.completions.create.before", (kwargs,))
+                    core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
                 except DDBlockException:
                     # AI Guard blocked the request — discard the unstarted SDK
                     # coroutine so Python doesn't emit a "coroutine was never
