@@ -204,18 +204,6 @@ def test_agentless_handler_installed_and_forwards():
     assert event["status"] == "warning"
 """
 
-_TEST_NO_HANDLER_WITHOUT_AGENTLESS_MODE = """\
-import logging
-from ddtrace.testing.internal.logs import LogsHandler
-
-
-def test_no_handler_without_agentless_mode():
-    logs_handlers = [h for h in logging.getLogger().handlers if isinstance(h, LogsHandler)]
-    assert len(logs_handlers) == 0, (
-        "LogsHandler should not be installed when DD_CIVISIBILITY_AGENTLESS_ENABLED is not set"
-    )
-"""
-
 _TEST_NO_HANDLER_WITHOUT_FLAG = """\
 import logging
 from ddtrace.testing.internal.logs import LogsHandler
