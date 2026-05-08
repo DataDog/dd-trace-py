@@ -984,6 +984,36 @@ class LLMObsAPIClient:
         return spans
 
 
+class LLMObsMemoryClient:
+    """Synchronous HTTP client for the LLMObs agent memory API."""
+
+    TIMEOUT = 10.0
+
+    def __init__(self, api_key: str = "", app_key: str = "", site: str = "", override_url: str = "") -> None:
+        self._api_key: str = api_key or config._dd_api_key
+        self._app_key: str = app_key
+        _site: str = site or config._dd_site
+        _override_url: str = override_url or env.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
+        self._base_url: str = _override_url or "https://api.{}".format(_site)
+
+    def request(self, method: str, path: str, body: Optional[dict[str, Any]] = None) -> Response:
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/vnd.api+json",
+            "DD-API-KEY": self._api_key,
+            "DD-APPLICATION-KEY": self._app_key,
+        }
+        encoded_body = json.dumps(body).encode("utf-8") if body is not None else b""
+        logger.debug("LLMObsMemoryClient requesting %s%s", self._base_url, path)
+        conn = get_connection(self._base_url, timeout=self.TIMEOUT)
+        try:
+            conn.request(method, path, encoded_body, headers)
+            resp = conn.getresponse()
+            return Response.from_http_response(resp)
+        finally:
+            conn.close()
+
+
 class LLMObsSpanWriter(BaseLLMObsWriter):
     """Writes span events to the LLMObs Span Endpoint."""
 

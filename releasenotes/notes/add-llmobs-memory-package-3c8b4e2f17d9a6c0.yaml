@@ -1,0 +1,3 @@
+features:
+  - |
+    LLM Observability: Adds a first-class memory package for tracing and calling durable memory operations with ``LLMObs.memory()``, ``MemoryScope``, and the ``ddtrace.llmobs.memory`` module.

@@ -23,6 +23,20 @@ from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._llmobs import LLMObsSpan
+from ddtrace.llmobs._memory import DatadogMemoryBackend
+from ddtrace.llmobs._memory import EmptyMemoryBackend
+from ddtrace.llmobs._memory import Memory
+from ddtrace.llmobs._memory import MemoryBackend
+from ddtrace.llmobs._memory import MemoryBackendError
+from ddtrace.llmobs._memory import MemoryLink
+from ddtrace.llmobs._memory import MemoryNotConfiguredError
+from ddtrace.llmobs._memory import MemoryPersistUnsupportedError
+from ddtrace.llmobs._memory import MemoryRecord
+from ddtrace.llmobs._memory import MemoryScope
+from ddtrace.llmobs._memory import MemorySource
+from ddtrace.llmobs._memory import get_memory_scope
+from ddtrace.llmobs._memory import memory_scope
+from ddtrace.llmobs._memory import set_memory_scope
 from ddtrace.llmobs.types import Prompt
 
 
@@ -31,6 +45,17 @@ __all__ = [
     "LLMObsSpan",
     "Dataset",
     "DatasetRecord",
+    "DatadogMemoryBackend",
+    "EmptyMemoryBackend",
+    "Memory",
+    "MemoryBackend",
+    "MemoryBackendError",
+    "MemoryLink",
+    "MemoryNotConfiguredError",
+    "MemoryPersistUnsupportedError",
+    "MemoryRecord",
+    "MemoryScope",
+    "MemorySource",
     "Prompt",
     "BaseEvaluator",
     "BaseSummaryEvaluator",
@@ -45,4 +70,7 @@ __all__ = [
     "RemoteEvaluatorError",
     "ScoreStructuredOutput",
     "SummaryEvaluatorContext",
+    "get_memory_scope",
+    "memory_scope",
+    "set_memory_scope",
 ]

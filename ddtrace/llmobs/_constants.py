@@ -134,6 +134,11 @@ DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
 # Managed Prompts API
 PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
 
+# Agent memory API
+MEMORY_SEARCH_ENDPOINT = "/api/unstable/agent_memories/agent/search"
+MEMORY_GET_ENDPOINT = "/api/unstable/agent_memories/agent/get_node"
+MEMORY_PERSIST_ENDPOINT = "/api/unstable/agent_memories/agent/persist"
+
 
 class LLMOBS_STRUCT:
     """Nested LLMObs struct keys in span._meta_struct."""

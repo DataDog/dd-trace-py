@@ -6,6 +6,7 @@ import json
 import math
 import sys
 import time
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Literal
@@ -151,6 +152,7 @@ from ddtrace.llmobs._writer import LLMObsAPIClient
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
+from ddtrace.llmobs._writer import LLMObsMemoryClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
@@ -168,6 +170,11 @@ from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.version import __version__
 
+
+if TYPE_CHECKING:
+    from ddtrace.llmobs._memory import Memory
+    from ddtrace.llmobs._memory import MemoryBackend
+    from ddtrace.llmobs._memory import MemoryScope
 
 log = get_logger(__name__)
 
@@ -491,6 +498,7 @@ class LLMObs(Service):
             is_agentless=True,  # agent proxy doesn't seem to work for experiments
         )
         self._api_client = LLMObsAPIClient(app_key=self._app_key)
+        self._memory_client = LLMObsMemoryClient(app_key=self._app_key)
 
         forksafe.register(self._child_after_fork)
 
@@ -960,6 +968,27 @@ class LLMObs(Service):
         base_url = _get_base_url()
         query = urllib.parse.urlencode({"evalName": evaluation_payload["eval_name"], "applicationName": ml_app.strip()})
         return {"ui_url": f"{base_url}/llm/evaluations/custom?{query}"}
+
+    @classmethod
+    def memory(
+        cls,
+        scope: Optional["MemoryScope"] = None,
+        backend: Optional["MemoryBackend"] = None,
+        backend_name: str = "internal",
+        default_limit: int = 10,
+    ) -> "Memory":
+        """Create a memory client for the active LLMObs ML app."""
+        from ddtrace.llmobs._memory import DatadogMemoryBackend
+        from ddtrace.llmobs._memory import Memory
+        from ddtrace.llmobs._memory import MemoryNotConfiguredError
+
+        if backend is None:
+            if not cls._instance or not cls.enabled:
+                raise MemoryNotConfiguredError(
+                    "LLMObs.memory() requires LLMObs.enable(...) unless a custom backend is provided."
+                )
+            backend = DatadogMemoryBackend(client=cls._instance._memory_client, ml_app=resolve_ml_app())
+        return Memory(scope=scope, backend=backend, backend_name=backend_name, default_limit=default_limit)
 
     @classmethod
     def pull_dataset(
