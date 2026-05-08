@@ -247,12 +247,12 @@ def _langchain_llm_stream_before(client: AIGuardClient, instance, args, kwargs):
 
 
 def _evaluate_langchain_messages(client: AIGuardClient, messages):
-    """Evaluate the prompt and surface a block as a returned ``AIGuardAbortError``.
+    """Evaluate the prompt and re-raise ``AIGuardAbortError`` on a block.
 
-    Returns the abort error so the contrib's dispatcher can re-raise it; the
-    ``AIGuardClient`` already gates on ``ai_guard_config._ai_guard_block``,
-    so a returned error always represents a blocking decision.
-    Allow / skip paths return ``None``.
+    Re-raises so the contrib's ``core.dispatch(..., allow_raise=True)``
+    propagates the abort. The ``AIGuardClient`` already gates on
+    ``ai_guard_config._ai_guard_block``, so a raised error always represents
+    a blocking decision. Allow / skip paths return ``None``.
     """
     from langchain_core.messages import HumanMessage
 

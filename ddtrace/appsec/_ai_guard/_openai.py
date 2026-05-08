@@ -298,7 +298,11 @@ def _openai_chat_completion_before(client, kwargs):
     try:
         client.evaluate(ai_guard_messages, Options(block=ai_guard_config._ai_guard_block))
     except AIGuardAbortError as e:
-        return _wrap_abort_error(e)
+        # AIDEV-NOTE: raise (not return) the wrapped error. ``core.dispatch(...,
+        # allow_raise=True)`` propagates exceptions that the listener raises;
+        # it does not inspect return values (the predecessor
+        # ``raising_dispatch`` did, hence the historical ``return``).
+        raise _wrap_abort_error(e) from e
     except Exception:
         logger.debug("Failed to evaluate OpenAI chat completion request", exc_info=True)
     return None
@@ -311,7 +315,7 @@ def _openai_chat_completion_after(client, kwargs, resp):
     returns.  Skips streaming responses (handled separately) and when a
     framework evaluation is already active.
 
-    On block: returns an ``OpenAIAIGuardAbortError`` (or plain
+    On block: raises an ``OpenAIAIGuardAbortError`` (or plain
     ``AIGuardAbortError`` when the OpenAI SDK is not importable).  Allow /
     skip paths return ``None``.
     """
@@ -329,7 +333,9 @@ def _openai_chat_completion_after(client, kwargs, resp):
     try:
         client.evaluate(all_messages, Options(block=ai_guard_config._ai_guard_block))
     except AIGuardAbortError as e:
-        return _wrap_abort_error(e)
+        # AIDEV-NOTE: see ``_openai_chat_completion_before`` — must raise so
+        # ``core.dispatch(..., allow_raise=True)`` propagates the abort.
+        raise _wrap_abort_error(e) from e
     except Exception:
         logger.debug("Failed to evaluate OpenAI chat completion response", exc_info=True)
     return None
