@@ -47,6 +47,8 @@ workflow:
       auto_cancel:
         on_new_commit: none
     - if: !reference [.is_release_branch]
+      variables:
+        DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py-release.git"
       auto_cancel:
         on_new_commit: none
     - when: always
@@ -128,7 +130,7 @@ serverless lambda tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
-    branch: main
+    branch: rithika.narayan/stable
   needs:
     - job: "upload serverless"
   variables:
