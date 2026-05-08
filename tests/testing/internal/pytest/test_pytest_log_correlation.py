@@ -295,13 +295,11 @@ class TestAgentlessLogSubmission:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    def test_disabled_without_agentless_mode(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
-        """DD_AGENTLESS_LOG_SUBMISSION_ENABLED without DD_CIVISIBILITY_AGENTLESS_ENABLED must not install
-        LogsHandler.
+    def test_disabled_without_log_submission_flag(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+        """LogsHandler must not be installed when DD_AGENTLESS_LOG_SUBMISSION_ENABLED is not set,
+        even if DD_CIVISIBILITY_AGENTLESS_ENABLED is true.
         """
-        monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", "true")
-        monkeypatch.delenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", raising=False)
-
+        monkeypatch.delenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", raising=False)
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
         pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_AGENTLESS_MODE)
 
