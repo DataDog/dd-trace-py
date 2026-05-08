@@ -130,7 +130,7 @@ serverless lambda tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
-    branch: revert-822-revert-815-revert-814-revert-813-rey.abolofia/fix-ddtrace-pr
+    branch: main
   needs:
     - job: "upload serverless"
   variables:
