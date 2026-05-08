@@ -403,6 +403,13 @@ class TraceExporterBuilder:
         """
         ...
 
+class AgentResponse:
+    """Sampling-rate response from the Datadog agent after a successful trace export."""
+
+    rate_by_service: dict[str, float]
+
+    def __init__(self, rate_by_service: dict[str, float]) -> None: ...
+
 class NativeTraceBuffer:
     """
     Native Rust trace buffer that accepts SpanData objects directly,

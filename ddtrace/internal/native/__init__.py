@@ -3,6 +3,7 @@ from typing import Optional
 from ddtrace.internal.settings import env
 
 from ._native import AgentError  # noqa: F401
+from ._native import AgentResponse  # noqa: F401
 from ._native import BuilderError  # noqa: F401
 from ._native import DeserializationError  # noqa: F401
 from ._native import IoError  # noqa: F401

@@ -88,6 +88,22 @@ impl ExportSync {
     }
 }
 
+/// Python-facing `AgentResponse` object passed to the `response_callback` after each
+/// successful export that returns a changed sampling-rate payload.
+#[pyclass(name = "AgentResponse")]
+pub struct AgentResponsePy {
+    #[pyo3(get)]
+    rate_by_service: Py<PyDict>,
+}
+
+#[pymethods]
+impl AgentResponsePy {
+    #[new]
+    fn new(rate_by_service: Py<PyDict>) -> Self {
+        Self { rate_by_service }
+    }
+}
+
 /// Python-facing wrapper around a [TraceBuffer]<[Span]<[PyTraceData]>>.
 ///
 /// `new` takes ownership of the [TraceExporter] from the given [TraceExporterPy]
@@ -115,12 +131,11 @@ impl NativeTraceBufferPy {
     /// `shared_runtime`.
     /// `response_callback` is an optional Python callable invoked after each successful export
     /// when the agent returns a changed sampling-rate payload. It receives one positional
-    /// argument: `ddtrace.internal.writer.writer.AgentResponse(rate_by_service=...)`. Only
-    /// called when the agent response body contains a `rate_by_service` key (mirrors the
-    /// `NativeWriter` contract).
+    /// argument: `AgentResponse(rate_by_service=...)`. Only called when the agent response
+    /// body contains a `rate_by_service` key (mirrors the `NativeWriter` contract).
     #[new]
     #[pyo3(signature = (exporter, response_callback = None))]
-    fn new(py: Python<'_>, exporter: &mut TraceExporterPy, response_callback: Option<Py<PyAny>>) -> PyResult<Self> {
+    fn new(exporter: &mut TraceExporterPy, response_callback: Option<Py<PyAny>>) -> PyResult<Self> {
         let inner = exporter
             .take_inner()
             .ok_or_else(|| PyValueError::new_err("TraceExporter has already been consumed"))?;
@@ -129,16 +144,11 @@ impl NativeTraceBufferPy {
         let export_sync = ExportSync::new();
         let export_sync_clone = export_sync.clone();
 
-        // Clone the callback for capture in the ResponseHandler closure.
-        // `Py<PyAny>` is `Send + Sync`; drops on non-GIL threads are deferred via
-        // pyo3's global ReferencePool (see PyExport doc comment above).
-        let cb_clone = response_callback.as_ref().map(|cb| cb.clone_ref(py));
-
         let py_export = PyExport { exporter: inner };
         let response_handler: ResponseHandler = Box::new(move |result| {
             export_sync_clone.on_export_complete();
             if let Ok(AgentResponse::Changed { ref body }) = result {
-                if let Some(ref cb) = cb_clone {
+                if let Some(ref cb) = response_callback {
                     invoke_response_callback(cb, body);
                 }
             }
@@ -240,32 +250,30 @@ impl NativeTraceBufferPy {
     }
 }
 
-/// Fire `response_callback` with an `AgentResponse(rate_by_service=...)` Python object.
+/// Deserialised form of the agent's sampling-rate response body.
+/// Only `rate_by_service` is extracted; all other fields are ignored.
+#[derive(serde::Deserialize)]
+struct AgentRatesBody {
+    rate_by_service: std::collections::HashMap<String, f64>,
+}
+
+/// Fire `response_callback(AgentResponse(rate_by_service=...))`.
 ///
-/// Called from the [ResponseHandler] closure on the tokio worker thread when the agent
-/// responds with a changed rates payload. Acquires the GIL, parses the JSON body, and
-/// constructs the Python-side `AgentResponse` (from `ddtrace.internal.writer.writer`).
-/// Errors are printed to stderr via `PyErr::print` so they are visible but non-fatal.
+/// Called from the [ResponseHandler] closure on the tokio worker thread.
+/// Acquires the GIL, constructs an [AgentResponsePy], and calls the Python callback.
+/// Errors are printed via `PyErr::print` — non-fatal.
 fn invoke_response_callback(cb: &Py<PyAny>, body: &str) {
-    let raw: serde_json::Value = match serde_json::from_str(body) {
-        Ok(v) => v,
+    let rates = match serde_json::from_str::<AgentRatesBody>(body) {
+        Ok(r) => r.rate_by_service,
         Err(_) => return,
-    };
-    let rates = match raw.get("rate_by_service").and_then(|r| r.as_object()) {
-        Some(r) => r,
-        None => return,
     };
     Python::attach(|py| {
         let call = || -> PyResult<()> {
-            let module = py.import("ddtrace.internal.writer.writer")?;
-            let cls = module.getattr("AgentResponse")?;
             let py_rates = PyDict::new(py);
-            for (k, v) in rates {
-                if let Some(f) = v.as_f64() {
-                    py_rates.set_item(k, f)?;
-                }
+            for (k, v) in &rates {
+                py_rates.set_item(k, v)?;
             }
-            let resp = cls.call1((py_rates,))?;
+            let resp = Py::new(py, AgentResponsePy { rate_by_service: py_rates.unbind() })?;
             cb.call1(py, (resp,))?;
             Ok(())
         };
@@ -276,6 +284,7 @@ fn invoke_response_callback(cb: &Py<PyAny>, body: &str) {
 }
 
 pub fn register_trace_buffer(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<AgentResponsePy>()?;
     m.add_class::<NativeTraceBufferPy>()?;
     Ok(())
 }

@@ -14,6 +14,7 @@ from ddtrace import config
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
+from ddtrace.internal.native import AgentResponse
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
@@ -514,11 +515,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self.periodic()
         finally:
             self._reset_connection()
-
-
-class AgentResponse(object):
-    def __init__(self, rate_by_service: dict[str, float]) -> None:
-        self.rate_by_service = rate_by_service
 
 
 class AgentWriterInterface(metaclass=abc.ABCMeta):
@@ -1110,10 +1106,9 @@ class NativeTraceBuffer(TraceWriter):
     def write(self, spans: Optional[list] = None) -> None:
         if not spans:
             return
-        # DEV: keep-rate is hardcoded to 1.0 (no drops reported) pending coordination
-        # with the trace exporter team on where this computation should live.
-        # libdatadog's QueueMetrics.spans_dropped_full_buffer tracks actual drops but
-        # resets on each read, requiring a Python-side SMA to compute a meaningful rate.
+        # DEV: pending coordination with the trace exporter team on where keep-rate
+        # computation should live — libdatadog's QueueMetrics.spans_dropped_full_buffer
+        # tracks actual drops but resets on each read, requiring a Python-side SMA.
         spans[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0)
         self._native_buffer.send_chunk(spans)
 
