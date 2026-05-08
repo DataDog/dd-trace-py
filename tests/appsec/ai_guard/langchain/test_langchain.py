@@ -500,13 +500,8 @@ def _find_llm_span_with_error(test_spans):
 def test_chat_block_tags_llm_span_with_set_exc_info(
     mock_execute_request, langchain_openai, openai_url, tracer, test_spans
 ):
-    """On AI Guard block, ``traced_chat_model_generate`` must finish the LLM
-    span with ``set_exc_info`` so the LLM span carries ``error == 1`` and
-    ``error.type`` containing ``AIGuardAbortError``. Pins the contract from
-    PR #17913 against future regressions where a refactor swaps the explicit
-    ``except DDBlockException`` arm back to ``except Exception`` (which would
-    silently drop the error info, since ``AIGuardAbortError`` is a
-    ``BaseException`` subclass).
+    """On AI Guard block, the LLM span must carry ``error == 1`` and an
+    ``error.type`` containing ``AIGuardAbortError``.
     """
     mock_execute_request.return_value = mock_evaluate_response("DENY")
 
@@ -524,10 +519,7 @@ def test_chat_block_tags_llm_span_with_set_exc_info(
 async def test_chat_async_block_tags_llm_span_with_set_exc_info(
     mock_execute_request, langchain_openai, openai_url, tracer, test_spans
 ):
-    """Async variant of ``test_chat_block_tags_llm_span_with_set_exc_info`` —
-    pins the same ``set_exc_info``-on-block contract for
-    ``traced_chat_model_agenerate``.
-    """
+    """Async variant of ``test_chat_block_tags_llm_span_with_set_exc_info``."""
     mock_execute_request.return_value = mock_evaluate_response("DENY")
 
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)

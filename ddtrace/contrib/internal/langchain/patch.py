@@ -90,8 +90,8 @@ def traced_llm_generate(func, instance, args, kwargs):
         # AIDEV-NOTE: ``AIGuardAbortError`` (a ``DDBlockException`` subclass
         # derived from ``BaseException``) is not caught by ``except Exception``,
         # so handle it explicitly and tag the LLM span before propagating —
-        # mirrors the contract in PR #17913 so blocked requests still emit an
-        # LLMObs span finished with ``set_exc_info``.
+        # blocked requests must still emit an LLMObs span finished with
+        # ``set_exc_info``.
         span.set_exc_info(*sys.exc_info())
         raise
     except Exception:
