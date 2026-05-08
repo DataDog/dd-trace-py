@@ -13,12 +13,12 @@ from aws_durable_execution_sdk_python.lambda_service import OperationSubType
 from aws_durable_execution_sdk_python.operation.base import OperationExecutor
 from aws_durable_execution_sdk_python.operation.step import StepOperationExecutor
 
-from ddtrace.contrib.internal.aws_durable_execution_sdk_python.trace_checkpoint import (
-    maybe_save_trace_context_checkpoint,
-)
 from ddtrace.contrib._events.aws_durable import AwsDurableExecuteEvent
 from ddtrace.contrib._events.aws_durable import AwsDurableInvokeEvent
 from ddtrace.contrib._events.aws_durable import AwsDurableOperationEvent
+from ddtrace.contrib.internal.aws_durable_execution_sdk_python.trace_checkpoint import (
+    maybe_save_trace_context_checkpoint,
+)
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
