@@ -85,6 +85,23 @@ current signatures and defaults.
 | Internal APIs, products, threading, fork hooks | Relevant sections of `ddtrace/internal/README.md` |
 | Benchmark CI / SLO configuration | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` |
 | Build or installation failures | `docs/troubleshooting.rst` |
+| Cut a patch, RC, or final release | `release`; `scripts/gh/create_gh_release.py --help`; `docs/contributing-release.rst` |
+
+## Release Tooling
+
+`scripts/gh/create_gh_release.py` drives patch, RC, and final releases described in
+`docs/contributing-release.rst`: intent commands (`patch`, `rc`, `final`, `post-release`)
+inspect GitHub/git state, do every dd-trace-py-side step they can, and stop at a reviewed
+draft GitHub release. Always-draft (publishing requires a maintainer). See
+`scripts/gh/create_gh_release.py --help` and `.agents/skills/release/SKILL.md`.
+
+Tests live in `scripts/gh/test_create_gh_release.py`. Run them directly:
+
+```bash
+scripts/gh/test_create_gh_release.py
+# or:
+python -m unittest scripts.gh.test_create_gh_release
+```
 
 ## Pull requests
 
