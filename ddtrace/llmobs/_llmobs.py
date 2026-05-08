@@ -158,6 +158,7 @@ from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
 from ddtrace.llmobs._writer import should_use_agentless
+from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
@@ -324,6 +325,8 @@ class LLMObsSpan:
 
     input: list[Message] = field(default_factory=list)
     output: list[Message] = field(default_factory=list)
+    input_documents: list[Document] = field(default_factory=list)
+    output_documents: list[Document] = field(default_factory=list)
     _tags: dict[str, str] = field(default_factory=dict)
 
     def get_tag(self, key: str) -> Optional[str]:
@@ -375,6 +378,12 @@ def _build_llmobs_span(
     if span_kind == "llm" and output_messages is not None:
         output_type = "messages"
         llmobs_span.output = enforce_message_role(output_messages)
+
+    if (input_documents := llmobs_input.get(LLMOBS_STRUCT.DOCUMENTS)) is not None:
+        llmobs_span.input_documents = input_documents
+
+    if (output_documents := llmobs_output.get(LLMOBS_STRUCT.DOCUMENTS)) is not None:
+        llmobs_span.output_documents = output_documents
 
     return llmobs_span, input_type, output_type
 
@@ -435,6 +444,10 @@ def _normalize_llmobs_meta(
         meta_input[LLMOBS_STRUCT.MESSAGES] = llmobs_span.input
     elif input_type == "value" and llmobs_span.input:
         meta_input[LLMOBS_STRUCT.VALUE] = llmobs_span.input[0].get("content", "")
+    if llmobs_span.input_documents:
+        meta_input[LLMOBS_STRUCT.DOCUMENTS] = llmobs_span.input_documents
+    else:
+        meta_input.pop(LLMOBS_STRUCT.DOCUMENTS, None)
     if meta_input:
         llmobs_meta[LLMOBS_STRUCT.INPUT] = meta_input
     else:
@@ -444,6 +457,10 @@ def _normalize_llmobs_meta(
         meta_output[LLMOBS_STRUCT.MESSAGES] = llmobs_span.output
     elif output_type == "value" and llmobs_span.output:
         meta_output[LLMOBS_STRUCT.VALUE] = llmobs_span.output[0].get("content", "")
+    if llmobs_span.output_documents:
+        meta_output[LLMOBS_STRUCT.DOCUMENTS] = llmobs_span.output_documents
+    else:
+        meta_output.pop(LLMOBS_STRUCT.DOCUMENTS, None)
     if meta_output:
         llmobs_meta[LLMOBS_STRUCT.OUTPUT] = meta_output
     else:
