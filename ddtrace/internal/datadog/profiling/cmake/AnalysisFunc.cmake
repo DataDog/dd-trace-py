@@ -43,10 +43,11 @@ function(add_ddup_config target)
             -Wl,--exclude-libs,ALL)
     endif()
 
-    # If we can IPO, then do so.
+    # If we can IPO, then do so. DD_DISABLE_IPO=1 in the environment opts out
+    # (saves memory in low-RAM build environments where lto-wrapper OOMs).
     check_ipo_supported(RESULT result)
 
-    if(result)
+    if(result AND NOT DEFINED ENV{DD_DISABLE_IPO})
         if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang")
             # When using AppleClang, explicitly use thin LTO to match Rust's thin LTO strategy. And set the object path
             # for debug symbols.
