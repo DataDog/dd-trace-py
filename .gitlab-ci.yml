@@ -5,7 +5,6 @@ stages:
   - fuzz
   - shared-pipeline
   - benchmarks
-  - release
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
@@ -394,7 +393,6 @@ detect_circular_imports:
     - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
     - exit $COMPARE_EXIT
 
-
 package-oci:
   needs:
     - job: "package version"
@@ -404,46 +402,16 @@ package-oci:
     - job: "download_dependency_wheels"
       artifacts: true
 
-promote-oci-to-prod:
-  stage: release
-  rules:
-    - if: !reference [.is_non_rc_release]
-      when: on_success
-    - when: never
+publishing-gate:
   needs:
-    - job: release_pypi_prod
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-promote-oci-to-prod-beta:
-  stage: release
-  needs:
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-promote-oci-to-staging:
-  stage: release
-  needs:
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-publish-lib-init-pinned-tags:
-  stage: release
-  rules:
-    - if: !reference [.is_non_rc_release]
-      when: on_success
-    - when: never
-  needs:
-    - job: release_pypi_prod
-    - job: create-multiarch-lib-injection-image
-    - job: generate-lib-init-pinned-tag-values
-      artifacts: true
+    - job: system_tests
+    - job: lib_injection_tests
+    - job: test-dd-sts
+    - job: macrobenchmarks
+    - job: apm-sdk-benchmarks
+    - job: microbenchmarks
+    - job: serverless lambda tests
+    - job: run-tests-trigger
 
 configure_system_tests:
   needs: []
