@@ -66,6 +66,19 @@ def _get_openai_abort_error_cls():
             Catchable as either ``openai.APIError`` / ``openai.UnprocessableEntityError``
             (idiomatic OpenAI error handling, no retry on 422) or
             ``AIGuardAbortError`` (Datadog-specific, exposes ``action`` / ``reason``).
+
+            AIDEV-NOTE: catchability asymmetry vs plain ``AIGuardAbortError``.
+            ``AIGuardAbortError`` derives from ``DDBlockException(BaseException)``
+            so a generic ``except Exception:`` does NOT catch it (by design — a
+            block decision must not be silently swallowed). However,
+            ``OpenAIAIGuardAbortError`` *also* inherits from
+            ``openai.UnprocessableEntityError``, which is ``Exception``-derived,
+            so via MRO this subclass IS catchable by ``except Exception:``.
+            That asymmetry is intentional: the OpenAI contrib must keep
+            ``except openai.APIError:`` blocks working unchanged for users
+            migrating from non-AI-Guard error handling. Code that wants
+            uniform block detection across providers should branch on
+            ``isinstance(e, AIGuardAbortError)``.
             """
 
             def __init__(self, action, reason, tags=None, sds=None, tag_probs=None):

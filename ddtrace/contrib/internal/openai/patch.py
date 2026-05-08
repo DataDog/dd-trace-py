@@ -245,7 +245,7 @@ def _patched_endpoint(patch_hook):
         integration = openai._datadog_integration
         is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
         if is_chat:
-            core.raising_dispatch("openai.chat.completions.create.before", (kwargs,))
+            core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
 
         g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
         g.send(None)
@@ -265,7 +265,7 @@ def _patched_endpoint(patch_hook):
                     override_return = e.value
 
         if is_chat and not kwargs.get("stream") and resp is not None and err is None:
-            core.raising_dispatch("openai.chat.completions.create.after", (kwargs, resp))
+            core.dispatch("openai.chat.completions.create.after", (kwargs, resp), allow_raise=True)
 
         if override_return is not None:
             return override_return
@@ -412,7 +412,7 @@ def _patched_endpoint_async(patch_hook):
             # Guard even when the caller never awaits the returned coroutine.
             if is_chat:
                 try:
-                    core.raising_dispatch("openai.chat.completions.create.before", (kwargs,))
+                    core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
                 except BaseException:
                     # AI Guard blocked the request — discard the unstarted SDK
                     # coroutine so Python doesn't emit a "coroutine was never
@@ -440,7 +440,7 @@ def _patched_endpoint_async(patch_hook):
                         override_return = e.value
 
             if is_chat and not kwargs.get("stream") and resp is not None and err is None:
-                core.raising_dispatch("openai.chat.completions.create.after", (kwargs, resp))
+                core.dispatch("openai.chat.completions.create.after", (kwargs, resp), allow_raise=True)
 
             if override_return is not None:
                 if resp is not send_resp and override_return is not None:

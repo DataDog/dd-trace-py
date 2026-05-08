@@ -9,6 +9,7 @@ from ddtrace.contrib.internal.langchain.utils import shared_stream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
@@ -82,9 +83,17 @@ def traced_llm_generate(func, instance, args, kwargs):
     integration.llmobs_set_prompt_tag(instance, span)
 
     try:
-        core.raising_dispatch("langchain.llm.generate.before", (prompts,))
+        core.dispatch("langchain.llm.generate.before", (prompts,), allow_raise=True)
         completions = func(*args, **kwargs)
         core.dispatch("langchain.llm.generate.after", (prompts, completions))
+    except DDBlockException:
+        # AIDEV-NOTE: ``AIGuardAbortError`` (a ``DDBlockException`` subclass
+        # derived from ``BaseException``) is not caught by ``except Exception``,
+        # so handle it explicitly and tag the LLM span before propagating —
+        # mirrors the contract in PR #17913 so blocked requests still emit an
+        # LLMObs span finished with ``set_exc_info``.
+        span.set_exc_info(*sys.exc_info())
+        raise
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -115,9 +124,14 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
 
     completions = None
     try:
-        core.raising_dispatch("langchain.llm.agenerate.before", (prompts,))
+        core.dispatch("langchain.llm.agenerate.before", (prompts,), allow_raise=True)
         completions = await func(*args, **kwargs)
         core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
+    except DDBlockException:
+        # AIDEV-NOTE: see ``traced_llm_generate`` — block exceptions must also
+        # tag the LLM span via ``set_exc_info``
+        span.set_exc_info(*sys.exc_info())
+        raise
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -147,9 +161,14 @@ def traced_chat_model_generate(func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        core.raising_dispatch("langchain.chatmodel.generate.before", (chat_messages,))
+        core.dispatch("langchain.chatmodel.generate.before", (chat_messages,), allow_raise=True)
         chat_completions = func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
+    except DDBlockException:
+        # AIDEV-NOTE: see ``traced_llm_generate`` — block exceptions must also
+        # tag the LLM span via ``set_exc_info``
+        span.set_exc_info(*sys.exc_info())
+        raise
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -179,9 +198,14 @@ async def traced_chat_model_agenerate(func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        core.raising_dispatch("langchain.chatmodel.agenerate.before", (chat_messages,))
+        core.dispatch("langchain.chatmodel.agenerate.before", (chat_messages,), allow_raise=True)
         chat_completions = await func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
+    except DDBlockException:
+        # AIDEV-NOTE: see ``traced_llm_generate`` — block exceptions must also
+        # tag the LLM span via ``set_exc_info``
+        span.set_exc_info(*sys.exc_info())
+        raise
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -313,7 +337,7 @@ def traced_chat_stream(func, instance, args, kwargs):
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
-    core.raising_dispatch("langchain.chatmodel.stream.before", (instance, args, kwargs))
+    core.dispatch("langchain.chatmodel.stream.before", (instance, args, kwargs), allow_raise=True)
 
     def _on_span_started(span: Span):
         integration.record_instance(instance, span)
@@ -347,13 +371,14 @@ def traced_llm_stream(func, instance, args, kwargs):
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
-    core.raising_dispatch(
+    core.dispatch(
         "langchain.llm.stream.before",
         (
             instance,
             args,
             kwargs,
         ),
+        allow_raise=True,
     )
 
     def _on_span_start(span: Span):
