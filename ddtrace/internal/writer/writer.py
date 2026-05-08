@@ -12,6 +12,7 @@ from typing import TextIO
 
 from ddtrace import config
 from ddtrace.internal.dist_computing.utils import in_ray_job
+from ddtrace.internal.forksafe import Lock as _ForksafeLock
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.native_runtime import get_native_runtime
@@ -22,7 +23,6 @@ from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_en
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.threads import Lock as _UnpatchedLock
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
 
@@ -701,7 +701,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._stats_opt_out = stats_opt_out
 
         self._exporter = self._create_exporter()
-        self._exporter_lock = _UnpatchedLock()
+        self._exporter_lock = _ForksafeLock()
 
     @staticmethod
     def _parse_otlp_headers() -> list:
