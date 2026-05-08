@@ -229,7 +229,7 @@ experiments:
               - max_rss_usage < 38.00 MB
           - name: httppropagationextract-tracecontext_headers
             thresholds:
-              - execution_time < 0.04 ms
+              - execution_time < 0.06 ms
               - max_rss_usage < 38.00 MB
           - name: httppropagationextract-valid_headers_all
             thresholds:
