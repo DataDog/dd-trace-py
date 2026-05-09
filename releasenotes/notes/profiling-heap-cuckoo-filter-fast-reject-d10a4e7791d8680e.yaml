@@ -1,0 +1,5 @@
+---
+perf:
+  - |
+    profiling: Improves efficiency of the ``free`` function in the heap profiler.
+    All unsampled allocations (99% by default) will terminate early, avoiding unncessary work.
