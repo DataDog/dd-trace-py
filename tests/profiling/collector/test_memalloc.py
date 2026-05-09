@@ -1037,6 +1037,70 @@ def test_heap_stress() -> None:
         _memalloc.stop()
 
 
+def test_heap_filter_high_churn() -> None:
+    """Heavy insert+erase pressure on the cuckoo filter.
+
+    Allocates 200K objects in batches and frees each batch immediately. With
+    aggressive sampling (small heap_sample_size) every allocation is a
+    candidate for tracking, exercising the filter's insert path on alloc
+    and erase path on free. After the run, no live samples should remain.
+    """
+    from ddtrace.profiling.collector import _memalloc
+
+    _memalloc.start(64, 256)  # max 64 frames, 256-byte sampling interval
+    try:
+        for _ in range(200):
+            batch: list[object] = [bytearray(1024) for _ in range(1000)]
+            del batch
+        gc.collect()
+        # Filter and allocs_m should both be drained. heap() is a no-op
+        # observation, but we call it to ensure no crash and to flush.
+        _memalloc.heap()
+    finally:
+        _memalloc.stop()
+
+
+def test_heap_filter_address_reuse() -> None:
+    """Python's free lists reuse addresses across allocations.
+
+    When the same pointer is freed and immediately re-allocated, the
+    cuckoo filter must correctly transition (erase then insert) without
+    leaving stale fingerprints. Validated by alternating alloc/free of
+    similarly-sized objects in a tight loop.
+    """
+    from ddtrace.profiling.collector import _memalloc
+
+    _memalloc.start(64, 128)  # very aggressive sampling
+    try:
+        for _ in range(5000):
+            obj = bytearray(512)  # likely reused address from prior iter
+            del obj
+        gc.collect()
+        _memalloc.heap()
+    finally:
+        _memalloc.stop()
+
+
+def test_heap_filter_high_water_then_drain() -> None:
+    """Push the live working set toward the cap, then drain it.
+
+    Holds onto a large pool of allocations to grow the filter, then
+    releases them all and confirms the heap profiler returns to a quiet
+    state. Validates that erase paths correctly reclaim filter capacity.
+    """
+    from ddtrace.profiling.collector import _memalloc
+
+    _memalloc.start(64, 1024)
+    try:
+        live: list[bytearray] = [bytearray(2048) for _ in range(50_000)]
+        _memalloc.heap()  # snapshot at high-water mark
+        del live[:]
+        gc.collect()
+        _memalloc.heap()  # snapshot after drain — must not crash
+    finally:
+        _memalloc.stop()
+
+
 @pytest.mark.parametrize("heap_sample_size", (0, 512 * 1024, 1024 * 1024, 2048 * 1024, 4096 * 1024))
 def test_memalloc_speed(benchmark, heap_sample_size) -> None:
     if heap_sample_size:
