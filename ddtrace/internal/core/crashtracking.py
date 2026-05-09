@@ -120,6 +120,8 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         crashtracker_config.use_alt_stack,
         5000,  # timeout_ms
         stacktrace_resolver,
+        crashtracker_config.collect_all_threads,
+        crashtracker_config.max_threads,
         crashtracker_config.debug_url or agent_config.trace_agent_url,
         None,  # unix_socket_path
         crashtracker_config._test_token,
