@@ -7,6 +7,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "_memalloc_cuckoo.hpp"
 #include "_memalloc_debug.h"
 #include "_memalloc_gc_guard.hpp"
 #include "_memalloc_heap.h"
@@ -148,6 +149,12 @@ class heap_tracker_t
     uint64_t current_sample_size;
     /* Tracked allocations - using unique_ptr for automatic memory management */
     HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
+    /* AIDEV-NOTE: Fast-reject filter for the free path. MUST be a superset
+     * of allocs_m's keys: if the filter says "absent", we can skip the
+     * allocs_m probe. False positives fall through harmlessly to an empty
+     * extract; false negatives would leak heap-tracker state. See
+     * _memalloc_cuckoo.hpp for invariant details. */
+    CuckooFilter live_filter;
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
 
@@ -224,8 +231,17 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
+    /* AIDEV-NOTE: 99% of frees aren't sampled. The filter rejects them in
+     * ~10-15 cycles vs 50-100 cycles for an allocs_m miss. False positives
+     * (FPR ≈ 1/8192 — see _memalloc_cuckoo.hpp for derivation) fall through
+     * harmlessly: extract returns an empty node and we leave both the
+     * filter and map untouched. */
+    if (!live_filter.contains(ptr)) {
+        return;
+    }
     auto node = allocs_m.extract(ptr);
     if (!node.empty()) {
+        live_filter.erase(ptr);
         pool_put_no_cpython(std::move(node.mapped()));
     }
 }
@@ -258,6 +274,21 @@ void
 heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
+
+    /* AIDEV-NOTE: Maintain the filter-superset invariant (filter ⊇ allocs_m
+     * keys). Insert into the filter FIRST: if it saturates (returns false),
+     * drop the sample. Adding to allocs_m without a filter entry would
+     * create a false negative — untrack_no_cpython would early-return on
+     * the real pointer and leak the traceback. At ~50% load (worst case at
+     * the 65535 cap) saturation is essentially unreachable; see the
+     * AIDEV-TODO in CuckooFilter::insert for the residual edge case
+     * (an orphaned fp from the eviction chain). */
+    assert(!live_filter.contains(ptr) && "filter saw duplicate insert; missed untrack?");
+    if (!live_filter.insert(ptr)) {
+        pool_put_no_cpython(std::move(tb));
+        reset_sampling_state_no_cpython();
+        return;
+    }
 
     auto [it, inserted] = allocs_m.insert_or_assign(ptr, std::move(tb));
     (void)it; // Unused, but needed for structured binding
@@ -307,6 +338,10 @@ heap_tracker_t::postfork_child()
     // Allocations map may contain data from the parent process, and also
     // traceback_t objects may reference invalid Profile state.
     allocs_m.clear();
+
+    // Filter must be reset alongside allocs_m to maintain the superset
+    // invariant.
+    live_filter.clear();
 
     // Reset the sampling state to start fresh after fork.
     reset_sampling_state_no_cpython();
