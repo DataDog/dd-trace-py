@@ -32,9 +32,16 @@ using filter_hash_t = std::hash<T>;
  *   - False negatives MUST NOT occur — they would skip a real entry and
  *     leak heap-tracker state.
  *
- * To preserve the invariant on saturation: insert() returns false when
- * eviction reaches MAX_KICKS, and the caller MUST drop the sample (must
- * NOT add to allocs_m without a filter entry).
+ * Saturation handling: when the eviction chain can't terminate within
+ * MAX_KICKS, the displaced fingerprint is parked in a single-slot victim
+ * cache (instead of being orphaned). contains() and erase() consult both
+ * the table and the victim. This restores the strict superset invariant
+ * for the first saturation. If a SECOND saturation occurs while the
+ * victim is still occupied, insert() returns false WITHOUT mutating the
+ * table (we refuse before starting the eviction chain), and the caller
+ * MUST drop the sample. At our 50% load both events are essentially
+ * unreachable; the victim closes the rare-but-nonzero leak window of the
+ * naive cuckoo filter.
  *
  * Sizing rationale:
  *   - 4 slots per bucket × 32768 buckets = 131072 slots
@@ -59,23 +66,33 @@ using filter_hash_t = std::hash<T>;
  * assumes the GIL is held. When PEP 703 free-threading lands, both will
  * need to migrate to atomics together.
  */
-class CuckooFilter
+/* Template parameters expose the filter's geometry so tests can instantiate
+ * tiny variants (e.g. CuckooFilterImpl<2, 2, 4>) and exercise the
+ * saturation/victim-cache paths deterministically. Production code uses
+ * the default parameters via the `CuckooFilter` alias below. */
+template<size_t NumBuckets = (1u << 15) /* 32768 */, size_t SlotsPerBucket = 4, size_t MaxKicks = 500>
+class CuckooFilterImpl
 {
+    static_assert((NumBuckets & (NumBuckets - 1)) == 0, "NumBuckets must be a power of 2");
+    static_assert(SlotsPerBucket > 0 && (SlotsPerBucket & (SlotsPerBucket - 1)) == 0,
+                  "SlotsPerBucket must be a power of 2");
+
   public:
-    static constexpr size_t NUM_BUCKETS = 1u << 15; /* 32768 */
-    static constexpr size_t SLOTS_PER_BUCKET = 4;
-    static constexpr size_t MAX_KICKS = 500;
-    static constexpr uint32_t BUCKET_MASK = static_cast<uint32_t>(NUM_BUCKETS - 1);
+    static constexpr size_t NUM_BUCKETS = NumBuckets;
+    static constexpr size_t SLOTS_PER_BUCKET = SlotsPerBucket;
+    static constexpr size_t MAX_KICKS = MaxKicks;
+    static constexpr uint32_t BUCKET_MASK = static_cast<uint32_t>(NumBuckets - 1);
     static constexpr uint16_t EMPTY_SLOT = 0;
 
-    CuckooFilter() noexcept
+    CuckooFilterImpl() noexcept
       : evict_rng_(0x9e3779b9U)
     {
         clear();
     }
 
-    /* Returns false if eviction failed after MAX_KICKS. Caller MUST drop
-     * the sample to preserve the filter-superset invariant. */
+    /* Returns false only if a second saturation would occur while the victim
+     * slot is already in use. In that case the table is left untouched and
+     * the caller MUST drop the sample to preserve filter ⊇ allocs_m. */
     bool insert(const void* ptr) noexcept
     {
         const Hashed h = hash_ptr(ptr);
@@ -91,8 +108,16 @@ class CuckooFilter
             return true;
         }
 
-        /* Both buckets full. Evict a random slot from b2 and walk the
-         * displaced fingerprint to its alternate bucket. */
+        /* Both buckets are full; eviction is the only way to place fp.
+         * If the victim slot is already occupied, refuse BEFORE we
+         * disturb the table — otherwise an unsuccessful chain would
+         * orphan another original entry beyond our recovery. */
+        if (victim_occupied_) {
+            return false;
+        }
+
+        /* Evict a random slot from b2 and walk the displaced fingerprint
+         * to its alternate bucket. */
         uint32_t b = b2;
         for (size_t i = 0; i < MAX_KICKS; i++) {
             const size_t slot = static_cast<size_t>(evict_rng_()) & (SLOTS_PER_BUCKET - 1);
@@ -103,25 +128,20 @@ class CuckooFilter
                 return true;
             }
         }
-        /* AIDEV-NOTE: Saturated. The very first swap at b2 already placed
-         * the *new* fingerprint and started kicking older ones along the
-         * chain. What we end up unable to relocate (the value still in `fp`
-         * here) is an *earlier-tracked* fingerprint, not the new one. That
-         * orphan corresponds to some existing allocs_m entry: the filter no
-         * longer remembers it, so a future untrack of its pointer will be a
-         * false negative and leak that entry — the filter ⊇ allocs_m
-         * invariant is broken for that single pointer. The new pointer's
-         * fingerprint, conversely, is still in the filter with no allocs_m
-         * counterpart, which is harmless (extra slack on the safe side).
-         * Caller MUST drop the new sample to avoid compounding the
-         * asymmetry by adding a fresh allocs_m entry on top.
-         *
-         * AIDEV-TODO: at 50% load this branch is essentially unreachable
-         * (per-insert failure probability < 1e-10). If we ever observe it
-         * in production, fix with a single-slot victim cache: store
-         * (orphan_b, orphan_fp) here and have contains()/erase() check it.
-         * ~10 LoC, O(1) memory, restores the strict invariant. */
-        return false;
+        /* AIDEV-NOTE: Eviction chain didn't terminate within MAX_KICKS.
+         * The new fingerprint was successfully placed at the start of the
+         * chain (b2[slot]); what we couldn't relocate (still in `fp` here)
+         * is an *earlier-tracked* fingerprint. Park it in the victim slot
+         * along with `b` (one of its two valid buckets) so future
+         * contains()/erase() can still locate it. This preserves the
+         * strict superset invariant. At 50% load, reaching this branch
+         * has probability < 1e-10 per insert; reaching it with the victim
+         * already occupied is effectively impossible. */
+        victim_fp_ = fp;
+        victim_bucket_ = b;
+        victim_occupied_ = true;
+        size_++;
+        return true;
     }
 
     bool contains(const void* ptr) const noexcept
@@ -130,14 +150,23 @@ class CuckooFilter
         if (bucket_contains(h.bucket, h.fp)) {
             return true;
         }
-        return bucket_contains(alt_bucket(h.bucket, h.fp), h.fp);
+        const uint32_t b2 = alt_bucket(h.bucket, h.fp);
+        if (bucket_contains(b2, h.fp)) {
+            return true;
+        }
+        /* AIDEV-NOTE: A fingerprint's two valid buckets are (b, alt(b, fp))
+         * for any b in the pair. If the victim's fp matches and its stored
+         * bucket equals either of the query's two candidate buckets, the
+         * victim represents a logically-present entry for this ptr. */
+        return victim_occupied_ && victim_fp_ == h.fp && (victim_bucket_ == h.bucket || victim_bucket_ == b2);
     }
 
-    /* Clears one slot matching the pointer's fingerprint, if any. No-op if
-     * no slot matches. AIDEV-NOTE: callers must only erase pointers that
-     * were previously inserted — otherwise, in the rare same-fp/same-bucket
-     * collision, this could clear an unrelated tracked entry's slot and
-     * induce a false negative on its eventual untrack. */
+    /* Clears one slot matching the pointer's fingerprint, if any. Checks
+     * the table first, then the victim. AIDEV-NOTE: callers must only
+     * erase pointers that were previously inserted — otherwise, in the
+     * rare same-fp/same-bucket-pair collision, this could clear an
+     * unrelated tracked entry and induce a false negative on its
+     * eventual untrack. */
     void erase(const void* ptr) noexcept
     {
         const Hashed h = hash_ptr(ptr);
@@ -145,7 +174,13 @@ class CuckooFilter
             size_--;
             return;
         }
-        if (bucket_erase(alt_bucket(h.bucket, h.fp), h.fp)) {
+        const uint32_t b2 = alt_bucket(h.bucket, h.fp);
+        if (bucket_erase(b2, h.fp)) {
+            size_--;
+            return;
+        }
+        if (victim_occupied_ && victim_fp_ == h.fp && (victim_bucket_ == h.bucket || victim_bucket_ == b2)) {
+            victim_occupied_ = false;
             size_--;
         }
     }
@@ -153,6 +188,7 @@ class CuckooFilter
     void clear() noexcept
     {
         std::memset(table_.data(), 0, sizeof(table_));
+        victim_occupied_ = false;
         size_ = 0;
     }
 
@@ -163,7 +199,7 @@ class CuckooFilter
     {
         uint16_t slots[SLOTS_PER_BUCKET];
     };
-    static_assert(sizeof(Bucket) == 8, "expect 8-byte bucket");
+    static_assert(sizeof(Bucket) == sizeof(uint16_t) * SLOTS_PER_BUCKET, "Bucket must be tightly packed");
 
     struct Hashed
     {
@@ -228,4 +264,13 @@ class CuckooFilter
     std::array<Bucket, NUM_BUCKETS> table_;
     std::minstd_rand evict_rng_;
     size_t size_ = 0;
+    /* Single-slot victim cache for fingerprints displaced by a saturated
+     * eviction chain. See class-level docs and insert() for semantics. */
+    uint16_t victim_fp_ = 0;
+    uint32_t victim_bucket_ = 0;
+    bool victim_occupied_ = false;
 };
+
+/* Default-parameter alias used by the heap profiler. Tests instantiate
+ * CuckooFilterImpl<...> directly with smaller geometry. */
+using CuckooFilter = CuckooFilterImpl<>;
