@@ -276,13 +276,13 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     /* AIDEV-NOTE: Maintain the filter-superset invariant (filter ⊇ allocs_m
-     * keys). Insert into the filter FIRST: if it saturates (returns false),
-     * drop the sample. Adding to allocs_m without a filter entry would
-     * create a false negative — untrack_no_cpython would early-return on
-     * the real pointer and leak the traceback. At ~50% load (worst case at
-     * the 65535 cap) saturation is essentially unreachable; see the
-     * AIDEV-TODO in CuckooFilter::insert for the residual edge case
-     * (an orphaned fp from the eviction chain). */
+     * keys). Insert into the filter FIRST: if it returns false (a second
+     * back-to-back saturation while the victim slot is still occupied,
+     * effectively unreachable at our 50% load), drop the sample. Adding
+     * to allocs_m without a filter entry would otherwise create a false
+     * negative — untrack_no_cpython would early-return on the real
+     * pointer and leak the traceback. The first saturation is absorbed
+     * by the filter's victim slot; see CuckooFilter::insert for details. */
     assert(!live_filter.contains(ptr) && "filter saw duplicate insert; missed untrack?");
     if (!live_filter.insert(ptr)) {
         pool_put_no_cpython(std::move(tb));
