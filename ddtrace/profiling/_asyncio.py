@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from functools import partial
+from functools import wraps
 import sys
 from types import ModuleType
 import typing
@@ -16,10 +17,31 @@ from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.wrapping import wrap
 
 
 ASYNCIO_IMPORTED: bool = False
+
+
+def _wrap(
+    owner: typing.Any,
+    name: str,
+    wrapper: typing.Callable[..., typing.Any],
+    aliases: typing.Sequence[tuple[typing.Any, str]] = (),
+) -> typing.Callable[..., typing.Any]:
+    """Replace ``owner.name`` with a callable that invokes
+    ``wrapper(original, args, kwargs)``, mirroring the replacement onto every
+    ``(alias_owner, alias_name)`` in ``aliases``.
+    """
+    original = getattr(owner, name)
+
+    @wraps(original)
+    def wrapped(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+        return wrapper(original, args, kwargs)
+
+    setattr(owner, name, wrapped)
+    for alias_owner, alias_name in aliases:
+        setattr(alias_owner, alias_name, wrapped)
+    return wrapped
 
 
 def current_task() -> typing.Optional[asyncio.Task[typing.Any]]:
@@ -104,7 +126,7 @@ def _(asyncio: ModuleType) -> None:
 
     if policy_class is not None:
 
-        @partial(wrap, policy_class.set_event_loop)  # pyright: ignore[reportArgumentType]
+        @partial(_wrap, policy_class, "set_event_loop")  # pyright: ignore[reportArgumentType]
         def _(
             f: typing.Callable[[object, typing.Optional[aio.AbstractEventLoop]], None],
             args: typing.Any,
@@ -117,7 +139,7 @@ def _(asyncio: ModuleType) -> None:
 
     if init_stack:
 
-        @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
+        @partial(_wrap, sys.modules["asyncio"].tasks._GatheringFuture, "__init__")
         def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:
             try:
                 return f(*args, **kwargs)
@@ -133,7 +155,7 @@ def _(asyncio: ModuleType) -> None:
                         for child in children:
                             stack.link_tasks(parent, child)
 
-        @partial(wrap, sys.modules["asyncio"].tasks._wait)
+        @partial(_wrap, sys.modules["asyncio"].tasks, "_wait")
         def _(
             f: typing.Callable[..., tuple[set[aio.Future[typing.Any]], set[aio.Future[typing.Any]]]],
             args: tuple[typing.Any, ...],
@@ -149,7 +171,12 @@ def _(asyncio: ModuleType) -> None:
                     for future in futures:
                         stack.link_tasks(parent, future)
 
-        @partial(wrap, sys.modules["asyncio"].tasks.as_completed)
+        @partial(
+            _wrap,
+            sys.modules["asyncio"].tasks,
+            "as_completed",
+            aliases=[(sys.modules["asyncio"], "as_completed")],
+        )
         def _(
             f: typing.Callable[..., typing.Generator[aio.Future[typing.Any], typing.Any, None]],
             args: tuple[typing.Any, ...],
@@ -177,7 +204,12 @@ def _(asyncio: ModuleType) -> None:
             return f(*args, **kwargs)
 
         # Wrap asyncio.shield to link parent task to shielded future
-        @partial(wrap, sys.modules["asyncio"].tasks.shield)
+        @partial(
+            _wrap,
+            sys.modules["asyncio"].tasks,
+            "shield",
+            aliases=[(sys.modules["asyncio"], "shield")],
+        )
         def _(
             f: typing.Callable[..., aio.Future[typing.Any]],
             args: tuple[typing.Any, ...],
@@ -208,7 +240,7 @@ def _(asyncio: ModuleType) -> None:
                 taskgroup_class: typing.Optional[type[typing.Any]] = getattr(taskgroups_module, "TaskGroup", None)
                 if taskgroup_class is not None and hasattr(taskgroup_class, "create_task"):
 
-                    @partial(wrap, taskgroup_class.create_task)
+                    @partial(_wrap, taskgroup_class, "create_task")
                     def _(
                         f: typing.Callable[..., aio.Task[typing.Any]],
                         args: tuple[typing.Any, ...],
@@ -228,7 +260,12 @@ def _(asyncio: ModuleType) -> None:
         # if it times out. The timeout._task is the same as the current task, so there's
         # no parent-child relationship to link. The timeout mechanism is handled by the
         # event loop's timeout handler, not by creating new tasks.
-        @partial(wrap, sys.modules["asyncio"].tasks.create_task)
+        @partial(
+            _wrap,
+            sys.modules["asyncio"].tasks,
+            "create_task",
+            aliases=[(sys.modules["asyncio"], "create_task")],
+        )
         def _(
             f: typing.Callable[..., aio.Task[typing.Any]],
             args: tuple[typing.Any, ...],
@@ -271,7 +308,7 @@ def _(uvloop: ModuleType) -> None:
     )
     if new_event_loop_func is not None:
 
-        @partial(wrap, new_event_loop_func)  # type: ignore[arg-type]
+        @partial(_wrap, uvloop, "new_event_loop")
         def _(
             f: typing.Callable[[], asyncio.AbstractEventLoop],
             args: tuple[typing.Any, ...],
@@ -292,7 +329,7 @@ def _(uvloop: ModuleType) -> None:
     policy_class: typing.Optional[type[typing.Any]] = getattr(uvloop, "EventLoopPolicy", None)
     if policy_class is not None and hasattr(policy_class, "set_event_loop"):
 
-        @partial(wrap, policy_class.set_event_loop)  # pyright: ignore[reportArgumentType]
+        @partial(_wrap, policy_class, "set_event_loop")  # pyright: ignore[reportArgumentType]
         def _(
             f: typing.Callable[[object, typing.Optional[asyncio.AbstractEventLoop]], None],
             args: typing.Any,
