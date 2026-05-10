@@ -50,7 +50,7 @@ def _warn_bad_dist(dist, exc: BaseException) -> None:
     if key in _BAD_DISTS_WARNED:
         return
     _BAD_DISTS_WARNED.add(key)
-    LOG.warning("Skipping distribution with unreadable metadata at %s: %s", key, exc, exc_info=True)
+    LOG.debug("Skipping distribution with unreadable metadata at %s: %s", key, exc, exc_info=True)
 
 
 @callonce
@@ -212,20 +212,10 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
         namespaces[root] = False
         return False
 
-    try:
-        dists = list(importlib_metadata.distributions())
-    except Exception:
-        LOG.warning(
-            "Unable to enumerate installed distributions, "
-            "please report this to https://github.com/DataDog/dd-trace-py/issues",
-            exc_info=True,
-        )
-        return None
-
     # AIDEV-NOTE: per-dist try/except — one bad dist used to collapse the whole
     # mapping to None (silently breaking is_third_party for the rest of the process).
     mapping: dict[str, Distribution] = {}
-    for dist in dists:
+    for dist in importlib_metadata.distributions():
         try:
             if not (files := dist.files):
                 continue

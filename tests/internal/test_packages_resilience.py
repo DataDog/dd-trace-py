@@ -19,18 +19,22 @@ import pytest
 
 @pytest.fixture
 def reset_packages_caches():
-    """Drop ``@callonce`` results and the bad-dist warning dedup set so each
-    test exercises the cache-miss path.
+    """Drop ``@callonce`` results and the bad-dist dedup set on both setup
+    and teardown — these tests populate the caches with fixture site-packages
+    that must not bleed into adjacent tests in the same worker.
     """
     from ddtrace.internal import packages as _p
 
-    for fn in (_p.get_distributions, _p._package_for_root_module_mapping):
-        inner = getattr(fn, "__wrapped__", None) or (fn.__closure__[0].cell_contents if fn.__closure__ else None)
-        if inner is not None and hasattr(inner, "__callonce_result__"):
-            del inner.__callonce_result__
-    _p._BAD_DISTS_WARNED.clear()
+    def _clear() -> None:
+        for fn in (_p.get_distributions, _p._package_for_root_module_mapping):
+            inner = getattr(fn, "__wrapped__", None) or (fn.__closure__[0].cell_contents if fn.__closure__ else None)
+            if inner is not None and hasattr(inner, "__callonce_result__"):
+                del inner.__callonce_result__
+        _p._BAD_DISTS_WARNED.clear()
+
+    _clear()
     yield
-    _p._BAD_DISTS_WARNED.clear()
+    _clear()
 
 
 @pytest.fixture
@@ -105,7 +109,7 @@ def test_get_distributions_skips_bad_dist_warns_once_returns_partial_map(
 
     from ddtrace.internal.packages import get_distributions
 
-    with caplog.at_level(logging.WARNING, logger="ddtrace.internal.packages"):
+    with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.packages"):
         a = get_distributions()
         b = get_distributions()
         c = get_distributions()
