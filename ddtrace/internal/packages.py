@@ -21,20 +21,8 @@ Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None  # noqa: UP006
 
-# AIDEV-NOTE: dist.metadata access is intentionally tolerant.
-# Real-world environments (system Python on Debian/RHEL, ``pip install -e``
-# from older pip versions, conda-pip mixes, CI base images) produce dist-info
-# directories with missing or unparseable METADATA. CPython's
-# ``importlib.metadata._adapters.Message.__getitem__`` already warns that
-# the silent-None contract is being phased out (``"Implicit None on return
-# values is deprecated and will raise KeyErrors."``); the
-# ``importlib_metadata`` backport raises ``KeyError`` on missing keys today.
-# When that path is hit, ``@callonce`` caches the failure for the lifetime
-# of the process and per-module callers in the telemetry dependency tracker
-# (``update_imported_dependencies``) log the chained traceback once per
-# imported module per heartbeat per worker — the ~16 GiB-of-stderr regression
-# reported in 4.8.2. Defend per-dist: skip bad ones, return what we could
-# parse, warn once.
+# AIDEV-NOTE: dist.metadata access is per-dist defensive — malformed METADATA
+# (rare but real on system-Python / CI images) must not poison the @callonce cache.
 _BAD_DISTS_WARNED: set[str] = set()
 
 
@@ -78,11 +66,10 @@ def get_distributions() -> t.Mapping[str, str]:
             metadata = dist.metadata
             name = metadata["name"]
             version = metadata["version"]
+            if name and version:
+                pkgs[name.lower()] = version
         except Exception as exc:
             _warn_bad_dist(dist, exc)
-            continue
-        if name and version:
-            pkgs[name.lower()] = version
 
     return pkgs
 
@@ -235,11 +222,8 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
         )
         return None
 
-    # AIDEV-NOTE: mirror the per-dist tolerance from get_distributions(). One
-    # malformed dist (missing/unparseable METADATA) used to take out the entire
-    # mapping (we returned None, which made is_third_party / filename_to_package
-    # fall back to "everything is user code" for the rest of the process).
-    # Skip the bad ones individually instead.
+    # AIDEV-NOTE: per-dist try/except — one bad dist used to collapse the whole
+    # mapping to None (silently breaking is_third_party for the rest of the process).
     mapping: dict[str, Distribution] = {}
     for dist in dists:
         try:
@@ -261,7 +245,6 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
                     mapping[root] = d
         except Exception as exc:
             _warn_bad_dist(dist, exc)
-            continue
 
     return mapping
 
@@ -385,14 +368,12 @@ def _packages_distributions() -> t.Mapping[str, list[str]]:
     for dist in importlib_metadata.distributions():
         try:
             name = dist.metadata["Name"]
-            top_levels = _top_level_declared(dist) or _top_level_inferred(dist)
+            if not name:
+                continue
+            for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
+                pkg_to_dist[pkg].append(name)
         except Exception as exc:
             _warn_bad_dist(dist, exc)
-            continue
-        if not name:
-            continue
-        for pkg in top_levels:
-            pkg_to_dist[pkg].append(name)
     return dict(pkg_to_dist)
 
 
