@@ -21,6 +21,50 @@ Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None  # noqa: UP006
 
+# AIDEV-NOTE: dist.metadata access is intentionally tolerant.
+# Per PEP 566 the ``Name`` field is required, but real-world environments
+# (system Python on Debian/RHEL, ``pip install -e`` from older pip versions,
+# conda-pip mixes, CI base images) produce dist-info directories with
+# missing or unparseable METADATA. CPython's own
+# ``importlib.metadata._adapters.Message.__getitem__`` warns that the
+# silent-None contract is being phased out: ``"Implicit None on return values
+# is deprecated and will raise KeyErrors."`` (see
+# python/cpython#102117). When the future-strict path lands, the strict
+# ``metadata["name"]`` access here would raise; ``@callonce`` would cache the
+# failure for the lifetime of the process; and per-module callers in the
+# telemetry dependency tracker (``update_imported_dependencies``) would log
+# the chained traceback once per imported module per heartbeat per worker —
+# which is what produced the ~16 GiB-of-stderr regression reported in 4.8.2.
+# Defend per-dist: skip the bad ones, return what we could parse, warn once.
+_BAD_DISTS_WARNED: set[str] = set()
+
+
+def _bad_dist_key(dist) -> str:
+    """A stable identifier for deduping warnings about a malformed dist.
+
+    ``Distribution._path`` is a private attribute but the most useful key in
+    practice for path-based installs (the dist-info directory). For other
+    backends we fall back to ``repr(dist)``.
+    """
+    path = getattr(dist, "_path", None)
+    if path is not None:
+        return str(path)
+    return repr(dist)
+
+
+def _warn_bad_dist(dist, exc: BaseException) -> None:
+    """Log a one-time warning per malformed dist; subsequent calls are silent.
+
+    The first warning includes ``exc_info=True`` so an operator can identify
+    the broken package; further encounters are suppressed to keep CI logs
+    bounded.
+    """
+    key = _bad_dist_key(dist)
+    if key in _BAD_DISTS_WARNED:
+        return
+    _BAD_DISTS_WARNED.add(key)
+    LOG.warning("Skipping distribution with unreadable metadata at %s: %s", key, exc, exc_info=True)
+
 
 @callonce
 def get_distributions() -> t.Mapping[str, str]:
@@ -29,11 +73,19 @@ def get_distributions() -> t.Mapping[str, str]:
 
     pkgs = {}
     for dist in importlib_metadata.distributions():
-        # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
-        # Optimization: we should avoid accessing dist.metadata more than once
-        metadata = dist.metadata
-        name = metadata["name"]
-        version = metadata["version"]
+        try:
+            # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed.
+            # Optimization: we should avoid accessing dist.metadata more than once.
+            metadata = dist.metadata
+            # ``Name`` (capitalized) is the canonical PEP 566 form; email-Message
+            # lookups are case-insensitive. ``or ""`` neutralizes the future-strict
+            # KeyError path described in the AIDEV-NOTE above and the legacy
+            # silent-None path on current Pythons in one expression.
+            name = metadata["Name"] or ""
+            version = metadata["Version"] or ""
+        except Exception as exc:
+            _warn_bad_dist(dist, exc)
+            continue
         if name and version:
             pkgs[name.lower()] = version
 
@@ -179,13 +231,31 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
         return False
 
     try:
-        mapping = {}
+        dists = list(importlib_metadata.distributions())
+    except Exception:
+        LOG.warning(
+            "Unable to enumerate installed distributions, "
+            "please report this to https://github.com/DataDog/dd-trace-py/issues",
+            exc_info=True,
+        )
+        return None
 
-        for dist in importlib_metadata.distributions():
+    # AIDEV-NOTE: mirror the per-dist tolerance from get_distributions(). One
+    # malformed dist (missing/unparseable METADATA) used to take out the entire
+    # mapping (we returned None, which made is_third_party / filename_to_package
+    # fall back to "everything is user code" for the rest of the process).
+    # Skip the bad ones individually instead.
+    mapping: dict[str, Distribution] = {}
+    for dist in dists:
+        try:
             if not (files := dist.files):
                 continue
             metadata = dist.metadata
-            d = Distribution(name=metadata["name"], version=metadata["version"])
+            name = metadata["Name"] or ""
+            version = metadata["Version"] or ""
+            if not (name and version):
+                continue
+            d = Distribution(name=name, version=version)
             for f in files:
                 root = f.parts[0]
                 if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
@@ -194,15 +264,11 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
                     root = "/".join(f.parts[:2])
                 if root not in mapping:
                     mapping[root] = d
+        except Exception as exc:
+            _warn_bad_dist(dist, exc)
+            continue
 
-        return mapping
-
-    except Exception:
-        LOG.warning(
-            "Unable to build package file mapping, please report this to https://github.com/DataDog/dd-trace-py/issues",
-            exc_info=True,
-        )
-        return None
+    return mapping
 
 
 @callonce
@@ -322,8 +388,16 @@ def _packages_distributions() -> t.Mapping[str, list[str]]:
 
     pkg_to_dist = collections.defaultdict(list)
     for dist in importlib_metadata.distributions():
-        for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
-            pkg_to_dist[pkg].append(dist.metadata["Name"])
+        try:
+            name = dist.metadata["Name"] or ""
+            top_levels = _top_level_declared(dist) or _top_level_inferred(dist)
+        except Exception as exc:
+            _warn_bad_dist(dist, exc)
+            continue
+        if not name:
+            continue
+        for pkg in top_levels:
+            pkg_to_dist[pkg].append(name)
     return dict(pkg_to_dist)
 
 

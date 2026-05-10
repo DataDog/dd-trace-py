@@ -1,0 +1,12 @@
+---
+
+fixes:
+  - |
+    telemetry: Resolves a stderr-volume regression introduced in 4.8 where a
+    single installed distribution with malformed or unreadable METADATA
+    (missing ``Name:`` header, unparseable PKG-INFO, etc.) caused the
+    dependency tracker to log a chained ``KeyError``/``AttributeError``
+    traceback once per imported module per heartbeat per worker. ``get_distributions``,
+    ``_package_for_root_module_mapping`` and ``_packages_distributions`` now
+    skip malformed dist-info entries individually and emit a single
+    ``WARNING`` per bad dist, returning the metadata that could be parsed.
