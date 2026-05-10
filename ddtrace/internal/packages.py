@@ -22,20 +22,19 @@ Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None  # noqa: UP006
 
 # AIDEV-NOTE: dist.metadata access is intentionally tolerant.
-# Per PEP 566 the ``Name`` field is required, but real-world environments
-# (system Python on Debian/RHEL, ``pip install -e`` from older pip versions,
-# conda-pip mixes, CI base images) produce dist-info directories with
-# missing or unparseable METADATA. CPython's own
-# ``importlib.metadata._adapters.Message.__getitem__`` warns that the
-# silent-None contract is being phased out: ``"Implicit None on return values
-# is deprecated and will raise KeyErrors."`` (see
-# python/cpython#102117). When the future-strict path lands, the strict
-# ``metadata["name"]`` access here would raise; ``@callonce`` would cache the
-# failure for the lifetime of the process; and per-module callers in the
-# telemetry dependency tracker (``update_imported_dependencies``) would log
-# the chained traceback once per imported module per heartbeat per worker —
-# which is what produced the ~16 GiB-of-stderr regression reported in 4.8.2.
-# Defend per-dist: skip the bad ones, return what we could parse, warn once.
+# Real-world environments (system Python on Debian/RHEL, ``pip install -e``
+# from older pip versions, conda-pip mixes, CI base images) produce dist-info
+# directories with missing or unparseable METADATA. CPython's
+# ``importlib.metadata._adapters.Message.__getitem__`` already warns that
+# the silent-None contract is being phased out (``"Implicit None on return
+# values is deprecated and will raise KeyErrors."``); the
+# ``importlib_metadata`` backport raises ``KeyError`` on missing keys today.
+# When that path is hit, ``@callonce`` caches the failure for the lifetime
+# of the process and per-module callers in the telemetry dependency tracker
+# (``update_imported_dependencies``) log the chained traceback once per
+# imported module per heartbeat per worker — the ~16 GiB-of-stderr regression
+# reported in 4.8.2. Defend per-dist: skip bad ones, return what we could
+# parse, warn once.
 _BAD_DISTS_WARNED: set[str] = set()
 
 
@@ -77,12 +76,8 @@ def get_distributions() -> t.Mapping[str, str]:
             # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed.
             # Optimization: we should avoid accessing dist.metadata more than once.
             metadata = dist.metadata
-            # ``Name`` (capitalized) is the canonical PEP 566 form; email-Message
-            # lookups are case-insensitive. ``or ""`` neutralizes the future-strict
-            # KeyError path described in the AIDEV-NOTE above and the legacy
-            # silent-None path on current Pythons in one expression.
-            name = metadata["Name"] or ""
-            version = metadata["Version"] or ""
+            name = metadata["name"]
+            version = metadata["version"]
         except Exception as exc:
             _warn_bad_dist(dist, exc)
             continue
@@ -251,8 +246,8 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
             if not (files := dist.files):
                 continue
             metadata = dist.metadata
-            name = metadata["Name"] or ""
-            version = metadata["Version"] or ""
+            name = metadata["name"]
+            version = metadata["version"]
             if not (name and version):
                 continue
             d = Distribution(name=name, version=version)
@@ -389,7 +384,7 @@ def _packages_distributions() -> t.Mapping[str, list[str]]:
     pkg_to_dist = collections.defaultdict(list)
     for dist in importlib_metadata.distributions():
         try:
-            name = dist.metadata["Name"] or ""
+            name = dist.metadata["Name"]
             top_levels = _top_level_declared(dist) or _top_level_inferred(dist)
         except Exception as exc:
             _warn_bad_dist(dist, exc)

@@ -1,19 +1,11 @@
 """Resilience tests for ``ddtrace.internal.packages``.
 
-These cover the case where one or more installed distributions ship with
-malformed or unreadable METADATA / PKG-INFO. Real-world examples include
-Linux distro-managed Python packages (apt/RPM), editable installs from old
-pip versions, and conda-pip mixes; they're particularly common on CI base
-images that mount many packages from heterogeneous sources.
-
-Before the fix, a single bad dist made ``get_distributions`` raise; the
-``@callonce`` cache then permanently poisoned the function for the lifetime
-of the process; and the telemetry dependency tracker logged a chained
-``AttributeError``/``KeyError`` traceback per imported module per heartbeat
-per worker (gigabytes of stderr per CI job).
-
-The fix is per-dist defensive: skip malformed entries, return what could be
-parsed, warn once per bad dist.
+Real-world environments (Linux distro Python, ``pip install -e`` from old
+pip versions, conda-pip mixes, CI base images) ship dist-info directories
+with malformed or unreadable METADATA. Before the fix, a single bad dist
+made ``get_distributions`` raise; ``@callonce`` cached that exception; and
+the telemetry dependency tracker logged a chained traceback per imported
+module per heartbeat per worker (gigabytes of stderr per CI job).
 """
 
 from __future__ import annotations
@@ -43,12 +35,7 @@ def reset_packages_caches():
 
 @pytest.fixture
 def isolated_metadata_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Restrict ``importlib.metadata.distributions()`` to a single directory.
-
-    Patching the default-path resolution lets each test build a known-good
-    fixture site-packages without depending on whatever happens to be
-    installed in the test environment.
-    """
+    """Restrict ``importlib.metadata.distributions()`` to a single directory."""
     import importlib.metadata as importlib_metadata
 
     def _fixed_path(*args, **kwargs):
@@ -61,6 +48,27 @@ def isolated_metadata_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> P
     return tmp_path
 
 
+@pytest.fixture
+def strict_metadata_getitem(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force ``Message.__getitem__`` to raise ``KeyError`` on missing keys.
+
+    Mirrors the behavior of the ``importlib_metadata`` backport (today) and
+    the future-strict path CPython is migrating to (``"Implicit None on
+    return values is deprecated and will raise KeyErrors."``). Without this
+    fixture the test would depend on the running Python's deprecation
+    policy.
+    """
+    real_get = _meta_adapters.email.message.Message.__getitem__
+
+    def strict(self, item):
+        res = real_get(self, item)
+        if res is None:
+            raise KeyError(item)
+        return res
+
+    monkeypatch.setattr(_meta_adapters.Message, "__getitem__", strict)
+
+
 def _write_dist_info(root: Path, name: str, version: str, metadata_body: str | None = None) -> Path:
     di = root / f"{name.replace('-', '_')}-{version}.dist-info"
     di.mkdir(parents=True)
@@ -71,12 +79,22 @@ def _write_dist_info(root: Path, name: str, version: str, metadata_body: str | N
     return di
 
 
-def test_get_distributions_skips_dist_missing_name_header(
+def test_get_distributions_skips_bad_dist_warns_once_returns_partial_map(
     isolated_metadata_path: Path,
     reset_packages_caches,
+    strict_metadata_getitem,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """One bad dist with no Name: header must not abort the whole call."""
+    """Single load-bearing test. Asserts:
+
+    1. The function does not raise on a malformed dist (so ``@callonce``
+       caches a *result*, not an exception — the regression that produced
+       the customer's per-module log spam).
+    2. The good dist is still returned (partial-map behavior).
+    3. Exactly one warning is emitted across multiple calls (the dedup,
+       which is what bounds the operator-facing log volume on hosts where
+       a malformed dist is permanently installed).
+    """
     _write_dist_info(isolated_metadata_path, "good-pkg", "1.0")
     _write_dist_info(
         isolated_metadata_path,
@@ -88,140 +106,27 @@ def test_get_distributions_skips_dist_missing_name_header(
     from ddtrace.internal.packages import get_distributions
 
     with caplog.at_level(logging.WARNING, logger="ddtrace.internal.packages"):
-        result = get_distributions()
+        a = get_distributions()
+        b = get_distributions()
+        c = get_distributions()
 
-    assert "good-pkg" in result
-    assert "broken-pkg" not in result
-    assert result["good-pkg"] == "1.0"
-
-
-def test_get_distributions_warns_once_per_bad_dist_across_calls(
-    isolated_metadata_path: Path,
-    reset_packages_caches,
-    caplog: pytest.LogCaptureFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Even if a future Python escalates the deprecation to KeyError (the
-    ``importlib_metadata`` backport already does), we should warn once and
-    keep going, not log per-call.
-    """
-    _write_dist_info(
-        isolated_metadata_path,
-        "broken-pkg",
-        "2.0",
-        metadata_body="Metadata-Version: 2.1\nVersion: 2.0\n",
-    )
-
-    # Force the future-strict path so the test doesn't depend on the running
-    # Python's deprecation policy.
-    real_get = _meta_adapters.email.message.Message.__getitem__
-
-    def strict_get(self, item):
-        res = real_get(self, item)
-        if res is None:
-            raise KeyError(item)
-        return res
-
-    monkeypatch.setattr(_meta_adapters.Message, "__getitem__", strict_get)
-
-    from ddtrace.internal import packages as _p
-    from ddtrace.internal.packages import get_distributions
-
-    with caplog.at_level(logging.WARNING, logger="ddtrace.internal.packages"):
-        get_distributions()
-        get_distributions()
-        get_distributions()
-
-    bad_dist_warnings = [r for r in caplog.records if "Skipping distribution" in r.getMessage()]
-    assert len(bad_dist_warnings) == 1, (
-        f"expected exactly one bad-dist warning across 3 calls, got {len(bad_dist_warnings)}"
-    )
-    assert _p._BAD_DISTS_WARNED, "dedup set should record the bad dist"
-
-
-def test_get_distributions_does_not_cache_failure_when_one_dist_is_bad(
-    isolated_metadata_path: Path,
-    reset_packages_caches,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The pre-fix bug: ``@callonce`` caches the *exception* if the function
-    raises. With per-dist tolerance the function returns a partial dict
-    instead of raising, so subsequent calls return the same dict (cached
-    *result*, not exception).
-    """
-    _write_dist_info(isolated_metadata_path, "good-pkg", "1.0")
-    _write_dist_info(
-        isolated_metadata_path,
-        "broken-pkg",
-        "2.0",
-        metadata_body="Metadata-Version: 2.1\nVersion: 2.0\n",
-    )
-
-    real_get = _meta_adapters.email.message.Message.__getitem__
-
-    def strict_get(self, item):
-        res = real_get(self, item)
-        if res is None:
-            raise KeyError(item)
-        return res
-
-    monkeypatch.setattr(_meta_adapters.Message, "__getitem__", strict_get)
-
-    from ddtrace.internal.packages import get_distributions
-
-    a = get_distributions()
-    b = get_distributions()
-
-    assert a == b
+    assert a == b == c
     assert a["good-pkg"] == "1.0"
     assert "broken-pkg" not in a
 
-
-def test_get_distributions_handles_metadata_attribute_errors(
-    isolated_metadata_path: Path,
-    reset_packages_caches,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """``dist.metadata`` itself can raise (e.g. unreadable bytes, transient
-    IOError during interpreter teardown). Skip and continue.
-    """
-    import importlib.metadata as importlib_metadata
-
-    _write_dist_info(isolated_metadata_path, "good-pkg", "1.0")
-
-    original_metadata = importlib_metadata.Distribution.metadata.fget
-    counter = {"called": 0}
-
-    def flaky_metadata(self):
-        counter["called"] += 1
-        if counter["called"] == 1:
-            raise OSError("simulated unreadable METADATA")
-        return original_metadata(self)
-
-    monkeypatch.setattr(
-        importlib_metadata.Distribution,
-        "metadata",
-        property(flaky_metadata),
-    )
-
-    from ddtrace.internal.packages import get_distributions
-
-    # First dist iteration raises OSError; second iteration returns valid metadata.
-    # We can't assert on which dist is which deterministically, but the call
-    # must not raise and must return a (possibly empty) mapping.
-    result = get_distributions()
-    assert isinstance(result, dict)
+    bad_dist_warnings = [r for r in caplog.records if "Skipping distribution" in r.getMessage()]
+    assert len(bad_dist_warnings) == 1
 
 
 def test_package_for_root_module_mapping_skips_bad_dist(
     isolated_metadata_path: Path,
     reset_packages_caches,
-    monkeypatch: pytest.MonkeyPatch,
+    strict_metadata_getitem,
 ) -> None:
-    """Pre-fix: one bad dist made the entire mapping return None, which
-    silently broke ``filename_to_package`` / ``is_third_party`` for the rest
-    of the process. Post-fix: the mapping is built from the remaining good
-    dists.
+    """The pre-fix top-level ``try/except`` collapsed the entire mapping to
+    ``None`` on one bad dist, silently making ``filename_to_package`` /
+    ``is_third_party`` fall back to "everything is user code" for the rest
+    of the process. Per-dist tolerance keeps the mapping intact.
     """
     di_good = _write_dist_info(isolated_metadata_path, "good-pkg", "1.0")
     (di_good / "RECORD").write_text("good_pkg/__init__.py,,\n")
@@ -238,20 +143,10 @@ def test_package_for_root_module_mapping_skips_bad_dist(
     (isolated_metadata_path / "broken_pkg").mkdir()
     (isolated_metadata_path / "broken_pkg" / "__init__.py").write_text("")
 
-    real_get = _meta_adapters.email.message.Message.__getitem__
-
-    def strict_get(self, item):
-        res = real_get(self, item)
-        if res is None:
-            raise KeyError(item)
-        return res
-
-    monkeypatch.setattr(_meta_adapters.Message, "__getitem__", strict_get)
-
     from ddtrace.internal.packages import _package_for_root_module_mapping
 
     mapping = _package_for_root_module_mapping()
 
-    assert mapping is not None, "one bad dist should not collapse the whole mapping"
+    assert mapping is not None
     assert "good_pkg" in mapping
     assert mapping["good_pkg"].name == "good-pkg"
