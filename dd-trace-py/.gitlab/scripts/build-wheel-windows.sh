@@ -42,7 +42,7 @@ docker run --rm \
   -w 'C:\workspace' \
   "${IMAGE}" \
   powershell -NoProfile -NonInteractive \
-    -File 'C:\workspace\.gitlab\scripts\windows-docker-build.ps1' \
+    -File 'C:\workspace\dd-trace-py\.gitlab\scripts\windows-docker-build.ps1' \
     -VcArch "${VC_ARCH}"
 
 export BUILT_WHEEL_FILE
@@ -60,6 +60,6 @@ docker run --rm \
   -w 'C:\workspace' \
   "${IMAGE}" \
   powershell -NoProfile -NonInteractive \
-    -File 'C:\workspace\.gitlab\scripts\windows-docker-test.ps1' \
+    -File 'C:\workspace\dd-trace-py\.gitlab\scripts\windows-docker-test.ps1' \
     -UvPython "${UV_PYTHON}"
 section_end "test_wheel"

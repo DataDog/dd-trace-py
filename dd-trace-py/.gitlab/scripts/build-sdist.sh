@@ -8,5 +8,5 @@ source "$(dirname "$0")/build-wheel-helpers.sh"
 setup
 
 section_start "build_sdist" "Building source distribution"
-uv build --sdist --out-dir pywheels/
+uv build --sdist --out-dir dd-trace-py/pywheels/
 section_end "build_sdist"

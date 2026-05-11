@@ -554,6 +554,7 @@ lib_injection_tests:
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
     - export PYENV_VERSION=${PYTHON_VERSION}
   script:
+    - cd dd-trace-py
     - python --version
     # All profiling tests use EXPECT_EXIT (death tests) which fork child processes.
     # LSAN's signal handler in forked children conflicts with gtest, causing spurious crashes.
