@@ -4,6 +4,7 @@ import gc
 import inspect
 import os
 from pathlib import Path
+import struct
 import sys
 import threading
 from tracemalloc import Statistic
@@ -18,7 +19,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
-from ddtrace.internal.settings.profiling import (
+from ddtrace.internal.settings.profiling import (  # type: ignore[attr-defined]
     _derive_default_heap_sample_size,  # pyright: ignore[reportAttributeAccessIssue]
 )
 from ddtrace.profiling.collector import memalloc
@@ -1290,9 +1291,12 @@ def _make_mem_domain_object(size_bytes: int) -> object:
     if PY_313_OR_ABOVE:
         return bytearray(size_bytes)
     # PyList_New calls PyMem_Calloc (PYMEM_DOMAIN_MEM) for the ob_item pointer
-    # array; N pointers @ 8 bytes each → size_bytes total.  The list header
-    # (PyListObject) goes through PYMEM_DOMAIN_OBJ and is negligible in size.
-    n_ptrs: int = size_bytes // 8
+    # array; N pointers × sizeof(void*) bytes → size_bytes total.  Using
+    # struct.calcsize("P") so this stays correct on 32-bit builds where pointers
+    # are 4 bytes.  The list header (PyListObject) goes through PYMEM_DOMAIN_OBJ
+    # and is negligible in size.
+    ptr_size: int = struct.calcsize("P")
+    n_ptrs: int = size_bytes // ptr_size
     return [None] * n_ptrs
 
 
