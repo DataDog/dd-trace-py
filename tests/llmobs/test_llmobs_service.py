@@ -247,7 +247,7 @@ def test_enable_without_api_key_does_not_swap_apm_writer():
         "PYTHONWARNINGS": "ignore::DeprecationWarning",
     }
 )
-def test_export_llmobs_coerced_to_false_when_apm_is_agentless():
+def test_export_directly_to_llmobs_false_when_agentless():
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     llmobs_service.enable()
@@ -262,7 +262,7 @@ def test_export_llmobs_coerced_to_false_when_apm_is_agentless():
         "PYTHONWARNINGS": "ignore::DeprecationWarning",
     }
 )
-def test_export_llmobs_not_coerced_when_apm_is_not_agentless():
+def test_export_directly_to_llmobs_true_when_not_agentless():
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     llmobs_service.enable(agentless_enabled=False)

@@ -462,19 +462,11 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
-        _export_llmobs_explicit = _env.get("_DD_LLMOBS_EXPORT")
-        self._export_directly_to_llmobs = (_export_llmobs_explicit or "llmobs") == "llmobs"
-        # When the agentless APM writer ships LLMObs data via meta_struct, route through it to
-        # avoid double submission. Skip when DD_APM_TRACING_ENABLED=false since APMTracingEnabledFilter
-        # would drop the trace; the LLMObs writer must remain the export channel.
+        # Route LLMObs payloads through the agentless APM writer (via meta_struct) when it is
+        # active, unless DD_APM_TRACING_ENABLED=false — in that case APMTracingEnabledFilter drops
+        # every trace before the writer sees it, so the dedicated LLMObs writer must be used.
         apm_tracing_enabled = asbool(_env.get("DD_APM_TRACING_ENABLED", "true"))
-        if self._export_directly_to_llmobs and apm_tracing_enabled and llmobs_apm_trace_agentless_enabled():
-            if _export_llmobs_explicit is not None:
-                log.warning(
-                    "_DD_LLMOBS_EXPORT=llmobs is ignored because the APM trace writer is configured "
-                    "for agentless export; coercing to 'apm' to prevent double submission of LLMObs data."
-                )
-            self._export_directly_to_llmobs = False
+        self._export_directly_to_llmobs = not (apm_tracing_enabled and llmobs_apm_trace_agentless_enabled())
         # Test-only: when set, _on_span_finish skips the meta_struct["_llmobs"] scrub
         # so spans captured by tests' DummyWriter retain LLMObsSpanData for assertion.
         # Set by integration test conftests via the _DD_LLMOBS_TEST_KEEP_META_STRUCT env
