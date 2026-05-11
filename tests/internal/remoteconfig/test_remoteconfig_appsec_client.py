@@ -12,8 +12,10 @@ from tests.utils import override_global_config
 
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
-def test_load_new_configurations_update_applied_configs(mock_extract_target_file):
-    """Test that new configurations are loaded, payloads are created, and applied_configs is updated."""
+def test_reconcile_applies_new_configuration(mock_extract_target_file):
+    """A new incoming config not in _applied_configs should be extracted, emitted as a
+    payload, and recorded in applied_configs.
+    """
     with override_global_config(dict(_remote_config_enabled=True)):
         mock_config_content = {"test": "content"}
         mock_extract_target_file.return_value = mock_config_content
@@ -30,29 +32,25 @@ def test_load_new_configurations_update_applied_configs(mock_extract_target_file
         rc_client.register_callback("ASM_FEATURES", mock_callback)
 
         payload_list = []
-        rc_client._load_new_configurations(payload_list, applied_configs, client_configs, payload=agent_payload)
+        rc_client._reconcile_configurations(payload_list, applied_configs, client_configs, payload=agent_payload)
         rc_client._publish_configuration(payload_list)
 
-        # Verify extraction was called
         mock_extract_target_file.assert_called_with(agent_payload, "mock/ASM_FEATURES", mock_config)
 
-        # Verify a payload was created and published
         assert len(payload_list) == 1
         assert payload_list[0].content == mock_config_content
         assert payload_list[0].path == "mock/ASM_FEATURES"
         assert payload_list[0].metadata == mock_config
 
-        # Verify applied_configs was updated
         assert applied_configs == client_configs
 
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
-def test_load_new_configurations_multiple_products_same_callback(mock_extract_target_file):
-    """Test that multiple products can share the same callback and all payloads are collected."""
+def test_reconcile_multiple_products_same_callback(mock_extract_target_file):
+    """Multiple products sharing a callback should each produce their own payload."""
     with override_global_config(dict(_remote_config_enabled=True)):
         mock_callback = MagicMock()
 
-        # Mock extract to return different content for each product
         def mock_extract(payload, target, config):
             return {"product": config.product_name, "target": target}
 
@@ -71,28 +69,27 @@ def test_load_new_configurations_multiple_products_same_callback(mock_extract_ta
         agent_payload = AgentPayload()
 
         rc_client = RemoteConfigClient()
-        # Register the same callback for both products
         rc_client.register_callback("ASM_DATA", mock_callback)
         rc_client.register_callback("ASM_FEATURES", mock_callback)
 
         payload_list = []
-        rc_client._load_new_configurations(payload_list, applied_configs, client_configs, payload=agent_payload)
+        rc_client._reconcile_configurations(payload_list, applied_configs, client_configs, payload=agent_payload)
         rc_client._publish_configuration(payload_list)
 
-        # Verify both payloads were created
         assert len(payload_list) == 2
 
-        # Verify payloads contain correct data from both products
         products = {p.metadata.product_name for p in payload_list}
         assert products == {"ASM_FEATURES", "ASM_DATA"}
 
-        # Verify applied_configs was updated with both configs
         assert len(applied_configs) == 2
         assert applied_configs == client_configs
 
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
-def test_load_new_configurations_config_exists(mock_extract_target_file):
+def test_reconcile_unchanged_configuration_skips_extraction(mock_extract_target_file):
+    """A config already in _applied_configs and matching client_configs should be
+    carried over without triggering extraction.
+    """
     with override_global_config(dict(_remote_config_enabled=True)):
         mock_callback = MagicMock()
         mock_config = ConfigMetadata(
@@ -108,16 +105,19 @@ def test_load_new_configurations_config_exists(mock_extract_target_file):
         rc_client._applied_configs = {"mock/ASM_FEATURES": mock_config}
 
         payload_list = []
-        rc_client._load_new_configurations(payload_list, applied_configs, client_configs, payload=agent_payload)
+        rc_client._reconcile_configurations(payload_list, applied_configs, client_configs, payload=agent_payload)
         rc_client._publish_configuration(payload_list)
 
         mock_extract_target_file.assert_not_called()
-        # callback is not called during load - it happens in subscriber
-        assert applied_configs == {}
+        assert payload_list == []
+        assert applied_configs == {"mock/ASM_FEATURES": mock_config}
 
 
 @mock.patch.object(RemoteConfigClient, "_extract_target_file")
-def test_load_new_configurations_error_extract_target_file(mock_extract_target_file):
+def test_reconcile_extract_returns_none_skips_apply(mock_extract_target_file):
+    """When _extract_target_file returns None, the config is not queued and does not
+    enter applied_configs.
+    """
     with override_global_config(dict(_remote_config_enabled=True)):
         mock_extract_target_file.return_value = None
         mock_callback = MagicMock()
@@ -133,12 +133,89 @@ def test_load_new_configurations_error_extract_target_file(mock_extract_target_f
         rc_client.register_callback("ASM_FEATURES", mock_callback)
 
         payload_list = []
-        rc_client._load_new_configurations(payload_list, applied_configs, client_configs, payload=agent_payload)
+        rc_client._reconcile_configurations(payload_list, applied_configs, client_configs, payload=agent_payload)
         rc_client._publish_configuration(payload_list)
 
         mock_extract_target_file.assert_called_with(agent_payload, "mock/ASM_FEATURES", mock_config)
         mock_callback.assert_not_called()
+        assert payload_list == []
         assert applied_configs == {}
+
+
+def test_reconcile_emits_disable_when_unassigned_from_client():
+    """A target previously applied but no longer present in client_configs must generate
+    a disable payload (content=None) so the product learns it was removed, regardless
+    of whether the config is still present elsewhere in the signed targets.
+    """
+    with override_global_config(dict(_remote_config_enabled=True)):
+        mock_callback = MagicMock()
+        applied_config = ConfigMetadata(id="cfg", product_name="ASM_FEATURES", sha256_hash="h", length=1, tuf_version=1)
+
+        rc_client = RemoteConfigClient()
+        rc_client.register_callback("ASM_FEATURES", mock_callback)
+        rc_client._applied_configs = {"datadog/2/ASM_FEATURES/cfg/config": applied_config}
+
+        applied_configs: dict = {}
+        payload_list: list = []
+        rc_client._reconcile_configurations(payload_list, applied_configs, client_configs={}, payload=AgentPayload())
+
+        assert len(payload_list) == 1
+        assert payload_list[0].path == "datadog/2/ASM_FEATURES/cfg/config"
+        assert payload_list[0].content is None
+        assert payload_list[0].metadata is applied_config
+        assert applied_configs == {}
+
+
+@mock.patch.object(RemoteConfigClient, "_extract_target_file")
+def test_reconcile_emits_disables_before_applies(mock_extract_target_file):
+    """Disables for removed targets must precede apply payloads for new/changed ones so
+    product callbacks observe removals first.
+    """
+    with override_global_config(dict(_remote_config_enabled=True)):
+        mock_extract_target_file.return_value = {"ok": True}
+        mock_callback = MagicMock()
+
+        old_cfg = ConfigMetadata(id="old", product_name="ASM_FEATURES", sha256_hash="h0", length=1, tuf_version=1)
+        kept_cfg = ConfigMetadata(id="k", product_name="ASM_FEATURES", sha256_hash="hk", length=1, tuf_version=1)
+        new_cfg = ConfigMetadata(id="new", product_name="ASM_FEATURES", sha256_hash="hn", length=1, tuf_version=1)
+        changed_cfg_old = ConfigMetadata(id="c", product_name="ASM_FEATURES", sha256_hash="hc", length=1, tuf_version=1)
+        changed_cfg_new = ConfigMetadata(
+            id="c", product_name="ASM_FEATURES", sha256_hash="hc2", length=1, tuf_version=2
+        )
+
+        rc_client = RemoteConfigClient()
+        rc_client.register_callback("ASM_FEATURES", mock_callback)
+        rc_client._applied_configs = {
+            "datadog/2/ASM_FEATURES/old/config": old_cfg,
+            "datadog/2/ASM_FEATURES/k/config": kept_cfg,
+            "datadog/2/ASM_FEATURES/c/config": changed_cfg_old,
+        }
+
+        client_configs = {
+            "datadog/2/ASM_FEATURES/k/config": kept_cfg,
+            "datadog/2/ASM_FEATURES/c/config": changed_cfg_new,
+            "datadog/2/ASM_FEATURES/new/config": new_cfg,
+        }
+
+        applied_configs: dict = {}
+        payload_list: list = []
+        rc_client._reconcile_configurations(payload_list, applied_configs, client_configs, payload=AgentPayload())
+
+        # Find the index of the disable and of any apply payload.
+        disable_indices = [i for i, p in enumerate(payload_list) if p.content is None]
+        apply_indices = [i for i, p in enumerate(payload_list) if p.content is not None]
+
+        assert len(disable_indices) == 1, "expected a single disable payload for the removed target"
+        assert payload_list[disable_indices[0]].path == "datadog/2/ASM_FEATURES/old/config"
+        assert len(apply_indices) == 2, "expected apply payloads for changed and new"
+        # All disables must come before any apply.
+        assert max(disable_indices) < min(apply_indices)
+
+        # Unchanged config carried over; changed and new are in applied_configs.
+        assert applied_configs["datadog/2/ASM_FEATURES/k/config"] is kept_cfg
+        assert applied_configs["datadog/2/ASM_FEATURES/c/config"] is changed_cfg_new
+        assert applied_configs["datadog/2/ASM_FEATURES/new/config"] is new_cfg
+        assert "datadog/2/ASM_FEATURES/old/config" not in applied_configs
 
 
 @pytest.mark.parametrize(

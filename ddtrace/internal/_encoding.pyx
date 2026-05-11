@@ -792,19 +792,22 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         cdef list span_links_list
         cdef list span_events_list
 
+        cdef dict span_meta = span._get_str_attributes()
+        cdef dict span_metrics = span._get_numeric_attributes()
+
         has_error = <bint> (span.error != 0)
         has_span_type = <bint> (span.span_type is not None)
         has_span_events = <bint> span._has_events()
         if has_span_events:
             span_events_list = span._get_events()
-        has_metrics = <bint> (len(span._metrics) > 0)
+        has_metrics = <bint> (len(span_metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
         has_meta_struct = <bint> span._has_meta_structs()
         has_links = <bint> span._has_links()
         if has_links:
             span_links_list = span._get_links()
         has_meta = <bint> (
-            len(span._meta) > 0
+            len(span_meta) > 0
             or dd_origin is not NULL
             or (not self.top_level_span_event_encoding and has_span_events)
         )
@@ -914,7 +917,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 span_events = ""
                 if has_span_events and not self.top_level_span_event_encoding:
                     span_events = json_dumps([dict(event) for event in span_events_list])
-                ret = self._pack_meta(span._meta, <char *> dd_origin, span_events, span_id)
+                ret = self._pack_meta(span_meta, <char *> dd_origin, span_events, span_id)
                 if ret != 0:
                     return ret
 
@@ -943,7 +946,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
 
-                ret = self._pack_metrics(span._metrics, span_id)
+                ret = self._pack_metrics(span_metrics, span_id)
                 if ret != 0:
                     return ret
 
@@ -1130,7 +1133,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
         # Filter meta to only str/bytes values
         meta = []
-        for k, v in span._meta.items():
+        for k, v in span._get_str_attributes().items():
             if PyUnicode_Check(v) or PyBytesLike_Check(v):
                 meta.append((k, v))
             else:
@@ -1174,7 +1177,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 
         # Filter metrics to only number values
         metrics = []
-        for k, v in span._metrics.items():
+        for k, v in span._get_numeric_attributes().items():
             if PyLong_Check(v) or PyFloat_Check(v):
                 metrics.append((k, v))
             else:
