@@ -143,7 +143,11 @@ def test_llmobs_apm_trace_agentless_enabled_no_api_key():
 
 
 @pytest.mark.subprocess(
-    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_AGENTLESS_ENABLED": "0", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+    }
 )
 def test_llmobs_apm_trace_agentless_enabled_explicitly_disabled():
     from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
@@ -152,7 +156,11 @@ def test_llmobs_apm_trace_agentless_enabled_explicitly_disabled():
 
 
 @pytest.mark.subprocess(
-    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_AGENTLESS_ENABLED": "1", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+    }
 )
 def test_llmobs_apm_trace_agentless_enabled_via_llmobs_flag():
     from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
@@ -161,7 +169,11 @@ def test_llmobs_apm_trace_agentless_enabled_via_llmobs_flag():
 
 
 @pytest.mark.subprocess(
-    env={"DD_API_KEY": "<not-a-real-key>", "_DD_APM_TRACING_AGENTLESS_ENABLED": "1", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+    }
 )
 def test_llmobs_apm_trace_agentless_enabled_via_trace_flag():
     from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
@@ -169,9 +181,7 @@ def test_llmobs_apm_trace_agentless_enabled_via_trace_flag():
     assert llmobs_apm_trace_agentless_enabled() is True
 
 
-@pytest.mark.subprocess(
-    env={"DD_API_KEY": "<not-a-real-key>", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
-)
+@pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_configure_agentless_writer_swaps_writer():
     import ddtrace
     from ddtrace.internal.writer import AgentlessTraceWriter
@@ -185,9 +195,7 @@ def test_configure_agentless_writer_swaps_writer():
     llmobs_service.disable()
 
 
-@pytest.mark.subprocess(
-    env={"DD_API_KEY": "<not-a-real-key>", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
-)
+@pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_configure_agentless_writer_noop_when_already_agentless():
     import ddtrace
     from ddtrace.internal.writer import AgentlessTraceWriter
@@ -201,7 +209,11 @@ def test_configure_agentless_writer_noop_when_already_agentless():
 
 
 @pytest.mark.subprocess(
-    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_AGENTLESS_ENABLED": "1", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+    }
 )
 def test_enable_with_agentless_config_swaps_apm_writer():
     import ddtrace
@@ -229,7 +241,11 @@ def test_enable_without_api_key_does_not_swap_apm_writer():
 
 
 @pytest.mark.subprocess(
-    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_AGENTLESS_ENABLED": "1", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+    }
 )
 def test_export_llmobs_coerced_to_false_when_apm_is_agentless():
     from ddtrace.llmobs import LLMObs as llmobs_service
@@ -240,7 +256,11 @@ def test_export_llmobs_coerced_to_false_when_apm_is_agentless():
 
 
 @pytest.mark.subprocess(
-    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_AGENTLESS_ENABLED": "0", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+    }
 )
 def test_export_llmobs_not_coerced_when_apm_is_not_agentless():
     from ddtrace.llmobs import LLMObs as llmobs_service
