@@ -14,6 +14,14 @@ class AwsDurableExecuteSubscriber(TracingSubscriber):
     event_names = (AwsDurableEvents.EXECUTE.value,)
 
     @classmethod
+    def on_started(cls, ctx: core.ExecutionContext) -> None:
+        event: AwsDurableExecuteEvent = ctx.event
+        if event.execution_arn:
+            ctx.span._set_attribute(aws_durable.TAG_EXECUTION_ARN, event.execution_arn)
+        if event.is_replay_execution is not None:
+            ctx.span._set_attribute(aws_durable.TAG_REPLAYED, "true" if event.is_replay_execution else "false")
+
+    @classmethod
     def on_ended(
         cls,
         ctx: core.ExecutionContext,
@@ -33,6 +41,13 @@ class AwsDurableInvokeSubscriber(TracingSubscriber):
     event_names = (AwsDurableEvents.INVOKE.value,)
 
     @classmethod
+    def on_started(cls, ctx: core.ExecutionContext) -> None:
+        event: AwsDurableInvokeEvent = ctx.event
+        ctx.span._set_attribute(aws_durable.TAG_INVOKE_FUNCTION_NAME, event.invoke_function_name)
+        if event.name is not None:
+            ctx.span._set_attribute(aws_durable.TAG_NAME, event.name)
+
+    @classmethod
     def on_ended(
         cls,
         ctx: core.ExecutionContext,
@@ -47,6 +62,12 @@ class AwsDurableInvokeSubscriber(TracingSubscriber):
 
 class AwsDurableOperationSubscriber(TracingSubscriber):
     event_names = (AwsDurableEvents.OPERATION.value,)
+
+    @classmethod
+    def on_started(cls, ctx: core.ExecutionContext) -> None:
+        event: AwsDurableOperationEvent = ctx.event
+        if event.name is not None:
+            ctx.span._set_attribute(aws_durable.TAG_NAME, event.name)
 
     @classmethod
     def on_ended(
