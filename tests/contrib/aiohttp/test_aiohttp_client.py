@@ -94,6 +94,17 @@ async def test_200_request_distributed_tracing(tracer):
 
 
 @pytest.mark.asyncio
+async def test_200_request_distributed_tracing_with_empty_headers():
+    async with aiohttp.ClientSession() as session:
+        async with session.get("%s/headers" % URL, headers={}) as resp:
+            assert resp.status == 200
+            data = await resp.json()
+            assert "X-Datadog-Trace-Id" in data["headers"]
+            assert "X-Datadog-Parent-Id" in data["headers"]
+            assert "X-Datadog-Sampling-Priority" in data["headers"]
+
+
+@pytest.mark.asyncio
 async def test_distributed_tracing_disabled(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
