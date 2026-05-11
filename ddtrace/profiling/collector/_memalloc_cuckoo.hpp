@@ -6,38 +6,18 @@
 #include <random>
 #include <utility>
 
-/* AIDEV-NOTE: We hand-roll the hash instead of using absl::Hash or
- * std::hash. Reasons:
- *   - Pointers come from malloc, not user input, so we don't need
- *     DOS-resistance or per-process salting.
- *   - The free path runs once per Python free(), so per-call overhead
- *     matters: splitmix64 is ~5 cycles vs ~10–15 for absl::Hash.
- *   - The fingerprint mix only has to spread 16 bits across NUM_BUCKETS;
- *     a single multiply by a Murmur magic constant is enough.
- *
- * splitmix64: Sebastian Vigna's variant, used as the SplittableRandom
- * finalizer. Two multiplies + three XOR-shifts; bijective, no input
- * value collapses to 0 unless the input itself is 0.
- *
- * Murmur fingerprint mix: 0x5bd1e995U is the Murmur2 magic constant —
- * a 32-bit prime with good avalanche when used as `x * k`. Sufficient
- * to fan a 16-bit fingerprint into a uniformly-distributed 15-bit
- * bucket index (NUM_BUCKETS = 32768). */
-namespace memalloc_cuckoo_detail {
-static inline uint64_t
-splitmix64(uint64_t x) noexcept
-{
-    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
-    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
-    return x ^ (x >> 31);
-}
-
-static inline uint32_t
-fingerprint_mix(uint16_t fp) noexcept
-{
-    return static_cast<uint32_t>(fp) * 0x5bd1e995U;
-}
-} // namespace memalloc_cuckoo_detail
+/* Use absl::Hash when available (release builds with abseil) and fall back
+ * to std::hash otherwise. Mirrors the HeapMapType pattern in
+ * _memalloc_heap.cpp so debug builds compile without abseil. */
+#if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
+#include "absl/hash/hash.h"
+template<typename T>
+using filter_hash_t = absl::Hash<T>;
+#else
+#include <functional>
+template<typename T>
+using filter_hash_t = std::hash<T>;
+#endif
 
 /* AIDEV-NOTE: Cuckoo filter for fast-reject on the heap profiler free path.
  *
@@ -229,9 +209,10 @@ class CuckooFilterImpl
 
     static Hashed hash_ptr(const void* p) noexcept
     {
-        const uint64_t h = memalloc_cuckoo_detail::splitmix64(reinterpret_cast<uintptr_t>(p));
+        const uint64_t h = static_cast<uint64_t>(filter_hash_t<const void*>{}(p));
         /* Lower 32 bits → bucket index; upper 32 bits → fingerprint.
-         * splitmix64 is bijective so both halves are independent. */
+         * Both halves come from the same well-mixed hash, so they're
+         * effectively independent for our purposes. */
         uint16_t fp = static_cast<uint16_t>(h >> 32);
         if (fp == EMPTY_SLOT) {
             fp = 1; /* reserve 0 for empty slots */
@@ -241,7 +222,8 @@ class CuckooFilterImpl
 
     static uint32_t alt_bucket(uint32_t i, uint16_t fp) noexcept
     {
-        return (i ^ memalloc_cuckoo_detail::fingerprint_mix(fp)) & BUCKET_MASK;
+        const uint64_t fp_h = static_cast<uint64_t>(filter_hash_t<uint16_t>{}(fp));
+        return (i ^ static_cast<uint32_t>(fp_h)) & BUCKET_MASK;
     }
 
     bool bucket_contains(uint32_t b, uint16_t fp) const noexcept
