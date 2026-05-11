@@ -10,11 +10,22 @@ module per heartbeat per worker (gigabytes of stderr per CI job).
 
 from __future__ import annotations
 
-import importlib.metadata._adapters as _meta_adapters
 import logging
 from pathlib import Path
 
 import pytest
+
+
+# ``importlib.metadata._adapters`` is the private module that holds the
+# ``Message`` shim whose ``__getitem__`` returns ``None`` on missing keys
+# today and is on a path to raising ``KeyError`` (CPython issue 102117 +
+# the ``importlib_metadata`` backport already raises). It was introduced
+# in Python 3.10; on 3.9 the strict-future regression we exercise here
+# cannot be reproduced via that hook, so the tests below are skipped.
+try:
+    import importlib.metadata._adapters as _meta_adapters  # type: ignore[import-not-found]
+except ImportError:  # Python 3.9
+    _meta_adapters = None  # type: ignore[assignment]
 
 
 @pytest.fixture
@@ -62,6 +73,8 @@ def strict_metadata_getitem(monkeypatch: pytest.MonkeyPatch) -> None:
     fixture the test would depend on the running Python's deprecation
     policy.
     """
+    if _meta_adapters is None:
+        pytest.skip("importlib.metadata._adapters is unavailable on this Python")
     real_get = _meta_adapters.email.message.Message.__getitem__
 
     def strict(self, item):
