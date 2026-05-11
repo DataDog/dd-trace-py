@@ -7,7 +7,7 @@ include:
   tags: !reference [.testrunner, tags]
   timeout: 10m
   needs: []
-  before_script: cd src/native
+  before_script: cd dd-trace-py/src/native
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:cargo_fmt[collapsed=true]\r\e[0Kcargo fmt"
@@ -29,6 +29,7 @@ include:
   timeout: 20m
   needs: []
   before_script:
+    - cd dd-trace-py
     - pyenv global 3.12
   script:
     - |
