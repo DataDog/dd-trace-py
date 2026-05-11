@@ -471,3 +471,61 @@ async def test_streamed_llm_async_block(mock_execute_request, langchain_openai, 
             pass
 
     mock_execute_request.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Span observability on AI Guard block (non-streaming)
+#
+# The four non-stream LangChain wrappers (``traced_llm_generate`` /
+# ``traced_chat_model_generate`` and async variants) catch ``DDBlockException``
+# explicitly and call ``span.set_exc_info`` before re-raising. Without that
+# explicit arm, ``AIGuardAbortError`` (a ``BaseException`` subclass via
+# ``DDBlockException``) would slip past ``except Exception:`` and the LLM span
+# would finish with no error info — leaving a hole between the AI Guard span
+# (block decision) and the LLM span (no link back to the abort).
+# ---------------------------------------------------------------------------
+
+
+def _find_llm_span_with_error(test_spans):
+    """Return the non-AI-Guard span (the LLM span) and its error tags."""
+    from ddtrace.appsec._constants import AI_GUARD
+
+    spans = test_spans.spans
+    llm_span = next((s for s in spans if s.name != AI_GUARD.RESOURCE_TYPE), None)
+    assert llm_span is not None, f"No LLM span found among: {[s.name for s in spans]}"
+    return llm_span
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_block_tags_llm_span_with_set_exc_info(
+    mock_execute_request, langchain_openai, openai_url, tracer, test_spans
+):
+    """On AI Guard block, the LLM span must carry ``error == 1`` and an
+    ``error.type`` containing ``AIGuardAbortError``.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+    with pytest.raises(AIGuardAbortError):
+        chat.invoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+
+    llm_span = _find_llm_span_with_error(test_spans)
+    assert llm_span.error == 1
+    assert "AIGuardAbortError" in (llm_span.get_tag("error.type") or "")
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_chat_async_block_tags_llm_span_with_set_exc_info(
+    mock_execute_request, langchain_openai, openai_url, tracer, test_spans
+):
+    """Async variant of ``test_chat_block_tags_llm_span_with_set_exc_info``."""
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+    with pytest.raises(AIGuardAbortError):
+        await chat.ainvoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+
+    llm_span = _find_llm_span_with_error(test_spans)
+    assert llm_span.error == 1
+    assert "AIGuardAbortError" in (llm_span.get_tag("error.type") or "")

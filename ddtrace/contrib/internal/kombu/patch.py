@@ -129,7 +129,7 @@ def traced_receive(func, instance, args, kwargs):
         s.set_tags(extract_conn_tags(message.channel.connection))
         s._set_attribute(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
         result = func(*args, **kwargs)
-        core.dispatch("kombu.amqp.receive.post", [instance, message, s])
+        core.dispatch("kombu.amqp.receive.post", (instance, message, s))
         return result
 
 
@@ -161,6 +161,6 @@ def traced_publish(func, instance, args, kwargs):
         if config.kombu.distributed_tracing_enabled:
             propagator.inject(s.context, args[HEADER_POS])
         core.dispatch(
-            "kombu.amqp.publish.pre", [args, kwargs, s]
+            "kombu.amqp.publish.pre", (args, kwargs, s)
         )  # Has to happen after trace injection for actual payload size
         return func(*args, **kwargs)
