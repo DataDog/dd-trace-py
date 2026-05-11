@@ -5,6 +5,7 @@ from functools import partial
 from functools import wraps
 import inspect
 import sys
+import types
 from types import ModuleType
 import typing
 
@@ -23,32 +24,111 @@ from ddtrace.internal.utils import get_argument_value
 ASYNCIO_IMPORTED: bool = False
 
 
+# Trampoline dispatch table.
+# Key: id(original) of the wrapped function (kept alive by the module/class
+# attribute pointing at it; its identity is preserved across wraps).
+# Value: (user_wrapper, original_copy)
+_WRAP_REGISTRY: dict[int, tuple[typing.Callable[..., typing.Any], types.FunctionType]] = {}
+
+
+def _ddtrace_dispatch_wrap(target_id: int, args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> typing.Any:
+    """Sync dispatcher invoked by a wrapped function's trampoline bytecode."""
+    wrapper, original_copy = _WRAP_REGISTRY[target_id]
+    return wrapper(original_copy, args, kwargs)
+
+
+async def _ddtrace_dispatch_wrap_async(
+    target_id: int, args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
+) -> typing.Any:
+    """Async dispatcher invoked by a wrapped coroutine function's trampoline."""
+    wrapper, original_copy = _WRAP_REGISTRY[target_id]
+    return await wrapper(original_copy, args, kwargs)
+
+
 def _wrap(
     owner: typing.Any,
     name: str,
     wrapper: typing.Callable[..., typing.Any],
     aliases: typing.Sequence[tuple[typing.Any, str]] = (),
 ) -> typing.Callable[..., typing.Any]:
-    """Replace ``owner.name`` with a callable that invokes
-    ``wrapper(original, args, kwargs)``, mirroring the replacement onto every
-    ``(alias_owner, alias_name)`` in ``aliases``.
+    """Wrap ``owner.name`` so calls go through ``wrapper(original, args, kwargs)``.
 
-    Async-def targets get an ``async def`` wrapper so the wrapped binding
-    remains a coroutine function — the C-level stack sampler walks
-    ``cr_await`` chains to attribute samples to the running task, and
-    swapping in a plain ``def`` would change the chain shape.
+    For pure-Python functions (``types.FunctionType``) we mutate the
+    original function's ``__code__`` in place to a tiny trampoline that
+    dispatches to the user wrapper.  Function identity is preserved, so
+    pre-existing captured references (e.g. ``from X import Y`` performed
+    before the profiler starts) still see the wrapped behaviour — this
+    matches what ``ddtrace.internal.wrapping.wrap`` did via the
+    ``bytecode`` library, without taking on that dependency.
+
+    For non-Python callables (Cython methods, C builtins) we fall back to
+    ``setattr`` and mirror onto ``aliases``.  ``aliases`` is a no-op on the
+    identity-preserving path (both alias bindings already point at the
+    same mutated object) and exists only for the fallback case.
     """
     original = getattr(owner, name)
 
-    @wraps(original)
-    async def _async_wrapped(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
-        return await wrapper(original, args, kwargs)
+    if isinstance(original, types.FunctionType) and not original.__closure__:
+        # Identity-preserving path: mutate __code__ in place.
+        # We require the function to have no closure cells — the trampoline
+        # we generate has none, and __code__ swaps must match free-var counts.
+        # Class methods using super() (e.g. _GatheringFuture.__init__) carry
+        # a __class__ closure cell and therefore fall through to setattr.
+        original_copy = types.FunctionType(
+            original.__code__,
+            original.__globals__,
+            original.__name__,
+            original.__defaults__,
+            original.__closure__,
+        )
+        original_copy.__kwdefaults__ = original.__kwdefaults__
 
+        is_async = inspect.iscoroutinefunction(original)
+        target_id = id(original)
+        _WRAP_REGISTRY[target_id] = (wrapper, original_copy)
+
+        dispatcher_name = "_ddtrace_dispatch_wrap_async" if is_async else "_ddtrace_dispatch_wrap"
+        trampoline_name = original.__name__ if original.__name__.isidentifier() else "_ddtrace_trampoline"
+
+        if is_async:
+            source = (
+                f"async def {trampoline_name}(*args, **kwargs):\n"
+                f"    return await {dispatcher_name}({target_id}, args, kwargs)\n"
+            )
+        else:
+            source = (
+                f"def {trampoline_name}(*args, **kwargs):\n    return {dispatcher_name}({target_id}, args, kwargs)\n"
+            )
+
+        ns: dict[str, typing.Any] = {}
+        # nosec B102: source is built from a fixed template; the only
+        # interpolated values are an int (target_id, from id()) and a
+        # name validated via .isidentifier(). No untrusted input.
+        exec(source, ns)  # nosec B102
+        trampoline = ns[trampoline_name]
+
+        # The trampoline uses LOAD_GLOBAL for dispatcher_name, resolved
+        # against original's module globals at call time.  Inject the
+        # dispatcher there (idempotently — many functions in the same
+        # module share one entry).
+        original.__globals__.setdefault(dispatcher_name, globals()[dispatcher_name])
+
+        # Preserve filename / firstlineno / co_name for stack-trace clarity.
+        new_code = trampoline.__code__.replace(
+            co_filename=original.__code__.co_filename,
+            co_firstlineno=original.__code__.co_firstlineno,
+            co_name=original.__code__.co_name,
+        )
+        original.__code__ = new_code
+        return original
+
+    # Fallback for Cython / C builtins or Python functions with closure
+    # cells (e.g. class methods using ``super()``).  Identity isn't
+    # preserved here; callers that also need to patch aliased bindings
+    # must pass them via ``aliases``.
     @wraps(original)
-    def _sync_wrapped(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+    def wrapped(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
         return wrapper(original, args, kwargs)
-
-    wrapped = _async_wrapped if inspect.iscoroutinefunction(original) else _sync_wrapped
 
     setattr(owner, name, wrapped)
     for alias_owner, alias_name in aliases:
