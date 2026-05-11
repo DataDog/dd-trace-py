@@ -4888,6 +4888,22 @@ def test_resolve_llmobs_git_metadata_strips_url_credentials():
     assert "secret" not in url
 
 
+def test_resolve_llmobs_git_metadata_honors_disable_flag():
+    """Setting DD_TRACE_GIT_METADATA_ENABLED=false must suppress both the env-var read and the git-CLI fallback."""
+    from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
+
+    with (
+        mock.patch("ddtrace.llmobs._utils.gitmetadata.config.enabled", False),
+        mock.patch("ddtrace.llmobs._utils.gitmetadata.get_git_tags") as gm_mock,
+        mock.patch("ddtrace.llmobs._utils._git.extract_commit_sha") as sha_mock,
+        mock.patch("ddtrace.llmobs._utils._git.extract_repository_url") as url_mock,
+    ):
+        assert resolve_llmobs_git_metadata() == ("", "")
+    gm_mock.assert_not_called()
+    sha_mock.assert_not_called()
+    url_mock.assert_not_called()
+
+
 def test_experiment_tags_pick_up_resolver_output():
     dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
     with mock.patch(

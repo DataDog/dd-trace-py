@@ -54,10 +54,14 @@ def resolve_llmobs_git_metadata() -> tuple[str, str]:
     Prefers the standard ``gitmetadata`` source (DD_GIT_* env vars or the main
     package's ``Project-URL`` metadata). For any field gitmetadata leaves
     empty, falls back to running ``git`` against the current working directory
-    — useful for notebooks and workstation runs. Designed to be called once
-    per LLM Obs lifecycle (at ``LLMObs.enable()`` or ``Experiment`` construction)
-    and the result propagated to span tags from there.
+    — useful for notebooks and workstation runs. Honors
+    ``DD_TRACE_GIT_METADATA_ENABLED``: when disabled, returns ``("", "")``
+    without consulting either source. Designed to be called once per LLM Obs
+    lifecycle (at ``LLMObs.enable()`` or ``Experiment`` construction) and the
+    result propagated to span tags from there.
     """
+    if not gitmetadata.config.enabled:
+        return "", ""
     repository_url, commit_sha, _ = gitmetadata.get_git_tags()
     if repository_url and commit_sha:
         return repository_url, commit_sha
