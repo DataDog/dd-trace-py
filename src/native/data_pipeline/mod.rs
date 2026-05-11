@@ -262,6 +262,14 @@ impl TraceExporterPy {
     }
 }
 
+impl Drop for TraceExporterPy {
+    fn drop(&mut self) {
+        if let Some(exporter) = self.inner.take() {
+            let _ = exporter.shutdown(Some(Duration::from_secs(3)));
+        }
+    }
+}
+
 #[pymodule]
 pub fn register_data_pipeline(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TraceExporterBuilderPy>()?;
