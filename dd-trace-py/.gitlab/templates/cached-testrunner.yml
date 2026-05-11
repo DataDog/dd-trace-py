@@ -26,7 +26,7 @@
     source $EXT_CACHE_VENV/bin/activate
     python scripts/ext_cache.py save
     deactivate
-    bash .gitlab/scripts/generate-core-backtraces.sh
+    bash ${CI_PROJECT_DIR}/.gitlab/scripts/generate-core-backtraces.sh
   cache:
     # Share pip between jobs of the same Python version and testrunner image.
     # testrunner_image_hash is derived from TESTRUNNER_IMAGE in testrunner.yml at generation time,
