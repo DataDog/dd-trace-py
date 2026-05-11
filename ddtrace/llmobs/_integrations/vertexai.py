@@ -68,6 +68,18 @@ class VertexAIIntegration(BaseLLMIntegration):
             tool_definitions=tool_definitions,
         )
 
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        metrics = self._extract_metrics_from_response(response) if response is not None else {}
+        model_name = span.get_tag("vertexai.request.model")
+        model_provider = span.get_tag("vertexai.request.provider")
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            "llm",
+            model_name=model_name,
+            model_provider=model_provider,
+        )
+
     def _extract_metrics_from_response(self, response):
         """Extract metrics from the response."""
         if isinstance(response, list):

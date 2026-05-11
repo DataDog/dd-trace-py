@@ -1134,3 +1134,303 @@ def test_span_repr_metastruct():
     assert "metastruct={}" in repr(span)
     span._set_struct_tag("key1", {"a": 1, "b": 2})
     assert "metastruct={'key1': dict_keys(['a', 'b'])}" in repr(span)
+
+
+# =============================================================================
+# Cyclic GC support
+# =============================================================================
+#
+# Regression tests for the memory leak fixed in dd-trace-py v4.x: native
+# pyclasses (SpanData, SpanLink, SpanEvent) used to hold `Py<PyDict>` /
+# `Py<PyAny>` slots without implementing `__traverse__` / `__clear__`, so any
+# reference cycle that passed through `meta_struct`, span-link attributes, or
+# span-event attributes was invisible to CPython's cyclic GC and leaked.
+#
+# These tests build the canonical cycle (span -> dict -> list -> span) and
+# assert that `gc.collect()` reclaims the spans. Without the GC traversal
+# support these tests fail by leaving live objects in `gc.get_objects()`.
+
+
+def _count_objects_of_type(typename):
+    import gc
+
+    return sum(1 for o in gc.get_objects() if type(o).__name__ == typename)
+
+
+def test_span_data_is_gc_tracked():
+    """Without `__traverse__`/`__clear__`, PyO3 leaves the class as a
+    non-GC-tracked type, hiding any cycles passing through its `Py<...>`
+    fields. This regressed in 4.x and is the root cause of the leak.
+    """
+    import gc
+
+    assert gc.is_tracked(SpanData(name="probe"))
+
+
+def test_span_link_is_gc_tracked():
+    import gc
+
+    from ddtrace.internal.native._native import SpanLink
+
+    assert gc.is_tracked(SpanLink(trace_id=1, span_id=1))
+
+
+def test_span_event_is_gc_tracked():
+    import gc
+
+    from ddtrace.internal.native._native import SpanEvent
+
+    assert gc.is_tracked(SpanEvent(name="evt"))
+
+
+def test_meta_struct_cycle_is_collectable():
+    """Cycles formed via meta_struct must be reclaimed by `gc.collect()`.
+
+    Pre-fix: `SpanData` held `meta_struct: Option<Py<PyDict>>` without GC
+    traversal, so this cycle was uncollectable forever. The leak grew with
+    traced call volume in any service that wrote span-derived references into
+    `meta_struct` (AppSec/IAST/etc.).
+    """
+    import gc
+
+    initial = _count_objects_of_type("SpanData")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            span = SpanData(name="cycle.via.meta_struct")
+            cycle_list = []
+            span._set_struct_tag("self_ref", {"holder": cycle_list})
+            cycle_list.append(span)
+            del span
+            del cycle_list
+        # All 200 cycles still alive (gc disabled, refcount can't break the cycle).
+        assert _count_objects_of_type("SpanData") - initial == N
+        # Single collect must reclaim them.
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — SpanData is not GC-tracked"
+        assert _count_objects_of_type("SpanData") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_span_link_attributes_cycle_is_collectable():
+    """Cycles formed via SpanLink.attributes must be reclaimable.
+
+    Pre-fix: `SpanLink` held `attributes: Py<PyDict>` without GC traversal.
+    """
+    import gc
+
+    from ddtrace.internal.native._native import SpanLink
+
+    initial = _count_objects_of_type("SpanLink")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for i in range(N):
+            link = SpanLink(trace_id=i + 1, span_id=i + 1)
+            cycle_list = []
+            link.attributes["self_ref"] = cycle_list
+            cycle_list.append(link)
+            del link
+            del cycle_list
+        assert _count_objects_of_type("SpanLink") - initial == N
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — SpanLink is not GC-tracked"
+        assert _count_objects_of_type("SpanLink") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_span_event_attributes_cycle_is_collectable():
+    """Cycles formed via SpanEvent.attributes must be reclaimable.
+
+    Pre-fix: `SpanEvent` held `attributes: Py<PyDict>` without GC traversal.
+    """
+    import gc
+
+    from ddtrace.internal.native._native import SpanEvent
+
+    initial = _count_objects_of_type("SpanEvent")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            event = SpanEvent(name="cycle.via.event_attrs")
+            cycle_list = []
+            event.attributes["self_ref"] = cycle_list
+            cycle_list.append(event)
+            del event
+            del cycle_list
+        assert _count_objects_of_type("SpanEvent") - initial == N
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — SpanEvent is not GC-tracked"
+        assert _count_objects_of_type("SpanEvent") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_full_span_meta_struct_cycle_is_collectable():
+    """End-to-end test using the real Span class (which subclasses SpanData)
+    with the tracer flow. Mirrors the regression seen in production where a
+    cycle formed via meta_struct caused live-heap accumulation proportional
+    to traced call volume.
+
+    Uses weakrefs to the specific spans we create instead of a global object
+    count so the assertion is immune to incidental Span instances created by
+    background tracer/telemetry threads in the same process.
+    """
+    import gc
+    import weakref
+
+    from ddtrace._trace.span import Span
+
+    refs: list[weakref.ReferenceType] = []
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            span = Span(name="cycle.full.span")
+            cycle_list = []
+            span._set_struct_tag("self_ref", {"holder": cycle_list})
+            cycle_list.append(span)
+            span.finish()
+            refs.append(weakref.ref(span))
+            del span
+            del cycle_list
+        # All N spans are kept alive by the cycle (gc disabled, refcount alone
+        # cannot break the cycle).
+        alive = sum(1 for r in refs if r() is not None)
+        assert alive == N, f"expected {N} live spans before gc, got {alive}"
+        gc.collect()
+        gc.collect()
+        # All N must be reclaimed after a cyclic-GC pass.
+        alive = sum(1 for r in refs if r() is not None)
+        assert alive == 0, f"{alive}/{N} cyclic spans uncollectable after gc.collect"
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_span_event_string_attribute_value_cycle_is_collectable():
+    """Cycle through a span-event *attribute value*, not just the attribute key.
+
+    `_add_event` stores string attribute values as ``PyBackedString`` inside
+    ``AttributeAnyValue::SingleValue(String(...))`` (or inside an ``Array(...)``).
+    The ``PyBackedString.storage`` keeps the original Python object alive, so a
+    ``str`` subclass with a ``__dict__`` back-reference to the span closes a
+    cycle that GC traversal must follow through the value side too. Without
+    visiting attribute values the cycle survives ``gc.collect()`` even after
+    `__traverse__` was added on the key/key-only path.
+    """
+    import gc
+
+    from ddtrace.internal.native._native import SpanData
+
+    class CycleStr(str):
+        pass
+
+    initial = _count_objects_of_type("SpanData")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            span = SpanData(name="cycle.via.event_value")
+            value = CycleStr("v")
+            value.span = span  # type: ignore[attr-defined]
+            span._add_event("evt", attributes={"k": value})
+            del span
+            del value
+        assert _count_objects_of_type("SpanData") - initial == N
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — span event attribute values are not visited"
+        assert _count_objects_of_type("SpanData") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_span_event_string_attribute_value_in_array_cycle_is_collectable():
+    """Same as the previous test but the cyclic string sits inside an
+    ``AttributeAnyValue::Array``. Verifies the array branch of the
+    traversal.
+    """
+    import gc
+
+    from ddtrace.internal.native._native import SpanData
+
+    class CycleStr(str):
+        pass
+
+    initial = _count_objects_of_type("SpanData")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            span = SpanData(name="cycle.via.event_value_array")
+            value = CycleStr("v")
+            value.span = span  # type: ignore[attr-defined]
+            span._add_event("evt", attributes={"k": [value, value]})
+            del span
+            del value
+        assert _count_objects_of_type("SpanData") - initial == N
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — array value branch not visited"
+        assert _count_objects_of_type("SpanData") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_tracer_trace_meta_struct_cycle_is_collectable():
+    """Production-shaped repro: drive the cycle through the public tracer API
+    (``tracer.trace(...)``) rather than constructing Span instances directly.
+    This is the exact pattern used by integrations writing per-request data
+    into ``meta_struct`` (AppSec/IAST and similar) on a high-throughput
+    service, which is what surfaced the regression in production.
+
+    Uses weakrefs to the specific spans we create so the assertion is robust
+    against background tracer activity that may incidentally create or
+    finalize unrelated Span instances during the test.
+    """
+    import gc
+    import weakref
+
+    from ddtrace.trace import tracer
+
+    refs: list[weakref.ReferenceType] = []
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            span = tracer.trace("cycle.via.tracer_trace")
+            cycle_list = []
+            span._set_struct_tag("self_ref", {"holder": cycle_list})
+            cycle_list.append(span)
+            span.finish()
+            refs.append(weakref.ref(span))
+            del span
+            del cycle_list
+        # The context provider's contextvar still holds the last finished
+        # span; clear it so the only remaining strong references are the
+        # cycles we deliberately built.
+        tracer.context_provider.activate(None)
+        alive = sum(1 for r in refs if r() is not None)
+        assert alive == N, f"expected {N} live spans before gc, got {alive}"
+        gc.collect()
+        gc.collect()
+        alive = sum(1 for r in refs if r() is not None)
+        assert alive == 0, f"{alive}/{N} cyclic spans uncollectable after gc.collect"
+    finally:
+        if gc_was_enabled:
+            gc.enable()

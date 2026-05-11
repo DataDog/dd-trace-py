@@ -219,11 +219,14 @@ class Tracer(object):
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
-        log.debug(
-            "Waiting %d seconds for tracer to finish. Hit %s to quit.",
-            self.SHUTDOWN_TIMEOUT,
-            key,
-        )
+        try:
+            log.debug(
+                "Waiting %d seconds for tracer to finish. Hit %s to quit.",
+                self.SHUTDOWN_TIMEOUT,
+                key,
+            )
+        except Exception:  # nosec: B110
+            pass
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
     def sample(self, span):
@@ -507,9 +510,12 @@ class Tracer(object):
                 service = parent.service
                 service_source = parent.get_tag(_SERVICE_SOURCE) or ""
             else:
-                service = service_source = config.service
+                service = config.service
         else:
-            service_source = "m"
+            if service in config._integration_default_services:
+                service_source = service
+            else:
+                service_source = "m"
 
         # Update the service name based on any mapping
         if service is not None:

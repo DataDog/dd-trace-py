@@ -9,22 +9,23 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.span_kind": "workflow",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de496000000000",
-      "_dd.svc_src": "tests.contrib.langchain",
+      "_dd.p.tid": "69f4c23e00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
       "language": "python",
-      "runtime-id": "5d52c01e8808486cb32b3d08c8e2c347"
+      "runtime-id": "3debb88a7ed046bdb1fc7200cd9b8f55"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 69535.0
+      "process_id": 41082.0
     },
-    "duration": 3211542,
-    "start": 1776175456050928545
+    "duration": 2933667,
+    "start": 1777648190767500629
   },
      {
        "name": "langchain.request",
@@ -36,13 +37,14 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "tests.contrib.langchain"
+         "_dd.llmobs.span_kind": "workflow"
        },
        "metrics": {
+         "_dd.llmobs.enabled": 0.0,
          "_dd.measured": 1.0
        },
-       "duration": 2966167,
-       "start": 1776175456051079670
+       "duration": 2647792,
+       "start": 1777648190767661421
      },
      {
        "name": "langchain.request",
@@ -54,13 +56,14 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "tests.contrib.langchain"
+         "_dd.llmobs.span_kind": "workflow"
        },
        "metrics": {
+         "_dd.llmobs.enabled": 0.0,
          "_dd.measured": 1.0
        },
-       "duration": 1844667,
-       "start": 1776175456052236128
+       "duration": 1746667,
+       "start": 1777648190768613046
      },
      {
        "name": "langchain.request",
@@ -72,11 +75,12 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "tests.contrib.langchain"
+         "_dd.llmobs.span_kind": "workflow"
        },
        "metrics": {
+         "_dd.llmobs.enabled": 0.0,
          "_dd.measured": 1.0
        },
-       "duration": 965084,
-       "start": 1776175456053139253
+       "duration": 1057958,
+       "start": 1777648190769333421
      }]]

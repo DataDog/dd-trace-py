@@ -31,7 +31,7 @@ class ProfilerStats
     // Number of ephemeral entries in the echion StringTable
     std::optional<size_t> string_table_ephemeral_count;
 
-    // Whether fast_copy_memory (ECHION_USE_FAST_COPY_MEMORY) is enabled; unset until the sampler starts
+    // Whether fast_copy_memory (safe_memcpy) is enabled; unset until the sampler starts
     std::optional<bool> fast_copy_memory_enabled;
 
     // Number of copy_memory errors accumulated since the last profile reset (i.e. since the last upload)

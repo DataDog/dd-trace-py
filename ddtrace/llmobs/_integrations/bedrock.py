@@ -31,8 +31,6 @@ log = get_logger(__name__)
 
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
-    _spans: dict[str, LLMObsSpanEvent] = {}  # Maps LLMObs span ID to LLMObs span events
-    _active_span_by_step_id: dict[str, LLMObsSpanEvent] = {}  # Maps trace step ID to currently active span
 
     def _llmobs_set_tags(
         self,
@@ -132,6 +130,31 @@ class BedrockIntegration(BaseLLMIntegration):
             tool_definitions=tool_definitions if tool_definitions else None,
         )
 
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        if operation == "agent":
+            span_kind = "agent"
+            usage_metrics = {}
+            model_id = None
+        else:
+            ctx = args[0]
+            span_kind = "workflow" if ctx.get_item(PROXY_REQUEST) else "llm"
+            usage_metrics = dict(ctx.get_item("llmobs.usage") or {})
+            normalize_input_tokens(usage_metrics)
+            if "total_tokens" not in usage_metrics and (
+                "input_tokens" in usage_metrics or "output_tokens" in usage_metrics
+            ):
+                usage_metrics["total_tokens"] = usage_metrics.get("input_tokens", 0) + usage_metrics.get(
+                    "output_tokens", 0
+                )
+            model_id = ctx.get_item("model_id") or ctx.get_item("model_name")
+        self._apply_shadow_metrics(
+            span,
+            usage_metrics,
+            span_kind,
+            model_name=model_id,
+            model_provider="bedrock",
+        )
+
     def _llmobs_set_tags_agent(self, span, args, kwargs, response):
         if not self.llmobs_enabled or not span:
             return
@@ -155,24 +178,22 @@ class BedrockIntegration(BaseLLMIntegration):
         """Translate bedrock agent traces to LLMObs span events."""
         if not traces or not self.llmobs_enabled:
             return
+        spans: dict[str, LLMObsSpanEvent] = {}
+        active_span_by_step_id: dict[str, LLMObsSpanEvent] = {}
         for trace in traces:
             trace_step_id = _extract_trace_step_id(trace)
-            current_active_span_event = self._active_span_by_step_id.pop(trace_step_id, None)
+            current_active_span_event = active_span_by_step_id.pop(trace_step_id, None)
             translated_span_event, finished = translate_bedrock_trace(
                 trace, root_span, current_active_span_event, trace_step_id
             )
             if translated_span_event:
-                self._spans[translated_span_event["span_id"]] = translated_span_event
+                spans[translated_span_event["span_id"]] = translated_span_event
                 if not finished:
-                    self._active_span_by_step_id[trace_step_id] = translated_span_event
-            _create_or_update_bedrock_trace_step_span(
-                trace, trace_step_id, translated_span_event, root_span, self._spans
-            )
-        for _, span_event in self._spans.items():
+                    active_span_by_step_id[trace_step_id] = translated_span_event
+            _create_or_update_bedrock_trace_step_span(trace, trace_step_id, translated_span_event, root_span, spans)
+        for _, span_event in spans.items():
             LLMObs._instance._llmobs_span_writer.enqueue(span_event)
             record_bedrock_agent_span_event_created(span_event)
-        self._spans.clear()
-        self._active_span_by_step_id.clear()
 
     @staticmethod
     def _extract_input_message_for_converse(prompt: list[dict[str, Any]]) -> list[Message]:

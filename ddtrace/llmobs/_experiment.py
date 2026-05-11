@@ -2206,6 +2206,7 @@ class Experiment:
                 run_id=str(run._id),
                 run_iteration=run._run_iteration,
                 dataset_name=self._dataset.name,
+                dataset_id=str(self._dataset._id),
                 project_name=self._project_name,
                 project_id=self._project_id,
                 experiment_name=self.name,
