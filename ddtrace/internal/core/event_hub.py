@@ -73,8 +73,13 @@ def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]]
             del _listeners[event_id]
 
 
-def dispatch_event(event) -> None:
+def dispatch_event(event, allow_raise: bool = False) -> None:
     """Call all hooks for the provided event.
+
+    When ``allow_raise=True``, listener ``Exception``s propagate to the caller
+    (the first listener to raise wins; subsequent listeners are skipped).
+    ``BaseException``-derived exceptions (including ``DDBlockException``)
+    always propagate regardless of ``allow_raise``.
 
     PERF: Avoid calling  `dispatch` to reduce function calls/overhead of this function.
     """
@@ -88,12 +93,18 @@ def dispatch_event(event) -> None:
         try:
             local_hook(event)
         except Exception:
-            if config._raise:
+            if allow_raise or config._raise:
                 raise
 
 
-def dispatch(event_id: str, args: tuple[Any, ...] = ()) -> None:
-    """Call all hooks for the provided event_id with the provided args"""
+def dispatch(event_id: str, args: tuple[Any, ...] = (), allow_raise: bool = False) -> None:
+    """Call all hooks for the provided event_id with the provided args.
+
+    When ``allow_raise=True``, listener ``Exception``s propagate to the caller
+    (the first listener to raise wins; subsequent listeners are skipped).
+    ``BaseException``-derived exceptions (including ``DDBlockException``)
+    always propagate regardless of ``allow_raise``.
+    """
     global _listeners
 
     if event_id not in _listeners:
@@ -103,7 +114,7 @@ def dispatch(event_id: str, args: tuple[Any, ...] = ()) -> None:
         try:
             local_hook(*args)
         except Exception:
-            if config._raise:
+            if allow_raise or config._raise:
                 raise
 
 
@@ -126,12 +137,3 @@ def dispatch_with_results(event_id: str, args: tuple[Any, ...] = ()) -> EventRes
             results[name] = EventResult(ResultType.RESULT_EXCEPTION, None, e)
 
     return results
-
-
-def raising_dispatch(event_id: str, args: tuple[Any, ...] = ()) -> None:
-    """Deprecated: use ``dispatch`` with try/except instead."""
-    results = dispatch_with_results(event_id, args)
-    for event in results.values():
-        # we explicitly set the exception as a value to prevent caught exceptions from leaking
-        if isinstance(event.value, Exception):
-            raise event.value
