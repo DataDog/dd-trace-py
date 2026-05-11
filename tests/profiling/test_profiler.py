@@ -614,3 +614,28 @@ def test_profiler_singleton_after_fork():
         _, status = os.waitpid(pid, 0)
         assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"Child exited with status {status}"
         p.stop(flush=False)
+
+
+@pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="true"),
+    err=lambda stderr: "AssertionError" not in stderr,
+)
+def test_profiler_atexit_no_assertion_error_with_gevent():
+    """Regression test: atexit callbacks must not raise AssertionError when
+    gevent >= 26.4.0 is monkey-patched and the gevent hub is torn down before
+    atexit runs (gevent/thread.py _set_greenlet assert glet is not None).
+    """
+    import ddtrace.auto  # noqa: F401, I001
+    import ddtrace.profiling.auto  # noqa: F401
+
+    import gevent.monkey  # noqa: E402
+
+    gevent.monkey.patch_all()
+
+    import time  # noqa: E402
+
+    time.sleep(0.1)
+
+    # We don't need to assert anything here, we only want to make sure the subprocess
+    # runs (and exits) without raising an exception/crashing.
