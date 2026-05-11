@@ -4,11 +4,11 @@ These exercise the diff/encode/checkpoint-id logic without bringing up a real
 DurableContext or hitting the SDK's checkpoint queue.
 """
 
+import json
 from types import SimpleNamespace
 from unittest import mock
 
 import pytest
-import ujson
 
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python import trace_checkpoint
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import patch
@@ -142,7 +142,7 @@ def test_save_uses_execute_span_id_on_first_invocation():
     assert is_sync is False
     assert update.name == "_datadog_0"
     assert update.parent_id is None  # AWS-side parent stays None at top level
-    payload = ujson.loads(update.payload)
+    payload = json.loads(update.payload)
     # First invocation anchors to aws.durable.execute span id.
     assert payload["x-datadog-parent-id"] == str(0x1234_1234_1234_1234)
 
@@ -152,7 +152,7 @@ def test_save_reuses_prior_checkpoint_parent_id_on_replay():
     the parent id from a prior invocation. Reuse it verbatim instead of
     walking the (now incomplete) span tree.
     """
-    prior_payload = ujson.dumps({"x-datadog-trace-id": "111", "x-datadog-parent-id": "5555555555555555"})
+    prior_payload = json.dumps({"x-datadog-trace-id": "111", "x-datadog-parent-id": "5555555555555555"})
     state = _make_state(
         operations={
             "id-0": SimpleNamespace(
@@ -173,7 +173,7 @@ def test_save_reuses_prior_checkpoint_parent_id_on_replay():
     with mock.patch.object(trace_checkpoint.HTTPPropagator, "inject", side_effect=_inject):
         trace_checkpoint.maybe_save_trace_context_checkpoint(durable, span)
 
-    payload = ujson.loads(state._captured[0][0].payload)
+    payload = json.loads(state._captured[0][0].payload)
     assert payload["x-datadog-parent-id"] == "5555555555555555"
 
 
@@ -190,7 +190,7 @@ def test_save_rewrites_traceparent_parent_segment():
     with mock.patch.object(trace_checkpoint.HTTPPropagator, "inject", side_effect=_inject):
         trace_checkpoint.maybe_save_trace_context_checkpoint(durable, span)
 
-    payload = ujson.loads(state._captured[0][0].payload)
+    payload = json.loads(state._captured[0][0].payload)
     parts = payload["traceparent"].split("-")
     assert parts[0] == "00"
     assert parts[1] == "0000000000000000000000000000007b"
@@ -219,7 +219,7 @@ def test_save_first_invocation_then_replay_share_parent_id():
     with mock.patch.object(trace_checkpoint.HTTPPropagator, "inject", side_effect=_inject):
         trace_checkpoint.maybe_save_trace_context_checkpoint(durable1, span1)
 
-    pid_1 = ujson.loads(state1._captured[0][0].payload)["x-datadog-parent-id"]
+    pid_1 = json.loads(state1._captured[0][0].payload)["x-datadog-parent-id"]
     assert pid_1 == str(anchor_id)
 
     # Invocation 2 (replay): prior checkpoint is in state.operations.
@@ -241,7 +241,7 @@ def test_save_first_invocation_then_replay_share_parent_id():
     with mock.patch.object(trace_checkpoint.HTTPPropagator, "inject", side_effect=_inject):
         trace_checkpoint.maybe_save_trace_context_checkpoint(durable2, span2)
 
-    pid_2 = ujson.loads(state2._captured[0][0].payload)["x-datadog-parent-id"]
+    pid_2 = json.loads(state2._captured[0][0].payload)["x-datadog-parent-id"]
     assert pid_2 == pid_1
 
 
@@ -288,7 +288,7 @@ def test_save_skips_when_matches_prior_checkpoint_in_state_operations():
     # The prior checkpoint includes a different `dd=p:` (per-span volatile)
     # value than what the new save will produce — the diff must ignore it
     # and treat the headers as equivalent.
-    prior_payload = ujson.dumps(
+    prior_payload = json.dumps(
         {
             "x-datadog-trace-id": "111",
             "x-datadog-parent-id": "ROOT",
@@ -327,7 +327,7 @@ def test_save_writes_when_real_context_differs_from_prior():
     """If something stable changed (e.g. sampling priority), a new checkpoint
     is written even though parent-id and dd=p have rotated.
     """
-    prior_payload = ujson.dumps(
+    prior_payload = json.dumps(
         {
             "x-datadog-trace-id": "111",
             "x-datadog-parent-id": "ROOT",

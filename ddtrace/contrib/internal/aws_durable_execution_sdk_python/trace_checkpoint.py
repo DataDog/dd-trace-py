@@ -22,6 +22,7 @@ unusual enough not to collide.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import threading
 from typing import TYPE_CHECKING
@@ -29,7 +30,6 @@ from typing import Optional
 
 from aws_durable_execution_sdk_python.identifier import OperationIdentifier
 from aws_durable_execution_sdk_python.lambda_service import OperationUpdate
-import ujson
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
@@ -221,7 +221,7 @@ def _read_prior_checkpoint_payload(state) -> Optional[dict]:
     if not payload_str:
         return None
     try:
-        payload = ujson.loads(payload_str)
+        payload = json.loads(payload_str)
     except Exception:
         return None
     return payload if isinstance(payload, dict) else None
@@ -357,7 +357,7 @@ def maybe_save_trace_context_checkpoint(durable_context: "DurableContext", span:
         parent_id: Optional[str] = getattr(durable_context, "_parent_id", None)
 
         identifier = OperationIdentifier(operation_id=operation_id, parent_id=parent_id, name=name)
-        payload = ujson.dumps(headers)
+        payload = json.dumps(headers, separators=(",", ":"))
         update = OperationUpdate.create_step_succeed(identifier, payload)
 
         # Async checkpoint — observability only, must not block the workflow.
