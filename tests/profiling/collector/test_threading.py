@@ -11,7 +11,7 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 from typing import cast
-from unittest import mock  # type: ignore[import-untyped]
+from unittest import mock
 import uuid
 
 import pytest
@@ -191,6 +191,109 @@ def test_patch():
     # After stopping, everything is restored
     assert lock == threading.Lock
     assert collector._original_lock == threading.Lock
+
+
+# Run in a subprocess: pops threading from sys.modules to simulate gevent's
+# cleanup_loaded_modules(), which would corrupt ModuleWatchdog state in-process.
+@pytest.mark.subprocess(err=lambda s: "re-applying lock profiling patches" in s)
+def test_lock_patching_survives_module_reimport():
+    """Test that lock patches are re-applied when threading is re-imported.
+
+    This simulates what cleanup_loaded_modules() does when gevent is installed:
+    it removes 'threading' from sys.modules, causing the next import to load a
+    fresh, unpatched module. Without the fix, user code would get native locks.
+    """
+    import importlib
+    import sys
+    import threading
+
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+    collector = ThreadingLockCollector()
+    collector.start()
+
+    assert isinstance(threading.Lock, LockAllocatorWrapper)
+
+    # Simulate cleanup_loaded_modules(): remove threading from sys.modules
+    old_threading = sys.modules.pop("threading")
+    # Re-import threading — this is what user code does after cloning
+    new_threading = importlib.import_module("threading")
+    assert new_threading is not old_threading, "Should be a different module object"
+
+    # The fix: patches should have been re-applied to the new module
+    assert isinstance(new_threading.Lock, LockAllocatorWrapper), (
+        "Lock on re-imported threading module should be patched. "
+        "This fails without the ModuleWatchdog re-import hook fix."
+    )
+
+    # User-created locks from the new module should be profiled
+    lock = new_threading.Lock()
+    assert isinstance(lock, _ProfiledLock), "Locks created from re-imported threading should be profiled"
+
+    collector.stop()
+
+
+# Run in a subprocess: pops threading from sys.modules to simulate gevent's
+# cleanup_loaded_modules(), which would corrupt ModuleWatchdog state in-process.
+@pytest.mark.subprocess(err=lambda s: "re-applying lock profiling patches" in s)
+def test_lock_unpatch_after_module_reimport():
+    """Test that stop/unpatch works correctly after module has been swapped."""
+    import importlib
+    import sys
+    import threading
+
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+    collector = ThreadingLockCollector()
+    collector.start()
+    assert isinstance(threading.Lock, LockAllocatorWrapper)
+
+    # Simulate module swap
+    sys.modules.pop("threading")
+    new_threading = importlib.import_module("threading")
+    assert isinstance(new_threading.Lock, LockAllocatorWrapper)
+
+    # Stop should unpatch the current (new) module
+    collector.stop()
+    assert not isinstance(new_threading.Lock, LockAllocatorWrapper), (
+        "After stop, the new threading module should be unpatched"
+    )
+
+
+@pytest.mark.parametrize(
+    "collector_class,lock_name",
+    [
+        (ThreadingLockCollector, "Lock"),
+        (ThreadingRLockCollector, "RLock"),
+        (ThreadingSemaphoreCollector, "Semaphore"),
+        (ThreadingBoundedSemaphoreCollector, "BoundedSemaphore"),
+        (ThreadingConditionCollector, "Condition"),
+    ],
+)
+def test_all_threading_collectors_survive_module_reimport(
+    collector_class: CollectorTypeClass,
+    lock_name: str,
+) -> None:
+    """Test that all threading lock collector types re-patch after module re-import."""
+    import importlib
+
+    collector_inst = collector_class()
+    collector_inst.start()
+
+    assert isinstance(getattr(threading, lock_name), LockAllocatorWrapper)
+
+    old_threading = sys.modules.pop("threading")
+    try:
+        new_threading = importlib.import_module("threading")
+        assert isinstance(getattr(new_threading, lock_name), LockAllocatorWrapper), (
+            f"{collector_class.__name__} should re-patch {lock_name} on the re-imported module"
+        )
+    finally:
+        sys.modules["threading"] = old_threading
+        collector_inst.stop()
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
@@ -581,7 +684,7 @@ def test_all_exceptions_suppressed_by_default() -> None:
     """
     import threading
 
-    import mock
+    import mock  # type: ignore[import-untyped]
 
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector.test_utils import init_ddup
@@ -1637,7 +1740,6 @@ class TestGenericLockProfiling(LockCollectorTestBase):
                 "init_location",
                 "acquired_time",
                 "name",
-                "is_internal",
             }
             assert set(_ProfiledLock.__slots__) == expected_slots
 
@@ -1929,35 +2031,25 @@ class BaseSemaphoreTest(LockCollectorTestBase):
             ],
         )
 
-    def test_internal_lock_marked_correctly(self) -> None:
-        """Verify that locks created internally by threading.py are marked as internal (`self.is_internal == True`."""
+    def test_stdlib_internal_lock_is_native(self) -> None:
+        """Locks created internally by threading.py (e.g., inside Condition/Semaphore) must be
+        native (not _ProfiledLock), because threading/asyncio are always excluded from profiling.
+        """
+        from ddtrace.profiling.collector._lock import _ProfiledLock
         from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
-        lock_type_name: str = self.lock_class.__name__
-
-        # Start Lock and Semaphore-like collectors to capture both lock types
         with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
-            # Create a regular lock from user code
             regular_lock: LockTypeInst = threading.Lock()
-            assert hasattr(regular_lock, "is_internal"), "Lock should be wrapped with is_internal attribute"
-            # pyright: ignore[reportAttributeAccessIssue]
-            assert not regular_lock.is_internal, f"Regular lock should NOT be internal, got: {regular_lock.is_internal}"
+            assert isinstance(regular_lock, _ProfiledLock), "User lock should be profiled"
 
-            # Create a semaphore-like lock - it should NOT be internal
             sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
-            # pyright: ignore[reportAttributeAccessIssue]
-            assert not sem.is_internal, (  # type: ignore[union-attr]
-                f"{lock_type_name} should NOT be internal, got: {sem.is_internal}"  # type: ignore[union-attr]
-            )
+            assert isinstance(sem, _ProfiledLock), "User semaphore should be profiled"
 
-            # Access the internal lock (Semaphore-like -> Condition -> Lock)
-            # The Condition is at sem._cond, and its lock is at sem._cond._lock
-            internal_lock: LockTypeInst = (
-                sem._cond._lock  # type: ignore[union-attr]  # pyright: ignore[reportAttributeAccessIssue]
-            )
-            assert hasattr(internal_lock, "is_internal"), "Internal lock should be wrapped"
-            assert internal_lock.is_internal, (  # pyright: ignore[reportAttributeAccessIssue]
-                "Lock created by threading.py (inside Condition) SHOULD be marked as internal."
+            # Internal lock (Semaphore -> Condition -> Lock, allocated inside threading.py)
+            # must be a native lock, NOT a _ProfiledLock
+            internal_lock = sem._cond._lock
+            assert not isinstance(internal_lock, _ProfiledLock), (
+                f"Lock created by threading.py (inside Condition) should be native, got {type(internal_lock).__name__}"
             )
 
     def test_acquire_return_values_preserved(self) -> None:
@@ -2106,3 +2198,110 @@ class TestThreadingConditionCollector(LockCollectorTestBase):
     @property
     def lock_class(self) -> type[threading.Condition]:
         return threading.Condition
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
+def test_rlock_reentrant_acquire_no_assert() -> None:
+    """RLock re-entrant acquire must not assert when one acquire is sampled and the other is not."""
+    import threading
+
+    from ddtrace.profiling.collector.threading import ThreadingRLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_rlock_reentrant")
+
+    # 1% capture: acquire/release pairs get independent sampling. Re-entrant acquires
+    # can have acquired_time set from outer acquire while inner acquire is not sampled.
+    with ThreadingRLockCollector(capture_pct=1):
+        lock = threading.RLock()
+        for _ in range(200):
+            lock.acquire()
+            lock.acquire()  # re-entrant
+            lock.release()
+            lock.release()
+
+
+# -- Per-module lock filtering (DD_PROFILING_LOCK_EXCLUDE_MODULES) -----------
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="__main__"))
+def test_exclude_modules_skips_wrapping() -> None:
+    """Locks created from an excluded module are native (not _ProfiledLock)."""
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_exclude_modules")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert not isinstance(lock, _ProfiledLock), "Lock from excluded module should be native, got _ProfiledLock"
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="some.nonexistent.module"))
+def test_exclude_modules_wraps_non_excluded() -> None:
+    """Locks from non-excluded modules are still profiled."""
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_exclude_modules_wraps")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert isinstance(lock, _ProfiledLock), f"Lock should be profiled, got {type(lock)}"
+
+
+@pytest.mark.subprocess()
+def test_exclude_modules_empty_is_backward_compatible() -> None:
+    """Empty exclude list wraps all locks (backward compatible)."""
+    import os
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    assert not os.environ.get("DD_PROFILING_LOCK_EXCLUDE_MODULES")
+
+    init_ddup("test_exclude_modules_empty")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert isinstance(lock, _ProfiledLock)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="__main"))
+def test_exclude_modules_prefix_requires_dot_boundary() -> None:
+    """'__main' must NOT match '__main__' — prefix matching requires a dot boundary."""
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_exclude_prefix")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert isinstance(lock, _ProfiledLock), "Prefix without dot boundary should not exclude"
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="__main__,some.other.module"))
+def test_exclude_modules_multiple() -> None:
+    """Multiple comma-separated modules are all excluded."""
+    import threading
+
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_exclude_multiple")
+
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        assert not isinstance(lock, _ProfiledLock), "Lock from excluded module should be native"

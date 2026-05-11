@@ -79,7 +79,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 26584,
@@ -94,7 +94,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 2652250,
@@ -109,7 +109,7 @@
              "parent_id": 5,
              "meta": {
                "_dd.base_service": "",
-               "_dd.svc_src": "m",
+               "_dd.svc_src": "flask",
                "component": "flask"
              },
              "duration": 2584542,
@@ -125,7 +125,7 @@
                 "type": "system",
                 "meta": {
                   "_dd.base_service": "",
-                  "_dd.svc_src": "m",
+                  "_dd.svc_src": "flask",
                   "cmd.exit_code": "0",
                   "cmd.shell": "dir -li /",
                   "component": "os"
@@ -142,7 +142,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 30500,
@@ -157,7 +157,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 22166,
@@ -172,7 +172,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 15042,

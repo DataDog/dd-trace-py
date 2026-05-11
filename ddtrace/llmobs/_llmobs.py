@@ -37,6 +37,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings import env as _env
+from ddtrace.internal.settings.integration import _integration_env_var_id
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
@@ -58,6 +59,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
+from ddtrace.llmobs._constants import EXPERIMENT_DATASET_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_DATASET_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_NAME_KEY
@@ -460,6 +462,12 @@ class LLMObs(Service):
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
         self._export_directly_to_llmobs = _env.get("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
+        # Test-only: when set, _on_span_finish skips the meta_struct["_llmobs"] scrub
+        # so spans captured by tests' DummyWriter retain LLMObsSpanData for assertion.
+        # Set by integration test conftests via the _DD_LLMOBS_TEST_KEEP_META_STRUCT env
+        # var. Remove once agent-mode also stops scrubbing meta_struct (post APM/LLMObs
+        # convergence rollout).
+        self._test_mode_keep_meta_struct = asbool(_env.get("_DD_LLMOBS_TEST_KEEP_META_STRUCT", False))
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
@@ -507,9 +515,8 @@ class LLMObs(Service):
 
         span_event = None
         try:
-            if not self._prepare_llmobs_span_data(span, span_kind):
-                return
-            span_event = self._llmobs_span_event(span)
+            if self._prepare_llmobs_span_data(span, span_kind):
+                span_event = self._llmobs_span_event(span)
         except (KeyError, TypeError, ValueError):
             log.error(
                 "Error generating LLMObs span event for span %s, likely due to malformed span",
@@ -518,6 +525,8 @@ class LLMObs(Service):
             )
 
         if not span_event:
+            # clear meta_struct if no event to export (dropped by user processor / error during preparation/assembly)
+            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             return
 
         if self._evaluator_runner and span_kind == "llm":
@@ -526,7 +535,8 @@ class LLMObs(Service):
         if self._export_directly_to_llmobs:
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
-            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            if not self._test_mode_keep_meta_struct:
+                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
@@ -1824,7 +1834,7 @@ class LLMObs(Service):
             for integration in llm_integrations
         }
         for module, _ in integrations_to_patch.items():
-            env_var = "DD_TRACE_%s_ENABLED" % module.upper()
+            env_var = "DD_TRACE_%s_ENABLED" % _integration_env_var_id(module)
             if env_var in _env:
                 integrations_to_patch[module] = asbool(_env[env_var])
         dd_patch_modules = _env.get("DD_PATCH_MODULES")
@@ -1934,6 +1944,7 @@ class LLMObs(Service):
             (EXPERIMENT_RUN_ID_KEY, "run_id"),
             (EXPERIMENT_RUN_ITERATION_KEY, "run_iteration"),
             (EXPERIMENT_DATASET_NAME_KEY, "dataset_name"),
+            (EXPERIMENT_DATASET_ID_KEY, "dataset_id"),
             (EXPERIMENT_PROJECT_ID_KEY, "project_id"),
             (EXPERIMENT_PROJECT_NAME_KEY, "project_name"),
             (EXPERIMENT_NAME_KEY, "experiment_name"),
@@ -2226,6 +2237,7 @@ class LLMObs(Service):
         run_id: Optional[str] = None,
         run_iteration: Optional[int] = None,
         dataset_name: Optional[str] = None,
+        dataset_id: Optional[str] = None,
         project_name: Optional[str] = None,
         project_id: Optional[str] = None,
         experiment_name: Optional[str] = None,
@@ -2257,6 +2269,9 @@ class LLMObs(Service):
         if dataset_name:
             span.context.set_baggage_item(EXPERIMENT_DATASET_NAME_KEY, dataset_name)
             _annotate_llmobs_span_data(span, tags={"dataset_name": dataset_name})
+        if dataset_id:
+            span.context.set_baggage_item(EXPERIMENT_DATASET_ID_KEY, dataset_id)
+            _annotate_llmobs_span_data(span, tags={"dataset_id": dataset_id})
         if project_id:
             span.context.set_baggage_item(EXPERIMENT_PROJECT_ID_KEY, project_id)
             _annotate_llmobs_span_data(span, tags={"project_id": project_id})
@@ -2336,7 +2351,8 @@ class LLMObs(Service):
         :param tool_definitions: list of tool definition dictionaries for tool calling scenarios.
                             - This argument is only applicable to LLM spans.
                             - Each tool definition is a dictionary containing a required "name" (string),
-                                   and optional "description" (string) and "schema" (JSON serializable dictionary) keys.
+                                   and optional "description" (string), "schema" (JSON serializable dictionary),
+                                   and "version" (string) keys.
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
         """
