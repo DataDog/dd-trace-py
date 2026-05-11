@@ -46,12 +46,7 @@ log = get_logger(__name__)
 
 _CHECKPOINT_NAME_PREFIX = "_datadog_"
 _STATE_LAST_HEADERS_ATTR = "_dd_last_propagation_headers"
-_STATE_PRIOR_PAYLOAD_ATTR = "_dd_prior_checkpoint_payload"
 _STATE_NEXT_N_ATTR = "_dd_next_checkpoint_n"
-# Sentinel: tells _get_prior_payload "I haven't tried to load yet" — a real
-# load can return ``None`` (no prior checkpoint), so we can't use ``None`` for
-# both meanings.
-_PRIOR_NOT_LOADED = object()
 # Module-global lock serializing checkpoint-N allocation across all states.
 # ExecutionState is shared across worker threads (parallel/map), so two threads
 # can race on the counter.  The critical section is microseconds and the SDK
@@ -206,21 +201,7 @@ def _read_prior_checkpoint_payload(state) -> Optional[dict]:
     return payload if isinstance(payload, dict) else None
 
 
-def _get_prior_payload(state) -> Optional[dict]:
-    """Cached single read of the prior checkpoint payload for this invocation."""
-    cached = getattr(state, _STATE_PRIOR_PAYLOAD_ATTR, _PRIOR_NOT_LOADED)
-    if cached is not _PRIOR_NOT_LOADED:
-        return cached
-    payload = _read_prior_checkpoint_payload(state)
-    try:
-        setattr(state, _STATE_PRIOR_PAYLOAD_ATTR, payload)
-    except Exception:  # nosec B110
-        # Some SDK state objects can reject dynamic attrs; this cache is best-effort.
-        pass
-    return payload
-
-
-def _resolve_override_parent_id(span, state) -> Optional[str]:
+def _resolve_override_parent_id(span, prior_payload: Optional[dict]) -> Optional[str]:
     """
     1. **Prior checkpoint** — if any ``_datadog_*`` already exists on the
        state (i.e. this is a replay invocation), reuse its saved parent id
@@ -229,9 +210,8 @@ def _resolve_override_parent_id(span, state) -> Optional[str]:
     2. **Current execute span** — on the very first save, anchor to the
        current ``aws.durable.execute`` span id.
     """
-    prior = _get_prior_payload(state)
-    if prior is not None:
-        pid = prior.get("x-datadog-parent-id")
+    if prior_payload is not None:
+        pid = prior_payload.get("x-datadog-parent-id")
         if pid is not None:
             return str(pid)
     anchor_span_id = getattr(span, "span_id", None)
@@ -289,6 +269,10 @@ def maybe_save_trace_context_checkpoint(durable_context: "DurableContext", span:
         if not headers:
             return
 
+        # One read of the prior checkpoint covers both uses below: the
+        # parent-id override and the cross-invocation diff suppression.
+        prior_payload = _read_prior_checkpoint_payload(state)
+
         # Stamp the parent id *before* the diff and the save, so every
         # persisted checkpoint references the same durable execute anchor
         # across every replay. The resolved value is either (a) the current
@@ -296,7 +280,7 @@ def maybe_save_trace_context_checkpoint(durable_context: "DurableContext", span:
         # checkpoint already stored (replay save). Without this, each
         # invocation would inject its own internal span id and fragment the
         # trace tree.
-        override_pid = _resolve_override_parent_id(span, state)
+        override_pid = _resolve_override_parent_id(span, prior_payload)
         if override_pid is not None:
             _override_parent_id(headers, override_pid)
 
@@ -313,7 +297,6 @@ def maybe_save_trace_context_checkpoint(durable_context: "DurableContext", span:
         last_local = getattr(state, _STATE_LAST_HEADERS_ATTR, None)
         if last_local is not None and last_local == stable:
             return
-        prior_payload = _get_prior_payload(state)
         if prior_payload is not None and _stable_headers(prior_payload) == stable:
             return
 
