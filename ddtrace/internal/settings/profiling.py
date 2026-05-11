@@ -219,8 +219,7 @@ class ProfilingConfig(DDConfig):
         help=(
             "Whether to track MEM-domain allocations (PyMem_Malloc/Calloc/Realloc) in "
             "the heap profiler. When enabled, allocations such as list internal buffers "
-            "and array.array data are captured in addition to PyObject_Malloc allocations. "
-            "Disabled by default; enable with DD_PROFILING_MEM_DOMAIN_ENABLED=true."
+            "and array.array data are captured. Requires Python 3.12 and later."
         ),
     )
 

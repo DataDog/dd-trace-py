@@ -9,7 +9,6 @@ import threading
 from tracemalloc import Statistic
 from types import CodeType
 from typing import TYPE_CHECKING
-from typing import Any
 from typing import Callable
 from typing import Sequence
 from typing import Union
@@ -19,7 +18,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
-from ddtrace.internal.settings.profiling import (  # type: ignore[attr-defined]
+from ddtrace.internal.settings.profiling import (
     _derive_default_heap_sample_size,  # pyright: ignore[reportAttributeAccessIssue]
 )
 from ddtrace.profiling.collector import memalloc
@@ -33,6 +32,7 @@ if TYPE_CHECKING:
 
 PY_314_OR_ABOVE = sys.version_info[:2] >= (3, 14)
 PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
+PY_312_OR_ABOVE = sys.version_info[:2] >= (3, 12)
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
 
@@ -449,7 +449,7 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
     def get_allocation_info_from_profile(
         profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], funcs: Sequence[Union[Callable, str]]
     ) -> dict[str, HeapInfo]:
-        got: dict[Any, Any] = {}
+        got: dict[str, HeapInfo] = {}
         for sample in samples:
             if sample.value[heap_space_idx] > 0:
                 continue
@@ -1296,6 +1296,28 @@ def _make_mem_domain_object(size_bytes: int) -> object:
     return [None] * n_ptrs
 
 
+def _count_heap_samples_with_function(
+    profile: "pprof_pb2.Profile", samples: Sequence["pprof_pb2.Sample"], function_name: str
+) -> int:
+    """Count heap-space samples whose stacktrace contains the given function name.
+
+    Used by MEM-domain tests to avoid false positives from unrelated heap-space
+    samples produced by ddup upload / pprof serialization paths.
+    """
+    matched: int = 0
+    for sample in samples:
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            if not location.line:
+                continue
+            fn = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
+            if profile.string_table[fn.name] == function_name:
+                matched += 1
+                break
+    return matched
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
 def test_mem_domain_allocations_appear_in_heap_samples(tmp_path: Path) -> None:
     """A large PYMEM_DOMAIN_MEM allocation must produce heap-space samples."""
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_heap_samples")
@@ -1345,8 +1367,14 @@ def test_bytearray_tracked_on_py313(tmp_path: Path) -> None:
     del ba
 
 
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
 def test_mem_domain_free_untracks(tmp_path: Path) -> None:
-    """MEM free hook must untrack the allocation so heap-space drops after del."""
+    """MEM free hook must untrack the allocation so heap-space drops after del.
+
+    Filters samples to only those whose stacktrace includes
+    ``_make_mem_domain_object`` so unrelated heap-space samples (e.g. from ddup
+    upload or pprof serialization paths) cannot influence the result.
+    """
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_free_untracks")
     mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
 
@@ -1358,20 +1386,24 @@ def test_mem_domain_free_untracks(tmp_path: Path) -> None:
         mc.snapshot()
         ddup.upload()
         profile = pprof_utils.parse_newest_profile(output_filename)
-        samples_after_alloc = len(pprof_utils.get_samples_with_value_type(profile, "heap-space"))
+        heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+        samples_after_alloc = _count_heap_samples_with_function(profile, heap_samples, "_make_mem_domain_object")
 
         del obj
         mc.snapshot()
         ddup.upload()
         profile = pprof_utils.parse_newest_profile(output_filename)
-        samples_after_free = len(pprof_utils.get_samples_with_value_type(profile, "heap-space"))
+        heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+        samples_after_free = _count_heap_samples_with_function(profile, heap_samples, "_make_mem_domain_object")
 
-    assert samples_after_alloc > 0, "Expected heap-space samples after MEM allocation"
+    assert samples_after_alloc > 0, "Expected heap-space samples attributed to _make_mem_domain_object after alloc"
     assert samples_after_free < samples_after_alloc, (
-        f"Expected heap-space count to drop after del (alloc={samples_after_alloc}, free={samples_after_free})"
+        f"Expected _make_mem_domain_object heap-space count to drop after del "
+        f"(alloc={samples_after_alloc}, free={samples_after_free})"
     )
 
 
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
 def test_mem_domain_realloc_retracks(tmp_path: Path) -> None:
     """Growing a list (reallocs ob_item via PyMem_Realloc) must not corrupt the heap tracker."""
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_realloc")
@@ -1389,6 +1421,7 @@ def test_mem_domain_realloc_retracks(tmp_path: Path) -> None:
     del lst
 
 
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
 def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
     """OBJ and MEM allocations in the same session must not corrupt heap tracker state."""
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_obj_mem_coexist")
