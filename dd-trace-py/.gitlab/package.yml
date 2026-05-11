@@ -61,6 +61,7 @@ variables:
     BUCKET: dd-trace-py-builds
   script:
     - |
+      cd dd-trace-py
       set -euo pipefail
 
       # Pipeline/commit paths
@@ -82,6 +83,7 @@ variables:
     SCCACHE_S3_KEY_PREFIX: "sccache"
     SCCACHE_REGION: "us-east-1"
   script:
+    - cd dd-trace-py
     - .gitlab/scripts/build-sdist.sh
 
 "build linux":
@@ -102,6 +104,7 @@ variables:
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
   script:
+    - cd dd-trace-py
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
       if [[ "${UNPIN_DEPENDENCIES:-"false"}" == "true" ]]; then
@@ -146,6 +149,7 @@ variables:
     SYSTEM_VERSION_COMPAT: "0"
     DD_USE_SCCACHE: "1"
   script: |
+    cd dd-trace-py
     set -euo pipefail
     if ! command -v sccache &> /dev/null; then
       brew install sccache
@@ -238,11 +242,11 @@ variables:
     - job: "build sdist"
       artifacts: true
   script:
-    - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
+    - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/dd-trace-py/pywheels/*.tar.gz | head -n 1)
     - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
     - twine check ${SDIST_FILE}
     - pip install ${SDIST_FILE}
-    - python ${CI_PROJECT_DIR}/tests/smoke_test.py
+    - python ${CI_PROJECT_DIR}/dd-trace-py/tests/smoke_test.py
 
 "build windows":
   stage: package
@@ -254,6 +258,7 @@ variables:
   variables:
     WINDOWS_BUILD_IMAGE: "registry.ddbuild.io/images/mirror/dd-trace-py/windows-build:d4d18a67d43d400d3ecc6bda777a5e233a24f434@sha256:58c3e28646ddf8a1021a079a380c8840e51f0b88c1489a522beee6ec99413019"
   script:
+    - cd dd-trace-py
     - bash .gitlab/scripts/build-wheel-windows.sh
   artifacts:
     paths:
@@ -270,6 +275,7 @@ variables:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script: |
+    cd dd-trace-py
     if [ -z ${GH_TOKEN} ]
     then
       # Use dd-octo-sts to get GitHub token
@@ -310,6 +316,7 @@ download_dependency_wheels:
       - PYTHON_IMAGE_TAG: "3.14.0"
         PYTHON_VERSION: "3.14"
   script:
+    - cd dd-trace-py
     - .gitlab/download-dependency-wheels.sh
   cache:
     - key: v0-download-dep-wheels-cache
@@ -348,6 +355,7 @@ download_dependency_wheels:
     - when: manual
       allow_failure: true
   script:
+    - cd dd-trace-py
     - .gitlab/scripts/upload-debug-symbols-to-backend.sh
 
 # Extract package version from pyproject.toml and save to dotenv artifact
@@ -356,6 +364,7 @@ download_dependency_wheels:
   tags: [ "arch:amd64" ]
   stage: package
   script:
+    - cd dd-trace-py
     - PACKAGE_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
     - echo "PACKAGE_VERSION=${PACKAGE_VERSION}" | tee -a package_version.env
     # Validate commit tag matches version if tag is set
@@ -383,6 +392,7 @@ download_dependency_wheels:
     - job: "download win_arm64 wheels"
       artifacts: true
   script:
+    - cd dd-trace-py
     - echo "Collected $(ls pywheels/*.whl 2>/dev/null | wc -l) Windows wheels"
   artifacts:
     paths:
@@ -409,6 +419,7 @@ download_dependency_wheels:
     - "collect windows wheels"
     - "package version"
   script:
+    - cd dd-trace-py
     - .gitlab/validate-ddtrace-package.py pywheels
 
 "ddtrace package serverless":
@@ -417,4 +428,5 @@ download_dependency_wheels:
     - "build linux serverless"
     - "package version"
   script:
+    - cd dd-trace-py
     - .gitlab/validate-ddtrace-package.py pywheels --mode=serverless
