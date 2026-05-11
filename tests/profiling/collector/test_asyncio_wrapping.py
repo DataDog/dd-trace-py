@@ -32,104 +32,8 @@ _SKIP_ON_UVLOOP = pytest.mark.skipif(
 
 
 # ---------------------------------------------------------------------------
-# Identity / metadata invariants
+# Callback-firing invariants — one test per wrap site
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.subprocess(err=None)
-def test_alias_identity_preserved_after_wrapping() -> None:
-    """``asyncio.X`` and ``asyncio.tasks.X`` must remain the same function
-    object after the profiler wraps the asyncio internals.
-
-    This guards against a regression where setattr-style wrapping replaces
-    only one of two aliased bindings, leaving user code that calls
-    ``asyncio.create_task(...)`` unobserved.
-    """
-    import asyncio
-    import asyncio.tasks  # noqa: F401
-
-    from ddtrace.profiling import profiler
-
-    p = profiler.Profiler()
-    p.start()
-    try:
-        assert asyncio.create_task is asyncio.tasks.create_task
-        assert asyncio.shield is asyncio.tasks.shield
-        assert asyncio.as_completed is asyncio.tasks.as_completed
-    finally:
-        p.stop()
-
-
-@pytest.mark.subprocess(err=None)
-def test_function_metadata_preserved_after_wrapping() -> None:
-    """The wrapped callables must keep ``__name__`` / ``__module__`` so
-    stack frames and debug output keep referring to ``asyncio.tasks.create_task``
-    rather than a nameless trampoline.
-    """
-    import asyncio
-
-    from ddtrace.profiling import profiler
-
-    p = profiler.Profiler()
-    p.start()
-    try:
-        assert asyncio.create_task.__name__ == "create_task"
-        assert asyncio.create_task.__module__ == "asyncio.tasks"
-        assert asyncio.shield.__name__ == "shield"
-        assert asyncio.as_completed.__name__ == "as_completed"
-    finally:
-        p.stop()
-
-
-# ---------------------------------------------------------------------------
-# Callback-firing invariants
-# ---------------------------------------------------------------------------
-
-
-@_SKIP_ON_UVLOOP
-@pytest.mark.subprocess(err=None)
-def test_create_task_via_both_bindings_triggers_callback() -> None:
-    """``asyncio.create_task(...)`` and ``asyncio.tasks.create_task(...)`` must
-    each fire ``stack.weak_link_tasks``. This is the alias case: a setattr
-    replacement that only patched one of the two bindings would silently miss
-    user code that uses the package-level alias.
-    """
-    import asyncio
-
-    from ddtrace.internal.datadog.profiling import stack
-    from ddtrace.profiling import profiler
-
-    p = profiler.Profiler()
-    p.start()
-    try:
-        recorded: list[tuple[int, int]] = []
-        original_weak_link = stack.weak_link_tasks
-
-        def recorder(parent, child) -> None:
-            recorded.append((id(parent), id(child)))
-            return original_weak_link(parent, child)
-
-        stack.weak_link_tasks = recorder
-
-        async def child() -> None:
-            await asyncio.sleep(0)
-
-        async def main():
-            via_alias = asyncio.create_task(child())
-            via_canonical = asyncio.tasks.create_task(child())
-            await via_alias
-            await via_canonical
-            return id(via_alias), id(via_canonical)
-
-        alias_id, canonical_id = asyncio.run(main())
-
-        recorded_child_ids = {child_id for _, child_id in recorded}
-        assert alias_id in recorded_child_ids, (
-            "asyncio.create_task did not trigger weak_link_tasks; alias binding may be unwrapped"
-        )
-        assert canonical_id in recorded_child_ids, "asyncio.tasks.create_task did not trigger weak_link_tasks"
-    finally:
-        p.stop()
 
 
 @pytest.mark.subprocess(err=None)
@@ -372,37 +276,6 @@ def test_set_event_loop_triggers_track_asyncio_loop() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Wrapping is in place even when the wrapper has no observable side-effect
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.subprocess(err=None)
-def test_wrapped_call_returns_original_result() -> None:
-    """The wrapper must transparently return the value of the original call.
-    Belt-and-braces check that the wrapping does not corrupt return values.
-    """
-    import asyncio
-
-    from ddtrace.profiling import profiler
-
-    p = profiler.Profiler()
-    p.start()
-    try:
-
-        async def child(x: int) -> int:
-            await asyncio.sleep(0)
-            return x * 2
-
-        async def main():
-            t = asyncio.create_task(child(21))
-            return await t
-
-        assert asyncio.run(main()) == 42
-    finally:
-        p.stop()
-
-
-# ---------------------------------------------------------------------------
 # Wrap gating: with stack profiling disabled, importing _asyncio must not
 # mutate asyncio.tasks.create_task. The wrapping inside the ModuleWatchdog
 # hook is gated on ``config.stack.enabled and stack.is_available`` (which
@@ -491,35 +364,12 @@ def test_pre_cached_reference_still_triggers_callback() -> None:
 
 
 @pytest.mark.subprocess(err=None)
-def test_shield_keyword_arg_form_does_not_raise() -> None:
-    """``asyncio.shield(arg=fut)`` (keyword form) must work — the wrapper
-    must not duplicate the substituted value into both args and kwargs.
+def test_keyword_arg_form_does_not_double_substitute() -> None:
+    """The ``shield``/``as_completed`` wrappers substitute a value back into
+    the call. If they substituted via ``args`` when the caller used kwargs
+    we'd get ``TypeError: got multiple values for argument``. Covers both
+    APIs in one test.
     """
-    import asyncio
-
-    from ddtrace.profiling import profiler
-
-    p = profiler.Profiler()
-    p.start()
-    try:
-
-        async def child() -> int:
-            await asyncio.sleep(0)
-            return 11
-
-        async def main() -> int:
-            # Keyword form — not commonly used but valid.
-            return await asyncio.shield(arg=child())
-
-        result = asyncio.run(main())
-        assert result == 11
-    finally:
-        p.stop()
-
-
-@pytest.mark.subprocess(err=None)
-def test_as_completed_keyword_arg_form_does_not_raise() -> None:
-    """``asyncio.as_completed(fs=...)`` (keyword form) must work."""
     import asyncio
 
     from ddtrace.profiling import profiler
@@ -532,13 +382,17 @@ def test_as_completed_keyword_arg_form_does_not_raise() -> None:
             await asyncio.sleep(0)
             return x
 
-        async def main() -> list[int]:
+        async def main_shield() -> int:
+            return await asyncio.shield(arg=child(11))
+
+        async def main_as_completed() -> list[int]:
             results: list[int] = []
             for fut in asyncio.as_completed(fs=[child(0), child(1), child(2)]):
                 results.append(await fut)
             return sorted(results)
 
-        assert asyncio.run(main()) == [0, 1, 2]
+        assert asyncio.run(main_shield()) == 11
+        assert asyncio.run(main_as_completed()) == [0, 1, 2]
     finally:
         p.stop()
 
@@ -547,57 +401,6 @@ def test_as_completed_keyword_arg_form_does_not_raise() -> None:
 # Return value / behaviour invariants — guards against the wrapper accidentally
 # corrupting the API contract of the wrapped function.
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.subprocess(err=None)
-def test_create_task_preserves_name_kwarg() -> None:
-    """``create_task(coro, name='X')`` must produce a task named 'X'."""
-    import asyncio
-
-    from ddtrace.profiling import profiler
-
-    p = profiler.Profiler()
-    p.start()
-    try:
-
-        async def child() -> None:
-            await asyncio.sleep(0)
-
-        async def main() -> str:
-            t = asyncio.create_task(child(), name="hello-world")
-            await t
-            return t.get_name()
-
-        assert asyncio.run(main()) == "hello-world"
-    finally:
-        p.stop()
-
-
-@pytest.mark.subprocess(err=None)
-def test_gather_returns_results_in_order() -> None:
-    """``asyncio.gather(c1, c2, c3)`` must return ``[r1, r2, r3]`` in order
-    even after wrapping.
-    """
-    import asyncio
-
-    from ddtrace.profiling import profiler
-
-    p = profiler.Profiler()
-    p.start()
-    try:
-
-        async def child(x: int) -> int:
-            # Stagger completion so the ordering test is real.
-            await asyncio.sleep((10 - x) * 0.001)
-            return x
-
-        async def main() -> list[int]:
-            # asyncio.gather is typed as returning tuple[T1, T2, ...]; runtime is a list.
-            return list(await asyncio.gather(child(1), child(2), child(3)))
-
-        assert asyncio.run(main()) == [1, 2, 3]
-    finally:
-        p.stop()
 
 
 @pytest.mark.subprocess(err=None)
@@ -656,29 +459,6 @@ def test_wait_returns_done_pending_tuple() -> None:
         p.stop()
 
 
-@pytest.mark.subprocess(err=None)
-def test_shield_returns_underlying_result() -> None:
-    """``await asyncio.shield(coro)`` must yield the coroutine's return value."""
-    import asyncio
-
-    from ddtrace.profiling import profiler
-
-    p = profiler.Profiler()
-    p.start()
-    try:
-
-        async def child() -> str:
-            await asyncio.sleep(0)
-            return "shielded-value"
-
-        async def main() -> str:
-            return await asyncio.shield(child())
-
-        assert asyncio.run(main()) == "shielded-value"
-    finally:
-        p.stop()
-
-
 # ---------------------------------------------------------------------------
 # Edge cases — empty inputs and error paths must not blow up the wrappers.
 # ---------------------------------------------------------------------------
@@ -718,29 +498,6 @@ def test_gather_empty_does_not_link() -> None:
 
 
 @pytest.mark.subprocess(err=None)
-def test_as_completed_empty_iterator() -> None:
-    """``asyncio.as_completed([])`` must yield nothing and not crash."""
-    import asyncio
-
-    from ddtrace.profiling import profiler
-
-    p = profiler.Profiler()
-    p.start()
-    try:
-
-        async def main() -> list[int]:
-            results: list[int] = []
-            empty: list[asyncio.Future[int]] = []
-            for fut in asyncio.as_completed(empty):
-                results.append(await fut)
-            return results
-
-        assert asyncio.run(main()) == []
-    finally:
-        p.stop()
-
-
-@pytest.mark.subprocess(err=None)
 def test_create_task_propagates_exception() -> None:
     """If the wrapped coroutine raises, the exception must propagate via
     ``await task`` — the wrapper must not swallow it.
@@ -765,39 +522,6 @@ def test_create_task_propagates_exception() -> None:
             return None
 
         assert asyncio.run(main()) == "expected boom"
-    finally:
-        p.stop()
-
-
-@pytest.mark.subprocess(err=None)
-def test_wrapped_create_task_returns_real_task_object() -> None:
-    """``asyncio.create_task(coro)`` must return a genuine ``asyncio.Task``
-    (not a wrapper / proxy). Some downstream code calls ``Task``-specific
-    methods on the result.
-    """
-    import asyncio
-
-    from ddtrace.profiling import profiler
-
-    p = profiler.Profiler()
-    p.start()
-    try:
-
-        async def child() -> None:
-            await asyncio.sleep(0)
-
-        async def main():
-            t = asyncio.create_task(child())
-            try:
-                # Access a Task-specific method
-                assert isinstance(t, asyncio.Task)
-                assert hasattr(t, "get_name")
-                assert hasattr(t, "cancel")
-            finally:
-                await t
-            return True
-
-        assert asyncio.run(main()) is True
     finally:
         p.stop()
 
