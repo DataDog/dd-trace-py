@@ -8,7 +8,7 @@ on:
   pull_request: {}
   workflow_dispatch: {}
   schedule:
-    - cron: '00 04 * * 2-6'
+    - cron: '00 04 * * *'
 
 permissions:
   id-token: write
