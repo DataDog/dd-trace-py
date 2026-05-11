@@ -172,18 +172,26 @@ class GILGuard
     inline GILGuard(module_state* state)
       : _mstate(state)
     {
-        if (!_mstate->is_finalizing())
+        if (!_mstate->is_finalizing()) {
             _gil_state = PyGILState_Ensure();
+            _acquired = true;
+        }
     }
     inline ~GILGuard()
     {
-        if (!_mstate->is_finalizing() && PyGILState_Check())
+        if (_acquired && !_mstate->is_finalizing() && PyGILState_Check())
             PyGILState_Release(_gil_state);
     }
 
+    GILGuard(const GILGuard&) = delete;
+    GILGuard& operator=(const GILGuard&) = delete;
+    GILGuard(GILGuard&&) = delete;
+    GILGuard& operator=(GILGuard&&) = delete;
+
   private:
     module_state* _mstate;
-    PyGILState_STATE _gil_state;
+    PyGILState_STATE _gil_state{ PyGILState_UNLOCKED };
+    bool _acquired{ false };
 };
 
 // ----------------------------------------------------------------------------
@@ -206,6 +214,11 @@ class AllowThreads
         if (_thread_state != nullptr && !_mstate->is_finalizing())
             PyEval_RestoreThread(_thread_state);
     }
+
+    AllowThreads(const AllowThreads&) = delete;
+    AllowThreads& operator=(const AllowThreads&) = delete;
+    AllowThreads(AllowThreads&&) = delete;
+    AllowThreads& operator=(AllowThreads&&) = delete;
 
   private:
     module_state* _mstate;
