@@ -151,8 +151,18 @@ def test_save_reuses_prior_checkpoint_parent_id_on_replay():
     """On replay, ``state.operations`` has a ``_datadog_*`` carrying
     the parent id from a prior invocation. Reuse it verbatim instead of
     walking the (now incomplete) span tree.
+
+    Use a different sampling priority between prior and current so the
+    diff-suppression layer doesn't short-circuit the save — we need an
+    actual write to observe which parent id was stamped.
     """
-    prior_payload = json.dumps({"x-datadog-trace-id": "111", "x-datadog-parent-id": "5555555555555555"})
+    prior_payload = json.dumps(
+        {
+            "x-datadog-trace-id": "111",
+            "x-datadog-parent-id": "5555555555555555",
+            "x-datadog-sampling-priority": "1",
+        }
+    )
     state = _make_state(
         operations={
             "id-0": SimpleNamespace(
@@ -169,6 +179,7 @@ def test_save_reuses_prior_checkpoint_parent_id_on_replay():
     def _inject(_span, headers):
         headers["x-datadog-trace-id"] = "111"
         headers["x-datadog-parent-id"] = "current-span"
+        headers["x-datadog-sampling-priority"] = "2"
 
     with mock.patch.object(trace_checkpoint.HTTPPropagator, "inject", side_effect=_inject):
         trace_checkpoint.maybe_save_trace_context_checkpoint(durable, span)
@@ -202,6 +213,9 @@ def test_save_first_invocation_then_replay_share_parent_id():
     """End-to-end: invocation 1 stamps execute span id; invocation 2 (replay)
     reads the saved checkpoint and reuses the same parent id. Both saved
     payloads must carry the identical ``x-datadog-parent-id``.
+
+    Replay bumps the sampling priority so the diff-suppression layer
+    doesn't short-circuit invocation 2's save.
     """
     arn = "arn:aws:lambda:us-east-2:1:function:f:1/durable-execution/wf/abc-123"
     anchor_id = 0xBBBB
@@ -212,18 +226,19 @@ def test_save_first_invocation_then_replay_share_parent_id():
     durable1 = SimpleNamespace(state=state1, _parent_id=None)
     span1 = _span_chain(0xCAFE_BABE_CAFE_BABE, 0xAAAA, anchor_id)
 
-    def _inject(_span, headers):
+    def _inject_invocation_1(_span, headers):
         headers["x-datadog-trace-id"] = "111"
         headers["x-datadog-parent-id"] = "current-span"
+        headers["x-datadog-sampling-priority"] = "1"
 
-    with mock.patch.object(trace_checkpoint.HTTPPropagator, "inject", side_effect=_inject):
+    with mock.patch.object(trace_checkpoint.HTTPPropagator, "inject", side_effect=_inject_invocation_1):
         trace_checkpoint.maybe_save_trace_context_checkpoint(durable1, span1)
 
     pid_1 = json.loads(state1._captured[0][0].payload)["x-datadog-parent-id"]
     assert pid_1 == str(anchor_id)
 
     # Invocation 2 (replay): prior checkpoint is in state.operations.
-    # The save reuses pid_1.
+    # The save reuses pid_1.  Different sampling priority ensures a real save.
     persisted = state1._captured[0][0]
     state2 = _make_state(
         operations={
@@ -238,7 +253,12 @@ def test_save_first_invocation_then_replay_share_parent_id():
     # Different span tree on replay (no durable-execution root span exists).
     span2 = _span_chain(0xDEAD, 0xBEEF)
 
-    with mock.patch.object(trace_checkpoint.HTTPPropagator, "inject", side_effect=_inject):
+    def _inject_invocation_2(_span, headers):
+        headers["x-datadog-trace-id"] = "111"
+        headers["x-datadog-parent-id"] = "current-span"
+        headers["x-datadog-sampling-priority"] = "2"
+
+    with mock.patch.object(trace_checkpoint.HTTPPropagator, "inject", side_effect=_inject_invocation_2):
         trace_checkpoint.maybe_save_trace_context_checkpoint(durable2, span2)
 
     pid_2 = json.loads(state2._captured[0][0].payload)["x-datadog-parent-id"]
