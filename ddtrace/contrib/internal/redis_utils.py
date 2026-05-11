@@ -1,9 +1,16 @@
 from contextlib import contextmanager
+from typing import Any
+from typing import Callable
+from typing import Iterator
 from typing import Optional
+from typing import Sequence
 from typing import Union
 
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.redis.types import RedisClient
+from ddtrace.contrib.internal.redis.types import RedisConnectionKwargs
+from ddtrace.contrib.internal.redis.types import RedisInstance
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -12,6 +19,7 @@ from ddtrace.ext import redis as redisx
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.formats import stringify_cache_args
 
 
@@ -54,7 +62,12 @@ def determine_row_count(redis_command: str, result: Optional[Union[list, dict, s
         return 0
 
 
-async def _run_redis_command_async(ctx: core.ExecutionContext, func, args, kwargs):
+async def _run_redis_command_async(
+    ctx: core.ExecutionContext,
+    func: Callable[..., Any],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
     parsed_command = stringify_cache_args(args)
     redis_command = parsed_command.split(" ")[0]
     rowcount = None
@@ -73,9 +86,9 @@ async def _run_redis_command_async(ctx: core.ExecutionContext, func, args, kwarg
         core.dispatch("redis.async_command.post", (ctx, rowcount))
 
 
-def _extract_conn_tags(conn_kwargs) -> dict[str, str]:
+def _extract_conn_tags(conn_kwargs: RedisConnectionKwargs) -> dict[str, Any]:
     try:
-        conn_tags = {
+        conn_tags: dict[str, Any] = {
             net.TARGET_HOST: conn_kwargs["host"],
             net.TARGET_PORT: conn_kwargs["port"],
             net.SERVER_ADDRESS: conn_kwargs["host"],
@@ -89,8 +102,8 @@ def _extract_conn_tags(conn_kwargs) -> dict[str, str]:
         return {}
 
 
-def _build_tags(query, instance, integration_name):
-    ret = dict()
+def _build_tags(query: Optional[str], instance: RedisInstance, integration_name: str) -> dict[str, Any]:
+    ret: dict[str, Any] = dict()
     ret[SPAN_KIND] = SpanKind.CLIENT
     ret[COMPONENT] = integration_name
     ret[db.SYSTEM] = redisx.APP
@@ -105,7 +118,11 @@ def _build_tags(query, instance, integration_name):
 
 
 @contextmanager
-def _instrument_redis_execute_pipeline(config_integration, cmds, instance):
+def _instrument_redis_execute_pipeline(
+    config_integration: IntegrationConfig,
+    cmds: Sequence[str],
+    instance: RedisInstance,
+) -> Iterator[Any]:
     cmd_string = resource = "\n".join(cmds)
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
@@ -125,7 +142,11 @@ def _instrument_redis_execute_pipeline(config_integration, cmds, instance):
 
 
 @contextmanager
-def _instrument_redis_cmd(config_integration, instance, args):
+def _instrument_redis_cmd(
+    config_integration: IntegrationConfig,
+    instance: RedisClient,
+    args: Sequence[Any],
+) -> Iterator[core.ExecutionContext]:
     query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
     with core.context_with_data(
         "redis.command",

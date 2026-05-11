@@ -1,7 +1,14 @@
+from typing import Any
+from typing import Callable
+from typing import Union
+
 import redis
 import wrapt
 
 from ddtrace import config
+from ddtrace.contrib.internal.redis.types import RedisClient
+from ddtrace.contrib.internal.redis.types import RedisClusterPipeline
+from ddtrace.contrib.internal.redis.types import RedisPipeline
 from ddtrace.contrib.internal.redis_utils import ROW_RETURNING_COMMANDS
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_cmd
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_execute_pipeline
@@ -10,6 +17,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
@@ -103,7 +111,12 @@ def unpatch():
                 unwrap(redis.asyncio.cluster.ClusterPipeline, "execute")
 
 
-def _run_redis_command(ctx: core.ExecutionContext, func, args, kwargs):
+def _run_redis_command(
+    ctx: core.ExecutionContext,
+    func: Callable[..., Any],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
     parsed_command = stringify_cache_args(args)
     redis_command = parsed_command.split(" ")[0]
     rowcount = None
@@ -125,16 +138,28 @@ def _run_redis_command(ctx: core.ExecutionContext, func, args, kwargs):
 #
 # tracing functions
 #
-def instrumented_execute_command(integration_config):
-    def _instrumented_execute_command(func, instance, args, kwargs):
+def instrumented_execute_command(integration_config: IntegrationConfig) -> Callable[..., Any]:
+    def _instrumented_execute_command(
+        func: Callable[..., Any],
+        instance: RedisClient,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
         with _instrument_redis_cmd(integration_config, instance, args) as ctx:
             return _run_redis_command(ctx=ctx, func=func, args=args, kwargs=kwargs)
 
     return _instrumented_execute_command
 
 
-def instrumented_execute_pipeline(integration_config, is_cluster=False):
-    def _instrumented_execute_pipeline(func, instance, args, kwargs):
+def instrumented_execute_pipeline(
+    integration_config: IntegrationConfig, is_cluster: bool = False
+) -> Callable[..., Any]:
+    def _instrumented_execute_pipeline(
+        func: Callable[..., Any],
+        instance: Union[RedisPipeline, RedisClusterPipeline],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> Any:
         if is_cluster:
             cmds = [
                 stringify_cache_args(c.args, cmd_max_len=integration_config.cmd_max_length)
