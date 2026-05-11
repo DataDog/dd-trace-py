@@ -55,15 +55,9 @@ _COUNTER_LOCK = threading.Lock()
 
 
 def _strip_dd_parent_from_tracestate(value: str) -> str:
-    """Drop the ``p:`` entry from the ``dd=`` vendor section of ``tracestate``.
-
-    The dd vendor's ``p:`` entry carries the current span's parent id and
-    therefore changes on every span; everything else there (``s:``, ``t.dm:``,
-    ``t.tid:``, ``o:``, …) is stable across the trace.  Stripping just ``p:``
-    keeps the diff sensitive to *real* context changes — sampling priority,
-    decision, origin, propagation tags — without false-positives from the
-    parent id rotating each span.  Other vendors' segments are passed through
-    untouched.
+    """Drop the ``p:`` entry from the ``dd=`` vendor section to avoid creating spurious diffs.
+    ``p:`` carries the per-span parent id and rotates every span. Other vendors' segments pass
+    through untouched.
     """
     out_segments = []
     for seg in (s.strip() for s in value.split(",")):
@@ -81,13 +75,7 @@ def _strip_dd_parent_from_tracestate(value: str) -> str:
 
 
 def _stable_headers(headers: dict) -> dict:
-    """Strip per-span volatile fields so checkpoint diff is meaningful.
-
-    Per RFC 7230 HTTP headers are case-insensitive, so we compare keys via
-    ``.lower()``.  ``x-datadog-parent-id`` rotates per span; ``tracestate``'s
-    ``dd=p:`` segment does too — both must be normalized away or the diff
-    would think every span is a real context change.
-    """
+    """Strip per-span volatile fields so the diff is meaningful."""
     out = {}
     for k, v in headers.items():
         kl = k.lower()
@@ -103,14 +91,7 @@ def _stable_headers(headers: dict) -> dict:
 
 
 def _max_existing_checkpoint_n(state) -> int:
-    """Highest ``N`` already present in ``state.operations``, or -1 if none.
-
-    Scans for ``_datadog_{N}`` names and parses the suffix.  Used to
-    seed the per-process counter on the very first checkpoint of an invocation
-    so that replays continue numbering past whatever the previous invocation
-    left behind, and so the (unlikely) case of a user step colliding on the
-    name doesn't silently overwrite us.
-    """
+    """The highest ``N`` already present in ``state.operations``, or -1 if none."""
     operations = getattr(state, "operations", None) or {}
     highest = -1
     for op in operations.values():
@@ -201,7 +182,8 @@ def _read_prior_checkpoint_payload(state) -> Optional[dict]:
 
 
 def _resolve_override_parent_id(span, prior_payload: Optional[dict]) -> Optional[str]:
-    """
+    """Resolve the parent id to stamp into the saved checkpoint.
+
     1. **Prior checkpoint** — if any ``_datadog_*`` already exists on the
        state (i.e. this is a replay invocation), reuse its saved parent id
        verbatim. Across all invocations of the same durable execution this
@@ -268,34 +250,24 @@ def maybe_save_trace_context_checkpoint(durable_context: "DurableContext", span:
         if not headers:
             return
 
-        # One read of the prior checkpoint covers both uses below: the
-        # diff suppression and the parent-id override.
         prior_payload = _read_prior_checkpoint_payload(state)
 
-        # Diff first.  ``_stable_headers`` strips ``x-datadog-parent-id``
-        # (it rotates per span) and the ``dd=p:`` segment of ``tracestate``,
-        # so the override value does not participate in the comparison —
-        # we can defer it until we know we're actually going to save.
-        # Suppress if our stable headers match the prior checkpoint's; that
-        # means trace context didn't change since the last persisted save.
+        # ``_stable_headers`` strips ``x-datadog-parent-id`` and the
+        # ``dd=p:`` segment, so the override does not affect the diff —
+        # defer it until we know we're actually saving.  Suppress when prior
+        # matches: trace context hasn't changed.
         stable = _stable_headers(headers)
         if prior_payload is not None and _stable_headers(prior_payload) == stable:
             return
 
-        # Diff says we'll write — now resolve and stamp the anchor parent id
-        # so every persisted checkpoint references the same execute anchor
-        # across every replay.  The value is either (a) the current execute
-        # span id (first-invocation save) or (b) whatever a prior checkpoint
-        # already stored (replay save).  Without this, each invocation would
-        # inject its own internal span id and fragment the trace tree.
+        # Stamp the anchor parent id so every checkpoint across replays
+        # references the same execute span.  Without this, each invocation
+        # would inject its own current span id and fragment the trace tree.
         override_pid = _resolve_override_parent_id(span, prior_payload)
         if override_pid is not None:
             _override_parent_id(headers, override_pid)
 
-        # Allocate ``N`` only after the diff says we'll actually write, so we
-        # don't burn numbers on no-ops.  Counter is process-local: it starts at
-        # ``max(N) + 1`` from state.operations on first use (handles replays
-        # that already have prior checkpoints), then increments atomically.
+        # Allocate ``N`` only after the diff so no-op calls don't burn numbers.
         n = _allocate_checkpoint_n(state)
         if n < 0:
             return
