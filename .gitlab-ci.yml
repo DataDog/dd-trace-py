@@ -1,16 +1,14 @@
-# Monorepo root CI entrypoint. GitLab loads this file from the repository root by default.
-#
-# Project setting: If CI/CD was previously configured to use only dd-trace-py/.gitlab-ci.yml
-# (Settings → CI/CD → General pipelines → CI/CD configuration file), clear that field or set
-# it to .gitlab-ci.yml so this root file is picked up.
-
-default:
   before_script:
     - |
       if [ -d "${CI_PROJECT_DIR}/dd-trace-py" ]; then
         cd "${CI_PROJECT_DIR}/dd-trace-py"
-        export CI_PROJECT_DIR="${CI_PROJECT_DIR}/dd-trace-py"
+        export CI_PROJECT_DIR="$(pwd)"
       fi
-
+  after_script:
+    - |
+      if [ -d "${CI_PROJECT_DIR}/dd-trace-py" ]; then
+        cd "${CI_PROJECT_DIR}/dd-trace-py"
+        export CI_PROJECT_DIR="$(pwd)"
+      fi
 include:
   - local: dd-trace-py/.gitlab-ci.yml
