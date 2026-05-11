@@ -1,7 +1,9 @@
 ---
 features:
   - |
-    Profiling: The heap profiler now tracks allocations made through
+    Profiling: The heap profiler can now track allocations made through
     ``PYMEM_DOMAIN_MEM`` (``PyMem_Malloc/Calloc/Realloc``) in addition to the
-    existing ``PYMEM_DOMAIN_OBJ`` coverage. This makes previously invisible
-    allocations visible in heap profiles.
+    existing ``PYMEM_DOMAIN_OBJ`` coverage when
+    ``DD_PROFILING_MEM_DOMAIN_ENABLED=true`` is set. This support is effective
+    on Python 3.12 and newer, making previously invisible allocations visible
+    in heap profiles in those environments.
