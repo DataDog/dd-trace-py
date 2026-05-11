@@ -578,9 +578,12 @@ async def test_client_streaming_exception(server_info, tracer):
     assert client_span.error == 1
     error_msg = client_span.get_tag(ERROR_MSG)
     assert error_msg in ("abort_details", "Internal error from Core")
+    assert client_span.get_tag(ERROR_STACK) is None
+    error_type = client_span.get_tag(ERROR_TYPE)
     if error_msg == "abort_details":
-        assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-        assert client_span.get_tag(ERROR_STACK) is None
+        assert error_type == "StatusCode.INVALID_ARGUMENT"
+    else:
+        assert error_type is not None and error_type.startswith("StatusCode.")
     assert client_span.get_tag("component") == "grpc_aio_client"
     assert client_span.get_tag("span.kind") == "client"
     assert client_span.get_tag("peer.hostname") == "localhost"
@@ -684,9 +687,12 @@ async def test_bidi_streaming_exception(server_info, tracer):
     assert client_span.error == 1
     error_msg = client_span.get_tag(ERROR_MSG)
     assert error_msg in ("abort_details", "Internal error from Core")
+    assert client_span.get_tag(ERROR_STACK) is None
+    error_type = client_span.get_tag(ERROR_TYPE)
     if error_msg == "abort_details":
-        assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-        assert client_span.get_tag(ERROR_STACK) is None
+        assert error_type == "StatusCode.INVALID_ARGUMENT"
+    else:
+        assert error_type is not None and error_type.startswith("StatusCode.")
     assert client_span.get_tag("component") == "grpc_aio_client"
     assert client_span.get_tag("span.kind") == "client"
 
