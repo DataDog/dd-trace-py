@@ -134,22 +134,33 @@ def patch():
     Pin().onto(confluent_kafka.DeserializingConsumer)
 
 
+def _safe_unwrap(obj, attr):
+    # AIDEV-NOTE: When unpatch() runs late in the process lifecycle (pytest teardown,
+    # atexit, interpreter finalization), the confluent_kafka._cimpl C-extension can be
+    # partially torn down. Attribute lookups on TracedProducer/TracedConsumer then walk
+    # an MRO entry whose slot wrapper resolves against a NoneType, raising
+    #   TypeError: descriptor 'produce' for 'cimpl.Producer' objects
+    #              doesn't apply to a 'NoneType' object
+    # There's nothing actionable to clean up at that point, so swallow and log.
+    try:
+        if trace_utils.iswrapped(getattr(obj, attr, None)):
+            trace_utils.unwrap(obj, attr)
+    except (TypeError, AttributeError):
+        log.debug("kafka unpatch: skipping unwrap of %r.%s during teardown", obj, attr, exc_info=True)
+
+
 def unpatch():
     if getattr(confluent_kafka, "_datadog_patch", False):
         confluent_kafka._datadog_patch = False
 
     for producer in (TracedProducer, TracedSerializingProducer):
-        if trace_utils.iswrapped(producer.produce):
-            trace_utils.unwrap(producer, "produce")
+        _safe_unwrap(producer, "produce")
     for consumer in (TracedConsumer, TracedDeserializingConsumer):
-        if trace_utils.iswrapped(consumer.poll):
-            trace_utils.unwrap(consumer, "poll")
-        if trace_utils.iswrapped(consumer.commit):
-            trace_utils.unwrap(consumer, "commit")
+        _safe_unwrap(consumer, "poll")
+        _safe_unwrap(consumer, "commit")
 
     # Consume is not implemented in deserializing consumers
-    if trace_utils.iswrapped(TracedConsumer.consume):
-        trace_utils.unwrap(TracedConsumer, "consume")
+    _safe_unwrap(TracedConsumer, "consume")
 
     confluent_kafka.Producer = _Producer
     confluent_kafka.Consumer = _Consumer
