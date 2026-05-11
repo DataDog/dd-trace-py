@@ -3278,10 +3278,11 @@ venv = Venv(
             },
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} -vv tests/contrib/kafka",
+                    command="pytest -n auto {cmdargs} -vv tests/contrib/kafka",
                     venvs=[
                         Venv(
                             pys=select_pys(min_version="3.9", max_version="3.10"),
@@ -3625,10 +3626,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # process_vm_readv fallback (safe_memcpy is now default)
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "0",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3681,10 +3682,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # process_vm_readv fallback (safe_memcpy is now default)
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "0",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3723,10 +3724,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # process_vm_readv fallback (safe_memcpy is now default)
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "0",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3766,10 +3767,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # process_vm_readv fallback (safe_memcpy is now default)
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "0",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -4430,6 +4431,15 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="ai_guard_openai",
+            command="pytest {cmdargs} tests/appsec/ai_guard/openai/",
+            pys=select_pys(),
+            pkgs={
+                "pytest-asyncio": "==0.23.7",
+                "openai": ["==1.102.0", latest],
+            },
         ),
         Venv(
             name="claude_agent_sdk",

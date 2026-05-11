@@ -33,6 +33,9 @@ from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import BAGGAGE_TAG_PREFIX
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+from ..internal.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+from ..internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
+from ..internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -788,6 +791,115 @@ class _TraceContext:
         return sampling_priority
 
     @staticmethod
+    def _tracestate_member_exceeds_item_char_cap(member: str) -> bool:
+        return len(member) > DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+
+    @staticmethod
+    def _tracestate_drop_items_until_count_prefer_oversized(items: list[str], max_count: int) -> None:
+        """Shrink ``items`` in place until ``len(items) <= max_count``.
+
+        Removes list-members with more than ``DD_TRACE_TRACESTATE_ITEM_MAX_CHARS`` characters
+        first (left to right), then drops from the end if still over the cap.
+
+        Runs in O(len(items)) so attacker-controlled headers with many short list-members cannot
+        force quadratic work when trimming to ``max_count``.
+        """
+        if len(items) <= max_count:
+            return
+        excess = len(items) - max_count
+        removed = 0
+        kept: list[str] = []
+        for m in items:
+            if removed < excess and _TraceContext._tracestate_member_exceeds_item_char_cap(m):
+                removed += 1
+                continue
+            kept.append(m)
+        items[:] = kept
+        if len(items) > max_count:
+            del items[max_count:]
+
+    @staticmethod
+    def _tracestate_pack_members_to_byte_limit(members: list[str], *, never_skip_first: bool = False) -> list[str]:
+        """Append members until the UTF-8 byte budget is exhausted.
+
+        When a member does not fit, it is skipped if it exceeds ``DD_TRACE_TRACESTATE_ITEM_MAX_CHARS``
+        (so smaller later entries can still be kept); otherwise packing stops.
+        If ``never_skip_first`` is true, the first member is always kept (even over budget).
+        """
+        ts_l: list[str] = []
+        total_bytes = 0
+        for idx, member in enumerate(members):
+            segment_len = len(member.encode("utf-8")) + (1 if ts_l else 0)
+            if never_skip_first and idx == 0:
+                ts_l.append(member)
+                total_bytes += segment_len
+                continue
+            if total_bytes + segment_len <= DD_TRACE_TRACESTATE_MAX_BYTES:
+                ts_l.append(member)
+                total_bytes += segment_len
+                continue
+            if _TraceContext._tracestate_member_exceeds_item_char_cap(member):
+                log.debug(
+                    "tracestate skipping list-member over item char limit while fitting byte budget",
+                )
+                continue
+            log.debug(
+                "tracestate byte length exceeds maximum (%d), truncating whole entries",
+                DD_TRACE_TRACESTATE_MAX_BYTES,
+            )
+            break
+        return ts_l
+
+    @staticmethod
+    def _tracestate_members_after_limits_no_dd(members_stripped: list[str]) -> list[str]:
+        items = list(members_stripped)
+        if len(items) > DD_TRACE_TRACESTATE_MAX_ITEMS:
+            log.debug(
+                "tracestate list-member count exceeds maximum (%d), truncating",
+                DD_TRACE_TRACESTATE_MAX_ITEMS,
+            )
+            _TraceContext._tracestate_drop_items_until_count_prefer_oversized(items, DD_TRACE_TRACESTATE_MAX_ITEMS)
+        return _TraceContext._tracestate_pack_members_to_byte_limit(items, never_skip_first=False)
+
+    @staticmethod
+    def _tracestate_members_after_limits(members_stripped: list[str]) -> list[str]:
+        """Apply list-member and UTF-8 byte limits to tracestate segments.
+
+        The Datadog ``dd=`` list-member is preferred: the last ``dd=`` entry is always kept
+        (even when it alone exceeds the byte cap), placed first for budgeting, and never
+        displaced by other vendors under the byte limit. List-members longer than
+        ``DD_TRACE_TRACESTATE_ITEM_MAX_CHARS`` are dropped first when trimming count or bytes.
+        """
+        dd_index = -1
+        for i in range(len(members_stripped) - 1, -1, -1):
+            if members_stripped[i].startswith("dd="):
+                dd_index = i
+                break
+
+        if dd_index < 0:
+            return _TraceContext._tracestate_members_after_limits_no_dd(members_stripped)
+
+        dd_mem = members_stripped[dd_index]
+        others: list[str] = []
+        for j, m in enumerate(members_stripped):
+            if j == dd_index:
+                continue
+            if m.startswith("dd="):
+                continue
+            others.append(m)
+
+        max_others = DD_TRACE_TRACESTATE_MAX_ITEMS - 1
+        if len(others) > max_others:
+            log.debug(
+                "tracestate list-member count exceeds maximum (%d), truncating",
+                DD_TRACE_TRACESTATE_MAX_ITEMS,
+            )
+            _TraceContext._tracestate_drop_items_until_count_prefer_oversized(others, max_others)
+
+        prioritized = [dd_mem] + others
+        return _TraceContext._tracestate_pack_members_to_byte_limit(prioritized, never_skip_first=True)
+
+    @staticmethod
     def _extract(headers: dict[str, str]) -> Optional[Context]:
         try:
             tp = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACEPARENT, headers)
@@ -819,7 +931,8 @@ class _TraceContext:
         if ts:
             # whitespace is allowed, but whitespace to start or end values should be trimmed
             # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"
-            ts_l = [member.strip() for member in ts.split(",")]
+            members_stripped = [member.strip() for member in ts.split(",")]
+            ts_l = _TraceContext._tracestate_members_after_limits(members_stripped)
             ts = ",".join(ts_l)
             # the value MUST contain only ASCII characters in the
             # range of 0x20 to 0x7E

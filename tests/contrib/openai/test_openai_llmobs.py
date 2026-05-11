@@ -950,6 +950,161 @@ class TestLLMObsOpenaiV1:
         )
 
     @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_tool_call_preserves_assistant_content(
+        self, mock_completions_post, openai, openai_llmobs, test_spans
+    ):
+        """MLOS-605: assistant messages carrying both prose content and structured tool_calls
+        on the same message must preserve the prose in the LLMObs span. OpenAI's native
+        function-calling schema allows content and tool_calls to coexist (content is the
+        model's narration, tool_calls is the structured invocation) — earlier logic cleared
+        content unconditionally which dropped legitimate prose from replayed history.
+        """
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        assistant_prose = "I'll look up the student's profile before answering."
+        tool_call_id = "call_get_user_context_0"
+        messages = [
+            {"role": "user", "content": chat_completion_input_description},
+            {
+                "role": "assistant",
+                "content": assistant_prose,
+                "tool_calls": [
+                    {
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": "extract_student_info", "arguments": "{}"},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": tool_call_id, "content": '{"verified": true}'},
+            {"role": "user", "content": "Thanks, can you summarize?"},
+        ]
+        client = openai.OpenAI()
+        client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            input_messages=[
+                {"role": "user", "content": chat_completion_input_description},
+                {
+                    "role": "assistant",
+                    "content": assistant_prose,
+                    "tool_calls": [
+                        {"name": "extract_student_info", "arguments": {}, "tool_id": tool_call_id, "type": "function"}
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "content": "",
+                    "tool_results": [
+                        {"name": "", "result": '{"verified": true}', "tool_id": tool_call_id, "type": "tool_result"}
+                    ],
+                },
+                {"role": "user", "content": "Thanks, can you summarize?"},
+            ],
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_tool_call_with_none_content_does_not_leak_string(
+        self, mock_completions_post, openai, openai_llmobs, test_spans
+    ):
+        """MLOS-605: OpenAI returns `content=None` alongside `tool_calls` when the model issues
+        a pure function call with no narration. Earlier logic ran `str(None)` → "None" and
+        relied on the unconditional content-clear to mask it; once the clear became conditional
+        the literal string "None" leaked into the span. Normalize None → "" before stringifying.
+        """
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        tool_call_id = "call_get_user_context_0"
+        messages = [
+            {"role": "user", "content": chat_completion_input_description},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": "extract_student_info", "arguments": "{}"},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": tool_call_id, "content": '{"verified": true}'},
+            {"role": "user", "content": "Thanks, can you summarize?"},
+        ]
+        client = openai.OpenAI()
+        client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            input_messages=[
+                {"role": "user", "content": chat_completion_input_description},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {"name": "extract_student_info", "arguments": {}, "tool_id": tool_call_id, "type": "function"}
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "content": "",
+                    "tool_results": [
+                        {"name": "", "result": '{"verified": true}', "tool_id": tool_call_id, "type": "tool_result"}
+                    ],
+                },
+                {"role": "user", "content": "Thanks, can you summarize?"},
+            ],
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
+    )
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_react_style_content_still_deduplicates(
+        self, mock_completions_post, openai, openai_llmobs, test_spans
+    ):
+        """Regression guard for ReAct-style agents: when content literally contains the
+        `Action:/Action Input:` pattern and structured tool_calls are extracted from it,
+        clear content to avoid rendering the same call twice in the LLMObs UI.
+        """
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        react_content = "Action: extract_student_info\nAction Input: {}"
+        messages = [
+            {"role": "user", "content": chat_completion_input_description},
+            {"role": "assistant", "content": react_content},
+        ]
+        client = openai.OpenAI()
+        client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            input_messages=[
+                {"role": "user", "content": chat_completion_input_description},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {"name": "extract_student_info", "arguments": {}, "tool_id": "", "type": "function"}
+                    ],
+                },
+            ],
+        )
+
+    @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66),
         reason="Responses API with custom tools available after v1.66.0",
     )
@@ -2765,3 +2920,29 @@ def test_shadow_tags_chat_completion_when_llmobs_disabled(tracer):
     assert span.get_metric("_dd.llmobs.input_tokens") == 10
     assert span.get_metric("_dd.llmobs.output_tokens") == 5
     assert span.get_metric("_dd.llmobs.total_tokens") == 15
+
+
+def test_shadow_tags_chat_completion_with_cache_tokens(tracer):
+    """Verify cache-token shadow metrics propagate from openai usage to APM span."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.openai import OpenAIIntegration
+
+    mock_openai = MagicMock()
+    mock_openai.version.VERSION = "1.0.0"
+    integration = OpenAIIntegration(MagicMock(), mock_openai)
+    integration._client = MagicMock(_base_url="https://api.openai.com/v1")
+
+    response = MagicMock()
+    response.usage.prompt_tokens = 50
+    response.usage.completion_tokens = 10
+    response.usage.total_tokens = 60
+    response.usage.prompt_tokens_details.cached_tokens = 12
+    # responses-API style fallback: input_tokens_details.cached_tokens
+    response.usage.input_tokens_details.cached_tokens = 12
+
+    with tracer.trace("openai.request") as span:
+        span._set_attribute("openai.response.model", "gpt-4o-mini")
+        integration._set_apm_shadow_tags(span, [], {}, response=response, operation="chat")
+
+    assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 12
