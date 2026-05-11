@@ -24,19 +24,19 @@ from ddtrace.internal.utils import get_argument_value
 ASYNCIO_IMPORTED: bool = False
 
 
-# Wrap registry, looked up at call time by the trampoline's bytecode.
-# Key: ``id(code)`` of the trampoline-clone we grafted onto the wrapped
-# function. Each wrap site gets a fresh code object via ``code.replace()``
-# so ids are unique. The code object is kept alive by ``original.__code__``.
-# Value: (user_wrapper, original_copy)
-_ddtrace_wrap_registry: dict[int, tuple[typing.Callable[..., typing.Any], types.FunctionType]] = {}
+_WrapperFn = typing.Callable[
+    [types.FunctionType, tuple[typing.Any, ...], dict[str, typing.Any]],
+    typing.Any,
+]
+
+# Per wrap site: id(grafted code) -> (user wrapper, copy of original).
+# Each wrap site has a unique cloned code object so the id is stable.
+_ddtrace_wrap_registry: dict[int, tuple[_WrapperFn, types.FunctionType]] = {}
 
 
-# Template trampolines: their ``__code__`` is what we clone via
-# ``CodeType.replace()`` per wrap site and graft onto the original
-# function.  Each clone has a unique ``id(code)`` which the trampoline
-# itself reads via ``sys._getframe(0).f_code`` to look up its wrapper.
-# Two templates (sync / async) cover all wrap targets.
+# Template trampolines. We clone ``__code__`` per wrap site via
+# ``CodeType.replace()`` and graft it onto the original; each clone has a
+# unique id which the trampoline reads via ``sys._getframe(0).f_code``.
 def _ddtrace_trampoline_sync(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
     wrapper, original_copy = _ddtrace_wrap_registry[id(sys._getframe(0).f_code)]
     return wrapper(original_copy, args, kwargs)
@@ -50,33 +50,22 @@ async def _ddtrace_trampoline_async(*args: typing.Any, **kwargs: typing.Any) -> 
 def _wrap(
     owner: typing.Any,
     name: str,
-    wrapper: typing.Callable[..., typing.Any],
+    wrapper: _WrapperFn,
     aliases: typing.Sequence[tuple[typing.Any, str]] = (),
 ) -> typing.Callable[..., typing.Any]:
     """Wrap ``owner.name`` so calls go through ``wrapper(original, args, kwargs)``.
 
-    For pure-Python functions (``types.FunctionType``) we clone a
-    template trampoline's bytecode via ``code.replace()`` and graft it
-    onto the original function in place.  Function identity is preserved,
-    so pre-existing captured references (e.g. ``from X import Y``
-    performed before the profiler starts) still see the wrapped
-    behaviour — this matches what ``ddtrace.internal.wrapping.wrap`` did
-    via the ``bytecode`` library, without taking on that dependency.
+    Pure-Python no-closure functions: mutate ``__code__`` in place — preserves
+    identity, so ``from X import Y`` references captured before profiler start
+    still see the wrap (the uvloop scenario). Same trick ``bytecode.wrap`` did.
 
-    For non-Python callables (Cython methods, C builtins) we fall back to
-    ``setattr`` and mirror onto ``aliases``.  ``aliases`` is a no-op on the
-    identity-preserving path (both alias bindings already point at the
-    same mutated object) and exists only for the fallback case.
+    Everything else (Cython, C builtins, closures-via-``super()``): falls back
+    to ``setattr`` and mirrors onto ``aliases``.
     """
-    original = getattr(owner, name)
+    original: typing.Any = getattr(owner, name)
 
     if isinstance(original, types.FunctionType) and not original.__closure__:
-        # Identity-preserving path: mutate __code__ in place.
-        # We require the function to have no closure cells — the template
-        # trampoline has none, and ``__code__`` swaps must match free-var
-        # counts.  Class methods using super() (e.g. _GatheringFuture.__init__)
-        # carry a __class__ closure cell and therefore fall through to setattr.
-        original_copy = types.FunctionType(
+        original_copy: types.FunctionType = types.FunctionType(
             original.__code__,
             original.__globals__,
             original.__name__,
@@ -85,40 +74,31 @@ def _wrap(
         )
         original_copy.__kwdefaults__ = original.__kwdefaults__
 
-        is_async = inspect.iscoroutinefunction(original)
+        is_async: bool = inspect.iscoroutinefunction(original)
         template = _ddtrace_trampoline_async if is_async else _ddtrace_trampoline_sync
 
-        # Clone the template's bytecode and stamp original's metadata for
-        # stack-trace clarity.  ``replace()`` always returns a new code
-        # object, so ``id(new_code)`` is unique per wrap site.
-        new_code = template.__code__.replace(
+        # Clone the template's bytecode, stamp original's metadata (each
+        # ``replace()`` returns a fresh code object → unique id per wrap site).
+        new_code: types.CodeType = template.__code__.replace(
             co_filename=original.__code__.co_filename,
             co_firstlineno=original.__code__.co_firstlineno,
             co_name=original.__code__.co_name,
         )
         _ddtrace_wrap_registry[id(new_code)] = (wrapper, original_copy)
 
-        # The trampoline bytecode does LOAD_GLOBAL on ``_ddtrace_wrap_registry``
-        # and ``sys``, resolved against original's module globals at call
-        # time.  Inject both (sys is normally already imported by asyncio
-        # internals, but ``setdefault`` is harmless and covers exotic
-        # targets).  Idempotent across wrap sites in the same module.
+        # Trampoline does LOAD_GLOBAL on these names, resolved against the
+        # original's module globals at call time. Idempotent per module.
         original.__globals__.setdefault("_ddtrace_wrap_registry", _ddtrace_wrap_registry)
         original.__globals__.setdefault("sys", sys)
 
         original.__code__ = new_code
-        # Preserve introspection: the trampoline's (*args, **kwargs) shape
-        # would otherwise leak through to ``inspect.signature(original)``
-        # and break callers that adapt to the original signature (FastAPI,
-        # validators, etc.).  ``inspect.signature`` follows ``__wrapped__``
-        # to return the underlying callable's signature.
+        # Make ``inspect.signature(original)`` follow through to the real
+        # signature instead of the trampoline's ``(*args, **kwargs)``.
         original.__wrapped__ = original_copy  # type: ignore[attr-defined]
         return original
 
-    # Fallback for Cython / C builtins or Python functions with closure
-    # cells (e.g. class methods using ``super()``).  Identity isn't
-    # preserved here; callers that also need to patch aliased bindings
-    # must pass them via ``aliases``.
+    # Fallback path — identity NOT preserved. ``aliases`` mirrors the wrap onto
+    # re-exported bindings (e.g. asyncio.X aliased to asyncio.tasks.X).
     @wraps(original)
     def wrapped(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
         return wrapper(original, args, kwargs)
