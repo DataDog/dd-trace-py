@@ -44,6 +44,9 @@ dependencies = [
     "wrapt>=1,<3",
 ]
 
+[tool.uv.sources]
+ddtrace-internal = { path = "file:../ddtrace-internal" }
+
 [project.optional-dependencies]
 opentracing = [
     "opentracing>=2,<3",
