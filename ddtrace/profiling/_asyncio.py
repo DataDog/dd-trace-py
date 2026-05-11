@@ -25,24 +25,42 @@ ASYNCIO_IMPORTED: bool = False
 
 
 # Trampoline dispatch table.
-# Key: id(original) of the wrapped function (kept alive by the module/class
-# attribute pointing at it; its identity is preserved across wraps).
+# Key: ``id(code)`` of the trampoline-clone we grafted onto the wrapped
+# function. Each wrap site gets a fresh code object via ``code.replace()``
+# so ids are unique. The code object is kept alive by ``original.__code__``.
 # Value: (user_wrapper, original_copy)
 _WRAP_REGISTRY: dict[int, tuple[typing.Callable[..., typing.Any], types.FunctionType]] = {}
 
 
-def _ddtrace_dispatch_wrap(target_id: int, args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> typing.Any:
-    """Sync dispatcher invoked by a wrapped function's trampoline bytecode."""
-    wrapper, original_copy = _WRAP_REGISTRY[target_id]
+def _ddtrace_dispatch_wrap(args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> typing.Any:
+    """Sync dispatcher — called by the sync trampoline template's bytecode.
+
+    Identifies which wrap site is calling by reading the caller frame's
+    code-object id.  Each wrapped function has a unique cloned trampoline
+    code object (via ``code.replace()``), so ``id(f_code)`` is a stable
+    per-wrap-site key.
+    """
+    wrapper, original_copy = _WRAP_REGISTRY[id(sys._getframe(1).f_code)]
     return wrapper(original_copy, args, kwargs)
 
 
-async def _ddtrace_dispatch_wrap_async(
-    target_id: int, args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
-) -> typing.Any:
-    """Async dispatcher invoked by a wrapped coroutine function's trampoline."""
-    wrapper, original_copy = _WRAP_REGISTRY[target_id]
+async def _ddtrace_dispatch_wrap_async(args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> typing.Any:
+    """Async dispatcher for coroutine-function wrap sites — see sync variant."""
+    wrapper, original_copy = _WRAP_REGISTRY[id(sys._getframe(1).f_code)]
     return await wrapper(original_copy, args, kwargs)
+
+
+# Template trampolines.  Their ``__code__`` is the bytecode we reuse: per
+# wrap site we ``replace()`` the template's code object to stamp the
+# original's filename / lineno / co_name, then graft it onto the original
+# function.  Each ``.replace()`` returns a fresh code object, giving the
+# dispatcher's ``id(f_code)`` lookup a unique key per wrap site.
+def _ddtrace_trampoline_sync(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+    return _ddtrace_dispatch_wrap(args, kwargs)
+
+
+async def _ddtrace_trampoline_async(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+    return await _ddtrace_dispatch_wrap_async(args, kwargs)
 
 
 def _wrap(
@@ -53,13 +71,13 @@ def _wrap(
 ) -> typing.Callable[..., typing.Any]:
     """Wrap ``owner.name`` so calls go through ``wrapper(original, args, kwargs)``.
 
-    For pure-Python functions (``types.FunctionType``) we mutate the
-    original function's ``__code__`` in place to a tiny trampoline that
-    dispatches to the user wrapper.  Function identity is preserved, so
-    pre-existing captured references (e.g. ``from X import Y`` performed
-    before the profiler starts) still see the wrapped behaviour — this
-    matches what ``ddtrace.internal.wrapping.wrap`` did via the
-    ``bytecode`` library, without taking on that dependency.
+    For pure-Python functions (``types.FunctionType``) we clone a
+    template trampoline's bytecode via ``code.replace()`` and graft it
+    onto the original function in place.  Function identity is preserved,
+    so pre-existing captured references (e.g. ``from X import Y``
+    performed before the profiler starts) still see the wrapped
+    behaviour — this matches what ``ddtrace.internal.wrapping.wrap`` did
+    via the ``bytecode`` library, without taking on that dependency.
 
     For non-Python callables (Cython methods, C builtins) we fall back to
     ``setattr`` and mirror onto ``aliases``.  ``aliases`` is a no-op on the
@@ -70,10 +88,10 @@ def _wrap(
 
     if isinstance(original, types.FunctionType) and not original.__closure__:
         # Identity-preserving path: mutate __code__ in place.
-        # We require the function to have no closure cells — the trampoline
-        # we generate has none, and __code__ swaps must match free-var counts.
-        # Class methods using super() (e.g. _GatheringFuture.__init__) carry
-        # a __class__ closure cell and therefore fall through to setattr.
+        # We require the function to have no closure cells — the template
+        # trampoline has none, and ``__code__`` swaps must match free-var
+        # counts.  Class methods using super() (e.g. _GatheringFuture.__init__)
+        # carry a __class__ closure cell and therefore fall through to setattr.
         original_copy = types.FunctionType(
             original.__code__,
             original.__globals__,
@@ -84,41 +102,24 @@ def _wrap(
         original_copy.__kwdefaults__ = original.__kwdefaults__
 
         is_async = inspect.iscoroutinefunction(original)
-        target_id = id(original)
-        _WRAP_REGISTRY[target_id] = (wrapper, original_copy)
+        template = _ddtrace_trampoline_async if is_async else _ddtrace_trampoline_sync
+        dispatcher = _ddtrace_dispatch_wrap_async if is_async else _ddtrace_dispatch_wrap
 
-        dispatcher_name = "_ddtrace_dispatch_wrap_async" if is_async else "_ddtrace_dispatch_wrap"
-        trampoline_name = original.__name__ if original.__name__.isidentifier() else "_ddtrace_trampoline"
-
-        if is_async:
-            source = (
-                f"async def {trampoline_name}(*args, **kwargs):\n"
-                f"    return await {dispatcher_name}({target_id}, args, kwargs)\n"
-            )
-        else:
-            source = (
-                f"def {trampoline_name}(*args, **kwargs):\n    return {dispatcher_name}({target_id}, args, kwargs)\n"
-            )
-
-        ns: dict[str, typing.Any] = {}
-        # nosec B102: source is built from a fixed template; the only
-        # interpolated values are an int (target_id, from id()) and a
-        # name validated via .isidentifier(). No untrusted input.
-        exec(source, ns)  # nosec B102
-        trampoline = ns[trampoline_name]
-
-        # The trampoline uses LOAD_GLOBAL for dispatcher_name, resolved
-        # against original's module globals at call time.  Inject the
-        # dispatcher there (idempotently — many functions in the same
-        # module share one entry).
-        original.__globals__.setdefault(dispatcher_name, globals()[dispatcher_name])
-
-        # Preserve filename / firstlineno / co_name for stack-trace clarity.
-        new_code = trampoline.__code__.replace(
+        # Clone the template's bytecode and stamp original's metadata for
+        # stack-trace clarity.  ``replace()`` always returns a new code
+        # object, so ``id(new_code)`` is unique per wrap site.
+        new_code = template.__code__.replace(
             co_filename=original.__code__.co_filename,
             co_firstlineno=original.__code__.co_firstlineno,
             co_name=original.__code__.co_name,
         )
+        _WRAP_REGISTRY[id(new_code)] = (wrapper, original_copy)
+
+        # The trampoline bytecode uses LOAD_GLOBAL on the dispatcher name,
+        # resolved against original's module globals at call time.  Inject
+        # it there once per module (idempotent across wrap sites).
+        original.__globals__.setdefault(dispatcher.__name__, dispatcher)
+
         original.__code__ = new_code
         return original
 
