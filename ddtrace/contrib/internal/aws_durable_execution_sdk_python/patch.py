@@ -117,6 +117,8 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
             try:
                 return user_func(*inner_args, **inner_kwargs)
             except SuspendExecution:
+                # Dispatch without exc_info so __exit__ skips auto-dispatch
+                # and the span is not tagged with the exception.
                 ctx.event.suspended = True
                 # Workflow is pausing; another invocation will resume it. This
                 # is the only branch where it's worth persisting trace context.
@@ -173,6 +175,8 @@ def _trace_with_event(event, wrapped: Callable, args: tuple, kwargs: dict):
         try:
             return wrapped(*args, **kwargs)
         except SuspendExecution:
+            # Dispatch without exc_info so __exit__ skips auto-dispatch
+            # and the span is not tagged with the exception.
             cause_exc_info = ctx.event.suspend_cause_exc_info
             if cause_exc_info is not None:
                 ctx.dispatch_ended_event(*cause_exc_info)
@@ -187,7 +191,6 @@ def _traced_invoke(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
         component=config.aws_durable_execution_sdk_python.integration_name,
         integration_config=config.aws_durable_execution_sdk_python,
         resource=None if _is_dynamic_parent() else name,
-        operation="aws.durable.invoke",
         invoke_function_name=get_argument_value(args, kwargs, 0, "function_name"),
         name=name,
     )
