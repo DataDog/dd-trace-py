@@ -281,7 +281,7 @@ codeql-scan:
     SCAN_CONFIGS: --format sarifv2.1.0 --threads 8 --ram 96000 --no-tuple-counting --quiet
     UPLOAD_CONFIGS: -upload_sarif=true
   script:
-    - ./scripts/codeql_scan.sh
+    - dd-trace-py/scripts/codeql_scan.sh
 
 requirements_json_test:
   rules:
@@ -331,6 +331,7 @@ codeowners:
     #   - Remove leading ./ (./path and path are equivalent)
     #   - Collapse multiple consecutive slashes (path//file becomes path/file)
     - |
+        cd dd-trace-py
         # All non-comment/empty lines from .github/CODEOWNERS
         awk '!/^#|^$/ {print $1}' .github/CODEOWNERS | \
           # Remove any leading `./` in the line
@@ -523,6 +524,7 @@ lib_injection_tests:
   tags: [ "arch:amd64" ]
   image: registry.ddbuild.io/dd-trace-py:v106957811-b912d74-lib_injection@sha256:d381042ec0c5d8ba617453feec7ccdffefca8ef0e3011d980728fe1a7a9425eb
   script: |
+    cd dd-trace-py
     echo -e "\e[0Ksection_start:`date +%s`:info[collapsed=true]\r\e[0KPython versions"
     pyenv --version
     pyenv versions --bare

@@ -44,10 +44,10 @@ variables:
     DD_DISABLE_VPA: true
   artifacts:
     paths:
-      - "pywheels/*.whl"
-      - "pywheels/*.tar.gz"
-      - "debugwheelhouse/*.log"
-      - "debugwheelhouse/*.zip"
+      - "dd-trace-py/pywheels/*.whl"
+      - "dd-trace-py/pywheels/*.tar.gz"
+      - "dd-trace-py/debugwheelhouse/*.log"
+      - "dd-trace-py/debugwheelhouse/*.zip"
   cache:
     - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
       paths:
