@@ -431,28 +431,54 @@ def test_module_import_with_stack_disabled_does_not_wrap_create_task() -> None:
 
 
 @pytest.mark.subprocess(err=None)
-def test_create_task_identity_preserved_when_wrapped() -> None:
-    """When stack profiling IS enabled (default), the wrap path must preserve
-    function identity — pre-existing captured references (``from asyncio
-    import create_task`` style) keep pointing at the same object and see the
-    wrapped behaviour. The ``__code__`` swap is what makes this work; a
-    naive ``setattr`` replacement would fail this test.
+def test_pre_cached_reference_still_triggers_callback() -> None:
+    """The uvloop scenario: a library captures ``asyncio.tasks.create_task``
+    at *its* import time, **before** the profiler starts. Calls made
+    through that cached reference must still fire ``stack.weak_link_tasks``.
+
+    This is the user-visible property that identity-preserving wrap gives
+    us. A ``setattr``-style wrap would leave the cached reference pointing
+    at the original (un-wrapped) function, the callback would never fire,
+    and the C sampler would lose the parent-task link — exactly the
+    regression that broke uvloop CI variants before this PR.
     """
-    import asyncio.tasks
+    import asyncio
 
-    pre_identity = asyncio.tasks.create_task
-    pre_code = asyncio.tasks.create_task.__code__
+    # Capture BEFORE any ddtrace import. This is what uvloop's Cython
+    # modules effectively do at their own module-init time.
+    from asyncio.tasks import create_task as pre_cached_create_task
 
+    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
 
     p = profiler.Profiler()
     p.start()
     try:
-        # Identity must be the same object — both module bindings share it.
-        assert asyncio.tasks.create_task is pre_identity, "identity changed under wrap"
-        assert asyncio.create_task is pre_identity, "alias diverged from canonical"
-        # But __code__ must have been swapped — otherwise wrapping is a no-op.
-        assert asyncio.tasks.create_task.__code__ is not pre_code, "__code__ was not swapped"
+        recorded_child_ids: list[int] = []
+        original_weak_link = stack.weak_link_tasks
+
+        def recorder(parent, child) -> None:
+            recorded_child_ids.append(id(child))
+            return original_weak_link(parent, child)
+
+        stack.weak_link_tasks = recorder
+
+        async def child() -> None:
+            await asyncio.sleep(0)
+
+        async def main() -> int:
+            # Call through the PRE-CACHED reference, not asyncio.create_task.
+            task = pre_cached_create_task(child())
+            await task
+            return id(task)
+
+        task_id = asyncio.run(main())
+
+        assert task_id in recorded_child_ids, (
+            "create_task invoked through a reference cached before profiler "
+            "start did not trigger stack.weak_link_tasks — identity-preserving "
+            "wrap is broken"
+        )
     finally:
         p.stop()
 
