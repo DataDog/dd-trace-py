@@ -6,7 +6,3 @@ upgrade:
     subclass) instead of ``Exception``. This brings AI Guard block decisions in
     line with how ASM blocks are surfaced and prevents a generic
     ``except Exception:`` in user code from silently swallowing a block.
-deprecations:
-  - |
-    core: ``ddtrace.internal.core.raising_dispatch`` has been removed in favor
-    of ``core.dispatch(event_id, args, allow_raise=True)``.
