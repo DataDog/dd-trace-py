@@ -270,35 +270,36 @@ def maybe_save_trace_context_checkpoint(durable_context: "DurableContext", span:
             return
 
         # One read of the prior checkpoint covers both uses below: the
-        # parent-id override and the cross-invocation diff suppression.
+        # diff suppression and the parent-id override.
         prior_payload = _read_prior_checkpoint_payload(state)
 
-        # Stamp the parent id *before* the diff and the save, so every
-        # persisted checkpoint references the same durable execute anchor
-        # across every replay. The resolved value is either (a) the current
-        # execute span id (first-invocation save) or (b) whatever a prior
-        # checkpoint already stored (replay save). Without this, each
-        # invocation would inject its own internal span id and fragment the
-        # trace tree.
-        override_pid = _resolve_override_parent_id(span, prior_payload)
-        if override_pid is not None:
-            _override_parent_id(headers, override_pid)
-
-        stable = _stable_headers(headers)
-
-        # Suppress redundant saves.  Two layers:
+        # Diff first.  ``_stable_headers`` strips ``x-datadog-parent-id``
+        # (it rotates per span) and the ``dd=p:`` segment of ``tracestate``,
+        # so the override value does not participate in the comparison —
+        # we can defer it until we know we're actually going to save.
+        # Two suppression layers:
         #   1. Within this invocation: in-memory stash from the most recent
         #      successful save (defensive — current control flow saves at
         #      most once, but we don't want a future refactor to regress).
         #   2. Across invocations: parsed payload of the latest existing
         #      ``_datadog_*`` operation in ``state.operations``.
-        # If either matches our new stable headers, nothing meaningful
-        # changed since the last write.
+        # If either matches, nothing meaningful changed since the last write.
+        stable = _stable_headers(headers)
         last_local = getattr(state, _STATE_LAST_HEADERS_ATTR, None)
         if last_local is not None and last_local == stable:
             return
         if prior_payload is not None and _stable_headers(prior_payload) == stable:
             return
+
+        # Diff says we'll write — now resolve and stamp the anchor parent id
+        # so every persisted checkpoint references the same execute anchor
+        # across every replay.  The value is either (a) the current execute
+        # span id (first-invocation save) or (b) whatever a prior checkpoint
+        # already stored (replay save).  Without this, each invocation would
+        # inject its own internal span id and fragment the trace tree.
+        override_pid = _resolve_override_parent_id(span, prior_payload)
+        if override_pid is not None:
+            _override_parent_id(headers, override_pid)
 
         # Allocate ``N`` only after the diff says we'll actually write, so we
         # don't burn numbers on no-ops.  Counter is process-local: it starts at
