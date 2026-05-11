@@ -701,6 +701,19 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
 }
 
 static PyObject*
+stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Reinstall SIGSEGV/SIGBUS handlers if fast_copy (safe_memcpy) is active.
+    // This is used to reclaim the handler after another component (e.g., Python's
+    // faulthandler module) overwrites it. Our handler chains to the previous one
+    // for non-recovery faults, so both systems coexist correctly.
+    if (fast_copy_active) {
+        init_segv_catcher();
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
 // process_vm_readv is always available on macOS
@@ -750,6 +763,10 @@ static PyMethodDef stack_methods[] = {
       stack_is_safe_copy_failed,
       METH_NOARGS,
       "Check if all safe copy methods failed to initialize" },
+    { "reinstall_segv_handler",
+      stack_reinstall_segv_handler,
+      METH_NOARGS,
+      "Reinstall SIGSEGV handler after another component overwrites it" },
     // Native call monitoring
     { "start_native_monitoring",
       start_native_monitoring,

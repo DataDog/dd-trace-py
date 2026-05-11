@@ -102,7 +102,10 @@ def init_stack() -> None:
         for thread_id, thread in ddtrace_threading._active.items():  # type: ignore[attr-defined]
             stack.register_thread(thread_id, get_thread_native_id(thread_id), thread.name)
 
+        # Import _faulthandler to ensure faulthandler.enable wrapper is initialised.
+        # This reinstalls our SIGSEGV handler when faulthandler overwrites it.
         # Import _asyncio to ensure asyncio post-import wrappers are initialised
         from ddtrace.profiling import _asyncio  # noqa: F401
+        from ddtrace.profiling import _faulthandler  # noqa: F401
 
         _asyncio.link_existing_loop_to_current_thread()
