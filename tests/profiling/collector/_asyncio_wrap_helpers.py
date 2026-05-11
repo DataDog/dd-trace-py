@@ -42,8 +42,14 @@ def captured_link_calls(attr: str) -> Iterator[list[int]]:
     ``attr`` is one of ``"link_tasks"`` / ``"weak_link_tasks"`` /
     ``"track_asyncio_loop"`` — anything with a ``(_, second_arg)`` shape
     where the second arg is the thing we want to identify by id.
+
+    Raises ``AssertionError`` (with ``stack.failure_msg``) if the native
+    stack extension is unavailable — surfaces the root cause clearly
+    rather than an opaque ``AttributeError`` on ``getattr(stack, attr)``.
     """
     from ddtrace.internal.datadog.profiling import stack
+
+    assert stack.is_available, stack.failure_msg
 
     original: Callable[..., Any] = getattr(stack, attr)
     recorded: list[int] = []

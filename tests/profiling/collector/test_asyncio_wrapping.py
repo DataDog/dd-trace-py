@@ -191,6 +191,36 @@ def test_set_event_loop_triggers_track_asyncio_loop() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Introspection metadata — the trampoline's (*args, **kwargs) shape must
+# not leak through; downstream libraries (FastAPI, validators, …)
+# introspect asyncio API signatures and break if we report something
+# other than the real shape.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.subprocess(err=None)
+def test_wrap_preserves_inspect_signature() -> None:
+    """``inspect.signature(asyncio.tasks.create_task)`` after profiler start
+    must match the unwrapped signature.  The trampoline carries a
+    ``(*args, **kwargs)`` shape; ``__wrapped__`` set on the original lets
+    ``inspect.signature`` recover the real argument metadata.
+    """
+    import asyncio
+    import inspect
+
+    pre_sig = inspect.signature(asyncio.tasks.create_task)
+
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
+
+    with started_profiler():
+        post_sig = inspect.signature(asyncio.tasks.create_task)
+        assert str(post_sig) == str(pre_sig), f"signature regressed under wrap: {pre_sig} -> {post_sig}"
+        assert hasattr(asyncio.tasks.create_task, "__wrapped__"), (
+            "__wrapped__ must be set so inspect.signature() can recover the original signature"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Wrap gating: with stack profiling disabled, importing _asyncio must not
 # mutate asyncio.tasks.create_task. The wrapping inside the ModuleWatchdog
 # hook is gated on ``config.stack.enabled and stack.is_available`` (which
