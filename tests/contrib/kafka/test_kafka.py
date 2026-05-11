@@ -264,7 +264,6 @@ def retry_until_not_none(factory):
 def _generate_in_subprocess(random_topic):
     import ddtrace
     from ddtrace.contrib.internal.kafka.patch import patch
-    from ddtrace.contrib.internal.kafka.patch import unpatch
 
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 
@@ -288,7 +287,6 @@ def _generate_in_subprocess(random_topic):
     fibonacci_backoff_with_jitter(5, until=lambda result: isinstance(result, int))(producer.flush)()
     consumer.poll()
 
-    unpatch()
     consumer.close()
 
 
