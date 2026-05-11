@@ -39,8 +39,8 @@ from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.utils.wrappers import iswrapped
-from ddtrace.internal.utils.wrappers import unwrap
+from ddtrace.internal.utils.wrappers import iswrapped  # noqa: F401
+from ddtrace.internal.utils.wrappers import unwrap  # noqa: F401
 from ddtrace.propagation.http import HTTPPropagator
 
 
