@@ -19,7 +19,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
-from ddtrace.internal.settings.profiling import (
+from ddtrace.internal.settings.profiling import (  # type: ignore[attr-defined]
     _derive_default_heap_sample_size,  # pyright: ignore[reportAttributeAccessIssue]
 )
 from ddtrace.profiling.collector import memalloc
@@ -1301,7 +1301,7 @@ def test_mem_domain_allocations_appear_in_heap_samples(tmp_path: Path) -> None:
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_heap_samples")
 
     # 512 KB sampling interval; 16 MB allocation → expected ~32 samples.
-    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024)
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
     obj: object
     with mc:
         obj = _make_mem_domain_object(16 * 1024 * 1024)
@@ -1328,7 +1328,7 @@ def test_bytearray_tracked_on_py313(tmp_path: Path) -> None:
     """
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_bytearray_tracked_py313")
 
-    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024)
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
     ba: bytearray
     with mc:
         ba = bytearray(8 * 1024 * 1024)  # 8 MB via PyMem_Malloc (MEM domain, 3.13+)
@@ -1348,7 +1348,7 @@ def test_bytearray_tracked_on_py313(tmp_path: Path) -> None:
 def test_mem_domain_free_untracks(tmp_path: Path) -> None:
     """MEM free hook must untrack the allocation so heap-space drops after del."""
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_free_untracks")
-    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024)
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
 
     samples_after_alloc: int
     samples_after_free: int
@@ -1375,7 +1375,7 @@ def test_mem_domain_free_untracks(tmp_path: Path) -> None:
 def test_mem_domain_realloc_retracks(tmp_path: Path) -> None:
     """Growing a list (reallocs ob_item via PyMem_Realloc) must not corrupt the heap tracker."""
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_realloc")
-    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=256 * 1024)
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=True)
     lst: list[None]
     with mc:
         lst = []
@@ -1392,7 +1392,7 @@ def test_mem_domain_realloc_retracks(tmp_path: Path) -> None:
 def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
     """OBJ and MEM allocations in the same session must not corrupt heap tracker state."""
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_obj_mem_coexist")
-    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=256 * 1024)
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=True)
     d: dict[int, int]
     lst: list[None]
     with mc:
