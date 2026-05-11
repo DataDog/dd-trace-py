@@ -8,11 +8,7 @@
 
 set -euo pipefail
 
-# Monorepo layout: clone root contains dd-trace-py/ as the Python project directory.
-if [[ -d "${CI_PROJECT_DIR}/dd-trace-py" ]]; then
-  cd "${CI_PROJECT_DIR}/dd-trace-py"
-  export CI_PROJECT_DIR="$(pwd)"
-fi
+cd dd-trace-py
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/build-wheel-helpers.sh"
