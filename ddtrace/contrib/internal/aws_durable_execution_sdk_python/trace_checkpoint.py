@@ -59,16 +59,6 @@ _PRIOR_NOT_LOADED = object()
 # than per-state locks and not a measurable bottleneck.
 _COUNTER_LOCK = threading.Lock()
 
-# Header keys that change on every span without affecting logical context.
-# Diffing skips these so we don't write a new checkpoint after every span.
-_VOLATILE_HEADER_KEYS = frozenset(
-    {
-        "x-datadog-parent-id",
-        "X-Datadog-Parent-Id",
-        "x-datadog-parent-Id",
-    }
-)
-
 
 def _strip_dd_parent_from_tracestate(value: str) -> str:
     """Drop the ``p:`` entry from the ``dd=`` vendor section of ``tracestate``.
@@ -97,12 +87,19 @@ def _strip_dd_parent_from_tracestate(value: str) -> str:
 
 
 def _stable_headers(headers: dict) -> dict:
-    """Strip per-span volatile fields so checkpoint diff is meaningful."""
+    """Strip per-span volatile fields so checkpoint diff is meaningful.
+
+    Per RFC 7230 HTTP headers are case-insensitive, so we compare keys via
+    ``.lower()``.  ``x-datadog-parent-id`` rotates per span; ``tracestate``'s
+    ``dd=p:`` segment does too — both must be normalized away or the diff
+    would think every span is a real context change.
+    """
     out = {}
     for k, v in headers.items():
-        if k in _VOLATILE_HEADER_KEYS:
+        kl = k.lower()
+        if kl == "x-datadog-parent-id":
             continue
-        if k.lower() == "tracestate" and isinstance(v, str):
+        if kl == "tracestate" and isinstance(v, str):
             normalized = _strip_dd_parent_from_tracestate(v)
             if normalized:
                 out[k] = normalized
