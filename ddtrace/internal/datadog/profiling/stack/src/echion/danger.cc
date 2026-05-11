@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <csetjmp>
 #include <cstdio>
+#include <pthread.h>
 #include <signal.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -58,8 +59,12 @@ segv_handler(int signo, siginfo_t*, void*)
     if (!t_handler_armed) {
         struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
         // Restore the previous handler and re-raise so default/old handling occurs.
+        // Use pthread_kill(pthread_self(), signo): thread-directed (targets the
+        // faulting thread, which is guaranteed to be the current thread for
+        // synchronous signals like SIGSEGV/SIGBUS) and async-signal-safe per POSIX,
+        // unlike raise which acquires a lock internally.
         sigaction(signo, old, nullptr);
-        raise(signo);
+        pthread_kill(pthread_self(), signo);
         return;
     }
 
