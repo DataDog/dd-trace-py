@@ -57,7 +57,7 @@ static std::atomic<const PyMemAllocatorEx*> g_saved_alloc_pub{ nullptr };
 #ifdef _PY312_AND_LATER
 /* MEM-domain saved allocator — same two-slot scheme as OBJ above, kept as
  * an independent buffer + atomic pair so each domain's lifecycle is fully
- * isolated.  AIDEV-NOTE: only installed on Python 3.12+.  Earlier versions
+ * isolated.  only installed on Python 3.12+.  Earlier versions
  * run GC inline during allocation, which can use-after-free through the
  * MEM-realloc path (see PROF-11496, PR #14550).  The OBJ hook works around
  * this with pygc_temp_disable_guard_t in memalloc_heap_track_invokes_cpython;
