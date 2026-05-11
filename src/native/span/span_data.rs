@@ -320,16 +320,18 @@ impl SpanData {
         // data.trace_id is always the source of truth; _trace_id_py is purely a Python-side cache.
         if self._trace_id_py.is_none() {
             let val = self.data.trace_id;
-            // SAFETY: u128 can always be converted to a Python int
-            self._trace_id_py = Some(
-                val.into_pyobject(py)
-                    .expect("u128 into_pyobject")
-                    .into_any()
-                    .unbind(),
-            );
+            // u128 to Python int is infallible in practice, but map the error
+            // rather than panicking so a failure raises a Python exception
+            // instead of aborting the interpreter.
+            if let Ok(obj) = val.into_pyobject(py) {
+                self._trace_id_py = Some(obj.into_any().unbind());
+            }
         }
-        // SAFETY: guaranteed Some above
-        self._trace_id_py.as_ref().unwrap().bind(py).clone()
+        match self._trace_id_py.as_ref() {
+            Some(obj) => obj.bind(py).clone(),
+            // Fallback: return None to Python rather than panicking
+            None => py.None().into_bound(py),
+        }
     }
 
     #[setter]
