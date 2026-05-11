@@ -373,6 +373,13 @@ def _render_suite_variables(clean_name: str, suite_spec: dict[str, Any]) -> str:
     return "\n".join(f"    {key}: {_yaml_scalar(value)}" for key, value in env.items())
 
 
+def _render_suite_parallelism(suite_spec: dict[str, Any]) -> str:
+    parallelism = suite_spec.get("parallelism")
+    if not parallelism or parallelism <= 1:
+        return ""
+    return f"  parallel: {parallelism}\n"
+
+
 def write_pipeline(suite_specs: dict[str, dict[str, Any]], test_spec: dict[str, list[dict[str, Any]]]) -> None:
     """Write the GitLab pipeline that builds venvs once and runs each generated version-support suite."""
     all_python_versions = _collect_python_versions(test_spec)
@@ -406,7 +413,6 @@ prepare_version_support_riot:
 .version_support_base_riot:
   extends: .testrunner
   stage: test
-  parallel: 4
   before_script:
     - !reference [.testrunner, before_script]
     - unset DD_SERVICE
@@ -441,6 +447,7 @@ prepare_version_support_riot:
 
 {clean_name}:
   extends: .version_support_base_riot
+{_render_suite_parallelism(suite_spec)}\
   services:
 {_render_suite_services(suite_spec)}
   needs:
