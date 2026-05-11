@@ -33,29 +33,37 @@ class GreenletTrackingError(Exception):
     pass
 
 
-def track_gevent_greenlet(greenlet: _Greenlet) -> _Greenlet:
-    greenlet_id: int = thread.get_ident(greenlet)
+def track_gevent_greenlet(gl: _Greenlet, _from_tracer: bool = False) -> _Greenlet:
+    greenlet_id: int = thread.get_ident(gl)
     frame: t.Union[FrameType, bool, None] = FRAME_NOT_SET
 
     try:
-        stack.track_greenlet(greenlet_id, greenlet.name or type(greenlet).__qualname__, frame)
+        stack.track_greenlet(greenlet_id, gl.name or type(gl).__qualname__, frame)
     except AttributeError as e:
         raise GreenletTrackingError("Cannot track greenlet with no name attribute") from e
     except Exception as e:
         raise GreenletTrackingError("Cannot track greenlet") from e
 
-    # Untrack on completion
-    try:
-        greenlet.rawlink(untrack_greenlet)
-    except AttributeError:
-        # This greenlet cannot be linked (e.g. the Hub)
-        pass
-    except Exception as e:
-        raise GreenletTrackingError("Cannot link greenlet for untracking") from e
+    # Set up rawlink for automatic untracking on greenlet completion, but only
+    # when called outside the greenlet tracer. Calling rawlink from inside the
+    # tracer is unsafe: during a greenlet switch the gevent Greenlet.dead
+    # property can incorrectly return True (due to __started_but_aborted()),
+    # which causes rawlink to immediately schedule _notify_links. That fires
+    # ALL registered callbacks -- including the pool's _discard -- removing the
+    # greenlet from the pool while it is still alive.  This breaks gunicorn's
+    # graceful-shutdown logic which checks pool.free_count() == pool.size.
+    if not _from_tracer:
+        try:
+            gl.rawlink(untrack_greenlet)
+        except AttributeError:
+            # This greenlet cannot be linked (e.g. the Hub)
+            pass
+        except Exception as e:
+            raise GreenletTrackingError("Cannot link greenlet for untracking") from e
 
     _tracked_greenlets.add(greenlet_id)
 
-    return greenlet
+    return gl
 
 
 def update_greenlet_frame(greenlet_id: int, frame: t.Union[FrameType, bool, None]) -> None:
@@ -64,13 +72,16 @@ def update_greenlet_frame(greenlet_id: int, frame: t.Union[FrameType, bool, None
 
 
 def greenlet_tracer(event: str, args: t.Any) -> None:
+    # Greenlets that already exist when profiling is enabled are discovered lazily.
+    # We only start tracking them once a post-patch "switch"/"throw" event is observed.
+    # A greenlet that exits before switching again may not be tracked.
     if event in {"switch", "throw"}:
         # This tracer function runs in the context of the target
         origin, target = t.cast(tuple[_Greenlet, _Greenlet], args)
 
         if (origin_id := thread.get_ident(origin)) not in _tracked_greenlets:
             try:
-                track_gevent_greenlet(origin)
+                track_gevent_greenlet(origin, _from_tracer=True)
             except GreenletTrackingError:
                 # Not something that we can track
                 pass
@@ -78,7 +89,7 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
         if (target_id := thread.get_ident(target)) not in _tracked_greenlets:
             # This is likely the hub. We take this chance to track it.
             try:
-                track_gevent_greenlet(target)
+                track_gevent_greenlet(target, _from_tracer=True)
             except GreenletTrackingError:
                 # Not something that we can track
                 pass
@@ -100,19 +111,59 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
             # TODO: Log missing greenlet
             pass
 
+        # For greenlets tracked via the tracer (without rawlink), detect
+        # completion using the C-level greenlet.dead descriptor directly
+        # (greenlet.dead.__get__) instead of the gevent Greenlet.dead property.
+        #
+        # Why this is necessary:
+        #   gevent.Greenlet overrides the C-level ``dead`` property and adds an
+        #   ``__started_but_aborted()`` check. That check looks at whether
+        #   ``_start_event.pending`` is False and ``_start_event`` has not yet
+        #   been set to ``_start_completed_event``. During the greenlet bootstrap
+        #   phase -- after the event loop consumes the start callback (setting
+        #   pending=False) but before ``run()`` sets ``_start_event =
+        #   _start_completed_event`` -- this returns a false True, making
+        #   gevent's ``Greenlet.dead`` incorrectly report the greenlet as dead.
+        #
+        #   The C-level ``greenlet.dead`` (``started and not active``) has no
+        #   such window: the ``active`` flag is managed by the C stack-switching
+        #   machinery and is only cleared when the greenlet truly finishes.
+        #
+        # See also: https://github.com/gevent/gevent/pull/2166 (upstream fix)
+        #
+        # AIDEV-NOTE: greenlet.dead.__get__ is a C-level tp_getset descriptor.
+        # Any unhandled exception here causes the greenlet runtime to silently
+        # uninstall this tracer (see greenlet's TGreenlet.cpp g_calltrace and
+        # test_tracing.py::test_b_exception_disables_tracing). We catch
+        # Exception broadly because the C extension can raise arbitrary
+        # exception types.
+        try:
+            if origin_id in _tracked_greenlets and greenlet.dead.__get__(origin):
+                _untrack_greenlet_by_id(origin_id)
+        except Exception:  # nosec B110
+            pass
+
     if _original_greenlet_tracer is not None:
         _original_greenlet_tracer(event, args)
 
 
-def untrack_greenlet(greenlet: _Greenlet) -> None:
-    greenlet_id: int = thread.get_ident(greenlet)
+def _untrack_greenlet_by_id(greenlet_id: int) -> None:
+    """Untrack a greenlet by its ID. Idempotent."""
+    if greenlet_id not in _tracked_greenlets:
+        return
     stack.untrack_greenlet(greenlet_id)
     _tracked_greenlets.discard(greenlet_id)
     _parent_greenlet_count.pop(greenlet_id, None)
     if (parent_id := _greenlet_parent_map.pop(greenlet_id, None)) is not None:
-        _parent_greenlet_count[parent_id] -= 1
-        if _parent_greenlet_count[parent_id] <= 0:
-            del _parent_greenlet_count[parent_id]
+        remaining = _parent_greenlet_count.get(parent_id, 0) - 1
+        if remaining <= 0:
+            _parent_greenlet_count.pop(parent_id, None)
+        else:
+            _parent_greenlet_count[parent_id] = remaining
+
+
+def untrack_greenlet(gl: _Greenlet) -> None:
+    _untrack_greenlet_by_id(thread.get_ident(gl))
 
 
 def link_greenlets(greenlet_id: int, parent_id: int) -> None:
@@ -163,7 +214,11 @@ def joinall(greenlets: t.Sequence[_Greenlet], *args: t.Any, **kwargs: t.Any) -> 
     # This is a wrapper around gevent.joinall to track the greenlets
     # that are being joined.
     current_greenlet = gevent.getcurrent()
-    if isinstance(current_greenlet, greenlet):
+    # NOTE: We specifically use `type(...) is ...` here instead of
+    # `isinstance`, as gevent.Greenlet inherits from the low level
+    # C `greenlet` class, so isinstance would be True for every
+    # greenlet type.
+    if type(current_greenlet) is greenlet:
         current_greenlet = gevent.hub.get_hub()
     current_greenlet_id: int = thread.get_ident(current_greenlet)
     for g in greenlets:
@@ -176,11 +231,14 @@ def wait_wrapper(original: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
         try:
             objects = args[0]
         except IndexError:
-            objects = kwargs.get("args", [])
+            objects = kwargs.get("objects")
+
+        if objects is None:
+            objects = []
 
         if greenlets := [_ for _ in objects if isinstance(_, (greenlet, gevent.Greenlet))]:
             current_greenlet = gevent.getcurrent()
-            if isinstance(current_greenlet, greenlet):
+            if type(current_greenlet) is greenlet:
                 current_greenlet = gevent.hub.get_hub()
             current_greenlet_id: int = thread.get_ident(current_greenlet)
             for g in greenlets:

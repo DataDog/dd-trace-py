@@ -173,9 +173,9 @@ class TestVisibilityItemBase(abc.ABC):
 
         try:
             if isinstance(tag_value, str):
-                self._span._set_tag_str(tag, tag_value)
+                self._span._set_attribute(tag, tag_value)
             elif isinstance(tag_value, bool):
-                self._span._set_tag_str(tag, "true" if tag_value else "false")
+                self._span._set_attribute(tag, "true" if tag_value else "false")
             else:
                 self._span.set_tag(tag, tag_value)
         except Exception as e:
@@ -326,11 +326,11 @@ class TestVisibilityItemBase(abc.ABC):
         pass
 
     @property
-    def _source_file_info(self) -> Optional[TestSourceFileInfo]:
+    def _source_file_info(self) -> Optional[TestSourceFileInfo]:  # pyright: ignore[reportRedeclaration]
         return self.__source_file_info
 
     @_source_file_info.setter
-    def _source_file_info(self, source_file_info_value: Optional[TestSourceFileInfo] = None):
+    def _source_file_info(self, source_file_info_value: Optional[TestSourceFileInfo] = None) -> None:  # pyright: ignore[reportRedeclaration]
         """This checks that filepaths are absolute when setting source file info"""
         self.__source_file_info = None  # Default value until source_file_info is validated
 

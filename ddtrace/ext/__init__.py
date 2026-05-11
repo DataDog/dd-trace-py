@@ -1,6 +1,7 @@
 class SpanTypes(object):
     CACHE = "cache"
     CASSANDRA = "cassandra"
+    COSMOS = "cosmosdb"
     ELASTICSEARCH = "elasticsearch"
     GRPC = "grpc"
     GRAPHQL = "graphql"

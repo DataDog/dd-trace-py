@@ -17,6 +17,7 @@ from ddtrace.contrib.internal.pytest._utils import reports_by_item
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.pytest.patch import get_version
 from ddtrace.contrib.internal.pytest.plugin import is_enabled
+from ddtrace.contrib.internal.sqlite3.patch import unpatch as unpatch_sqlite
 from ddtrace.ext import ci
 from ddtrace.ext import git
 from ddtrace.ext import test
@@ -71,7 +72,7 @@ def _get_spans_from_list(
         if span.get_tag("type") != target_type:
             continue
 
-        if name is not None and span.get_tag(target_name) != name:
+        if name is not None and span.get_tag(target_name) != name:  # type: ignore[arg-type]
             continue
 
         if status is not None and span.get_tag("test.status") != status:
@@ -80,6 +81,14 @@ def _get_spans_from_list(
         selected_spans.append(span)
 
     return selected_spans
+
+
+def _assert_itr_tests_skipping_enabled_tag_propagated(spans: list[ddtrace.trace.Span], expected_value: str) -> None:
+    propagated_span_types = {"test_session_end", "test_module_end", "test_suite_end", "test"}
+    selected_spans = [span for span in spans if span.get_tag("type") in propagated_span_types]
+    assert selected_spans
+    for span in selected_spans:
+        assert span.get_tag(test.ITR_TEST_SKIPPING_ENABLED) == expected_value
 
 
 def _fetch_test_to_skip_side_effect(itr_data):
@@ -95,6 +104,18 @@ class PytestTestCaseBase(TracerTestCase):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
+        # AIDEV-NOTE: Anchor the pytester monkeypatch CWD *before* any test body
+        # runs. Tests that call os.chdir() directly before testdir.chdir() would
+        # otherwise corrupt the saved CWD used during fixture teardown, leaking
+        # wrong working directories to subsequent tests in the same xdist worker.
+        testdir.chdir()
+        # AIDEV-NOTE: Clear outer xdist worker env vars for the duration of each
+        # test. Tests create CIVisibilityEncoderV01 instances and inline_run sessions
+        # that read PYTEST_XDIST_WORKER at init/import time. If the outer test suite
+        # runs with -n auto, the worker env var leaks and causes the encoder to filter
+        # session spans and inline_run controllers to behave as workers.
+        monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+        monkeypatch.delenv("PYTEST_XDIST_TESTRUNUID", raising=False)
 
     @pytest.fixture(autouse=True)
     def _dummy_check_enabled_features(self):
@@ -108,18 +129,40 @@ class PytestTestCaseBase(TracerTestCase):
         ):
             yield
 
-    def inline_run(self, *args, mock_ci_env=True, block_gitlab_env=False, project_dir=None, extra_env=None):
-        """Execute test script with test tracer."""
+    def inline_run(
+        self, *args, mock_ci_env=True, block_gitlab_env=False, project_dir=None, extra_env=None, expect_enabled=True
+    ):
+        """Execute test script with test tracer.
+
+        When expect_enabled=False (e.g. testing a killswitch), the plugin skips the assertion that CI Visibility
+        initialized and the disable/re-enable dance — CI Visibility is left in whatever state the ddtrace plugin set it.
+
+        The outer CIVisibility instance is suspended (removed from the stack without stopping it) before the inner
+        session starts and resumed after it completes, so that running this test suite with --ddtrace in the outer
+        pytest does not disrupt the outer session.  The inner session creates its own instance on a clean stack.
+        """
+        # AIDEV-NOTE: Suspend the outer CIVisibility instance (without stopping it) so that
+        # the inner session starts with a clean stack.  The inner CIVisibilityPlugin does a
+        # disable()/enable() cycle that would otherwise pop the outer instance off the stack.
+        # _suspend() removes the outer instance without calling stop(); _resume() pushes it
+        # back after the inner session finishes.
+        _suspended = CIVisibility._suspend()
 
         class CIVisibilityPlugin:
             @staticmethod
             def pytest_configure(config):
                 if is_enabled(config):
-                    with _patch_dummy_writer():
-                        assert CIVisibility.enabled
-                        CIVisibility.disable()
-                        CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
-                        CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = "pytestitrcorrelationid"
+                    if expect_enabled:
+                        with _patch_dummy_writer():
+                            assert CIVisibility.enabled
+                            CIVisibility.disable()
+                            CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
+                            CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = "pytestitrcorrelationid"
+                    elif CIVisibility.enabled:
+                        with _patch_dummy_writer():
+                            CIVisibility.disable()
+                            CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
+                            CIVisibility._instance._itr_meta[ITR_CORRELATION_ID_TAG_NAME] = "pytestitrcorrelationid"
 
             @staticmethod
             def pytest_unconfigure(config):
@@ -129,7 +172,9 @@ class PytestTestCaseBase(TracerTestCase):
         if project_dir is None:
             project_dir = str(self.testdir.tmpdir)
 
-        _test_env = _get_default_ci_env_vars(dict(DD_API_KEY="foobar.baz"), mock_ci_env=mock_ci_env)
+        _test_env = _get_default_ci_env_vars(
+            dict(DD_API_KEY="foobar.baz", DD_PYTEST_USE_NEW_PLUGIN="false"), mock_ci_env=mock_ci_env
+        )
         if mock_ci_env:
             _test_env["CI_PROJECT_DIR"] = project_dir
 
@@ -139,12 +184,17 @@ class PytestTestCaseBase(TracerTestCase):
         if extra_env:
             _test_env.update(extra_env)
 
-        with _ci_override_env(_test_env, replace_os_env=True):
-            return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
+        try:
+            with _ci_override_env(_test_env, replace_os_env=True):
+                return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
+        finally:
+            if CIVisibility.enabled:
+                CIVisibility.disable()
+            CIVisibility._resume(_suspended)
 
     def subprocess_run(self, *args, env: t.Optional[dict[str, str]] = None):
         """Execute test script with test tracer."""
-        _base_env = dict(DD_API_KEY="foobar.baz")
+        _base_env = dict(DD_API_KEY="foobar.baz", DD_PYTEST_USE_NEW_PLUGIN="false")
         if env is not None:
             _base_env.update(env)
         with _ci_override_env(_base_env):
@@ -152,6 +202,12 @@ class PytestTestCaseBase(TracerTestCase):
 
 
 class PytestTestCase(PytestTestCaseBase):
+    def tearDown(self):
+        try:
+            unpatch_sqlite()
+        finally:
+            super(PytestTestCase, self).tearDown()
+
     def test_and_emit_get_version(self):
         version = get_version()
         assert isinstance(version, str)
@@ -1727,6 +1783,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "false")
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
@@ -1825,6 +1882,7 @@ class PytestTestCase(PytestTestCaseBase):
                 },
             )
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
@@ -1918,6 +1976,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "false")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2004,6 +2063,7 @@ class PytestTestCase(PytestTestCaseBase):
                 },
             )
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "false")
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
@@ -2216,6 +2276,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 11
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2321,6 +2382,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2414,6 +2476,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2485,6 +2548,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2810,6 +2874,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2866,6 +2931,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "false")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -2942,6 +3008,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "false")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -3015,6 +3082,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "false")
         assert len(spans) == 7
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -3119,6 +3187,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 12
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -3266,6 +3335,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 12
 
         session_span = _get_spans_from_list(spans, "session")[0]
@@ -3409,6 +3479,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 12
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -3522,6 +3593,7 @@ class PytestTestCase(PytestTestCaseBase):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         assert len(spans) == 12
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]

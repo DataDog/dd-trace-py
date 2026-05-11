@@ -11,26 +11,28 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aredis",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de94d200000000",
+      "_dd.svc_src": "aredis",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aredis",
       "component": "aredis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "SET blah 32\nRPUSH foo \u00e9\u00e9\nHGETALL xxx",
-      "runtime-id": "2bc441c84b6b45fc9d6f6fdef59a24f3",
+      "runtime-id": "e2fcbf10e6ee43cd9a879a5b7143db60",
       "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "network.destination.port": 6379,
-      "out.redis_db": 0,
-      "process_id": 23297,
-      "redis.pipeline_length": 3
+      "_sampling_priority_v1": 1.0,
+      "network.destination.port": 6379.0,
+      "out.redis_db": 0.0,
+      "process_id": 61089.0,
+      "redis.pipeline_length": 3.0
     },
-    "duration": 820292,
-    "start": 1692706868088460798
+    "duration": 924584,
+    "start": 1776194770924574136
   }]]

@@ -11,24 +11,26 @@
     "meta": {
       "_dd.base_service": "tests.contrib.rediscluster",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de951f00000000",
+      "_dd.svc_src": "rediscluster",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rediscluster",
       "component": "rediscluster",
       "db.system": "redis",
       "language": "python",
       "redis.raw_command": "FLUSHALL",
-      "runtime-id": "3f274e442442409ebe2921656289c272",
+      "runtime-id": "810836a1048c47f1a61dbcafd832e5ef",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 19879,
-      "redis.args_length": 1
+      "_sampling_priority_v1": 1.0,
+      "process_id": 61912.0,
+      "redis.args_length": 1.0
     },
-    "duration": 6147917,
-    "start": 1692651754310637094
+    "duration": 3002792,
+    "start": 1776194847454051838
   }],
 [
   {
@@ -43,23 +45,25 @@
     "meta": {
       "_dd.base_service": "tests.contrib.rediscluster",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de951f00000000",
+      "_dd.svc_src": "rediscluster",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rediscluster",
       "component": "rediscluster",
       "db.system": "redis",
       "language": "python",
       "redis.raw_command": "GET here...",
-      "runtime-id": "3f274e442442409ebe2921656289c272",
+      "runtime-id": "810836a1048c47f1a61dbcafd832e5ef",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 0,
-      "process_id": 19879,
-      "redis.args_length": 2
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 0.0,
+      "process_id": 61912.0,
+      "redis.args_length": 2.0
     },
-    "duration": 311583,
-    "start": 1692651754317740053
+    "duration": 255208,
+    "start": 1776194847458197172
   }]]

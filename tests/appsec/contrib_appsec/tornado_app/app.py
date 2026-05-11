@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 from typing import AsyncGenerator
 from typing import Optional
 
@@ -15,6 +16,7 @@ from ddtrace.trace import tracer
 
 
 fake_secret_token = "DataDog"
+DOWNSTREAM_HTTP_TIMEOUT = 2.0
 
 fake_db = {
     "foo": {"id": "foo", "name": "Foo", "description": "This item's description is foo."},
@@ -339,7 +341,7 @@ class RedirectHandler(BaseHandler):
         url = f"http://127.0.0.1:{port}/{route}"
         try:
             request_urllib = urllib.request.Request(url, method="GET", headers={"TagRoute": route})
-            with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+            with urllib.request.urlopen(request_urllib, timeout=DOWNSTREAM_HTTP_TIMEOUT) as f:
                 payload = {"payload": f.read().decode("utf-8", errors="replace")}
         except Exception as e:
             payload = {"error": repr(e)}
@@ -359,7 +361,7 @@ class RedirectHandler(BaseHandler):
                     "TagRoute": route,
                 },
             )
-            with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+            with urllib.request.urlopen(request_urllib, timeout=DOWNSTREAM_HTTP_TIMEOUT) as f:
                 payload = {"payload": f.read().decode("utf-8", errors="replace")}
         except Exception as e:
             payload = {"error": repr(e)}
@@ -373,7 +375,7 @@ class RedirectRequestsHandler(BaseHandler):
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
             with requests.Session() as s:
-                response = s.get(full_url, timeout=0.5, headers={"TagRoute": route})
+                response = s.get(full_url, timeout=DOWNSTREAM_HTTP_TIMEOUT, headers={"TagRoute": route})
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
@@ -389,7 +391,7 @@ class RedirectRequestsHandler(BaseHandler):
                     full_url,
                     data=self.request.body,
                     headers={"Content-Type": "application/json", "TagRoute": route},
-                    timeout=0.5,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
                 )
                 payload = {"payload": response.text}
         except Exception as e:
@@ -404,7 +406,12 @@ class RedirectHttpxHandler(BaseHandler):
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
             with httpx.Client() as client:
-                response = client.get(full_url, timeout=0.5, headers={"TagRoute": route}, follow_redirects=True)
+                response = client.get(
+                    full_url,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                    headers={"TagRoute": route},
+                    follow_redirects=True,
+                )
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
@@ -420,7 +427,7 @@ class RedirectHttpxHandler(BaseHandler):
                     full_url,
                     content=self.request.body,
                     headers={"Content-Type": "application/json", "TagRoute": route},
-                    timeout=0.5,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
                     follow_redirects=True,
                 )
                 payload = {"payload": response.text}
@@ -436,7 +443,12 @@ class RedirectHttpxAsyncHandler(BaseHandler):
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(full_url, timeout=0.5, headers={"TagRoute": route}, follow_redirects=True)
+                response = await client.get(
+                    full_url,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                    headers={"TagRoute": route},
+                    follow_redirects=True,
+                )
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
@@ -452,13 +464,27 @@ class RedirectHttpxAsyncHandler(BaseHandler):
                     full_url,
                     content=self.request.body,
                     headers={"Content-Type": "application/json", "TagRoute": route},
-                    timeout=0.5,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
                     follow_redirects=True,
                 )
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
         self._write_json(payload)
+
+
+class ExceptionGroupBlockHandler(BaseHandler):
+    async def get(self) -> None:
+        """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
+        if sys.version_info < (3, 11) or self.get_query_argument("block", "") != "true":
+            self.set_header("Content-Type", "text/html")
+            self.write("ok")
+            return
+
+        from ddtrace.appsec._utils import Block_config
+        from ddtrace.internal._exceptions import BlockingException
+
+        raise BaseExceptionGroup("test", [BlockingException(Block_config())])  # noqa: F821
 
 
 class LoginHandler(BaseHandler):
@@ -573,6 +599,7 @@ def get_app() -> tornado.web.Application:
             (r"/redirect_requests/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectRequestsHandler),
             (r"/redirect_httpx/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectHttpxHandler),
             (r"/redirect_httpx_async/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectHttpxAsyncHandler),
+            (r"/exception-group-block", ExceptionGroupBlockHandler),
             (r"/login/?", LoginHandler),
             (r"/login_sdk/?", LoginSdkHandler),
         ]

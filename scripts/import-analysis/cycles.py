@@ -1,5 +1,10 @@
+# /// script
+# requires-python = ">=3.8"
+# dependencies = [
+#   "betsy @ git+https://github.com/p403n1x87/betsy.git",
+# ]
+# ///
 from argparse import ArgumentParser
-from collections import defaultdict
 from collections import deque
 import json
 from pathlib import Path
@@ -8,25 +13,20 @@ import sys
 from betsy import DependencyGraph
 
 
-ROOT = Path(__file__).parents[2] / "ddtrace"
+def _build_graph(root: Path) -> dict:
+    g = DependencyGraph(root=root.resolve(), include={"ddtrace"}).data
+    q: deque[str] = deque()
+    for importer, imports in list(g.items()):
+        if not imports:
+            q.append(importer)
+            del g[importer]
+    return g
 
 
-g = DependencyGraph(root=ROOT, include={"ddtrace"}).data  # modules and what they import
-q: deque[str] = deque()
-f = defaultdict(set)  # modules and who imports them
-for importer, imports in list(g.items()):
-    if not imports:
-        q.append(importer)
-        del g[importer]
-    else:
-        for i in imports:
-            f[i].add(importer)
-
-
-def dfs(v: str, visited: set[str], stack: list[str], cycles: dict[frozenset, tuple]):
+def dfs(v: str, visited: set[str], stack: list[str], cycles: dict[frozenset, tuple], g: dict):
     for i in g.get(v, set()):
         if i not in visited:
-            dfs(i, {*visited, v}, [*stack, v], cycles)
+            dfs(i, {*visited, v}, [*stack, v], cycles, g)
         else:
             if i in stack:
                 cycle = tuple(stack[stack.index(i) :] + [v, i])
@@ -35,7 +35,10 @@ def dfs(v: str, visited: set[str], stack: list[str], cycles: dict[frozenset, tup
 
 
 def analyze(args):
-    dfs("ddtrace", set(), [], cycles := {})
+    root = args.root if args.root is not None else Path(__file__).parents[2] / "ddtrace"
+    g = _build_graph(root)
+
+    dfs("ddtrace", set(), [], cycles := {}, g)
 
     res = ",\n".join(json.dumps(lst) for lst in sorted(cycles.values(), key=len))
     args.output.write_text(f"[\n{res}\n]")
@@ -57,7 +60,11 @@ def compare(args):
         print("```")
         print()
 
-    if new_cycles := pr.keys() - base.keys():
+    new_cycles = pr.keys() - base.keys()
+    removed_cycles = base.keys() - pr.keys()
+    existing_cycles = base.keys() & pr.keys()
+
+    if new_cycles:
         print("## 🚨 New circular imports detected 🚨")
         print()
         print(
@@ -72,11 +79,17 @@ def compare(args):
         )
         print()
 
-    if removed_cycles := base.keys() - pr.keys():
-        print(
-            "The following circular imports among modules have been removed on "
-            "this PR, when compared to the base branch:"
-        )
+    if existing_cycles:
+        print("## ⚠️ Existing circular imports")
+        print()
+        print("The following circular imports already exist on the base branch and have not been changed by this PR:")
+        print()
+        print_cycles([pr[_] for _ in existing_cycles])
+
+    if removed_cycles:
+        print("## ✅ Circular imports removed")
+        print()
+        print("The following circular imports have been removed on this PR, when compared to the base branch:")
         print()
         print_cycles([base[_] for _ in removed_cycles])
 
@@ -89,6 +102,12 @@ def main() -> bool:
     subp = argp.add_subparsers(dest="command")
 
     subp_analyze = subp.add_parser("analyze")
+    subp_analyze.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Path to the ddtrace package root (default: auto-detected from __file__)",
+    )
     subp_analyze.add_argument("output", type=Path)
 
     subp_compare = subp.add_parser("compare")

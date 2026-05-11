@@ -74,7 +74,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
                 COMPONENT: config.rq.integration_name,
                 SPAN_KIND: SpanKind.PRODUCER,
                 QUEUE_NAME: instance.name,
-                JOB_ID: job.get_id(),
+                JOB_ID: job.id,
                 JOB_FUNC_NAME: job.func_name,
             },
         ) as ctx,
@@ -82,7 +82,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
     ):
         # If the queue is_async then add distributed tracing headers to the job
         if instance.is_async:
-            core.dispatch("rq.queue.enqueue_job", [ctx, job.meta])
+            core.dispatch("rq.queue.enqueue_job", (ctx, job.meta))
         return func(*args, **kwargs)
 
 
@@ -98,6 +98,7 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
             pin=pin,
             service=trace_utils.int_service(pin, config.rq),
             tags={COMPONENT: config.rq.integration_name, JOB_ID: job_id},
+            integration_config=config.rq,
         ) as ctx,
         ctx.span,
     ):
@@ -122,7 +123,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
                 integration_config=config.rq_worker,
                 distributed_headers=job.meta,
                 activate_distributed_headers=True,
-                tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.get_id()},
+                tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.id},
             ) as ctx,
             ctx.span,
         ):
@@ -130,14 +131,24 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
                 return func(*args, **kwargs)
             finally:
                 # call _after_perform_job handler for job status and origin
-                span_tags = {"job.status": job.get_status() or "None", "job.origin": job.origin}
-                job_failed = job.is_failed
-                core.dispatch("rq.worker.perform_job", [ctx, job_failed, span_tags])
+                # In RQ 2.x, get_status() raises InvalidJobOperation when the
+                # job key no longer exists in Redis (e.g. result_ttl=0).
+                # is_failed calls get_status() internally, so it can raise too.
+                try:
+                    status = job.get_status()
+                except Exception:
+                    status = None
+                try:
+                    job_failed = job.is_failed
+                except Exception:
+                    job_failed = False
+                span_tags = {"job.status": status or "None", "job.origin": job.origin}
+                core.dispatch("rq.worker.perform_job", (ctx, job_failed, span_tags))
 
     finally:
         # Force flush to agent since the process `os.exit()`s
         # immediately after this method returns
-        core.dispatch("rq.worker.after.perform.job", [ctx])
+        core.dispatch("rq.worker.after.perform.job", (ctx,))
 
 
 @trace_utils.with_traced_module
@@ -154,7 +165,8 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
             span_name="rq.job.perform",
             resource=job.func_name,
             pin=pin,
-            tags={COMPONENT: config.rq.integration_name, JOB_ID: job.get_id()},
+            tags={COMPONENT: config.rq.integration_name, JOB_ID: job.id},
+            integration_config=config.rq,
         ) as ctx,
         ctx.span,
     ):
@@ -174,6 +186,7 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
             service=trace_utils.ext_service(pin, config.rq_worker),
             pin=pin,
             tags={COMPONENT: config.rq.integration_name, JOB_ID: job_ids},
+            integration_config=config.rq_worker,
         ) as ctx,
         ctx.span,
     ):

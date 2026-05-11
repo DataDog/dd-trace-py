@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    google_cloud_pubsub: Add tracing support for the ``google-cloud-pubsub`` library.
+    Instruments ``PublisherClient.publish()`` and ``SubscriberClient.subscribe()`` to generate spans
+    for message publishing and consuming, with optional distributed trace context propagation via message attributes.
+    Use ``DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_ENABLED`` to control context propagation (default: ``True``) and
+    ``DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS`` to attach propagated context as span links instead
+    of re-parenting subscriber spans under the producer trace (default: ``False``).

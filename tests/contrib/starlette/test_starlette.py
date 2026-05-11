@@ -541,7 +541,7 @@ def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     # background task should link to the request span
     assert background_span
     assert background_span.parent_id is None
-    [link, *others] = [link for link in background_span._links if link.span_id == request_span.span_id]
+    [link, *others] = [link for link in background_span._get_links() if link.span_id == request_span.span_id]
     assert not others
     assert link.trace_id == request_span.trace_id
     assert link.span_id == request_span.span_id

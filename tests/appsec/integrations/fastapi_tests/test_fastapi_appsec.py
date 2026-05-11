@@ -2,7 +2,7 @@ from fastapi import Request
 from fastapi.responses import PlainTextResponse
 import pytest
 
-from ddtrace.appsec._handlers import _on_asgi_request_parse_body
+from ddtrace.appsec._contrib.fastapi import _on_asgi_request_parse_body
 from ddtrace.internal import core
 import tests.appsec.rules as rules
 from tests.utils import override_global_config

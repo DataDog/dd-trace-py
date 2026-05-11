@@ -22,6 +22,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: ./.github/actions/setup-ci-deps
         with:
           python-version: "3.13"
@@ -31,10 +32,8 @@ jobs:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
         run: |
           MATRIX_INCLUDE=$(
-            {
-              cibuildwheel --print-build-identifiers --platform windows --archs AMD64,x86 | jq -cR '{only: ., os: "windows-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --archs ARM64    | jq -cR '{only: ., os: "windows-11-arm"}'
-            } | jq -sc
+            cibuildwheel --print-build-identifiers --platform windows --archs ARM64 | jq -cR '{only: ., os: "windows-11-arm"}' \
+            | jq -sc
           )
           echo $MATRIX_INCLUDE
           echo "include=${MATRIX_INCLUDE}" >> $GITHUB_OUTPUT
@@ -50,7 +49,7 @@ jobs:
     env:
       CIBW_SKIP: ${{ inputs.cibw_skip }}
       CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
-      CIBW_BEFORE_ALL_WINDOWS: ${{ matrix.os == 'windows-latest' && 'rustup target add i686-pc-windows-msvc' || (matrix.os == 'windows-11-arm' && 'rustup target add aarch64-pc-windows-msvc') }}
+      CIBW_BEFORE_ALL_WINDOWS: "rustup target add aarch64-pc-windows-msvc"
       # cibuildwheel repair will copy anything's under /output directory from the
       # build container to the host machine. This is a bit hacky way, but seems
       # to be the only way getting debug symbols out from the container while
@@ -63,6 +62,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         name: Install Python
@@ -71,12 +71,12 @@ jobs:
 
       - name: Set up QEMU
         if: runner.os == 'Linux' && matrix.os != 'ubuntu-24.04-arm'
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
         with:
           platforms: all
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@298ed2fb2c105540f5ed055e8a6ad78d82dd3a7e # v3.3.1
+        uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           only: ${{ matrix.only }}
 
@@ -97,12 +97,12 @@ jobs:
         run: |
           chcp 65001 #set code page to utf-8
           echo "ARTIFACT_NAME=${{ matrix.only }}"  >> $env:GITHUB_ENV
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: wheels-${{ env.ARTIFACT_NAME }}
           path: ./wheelhouse/*.whl
 
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: runner.os != 'Windows'
         with:
           name: debug-symbols-${{ env.ARTIFACT_NAME }}

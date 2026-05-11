@@ -287,6 +287,14 @@ def assert_prompt_tracking(
     assert "chat_template" in actual_prompt
     assert actual_prompt["chat_template"] == expected_chat_template
     assert span_event["meta"]["input"]["messages"] == expected_messages
-    assert f"prompt_tracking_instrumentation_method:{prompt_tracking_instrumentation_method}" in span_event["tags"]
-    if prompt_multimodal:
-        assert "prompt_multimodal:true" in span_event["tags"]
+    # meta_struct-format tags is a dict; legacy wire-format tags is a list of "k:v" strings.
+    # Support both so this helper can be called against either shape.
+    actual_tags = span_event["tags"]
+    if isinstance(actual_tags, dict):
+        assert actual_tags.get("prompt_tracking_instrumentation_method") == prompt_tracking_instrumentation_method
+        if prompt_multimodal:
+            assert actual_tags.get("prompt_multimodal") in ("true", True)
+    else:
+        assert f"prompt_tracking_instrumentation_method:{prompt_tracking_instrumentation_method}" in actual_tags
+        if prompt_multimodal:
+            assert "prompt_multimodal:true" in actual_tags

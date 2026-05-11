@@ -1,4 +1,7 @@
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
 import os
+import threading
 import time
 
 import mock
@@ -62,26 +65,46 @@ def test_buffer_limit(mock_writer_logs):
     )
 
 
-@pytest.mark.skip(reason="Skipping due to flakiness in hitting the staging endpoint")
-def test_send_metric_bad_api_key(mock_writer_logs, llmobs_api_proxy_url):
+def test_send_metric_bad_api_key(mock_writer_logs):
+    class _Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            content_length = int(self.headers["Content-Length"])
+            self.rfile.read(content_length)
+            self.send_response(403)
+            self.end_headers()
+            self.wfile.write(b'{"errors":["Forbidden"]}')
+
+        def log_message(self, *args):
+            pass  # suppress server noise in test output
+
+    server = HTTPServer(("localhost", 0), _Handler)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+
+    mock_url = f"http://localhost:{server.server_address[1]}"
+
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
         interval=1,
         timeout=1,
         is_agentless=True,
-        _override_url=llmobs_api_proxy_url,
+        _override_url=mock_url,
         _api_key="<bad-api-key>",
     )
-
     llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="api-key", value="wrong-api-key"))
-
     llmobs_eval_metric_writer.periodic()
+
+    server.shutdown()
+    server.server_close()
+
     mock_writer_logs.error.assert_called_with(
         "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
         1,
         "evaluation_metric",
-        f"{llmobs_api_proxy_url}/api/intake/llm-obs/v2/eval-metric",
+        f"{mock_url}/api/intake/llm-obs/v2/eval-metric",
         403,
-        b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}',  # noqa
+        b'{"errors":["Forbidden"]}',
+        extra={"send_to_telemetry": False},
     )
 
 
@@ -165,30 +188,49 @@ def test_send_multiple_events(mock_writer_logs):
     )
 
 
-@pytest.mark.skip(reason="Skipping due to flakiness in hitting the staging endpoint")
-def test_send_on_exit(mock_writer_logs, run_python_code_in_subprocess):
+def test_send_on_exit(run_python_code_in_subprocess):
+    requests_received = []
+
+    class _Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            content_length = int(self.headers["Content-Length"])
+            requests_received.append(self.rfile.read(content_length))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass  # suppress server noise in test output
+
+    server = HTTPServer(("localhost", 0), _Handler)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+
+    mock_url = f"http://localhost:{server.server_address[1]}"
+
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"PYTHONPATH": ":".join(pypath), "DD_LLMOBS_ML_APP": "unnamed-ml-app"})
+    env.update({"PYTHONPATH": ":".join(pypath), "DD_LLMOBS_OVERRIDE_ORIGIN": mock_url})
+
     out, err, status, pid = run_python_code_in_subprocess(
         """
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from tests.llmobs.test_llmobs_eval_metric_agentless_writer import _categorical_metric_event
 
 llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
-    interval=0.01, timeout=1, is_agentless=True, _api_key="<not-a-real-key>", _override_url="http://localhost:9126/vcr/datadog/"
+    interval=1000, timeout=1, is_agentless=True, _api_key="<not-a-real-key>"
 )
 llmobs_eval_metric_writer.start()
-llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="api-key", value="wrong-api-key"))
+llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", value="very"))
 """,
         env=env,
     )
+
+    server.shutdown()
+    server.server_close()
+
     assert status == 0, err
     assert out == b""
-    assert b"got response code 403" in err
-    assert (
-        b'status: b\'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}\'\n'
-        in err
-    )
+    assert len(requests_received) == 1

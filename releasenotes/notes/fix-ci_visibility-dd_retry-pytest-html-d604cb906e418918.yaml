@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixed an incompatibility with ``pytest-html`` and other third-party
+    reporting plugins caused by the ddtrace pytest plugin using a non-standard ``dd_retry``
+    test outcome for retry attempts. The outcome is now set to ``rerun``, which is the
+    standard value used by ``pytest-rerunfailures`` and recognized by reporting plugins.

@@ -1,0 +1,76 @@
+{
+  "targets": [
+    {
+      "id": "vuln-001",
+      "targets": ["requests.sessions:Session.send"],
+      "lang": "python",
+      "dependency_name": "requests",
+      "package_versions": ["<2.32.0"],
+      "vulnerability": {
+        "id": "CVE-2024-35195",
+        "severity": "MEDIUM",
+        "description": "Session verify=False persists across requests in the connection pool, bypassing certificate verification for subsequent requests."
+      }
+    },
+    {
+      "id": "vuln-002",
+      "targets": ["urllib3._collections:HTTPHeaderDict.__setitem__"],
+      "lang": "python",
+      "dependency_name": "urllib3",
+      "package_versions": ["<2.2.2"],
+      "vulnerability": {
+        "id": "CVE-2024-37891",
+        "severity": "MEDIUM",
+        "description": "Proxy-Authorization header not stripped during cross-origin redirects, leaking credentials to unintended hosts."
+      }
+    },
+    {
+      "id": "vuln-003",
+      "targets": ["jinja2.filters:do_xmlattr"],
+      "lang": "python",
+      "dependency_name": "jinja2",
+      "package_versions": ["<3.1.3"],
+      "vulnerability": {
+        "id": "CVE-2024-22195",
+        "severity": "MEDIUM",
+        "description": "XSS vulnerability in xmlattr filter when keys with spaces are used from user input."
+      }
+    },
+    {
+      "id": "vuln-004",
+      "targets": ["jinja2.compiler:generate"],
+      "lang": "python",
+      "dependency_name": "jinja2",
+      "package_versions": ["<3.1.5"],
+      "vulnerability": {
+        "id": "CVE-2024-56201",
+        "severity": "HIGH",
+        "description": "Arbitrary code execution when attacker controls both template content and filename, even with sandbox."
+      }
+    },
+    {
+      "id": "vuln-005",
+      "targets": ["cryptography.hazmat.primitives.serialization.pkcs12:serialize_key_and_certificates"],
+      "lang": "python",
+      "dependency_name": "cryptography",
+      "package_versions": ["<42.0.4"],
+      "vulnerability": {
+        "id": "CVE-2024-26130",
+        "severity": "HIGH",
+        "description": "NULL pointer dereference in pkcs12.serialize_key_and_certificates causes denial of service."
+      }
+    },
+    {
+      "id": "vuln-006",
+      "targets": ["cryptography.x509:load_pem_x509_certificate"],
+      "lang": "python",
+      "dependency_name": "cryptography",
+      "package_versions": ["<43.0.1"],
+      "vulnerability": {
+        "id": "CVE-2024-6119",
+        "severity": "HIGH",
+        "description": "Type confusion in X.509 certificate name validation can crash the process via invalid memory read."
+      }
+    }
+  ]
+}

@@ -10,7 +10,11 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.appsec._constants import AI_GUARD
+from ddtrace.appsec._trace_utils import _aiguard_manual_keep
+from ddtrace.ext import http
+from ddtrace.internal import core
 from ddtrace.internal import telemetry
+from ddtrace.internal._exceptions import DDBlockException
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
@@ -60,9 +64,18 @@ class Evaluation(TypedDict):
     action: Literal["ALLOW", "DENY", "ABORT"]
     reason: str
     tags: list[str]
+    sds: list
+    tag_probs: dict[str, float]
 
 
 class Options(TypedDict, total=False):
+    """Optional evaluation behavior.
+
+    Attributes:
+        block: Controls whether non-ALLOW decisions raise ``AIGuardAbortError``. Defaults to
+            following the AI Guard response ``is_blocking_enabled`` setting when omitted.
+    """
+
     block: bool
 
 
@@ -82,13 +95,27 @@ class AIGuardClientError(Exception):
         super().__init__(message)
 
 
-class AIGuardAbortError(Exception):
-    """Exception to abort current execution due to security policy."""
+class AIGuardAbortError(DDBlockException):
+    """Exception to abort current execution due to security policy.
 
-    def __init__(self, action: str, reason: str, tags: Optional[list[str]] = None):
+    Inherits from ``DDBlockException`` (which is ``BaseException``-derived) so
+    that a generic ``except Exception:`` in user code does not accidentally
+    swallow an AI Guard block decision.
+    """
+
+    def __init__(
+        self,
+        action: str,
+        reason: str,
+        tags: Optional[list[str]] = None,
+        sds: Optional[list] = None,
+        tag_probs: Optional[dict[str, float]] = None,
+    ):
         self.action = action
         self.reason = reason
         self.tags = tags
+        self.sds = sds or []
+        self.tag_probs = tag_probs
         super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')")
 
 
@@ -199,16 +226,20 @@ class AIGuardClient:
 
     @staticmethod
     def _is_blocking_enabled(options: Optional[Options], remote_enabled: bool) -> bool:
-        if not remote_enabled or not options:
+        if not remote_enabled:
             return False
-        return options.get("block", False)
+        if not options:
+            return True
+        return options.get("block", True)
 
     def evaluate(self, messages: list[Message], options: Optional[Options] = None) -> Evaluation:
         """Evaluate if the list of messages are safe to execute.
 
         Args:
             messages: list of messages to evaluate
-            options: Optional configuration with 'block' parameter (defaults to False)
+            options: Optional configuration with 'block' parameter. By default, block follows
+                the AI Guard response is_blocking_enabled setting; set block=False to force
+                non-blocking behavior.
 
         Returns:
             EvaluationResult containing action and reason
@@ -236,7 +267,7 @@ class AIGuardClient:
 
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
-                    result = response.get_json()
+                    result = response.get_json() or {}
                 except Exception as e:
                     raise AIGuardClientError(message=f"Unexpected error calling AI Guard service: {e}") from e
 
@@ -246,7 +277,9 @@ class AIGuardClient:
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
                         tags = attributes.get("tags", [])
+                        sds_findings = attributes.get("sds_findings") or []
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
+                        tag_probs = attributes.get("tag_probs")
                     except Exception as e:
                         value = json.dumps(result, indent=2)[:500]
                         raise AIGuardClientError(
@@ -265,6 +298,10 @@ class AIGuardClient:
                         meta_struct.update({"attack_categories": tags})
                     if reason:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
+                    if sds_findings:
+                        meta_struct.update({"sds": sds_findings})
+                    if tag_probs is not None:
+                        meta_struct.update({"tag_probs": tag_probs})
                 else:
                     raise AIGuardClientError(
                         message=f"AI Guard service call failed, status: {response.status}",
@@ -280,12 +317,32 @@ class AIGuardClient:
                         ("error", "false"),
                     )
                 )
-
+                root_span = core.get_root_span()
+                if root_span:
+                    _aiguard_manual_keep(root_span)
+                    root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
+                    # Populate client IP on the service-entry span only when an ai_guard span
+                    # is actually created, mirroring the AppSec spec. The candidate IP was
+                    # stashed earlier by set_http_meta when DD_AI_GUARD_ENABLED=true.
+                    # Discard the key after use so a later evaluate() call can't inherit a
+                    # stale IP from an earlier request that shared this context tree.
+                    client_ip = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
+                    core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
+                    if client_ip:
+                        entry_span = root_span._service_entry_span
+                        entry_span._set_attribute(http.CLIENT_IP, client_ip)
+                        entry_span._set_attribute("network.client.ip", client_ip)
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
-                    raise AIGuardAbortError(action=action, reason=reason, tags=tags)
+                    raise AIGuardAbortError(
+                        action=action,
+                        reason=reason,
+                        tags=tags,
+                        sds=sds_findings,
+                        tag_probs=tag_probs,
+                    )
 
-                return Evaluation(action=action, reason=reason, tags=tags)
+                return Evaluation(action=action, reason=reason, tags=tags, sds=sds_findings, tag_probs=tag_probs)
 
             except AIGuardAbortError:
                 raise

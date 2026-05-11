@@ -9,6 +9,12 @@ def post_preload():
     pass
 
 
+def enabled():
+    return (
+        config._asm_enabled or config._asm_can_be_enabled or config._asm_rc_enabled or ai_guard_config._ai_guard_enabled
+    )
+
+
 def start():
     if config._asm_enabled or config._asm_can_be_enabled:
         from ddtrace.appsec._listeners import load_common_appsec_modules
@@ -23,7 +29,7 @@ def start():
     if config._asm_enabled:
         from ddtrace.appsec._listeners import load_appsec
 
-        load_appsec()
+        load_appsec(reconfigure_tracer=False)
 
     if ai_guard_config._ai_guard_enabled:
         from ddtrace.appsec._ai_guard import init_ai_guard
@@ -36,8 +42,4 @@ def restart(join=False):
 
 
 def stop(join=False):
-    pass
-
-
-def at_exit(join=False):
     pass

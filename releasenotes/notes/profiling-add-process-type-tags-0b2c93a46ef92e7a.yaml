@@ -1,0 +1,4 @@
+features:
+  - |
+    profiling: Profiles generated from fork-based servers now include a ``process_type``
+    tag with the value ``main`` or ``worker``.

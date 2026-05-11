@@ -84,7 +84,7 @@ class _DBM_Propagator(object):
 
         # the base hash is injected in the comment and on the span tags for correlation purpose
         if dbm_config.inject_sql_basehash and (base_hash := process_tags.base_hash):
-            dbspan._set_tag_str(PROPAGATED_HASH, str(base_hash))
+            dbspan._set_attribute(PROPAGATED_HASH, str(base_hash))
 
         original_sql_statement = get_argument_value(args, kwargs, self.sql_pos, self.sql_kw)
         # add dbm comment to original_sql_statement
@@ -129,7 +129,7 @@ class _DBM_Propagator(object):
             dbm_tags[DBM_PEER_SERVICE_KEY] = peer_service
 
         if dbm_config.propagation_mode == "full":
-            db_span._set_tag_str(DBM_TRACE_INJECTED_TAG, "true")
+            db_span._set_attribute(DBM_TRACE_INJECTED_TAG, "true")
             dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context._traceparent
 
         if dbm_config.inject_sql_basehash and (base_hash := process_tags.base_hash):

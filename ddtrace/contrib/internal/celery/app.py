@@ -15,6 +15,7 @@ from ddtrace.contrib.internal.celery.signals import trace_failure
 from ddtrace.contrib.internal.celery.signals import trace_postrun
 from ddtrace.contrib.internal.celery.signals import trace_prerun
 from ddtrace.contrib.internal.celery.signals import trace_retry
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -103,13 +104,12 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
         with tracer.trace(
             "celery.beat.{}".format(fn_name),
             span_type=SpanTypes.WORKER,
-            service=trace_utils.ext_service(pin, integration_config),
         ) as span:
+            set_service_and_source(span, trace_utils.ext_service(pin, integration_config), integration_config)
             if resource_fn:
                 span.resource = resource_fn(args)
-            span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-            # PERF: avoid setting via Span.set_tag
-            span.set_metric(_SPAN_MEASURED_KEY, 1)
+            span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
+            span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
             return func(*args, **kwargs)
 

@@ -201,6 +201,9 @@ def _get_default_ci_env_vars(
     if mock_ci_env:
         _env.update(_PYTEST_SNAPSHOT_GITLAB_CI_ENV_VARS)
 
+    # Client-side stats is disabled for tests
+    _env.update({"DD_TRACE_COMPUTE_STATS": "false"})
+
     if new_vars:
         _env.update(new_vars)
 

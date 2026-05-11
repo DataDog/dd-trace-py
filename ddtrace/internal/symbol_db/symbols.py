@@ -53,6 +53,23 @@ EOF = 2147483647
 MAX_FILE_SIZE = 1 << 20  # 1MB
 
 
+def _line_ranges(lines: set[int]) -> list[dict]:
+    """Convert a set of line numbers into a list of contiguous ranges."""
+    if not lines:
+        return []
+    it = iter(sorted(lines))
+    start = prev = next(it)
+    ranges = []
+    for ln in it:
+        if ln == prev + 1:
+            prev = ln
+        else:
+            ranges.append({"start": start, "end": prev})
+            start = prev = ln
+    ranges.append({"start": start, "end": prev})
+    return ranges
+
+
 @cached()
 def is_from_user_code(obj: t.Any) -> t.Optional[bool]:
     try:
@@ -162,6 +179,8 @@ class Scope:
     end_line: int
     symbols: list[Symbol]
     scopes: list["Scope"]
+    injectible_lines: list[dict] = field(default_factory=list)
+    has_injectible_lines: bool = False
 
     language_specifics: dict = field(default_factory=dict)
 
@@ -170,12 +189,18 @@ class Scope:
 
     @singledispatchmethod
     @classmethod
-    def _get_from(cls, _: t.Any, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
+    def _get_from(cls, _: t.Any, data: ScopeData) -> t.Optional["Scope"]:
         return None
 
-    @_get_from.register
+    # DEV: We pass the type explicitly to all @_get_from.register() calls below
+    # rather than relying on annotation inference. When the type is omitted,
+    # singledispatch calls get_type_hints() to determine the dispatch type, which
+    # evaluates forward references (e.g. Optional["Scope"]) at class-definition
+    # time — before Scope is fully defined — causing a NameError on Python 3.13+.
+    # See https://github.com/python/cpython/issues/86153
+    @_get_from.register(ModuleType)
     @classmethod
-    def _(cls, module: ModuleType, data: ScopeData, recursive: bool = True):
+    def _(cls, module: ModuleType, data: ScopeData) -> t.Optional["Scope"]:
         if module in data.seen:
             return None
         data.seen.add(module)
@@ -187,28 +212,27 @@ class Scope:
         symbols = []
         scopes = []
 
-        if recursive:
-            for alias, child in object.__getattribute__(module, "__dict__").items():
-                if _isinstance(child, ModuleType):
-                    # We don't want to traverse other modules.
-                    continue
+        for alias, child in object.__getattribute__(module, "__dict__").items():
+            if _isinstance(child, ModuleType):
+                # We don't want to traverse other modules.
+                continue
 
-                try:
-                    if _isinstance(child, FunctionType):
-                        child = undecorated(child, alias, module_origin)
-                    scope = Scope._get_from(child, data)
-                    if scope is not None:
-                        scopes.append(scope)
-                    elif not callable(child):
-                        symbols.append(
-                            Symbol(
-                                symbol_type=SymbolType.STATIC_FIELD,
-                                name=alias,
-                                line=0,
-                            )
+            try:
+                if _isinstance(child, FunctionType):
+                    child = undecorated(child, alias, module_origin)
+                scope = Scope._get_from(child, data)
+                if scope is not None:
+                    scopes.append(scope)
+                elif not callable(child):
+                    symbols.append(
+                        Symbol(
+                            symbol_type=SymbolType.STATIC_FIELD,
+                            name=alias,
+                            line=0,
                         )
-                except Exception:
-                    log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
+                    )
+            except Exception:
+                log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
 
         source_git_hash = sha1()  # nosec B324
         source_git_hash.update(f"blob {module_origin.stat().st_size}\0".encode())
@@ -227,9 +251,9 @@ class Scope:
             language_specifics={"file_hash": source_git_hash.hexdigest()},
         )
 
-    @_get_from.register
+    @_get_from.register(type)
     @classmethod
-    def _(cls, obj: type, data: ScopeData, recursive: bool = True):
+    def _(cls, obj: type, data: ScopeData) -> t.Optional["Scope"]:
         if obj in data.seen:
             return None
         data.seen.add(obj)
@@ -317,9 +341,9 @@ class Scope:
             language_specifics={"super_classes": super_classes},
         )
 
-    @_get_from.register
+    @_get_from.register(CodeType)
     @classmethod
-    def _(cls, code: CodeType, data: ScopeData, recursive: bool = True):
+    def _(cls, code: CodeType, data: ScopeData) -> t.Optional["Scope"]:
         # DEV: A code object with a mutable probe is currently not hashable, so
         # we cannot put it directly into the set.
         code_id = f"code-{id(code)}"
@@ -348,11 +372,13 @@ class Scope:
             scopes=[
                 _ for _ in (cls._get_from(_, data) for _ in code.co_consts if isinstance(_, CodeType)) if _ is not None
             ],
+            injectible_lines=_line_ranges(ls),
+            has_injectible_lines=True,
         )
 
-    @_get_from.register
+    @_get_from.register(FunctionType)
     @classmethod
-    def _(cls, f: FunctionType, data: ScopeData, recursive: bool = True):
+    def _(cls, f: FunctionType, data: ScopeData) -> t.Optional["Scope"]:
         if f in data.seen:
             return None
         data.seen.add(f)
@@ -398,9 +424,9 @@ class Scope:
 
         return code_scope
 
-    @_get_from.register
+    @_get_from.register(classmethod)
     @classmethod
-    def _(cls, method: classmethod, data: ScopeData, recursive: bool = True):
+    def _(cls, method: classmethod, data: ScopeData) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -408,9 +434,9 @@ class Scope:
 
         return scope
 
-    @_get_from.register
+    @_get_from.register(staticmethod)
     @classmethod
-    def _(cls, method: staticmethod, data: ScopeData, recursive: bool = True):
+    def _(cls, method: staticmethod, data: ScopeData) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -418,9 +444,9 @@ class Scope:
 
         return scope
 
-    @_get_from.register
+    @_get_from.register(property)
     @classmethod
-    def _(cls, pr: property, data: ScopeData, recursive: bool = True):
+    def _(cls, pr: property, data: ScopeData) -> t.Optional["Scope"]:
         if pr.fget in data.seen:
             return None
         data.seen.add(pr.fget)
@@ -452,7 +478,7 @@ class Scope:
     # TODO: support for singledispatch
 
     @classmethod
-    def from_module(cls, module: ModuleType, recursive: bool = True) -> "Scope":
+    def from_module(cls, module: ModuleType) -> "Scope":
         """Get the scope of a module.
 
         The module must have an origin.
@@ -461,7 +487,7 @@ class Scope:
         if module_origin is None:
             raise ValueError(f"Cannot get scope of module with no origin '{module.__name__}'")
 
-        return t.cast(Scope, cls._get_from(module, ScopeData(module_origin, set()), recursive))
+        return t.cast(Scope, cls._get_from(module, ScopeData(module_origin, set())))
 
 
 class ScopeContext:
@@ -605,8 +631,6 @@ def is_module_included(module: ModuleType) -> bool:
 class SymbolDatabaseUploader(BaseModuleWatchdog):
     __file_number_limit__: int = 10000
 
-    shallow: bool = True
-
     def __init__(self) -> None:
         super().__init__()
 
@@ -621,8 +645,6 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
     def _process_unseen_loaded_modules(self) -> None:
         # Look for all the modules that are already imported when this is
         # installed and upload the symbols that are marked for inclusion.
-        recursive = not self.shallow
-
         for name, module in list(sys.modules.items()):
             if self._processed_files_count >= self.__file_number_limit__:
                 log.debug("[PID %d] SymDB: Reached file limit of %d", os.getpid(), self.__file_number_limit__)
@@ -645,7 +667,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
                 continue
 
             try:
-                scope = Scope.from_module(module, recursive)
+                scope = Scope.from_module(module)
             except Exception:
                 log.debug("Cannot get symbol scope for module %s", module.__name__, exc_info=True)
                 continue
@@ -664,12 +686,12 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
             log.debug("[PID %d] SymDB: Excluding imported module %s from symbol database", os.getpid(), module.__name__)
             return
 
-        if (scope := Scope.from_module(module, recursive=not self.shallow)) is not None:
+        if (scope := Scope.from_module(module)) is not None:
             self._context.add_scope(scope)
             self._processed_files_count += 1
 
     @classmethod
-    def update(cls):
+    def update(cls) -> None:
         instance = t.cast(SymbolDatabaseUploader, cls._instance)
         if instance is None:
             return
@@ -684,6 +706,5 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         instance._update_called = True
 
     @classmethod
-    def install(cls, shallow=True):
-        cls.shallow = shallow
+    def install(cls) -> None:
         return super().install()

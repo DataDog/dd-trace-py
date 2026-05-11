@@ -1,14 +1,20 @@
 import sys
 import typing as t
+from typing import NamedTuple
 
 from ddtrace._trace.span import Span
-from ddtrace._trace.span import SpanEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COLLECTOR_MAX_SIZE_PER_SPAN
 from ddtrace.internal.constants import SPAN_EVENTS_HAS_EXCEPTION
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.settings.errortracking import config
+
+
+class SpanEventData(NamedTuple):
+    name: str
+    attributes: dict
+    time_unix_nano: t.Optional[int] = None
 
 
 log = get_logger(__name__)
@@ -22,10 +28,11 @@ def _add_span_events(span: Span) -> None:
     and add them when the span finishes.
     """
     exception_data = HandledExceptionCollector.get_exception_events(span.span_id).values()
-    span_exc_events = [event for _exc, event in exception_data]
-    if span_exc_events:
-        span._set_tag_str(SPAN_EVENTS_HAS_EXCEPTION, "true")
-        span._events.extend(span_exc_events)
+    events = [event for _exc, event in exception_data]
+    if events:
+        span._set_attribute(SPAN_EVENTS_HAS_EXCEPTION, "true")
+        for event in events:
+            span._add_event(event.name, event.attributes, event.time_unix_nano)
     HandledExceptionCollector.clear_exception_events(span.span_id)
 
 
@@ -38,7 +45,7 @@ def _on_span_exception(span, _exc_msg, exc_val, _exc_tb):
 
 class HandledExceptionCollector(Service):
     _instance: t.Optional["HandledExceptionCollector"] = None
-    _span_exception_events: dict[int, dict[int, tuple[Exception, SpanEvent]]] = {}
+    _span_exception_events: dict[int, dict[int, tuple[Exception, SpanEventData]]] = {}
 
     def __init__(self) -> None:
         super(HandledExceptionCollector, self).__init__()
@@ -108,7 +115,7 @@ class HandledExceptionCollector(Service):
             _disable_monitoring()
 
     @classmethod
-    def capture_exception_event(cls, span: Span, exc: Exception, event: SpanEvent):
+    def capture_exception_event(cls, span: Span, exc: Exception, event: SpanEventData):
         span_id = span.span_id
         events_dict = cls._span_exception_events.setdefault(span_id, {})
         if not events_dict:

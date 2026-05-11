@@ -26,8 +26,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
     """
 
     _enable = True
+    _MAX_CONSECUTIVE_FAILURES = 3
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(RemoteConfigPoller, self).__init__(
             interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True, autorestart=False
         )
@@ -35,6 +36,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._state = self._agent_check
         self._parent_id = os.getpid()
         self._capabilities_map: dict[enum.IntFlag, str] = dict()
+        self._consecutive_failures = 0
 
     def _agent_check(self) -> None:
         try:
@@ -62,12 +64,21 @@ class RemoteConfigPoller(periodic.PeriodicService):
     def _online(self) -> None:
         with StopWatch() as sw:
             if not self._client.request():
-                # An error occurred, so we transition back to the agent check
-                self._state = self._agent_check
+                self._consecutive_failures += 1
+                if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES:
+                    self._state = self._agent_check
+                    self._consecutive_failures = 0
                 return
 
+        self._consecutive_failures = 0
         elapsed = sw.elapsed()
-        log.debug("request config in %.5fs to %s", elapsed, self._client.agent_url)
+        log.debug(
+            "[%d][P: %d] Datadog Remote Config Poller sent request to %s in %.5fs",
+            os.getpid(),
+            os.getppid(),
+            self._client.agent_url,
+            elapsed,
+        )
 
     def periodic(self) -> None:
         return self._state()
@@ -135,28 +146,28 @@ class RemoteConfigPoller(periodic.PeriodicService):
         """
         return self._client.update_product_callback(product, callback)
 
-    def register(
+    def register_callback(
         self,
         product: str,
         callback: RCCallback,
-        skip_enabled: bool = False,
         capabilities: Iterable[enum.IntFlag] = [],
     ) -> None:
-        """Register a product with a callback for remote configuration updates.
+        """Register a product callback for remote configuration updates.
+
+        Registration only registers the callback and capabilities. To include the
+        product in client payloads (enable it), call enable_product() separately.
 
         Args:
             product: Product name (e.g., "ASM_FEATURES", "LIVE_DEBUGGING")
             callback: Callback function to invoke when payloads are received in child processes
-            skip_enabled: If True, skip enabling the remote config client
             capabilities: list of capabilities to register for this product
         """
         try:
-            # By enabling on registration we ensure we start the RCM client only
-            # if there is at least one registered product.
-            if not skip_enabled:
+            # Enable if this is the first product being registered
+            if not self._client._product_callbacks:
                 self.enable()
 
-            self._client.register_product(product, callback)
+            self._client.register_callback(product, callback)
 
             # Check for potential conflicts in capabilities
             for capability in capabilities:
@@ -178,7 +189,39 @@ class RemoteConfigPoller(periodic.PeriodicService):
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 
-    def unregister(self, product):
+    def enable_product(self, product: str) -> None:
+        """Enable a product to be included in client payloads.
+
+        When a product is enabled, it will be added to the 'products' list
+        in payloads sent to the agent, indicating that this client wants
+        to receive configurations for this product.
+
+        Args:
+            product: Product name to enable
+        """
+        self._client.enable_product(product)
+
+    def disable_product(self, product: str) -> None:
+        """Disable a product, removing it from client payloads.
+
+        The product's callback remains registered and can still receive
+        configurations, but the client will not request configurations
+        for this product from the agent.
+
+        Args:
+            product: Product name to disable
+        """
+        self._client.disable_product(product)
+
+    def unregister_callback(self, product):
+        """Unregister a product callback.
+
+        This removes the callback but does not disable the product. To also
+        disable the product, call disable_product() separately.
+
+        Args:
+            product: Product name to unregister
+        """
         if rc_config.skip_shutdown:
             # If we are asked to skip shutdown, then we likely don't want to
             # unregister any of the products, because this is generally done
@@ -187,8 +230,12 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         try:
             self._client.unregister_product(product)
+
+            # Disable if no products remain registered
+            if not self._client._product_callbacks:
+                self.disable()
         except Exception:
-            log.debug("error starting the RCM client", exc_info=True)
+            log.debug("error unregistering from RCM client", exc_info=True)
 
     def get_registered(self, product: str) -> Optional[RCCallback]:
         """Get the registered callback for a product."""

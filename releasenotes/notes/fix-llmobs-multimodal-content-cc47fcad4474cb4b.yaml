@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes multimodal OpenAI chat completion inputs being rendered as raw iterable
+    objects in LLM Observability traces. Multimodal content parts (text, image, audio) are now properly
+    materialized and formatted as readable text.

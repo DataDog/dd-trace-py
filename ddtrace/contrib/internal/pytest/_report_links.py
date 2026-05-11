@@ -1,9 +1,9 @@
-import os
 import re
 from urllib.parse import quote
 
 from ddtrace.ext import ci
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
+from ddtrace.internal.settings import env
 
 
 DEFAULT_DATADOG_SITE = "datadoghq.com"
@@ -13,16 +13,14 @@ SAFE_FOR_QUERY = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 
 
 def print_test_report_links(terminalreporter):
-    base_url = _get_base_url(
-        dd_site=os.getenv("DD_SITE", DEFAULT_DATADOG_SITE), dd_subdomain=os.getenv("DD_SUBDOMAIN", "")
-    )
+    base_url = _get_base_url(dd_site=env.get("DD_SITE", DEFAULT_DATADOG_SITE), dd_subdomain=env.get("DD_SUBDOMAIN", ""))
     ci_visibility_instance = require_ci_visibility_service()
     ci_tags = ci_visibility_instance.get_ci_tags()
     settings = ci_visibility_instance.get_session_settings()
     service = settings.test_service
-    env = ci_visibility_instance.get_dd_env()
+    environ = ci_visibility_instance.get_dd_env()
 
-    redirect_test_commit_url = _build_test_commit_redirect_url(base_url, ci_tags, service, env)
+    redirect_test_commit_url = _build_test_commit_redirect_url(base_url, ci_tags, service, environ)
     test_runs_url = _build_test_runs_url(base_url, ci_tags)
 
     if not (redirect_test_commit_url or test_runs_url):
@@ -55,7 +53,7 @@ def _get_base_url(dd_site, dd_subdomain):
         return f"https://{subdomain}.{dd_site}"
 
 
-def _build_test_commit_redirect_url(base_url, ci_tags, service, env):
+def _build_test_commit_redirect_url(base_url, ci_tags, service, environ):
     params = {
         "repo_url": ci_tags.get(ci.git.REPOSITORY_URL),
         "branch": ci_tags.get(ci.git.BRANCH),
@@ -67,8 +65,8 @@ def _build_test_commit_redirect_url(base_url, ci_tags, service, env):
 
     url_format = "/ci/redirect/tests/{repo_url}/-/{service}/-/{branch}/-/{commit_sha}"
     url = base_url + url_format.format(**{k: quote(v, safe="") for k, v in params.items()})
-    if env:
-        url += f"?env={env}".format(env=quote(env, safe=""))
+    if environ:
+        url += "?env={}".format(quote(environ, safe=""))
 
     return url
 

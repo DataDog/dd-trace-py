@@ -18,6 +18,7 @@ from typing import Union  # noqa:F401
 
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.time import StopWatch
 
@@ -26,6 +27,18 @@ GitNotFoundError = FileNotFoundError
 
 # Git Branch
 BRANCH = "git.branch"
+
+# Git Pull Request Base Branch
+PULL_REQUEST_BASE_BRANCH = "git.pull_request.base_branch"
+
+# Git Pull Request Base Branch SHA
+PULL_REQUEST_BASE_BRANCH_SHA = "git.pull_request.base_branch_sha"
+
+# Git Pull Request Base Branch Head SHA
+PULL_REQUEST_BASE_BRANCH_HEAD_SHA = "git.pull_request.base_branch_head_sha"
+
+# Pull Request Number
+PULL_REQUEST_NUMBER = "pr.number"
 
 # Git Commit SHA
 COMMIT_SHA = "git.commit.sha"
@@ -128,7 +141,7 @@ def _git_subprocess_cmd_with_details(
     if git_cmd is None:
         raise FileNotFoundError("Git executable not found")
     git_cmd = [git_cmd]
-    git_cmd.extend(cmd)
+    git_cmd.extend(_add_safe_directory_override(list(cmd), cwd))
 
     log.debug("Executing git command: %s", git_cmd)
 
@@ -158,13 +171,59 @@ def _git_subprocess_cmd(cmd: Union[str, list[str]], cwd: Optional[str] = None, s
     raise ValueError(stderr)
 
 
-def _set_safe_directory():
-    try:
-        _git_subprocess_cmd("config --global --add safe.directory *")
-    except GitNotFoundError:
-        log.error("Git executable not found, cannot extract git metadata.")
-    except ValueError:
-        log.error("Error setting safe directory")
+def _is_bare_git_root(path: str) -> bool:
+    return (
+        os.path.isfile(os.path.join(path, "HEAD"))
+        and os.path.isdir(os.path.join(path, "objects"))
+        and os.path.isdir(os.path.join(path, "refs"))
+    )
+
+
+@cached(maxsize=256)
+def _resolve_git_root_cached(start_dir: str) -> str:
+    """Cached implementation of git root resolution.
+
+    Args:
+        start_dir: Absolute path to start searching from
+
+    Returns:
+        The git repository root path
+    """
+    current = os.path.realpath(start_dir)
+    log.debug("Finding git repository root for %s", current)
+    while current:
+        git_marker = os.path.join(current, ".git")
+        if os.path.isdir(git_marker) or os.path.isfile(git_marker):
+            log.debug("Git repository root found as %s", current)
+            return current
+        if _is_bare_git_root(current):
+            log.debug("Bare git repository root found as %s", current)
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            log.debug("No .git found for repository root, defaulting to original starting directory")
+            return os.path.realpath(start_dir)
+        current = parent
+    return os.path.realpath(start_dir)
+
+
+def _resolve_git_root(cwd: Optional[str]) -> str:
+    """Resolve the git repository root from a given directory.
+
+    Args:
+        cwd: Directory to start searching from, or None to use current directory
+
+    Returns:
+        The git repository root path
+    """
+    # Normalize to absolute path for consistent caching
+    start_dir = os.path.abspath(cwd or os.getcwd())
+    return _resolve_git_root_cached(start_dir)
+
+
+def _add_safe_directory_override(cmd: list[str], cwd: Optional[str]) -> list[str]:
+    root = _resolve_git_root(cwd)
+    return ["-c", "safe.directory={0}".format(root), *cmd]
 
 
 def _extract_clone_defaultremotename_with_details(cwd: Optional[str]) -> _GitSubprocessDetails:
@@ -363,7 +422,6 @@ def extract_git_head_metadata(head_commit_sha: str, cwd: Optional[str] = None) -
 def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
     """Extract git commit metadata."""
     tags: dict[str, Optional[str]] = {}
-    _set_safe_directory()
     try:
         tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
         tags[COMMIT_MESSAGE] = extract_commit_message(cwd=cwd)
@@ -386,30 +444,33 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
     return tags
 
 
-def extract_user_git_metadata(env: Optional[MutableMapping[str, str]] = None) -> dict[str, Optional[str]]:
+def extract_user_git_metadata(environ: Optional[MutableMapping[str, str]] = None) -> dict[str, Optional[str]]:
     """Extract git commit metadata from user-provided env vars."""
-    env = os.environ if env is None else env
+    environ = env if environ is None else environ
 
-    branch = normalize_ref(env.get("DD_GIT_BRANCH"))
-    tag = normalize_ref(env.get("DD_GIT_TAG"))
+    branch = normalize_ref(environ.get("DD_GIT_BRANCH"))
+    pull_request_base_branch = normalize_ref(environ.get("DD_GIT_PULL_REQUEST_BASE_BRANCH"))
+    tag = normalize_ref(environ.get("DD_GIT_TAG"))
 
     # if DD_GIT_BRANCH is a tag, we associate its value to TAG instead of BRANCH
-    if is_ref_a_tag(env.get("DD_GIT_BRANCH")):
+    if is_ref_a_tag(environ.get("DD_GIT_BRANCH")):
         tag = branch
         branch = None
 
     tags = {}
-    tags[REPOSITORY_URL] = env.get("DD_GIT_REPOSITORY_URL")
-    tags[COMMIT_SHA] = env.get("DD_GIT_COMMIT_SHA")
+    tags[REPOSITORY_URL] = environ.get("DD_GIT_REPOSITORY_URL")
+    tags[COMMIT_SHA] = environ.get("DD_GIT_COMMIT_SHA")
     tags[BRANCH] = branch
+    tags[PULL_REQUEST_BASE_BRANCH] = pull_request_base_branch
+    tags[PULL_REQUEST_BASE_BRANCH_SHA] = environ.get("DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA")
     tags[TAG] = tag
-    tags[COMMIT_MESSAGE] = env.get("DD_GIT_COMMIT_MESSAGE")
-    tags[COMMIT_AUTHOR_DATE] = env.get("DD_GIT_COMMIT_AUTHOR_DATE")
-    tags[COMMIT_AUTHOR_EMAIL] = env.get("DD_GIT_COMMIT_AUTHOR_EMAIL")
-    tags[COMMIT_AUTHOR_NAME] = env.get("DD_GIT_COMMIT_AUTHOR_NAME")
-    tags[COMMIT_COMMITTER_DATE] = env.get("DD_GIT_COMMIT_COMMITTER_DATE")
-    tags[COMMIT_COMMITTER_EMAIL] = env.get("DD_GIT_COMMIT_COMMITTER_EMAIL")
-    tags[COMMIT_COMMITTER_NAME] = env.get("DD_GIT_COMMIT_COMMITTER_NAME")
+    tags[COMMIT_MESSAGE] = environ.get("DD_GIT_COMMIT_MESSAGE")
+    tags[COMMIT_AUTHOR_DATE] = environ.get("DD_GIT_COMMIT_AUTHOR_DATE")
+    tags[COMMIT_AUTHOR_EMAIL] = environ.get("DD_GIT_COMMIT_AUTHOR_EMAIL")
+    tags[COMMIT_AUTHOR_NAME] = environ.get("DD_GIT_COMMIT_AUTHOR_NAME")
+    tags[COMMIT_COMMITTER_DATE] = environ.get("DD_GIT_COMMIT_COMMITTER_DATE")
+    tags[COMMIT_COMMITTER_EMAIL] = environ.get("DD_GIT_COMMIT_COMMITTER_EMAIL")
+    tags[COMMIT_COMMITTER_NAME] = environ.get("DD_GIT_COMMIT_COMMITTER_NAME")
 
     return tags
 

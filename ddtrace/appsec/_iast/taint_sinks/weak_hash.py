@@ -1,8 +1,8 @@
-import os
 from typing import Any
 from typing import Callable
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 
 from ..._common_module_patches import try_unwrap
@@ -27,7 +27,7 @@ log = get_logger(__name__)
 
 def get_weak_hash_algorithms() -> set:
     CONFIGURED_WEAK_HASH_ALGORITHMS = None
-    DD_IAST_WEAK_HASH_ALGORITHMS = os.getenv("DD_IAST_WEAK_HASH_ALGORITHMS")
+    DD_IAST_WEAK_HASH_ALGORITHMS = env.get("DD_IAST_WEAK_HASH_ALGORITHMS")
     if DD_IAST_WEAK_HASH_ALGORITHMS:
         CONFIGURED_WEAK_HASH_ALGORITHMS = set(algo.strip() for algo in DD_IAST_WEAK_HASH_ALGORITHMS.lower().split(","))
 

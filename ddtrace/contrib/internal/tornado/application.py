@@ -1,14 +1,56 @@
 from urllib.parse import urlparse
 
 from tornado import template
+from tornado.routing import PathMatches
+import tornado.web
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.tornado import decorators
 from ddtrace.contrib.internal.tornado.constants import CONFIG_KEY
+from ddtrace.contrib.internal.tornado.handlers import _path_for_path_match
 from ddtrace.contrib.internal.tornado.stack_context import context_provider
+from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.trace import tracer
+
+
+_HTTP_METHODS = ("get", "post", "put", "delete", "patch", "head", "options")
+
+
+def _handler_has_method(handler_cls, method):
+    """Check if a RequestHandler subclass has overridden an HTTP method."""
+    for cls in handler_cls.__mro__:
+        if cls is tornado.web.RequestHandler:
+            return False
+        if method in cls.__dict__:
+            return True
+    return False
+
+
+def _collect_endpoints(app):
+    """Walk through the application's routing rules and register endpoints."""
+    rules = list(getattr(getattr(app, "default_router", None), "rules", []))
+
+    while rules:
+        rule = rules.pop()
+        matcher = getattr(rule, "matcher", None)
+        path = _path_for_path_match(matcher) if isinstance(matcher, PathMatches) else None
+        target = getattr(rule, "target", None)
+
+        if path is not None and isinstance(target, type) and issubclass(target, tornado.web.RequestHandler):
+            resource_name = "{}.{}".format(target.__module__, target.__name__)
+            for method_name in _HTTP_METHODS:
+                if _handler_has_method(target, method_name):
+                    endpoint_collection.add_endpoint(
+                        method_name.upper(),
+                        path,
+                        resource_name=resource_name,
+                        operation_name="tornado.request",
+                    )
+
+        if target is not None and hasattr(target, "rules"):
+            rules.extend(target.rules)
 
 
 def tracer_config(__init__, app, args, kwargs):
@@ -60,3 +102,5 @@ def tracer_config(__init__, app, args, kwargs):
 
     pin = Pin(service=service)
     pin.onto(template)
+
+    _collect_endpoints(app)

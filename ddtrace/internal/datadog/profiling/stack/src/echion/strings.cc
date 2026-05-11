@@ -53,8 +53,9 @@ StringTable::key(PyObject* s, StringTag tag)
     const std::lock_guard<std::mutex> lock(table_lock);
 
     auto k = make_tagged_key(reinterpret_cast<uintptr_t>(s), tag);
+    auto& table = table_for(tag);
 
-    if (this->find(k) == this->end()) {
+    if (table.find(k) == table.end()) {
 #if PY_VERSION_HEX >= 0x030c0000
         // The task name might hold a PyLong for deferred task name formatting.
         std::string str = "Task-";
@@ -78,20 +79,21 @@ StringTable::key(PyObject* s, StringTag tag)
 
         std::string str = std::move(*maybe_unicode);
 #endif
-        this->emplace(k, str);
+        table.emplace(k, str);
     }
 
     return Result<Key>(k);
-};
+}
 
 [[nodiscard]] Result<std::reference_wrapper<const std::string>>
 StringTable::lookup(StringTable::Key key) const
 {
     const std::lock_guard<std::mutex> lock(table_lock);
 
-    const auto it = this->find(key);
-    if (it == this->cend())
+    const auto& table = table_for_key(key);
+    const auto it = table.find(key);
+    if (it == table.cend())
         return ErrorKind::LookupError;
 
     return std::ref(it->second);
-};
+}

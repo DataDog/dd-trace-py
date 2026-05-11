@@ -1,5 +1,7 @@
 from collections import OrderedDict
 from time import monotonic
+from typing import Any
+from typing import Callable
 
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -11,27 +13,27 @@ class deduplication:
     _time_lapse = 3600  # 1 hour
     _max_cache_size = 256
 
-    def __init__(self, func) -> None:
+    def __init__(self, func: Callable[..., Any]) -> None:
         self.func = func
         self.reported_logs: OrderedDict[int, float] = OrderedDict()
 
-    def _extract(self, args):
+    def _extract(self, args: tuple[Any, ...]) -> tuple[Any, ...]:
         return args
 
     def get_last_time_reported(self, raw_log_hash: int) -> float:
         return self.reported_logs.get(raw_log_hash, 0.0)
 
-    def _reset_cache(self):
+    def _reset_cache(self) -> None:
         """
         Reset the cache of reported logs
         For testing purposes only
         """
         self.reported_logs.clear()
 
-    def _check_deduplication(self):
+    def _check_deduplication(self) -> bool:
         return asm_config._asm_deduplication_enabled
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         result = False
         if self._check_deduplication():
             raw_log_hash = hash("".join([str(arg) for arg in self._extract(args)]))

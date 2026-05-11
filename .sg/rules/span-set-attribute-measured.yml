@@ -1,0 +1,17 @@
+id: span-set-attribute-measured
+message: "Value for `_SPAN_MEASURED_KEY` must be a literal int (0, 1) or bool (True, False)"
+severity: error
+language: python
+rule:
+  pattern: $X._set_attribute(_SPAN_MEASURED_KEY, $VALUE)
+constraints:
+  VALUE:
+    not:
+      any:
+        - kind: integer
+        - kind: "true"
+        - kind: "false"
+note: |
+  `_set_attribute` does not normalize the measured value the way `set_metric` did.
+  Use a literal 0/1 or True/False directly.
+  For non-literal values, normalize explicitly: `span._set_attribute(_SPAN_MEASURED_KEY, int(bool(value)))`.

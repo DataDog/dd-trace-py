@@ -27,7 +27,7 @@ def track_login_success(
     This function should be called when a user successfully logs in to the application.
     It will create an event that can be used for monitoring and analysis.
     """
-    _metrics._report_ato_sdk_usage("login_success")
+    _metrics.report_ato_sdk_usage("login_success")
     mode = _constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK
     _trace_utils.track_user_login_success_event(None, user_id, login=login, metadata=metadata, login_events_mode=mode)
 
@@ -38,14 +38,14 @@ def track_login_failure(
     user_id: t.Any = None,
     metadata: t.Optional[dict[str, t.Any]] = None,
     _auto: bool = False,
-):
+) -> None:
     """
     Track a failed user login event.
 
     This function should be called when a user fails to log in to the application.
     It will create an event that can be used for monitoring and analysis.
     """
-    _metrics._report_ato_sdk_usage("login_failure")
+    _metrics.report_ato_sdk_usage("login_failure")
     mode = _constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK
     _trace_utils.track_user_login_failure_event(
         None, user_id, exists=exists, login=login, metadata=metadata, login_events_mode=mode
@@ -58,14 +58,14 @@ def track_signup(
     success: bool = True,
     metadata: t.Optional[dict[str, t.Any]] = None,
     _auto: bool = False,
-):
+) -> None:
     """
     Track a user signup event.
 
     This function should be called when a user successfully signs up for the application.
     It will create an event that can be used for monitoring and analysis.
     """
-    _metrics._report_ato_sdk_usage("signup")
+    _metrics.report_ato_sdk_usage("signup")
     mode = _constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK
     _trace_utils.track_user_signup_event(None, user_id, success, login=login, login_events_mode=mode)
     if metadata:
@@ -78,7 +78,7 @@ def track_user(
     session_id: t.Optional[str] = None,
     metadata: t.Optional[dict[str, t.Any]] = None,
     _auto: bool = False,
-):
+) -> None:
     """
     Track an authenticated user.
 
@@ -88,9 +88,9 @@ def track_user(
     if span is None:
         return
     if user_id:
-        span._set_tag_str(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
+        span._set_attribute(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
     if login:
-        span._set_tag_str(_constants.APPSEC.USER_LOGIN_USERNAME, str(login))
+        span._set_attribute(_constants.APPSEC.USER_LOGIN_USERNAME, str(login))
     meta = metadata or {}
     usr_name = meta.pop("name", None) or meta.pop("usr.name", None)
     usr_email = meta.pop("email", None) or meta.pop("usr.email", None)
@@ -111,7 +111,7 @@ def track_user(
     if meta:
         _trace_utils.track_custom_event(None, "auth_sdk", metadata=meta)
     if not _auto:
-        span._set_tag_str(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
+        span._set_attribute(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
         if _asm_request_context.in_asm_context():
             custom_data = {
                 "REQUEST_USER_ID": str(user_id) if user_id else None,
@@ -132,7 +132,7 @@ def track_user_id(
     session_id: t.Optional[str] = None,
     metadata: t.Optional[dict[str, t.Any]] = None,
     _auto: bool = False,
-):
+) -> None:
     """
     Track an authenticated user with only user id.
 
@@ -142,7 +142,7 @@ def track_user_id(
     if span is None:
         return
     if user_id:
-        span._set_tag_str(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
+        span._set_attribute(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
     meta = metadata or {}
     usr_name = meta.pop("name", None) or meta.pop("usr.name", None)
     usr_email = meta.pop("email", None) or meta.pop("usr.email", None)
@@ -163,7 +163,7 @@ def track_user_id(
     if meta:
         _trace_utils.track_custom_event(None, "auth_sdk", metadata=meta)
     if not _auto:
-        span._set_tag_str(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
+        span._set_attribute(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
         if _asm_request_context.in_asm_context():
             custom_data = {
                 "REQUEST_USER_ID": str(user_id) if user_id else None,
@@ -178,12 +178,12 @@ def track_user_id(
                 raise BlockingException(_get_blocked())
 
 
-def track_custom_event(event_name: str, metadata: dict[str, t.Any]):
+def track_custom_event(event_name: str, metadata: dict[str, t.Any]) -> None:
     """
     Track a custom user event.
 
     This function should be called when a custom user event occurs in the application.
     It will create an event that can be used for monitoring and analysis.
     """
-    _metrics._report_ato_sdk_usage("custom")
+    _metrics.report_ato_sdk_usage("custom")
     _trace_utils.track_custom_event(None, event_name, metadata=metadata)

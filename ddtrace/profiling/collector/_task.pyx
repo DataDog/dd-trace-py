@@ -1,18 +1,28 @@
 from wrapt.importer import when_imported
 
-from .. import _asyncio
 from ddtrace.internal.settings.profiling import config
+from ddtrace.profiling import _asyncio
 
 _gevent_helper = None
+_gevent_support_initialized = False
 
-@when_imported("gevent")
-def _(gevent):
+
+def _initialize_gevent_module(gevent):
     global _gevent_helper
-    from .. import _gevent
+    from ddtrace.profiling import _gevent
 
     _gevent_helper = _gevent
     if config.stack.enabled:
         _gevent.patch()
+
+
+cpdef initialize_gevent_support():
+    global _gevent_support_initialized
+
+    if _gevent_support_initialized:
+        return
+    _gevent_support_initialized = True
+    when_imported("gevent")(_initialize_gevent_module)
 
 
 cdef _asyncio_task_get_frame(task):

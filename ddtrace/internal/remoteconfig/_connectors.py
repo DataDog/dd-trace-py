@@ -43,13 +43,26 @@ class PublisherSubscriberConnector:
     """
 
     def __init__(self):
-        try:
-            self.data = get_mp_context().Array("c", SHARED_MEMORY_SIZE, lock=False)
-        except FileNotFoundError:
-            log.warning(
-                "Unable to create shared memory. Features relying on remote configuration will not work as expected."
-            )
+        from ddtrace.internal.serverless import in_aws_lambda
+
+        if in_aws_lambda():
             self.data = _DummySharedArray()
+        else:
+            try:
+                self.data = get_mp_context().Array("c", SHARED_MEMORY_SIZE, lock=False)
+            # FileNotFoundError: /dev/shm may not exist or be inaccessible.
+            # ImportError: multiprocessing.Array imports multiprocessing.sharedctypes,
+            # which imports ctypes and requires the _ctypes C extension module. Some
+            # environments (e.g. Alpine Linux, minimal Docker images, or custom
+            # Python builds without libffi) do not provide _ctypes and raise
+            # ModuleNotFoundError.
+            # See: https://app.datadoghq.com/error-tracking/issue/25b34008-bb9f-11f0-abbd-da7ad0900002
+            except (FileNotFoundError, ImportError):
+                log.warning(
+                    "Unable to create shared memory. "
+                    "Features relying on remote configuration will not work as expected."
+                )
+                self.data = _DummySharedArray()
         # Checksum attr validates if the Publisher send new data
         self.checksum = -1
         # shared_data_counter attr validates if the Subscriber send new data
@@ -86,7 +99,7 @@ class PublisherSubscriberConnector:
             if data_len >= (SHARED_MEMORY_SIZE - 1000):
                 log.warning("Datadog Remote Config shared data is %s/%s", data_len, SHARED_MEMORY_SIZE)
             self.data.value = data
-            log.debug("[%s][P: %s] write message of length %s", os.getpid(), os.getppid(), data_len)
+            log.debug("[%s][P: %s] Write message of length %s", os.getpid(), os.getppid(), data_len)
             self.checksum = last_checksum
 
     @staticmethod

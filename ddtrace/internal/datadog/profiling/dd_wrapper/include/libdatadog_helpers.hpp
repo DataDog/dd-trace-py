@@ -14,6 +14,13 @@ extern "C"
 
 namespace Datadog {
 
+// Intern a string into libdatadog, returning a string ID
+// (or nullopt if interning failed).
+// Passing the same string twice will deduplicate the string and return
+// the same string ID.
+// Note: although this function is a wrapper around libdatadog utilities,
+// it maintains a local cache of string -> string ID mappings to avoid
+// redundant FFI boundary-crossing calls.
 std::optional<ddog_prof_StringId2>
 intern_string(std::string_view s);
 
@@ -41,6 +48,7 @@ intern_string(std::string_view s);
 // to have spaces in the names.
 #define EXPORTER_LABELS(X)                                                                                             \
     X(exception_type, "exception type")                                                                                \
+    X(exception_message, "exception message")                                                                          \
     X(thread_id, "thread id")                                                                                          \
     X(thread_native_id, "thread native id")                                                                            \
     X(thread_name, "thread name")                                                                                      \
@@ -146,28 +154,8 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
 
 namespace internal {
 
-std::optional<ddog_prof_ProfilesDictionaryHandle>
-get_profiles_dictionary();
-
-// Decreases the refcount on the Profiles Dictionary handle.
-// This should be called before the process exits.
-// Note that this may not free it immediately if something else
-// (e.g. the Profile object) still holds a reference to it.
-void
-release_profiles_dictionary();
-
-// Initialize cached interned strings (required after creating/recreating the ProfilesDictionary)
-// Returns true if successful, false if not.
-bool
-init_interned_strings();
-
-// Reset tag and label key caches (required after fork)
-void
-reset_key_caches();
-
 // Fork-safe cached interning for tag and label keys
-// Must come after enum definitions to know the sizes
-
+// Caches are stored in the ProfilerState singleton and reset on fork
 std::optional<ddog_prof_StringId2>
 to_interned_string(ExportTagKey key);
 

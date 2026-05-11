@@ -4,7 +4,6 @@ import copy
 from dataclasses import asdict
 from dataclasses import dataclass
 import json
-import os
 import re
 from typing import Any
 from typing import Literal
@@ -12,9 +11,11 @@ from typing import Optional
 from typing import Protocol
 from typing import Union
 
+from ddtrace.internal.settings import env
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._experiment import _validate_evaluator_name
 from ddtrace.llmobs.types import JSONType
 
 
@@ -138,9 +139,18 @@ StructuredOutput = Union[
 ]
 
 
+_PUBLISH_PROVIDER_MAPPING = {
+    "openai": "openai",
+    "anthropic": "anthropic",
+    "azure_openai": "azure_openai",
+    "vertexai": "vertex_ai",
+    "bedrock": "amazon_bedrock",
+}
+
+
 def _create_openai_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
-    api_key = client_options.get("api_key") or os.environ.get("OPENAI_API_KEY")
+    api_key = client_options.get("api_key") or env.get("OPENAI_API_KEY")
     if not api_key:
         raise ValueError(
             "OpenAI API key not provided. Pass 'api_key' in client_options or set OPENAI_API_KEY environment variable"
@@ -150,7 +160,8 @@ def _create_openai_client(client_options: Optional[dict[str, Any]] = None) -> LL
     except ImportError:
         raise ImportError("openai package required: pip install openai")
 
-    client = OpenAI(api_key=api_key)
+    extra_options = {k: v for k, v in client_options.items() if k != "api_key"}
+    client = OpenAI(api_key=api_key, **extra_options)
 
     def call(
         provider: Optional[str],
@@ -179,9 +190,9 @@ def _create_openai_client(client_options: Optional[dict[str, Any]] = None) -> LL
 
 def _create_azure_openai_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
-    api_key = client_options.get("api_key") or os.environ.get("AZURE_OPENAI_API_KEY")
-    azure_endpoint = client_options.get("azure_endpoint") or os.environ.get("AZURE_OPENAI_ENDPOINT")
-    api_version = client_options.get("api_version") or os.environ.get("AZURE_OPENAI_API_VERSION") or "2024-10-21"
+    api_key = client_options.get("api_key") or env.get("AZURE_OPENAI_API_KEY")
+    azure_endpoint = client_options.get("azure_endpoint") or env.get("AZURE_OPENAI_ENDPOINT")
+    api_version = client_options.get("api_version") or env.get("AZURE_OPENAI_API_VERSION") or "2024-10-21"
 
     if not api_key:
         raise ValueError(
@@ -199,8 +210,10 @@ def _create_azure_openai_client(client_options: Optional[dict[str, Any]] = None)
     except ImportError:
         raise ImportError("openai package required: pip install openai")
 
-    client = AzureOpenAI(api_key=api_key, azure_endpoint=azure_endpoint, api_version=api_version)
-    deployment_name = client_options.get("azure_deployment") or os.environ.get("AZURE_OPENAI_DEPLOYMENT")
+    _known_keys = {"api_key", "azure_endpoint", "api_version", "azure_deployment"}
+    extra_options = {k: v for k, v in client_options.items() if k not in _known_keys}
+    client = AzureOpenAI(api_key=api_key, azure_endpoint=azure_endpoint, api_version=api_version, **extra_options)
+    deployment_name = client_options.get("azure_deployment") or env.get("AZURE_OPENAI_DEPLOYMENT")
 
     def call(
         provider: Optional[str],
@@ -229,7 +242,7 @@ def _create_azure_openai_client(client_options: Optional[dict[str, Any]] = None)
 
 def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
-    api_key = client_options.get("api_key") or os.environ.get("ANTHROPIC_API_KEY")
+    api_key = client_options.get("api_key") or env.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise ValueError(
             "Anthropic API key not provided. "
@@ -240,7 +253,8 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
     except ImportError:
         raise ImportError("anthropic package required: pip install anthropic")
 
-    client = anthropic.Anthropic(api_key=api_key)
+    extra_options = {k: v for k, v in client_options.items() if k != "api_key"}
+    client = anthropic.Anthropic(api_key=api_key, **extra_options)
 
     def call(
         provider: Optional[str],
@@ -309,9 +323,7 @@ def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> 
     client_options = client_options or {}
 
     credentials = client_options.get("credentials")
-    project = (
-        client_options.get("project") or os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCLOUD_PROJECT")
-    )
+    project = client_options.get("project") or env.get("GOOGLE_CLOUD_PROJECT") or env.get("GCLOUD_PROJECT")
 
     if credentials is None:
         try:
@@ -335,12 +347,14 @@ def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> 
 
     location = (
         client_options.get("location")
-        or os.environ.get("GOOGLE_CLOUD_REGION")
-        or os.environ.get("GOOGLE_CLOUD_LOCATION")
+        or env.get("GOOGLE_CLOUD_REGION")
+        or env.get("GOOGLE_CLOUD_LOCATION")
         or "us-central1"
     )
 
-    vertexai.init(project=project, location=location, credentials=credentials)
+    _known_keys = {"credentials", "project", "location"}
+    extra_options = {k: v for k, v in client_options.items() if k not in _known_keys}
+    vertexai.init(project=project, location=location, credentials=credentials, **extra_options)
 
     def call(
         provider: Optional[str],
@@ -393,10 +407,7 @@ def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> 
 def _create_bedrock_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
     region_name = (
-        client_options.get("region_name")
-        or os.environ.get("AWS_REGION")
-        or os.environ.get("AWS_DEFAULT_REGION")
-        or "us-east-1"
+        client_options.get("region_name") or env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION") or "us-east-1"
     )
 
     try:
@@ -404,19 +415,22 @@ def _create_bedrock_client(client_options: Optional[dict[str, Any]] = None) -> L
     except ImportError:
         raise ImportError("boto3 package required: pip install boto3")
 
+    _known_keys = {"region_name", "profile_name", "aws_access_key_id", "aws_secret_access_key", "aws_session_token"}
     session_kwargs: dict[str, Any] = {"region_name": region_name}
-    profile_name = client_options.get("profile_name") or os.environ.get("AWS_PROFILE")
+    profile_name = client_options.get("profile_name") or env.get("AWS_PROFILE")
     if profile_name:
         session_kwargs["profile_name"] = profile_name
-    aws_access_key_id = client_options.get("aws_access_key_id") or os.environ.get("AWS_ACCESS_KEY_ID")
+    aws_access_key_id = client_options.get("aws_access_key_id") or env.get("AWS_ACCESS_KEY_ID")
     if aws_access_key_id:
         session_kwargs["aws_access_key_id"] = aws_access_key_id
-    aws_secret_access_key = client_options.get("aws_secret_access_key") or os.environ.get("AWS_SECRET_ACCESS_KEY")
+    aws_secret_access_key = client_options.get("aws_secret_access_key") or env.get("AWS_SECRET_ACCESS_KEY")
     if aws_secret_access_key:
         session_kwargs["aws_secret_access_key"] = aws_secret_access_key
-    aws_session_token = client_options.get("aws_session_token") or os.environ.get("AWS_SESSION_TOKEN")
+    aws_session_token = client_options.get("aws_session_token") or env.get("AWS_SESSION_TOKEN")
     if aws_session_token:
         session_kwargs["aws_session_token"] = aws_session_token
+    extra_options = {k: v for k, v in client_options.items() if k not in _known_keys}
+    session_kwargs.update(extra_options)
 
     session = boto3.Session(**session_kwargs)
     client = session.client("bedrock-runtime")
@@ -546,14 +560,20 @@ class LLMJudge(BaseEvaluator):
             client: Custom LLM client implementing the ``LLMClient`` protocol. If provided,
                 ``provider`` is not required.
             name: Optional evaluator name for identification in results.
-            client_options: Provider-specific configuration options. Supported keys vary
-                by provider:
+            client_options: Provider-specific configuration options. Common keys are
+                listed below; any additional keys are forwarded directly to the
+                underlying client constructor (e.g., ``OpenAI()``, ``anthropic.Anthropic()``,
+                ``AzureOpenAI()``, ``vertexai.init()``, ``boto3.Session()``).
 
                 **OpenAI:**
                     - ``api_key``: API key. Falls back to ``OPENAI_API_KEY`` env var.
+                    - Any other key is passed to the ``OpenAI()`` constructor
+                      (e.g., ``base_url``, ``organization``, ``timeout``, ``http_client``).
 
                 **Anthropic:**
                     - ``api_key``: API key. Falls back to ``ANTHROPIC_API_KEY`` env var.
+                    - Any other key is passed to the ``anthropic.Anthropic()`` constructor
+                      (e.g., ``base_url``, ``timeout``, ``max_retries``).
 
                 **Azure OpenAI:**
                     - ``api_key``: API key. Falls back to ``AZURE_OPENAI_API_KEY`` env var.
@@ -562,6 +582,8 @@ class LLMJudge(BaseEvaluator):
                       Falls back to ``AZURE_OPENAI_API_VERSION``.
                     - ``azure_deployment``: Deployment name. Falls back to
                       ``AZURE_OPENAI_DEPLOYMENT`` or uses ``model`` param.
+                    - Any other key is passed to the ``AzureOpenAI()`` constructor
+                      (e.g., ``organization``, ``timeout``, ``http_client``).
 
                 **Vertex AI:**
                     - ``project``: Google Cloud project ID. Falls back to
@@ -572,6 +594,8 @@ class LLMJudge(BaseEvaluator):
                     - ``credentials``: Optional service account credentials object.
                       Falls back to Application Default Credentials (ADC), which
                       respects the ``GOOGLE_APPLICATION_CREDENTIALS`` env var.
+                    - Any other key is passed to ``vertexai.init()``
+                      (e.g., ``api_endpoint``, ``api_transport``).
 
                 **Bedrock:**
                     - ``aws_access_key_id``: AWS access key. Falls back to
@@ -583,6 +607,8 @@ class LLMJudge(BaseEvaluator):
                     - ``region_name``: AWS region (default: "us-east-1"). Falls back to
                       ``AWS_REGION`` or ``AWS_DEFAULT_REGION``.
                     - ``profile_name``: AWS profile name. Falls back to ``AWS_PROFILE``.
+                    - Any other key is passed to ``boto3.Session()``
+                      (e.g., ``botocore_session``).
 
         Raises:
             ValueError: If neither ``client`` nor ``provider`` is provided.
@@ -678,6 +704,147 @@ class LLMJudge(BaseEvaluator):
         if self._structured_output:
             return self._parse_response(response)
         return response
+
+    def _build_publish_payload(
+        self,
+        ml_app: str,
+        eval_name: Optional[str] = None,
+        variable_mapping: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
+        if not isinstance(ml_app, str) or not ml_app.strip():
+            raise ValueError("ml_app must be a non-empty string")
+        ml_app = ml_app.strip()
+
+        resolved_eval_name = eval_name if eval_name is not None else self.name
+        if not isinstance(resolved_eval_name, str) or not resolved_eval_name.strip():
+            raise ValueError("eval_name must be provided either as argument or evaluator name")
+        resolved_eval_name = resolved_eval_name.strip()
+        _validate_evaluator_name(resolved_eval_name)
+
+        if self._provider is None:
+            raise ValueError("provider must be specified to publish LLMJudge")
+
+        integration_provider = _PUBLISH_PROVIDER_MAPPING.get(self._provider)
+        if integration_provider is None:
+            raise ValueError(
+                "Unsupported provider '{}' for publish(). Expected one of: {}".format(
+                    self._provider, ", ".join(sorted(_PUBLISH_PROVIDER_MAPPING))
+                )
+            )
+
+        normalized_variable_mapping = self._validate_variable_mapping(variable_mapping)
+        output_schema, parsing_type, assessment_criteria = self._build_publish_schema_and_criteria(integration_provider)
+
+        prompt_template = [
+            {
+                "role": "system",
+                "content": self._system_prompt or "",
+            },
+            {
+                "role": "user",
+                "content": self._apply_variable_mapping(self._user_prompt, normalized_variable_mapping),
+            },
+        ]
+
+        byop_config: dict[str, Any] = {
+            "inference_params": self._model_params or {},
+            "prompt_template": prompt_template,
+            "output_schema": output_schema,
+            "parsing_type": parsing_type,
+        }
+        if assessment_criteria is not None:
+            byop_config["assessment_criteria"] = assessment_criteria
+
+        app_payload: dict[str, Any] = {
+            "application_name": ml_app,
+            "enabled": False,
+            "integration_provider": integration_provider,
+            "model_provider": integration_provider,
+            "byop_config": byop_config,
+        }
+        model_name = self._model.strip() if isinstance(self._model, str) else ""
+        if model_name:
+            app_payload["model_name"] = model_name
+
+        return {
+            "eval_name": resolved_eval_name,
+            "applications": [app_payload],
+        }
+
+    @staticmethod
+    def _validate_variable_mapping(variable_mapping: Optional[dict[str, str]]) -> dict[str, str]:
+        if variable_mapping is None:
+            return {}
+        if not isinstance(variable_mapping, dict):
+            raise ValueError("variable_mapping must be a dictionary")
+
+        normalized_mapping: dict[str, str] = {}
+        for key, value in variable_mapping.items():
+            if not isinstance(key, str) or not key.strip():
+                raise ValueError("variable_mapping keys must be non-empty strings")
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError("variable_mapping values must be non-empty strings")
+            normalized_mapping[key.strip()] = value.strip()
+
+        return normalized_mapping
+
+    @staticmethod
+    def _apply_variable_mapping(template: str, variable_mapping: dict[str, str]) -> str:
+        if not variable_mapping:
+            return template
+
+        pattern = re.compile(r"\{\{\s*(" + "|".join(re.escape(key) for key in variable_mapping) + r")\s*\}\}")
+
+        def replace(match: re.Match[str]) -> str:
+            return "{{" + variable_mapping[match.group(1)] + "}}"
+
+        return pattern.sub(replace, template)
+
+    def _build_publish_schema_and_criteria(
+        self, integration_provider: str
+    ) -> tuple[dict[str, Any], str, Optional[dict[str, JSONType]]]:
+        structured_output = self._structured_output
+        if structured_output is None:
+            raise ValueError("structured_output must be provided to publish an evaluator")
+
+        if isinstance(structured_output, dict):
+            return (
+                self._format_schema_for_provider(structured_output, integration_provider, "evaluation"),
+                "json",
+                None,
+            )
+
+        schema_name = structured_output.label
+        schema = structured_output.to_json_schema()
+        return (
+            self._format_schema_for_provider(schema, integration_provider, schema_name),
+            "structured_output",
+            self._build_assessment_criteria(structured_output),
+        )
+
+    @staticmethod
+    def _format_schema_for_provider(
+        schema: dict[str, Any], integration_provider: str, schema_name: str
+    ) -> dict[str, Any]:
+        if integration_provider in {"openai", "azure_openai"}:
+            return {"name": schema_name, "strict": True, "schema": schema}
+        return schema
+
+    @staticmethod
+    def _build_assessment_criteria(structured_output: BaseStructuredOutput) -> Optional[dict[str, JSONType]]:
+        criteria: dict[str, Any] = {}
+
+        if isinstance(structured_output, BooleanStructuredOutput) and structured_output.pass_when is not None:
+            criteria["pass_when"] = structured_output.pass_when
+        elif isinstance(structured_output, ScoreStructuredOutput):
+            if structured_output.min_threshold is not None:
+                criteria["min_threshold"] = structured_output.min_threshold
+            if structured_output.max_threshold is not None:
+                criteria["max_threshold"] = structured_output.max_threshold
+        elif isinstance(structured_output, CategoricalStructuredOutput) and structured_output.pass_values is not None:
+            criteria["pass_values"] = structured_output.pass_values
+
+        return criteria or None
 
     def _render(self, template: str, context: EvaluatorContext) -> str:
         """Render a prompt template by substituting {{field.path}} placeholders with context values.

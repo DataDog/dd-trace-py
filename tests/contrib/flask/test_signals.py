@@ -110,7 +110,17 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
             self.assertEqual(
                 set(span.get_tags().keys()),
                 set(
-                    ["flask.signal", "runtime-id", "_dd.p.tid", "_dd.p.dm", "component", "language", "_dd.base_service"]
+                    [
+                        "flask.signal",
+                        "runtime-id",
+                        "_dd.p.tid",
+                        "_dd.p.dm",
+                        "_dd.svc_src",
+                        "component",
+                        "language",
+                        "_dd.base_service",
+                        "_dd.tags.process",
+                    ]
                 ),
             )
             self.assertEqual(span.get_tag("flask.signal"), signal_name)
@@ -149,7 +159,19 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         self.assertEqual(span_a.resource, "tests.contrib.flask.request_started_a")
         self.assertEqual(
             set(span_a.get_tags().keys()),
-            set(["flask.signal", "runtime-id", "_dd.p.tid", "_dd.p.dm", "component", "language", "_dd.base_service"]),
+            set(
+                [
+                    "flask.signal",
+                    "runtime-id",
+                    "_dd.p.tid",
+                    "_dd.p.dm",
+                    "_dd.svc_src",
+                    "component",
+                    "language",
+                    "_dd.base_service",
+                    "_dd.tags.process",
+                ]
+            ),
         )
         self.assertEqual(span_a.get_tag("flask.signal"), "request_started")
 
@@ -160,6 +182,18 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         self.assertEqual(span_b.resource, "tests.contrib.flask.request_started_b")
         self.assertEqual(
             set(span_b.get_tags().keys()),
-            set(["flask.signal", "runtime-id", "_dd.p.tid", "_dd.p.dm", "component", "language", "_dd.base_service"]),
+            set(
+                [
+                    "flask.signal",
+                    "runtime-id",
+                    "_dd.p.tid",
+                    "_dd.p.dm",
+                    "_dd.svc_src",
+                    "component",
+                    "language",
+                    "_dd.base_service",
+                    "_dd.tags.process",
+                ]
+            ),
         )
         self.assertEqual(span_b.get_tag("flask.signal"), "request_started")

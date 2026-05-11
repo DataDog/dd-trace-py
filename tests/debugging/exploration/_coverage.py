@@ -9,6 +9,7 @@ from debugger import ExplorationDebugger
 from debugger import ModuleCollector
 from debugger import config
 from debugger import status
+from debugging.utils import create_log_line_probe
 from debugging.utils import create_snapshot_line_probe
 from output import log
 from utils import COLS
@@ -52,6 +53,15 @@ class LineCollector(ModuleCollector):
                         line=line,
                         rate=0.0,
                         limits=expl_config.limits,
+                    )
+                    if expl_config.capture
+                    else create_log_line_probe(
+                        probe_id=probe_id,
+                        source_file=o,
+                        line=line,
+                        rate=0.0,
+                        template="",
+                        segments=[],
                     )
                 )
         LineCoverage.add_probes(probes)

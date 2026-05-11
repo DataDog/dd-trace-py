@@ -37,7 +37,7 @@ StaticSamplePool::return_sample(Sample* sample)
 {
     // Clear any data pushed to this sample before returning it to the pool.
     // This prevents stale data (like span_id) from leaking to the next user.
-    sample->clear_buffers();
+    sample->clear();
 
     for (std::size_t i = 0; i < CAPACITY; ++i) {
         Sample* expected = nullptr;

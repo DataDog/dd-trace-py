@@ -1,6 +1,7 @@
 variables:
   IMAGE_BASE_URL: "registry.ddbuild.io/dd-trace-py"
   MANYLINUX_AMD64_IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+  ALPINE_BUILD_IMAGE_TAG: "v103339769-be1888c-alpine_build"
 
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
   - "3.9"
@@ -34,6 +35,8 @@ variables:
     CMAKE_ARGS: "-DNATIVE_TESTING=OFF"
     # DEV: Hack to make ASM CMake able to find the Python3 library
     CIBW_BUILD: "1"
+    # Enable sccache for Rust/C/C++ compilation caching
+    DD_USE_SCCACHE: "1"
     # job resource requests
     KUBERNETES_CPU_REQUEST: "6"
     KUBERNETES_MEMORY_REQUEST: "10Gi"
@@ -45,6 +48,10 @@ variables:
       - "pywheels/*.tar.gz"
       - "debugwheelhouse/*.log"
       - "debugwheelhouse/*.zip"
+  cache:
+    - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
+      paths:
+        - .download_cache
 
 .upload_wheels_base:
   tags: ["arch:amd64"]
@@ -52,6 +59,13 @@ variables:
   stage: package
   variables:
     BUCKET: dd-trace-py-builds
+  script:
+    - |
+      set -euo pipefail
+
+      # Pipeline/commit paths
+      .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" ${UPLOAD_SUFFIX:-}
+      .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" ${UPLOAD_SUFFIX:-}
 
 "build sdist":
   extends: .build_base
@@ -63,6 +77,10 @@ variables:
     PYTHON_TAG: "cp314-cp314"
     UV_PYTHON: "/opt/python/cp314-cp314/bin/python"
     IMAGE_TAG: "${MANYLINUX_AMD64_IMAGE_TAG}"
+    # S3-backed sccache
+    SCCACHE_BUCKET: "dd-trace-py-builds"
+    SCCACHE_S3_KEY_PREFIX: "sccache"
+    SCCACHE_REGION: "us-east-1"
   script:
     - .gitlab/scripts/build-sdist.sh
 
@@ -70,6 +88,11 @@ variables:
   extends: .build_base
   image: ${IMAGE_BASE_URL}:${IMAGE_TAG}
   tags: [ "arch:$ARCH_TAG" ]
+  variables:
+    # S3-backed sccache for Linux builds
+    SCCACHE_BUCKET: "dd-trace-py-builds"
+    SCCACHE_S3_KEY_PREFIX: "sccache"
+    SCCACHE_REGION: "us-east-1"
   parallel:
     matrix:
       - ARCH_TAG: "amd64"
@@ -85,6 +108,7 @@ variables:
         manylinux-interpreters ensure "cp314-cp314"  # NB unpinning script requires Py>=311
       fi
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
+    - export DD_SERVERLESS_BUILD="${DD_SERVERLESS_BUILD:-0}"
     - |
       find src/native -type f -exec touch -t 202401010000 {} \;
       find ddtrace/ -type f -name "*.pyx" -exec touch -t 202401010000 {} \;
@@ -93,22 +117,39 @@ variables:
       find ddtrace/ -type f -name "*.h" -exec touch -t 202401010000 {} \;
     - .gitlab/scripts/build-wheel.sh
 
+"build linux serverless":
+  extends: "build linux"
+  parallel:
+    matrix:
+      - ARCH_TAG: "amd64"
+        PYTHON_TAG: *PYTHON_TAGS
+        IMAGE_TAG: *X86_64_IMAGES
+        DD_SERVERLESS_BUILD: "1"
+      - ARCH_TAG: "arm64"
+        PYTHON_TAG: *PYTHON_TAGS
+        IMAGE_TAG: *AARCH64_IMAGES
+        DD_SERVERLESS_BUILD: "1"
+
 "build macos":
   extends: .build_base
   tags: [ "macos:sonoma-$ARCH_TAG", "specific:true" ]
   parallel:
     matrix:
-      - ARCH_TAG:
-          - "amd64"
-          - "arm64"
+      # amd64 runners are slower
+      - ARCH_TAG: "amd64"
         PYTHON_VERSIONS:
-          - "3.9 3.10"
-          - "3.11 3.12"
-          - "3.13 3.14"
+          - "3.9 3.10 3.11"
+          - "3.12 3.13 3.14"
+      - ARCH_TAG: "arm64"
+        PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
   variables:
     SYSTEM_VERSION_COMPAT: "0"
+    DD_USE_SCCACHE: "1"
   script: |
     set -euo pipefail
+    if ! command -v sccache &> /dev/null; then
+      brew install sccache
+    fi
     for python_version in ${PYTHON_VERSIONS}; do
       echo -e "\e[0Ksection_start:`date +%s`:build_macos_${python_version}\r\e[0KBuilding macOS wheel for Python ${python_version}"
 
@@ -117,7 +158,9 @@ variables:
 
       echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
     done
+    sccache --show-stats
 
+# Only amd64 manylinux2014 wheels
 "upload manylinux2014_x86_64":
   extends: .upload_wheels_base
   needs:
@@ -129,12 +172,59 @@ variables:
             PYTHON_TAG: *PYTHON_TAGS
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
     - job: "package version"
+  variables:
+    UPLOAD_SUFFIX: "manylinux2014_x86_64"
+
+# All manylinux2014 wheels
+"upload manylinux2014":
+  extends: .upload_wheels_base
+  needs:
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "arm64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: "v85383414-751efc0-manylinux2014_aarch64"
+    - job: "package version"
+  variables:
+    UPLOAD_SUFFIX: "manylinux2014"
+
+# Only the limited artifacts needed by downstream serverless jobs
+"upload serverless":
+  extends: .upload_wheels_base
+  needs:
+    - job: "build linux serverless"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: *X86_64_IMAGES
+            DD_SERVERLESS_BUILD: "1"
+          - ARCH_TAG: "arm64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: *AARCH64_IMAGES
+            DD_SERVERLESS_BUILD: "1"
+    - job: "package version"
+  variables:
+    UPLOAD_SUFFIX: "serverless"
   script:
-    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" manylinux2014_x86_64
-    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" manylinux2014_x86_64
+    - !reference [.upload_wheels_base, script]
+    - |
+      set -euo pipefail
+
+      # Upload to branch path (only for main/release branches)
+      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+        .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}" ${UPLOAD_SUFFIX:-}
+      fi
+
 
 "test sdist":
-  image: registry.ddbuild.io/images/mirror/python:3.9.6-alpine3.14
+  image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
   tags: [ "arch:arm64" ]
   stage: package
   variables:
@@ -150,16 +240,29 @@ variables:
   script:
     - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
     - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
-    - |
-      apk add curl git gcc g++ musl-dev libffi-dev openssl-dev bash cargo make cmake patchelf
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-      export PATH="$HOME/.cargo/bin:$PATH"
-      pip install 'twine>=5.0,<7' 'readme-renderer[md]>=44.0,<45' 'cmarkgfm>=2024,<2025.10.20'  # ci-deps: allow
     - twine check ${SDIST_FILE}
     - pip install ${SDIST_FILE}
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
 
-"download windows wheels":
+"build windows":
+  stage: package
+  tags: ["windows-v2:2022"]
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        WINDOWS_ARCH: ["amd64", "x86"]
+  variables:
+    WINDOWS_BUILD_IMAGE: "registry.ddbuild.io/images/mirror/dd-trace-py/windows-build:d4d18a67d43d400d3ecc6bda777a5e233a24f434@sha256:58c3e28646ddf8a1021a079a380c8840e51f0b88c1489a522beee6ec99413019"
+  script:
+    - bash .gitlab/scripts/build-wheel-windows.sh
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+      - "debugwheelhouse/*.log"
+
+# Downloads win_arm64 wheels from GitHub Actions (arm64 cannot be cross-compiled
+# from the amd64 Windows runners available in GitLab).
+"download win_arm64 wheels":
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
   stage: package
@@ -219,17 +322,33 @@ download_dependency_wheels:
 "upload all":
   extends: .upload_wheels_base
   needs: [ "ddtrace package", "package version" ]
-  script: |
-    set -euo pipefail
+  script:
+    - !reference [.upload_wheels_base, script]
+    - |
+      set -euo pipefail
 
-    # Upload to commit SHA and pipeline ID paths
-    .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}"
-    .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}"
+      # Upload to branch path (only for main/release branches)
+      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+        .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}" ${UPLOAD_SUFFIX:-}
+      fi
 
-    # Upload to branch path (only for main/release branches)
-    if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
-      .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}"
-    fi
+# Upload ELF debug symbols to the Datadog symbols backend for crashtracker symbolication.
+# Runs automatically on releases/RCs, available as manual trigger for other pipelines.
+"upload debug symbols to backend":
+  stage: release
+  extends: .testrunner
+  needs:
+    - job: "build linux"
+      artifacts: true
+  rules:
+    # Automatically run on releases/RCs
+    - if: !reference [.is_release]
+      when: on_success
+    # Manual trigger for any other pipeline
+    - when: manual
+      allow_failure: true
+  script:
+    - .gitlab/scripts/upload-debug-symbols-to-backend.sh
 
 # Extract package version from pyproject.toml and save to dotenv artifact
 "package version":
@@ -252,21 +371,50 @@ download_dependency_wheels:
     reports:
       dotenv: package_version.env
 
-# Aggregate and validate all built wheels
-"ddtrace package":
+# Aggregates all Windows wheel artifacts
+# DEV: "ddtrace package" has a limit of 50 jobs it can depend on
+"collect windows wheels":
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package
   needs:
-    - "build linux"
-    - "build macos"
-    - "build sdist"
-    - "download windows wheels"
-    - "package version"
+    - job: "build windows"
+      artifacts: true
+    - job: "download win_arm64 wheels"
+      artifacts: true
   script:
+    - echo "Collected $(ls pywheels/*.whl 2>/dev/null | wc -l) Windows wheels"
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+
+# Aggregate and validate all built wheels
+.package_base:
+  image: registry.ddbuild.io/images/mirror/python:3.14.0
+  tags: [ "arch:amd64" ]
+  stage: package
+  before_script:
     - pip install 'packaging>=24.0,<26'  # ci-deps: allow
-    - .gitlab/validate-ddtrace-package.py pywheels
   artifacts:
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
+
+"ddtrace package":
+  extends: .package_base
+  needs:
+    - "build linux"
+    - "build macos"
+    - "build sdist"
+    - "collect windows wheels"
+    - "package version"
+  script:
+    - .gitlab/validate-ddtrace-package.py pywheels
+
+"ddtrace package serverless":
+  extends: .package_base
+  needs:
+    - "build linux serverless"
+    - "package version"
+  script:
+    - .gitlab/validate-ddtrace-package.py pywheels --mode=serverless

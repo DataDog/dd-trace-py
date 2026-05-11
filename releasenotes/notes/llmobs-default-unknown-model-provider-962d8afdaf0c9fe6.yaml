@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Defaults ``model_provider`` to ``"unknown"`` when a custom base URL is configured that does not match
+    a recognized provider in the OpenAI, Anthropic, and LiteLLM integrations.

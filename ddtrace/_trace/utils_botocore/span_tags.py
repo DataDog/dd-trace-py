@@ -59,11 +59,10 @@ def _derive_peer_hostname(service: str, region: str, params: Optional[dict[str, 
 
 
 def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
-    span._set_tag_str(COMPONENT, config.botocore.integration_name)
+    span._set_attribute(COMPONENT, config.botocore.integration_name)
     # set span.kind to the type of request being performed
-    span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-    # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     if args:
         # DEV: join is the fastest way of concatenating strings that is compatible
@@ -85,20 +84,20 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
 
     region_name = deep_getattr(instance, "meta.region_name")
 
-    span._set_tag_str("aws.agent", "botocore")
+    span._set_attribute("aws.agent", "botocore")
     if operation is not None:
-        span._set_tag_str("aws.operation", operation)
+        span._set_attribute("aws.operation", operation)
     if region_name is not None:
-        span._set_tag_str("aws.region", region_name)
-        span._set_tag_str("region", region_name)
-        span._set_tag_str("aws.partition", aws.get_aws_partition(region_name))
+        span._set_attribute("aws.region", region_name)
+        span._set_attribute("region", region_name)
+        span._set_attribute("aws.partition", aws.get_aws_partition(region_name))
 
         # Derive peer hostname only in serverless environments to avoid
         # unnecessary tag noise in traditional hosts/containers.
         if in_aws_lambda():
             hostname = _derive_peer_hostname(endpoint_name, region_name, params)
             if hostname:
-                span._set_tag_str("peer.service", hostname)
+                span._set_attribute("peer.service", hostname)
 
 
 def set_botocore_response_metadata_tags(
@@ -115,7 +114,7 @@ def set_botocore_response_metadata_tags(
 
     if "HTTPStatusCode" in response_meta:
         status_code = response_meta["HTTPStatusCode"]
-        span.set_tag(http.STATUS_CODE, status_code)
+        span._set_attribute(http.STATUS_CODE, status_code)
 
         # Mark this span as an error if requested
         if is_error_code_fn is not None and is_error_code_fn(int(status_code)):
@@ -125,4 +124,4 @@ def set_botocore_response_metadata_tags(
         span.set_tag("retry_attempts", response_meta["RetryAttempts"])
 
     if "RequestId" in response_meta:
-        span._set_tag_str("aws.requestid", response_meta["RequestId"])
+        span._set_attribute("aws.requestid", response_meta["RequestId"])

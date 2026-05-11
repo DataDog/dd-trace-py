@@ -8,17 +8,19 @@ import json
 from operator import itemgetter
 import pathlib
 import sys
+from typing import Any
 from typing import Optional
 
 from packaging.version import Version
 from pip import _internal
 
 
-# add project root to path to import riotfile
+# add project root to path to import riotfile, and scripts/ to import integration_registry
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
+sys.path.append(str(pathlib.Path(__file__).parent.resolve() / "integration_registry"))
 
-from ddtrace.contrib.integration_registry.mappings import DEPENDENCY_TO_INTEGRATION_MAPPING  # noqa: I001,E402
-from ddtrace.contrib.integration_registry.mappings import INTEGRATION_TO_DEPENDENCY_MAPPING  # noqa: I001,E402
+from mappings import DEPENDENCY_TO_INTEGRATION_MAPPING  # noqa: I001,E402
+from mappings import INTEGRATION_TO_DEPENDENCY_MAPPING  # noqa: I001,E402
 
 import riotfile  # noqa: I001,E402
 
@@ -97,12 +99,12 @@ def _integration_to_dependency_mapping_contains(integration: str, lockfile_conte
 
 def _get_updatable_packages_implementing(contrib_modules: set[str]) -> set[str]:
     """Return all integrations that can be updated"""
-    all_venvs = riotfile.venv.venvs
+    all_venvs = riotfile.venv.venvs  # type: ignore[attr-defined]
     all_venvs = _propagate_venv_names_to_child_venvs(all_venvs)
 
     packages_setting_latest = set()
 
-    def recurse_venvs(venvs: list[riotfile.Venv]):
+    def recurse_venvs(venvs: list[Any]):
         for venv in venvs:
             # split venv name by ":" since some venvs are named after the integration:subintegration
             package = venv.name.split(":")[0] if venv.name is not None else venv.name
@@ -123,14 +125,14 @@ def _get_updatable_packages_implementing(contrib_modules: set[str]) -> set[str]:
     return packages
 
 
-def _propagate_venv_names_to_child_venvs(all_venvs: list[riotfile.Venv]) -> list[riotfile.Venv]:
+def _propagate_venv_names_to_child_venvs(all_venvs: list[Any]) -> list[Any]:
     """
     Propagate the venv name to child venvs, since most child venvs in riotfile are unnamed. Since most contrib
     venvs are nested within each other, we will get a consistent integration name for each venv / child venv. Also
     lowercase the package names to ensure consistent lookups.
     """
 
-    def _lower_pkg_names(venv: riotfile.Venv):
+    def _lower_pkg_names(venv: Any):
         venv.pkgs = {k.lower(): v for k, v in venv.pkgs.items()}
 
     for venv in all_venvs:
@@ -231,21 +233,21 @@ def _get_package_versions_from(
     lockfile_content = pathlib.Path(f".riot/requirements/{env}.txt").read_text().splitlines()
     lock_packages = []
     integration = None
-    dependencies = []
+    dependencies: set[str] = set()
     if riot_hash_to_venv_name.get(env):
         venv_name = riot_hash_to_venv_name[env].split(":")[0]
 
-        def get_integration_and_dependencies(venv_name: str) -> tuple[str, list[str]]:
+        def get_integration_and_dependencies(venv_name: str) -> tuple[Optional[str], set[str]]:
             if venv_name in contrib_modules:
                 integration = venv_name
-                dependencies = INTEGRATION_TO_DEPENDENCY_MAPPING.get(venv_name, integration)
+                dependencies = INTEGRATION_TO_DEPENDENCY_MAPPING.get(venv_name) or {integration}
                 return integration, dependencies
             elif venv_name in DEPENDENCY_TO_INTEGRATION_MAPPING:
                 integration = DEPENDENCY_TO_INTEGRATION_MAPPING[venv_name]
                 dependencies = INTEGRATION_TO_DEPENDENCY_MAPPING[integration]
                 return integration, dependencies
             else:
-                return None, []
+                return None, set()
 
         integration, dependencies = get_integration_and_dependencies(venv_name)
 
@@ -266,7 +268,7 @@ def _is_module_autoinstrumented(module: str) -> bool:
     return module in PATCH_MODULES and PATCH_MODULES[module]
 
 
-def _versions_fully_cover_bounds(bounds: tuple[str, str], versions: list[str]) -> bool:
+def _versions_fully_cover_bounds(bounds: tuple[str, str], versions: list[Version]) -> bool:
     """Return whether the tested versions cover the upper bound range of supported versions"""
     if not versions:
         return False
@@ -274,7 +276,7 @@ def _versions_fully_cover_bounds(bounds: tuple[str, str], versions: list[str]) -
     return versions[0] >= Version(upper_bound)
 
 
-def _venv_sets_latest_for_package(venv: riotfile.Venv, suite_name: str) -> bool:
+def _venv_sets_latest_for_package(venv: Any, suite_name: str) -> bool:
     """
     Returns whether the Venv for the package uses `latest` or not.
     DFS traverse through the Venv, as it may have nested Venvs.

@@ -16,7 +16,7 @@ jq -s '
       )
     | {
         benchmarks: .benchmarks,
-        leftover_meta: (.metadata | del(.name, .loops, .cpu_affinity, .cpu_config, .cpu_freq))
+        leftover_meta: (.metadata | del(.loops, .cpu_affinity, .cpu_config, .cpu_freq))
       }
   )
   |

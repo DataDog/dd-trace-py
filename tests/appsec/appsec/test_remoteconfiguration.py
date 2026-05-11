@@ -21,6 +21,7 @@ from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import TargetFile
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
@@ -47,7 +48,7 @@ def _set_and_get_appsec_tags(tracer, check_client_id=False):
             request_cookies={"cookie1": "im the cookie1"},
         )
     if check_client_id:
-        assert span._local_root._meta.get(APPSEC.RC_CLIENT_ID)
+        assert span._local_root._get_str_attribute(APPSEC.RC_CLIENT_ID)
     return get_triggers(span)
 
 
@@ -307,7 +308,7 @@ def test_load_new_configurations_dispatch_applied_configs(mock_appsec_rules_data
             ),
         }
         list_callbacks = []
-        rc_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+        rc_poller._client._reconcile_configurations(list_callbacks, {}, client_configs, payload=payload)
         assert list_callbacks
         rc_poller._client._publish_configuration(list_callbacks)
         rc_poller.poll()
@@ -359,7 +360,7 @@ def test_load_new_configurations_empty_config(mock_appsec_rules_data, rc_poller,
             ),
         }
         list_callbacks = []
-        rc_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+        rc_poller._client._reconcile_configurations(list_callbacks, {}, client_configs, payload=payload)
         rc_poller._client._publish_configuration(list_callbacks)
 
         rc_poller.poll()
@@ -415,7 +416,10 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
 
         rc_poller._client._applied_configs = client_configs
         list_callbacks = []
-        rc_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, {})
+        # Empty client_configs means every previously-applied target is
+        # considered unassigned; _reconcile_configurations queues a disable
+        # payload (content=None) for each.
+        rc_poller._client._reconcile_configurations(list_callbacks, {}, {}, payload=payload)
         rc_poller._client._publish_configuration(list_callbacks)
 
         rc_poller.poll()
@@ -429,11 +433,10 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
 
         mock_appsec_rules_data.reset_mock()
 
-        # Not called because with this configuration the above condition is True:
-        # applied_config = self._applied_configs.get(target)
-        # if applied_config == config:
-        #     continue
-        rc_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+        # Not called because the previously-applied configs match the
+        # incoming client_configs exactly, so the unchanged branch carries
+        # them over without emitting payloads.
+        rc_poller._client._reconcile_configurations(list_callbacks, {}, client_configs, payload=payload)
         rc_poller._client._publish_configuration(list_callbacks)
         rc_poller.poll()
         # Should not be called again since configs haven't changed
@@ -444,7 +447,7 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
 def test_load_new_configurations_remove_config_and_dispatch_applied_configs_error(rc_poller):
     """
     The previous code raises a key error in `self._products[config.product_name]` when appsec features is disabled
-    with ASM_FEATURES product and then loops over the config in _load_new_configurations
+    with ASM_FEATURES product and then loops over the config in _reconcile_configurations.
     """
     with override_global_config(dict(_remote_config_enabled=True)):
         enable_appsec_rc()
@@ -474,10 +477,10 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs_erro
     }
     list_callbacks = []
     rc_poller._client._applied_configs = client_configs
-    rc_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, {})
+    rc_poller._client._reconcile_configurations(list_callbacks, {}, {}, payload=payload)
     rc_poller._client._publish_configuration(list_callbacks)
 
-    rc_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+    rc_poller._client._reconcile_configurations(list_callbacks, {}, client_configs, payload=payload)
     rc_poller._client._publish_configuration(list_callbacks)
     disable_appsec_rc()
 
@@ -564,3 +567,53 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, rc_poller):
             )
         assert get_triggers(span)
         assert get_waf_addresses("http.request.remote_ip") == "8.8.4.4"
+
+
+def test_rc_activation_does_not_report_appsec_product_when_only_rc_enabled(tracer, rc_poller):
+    """Regression test: registering RC listeners should not report AppSec as an enabled product in telemetry."""
+    with override_global_config(dict(_asm_enabled=False, _asm_can_be_enabled=True, _remote_config_enabled=True)):
+        with mock.patch("ddtrace.appsec._remoteconfiguration.telemetry_writer") as mock_tw:
+            enable_appsec_rc()
+
+            # RC listeners are registered but AppSec is not enabled
+            assert rc_poller._client._product_callbacks["ASM_FEATURES"]
+            # Telemetry should NOT report AppSec as activated
+            mock_tw.product_activated.assert_not_called()
+
+    disable_appsec_rc()
+
+
+def test_rc_activation_reports_appsec_product_when_enabled(tracer, rc_poller):
+    """When AppSec is explicitly enabled, enable_appsec_rc should report the product as activated."""
+    with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True)):
+        tracer.configure(appsec_enabled=True)
+        with mock.patch("ddtrace.appsec._remoteconfiguration.telemetry_writer") as mock_tw:
+            enable_appsec_rc()
+
+            mock_tw.product_activated.assert_called_once_with(TELEMETRY_APM_PRODUCT.APPSEC, True)
+
+    disable_appsec_rc()
+
+
+def test_rc_enable_then_disable_asm_reports_telemetry(tracer, rc_poller):
+    """When AppSec is enabled/disabled via RC, telemetry should reflect the changes."""
+    with override_global_config(dict(_asm_enabled=False, _asm_can_be_enabled=True, _remote_config_enabled=True)):
+        with mock.patch("ddtrace.appsec._remoteconfiguration.telemetry_writer") as mock_tw:
+            enable_appsec_rc()
+
+            # Initially not activated
+            mock_tw.product_activated.assert_not_called()
+
+            # Simulate RC enabling AppSec
+            enable_config = [build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")]
+            _appsec_callback(enable_config)
+            mock_tw.product_activated.assert_called_once_with(TELEMETRY_APM_PRODUCT.APPSEC, True)
+
+            mock_tw.product_activated.reset_mock()
+
+            # Simulate RC disabling AppSec
+            disable_config = [build_payload("ASM_FEATURES", {"asm": {}}, "config")]
+            _appsec_callback(disable_config)
+            mock_tw.product_activated.assert_called_once_with(TELEMETRY_APM_PRODUCT.APPSEC, False)
+
+    disable_appsec_rc()

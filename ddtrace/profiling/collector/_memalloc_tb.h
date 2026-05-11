@@ -14,16 +14,16 @@ class traceback_t
     /* Sample object storing the stacktrace */
     Datadog::Sample sample;
 
-    /* Constructor - also collects frames from the current Python frame chain
-     * NOTE: Invokes CPython APIs which may release the GIL during frame collection */
+    /* Constructor - also collects frames from the current Python frame chain. */
     traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe);
 
     ~traceback_t() = default;
 
-    /* Initialize/populate this traceback with allocation data and collect frames
-     * Assumes sample buffers are already clean (cleared when returned to pool)
-     * _invokes_cpython suffix: calls CPython APIs which may release the GIL during frame collection */
-    void init_sample_invokes_cpython(size_t size, size_t weighted_size);
+    /* Initialize/populate this traceback with allocation data and collect frames.
+     * Assumes sample buffers are already clean (cleared when returned to pool).
+     * Stack walking uses direct CPython struct reads to avoid allocator reentry
+     * from refcount churn while still collecting Python frames. */
+    void init_sample(size_t size, size_t weighted_size, uint16_t max_nframe);
 
     // Non-copyable, non-movable
     traceback_t(const traceback_t&) = delete;
@@ -35,6 +35,12 @@ class traceback_t
 /* The maximum number of frames we can collect for a traceback
  * Limited by the backend's maximum accepted frame count */
 #define TRACEBACK_MAX_NFRAME 600
+
+/* Hard cap on raw frame-chain traversal.
+ * Keep this separate from TRACEBACK_MAX_NFRAME so skipped or malformed frames
+ * cannot leave the allocator-hook walk effectively unbounded. Set above the
+ * backend frame limit while still keeping allocator-hook traversal finite. */
+#define TRACEBACK_MAX_WALKED_NFRAME 1024
 
 /* The maximum number of traceback samples we can store in the heap profiler */
 #define TRACEBACK_ARRAY_MAX_COUNT UINT16_MAX

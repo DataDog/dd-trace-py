@@ -11,29 +11,31 @@
     "meta": {
       "_dd.base_service": "tests.contrib.redis",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de776600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.redis",
       "component": "redis",
       "db.system": "redis",
       "language": "python",
       "out.host": "127.0.0.1",
       "redis.raw_command": "GET cheese",
-      "runtime-id": "3cf1df7fb079462ab81608355e026651",
+      "runtime-id": "4b4e3dd374494f2ca92349995750ae95",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 0,
-      "network.destination.port": 6379,
-      "out.redis_db": 0,
-      "process_id": 19999,
-      "redis.args_length": 2
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 0.0,
+      "network.destination.port": 6379.0,
+      "out.redis_db": 0.0,
+      "process_id": 33295.0,
+      "redis.args_length": 2.0
     },
-    "duration": 297666,
-    "start": 1692651823109161293
+    "duration": 210375,
+    "start": 1776187238388330214
   }],
 [
   {
@@ -48,28 +50,30 @@
     "meta": {
       "_dd.base_service": "tests.contrib.redis",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de776600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.redis",
       "component": "redis",
       "db.system": "redis",
       "language": "python",
       "out.host": "127.0.0.1",
       "redis.raw_command": "SET cheese my-cheese",
-      "runtime-id": "3cf1df7fb079462ab81608355e026651",
+      "runtime-id": "4b4e3dd374494f2ca92349995750ae95",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "network.destination.port": 6379,
-      "out.redis_db": 0,
-      "process_id": 19999,
-      "redis.args_length": 3
+      "_sampling_priority_v1": 1.0,
+      "network.destination.port": 6379.0,
+      "out.redis_db": 0.0,
+      "process_id": 33295.0,
+      "redis.args_length": 3.0
     },
-    "duration": 230084,
-    "start": 1692651823109550709
+    "duration": 157083,
+    "start": 1776187238388712256
   }],
 [
   {
@@ -84,27 +88,29 @@
     "meta": {
       "_dd.base_service": "tests.contrib.redis",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de776600000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.redis",
       "component": "redis",
       "db.system": "redis",
       "language": "python",
       "out.host": "127.0.0.1",
       "redis.raw_command": "GET cheese",
-      "runtime-id": "3cf1df7fb079462ab81608355e026651",
+      "runtime-id": "4b4e3dd374494f2ca92349995750ae95",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 1,
-      "network.destination.port": 6379,
-      "out.redis_db": 0,
-      "process_id": 19999,
-      "redis.args_length": 2
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 1.0,
+      "network.destination.port": 6379.0,
+      "out.redis_db": 0.0,
+      "process_id": 33295.0,
+      "redis.args_length": 2.0
     },
-    "duration": 160875,
-    "start": 1692651823109840043
+    "duration": 154209,
+    "start": 1776187238388999089
   }]]

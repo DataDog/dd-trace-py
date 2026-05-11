@@ -802,7 +802,7 @@ def test_probe_status_logging_reemit_on_modify(remote_config_worker):
         assert versions(queue, "INSTALLED") == [1, 2, 2]
 
 
-@pytest.mark.parametrize("duration", [1e5, 1e6, 1e7])
+@pytest.mark.parametrize("duration", [1e6, 1e7])
 def test_debugger_function_probe_duration(duration):
     from tests.submod.stuff import durationstuff
 
@@ -1182,7 +1182,7 @@ class SpanProbeTestCase(TracerTestCase):
 
             assert span.name == "child"
 
-            assert span.parent_id is root.span_id
+            assert span.parent_id == root.span_id
 
     def test_debugger_function_probe_ordering(self):
         from tests.submod.stuff import mutator

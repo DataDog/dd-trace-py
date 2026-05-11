@@ -5,6 +5,7 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data import _format_version_info
@@ -30,6 +31,8 @@ def test_get_application():
         "runtime_name": platform.python_implementation(),
         "runtime_version": runtime_v,
     }
+    if process_tags.process_tags:
+        expected_application["process_tags"] = process_tags.process_tags
 
     assert get_application("", "", "") == expected_application
 
@@ -41,14 +44,6 @@ def test_get_application_with_values():
     assert application["service_name"] == "munirs-service"
     assert application["service_version"] == "1.1.1"
     assert application["env"] == "staging"
-
-
-@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "True"})
-def test_get_application_with_process_tags():
-    from ddtrace.internal.telemetry.data import get_application
-
-    application = get_application("", "", "")
-    assert "process_tags" in application
 
 
 def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):
@@ -182,7 +177,7 @@ def test_get_container_id_when_container_does_not_exists():
 
 @pytest.mark.subprocess
 def test_update_imported_dependencies_both_empty():
-    from ddtrace.internal.telemetry.data import update_imported_dependencies
+    from ddtrace.internal.telemetry.dependency_tracker import update_imported_dependencies
 
     already_imported = {}
     new_modules = []
@@ -196,7 +191,7 @@ def test_update_imported_dependencies_both_empty():
 def test_update_imported_dependencies():
     import xmltodict
 
-    from ddtrace.internal.telemetry.data import update_imported_dependencies
+    from ddtrace.internal.telemetry.dependency_tracker import update_imported_dependencies
 
     already_imported = {}
     res = update_imported_dependencies(already_imported, [xmltodict.__name__])
@@ -204,7 +199,7 @@ def test_update_imported_dependencies():
     assert res[0]["name"] == "xmltodict"
     assert res[0]["version"]
     assert "xmltodict" in already_imported
-    assert already_imported["xmltodict"] == res[0]["version"]
+    assert already_imported["xmltodict"].version == res[0]["version"]
 
     import typing
 
@@ -216,4 +211,4 @@ def test_update_imported_dependencies():
     assert res[0]["version"]
     assert len(already_imported) == 2
     assert "pytest" in already_imported
-    assert already_imported["pytest"] == res[0]["version"]
+    assert already_imported["pytest"].version == res[0]["version"]

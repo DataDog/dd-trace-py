@@ -1,15 +1,14 @@
-import os
-
 import MySQLdb
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -17,6 +16,7 @@ from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -30,8 +30,8 @@ config._add(
         _default_service=schematize_service_name("mysql"),
         _dbapi_span_name_prefix="mysql",
         _dbapi_span_operation_name=schematize_database_operation("mysql.query", database_provider="mysql"),
-        trace_fetch_methods=asbool(os.getenv("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
-        trace_connect=asbool(os.getenv("DD_MYSQLDB_TRACE_CONNECT", default=False)),
+        trace_fetch_methods=asbool(env.get("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
+        trace_connect=asbool(env.get("DD_MYSQLDB_TRACE_CONNECT", default=False)),
         _dbm_propagator=_DBM_Propagator(0, "query"),
     ),
 )
@@ -58,8 +58,6 @@ def patch():
         return
     MySQLdb._datadog_patch = True
 
-    Pin().onto(MySQLdb)
-
     # `Connection` and `connect` are aliases for
     # `Connect`; patch them too
     _w("MySQLdb", "Connect", _connect)
@@ -80,10 +78,6 @@ def unpatch():
         return
     MySQLdb._datadog_patch = False
 
-    pin = Pin.get_from(MySQLdb)
-    if pin:
-        pin.remove_from(MySQLdb)
-
     # unpatch MySQLdb
     _u(MySQLdb, "Connect")
     if hasattr(MySQLdb, "Connection"):
@@ -93,21 +87,17 @@ def unpatch():
 
 
 def _connect(func, instance, args, kwargs):
-    pin = Pin.get_from(MySQLdb)
-
-    if not pin or not pin.enabled() or not config.mysqldb.trace_connect:
+    if not is_tracing_enabled() or not config.mysqldb.trace_connect:
         conn = func(*args, **kwargs)
     else:
-        with tracer.trace(
-            "MySQLdb.connection.connect", service=ext_service(pin, config.mysqldb), span_type=SpanTypes.SQL
-        ) as span:
-            span._set_tag_str(COMPONENT, config.mysqldb.integration_name)
+        with tracer.trace("MySQLdb.connection.connect", span_type=SpanTypes.SQL) as span:
+            set_service_and_source(span, ext_service(None, config.mysqldb), config.mysqldb)
+            span._set_attribute(COMPONENT, config.mysqldb.integration_name)
 
             # set span.kind to the type of operation being performed
-            span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-            # PERF: avoid setting via Span.set_tag
-            span.set_metric(_SPAN_MEASURED_KEY, 1)
+            span._set_attribute(_SPAN_MEASURED_KEY, 1)
             conn = func(*args, **kwargs)
     return patch_conn(conn, *args, **kwargs)
 
@@ -119,10 +109,5 @@ def patch_conn(conn, *args, **kwargs):
         if k in kwargs or len(args) > p
     }
     tags[db.SYSTEM] = "mysql"
-    tags[net.TARGET_PORT] = conn.port
-    pin = Pin(tags=tags)
-
-    # grab the metadata from the conn
-    wrapped = TracedConnection(conn, pin=pin, cfg=config.mysqldb)
-    pin.onto(wrapped)
-    return wrapped
+    tags[net.TARGET_PORT] = _convert_to_string(conn.port)
+    return TracedConnection(conn, cfg=config.mysqldb, db_tags=tags)

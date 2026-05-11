@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 from dataclasses import field
+from types import FrameType
+from typing import Any
+from typing import Mapping
 from typing import Optional
 from typing import cast
 
@@ -10,6 +13,7 @@ from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import MetricProbeMixin
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import probe_to_signal
+from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
 
 
@@ -19,16 +23,16 @@ class MetricSample(LogSignal):
 
     meter: Metrics.Meter = field(default_factory=lambda: probe_metrics.get_meter("probe"))
 
-    def enter(self, scope) -> None:
+    def enter(self, scope: Mapping[str, Any]) -> None:
         self.sample(scope)
 
-    def exit(self, retval, exc_info, duration, scope) -> None:
+    def exit(self, retval: Any, exc_info: ExcInfoType, duration: int, scope: Mapping[str, Any]) -> None:
         self.sample(scope)
 
-    def line(self, scope) -> None:
+    def line(self, scope: Mapping[str, Any]) -> None:
         self.sample(scope)
 
-    def sample(self, scope) -> None:
+    def sample(self, scope: Mapping[str, Any]) -> None:
         tags = self.probe.tags
         probe = cast(MetricProbeMixin, self.probe)
 
@@ -56,10 +60,12 @@ class MetricSample(LogSignal):
 
 
 @probe_to_signal.register
-def _(probe: MetricFunctionProbe, frame, thread, trace_context, meter):
+def _(
+    probe: MetricFunctionProbe, frame: FrameType, thread: Any, trace_context: Any, meter: Metrics.Meter
+) -> MetricSample:
     return MetricSample(probe=probe, frame=frame, thread=thread, trace_context=trace_context, meter=meter)
 
 
 @probe_to_signal.register
-def _(probe: MetricLineProbe, frame, thread, trace_context, meter):
+def _(probe: MetricLineProbe, frame: FrameType, thread: Any, trace_context: Any, meter: Metrics.Meter) -> MetricSample:
     return MetricSample(probe=probe, frame=frame, thread=thread, trace_context=trace_context, meter=meter)

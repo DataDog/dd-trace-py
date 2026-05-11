@@ -674,6 +674,326 @@ def test_start_ns_invalid_value_falls_back_to_current_time():
 
 
 # =============================================================================
+# Parent ID Property Tests
+# =============================================================================
+
+
+def test_parent_id_default_is_none():
+    """parent_id defaults to None (0 in Rust → None in Python)."""
+    span = SpanData(name="test")
+    assert span.parent_id is None
+
+
+def test_parent_id_constructor_with_value():
+    """parent_id can be set via constructor."""
+    span = SpanData(name="test", parent_id=123)
+    assert span.parent_id == 123
+
+    span = SpanData(name="test", parent_id=9999999999)
+    assert span.parent_id == 9999999999
+
+
+def test_parent_id_constructor_with_none():
+    """parent_id can be explicitly set to None via constructor."""
+    span = SpanData(name="test", parent_id=None)
+    assert span.parent_id is None
+
+
+def test_parent_id_setter_with_int():
+    """parent_id setter accepts int values."""
+    span = SpanData(name="test")
+    assert span.parent_id is None
+
+    span.parent_id = 456
+    assert span.parent_id == 456
+
+    span.parent_id = 7777777777
+    assert span.parent_id == 7777777777
+
+
+def test_parent_id_setter_with_none():
+    """parent_id setter accepts None and returns None."""
+    span = SpanData(name="test", parent_id=123)
+    assert span.parent_id == 123
+
+    span.parent_id = None
+    assert span.parent_id is None
+
+
+def test_parent_id_setter_with_zero():
+    """parent_id setter with 0 returns None (0 means no parent)."""
+    span = SpanData(name="test", parent_id=123)
+    assert span.parent_id == 123
+
+    span.parent_id = 0
+    assert span.parent_id is None
+
+
+def test_parent_id_constructor_with_zero():
+    """parent_id constructor with 0 returns None."""
+    span = SpanData(name="test", parent_id=0)
+    assert span.parent_id is None
+
+
+@pytest.mark.parametrize("invalid_value", INVALID_NUMERIC_VALUES)
+def test_parent_id_setter_invalid_types_keep_current_value(invalid_value):
+    """parent_id setter with invalid types keeps current value."""
+    span = SpanData(name="test", parent_id=123)
+    assert span.parent_id == 123
+
+    span.parent_id = invalid_value
+    assert span.parent_id == 123  # Should keep the original value
+
+
+def test_parent_id_setter_invalid_types_on_none():
+    """parent_id setter with invalid types keeps None if that was the current value."""
+    span = SpanData(name="test")
+    assert span.parent_id is None
+
+    span.parent_id = "invalid"
+    assert span.parent_id is None  # Should keep None
+
+
+def test_parent_id_constructor_invalid_types_default_to_none():
+    """parent_id constructor with invalid types defaults to None (0)."""
+    span = SpanData(name="test", parent_id="invalid")
+    assert span.parent_id is None
+
+    span = SpanData(name="test", parent_id=["list"])
+    assert span.parent_id is None
+
+
+# =============================================================================
+# span_id Tests
+# =============================================================================
+
+
+def test_span_id_basic():
+    """span_id can be get and set."""
+    span = SpanData(name="test")
+    # Default: random u64
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+    # Can set to specific value
+    span.span_id = 12345
+    assert span.span_id == 12345
+
+
+def test_span_id_default_random():
+    """span_id defaults to random u64 when not provided."""
+    span = SpanData(name="test")
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+    # Each span should get a different random ID
+    span2 = SpanData(name="test2")
+    assert span.span_id != span2.span_id
+
+
+def test_span_id_none_generates_random():
+    """span_id=None generates a random ID."""
+    span = SpanData(name="test", span_id=None)
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+
+def test_span_id_invalid_type_in_constructor():
+    """Invalid span_id type in constructor generates random ID instead of raising."""
+    span = SpanData(name="test", span_id="invalid")
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+
+def test_span_id_setter_invalid_type():
+    """Setting span_id to invalid type is silently ignored."""
+    span = SpanData(name="test", span_id=12345)
+    original_id = span.span_id
+    assert original_id == 12345
+
+    # Invalid type: should be ignored
+    span.span_id = "invalid"
+    assert span.span_id == original_id  # Unchanged
+
+
+def test_span_id_zero():
+    """span_id can be set to zero."""
+    span = SpanData(name="test", span_id=0)
+    assert span.span_id == 0
+
+
+def test_span_id_max_u64():
+    """span_id can be set to max u64 value."""
+    max_u64 = (2**64) - 1
+    span = SpanData(name="test", span_id=max_u64)
+    assert span.span_id == max_u64
+
+
+def test_span_id_overflow():
+    """span_id values larger than u64 are truncated to 64 bits."""
+    # Python int larger than u64
+    large_value = (2**64) + 123
+    span = SpanData(name="test", span_id=large_value)
+    # Should truncate to 64 bits (take lower 64 bits)
+    # This behavior depends on how PyO3 handles overflow - may wrap or raise
+    # For now, just verify it doesn't crash
+    assert isinstance(span.span_id, int)
+    assert span.span_id != large_value
+    assert 0 < span.span_id <= (2**64) - 1
+
+
+def test_span_id_larger_than_u64_setter():
+    """Setting span_id to value larger than u64 max is silently ignored."""
+    # This could happen if someone accidentally tries to set span_id = trace_id
+    span = SpanData(name="test", span_id=12345)
+    original_id = span.span_id
+    assert original_id == 12345
+
+    # Try to set to a value larger than u64 max
+    larger_than_u64 = (2**64) + 67890
+    span.span_id = larger_than_u64
+
+    # Should be silently ignored, keeping the original value
+    assert span.span_id == original_id
+    assert span.span_id == 12345
+
+
+# =============================================================================
+# trace_id Tests
+# =============================================================================
+
+
+def test_trace_id_auto_generation():
+    """trace_id defaults to random 128-bit value when not provided."""
+    span = SpanData(name="test")
+    assert isinstance(span.trace_id, int)
+    assert span.trace_id > 0
+
+    # Verify randomness - creating multiple spans should give different IDs
+    span2 = SpanData(name="test")
+    assert span.trace_id != span2.trace_id
+
+
+def test_trace_id_explicit_value():
+    """trace_id can be explicitly provided and roundtrips correctly."""
+    span = SpanData(name="test", trace_id=12345)
+    assert span.trace_id == 12345
+
+
+def test_trace_id_invalid_type_generates_random():
+    """trace_id with invalid type generates random ID instead of raising."""
+    span = SpanData(name="test", trace_id="foo")
+    assert isinstance(span.trace_id, int)
+    assert span.trace_id != 0
+
+    span2 = SpanData(name="test", trace_id=[123])
+    assert isinstance(span2.trace_id, int)
+    assert span2.trace_id != 0
+
+
+def test_trace_id_128bit_roundtrip():
+    """128-bit trace_id values are stored and retrieved as-is."""
+    max_u64 = (2**64) - 1
+    trace_id_128 = max_u64 + 12345  # Value larger than 64 bits
+
+    span = SpanData(name="test", trace_id=trace_id_128)
+
+    assert span.trace_id == trace_id_128
+    assert span.trace_id > max_u64
+
+
+def test_trace_id_64bit_roundtrip():
+    """64-bit trace_id values are stored and retrieved as-is (no masking)."""
+    trace_id_64 = 0x1234567890ABCDEF
+
+    span = SpanData(name="test", trace_id=trace_id_64)
+
+    assert span.trace_id == trace_id_64
+
+
+def test_trace_id_max_u128():
+    """trace_id can handle max u128 value."""
+    max_u128 = (2**128) - 1
+    span = SpanData(name="test", trace_id=max_u128)
+
+    assert span.trace_id == max_u128
+
+
+def test_trace_id_setter_invalid_ignored():
+    """Setting trace_id with invalid type is silently ignored."""
+    span = SpanData(name="test", trace_id=123)
+    original_id = span.trace_id
+    assert original_id == 123
+
+    # Invalid type should be silently ignored (no change)
+    span.trace_id = "invalid"
+    assert span.trace_id == original_id
+
+    # Valid type should work
+    span.trace_id = 456
+    assert span.trace_id == 456
+
+
+def test_trace_id_setter_128bit_roundtrip():
+    """Setting trace_id to a 128-bit value after construction is stored and returned as-is."""
+    trace_id_128 = (0xDEADBEEF << 64) | 0x1234567890ABCDEF
+
+    span = SpanData(name="test")
+    span.trace_id = trace_id_128
+
+    assert span.trace_id == trace_id_128
+
+
+def test_trace_id_64bits_property():
+    """_trace_id_64bits property always returns lower 64 bits."""
+    trace_id_128 = (0xDEADBEEF << 64) | 0x1234567890ABCDEF
+
+    span = SpanData(name="test", trace_id=trace_id_128)
+
+    assert span._trace_id_64bits == 0x1234567890ABCDEF
+
+
+@pytest.fixture()
+def native_128bit_config():
+    """Save and restore the native 128-bit trace ID config around a test."""
+    from ddtrace.internal.native._native import config as native_config
+
+    original = native_config.get_128_bit_trace_id_enabled()
+    yield native_config
+    native_config.set_128_bit_trace_id_enabled(original)
+
+
+def test_trace_id_auto_generation_128bit_enabled(native_128bit_config):
+    """With 128-bit mode enabled, auto-generated trace IDs exceed u64."""
+    native_128bit_config.set_128_bit_trace_id_enabled(True)
+    span = SpanData(name="test")
+    assert span.trace_id > (2**64) - 1
+
+
+def test_trace_id_auto_generation_64bit_disabled(native_128bit_config):
+    """With 128-bit mode disabled, auto-generated trace IDs fit within u64."""
+    native_128bit_config.set_128_bit_trace_id_enabled(False)
+    span = SpanData(name="test")
+    assert span.trace_id <= (2**64) - 1
+
+
+def test_trace_id_explicit_64bit_preserved_in_128bit_mode(native_128bit_config):
+    """Explicit 64-bit trace IDs are stored as-is even when 128-bit mode is enabled."""
+    native_128bit_config.set_128_bit_trace_id_enabled(True)
+    trace_id_64 = 0x1234567890ABCDEF
+    span = SpanData(name="test", trace_id=trace_id_64)
+    assert span.trace_id == trace_id_64
+
+
+def test_trace_id_explicit_128bit_preserved_in_64bit_mode(native_128bit_config):
+    """Explicit 128-bit trace IDs are stored as-is even when 128-bit mode is disabled."""
+    native_128bit_config.set_128_bit_trace_id_enabled(False)
+    trace_id_128 = (0xDEADBEEF << 64) | 0x1234567890ABCDEF
+    span = SpanData(name="test", trace_id=trace_id_128)
+    assert span.trace_id == trace_id_128
+
+
+# =============================================================================
 # _span_api Property Tests
 # =============================================================================
 
@@ -723,3 +1043,394 @@ def test_span_api_invalid_utf8_falls_back_to_empty_string(invalid_bytes):
     span = SpanData(name="test")
     span._span_api = invalid_bytes
     assert span._span_api == ""
+
+
+# =============================================================================
+# meta_struct API tests
+# =============================================================================
+
+
+def test_meta_struct_initially_empty():
+    """A new SpanData has no meta_struct entries."""
+    span = SpanData(name="test")
+    assert not span._has_meta_structs()
+    assert span._get_meta_structs() == {}
+
+
+def test_set_and_get_struct_tag():
+    """_set_struct_tag stores a value retrievable by _get_struct_tag."""
+    span = SpanData(name="test")
+    value = {"a": 1, "b": "hello"}
+    span._set_struct_tag("mykey", value)
+    assert span._get_struct_tag("mykey") == value
+
+
+def test_get_struct_tag_missing_key_returns_none():
+    """_get_struct_tag returns None for a key that was never set."""
+    span = SpanData(name="test")
+    assert span._get_struct_tag("nosuchkey") is None
+
+
+def test_has_meta_structs_true_after_set():
+    """_has_meta_structs returns True once a value is set."""
+    span = SpanData(name="test")
+    assert not span._has_meta_structs()
+    span._set_struct_tag("k", {"x": 1})
+    assert span._has_meta_structs()
+
+
+def test_get_meta_structs_returns_all_entries():
+    """_get_meta_structs returns a dict of all set entries."""
+    span = SpanData(name="test")
+    span._set_struct_tag("k1", {"a": 1})
+    span._set_struct_tag("k2", {"b": 2})
+    result = span._get_meta_structs()
+    assert result == {"k1": {"a": 1}, "k2": {"b": 2}}
+
+
+def test_set_struct_tag_overwrites_existing_key():
+    """Setting a key twice keeps the latest value."""
+    span = SpanData(name="test")
+    span._set_struct_tag("k", {"v": 1})
+    span._set_struct_tag("k", {"v": 2})
+    assert span._get_struct_tag("k") == {"v": 2}
+    assert len(span._get_meta_structs()) == 1
+
+
+def test_remove_struct_tag_returns_value_and_deletes():
+    """_remove_struct_tag returns the stored value and removes the key."""
+    span = SpanData(name="test")
+    span._set_struct_tag("k", {"data": 42})
+    removed = span._remove_struct_tag("k")
+    assert removed == {"data": 42}
+    assert span._get_struct_tag("k") is None
+    assert not span._has_meta_structs()
+
+
+def test_remove_struct_tag_missing_key_returns_none():
+    """_remove_struct_tag returns None when the key does not exist."""
+    span = SpanData(name="test")
+    assert span._remove_struct_tag("nosuchkey") is None
+
+
+def test_meta_struct_lazy_init():
+    """meta_struct storage is not allocated until first write."""
+    span = SpanData(name="test")
+    # Reads on an uninitialised meta_struct should not raise
+    assert span._get_struct_tag("k") is None
+    assert not span._has_meta_structs()
+    assert span._get_meta_structs() == {}
+    assert span._remove_struct_tag("k") is None
+    # First write triggers allocation
+    span._set_struct_tag("k", {"v": 1})
+    assert span._get_struct_tag("k") == {"v": 1}
+
+
+def test_span_repr_metastruct():
+    """Span __repr__ includes meta_struct key names."""
+    from ddtrace._trace.span import Span
+
+    span = Span("span_test")
+    assert "metastruct={}" in repr(span)
+    span._set_struct_tag("key1", {"a": 1, "b": 2})
+    assert "metastruct={'key1': dict_keys(['a', 'b'])}" in repr(span)
+
+
+# =============================================================================
+# Cyclic GC support
+# =============================================================================
+#
+# Regression tests for the memory leak fixed in dd-trace-py v4.x: native
+# pyclasses (SpanData, SpanLink, SpanEvent) used to hold `Py<PyDict>` /
+# `Py<PyAny>` slots without implementing `__traverse__` / `__clear__`, so any
+# reference cycle that passed through `meta_struct`, span-link attributes, or
+# span-event attributes was invisible to CPython's cyclic GC and leaked.
+#
+# These tests build the canonical cycle (span -> dict -> list -> span) and
+# assert that `gc.collect()` reclaims the spans. Without the GC traversal
+# support these tests fail by leaving live objects in `gc.get_objects()`.
+
+
+def _count_objects_of_type(typename):
+    import gc
+
+    return sum(1 for o in gc.get_objects() if type(o).__name__ == typename)
+
+
+def test_span_data_is_gc_tracked():
+    """Without `__traverse__`/`__clear__`, PyO3 leaves the class as a
+    non-GC-tracked type, hiding any cycles passing through its `Py<...>`
+    fields. This regressed in 4.x and is the root cause of the leak.
+    """
+    import gc
+
+    assert gc.is_tracked(SpanData(name="probe"))
+
+
+def test_span_link_is_gc_tracked():
+    import gc
+
+    from ddtrace.internal.native._native import SpanLink
+
+    assert gc.is_tracked(SpanLink(trace_id=1, span_id=1))
+
+
+def test_span_event_is_gc_tracked():
+    import gc
+
+    from ddtrace.internal.native._native import SpanEvent
+
+    assert gc.is_tracked(SpanEvent(name="evt"))
+
+
+def test_meta_struct_cycle_is_collectable():
+    """Cycles formed via meta_struct must be reclaimed by `gc.collect()`.
+
+    Pre-fix: `SpanData` held `meta_struct: Option<Py<PyDict>>` without GC
+    traversal, so this cycle was uncollectable forever. The leak grew with
+    traced call volume in any service that wrote span-derived references into
+    `meta_struct` (AppSec/IAST/etc.).
+    """
+    import gc
+
+    initial = _count_objects_of_type("SpanData")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            span = SpanData(name="cycle.via.meta_struct")
+            cycle_list = []
+            span._set_struct_tag("self_ref", {"holder": cycle_list})
+            cycle_list.append(span)
+            del span
+            del cycle_list
+        # All 200 cycles still alive (gc disabled, refcount can't break the cycle).
+        assert _count_objects_of_type("SpanData") - initial == N
+        # Single collect must reclaim them.
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — SpanData is not GC-tracked"
+        assert _count_objects_of_type("SpanData") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_span_link_attributes_cycle_is_collectable():
+    """Cycles formed via SpanLink.attributes must be reclaimable.
+
+    Pre-fix: `SpanLink` held `attributes: Py<PyDict>` without GC traversal.
+    """
+    import gc
+
+    from ddtrace.internal.native._native import SpanLink
+
+    initial = _count_objects_of_type("SpanLink")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for i in range(N):
+            link = SpanLink(trace_id=i + 1, span_id=i + 1)
+            cycle_list = []
+            link.attributes["self_ref"] = cycle_list
+            cycle_list.append(link)
+            del link
+            del cycle_list
+        assert _count_objects_of_type("SpanLink") - initial == N
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — SpanLink is not GC-tracked"
+        assert _count_objects_of_type("SpanLink") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_span_event_attributes_cycle_is_collectable():
+    """Cycles formed via SpanEvent.attributes must be reclaimable.
+
+    Pre-fix: `SpanEvent` held `attributes: Py<PyDict>` without GC traversal.
+    """
+    import gc
+
+    from ddtrace.internal.native._native import SpanEvent
+
+    initial = _count_objects_of_type("SpanEvent")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            event = SpanEvent(name="cycle.via.event_attrs")
+            cycle_list = []
+            event.attributes["self_ref"] = cycle_list
+            cycle_list.append(event)
+            del event
+            del cycle_list
+        assert _count_objects_of_type("SpanEvent") - initial == N
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — SpanEvent is not GC-tracked"
+        assert _count_objects_of_type("SpanEvent") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_full_span_meta_struct_cycle_is_collectable():
+    """End-to-end test using the real Span class (which subclasses SpanData)
+    with the tracer flow. Mirrors the regression seen in production where a
+    cycle formed via meta_struct caused live-heap accumulation proportional
+    to traced call volume.
+
+    Uses weakrefs to the specific spans we create instead of a global object
+    count so the assertion is immune to incidental Span instances created by
+    background tracer/telemetry threads in the same process.
+    """
+    import gc
+    import weakref
+
+    from ddtrace._trace.span import Span
+
+    refs: list[weakref.ReferenceType] = []
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            span = Span(name="cycle.full.span")
+            cycle_list = []
+            span._set_struct_tag("self_ref", {"holder": cycle_list})
+            cycle_list.append(span)
+            span.finish()
+            refs.append(weakref.ref(span))
+            del span
+            del cycle_list
+        # All N spans are kept alive by the cycle (gc disabled, refcount alone
+        # cannot break the cycle).
+        alive = sum(1 for r in refs if r() is not None)
+        assert alive == N, f"expected {N} live spans before gc, got {alive}"
+        gc.collect()
+        gc.collect()
+        # All N must be reclaimed after a cyclic-GC pass.
+        alive = sum(1 for r in refs if r() is not None)
+        assert alive == 0, f"{alive}/{N} cyclic spans uncollectable after gc.collect"
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_span_event_string_attribute_value_cycle_is_collectable():
+    """Cycle through a span-event *attribute value*, not just the attribute key.
+
+    `_add_event` stores string attribute values as ``PyBackedString`` inside
+    ``AttributeAnyValue::SingleValue(String(...))`` (or inside an ``Array(...)``).
+    The ``PyBackedString.storage`` keeps the original Python object alive, so a
+    ``str`` subclass with a ``__dict__`` back-reference to the span closes a
+    cycle that GC traversal must follow through the value side too. Without
+    visiting attribute values the cycle survives ``gc.collect()`` even after
+    `__traverse__` was added on the key/key-only path.
+    """
+    import gc
+
+    from ddtrace.internal.native._native import SpanData
+
+    class CycleStr(str):
+        pass
+
+    initial = _count_objects_of_type("SpanData")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            span = SpanData(name="cycle.via.event_value")
+            value = CycleStr("v")
+            value.span = span  # type: ignore[attr-defined]
+            span._add_event("evt", attributes={"k": value})
+            del span
+            del value
+        assert _count_objects_of_type("SpanData") - initial == N
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — span event attribute values are not visited"
+        assert _count_objects_of_type("SpanData") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_span_event_string_attribute_value_in_array_cycle_is_collectable():
+    """Same as the previous test but the cyclic string sits inside an
+    ``AttributeAnyValue::Array``. Verifies the array branch of the
+    traversal.
+    """
+    import gc
+
+    from ddtrace.internal.native._native import SpanData
+
+    class CycleStr(str):
+        pass
+
+    initial = _count_objects_of_type("SpanData")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            span = SpanData(name="cycle.via.event_value_array")
+            value = CycleStr("v")
+            value.span = span  # type: ignore[attr-defined]
+            span._add_event("evt", attributes={"k": [value, value]})
+            del span
+            del value
+        assert _count_objects_of_type("SpanData") - initial == N
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — array value branch not visited"
+        assert _count_objects_of_type("SpanData") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def test_tracer_trace_meta_struct_cycle_is_collectable():
+    """Production-shaped repro: drive the cycle through the public tracer API
+    (``tracer.trace(...)``) rather than constructing Span instances directly.
+    This is the exact pattern used by integrations writing per-request data
+    into ``meta_struct`` (AppSec/IAST and similar) on a high-throughput
+    service, which is what surfaced the regression in production.
+
+    Uses weakrefs to the specific spans we create so the assertion is robust
+    against background tracer activity that may incidentally create or
+    finalize unrelated Span instances during the test.
+    """
+    import gc
+    import weakref
+
+    from ddtrace.trace import tracer
+
+    refs: list[weakref.ReferenceType] = []
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            span = tracer.trace("cycle.via.tracer_trace")
+            cycle_list = []
+            span._set_struct_tag("self_ref", {"holder": cycle_list})
+            cycle_list.append(span)
+            span.finish()
+            refs.append(weakref.ref(span))
+            del span
+            del cycle_list
+        # The context provider's contextvar still holds the last finished
+        # span; clear it so the only remaining strong references are the
+        # cycles we deliberately built.
+        tracer.context_provider.activate(None)
+        alive = sum(1 for r in refs if r() is not None)
+        assert alive == N, f"expected {N} live spans before gc, got {alive}"
+        gc.collect()
+        gc.collect()
+        alive = sum(1 for r in refs if r() is not None)
+        assert alive == 0, f"{alive}/{N} cyclic spans uncollectable after gc.collect"
+    finally:
+        if gc_was_enabled:
+            gc.enable()

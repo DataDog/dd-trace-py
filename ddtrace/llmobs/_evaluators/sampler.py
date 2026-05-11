@@ -1,12 +1,12 @@
 import json
 from json.decoder import JSONDecodeError
-import os
 from typing import Optional
 from typing import Union
 
 from ddtrace import config
 from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -60,8 +60,8 @@ class EvaluatorRunnerSampler:
     def parse_rules(self) -> list[EvaluatorRunnerSamplingRule]:
         rules = []
 
-        sampling_rules_str = os.getenv(self.SAMPLING_RULES_ENV_VAR)
-        telemetry_writer.add_configuration(self.SAMPLING_RULES_ENV_VAR, sampling_rules_str, origin="env")
+        sampling_rules_str = env.get(self.SAMPLING_RULES_ENV_VAR)
+        telemetry_writer.add_configuration(self.SAMPLING_RULES_ENV_VAR, sampling_rules_str, origin="env_var")
 
         def parsing_failed_because(msg, maybe_throw_this):
             telemetry_writer.add_log(

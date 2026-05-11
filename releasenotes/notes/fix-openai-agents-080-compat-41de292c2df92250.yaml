@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    openai_agents: Fixes an ``AttributeError`` on ``openai-agents >= 0.8.0`` caused by the removal of ``AgentRunner._run_single_turn``.

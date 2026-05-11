@@ -5,6 +5,7 @@ import typing as t
 from ddtrace import config as ddconfig
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils.config import get_application_name
@@ -15,7 +16,12 @@ DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 
 
 def _derive_tags(c: DDConfig) -> str:
-    _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=__version__)
+    _tags = dict(
+        debugger_version=__version__,
+        env=ddconfig.env,
+        host=get_hostname(),
+        version=ddconfig.version,
+    )
     _tags.update(ddconfig.tags)
 
     # Add git metadata tags, if available

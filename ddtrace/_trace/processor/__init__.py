@@ -151,7 +151,7 @@ class TraceSamplingProcessor(TraceProcessor):
             if self.apm_opt_out:
                 for span in trace:
                     if span._local_root_value is None:
-                        span.set_metric(MK_APM_ENABLED, 0)
+                        span._set_attribute(MK_APM_ENABLED, 0)
 
             if chunk_root.context.sampling_priority is None:
                 self.sampler.sample(chunk_root._local_root)
@@ -164,24 +164,15 @@ class TraceSamplingProcessor(TraceProcessor):
                     return trace
 
             # single span sampling rules are applied if the trace is about to be dropped
+            # DEV: the dropping is handled by the native trace exporter
             if self.single_span_rules and chunk_root.context.sampling_priority <= 0:
-                single_spans = []
-                # When stats computation is enabled in the tracer then we can safely drop the traces.
-                # When using the NativeWriter this is handled by native code.
-                can_drop_trace = (
-                    not config._trace_writer_native and self._compute_stats_enabled and not self.apm_opt_out
-                )
                 for span in trace:
                     for rule in self.single_span_rules:
                         if rule.match(span):
                             # Sampling a span here does NOT effect the sampling priotiy. This operation
                             # simply marks a span as single-span sampled.
                             rule.sample(span)
-                            if can_drop_trace:
-                                single_spans.append(span)
                             break
-                if can_drop_trace:
-                    return single_spans
             return trace
         return None
 
@@ -204,7 +195,7 @@ class TopLevelSpanProcessor(SpanProcessor):
     def on_span_finish(self, span: Span) -> None:
         # DEV: Update span after finished to avoid race condition
         if span._is_top_level:
-            span._metrics["_dd.top_level"] = 1  # PERF: avoid setting via Span.set_metric
+            span._set_attribute("_dd.top_level", 1)  # PERF: avoid setting via Span.set_metric
 
 
 class ServiceNameProcessor(TraceProcessor):
@@ -223,11 +214,11 @@ class TraceTagsProcessor(TraceProcessor):
     def _set_git_metadata(self, chunk_root):
         repository_url, commit_sha, main_package = gitmetadata.get_git_tags()
         if repository_url:
-            chunk_root._set_tag_str("_dd.git.repository_url", repository_url)
+            chunk_root._set_attribute("_dd.git.repository_url", repository_url)
         if commit_sha:
-            chunk_root._set_tag_str("_dd.git.commit.sha", commit_sha)
+            chunk_root._set_attribute("_dd.git.commit.sha", commit_sha)
         if main_package:
-            chunk_root._set_tag_str("_dd.python_main_package", main_package)
+            chunk_root._set_attribute("_dd.python_main_package", main_package)
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
         if not trace:
@@ -239,7 +230,7 @@ class TraceTagsProcessor(TraceProcessor):
         # Thus trace tags are applied to a root span which may be dropped by sampling, even though
         # some spans of the chunk are sampled. We prevent it by adding trace tags to the first
         # single-sampled span of the chunk.
-        if config._trace_compute_stats and config._trace_writer_native:
+        if config._trace_compute_stats:
             for span in trace:
                 if span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE:
                     spans_to_tag.append(span)
@@ -248,17 +239,19 @@ class TraceTagsProcessor(TraceProcessor):
         for span in spans_to_tag:
             span._update_tags_from_context()
             self._set_git_metadata(span)
-            span._set_tag_str("language", "python")
+            span._set_attribute("language", "python")
             if p_tags := process_tags.process_tags:
-                span._set_tag_str(PROCESS_TAGS, p_tags)
+                span._set_attribute(PROCESS_TAGS, p_tags)
             # for 128 bit trace ids
-            if span.trace_id > MAX_UINT_64BITS:
-                trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
-                span._set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
+            # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
+            trace_id = span.trace_id
+            if trace_id > MAX_UINT_64BITS:
+                trace_id_hob = _get_64_highest_order_bits_as_hex(trace_id)
+                span._set_attribute(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
 
-            if LAST_DD_PARENT_ID_KEY in span._meta and span._parent is not None:
+            if span._has_attribute(LAST_DD_PARENT_ID_KEY) and span._parent is not None:
                 # we should only set the last parent id on local root spans
-                del span._meta[LAST_DD_PARENT_ID_KEY]
+                span._remove_attribute(LAST_DD_PARENT_ID_KEY)
 
         return trace
 
@@ -343,25 +336,29 @@ class SpanAggregator(SpanProcessor):
         )
 
     def on_span_start(self, span: Span) -> None:
+        # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
+        trace_id = span.trace_id
         with self._lock:
-            trace = self._traces[span.trace_id]
+            trace = self._traces[trace_id]
             trace.spans.append(span)
-            integration_name = span._meta.get(COMPONENT, span._span_api)
+            integration_name = span._get_str_attribute(COMPONENT) or span._span_api
 
             self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
         log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
+        # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
+        trace_id = span.trace_id
         # Acquire lock to get finished and update trace.spans
         with self._lock:
-            integration_name = span._meta.get(COMPONENT, span._span_api)
+            integration_name = span._get_str_attribute(COMPONENT) or span._span_api
             self._span_metrics["spans_finished"][integration_name] += 1
 
-            if span.trace_id not in self._traces:
+            if trace_id not in self._traces:
                 return
 
-            trace = self._traces[span.trace_id]
+            trace = self._traces[trace_id]
             trace.num_finished += 1
             num_buffered = len(trace.spans)
             is_trace_complete = trace.num_finished >= num_buffered
@@ -369,14 +366,14 @@ class SpanAggregator(SpanProcessor):
             should_partial_flush = False
             if is_trace_complete:
                 finished = trace.spans
-                del self._traces[span.trace_id]
+                del self._traces[trace_id]
                 # perf: Flush span finish metrics to the telemetry writer after the trace is complete
                 self._queue_span_count_metrics("spans_finished", "integration_name")
             elif self.partial_flush_enabled and num_finished >= self.partial_flush_min_spans:
                 should_partial_flush = True
                 finished = trace.remove_finished()
                 if finished:
-                    finished[0].set_metric("_dd.py.partial_flush", num_finished)
+                    finished[0]._set_attribute("_dd.py.partial_flush", num_finished)
                 else:
                     # num_finished was out of sync with the actual finished spans, skip partial flush
                     return

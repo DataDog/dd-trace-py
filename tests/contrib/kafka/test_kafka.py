@@ -8,7 +8,6 @@ import confluent_kafka
 from confluent_kafka import TopicPartition
 import pytest
 
-from ddtrace import config
 from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import patch
@@ -27,6 +26,7 @@ SNAPSHOT_IGNORES = [
     "metrics.kafka.message_offset",
     "meta.error.stack",
     "meta.error.message",
+    "meta.kafka.group_id",
     "meta.messaging.kafka.bootstrap.servers",
     "meta.peer.service",
 ]
@@ -152,6 +152,23 @@ def test_produce_topicname(kafka_tracer, test_spans, producer, kafka_topic):
     assert produce_span.get_tag("messaging.destination.name") == kafka_topic
 
 
+def test_consume_span_records_group_id(kafka_tracer, test_spans, producer, consumer, kafka_topic, group_id):
+    """Verify that kafka.group_id is tagged on consume spans (not covered by snapshot due to dynamic group IDs)."""
+    with override_config("kafka", dict(trace_empty_poll_enabled=False)):
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        message = consumer.poll()
+
+    assert message is not None
+    traces = test_spans.pop_traces()
+    consume_span = next(
+        (span for trace in traces for span in trace if span.get_tag("kafka.received_message") == "True"),
+        None,
+    )
+    assert consume_span is not None
+    assert consume_span.get_tag("kafka.group_id") == group_id
+
+
 @pytest.mark.parametrize("tombstone", [False, True])
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_message(producer, consumer, tombstone, kafka_topic):
@@ -252,18 +269,13 @@ def _generate_in_subprocess(random_topic):
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 
     ddtrace.tracer.configure(trace_processors=[KafkaConsumerPollFilter()])
-    # disable backoff because it makes these tests less reliable
-    if not config._trace_writer_native:
-        ddtrace.tracer._span_aggregator.writer._send_payload_with_backoff = (
-            ddtrace.tracer._span_aggregator.writer._send_payload
-        )
     patch()
 
     producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
     consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
-            "group.id": "test_group",
+            "group.id": random_topic,
             "auto.offset.reset": "earliest",
         }
     )
@@ -368,8 +380,9 @@ def test_tracing_context_is_not_propagated_by_default(kafka_tracer, test_spans, 
 
 
 # Propagation should work when enabled
-def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess):
+def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess, kafka_topic):
     code = """
+import os
 import pytest
 import random
 import sys
@@ -377,13 +390,19 @@ import sys
 from ddtrace.contrib.internal.kafka.patch import patch
 from tests.conftest import use_dummy_writer
 from tests.conftest import test_spans
-from tests.contrib.kafka.conftest import consumer
+from tests.contrib.kafka.conftest import group_id
 from tests.contrib.kafka.conftest import patch_kafka
-from tests.contrib.kafka.conftest import kafka_topic
 from tests.contrib.kafka.conftest import producer
 from tests.conftest import tracer
 from tests.contrib.kafka.conftest import kafka_tracer
 from tests.contrib.kafka.conftest import should_filter_empty_polls
+
+@pytest.fixture
+def kafka_topic():
+    # Also controls group_id (via conftest.group_id which inherits kafka_topic)
+    return os.environ["KAFKA_TEST_TOPIC"]
+
+from tests.contrib.kafka.conftest import consumer
 
 def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
 
@@ -429,6 +448,7 @@ if __name__ == "__main__":
 
     env = os.environ.copy()
     env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
+    env["KAFKA_TEST_TOPIC"] = kafka_topic
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
 
@@ -499,7 +519,7 @@ def test_tracing_with_serialization_works(kafka_tracer, test_spans, kafka_topic)
 
     conf = {
         "bootstrap.servers": BOOTSTRAP_SERVERS,
-        "group.id": GROUP_ID,
+        "group.id": kafka_topic,
         "auto.offset.reset": "earliest",
         "key.deserializer": json_deserializer,
         "value.deserializer": json_deserializer,
@@ -557,8 +577,9 @@ def test_traces_empty_poll_by_default(kafka_tracer, test_spans, consumer, kafka_
 
 
 # Poll should not be traced when disabled
-def test_does_not_trace_empty_poll_when_disabled(ddtrace_run_python_code_in_subprocess):
+def test_does_not_trace_empty_poll_when_disabled(ddtrace_run_python_code_in_subprocess, kafka_topic):
     code = """
+import os
 import pytest
 import random
 import sys
@@ -566,8 +587,7 @@ import sys
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace import config
 
-from tests.contrib.kafka.conftest import consumer
-from tests.contrib.kafka.conftest import kafka_topic
+from tests.contrib.kafka.conftest import group_id
 from tests.contrib.kafka.conftest import producer
 from tests.conftest import tracer
 from tests.conftest import test_spans
@@ -575,6 +595,13 @@ from tests.conftest import use_dummy_writer
 from tests.contrib.kafka.conftest import patch_kafka
 from tests.contrib.kafka.conftest import kafka_tracer
 from tests.contrib.kafka.conftest import should_filter_empty_polls
+
+@pytest.fixture
+def kafka_topic():
+    # Also controls group_id (via conftest.group_id which inherits kafka_topic)
+    return os.environ["KAFKA_TEST_TOPIC"]
+
+from tests.contrib.kafka.conftest import consumer
 
 def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
 
@@ -629,6 +656,7 @@ if __name__ == "__main__":
     """
     env = os.environ.copy()
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
+    env["KAFKA_TEST_TOPIC"] = kafka_topic
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
 
@@ -651,19 +679,19 @@ def test_cluster_id_failure_caching(kafka_tracer, kafka_topic):
     result1 = _get_cluster_id(producer_with_bad_address, kafka_topic)
     elapsed_time1 = time.time() - start_time
 
-    assert result1 is None
+    assert result1 == ""
     # Should take approximately 1 second (our timeout)
     assert 0.5 < elapsed_time1 < 2.0, f"First call took {elapsed_time1} seconds, expected ~1 second"
 
     assert hasattr(producer_with_bad_address, "_dd_cluster_id_failure_time")
     assert producer_with_bad_address._dd_cluster_id_failure_time > 0
 
-    # Second call should return None immediately
+    # Second call should return "" immediately
     start_time = time.time()
     result2 = _get_cluster_id(producer_with_bad_address, kafka_topic)
     elapsed_time2 = time.time() - start_time
 
-    assert result2 is None
+    assert result2 == ""
     assert elapsed_time2 < 0.1, f"Second call took {elapsed_time2} seconds, expected < 0.1 seconds"
 
     producer_with_bad_address._dd_cluster_id_failure_time = 0  # Simulate 5 minutes passing
@@ -672,7 +700,7 @@ def test_cluster_id_failure_caching(kafka_tracer, kafka_topic):
     result3 = _get_cluster_id(producer_with_bad_address, kafka_topic)
     elapsed_time3 = time.time() - start_time
 
-    assert result3 is None
+    assert result3 == ""
     # Should timeout again after ~1 second
     assert 0.5 < elapsed_time3 < 2.0, f"Third call took {elapsed_time3} seconds, expected ~1 second"
 

@@ -5,6 +5,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
@@ -124,21 +125,20 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
 
     with tracer.trace(
         schematize_cloud_api_operation("algoliasearch.search", cloud_provider="algoliasearch", cloud_service="search"),
-        service=trace_utils.ext_service(pin, config.algoliasearch),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span._set_tag_str(COMPONENT, config.algoliasearch.integration_name)
+        set_service_and_source(span, trace_utils.ext_service(pin, config.algoliasearch), config.algoliasearch)
+        span._set_attribute(COMPONENT, config.algoliasearch.integration_name)
 
         # set span.kind to the type of request being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             return func(*wrapt_args, **wrapt_kwargs)
 
         if config.algoliasearch.collect_query_text:
-            span._set_tag_str("query.text", wrapt_kwargs.get("query", wrapt_args[0]))
+            span._set_attribute("query.text", wrapt_kwargs.get("query", wrapt_args[0]))
 
         query_args = wrapt_kwargs.get(function_query_arg_name, wrapt_args[1] if len(wrapt_args) > 1 else None)
 
@@ -168,9 +168,9 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
 
         if isinstance(result, dict):
             if result.get("processingTimeMS", None) is not None:
-                span.set_metric("processing_time_ms", int(result["processingTimeMS"]))
+                span._set_attribute("processing_time_ms", int(result["processingTimeMS"]))
 
             if result.get("nbHits", None) is not None:
-                span.set_metric("number_of_hits", int(result["nbHits"]))
+                span._set_attribute("number_of_hits", int(result["nbHits"]))
 
         return result

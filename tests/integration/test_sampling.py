@@ -1,5 +1,4 @@
 import json
-import os
 
 import pytest
 
@@ -9,7 +8,6 @@ from tests.integration.utils import AGENT_VERSION
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 RESOURCE = "mycoolre$ource"  # codespell:ignore
 TAGS = {"tag1": "mycooltag"}
-USING_NATIVE_WRITER = os.environ.get("_DD_TRACE_WRITER_NATIVE", "false").lower() in ("true", "1")
 
 
 @pytest.mark.snapshot()
@@ -388,7 +386,7 @@ def test_single_span_and_trace_sampling_match_non_root_span():
     from ddtrace.trace import tracer
 
     # NativeWriter needs to fetch agent info before client-side stats can be enabled
-    if config._trace_compute_stats and config._trace_writer_native:
+    if config._trace_compute_stats:
         import time
 
         time.sleep(1)
@@ -428,14 +426,12 @@ def test_single_span_and_trace_sampling_match_root_span_partial_flushing():
     """Validates that a single span sampling rule applied to a root span does not
     override the trace sampling decision, even when traces are partially flushed.
     """
-    from ddtrace import config
+    # NativeWriter needs to fetch agent info before client-side stats can be enabled
+    import time
+
     from ddtrace.trace import tracer
 
-    # NativeWriter needs to fetch agent info before client-side stats can be enabled
-    if config._trace_writer_native:
-        import time
-
-        time.sleep(1)
+    time.sleep(1)
 
     with tracer.trace("monkey") as root:
         with tracer.trace("non_monkey") as span2:

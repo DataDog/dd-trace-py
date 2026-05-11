@@ -18,6 +18,7 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -26,7 +27,7 @@ _global_relative_file_paths_for_cov: dict[str, dict[str, str]] = {}
 
 # This feature-flags experimental collection of code coverage via our internal ModuleCodeCollector.
 # It is disabled by default because it is not production-ready.
-USE_DD_COVERAGE = asbool(os.environ.get("_DD_USE_INTERNAL_COVERAGE", "false"))
+USE_DD_COVERAGE = asbool(env.get("_DD_USE_INTERNAL_COVERAGE", "false"))
 
 try:
     from coverage import Coverage
@@ -139,7 +140,7 @@ def _report_coverage_to_span(
             files = ModuleCodeCollector.report_seen_lines(workspace_path, include_imported=True)
             if not files:
                 return
-            span._set_tag_str(
+            span._set_attribute(
                 COVERAGE_TAG_NAME,
                 json.dumps({"files": files}),
             )
@@ -153,7 +154,7 @@ def _report_coverage_to_span(
         record_code_coverage_error()
         return
     record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, framework)
-    span._set_tag_str(
+    span._set_attribute(
         COVERAGE_TAG_NAME,
         build_payload(coverage_data, root_dir, span_id),
     )

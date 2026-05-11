@@ -62,6 +62,13 @@ class ExplorationConfig(DDConfig):
         help="Use extremely low capture limits to reduce overhead",
     )
 
+    capture = DDConfig.v(
+        bool,
+        "dd.debugger.expl.capture",
+        default=True,
+        help="Whether to capture snapshots. Set to False for better performance",
+    )
+
     output_file = DDConfig.v(
         t.Optional[Path],
         "dd.debugger.expl.output_file",

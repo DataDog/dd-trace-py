@@ -7,5 +7,5 @@ EVP_SUBDOMAIN_HEADER_API_VALUE = "api"
 EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE = "citestcov-intake"
 EVP_SUBDOMAIN_HEADER_EVENT_VALUE = "citestcycle-intake"
 EVP_SUBDOMAIN_HEADER_NAME = "X-Datadog-EVP-Subdomain"
-EVP_PAYLOAD_SIZE_LIMIT = 5 << 20  # 5MB (actual limit is 5.1MB)
-EVP_EVENT_SIZE_LIMIT = 5_000_000  # 5MB LLM Obs event size limit
+DEFAULT_EVP_PAYLOAD_SIZE_LIMIT = 5 << 20  # 5 MiB (actual server limit is 5.1 MB)
+DEFAULT_EVP_EVENT_SIZE_LIMIT = 5_000_000  # 5 MB, LLM Obs event size limit

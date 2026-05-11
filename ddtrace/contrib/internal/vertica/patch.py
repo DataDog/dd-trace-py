@@ -7,6 +7,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db as dbx
@@ -37,11 +38,11 @@ def execute_span_start(instance, span, conf, *args, **kwargs):
 
 
 def execute_span_end(instance, result, span, conf, *args, **kwargs):
-    span.set_metric(dbx.ROWCOUNT, instance.rowcount)
+    span._set_attribute(dbx.ROWCOUNT, instance.rowcount)
 
 
 def fetch_span_end(instance, result, span, conf, *args, **kwargs):
-    span.set_metric(dbx.ROWCOUNT, instance.rowcount)
+    span._set_attribute(dbx.ROWCOUNT, instance.rowcount)
 
 
 def cursor_span_end(instance, cursor, _, conf, *args, **kwargs):
@@ -230,18 +231,17 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
             operation_name = conf["operation_name"]
             with tracer.trace(
                 operation_name,
-                service=trace_utils.ext_service(pin, config),
                 span_type=conf.get("span_type"),
             ) as span:
-                span._set_tag_str(COMPONENT, config.integration_name)
-                span._set_tag_str(dbx.SYSTEM, "vertica")
+                set_service_and_source(span, trace_utils.ext_service(pin, config), config)
+                span._set_attribute(COMPONENT, config.integration_name)
+                span._set_attribute(dbx.SYSTEM, "vertica")
 
                 # set span.kind to the type of operation being performed
-                span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+                span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
                 if conf.get("measured", False):
-                    # PERF: avoid setting via Span.set_tag
-                    span.set_metric(_SPAN_MEASURED_KEY, 1)
+                    span._set_attribute(_SPAN_MEASURED_KEY, 1)
                 span.set_tags(pin.tags)
 
                 if "span_start" in conf:

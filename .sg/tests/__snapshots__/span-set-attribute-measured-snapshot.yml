@@ -1,0 +1,26 @@
+id: span-set-attribute-measured
+snapshots:
+  span._set_attribute(_SPAN_MEASURED_KEY, "1"):
+    labels:
+    - source: span._set_attribute(_SPAN_MEASURED_KEY, "1")
+      style: primary
+      start: 0
+      end: 44
+  span._set_attribute(_SPAN_MEASURED_KEY, None):
+    labels:
+    - source: span._set_attribute(_SPAN_MEASURED_KEY, None)
+      style: primary
+      start: 0
+      end: 45
+  span._set_attribute(_SPAN_MEASURED_KEY, int(flag)):
+    labels:
+    - source: span._set_attribute(_SPAN_MEASURED_KEY, int(flag))
+      style: primary
+      start: 0
+      end: 50
+  span._set_attribute(_SPAN_MEASURED_KEY, some_var):
+    labels:
+    - source: span._set_attribute(_SPAN_MEASURED_KEY, some_var)
+      style: primary
+      start: 0
+      end: 49

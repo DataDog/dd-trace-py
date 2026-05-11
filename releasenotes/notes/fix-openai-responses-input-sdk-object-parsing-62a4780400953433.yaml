@@ -1,0 +1,6 @@
+fixes:
+  - |
+    LLM Observability: Fixes an issue where tool calls and function call outputs passed as OpenAI SDK objects
+    (e.g. ``ResponseFunctionToolCall``) in the ``input`` list of the OpenAI Responses API were silently dropped
+    from LLM Observability traces. Previously, the input parser used dict-only access patterns that failed for
+    SDK objects; it now uses attribute-safe access that handles both plain dicts and SDK objects.

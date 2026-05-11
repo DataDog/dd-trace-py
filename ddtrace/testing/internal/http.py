@@ -18,6 +18,7 @@ from urllib.parse import ParseResult
 from urllib.parse import urlparse
 import uuid
 
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_HOSTNAME
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_PORT
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_SOCKET_FILE
@@ -31,6 +32,7 @@ from ddtrace.testing.internal.utils import asbool
 
 DEFAULT_TIMEOUT_SECONDS = 15.0
 MAX_ATTEMPTS = 5
+MAX_RETRY_AFTER_SECONDS = 120.0
 
 log = logging.getLogger(__name__)
 
@@ -46,11 +48,13 @@ class BackendResult:
     error_type: t.Optional[ErrorType] = None
     error_description: t.Optional[str] = None
     response: t.Optional[http.client.HTTPResponse] = None
+    request_length: t.Optional[int] = None
     response_length: t.Optional[int] = None
     response_body: t.Optional[bytes] = None
     parsed_response: t.Any = None
     is_gzip_response: bool = False
     elapsed_seconds: float = 0.0
+    retry_after_seconds: t.Optional[float] = None
 
     def on_error_raise_exception(self) -> None:
         if self.error_type:
@@ -62,9 +66,16 @@ class Subdomain(str, Enum):
     CITESTCYCLE = "citestcycle-intake"
     CITESTCOV = "citestcov-intake"
     CICOVREPRT = "ci-intake"
+    LOGS = "http-intake.logs"
 
 
-RETRIABLE_ERRORS = {ErrorType.TIMEOUT, ErrorType.NETWORK, ErrorType.CODE_5XX, ErrorType.BAD_JSON}
+RETRIABLE_ERRORS = {
+    ErrorType.TIMEOUT,
+    ErrorType.NETWORK,
+    ErrorType.CODE_5XX,
+    ErrorType.BAD_JSON,
+    ErrorType.RATE_LIMITED,
+}
 
 
 class BackendConnectorSetup:
@@ -89,7 +100,7 @@ class BackendConnectorSetup:
         """
         Detect which backend connection mode to use and return a configured instance of the corresponding subclass.
         """
-        if asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+        if asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
             log.debug("Connecting to backend in agentless mode")
             return cls._detect_agentless_setup()
 
@@ -102,8 +113,8 @@ class BackendConnectorSetup:
         """
         Detect settings for agentless backend connection mode.
         """
-        site = os.environ.get("DD_SITE") or DEFAULT_SITE
-        api_key = os.environ.get("_CI_DD_API_KEY") or os.environ.get("DD_API_KEY")
+        site = env.get("DD_SITE") or DEFAULT_SITE
+        api_key = env.get("_CI_DD_API_KEY") or env.get("DD_API_KEY")
 
         if not api_key:
             raise SetupError("DD_API_KEY environment variable is not set")
@@ -115,10 +126,10 @@ class BackendConnectorSetup:
         """
         Detect settings for EVP proxy mode backend connection mode.
         """
-        agent_url = os.environ.get("_CI_DD_AGENT_URL") or os.environ.get("DD_TRACE_AGENT_URL")
+        agent_url = env.get("_CI_DD_AGENT_URL") or env.get("DD_TRACE_AGENT_URL")
         if not agent_url:
-            user_provided_host = os.environ.get("DD_TRACE_AGENT_HOSTNAME") or os.environ.get("DD_AGENT_HOST")
-            user_provided_port = os.environ.get("DD_TRACE_AGENT_PORT") or os.environ.get("DD_AGENT_PORT")
+            user_provided_host = env.get("DD_TRACE_AGENT_HOSTNAME") or env.get("DD_AGENT_HOST")
+            user_provided_port = env.get("DD_TRACE_AGENT_PORT") or env.get("DD_AGENT_PORT")
 
             if user_provided_host or user_provided_port:
                 host = user_provided_host or DEFAULT_AGENT_HOSTNAME
@@ -159,7 +170,7 @@ class BackendConnectorAgentlessSetup(BackendConnectorSetup):
         self.api_key = api_key
 
     def get_connector_for_subdomain(self, subdomain: Subdomain) -> BackendConnector:
-        if subdomain == Subdomain.CITESTCYCLE and (agentless_url := os.environ.get("DD_CIVISIBILITY_AGENTLESS_URL")):
+        if agentless_url := env.get("DD_CIVISIBILITY_AGENTLESS_URL"):
             url = agentless_url
         else:
             url = f"https://{subdomain.value}.{self.site}"
@@ -270,6 +281,7 @@ class BackendConnector(threading.local):
             full_headers["Content-Encoding"] = "gzip"
 
         result = BackendResult()
+        result.request_length = len(data) if data is not None else 0
         start_time = time.perf_counter()
 
         try:
@@ -286,6 +298,23 @@ class BackendConnector(threading.local):
                 result.error_description = f"{result.response.status} {result.response.reason}"
                 if result.response.status >= 500:
                     result.error_type = ErrorType.CODE_5XX
+                elif result.response.status == 429:
+                    result.error_type = ErrorType.RATE_LIMITED
+                    reset_header = result.response.headers.get("X-RateLimit-Reset")
+                    if reset_header is not None:
+                        try:
+                            reset_value = int(reset_header)
+                            now = int(time.time())
+                            if reset_value > now:
+                                # Unix timestamp: wait until that point in time
+                                delay = float(reset_value - now)
+                            else:
+                                # Duration in seconds
+                                delay = float(reset_value)
+                            # Cap to avoid unreasonable waits (e.g. expired timestamp misread as duration)
+                            result.retry_after_seconds = min(delay, MAX_RETRY_AFTER_SECONDS)
+                        except ValueError:
+                            pass  # Fall back to exponential backoff in the retry loop
                 elif result.response.status >= 400:
                     result.error_type = ErrorType.CODE_4XX
                 else:
@@ -349,16 +378,25 @@ class BackendConnector(threading.local):
                     response_bytes=result.response_length,
                     compressed_response=result.is_gzip_response,
                     error=result.error_type,
+                    request_bytes=result.request_length,
                 )
 
             if result.error_type and result.error_type in RETRIABLE_ERRORS and attempts_so_far < max_attempts:
-                delay_seconds = random.uniform(0, (1.618 ** (attempts_so_far - 1)))  # nosec: B311
+                if result.retry_after_seconds is not None:
+                    delay_seconds = result.retry_after_seconds
+                else:
+                    delay_seconds = random.uniform(0, (1.618 ** (attempts_so_far - 1)))  # nosec: B311
                 log.debug(
                     "Retrying %s %s in %.3f seconds (%d attempts so far)", method, path, delay_seconds, attempts_so_far
                 )
                 time.sleep(delay_seconds)
             else:
                 break
+
+        if result.error_type:
+            log.warning(
+                "Request %s %s failed after %d attempt(s): %s", method, path, attempts_so_far, result.error_description
+            )
 
         return result
 
@@ -449,6 +487,57 @@ class FileAttachment:
     data: bytes
 
 
+class NoOpBackendConnector:
+    """
+    A connector that makes no network requests.
+
+    Used when the plugin is running in Bazel's hermetic sandbox (manifest mode
+    active), where network access is unavailable. Any call to ``request()`` or
+    its helpers is silently discarded and an empty ``BackendResult`` is returned.
+    Writers and the telemetry API receive this connector but their event
+    delivery is handled via the payload-files code path instead.
+    """
+
+    def close(self) -> None:
+        pass
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        data: t.Optional[bytes] = None,
+        headers: t.Optional[dict[str, str]] = None,
+        send_gzip: bool = False,
+        is_json_response: bool = False,
+        telemetry: t.Any = None,
+        max_attempts: int = 1,
+    ) -> BackendResult:
+        log.debug("NoOp connector: skipping %s %s in offline mode", method, path)
+        return BackendResult()
+
+    def get_json(self, path: str, **kwargs: t.Any) -> BackendResult:
+        return BackendResult()
+
+    def post_json(self, path: str, data: t.Any, **kwargs: t.Any) -> BackendResult:
+        return BackendResult()
+
+    def post_files(self, path: str, files: t.Any, **kwargs: t.Any) -> BackendResult:
+        return BackendResult()
+
+
+class NoOpBackendConnectorSetup(BackendConnectorSetup):
+    """
+    A connector setup for fully offline (Bazel sandbox) mode.
+
+    Returns ``NoOpBackendConnector`` instances for all subdomains so that no
+    network requests are attempted. ``default_env`` falls back to the standard
+    default because there is no agent to query.
+    """
+
+    def get_connector_for_subdomain(self, subdomain: Subdomain) -> "NoOpBackendConnector":  # type: ignore[override]
+        return NoOpBackendConnector()
+
+
 class UnixDomainSocketHTTPConnection(http.client.HTTPConnection):
     """An HTTP connection established over a Unix Domain Socket."""
 
@@ -460,5 +549,6 @@ class UnixDomainSocketHTTPConnection(http.client.HTTPConnection):
 
     def connect(self) -> None:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(self.timeout)
         sock.connect(self.path)
         self.sock = sock

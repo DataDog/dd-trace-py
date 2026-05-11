@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    CI Visibility: Adds Bazel offline execution support with two modes: manifest mode
+    (``DD_TEST_OPTIMIZATION_MANIFEST_FILE``), which reads settings and test data from
+    pre-fetched cache files without network access; and payload-files mode
+    (``DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES``), which writes test event, coverage, and
+    telemetry payloads as JSON files instead of sending HTTP requests. Both modes can be
+    used independently or together.

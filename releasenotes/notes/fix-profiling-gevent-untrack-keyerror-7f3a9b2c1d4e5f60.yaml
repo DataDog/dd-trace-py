@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: A ``KeyError`` that could occur when using ``gevent.Timeout`` has
+    been fixed.

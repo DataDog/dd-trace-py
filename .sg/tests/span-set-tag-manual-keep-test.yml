@@ -1,0 +1,17 @@
+id: span-set-tag-manual-keep
+valid:
+  # Direct call is the correct pattern
+  - span._override_sampling_decision(USER_KEEP)
+  # set_tag with other keys is fine
+  - span.set_tag("some.other.key", "value")
+  - span.set_tag(MANUAL_DROP_KEY)
+
+invalid:
+  # One-arg form
+  - span.set_tag(MANUAL_KEEP_KEY)
+  - |
+    s = tracer.trace("op")
+    s.set_tag(MANUAL_KEEP_KEY)
+  # Two-arg form (value is ignored by set_tag)
+  - span.set_tag(MANUAL_KEEP_KEY, 1)
+  - span.set_tag(MANUAL_KEEP_KEY, "some-value")

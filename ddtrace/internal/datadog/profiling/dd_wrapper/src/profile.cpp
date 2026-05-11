@@ -2,6 +2,7 @@
 
 #include "libdatadog_helpers.hpp"
 #include "profile_borrow.hpp"
+#include "profiler_state.hpp"
 #include "profiler_stats.hpp"
 
 #include <datadog/profiling.h>
@@ -16,14 +17,14 @@
 namespace {
 
 inline bool
-make_profile(const ddog_prof_Slice_ValueType& sample_types,
+make_profile(const ddog_prof_Slice_SampleType& sample_types,
              const struct ddog_prof_Period* period,
              ddog_prof_Profile& profile)
 {
     // Private helper function for creating a ddog_prof_Profile from arguments
 
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    auto maybe_dict = Datadog::internal::get_profiles_dictionary();
+    auto maybe_dict = Datadog::ProfilerState::get().get_profiles_dictionary();
     if (!maybe_dict) {
         return false;
     }
@@ -78,61 +79,61 @@ Datadog::Profile::setup_samplers()
 {
     // TODO propagate error if no valid samplers are defined
     samplers.clear();
-    auto get_value_idx = [this](std::string_view value, std::string_view unit) {
+    auto add_sampler = [this](ddog_prof_SampleType sample_type) {
         const size_t idx = this->samplers.size();
-        this->samplers.push_back({ to_slice(value), to_slice(unit) });
+        this->samplers.push_back(sample_type);
         return idx;
     };
 
     // Check which samplers were enabled by the user
     if (0U != (type_mask & SampleType::CPU)) {
-        val_idx.cpu_time = get_value_idx("cpu-time", "nanoseconds");
-        val_idx.cpu_count = get_value_idx("cpu-samples", "count");
+        val_idx.cpu_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_CPU_TIME);
+        val_idx.cpu_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_CPU_SAMPLES);
     }
     if (0U != (type_mask & SampleType::Wall)) {
-        val_idx.wall_time = get_value_idx("wall-time", "nanoseconds");
-        val_idx.wall_count = get_value_idx("wall-samples", "count");
+        val_idx.wall_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_WALL_TIME);
+        val_idx.wall_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_WALL_SAMPLES);
     }
     if (0U != (type_mask & SampleType::Exception)) {
-        val_idx.exception_count = get_value_idx("exception-samples", "count");
+        val_idx.exception_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_EXCEPTION_SAMPLES);
     }
     if (0U != (type_mask & SampleType::LockAcquire)) {
-        val_idx.lock_acquire_time = get_value_idx("lock-acquire-wait", "nanoseconds");
-        val_idx.lock_acquire_count = get_value_idx("lock-acquire", "count");
+        val_idx.lock_acquire_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_LOCK_ACQUIRE_WAIT);
+        val_idx.lock_acquire_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_LOCK_ACQUIRE);
     }
     if (0U != (type_mask & SampleType::LockRelease)) {
-        val_idx.lock_release_time = get_value_idx("lock-release-hold", "nanoseconds");
-        val_idx.lock_release_count = get_value_idx("lock-release", "count");
+        val_idx.lock_release_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_LOCK_RELEASE_HOLD);
+        val_idx.lock_release_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_LOCK_RELEASE);
     }
     if (0U != (type_mask & SampleType::Allocation)) {
-        val_idx.alloc_space = get_value_idx("alloc-space", "bytes");
-        val_idx.alloc_count = get_value_idx("alloc-samples", "count");
+        val_idx.alloc_space = add_sampler(DDOG_PROF_SAMPLE_TYPE_ALLOC_SPACE);
+        val_idx.alloc_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_ALLOC_SAMPLES);
     }
     if (0U != (type_mask & SampleType::Heap)) {
-        val_idx.heap_space = get_value_idx("heap-space", "bytes");
+        val_idx.heap_space = add_sampler(DDOG_PROF_SAMPLE_TYPE_HEAP_SPACE);
     }
     if (0U != (type_mask & SampleType::GPUTime)) {
-        val_idx.gpu_time = get_value_idx("gpu-time", "nanoseconds");
-        val_idx.gpu_count = get_value_idx("gpu-samples", "count");
+        val_idx.gpu_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_TIME);
+        val_idx.gpu_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_SAMPLES);
     }
     if (0U != (type_mask & SampleType::GPUMemory)) {
         // In the backend the unit is called 'gpu-space', but maybe for consistency
         // it should be gpu-alloc-space
         // gpu-alloc-samples may be unused, but it's passed along for scaling purposes
-        val_idx.gpu_alloc_space = get_value_idx("gpu-space", "bytes");
-        val_idx.gpu_alloc_count = get_value_idx("gpu-alloc-samples", "count");
+        val_idx.gpu_alloc_space = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_SPACE);
+        val_idx.gpu_alloc_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_ALLOC_SAMPLES);
     }
     if (0U != (type_mask & SampleType::GPUFlops)) {
         // Technically "FLOPS" is a unit, but we call it a 'count' because no
         // other profiler uses it as a unit.
-        val_idx.gpu_flops = get_value_idx("gpu-flops", "count");
-        val_idx.gpu_flops_samples = get_value_idx("gpu-flops-samples", "count");
+        val_idx.gpu_flops = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_FLOPS);
+        val_idx.gpu_flops_samples = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_FLOPS_SAMPLES);
     }
 
     // Whatever the first sampler happens to be is the default "period" for the profile
     // The value of 1 is a pointless default.
     if (!samplers.empty()) {
-        default_period = { .type_ = samplers[0], .value = 1 };
+        default_period = { .sample_type = samplers[0], .value = 1 };
     }
 }
 
@@ -165,16 +166,13 @@ Datadog::Profile::profile_release()
 void
 Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
 {
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    // In contemporary dd-trace-py, it is expected that the initialization path is in
-    // a single thread, and done only once.
-    // However, it doesn't cost us much to keep this initialization tight.
-    if (!first_time.load()) {
-        return;
-    }
+    std::call_once(init_once, [this, type, _max_nframes]() { one_time_init_impl(type, _max_nframes); });
+}
 
-    // Threads need to serialize at this point
-    const std::lock_guard<std::mutex> lock(profile_mtx);
+void
+Datadog::Profile::one_time_init_impl(SampleType type, unsigned int _max_nframes)
+{
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
 
     // nframes
     max_nframes = _max_nframes;
@@ -183,7 +181,6 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     const unsigned int mask_as_int = type & SampleType::All;
     if (mask_as_int == 0) {
         // This can't happen in contemporary dd-trace-py, but we need better handling around this case
-        // TODO fix this
         if (!already_warned) {
             already_warned = true;
             std::cerr << "No valid sample types were enabled" << std::endl;
@@ -196,17 +193,13 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
     setup_samplers();
 
     // We need to initialize the profiles
-    const ddog_prof_Slice_ValueType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
+    const ddog_prof_Slice_SampleType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
     if (!make_profile(sample_types, &default_period, cur_profile)) {
         if (!already_warned) {
             already_warned = true;
             std::cerr << "Error initializing cur_profile" << std::endl;
         }
-        return;
     }
-
-    // We're done. Don't do this again.
-    first_time.store(false);
 }
 
 const Datadog::ValueIndex&
@@ -233,9 +226,25 @@ Datadog::Profile::collect(const ddog_prof_Sample2& sample, int64_t endtime_ns)
 }
 
 void
+Datadog::Profile::prefork()
+{
+    // Lock the profile mutex before fork to ensure the sampling thread is not
+    // mid-allocation inside ddog_prof_Profile_add2 when the fork happens.
+    // If the sampling thread is currently inside collect(), this will block
+    // until it finishes, guaranteeing the IndexSet<StackTrace> is in a
+    // fully-consistent state before the child calls ddog_prof_Profile_drop().
+    profile_mtx.lock();
+}
+
+void
+Datadog::Profile::postfork_parent()
+{
+    profile_mtx.unlock();
+}
+
+void
 Datadog::Profile::postfork_child()
 {
-    new (&profile_mtx) std::mutex();
     // Reset the profiler stats to clear any samples collected in the parent process
     cur_profiler_stats.reset_state();
 
@@ -243,8 +252,11 @@ Datadog::Profile::postfork_child()
     ddog_prof_Profile_drop(&cur_profile);
 
     // Create a new profile with the new dictionary
-    const ddog_prof_Slice_ValueType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
+    const ddog_prof_Slice_SampleType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
     if (!make_profile(sample_types, &default_period, cur_profile)) {
         std::cerr << "Error re-initializing profile after fork" << std::endl;
     }
+
+    // Unlock profile_mtx, which was locked by prefork.
+    profile_mtx.unlock();
 }

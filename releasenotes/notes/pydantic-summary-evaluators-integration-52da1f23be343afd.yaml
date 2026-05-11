@@ -1,0 +1,46 @@
+features:
+ - |
+    LLM Observability: Experiments accept a ``pydantic_evals`` ``ReportEvaluator`` as a summary evaluator when its
+    ``evaluate`` return annotation is exactly ``ScalarResult``. The scalar ``value`` is recorded as the summary
+    evaluation. Report evaluators that declare a broader analysis return type (for example the full ``ReportAnalysis``
+    union) are not accepted as summary evaluators; use a class-based or function summary evaluator instead. Examples
+    and further documentation can found in our documentation [here](https://docs.datadoghq.com/llm_observability/guide/evaluation_developer_guide).
+
+    Example::
+    
+        from pydantic_evals.evaluators import ReportEvaluator
+        from pydantic_evals.evaluators import ReportEvaluatorContext
+        from pydantic_evals.reporting.analyses import ScalarResult
+
+        from ddtrace.llmobs import LLMObs
+
+        dataset = LLMObs.create_dataset(
+            dataset_name="<DATASET_NAME>",
+            description="<DATASET_DESCRIPTION>",
+            records=[RECORD_1, RECORD_2, RECORD_3, ...]
+        )
+
+        class TotalCasesEvaluator(ReportEvaluator):
+            def evaluate(self, ctx: ReportEvaluatorContext) -> ScalarResult:
+                return ScalarResult(
+                    title='Total Cases',
+                    value=len(ctx.report.cases),
+                    unit='cases',
+                )
+
+        def my_task(input_data, config):
+            return input_data["output"]
+
+        equals_expected = EqualsExpected()
+        summary_evaluator = TotalCasesEvaluator()
+
+        experiment = LLMObs.experiment(
+            name="<EXPERIMENT_NAME>",
+            task=my_task, 
+            dataset=dataset,
+            evaluators=[equals_expected],
+            summary_evaluators=[summary_evaluator],
+            description="<EXPERIMENT_DESCRIPTION>."
+        )
+
+        result = experiment.run()

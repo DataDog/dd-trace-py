@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ddtrace._trace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
 from ddtrace.trace import Span
@@ -27,7 +26,6 @@ _APM_LATENCY_METRIC_MAP = {
 
 
 def create_span(
-    pin: Pin,
     integration,
     model_name: Optional[str],
     trace_headers: Optional[dict[str, str]],
@@ -39,7 +37,6 @@ def create_span(
         parent_ctx = HTTPPropagator.extract(trace_headers)
 
     span = integration.trace(
-        pin=pin,
         operation_id=OPERATION_ID,
         submit_to_llmobs=True,
         parent_context=parent_ctx,
@@ -60,7 +57,7 @@ def set_latency_metrics(span: Span, latency_metrics: Optional[LatencyMetrics]) -
     for attr, tag_name in _APM_LATENCY_METRIC_MAP.items():
         value = getattr(latency_metrics, attr, None)
         if value is not None:
-            span.set_metric(tag_name, value)
+            span._set_attribute(tag_name, value)
 
 
 def inject_trace_context(tracer, trace_headers: Optional[dict[str, str]]) -> dict[str, str]:

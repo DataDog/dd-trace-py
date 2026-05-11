@@ -23,7 +23,7 @@ CONSOLE = Console(file=sys.stderr)
 CWD = os.getcwd()
 
 
-if os.environ.get("DD_TRACE_DEBUG_ENABLE", False):
+if os.environ.get("DD_TRACE_DEBUG", False):
     logging.basicConfig(level=logging.DEBUG)
     LOGGER: Optional[logging.Logger] = logging.getLogger()
 else:

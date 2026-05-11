@@ -73,8 +73,38 @@ def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]]
             del _listeners[event_id]
 
 
-def dispatch(event_id: str, args: tuple[Any, ...] = ()) -> None:
-    """Call all hooks for the provided event_id with the provided args"""
+def dispatch_event(event, allow_raise: bool = False) -> None:
+    """Call all hooks for the provided event.
+
+    When ``allow_raise=True``, listener ``Exception``s propagate to the caller
+    (the first listener to raise wins; subsequent listeners are skipped).
+    ``BaseException``-derived exceptions (including ``DDBlockException``)
+    always propagate regardless of ``allow_raise``.
+
+    PERF: Avoid calling  `dispatch` to reduce function calls/overhead of this function.
+    """
+    global _listeners
+
+    event_id = event.event_name
+    if event_id not in _listeners:
+        return
+
+    for local_hook in _listeners[event_id].values():
+        try:
+            local_hook(event)
+        except Exception:
+            if allow_raise or config._raise:
+                raise
+
+
+def dispatch(event_id: str, args: tuple[Any, ...] = (), allow_raise: bool = False) -> None:
+    """Call all hooks for the provided event_id with the provided args.
+
+    When ``allow_raise=True``, listener ``Exception``s propagate to the caller
+    (the first listener to raise wins; subsequent listeners are skipped).
+    ``BaseException``-derived exceptions (including ``DDBlockException``)
+    always propagate regardless of ``allow_raise``.
+    """
     global _listeners
 
     if event_id not in _listeners:
@@ -84,7 +114,7 @@ def dispatch(event_id: str, args: tuple[Any, ...] = ()) -> None:
         try:
             local_hook(*args)
         except Exception:
-            if config._raise:
+            if allow_raise or config._raise:
                 raise
 
 

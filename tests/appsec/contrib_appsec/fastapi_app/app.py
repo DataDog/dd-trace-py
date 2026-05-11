@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 from typing import AsyncGenerator
 from typing import Optional
 
@@ -21,6 +22,7 @@ from ddtrace.trace import tracer
 
 
 fake_secret_token = "DataDog"
+DOWNSTREAM_HTTP_TIMEOUT = 2.0
 
 fake_db = {
     "foo": {"id": "foo", "name": "Foo", "description": "This item's description is foo."},
@@ -272,7 +274,7 @@ def get_app():
         url = f"http://127.0.0.1:{port}/{route}"
         try:
             request_urllib = urllib.request.Request(url, method="GET", headers={"TagRoute": route})
-            with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+            with urllib.request.urlopen(request_urllib, timeout=DOWNSTREAM_HTTP_TIMEOUT) as f:
                 payload = {"payload": f.read()}
         except Exception as e:
             payload = {"error": repr(e)}
@@ -293,7 +295,7 @@ def get_app():
                     "TagRoute": route,
                 },
             )
-            with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+            with urllib.request.urlopen(request_urllib, timeout=DOWNSTREAM_HTTP_TIMEOUT) as f:
                 payload = {"payload": f.read()}
         except Exception as e:
             payload = {"error": repr(e)}
@@ -306,7 +308,7 @@ def get_app():
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
             with requests.Session() as s:
-                response = s.get(full_url, timeout=0.5, headers={"TagRoute": route})
+                response = s.get(full_url, timeout=DOWNSTREAM_HTTP_TIMEOUT, headers={"TagRoute": route})
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
@@ -323,7 +325,7 @@ def get_app():
                     full_url,
                     data=(await request.body()),
                     headers={"Content-Type": "application/json", "TagRoute": route},
-                    timeout=0.5,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
                 )
                 payload = {"payload": response.text}
         except Exception as e:
@@ -337,7 +339,12 @@ def get_app():
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
             with httpx.Client() as client:
-                response = client.get(full_url, timeout=0.5, headers={"TagRoute": route}, follow_redirects=True)
+                response = client.get(
+                    full_url,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                    headers={"TagRoute": route},
+                    follow_redirects=True,
+                )
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
@@ -354,7 +361,7 @@ def get_app():
                     full_url,
                     content=(await request.body()),
                     headers={"Content-Type": "application/json", "TagRoute": route},
-                    timeout=0.5,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
                     follow_redirects=True,
                 )
                 payload = {"payload": response.text}
@@ -369,7 +376,12 @@ def get_app():
         full_url = f"http://127.0.0.1:{port}/{route}"
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(full_url, timeout=0.5, headers={"TagRoute": route}, follow_redirects=True)
+                response = await client.get(
+                    full_url,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                    headers={"TagRoute": route},
+                    follow_redirects=True,
+                )
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
@@ -386,13 +398,24 @@ def get_app():
                     full_url,
                     content=(await request.body()),
                     headers={"Content-Type": "application/json", "TagRoute": route},
-                    timeout=0.5,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
                     follow_redirects=True,
                 )
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
         return payload
+
+    @app.get("/exception-group-block")
+    async def exception_group_block(request: Request):
+        """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
+        if sys.version_info < (3, 11) or request.query_params.get("block") != "true":
+            return HTMLResponse("ok", status_code=200)
+
+        from ddtrace.appsec._utils import Block_config
+        from ddtrace.internal._exceptions import BlockingException
+
+        raise BaseExceptionGroup("test", [BlockingException(Block_config())])  # noqa: F821
 
     @app.get("/login/")
     async def login_user(request: Request):

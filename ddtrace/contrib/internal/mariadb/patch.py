@@ -1,14 +1,13 @@
-import os
-
 import mariadb
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
+from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
 
@@ -16,7 +15,7 @@ from ddtrace.internal.utils.wrappers import unwrap
 config._add(
     "mariadb",
     dict(
-        trace_fetch_methods=asbool(os.getenv("DD_MARIADB_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(env.get("DD_MARIADB_TRACE_FETCH_METHODS", default=False)),
         _default_service=schematize_service_name("mariadb"),
         _dbapi_span_name_prefix="mariadb",
     ),
@@ -46,17 +45,15 @@ def unpatch():
 
 def _connect(func, instance, args, kwargs):
     conn = func(*args, **kwargs)
-    tags = {
-        net.TARGET_HOST: kwargs.get("host", "127.0.0.1"),
-        net.TARGET_PORT: kwargs.get("port", 3306),
-        net.SERVER_ADDRESS: kwargs.get("host", "127.0.0.1"),
-        db.USER: kwargs.get("user", "test"),
-        db.NAME: kwargs.get("database", "test"),
-        db.SYSTEM: "mariadb",
-    }
-
-    pin = Pin(tags=tags)
-
-    wrapped = TracedConnection(conn, pin=pin, cfg=config.mariadb)
-    pin.onto(wrapped)
-    return wrapped
+    return TracedConnection(
+        conn,
+        cfg=config.mariadb,
+        db_tags={
+            db.SYSTEM: "mariadb",
+            net.TARGET_HOST: _convert_to_string(kwargs.get("host", "127.0.0.1")),
+            net.TARGET_PORT: _convert_to_string(kwargs.get("port", 3306)),
+            net.SERVER_ADDRESS: _convert_to_string(kwargs.get("host", "127.0.0.1")),
+            db.USER: _convert_to_string(kwargs.get("user", "test")),
+            db.NAME: _convert_to_string(kwargs.get("database", "test")),
+        },
+    )

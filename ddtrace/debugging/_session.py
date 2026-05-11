@@ -58,10 +58,10 @@ class Session:
 
         context._meta["_dd.p.debug"] = _sessions_to_debug_tag(sessions)
 
-    def link_to_trace(self, trace_context: t.Optional[t.Any] = None):
+    def link_to_trace(self, trace_context: t.Optional[t.Any] = None) -> None:
         SessionManager.link_session_to_trace(self, trace_context)
 
-    def unlink_from_trace(self, trace_context: t.Optional[t.Any] = None):
+    def unlink_from_trace(self, trace_context: t.Optional[t.Any] = None) -> None:
         SessionManager.unlink_session_from_trace(self, trace_context)
 
     def count_probe(self, probe_id: str) -> None:
@@ -103,7 +103,7 @@ class SessionManager:
         cls._sessions_trace_map.setdefault(context, {})[session.ident] = session
 
     @classmethod
-    def unlink_session_from_trace(cls, session, trace_context: t.Optional[t.Any] = None) -> None:
+    def unlink_session_from_trace(cls, session: Session, trace_context: t.Optional[t.Any] = None) -> None:
         context = trace_context or tracer.current_trace_context()
         if context is None:
             # Nothing to unlink from

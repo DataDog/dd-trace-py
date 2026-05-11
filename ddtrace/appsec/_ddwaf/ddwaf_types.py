@@ -1,14 +1,14 @@
+from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import Sequence
 import ctypes
 import ctypes.util
 from enum import IntEnum
-from platform import machine
 from platform import system
 from typing import Any
 from typing import Optional
-from typing import Union
 
+from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_builder_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
@@ -17,8 +17,6 @@ from ddtrace.appsec._utils import unpatching_popen
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
-
-DDWafRulesType = Union[None, int, str, list[Any], dict[str, Any]]
 
 log = get_logger(__name__)
 
@@ -32,10 +30,6 @@ if system() == "Linux":
             ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
     except Exception:  # nosec
         pass
-
-ARCHI = machine().lower()
-
-# 32-bit-Python on 64-bit-Windows
 
 with unpatching_popen():
     ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
@@ -92,6 +86,112 @@ class DDWAF_LOG_LEVEL(IntEnum):
 #
 
 
+def _build_sequence(
+    self: "ddwaf_object",
+    struct: Any,
+    observator: _observator,
+    max_objects: int,
+    max_depth: int,
+    max_string_length: int,
+) -> None:
+    if max_depth <= 0:
+        observator.set_container_depth(DDWAF_MAX_CONTAINER_DEPTH)
+        max_objects = 0
+    array = ddwaf_object_array(self)
+    for counter_object, elt in enumerate(struct):
+        if counter_object >= max_objects:
+            observator.set_container_size(len(struct))
+            break
+        obj = ddwaf_object.__new__(ddwaf_object)
+        _build_ddwaf_object(obj, elt, observator, max_objects, max_depth - 1, max_string_length)
+        ddwaf_object_array_add(array, obj)
+
+
+def _build_mapping(
+    self: "ddwaf_object",
+    struct: Any,
+    observator: _observator,
+    max_objects: int,
+    max_depth: int,
+    max_string_length: int,
+) -> None:
+    if max_depth <= 0:
+        observator.set_container_depth(DDWAF_MAX_CONTAINER_DEPTH)
+        max_objects = 0
+    map_o = ddwaf_object_map(self)
+    # order is unspecified and could lead to problems if max_objects is reached
+    counter_object = 0
+    for key, val in struct.items():
+        kt = type(key)
+        if kt is str:
+            res_key = key.encode("UTF-8", errors="ignore")
+        elif kt is bytes:
+            res_key = key
+        else:  # discards non string keys
+            continue
+        if counter_object >= max_objects:
+            observator.set_container_size(len(struct))
+            break
+        if len(res_key) > max_string_length:
+            observator.set_string_length(len(res_key))
+            res_key = res_key[:max_string_length]
+        obj = ddwaf_object.__new__(ddwaf_object)
+        _build_ddwaf_object(obj, val, observator, max_objects, max_depth - 1, max_string_length)
+        ddwaf_object_map_add(map_o, res_key, obj)
+        counter_object += 1
+
+
+def _build_ddwaf_object(
+    self: "ddwaf_object",
+    struct: Any,
+    observator: _observator,
+    max_objects: int,
+    max_depth: int,
+    max_string_length: int,
+) -> None:
+    """Recursive builder for ddwaf_object.
+
+    Uses type identity checks ordered by frequency (dict/str/list dominate WAF payloads)
+    with leaf handlers inlined to avoid function call overhead. Container types delegate
+    to separate functions since their logic is more complex. Falls back to isinstance for
+    Sequence/Mapping subclasses.
+    """
+    t = type(struct)
+    if t is dict:
+        _build_mapping(self, struct, observator, max_objects, max_depth, max_string_length)
+    elif t is str:
+        encoded = struct.encode("UTF-8", errors="ignore")
+        if len(encoded) > max_string_length:
+            observator.set_string_length(len(encoded))
+            encoded = encoded[:max_string_length]
+        ddwaf_object_string(self, encoded)
+    elif t is list:
+        _build_sequence(self, struct, observator, max_objects, max_depth, max_string_length)
+    elif t is int:
+        ddwaf_object_signed(self, struct)
+    elif t is bool:
+        ddwaf_object_bool(self, struct)
+    elif t is float:
+        ddwaf_object_float(self, struct)
+    elif t is bytes:
+        if len(struct) > max_string_length:
+            observator.set_string_length(len(struct))
+            struct = struct[:max_string_length]
+        ddwaf_object_string(self, struct)
+    elif struct is None:
+        ddwaf_object_null(self)
+    elif isinstance(struct, Sequence):
+        _build_sequence(self, struct, observator, max_objects, max_depth, max_string_length)
+    elif isinstance(struct, Mapping):
+        _build_mapping(self, struct, observator, max_objects, max_depth, max_string_length)
+    else:
+        encoded = str(struct).encode("UTF-8", errors="ignore")
+        if len(encoded) > max_string_length:
+            observator.set_string_length(len(encoded))
+            encoded = encoded[:max_string_length]
+        ddwaf_object_string(self, encoded)
+
+
 # to allow cyclic references, ddwaf_object fields are defined later
 class ddwaf_object(ctypes.Structure):
     # "type" define how to read the "value" union field
@@ -106,70 +206,14 @@ class ddwaf_object(ctypes.Structure):
     def __init__(
         self,
         struct: Optional[DDWafRulesType] = None,
-        observator: _observator = _observator(),  # noqa : B008
+        observator: Optional[_observator] = None,
         max_objects: int = DDWAF_MAX_CONTAINER_SIZE,
         max_depth: int = DDWAF_MAX_CONTAINER_DEPTH,
         max_string_length: int = DDWAF_MAX_STRING_LENGTH,
     ) -> None:
-        def truncate_string(string: bytes) -> bytes:
-            if len(string) > max_string_length:
-                observator.set_string_length(len(string))
-                # difference of 1 to take null char at the end on the C side into account
-                return string[:max_string_length]
-            return string
-
-        if isinstance(struct, bool):
-            ddwaf_object_bool(self, struct)
-        elif isinstance(struct, int):
-            ddwaf_object_signed(self, struct)
-        elif isinstance(struct, str):
-            ddwaf_object_string(self, truncate_string(struct.encode("UTF-8", errors="ignore")))
-        elif isinstance(struct, bytes):
-            ddwaf_object_string(self, truncate_string(struct))
-        elif isinstance(struct, float):
-            ddwaf_object_float(self, struct)
-        elif isinstance(struct, Sequence):
-            if max_depth <= 0:
-                observator.set_container_depth(DDWAF_MAX_CONTAINER_DEPTH)
-                max_objects = 0
-            array = ddwaf_object_array(self)
-            for counter_object, elt in enumerate(struct):
-                if counter_object >= max_objects:
-                    observator.set_container_size(len(struct))
-                    break
-                obj = ddwaf_object(
-                    elt,
-                    observator=observator,
-                    max_objects=max_objects,
-                    max_depth=max_depth - 1,
-                    max_string_length=max_string_length,
-                )
-                ddwaf_object_array_add(array, obj)
-        elif isinstance(struct, Mapping):
-            if max_depth <= 0:
-                observator.set_container_depth(DDWAF_MAX_CONTAINER_DEPTH)
-                max_objects = 0
-            map_o = ddwaf_object_map(self)
-            # order is unspecified and could lead to problems if max_objects is reached
-            for counter_object, (key, val) in enumerate(struct.items()):
-                if not isinstance(key, (bytes, str)):  # discards non string keys
-                    continue
-                if counter_object >= max_objects:
-                    observator.set_container_size(len(struct))
-                    break
-                res_key = truncate_string(key.encode("UTF-8", errors="ignore") if isinstance(key, str) else key)
-                obj = ddwaf_object(
-                    val,
-                    observator=observator,
-                    max_objects=max_objects,
-                    max_depth=max_depth - 1,
-                    max_string_length=max_string_length,
-                )
-                ddwaf_object_map_add(map_o, res_key, obj)
-        elif struct is not None:
-            ddwaf_object_string(self, truncate_string(str(struct).encode("UTF-8", errors="ignore")))
-        else:
-            ddwaf_object_null(self)
+        if observator is None:
+            observator = _observator()
+        _build_ddwaf_object(self, struct, observator, max_objects, max_depth, max_string_length)
 
     @classmethod
     def create_without_limits(cls, struct: DDWafRulesType) -> "ddwaf_object":
@@ -209,7 +253,7 @@ class ddwaf_object(ctypes.Structure):
         log.debug("ddwaf_object struct: unknown object type: %s", repr(type(self.type)))
         return None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self.struct)
 
 
@@ -273,7 +317,7 @@ class ddwaf_config(ctypes.Structure):
         max_string_length: int = 0,
         key_regex: bytes = b"",
         value_regex: bytes = b"",
-        free_fn=ddwaf_object_free,
+        free_fn: Callable[[ddwaf_object], None] = ddwaf_object_free,
     ) -> None:
         self.limits.max_container_size = max_container_size
         self.limits.max_container_depth = max_container_depth
@@ -311,7 +355,7 @@ ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwa
 )
 
 
-def py_ddwaf_init(ruleset_map: ddwaf_object, config, info) -> ddwaf_handle_capsule:
+def py_ddwaf_init(ruleset_map: ddwaf_object, config: ddwaf_config, info: ddwaf_object) -> ddwaf_handle_capsule:
     return ddwaf_handle_capsule(ddwaf_init(ruleset_map, config, info), ddwaf_destroy)
 
 
@@ -357,7 +401,7 @@ ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
 )
 
 
-## ddwf_builder
+# ddwaf_builder
 
 
 ddwaf_builder_init = ctypes.CFUNCTYPE(ddwaf_builder, ddwaf_config_p)(
@@ -439,8 +483,9 @@ ddwaf_builder_destroy = ctypes.CFUNCTYPE(None, ddwaf_builder)(
 )
 
 
-## ddwaf_object
+# ddwaf_object
 
+# Not used in Python code but kept for completeness with the libddwaf API
 ddwaf_object_invalid = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
     ("ddwaf_object_invalid", ddwaf),
     ((3, "object"),),
@@ -455,8 +500,7 @@ ddwaf_object_string = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_
     ),
 )
 
-# object_string variants not used
-
+# Not used in Python code but kept for completeness with the libddwaf API
 ddwaf_object_string_from_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
     ("ddwaf_object_string_from_unsigned", ddwaf),
     (
@@ -473,6 +517,7 @@ ddwaf_object_string_from_signed = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_
     ),
 )
 
+# Not used in Python code but kept for completeness with the libddwaf API
 ddwaf_object_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
     ("ddwaf_object_unsigned", ddwaf),
     (
@@ -566,6 +611,8 @@ ddwaf_get_version = ctypes.CFUNCTYPE(ctypes.c_char_p)(
     ("ddwaf_get_version", ddwaf),
     (),
 )
+
+asm_config._ddwaf_version = ddwaf_get_version().decode()
 
 
 ddwaf_set_log_cb = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_log_cb, ctypes.c_int)(

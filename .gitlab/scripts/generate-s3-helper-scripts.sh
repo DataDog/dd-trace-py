@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: generate-s3-helper-scripts.sh <s3_base_url> <output_prefix>
+# Usage: generate-s3-helper-scripts.sh <s3_base_url> <output_prefix> [index_filename]
 # Example: generate-s3-helper-scripts.sh "https://dd-trace-py-builds.s3.amazonaws.com/main" "main"
+# Example: generate-s3-helper-scripts.sh "https://dd-trace-py-builds.s3.amazonaws.com/12345" "manylinux2014" "index-manylinux2014.html"
 
-if [ $# -ne 2 ]; then
-  echo "Usage: $0 <s3_base_url> <output_prefix>" >&2
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+  echo "Usage: $0 <s3_base_url> <output_prefix> [index_filename]" >&2
   exit 1
 fi
 
 S3_BASE_URL="$1"
 OUTPUT_PREFIX="$2"
+INDEX_FILE="${3:-index.html}"
 
 if [ -z "${PACKAGE_VERSION:-}" ]; then
   echo "Error: PACKAGE_VERSION environment variable is not set." >&2
@@ -50,9 +52,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Download wheel
-echo "Downloading ddtrace==VERSION_PLACEHOLDER from S3_URL_PLACEHOLDER/index.html"
-pip download --no-index --no-deps \
-  --find-links S3_URL_PLACEHOLDER/index.html \
+echo "Downloading ddtrace==VERSION_PLACEHOLDER from S3_URL_PLACEHOLDER/INDEX_FILE_PLACEHOLDER"
+python3 -m pip download --no-index --no-deps \
+  --find-links S3_URL_PLACEHOLDER/INDEX_FILE_PLACEHOLDER \
   ddtrace==VERSION_PLACEHOLDER \
   $PIP_ARGS \
   -d "${DEST_DIR}"
@@ -64,6 +66,7 @@ DOWNLOAD_SCRIPT_EOF
 sed -i.bak \
   -e "s|S3_URL_PLACEHOLDER|${S3_BASE_URL}|g" \
   -e "s|VERSION_PLACEHOLDER|${PACKAGE_VERSION}|g" \
+  -e "s|INDEX_FILE_PLACEHOLDER|${INDEX_FILE}|g" \
   "${OUTPUT_PREFIX}.download.sh"
 rm "${OUTPUT_PREFIX}.download.sh.bak"
 
@@ -98,15 +101,15 @@ TMP_DIR=$(mktemp -d)
 trap "rm -rf '${TMP_DIR}'" EXIT
 
 # Download and install
-echo "Downloading ddtrace==VERSION_PLACEHOLDER from S3_URL_PLACEHOLDER/index.html"
-pip download --no-index --no-deps \
-  --find-links S3_URL_PLACEHOLDER/index.html \
+echo "Downloading ddtrace==VERSION_PLACEHOLDER from S3_URL_PLACEHOLDER/INDEX_FILE_PLACEHOLDER"
+python3 -m pip download --no-index --no-deps \
+  --find-links S3_URL_PLACEHOLDER/INDEX_FILE_PLACEHOLDER \
   ddtrace==VERSION_PLACEHOLDER \
   $PIP_ARGS \
   -d "${TMP_DIR}"
 
 echo "Installing ddtrace==VERSION_PLACEHOLDER"
-pip install "${TMP_DIR}"/ddtrace-*.whl
+python3 -m pip install "${TMP_DIR}"/ddtrace-*.whl
 
 echo "Successfully installed ddtrace==VERSION_PLACEHOLDER"
 INSTALL_SCRIPT_EOF
@@ -115,6 +118,7 @@ INSTALL_SCRIPT_EOF
 sed -i.bak \
   -e "s|S3_URL_PLACEHOLDER|${S3_BASE_URL}|g" \
   -e "s|VERSION_PLACEHOLDER|${PACKAGE_VERSION}|g" \
+  -e "s|INDEX_FILE_PLACEHOLDER|${INDEX_FILE}|g" \
   "${OUTPUT_PREFIX}.install.sh"
 rm "${OUTPUT_PREFIX}.install.sh.bak"
 

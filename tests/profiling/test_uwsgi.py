@@ -17,6 +17,7 @@ The tests spawn actual uwsgi processes and verify:
 
 import glob
 from importlib.metadata import version
+import logging
 import os
 import pathlib
 import re
@@ -33,6 +34,7 @@ from typing import Optional
 
 import pytest
 
+from ddtrace.profiling import profiler
 from tests.contrib.uwsgi import run_uwsgi
 from tests.profiling.collector import pprof_utils
 
@@ -77,6 +79,60 @@ def uwsgi(
         yield run_uwsgi(cmd)
     finally:
         os.unlink(socket_name)
+
+
+def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPatch) -> None:
+    """uWSGI postfork startup should set the active profiler singleton in workers."""
+
+    def _raise_master(*args, **kwargs):
+        raise profiler.uwsgi.uWSGIMasterProcess()
+
+    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_master)
+
+    p = profiler.Profiler()
+    p.start()
+
+    # Master process should not track an active profiler instance.
+    assert profiler.Profiler._active_instance is None
+
+    # Simulate uWSGI worker postfork callback invoking Profiler._start_on_fork().
+    p._start_on_fork()
+    assert profiler.Profiler._active_instance is p
+
+    p.stop(flush=False)
+
+
+def test_uwsgi_worker_blocks_second_profiler_start(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A worker started through uWSGI postfork should still reject a second profiler."""
+    callback_holder = {}
+
+    def _register_postfork(callback, atexit=None):
+        callback_holder["callback"] = callback
+        raise profiler.uwsgi.uWSGIMasterProcess()
+
+    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _register_postfork)
+
+    p1 = profiler.Profiler()
+    p1.start()
+
+    postfork_callback = callback_holder["callback"]
+    postfork_callback()
+    assert profiler.Profiler._active_instance is p1
+
+    # In workers, check_uwsgi should return normally.
+    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", lambda *args, **kwargs: None)
+
+    p2 = profiler.Profiler()
+    with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.profiler"):
+        p2.start()
+
+    assert "A profiler is already running" in caplog.text
+    assert profiler.Profiler._active_instance is p1
+
+    p1.stop(flush=False)
 
 
 def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[bytes]]):
@@ -203,7 +259,7 @@ def _wait_for_profile_samples(
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            files = glob.glob(f"{filename_prefix}.*.pprof")
+            files = glob.glob(f"{filename_prefix}.{pid}.*.pprof")
             if not files:
                 raise FileNotFoundError(f"No profile files found for {filename_prefix}")
 
@@ -280,9 +336,7 @@ def test_uwsgi_threads_processes_primary_lazy_apps(
     proc.terminate()
     assert proc.wait() == 0
     for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
-        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-        assert len(samples) > 0
+        _wait_for_profile_samples(filename, pid, "wall-time")
 
 
 def test_uwsgi_threads_processes_no_primary_lazy_apps(

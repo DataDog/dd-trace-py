@@ -6,6 +6,7 @@ from debugger import ExplorationDebugger
 from debugger import ModuleCollector
 from debugger import config
 from debugger import status
+from debugging.utils import create_log_function_probe
 from debugging.utils import create_snapshot_function_probe
 from output import log
 from utils import COLS
@@ -51,6 +52,14 @@ class FunctionCollector(ModuleCollector):
                     func_qname=f.__qualname__,
                     rate=float("inf"),
                     limits=expl_config.limits,
+                )
+                if expl_config.capture
+                else create_log_function_probe(
+                    probe_id=f"{o}:{f.__code__.co_firstlineno}",
+                    module=module.__name__,
+                    func_qname=f.__qualname__,
+                    template="",
+                    segments=[],
                 )
             )
 

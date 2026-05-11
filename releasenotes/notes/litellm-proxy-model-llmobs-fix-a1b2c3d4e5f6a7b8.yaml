@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    litellm: Fix missing LLMObs spans when routing requests through a litellm
+    proxy. Proxy requests were incorrectly suppressed and resulted in empty or missing LLMObs spans. Proxy requests for OpenAI models are
+    now always handled by the litellm integration.

@@ -10,18 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "655529ab00000000",
+      "_dd.p.tid": "69eb932d00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp4ejitoql,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "e4724609efa84cf58424a8b1ef44b17d"
+      "runtime-id": "f6ae49f975d04d8e842d66081e297208"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 7032
+      "_sampling_priority_v1": 1.0,
+      "process_id": 20427.0
     },
-    "duration": 45736250,
-    "start": 1700080043517030634
+    "duration": 51164500,
+    "start": 1777046317747523047
   },
      {
        "name": "internal",
@@ -34,17 +35,19 @@
        "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
-         "_dd.p.tid": "655529ab00000000",
+         "_dd.p.tid": "69eb932d00000000",
+         "_dd.parent_id": "d497fad7daf2d62e",
+         "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp4ejitoql,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
          "language": "python",
-         "runtime-id": "9609b5511d35497e8ea3d3a71299ccd0",
-         "tracestate": "dd=s:1;t.dm:-0"
+         "runtime-id": "a9a2fc22850e4af2b91782b813256db8",
+         "tracestate": "dd=p:d497fad7daf2d62e;s:1;t.dm:-0"
        },
        "metrics": {
-         "_dd.top_level": 1,
+         "_dd.top_level": 1.0,
          "_dd.tracer_kr": 1.0,
-         "_sampling_priority_v1": 1,
-         "process_id": 7039
+         "_sampling_priority_v1": 1.0,
+         "process_id": 20435.0
        },
-       "duration": 22333250,
-       "start": 1700080043530690050
+       "duration": 20864334,
+       "start": 1777046317774360630
      }]]

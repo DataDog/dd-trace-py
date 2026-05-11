@@ -9,32 +9,45 @@ The mode is controlled by the _DD_COVERAGE_FILE_LEVEL environment variable.
 """
 
 import dis
-import os
 import sys
 from types import CodeType
 import typing as t
 
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
 
-
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
 assert sys.version_info >= (3, 12)  # nosec
 
 EXTENDED_ARG = dis.EXTENDED_ARG
+RESUME = dis.opmap["RESUME"]
+CACHE = 0  # CACHE opcode is always 0 across all CPython versions
+LOAD_CONST = dis.opmap["LOAD_CONST"]
 IMPORT_NAME = dis.opmap["IMPORT_NAME"]
 IMPORT_FROM = dis.opmap["IMPORT_FROM"]
-RESUME = dis.opmap["RESUME"]
-RETURN_CONST = dis.opmap["RETURN_CONST"]
-EMPTY_MODULE_BYTES = bytes([RESUME, 0, RETURN_CONST, 0])
+# LOAD_SMALL_INT was added in 3.14, replacing LOAD_CONST for small integer literals
+LOAD_SMALL_INT = dis.opmap.get("LOAD_SMALL_INT")
+
+# In Python 3.15 (PEP 810 lazy imports), IMPORT_NAME's arg is bit-packed:
+# bits 2+ = name index into co_names, bits 0-1 = lazy/eager flags.
+# So the index is arg >> 2. On 3.12-3.14, arg is a plain index (shift by 0).
+_IMPORT_NAME_ARG_SHIFT = 2 if sys.version_info >= (3, 15) else 0
+
+# Detect empty modules: the bytecode pattern varies across Python versions.
+# Python 3.12-3.13: RESUME + RETURN_CONST
+# Python 3.14: RESUME + LOAD_CONST + RETURN_VALUE (RETURN_CONST was removed)
+# Python 3.15+: same as 3.14 but RESUME has a CACHE entry (extra 2 bytes)
+# Instead of hardcoding, just compile an empty module to get the expected bytes.
+EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 
 # Check if file-level coverage is requested
-_USE_FILE_LEVEL_COVERAGE = asbool(os.getenv("_DD_COVERAGE_FILE_LEVEL", "false"))
+_USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false"))
 
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
@@ -158,35 +171,37 @@ def _instrument_with_monitoring(
 def _extract_lines_and_imports(
     code: CodeType, package: str, track_lines: bool = True
 ) -> tuple[CoverageLines, dict[int, tuple[str, tuple[str, ...]]]]:
-    """
-    Extract line numbers and import information from bytecode.
+    """Extract line numbers and import information via raw bytecode iteration.
 
-    This parses the bytecode to:
-    1. Collect all executable line numbers (if track_lines=True)
-    2. Track IMPORT_NAME and IMPORT_FROM opcodes for dependency tracking
+    Iterates the 2-byte wordcode directly to avoid the overhead of creating
+    Instruction namedtuples via dis.get_instructions().
 
-    Args:
-        code: The code object to analyze
-        package: The package name for resolving relative imports
-        track_lines: Whether to collect line numbers (True for LINE mode, False for PY_START mode)
-
-    Returns:
-        Tuple of (CoverageLines with executable lines, dict mapping lines to imports)
+    Handles all Python 3.12+ version differences:
+    - Skips CACHE entries (opcode 0) so they don't corrupt argument history
+    - Tracks decoded values (not raw args) for import depth, which handles both
+      LOAD_CONST (indexes co_consts) and LOAD_SMALL_INT (3.14+, arg IS value)
+    - Uses dis.findlinestarts() for version-agnostic line number mapping
+    - On 3.15+ (PEP 810 lazy imports), IMPORT_NAME's arg is bit-packed:
+      bits 2+ = name index into co_names, bits 0-1 = lazy/eager flags.
+      _IMPORT_NAME_ARG_SHIFT (=2 on 3.15+, =0 otherwise) extracts the name index.
+    - IMPORT_FROM is unaffected by PEP 810 — still uses plain co_names index.
     """
     lines = CoverageLines()
     import_names: dict[int, tuple[str, tuple[str, ...]]] = {}
 
-    # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
-    # For example, from ...package import module
     current_arg: int = 0
-    previous_arg: int = 0
-    _previous_previous_arg: int = 0
     current_import_name: t.Optional[str] = None
     current_import_package: t.Optional[str] = None
 
     # Track line numbers
     linestarts = dict(dis.findlinestarts(code))
     line: t.Optional[int] = None
+
+    # Track the decoded values of the previous two real instructions for import depth.
+    # The import sequence is: LOAD_CONST/LOAD_SMALL_INT <level>, LOAD_CONST <fromlist>, IMPORT_NAME
+    # At IMPORT_NAME, _prev_prev_val holds the decoded import depth.
+    _prev_prev_val: t.Any = 0
+    _prev_val: t.Any = 0
 
     ext: list[bytes] = []
     code_iter = iter(enumerate(code.co_code))
@@ -195,7 +210,10 @@ def _extract_lines_and_imports(
             offset, opcode = next(code_iter)
             _, arg = next(code_iter)
 
-            if opcode == RESUME:
+            # Skip RESUME and CACHE entries (CACHE=0 on all CPython versions).
+            # CACHE entries appear after some opcodes (e.g. RESUME on 3.15+) and
+            # must not pollute the argument history used for import depth tracking.
+            if opcode == RESUME or opcode == CACHE:
                 continue
 
             if offset in linestarts:
@@ -213,16 +231,15 @@ def _extract_lines_and_imports(
                 ext.append(arg)
                 continue
             else:
-                _previous_previous_arg = previous_arg
-                previous_arg = current_arg
                 current_arg = int.from_bytes([*ext, arg], "big", signed=False)
                 ext.clear()
 
             if opcode == IMPORT_NAME and line is not None:
-                import_depth: int = code.co_consts[_previous_previous_arg]
-                current_import_name: str = code.co_names[current_arg]
+                # _prev_prev_val is the decoded import depth (from LOAD_CONST or LOAD_SMALL_INT)
+                import_depth: int = _prev_prev_val
+                current_import_name = code.co_names[current_arg >> _IMPORT_NAME_ARG_SHIFT]
                 # Adjust package name if the import is relative and a parent (ie: if depth is more than 1)
-                current_import_package: str = (
+                current_import_package = (
                     ".".join(package.split(".")[: -import_depth + 1]) if import_depth > 1 else package
                 )
 
@@ -246,6 +263,18 @@ def _extract_lines_and_imports(
                     )
                 else:
                     import_names[line] = (current_import_package, (import_from_name,))
+
+            # Decode argument value and shift history AFTER opcode handling.
+            # LOAD_CONST indexes co_consts; LOAD_SMALL_INT (3.14+) uses the arg directly.
+            # This must happen after IMPORT_NAME reads _prev_prev_val, not before.
+            if opcode == LOAD_CONST:
+                decoded = code.co_consts[current_arg]
+            elif LOAD_SMALL_INT is not None and opcode == LOAD_SMALL_INT:
+                decoded = current_arg
+            else:
+                decoded = current_arg
+            _prev_prev_val = _prev_val
+            _prev_val = decoded
 
     except StopIteration:
         pass

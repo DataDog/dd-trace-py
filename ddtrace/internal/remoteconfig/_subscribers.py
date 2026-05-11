@@ -28,11 +28,6 @@ class RemoteConfigSubscriber(PeriodicService):
         try:
             # Read data from connector
             data = self._data_connector.read()
-
-            # Always call the callback with the data (may be None if no updates)
-            # The callback handles calling periodic() on product callbacks and
-            # processing payloads
-            log.debug("[PID %d] %s _exec_callback: %s", os.getpid(), self, str(data)[:50] if data else "None")
             self._callback(data)
         except Exception:
             log.error("[PID %d | PPID %d] %s while getting data", os.getpid(), os.getppid(), self, exc_info=True)

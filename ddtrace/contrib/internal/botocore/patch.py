@@ -4,7 +4,6 @@ Trace queries to aws api done via botocore client
 
 import collections
 import json
-import os
 from typing import Union  # noqa:F401
 
 from botocore import __version__
@@ -27,6 +26,7 @@ from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -72,7 +72,7 @@ log = get_logger(__name__)
 
 def _load_dynamodb_primary_key_names_for_tables() -> dict[str, set[str]]:
     try:
-        encoded_table_primary_keys = os.getenv("DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS", "{}")
+        encoded_table_primary_keys = env.get("DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS", "{}")
         raw_table_primary_keys = json.loads(encoded_table_primary_keys)
 
         table_primary_keys = {}
@@ -100,27 +100,27 @@ def _load_dynamodb_primary_key_names_for_tables() -> dict[str, set[str]]:
 config._add(
     "botocore",
     {
-        "_default_service": os.getenv("DD_BOTOCORE_SERVICE", default="aws"),
-        "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
-        "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
+        "_default_service": env.get("DD_BOTOCORE_SERVICE", default="aws"),
+        "distributed_tracing": asbool(env.get("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
+        "invoke_with_legacy_context": asbool(env.get("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
-        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
-        "instrument_internals": asbool(os.getenv("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
-        "propagation_enabled": asbool(os.getenv("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
-        "empty_poll_enabled": asbool(os.getenv("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
+        "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "instrument_internals": asbool(env.get("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
+        "propagation_enabled": asbool(env.get("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
+        "empty_poll_enabled": asbool(env.get("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
         "dynamodb_primary_key_names_for_tables": _load_dynamodb_primary_key_names_for_tables(),
-        "add_span_pointers": asbool(os.getenv("DD_BOTOCORE_ADD_SPAN_POINTERS", default=True)),
-        "payload_tagging_request": os.getenv("DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING", default=None),
-        "payload_tagging_response": os.getenv("DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING", default=None),
+        "add_span_pointers": asbool(env.get("DD_BOTOCORE_ADD_SPAN_POINTERS", default=True)),
+        "payload_tagging_request": env.get("DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING", default=None),
+        "payload_tagging_response": env.get("DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING", default=None),
         "payload_tagging_max_depth": int(
-            os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_DEPTH", 10)
+            env.get("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_DEPTH", 10)
         ),  # RFC defined 10 levels (1.2.3.4...10) as max tagging depth
         "payload_tagging_max_tags": int(
-            os.getenv("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_TAGS", 758)
+            env.get("DD_TRACE_CLOUD_PAYLOAD_TAGGING_MAX_TAGS", 758)
         ),  # RFC defined default limit - spans are limited past 1000
         "payload_tagging_services": set(
             service.strip()
-            for service in os.getenv(
+            for service in env.get(
                 "DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES", "s3,sns,sqs,kinesis,eventbridge,dynamodb"
             ).split(",")
         ),
@@ -244,7 +244,7 @@ def prep_context_injection(ctx, endpoint_name, operation, trace_operation, param
 
     core.dispatch(
         "botocore.prep_context_injection.post",
-        [ctx, cloud_service, schematization_function, injection_function, trace_operation],
+        (ctx, cloud_service, schematization_function, injection_function, trace_operation),
     )
 
 
@@ -274,7 +274,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         ) as ctx,
         ctx.span,
     ):
-        core.dispatch("botocore.patched_api_call.started", [ctx])
+        core.dispatch("botocore.patched_api_call.started", (ctx,))
         if args and config.botocore["distributed_tracing"]:
             prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
 
@@ -283,14 +283,14 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         except botocore.exceptions.ClientError as e:
             core.dispatch(
                 "botocore.patched_api_call.exception",
-                [
+                (
                     ctx,
                     e.response,
                     botocore.exceptions.ClientError,
                     config.botocore.operations[ctx.span.resource].is_error_code,
-                ],
+                ),
             )
             raise
         else:
-            core.dispatch("botocore.patched_api_call.success", [ctx, result])
+            core.dispatch("botocore.patched_api_call.success", (ctx, result))
             return result

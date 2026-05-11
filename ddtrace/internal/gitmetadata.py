@@ -1,4 +1,5 @@
-import typing  # noqa:F401
+import importlib.metadata as importlib_metadata
+import typing
 
 from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.ext.git import COMMIT_SHA
@@ -63,15 +64,14 @@ def _get_tags_from_env() -> tuple[str, str, str]:
 
 def _get_tags_from_package(main_package: str) -> tuple[str, str]:
     """
-    Extracts git metadata from python package's medatada field Project-URL:
+    Extracts git metadata from python package's metadata field Project-URL:
     e.g: Project-URL: source_code_link, https://github.com/user/repo#gitcommitsha&someoptions
     Returns tuple (repository_url, commit_sha)
     """
     if not main_package:
         return "", ""
-    try:
-        import importlib.metadata as importlib_metadata
 
+    try:
         source_code_link = ""
         for val in importlib_metadata.metadata(main_package).get_all("Project-URL") or []:
             capt_val = val.split(", ")
@@ -129,7 +129,7 @@ def clean_tags(tags: dict[str, str]) -> dict[str, str]:
     return tags
 
 
-def add_tags(tags):
+def add_tags(tags: dict[str, str]) -> None:
     clean_tags(tags)
 
     repository_url, commit_sha, main_package = get_git_tags()

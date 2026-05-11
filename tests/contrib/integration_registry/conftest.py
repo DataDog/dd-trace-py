@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import re
 from typing import Any
+from typing import cast
 
 import pytest
 import yaml
@@ -25,15 +26,15 @@ def internal_contrib_dir(contrib_dir: Path) -> Path:
 
 
 @pytest.fixture(scope="module")
-def registry_yaml_path(contrib_dir: Path) -> Path:
+def registry_yaml_path(project_root: Path) -> Path:
     """Returns the path to the registry.yaml file."""
-    return contrib_dir / "integration_registry" / "registry.yaml"
+    return project_root / "scripts" / "integration_registry" / "registry.yaml"
 
 
 @pytest.fixture(scope="module")
-def registry_schema_path(contrib_dir: Path) -> Path:
+def registry_schema_path(project_root: Path) -> Path:
     """Returns the path to the registry.schema.json file."""
-    return contrib_dir / "integration_registry" / "_registry_schema.json"
+    return project_root / "scripts" / "integration_registry" / "_registry_schema.json"
 
 
 @pytest.fixture(scope="module")
@@ -60,9 +61,9 @@ def registry_data(registry_content: dict, registry_yaml_path: Path) -> list[dict
     integrations = registry_content.get("integrations")
     if not isinstance(integrations, list):
         pytest.fail(f"Invalid structure in {registry_yaml_path}: Expected 'integrations' key with a list value.")
-    if not all(isinstance(item, dict) for item in integrations):
+    if not all(isinstance(item, dict) for item in cast(list, integrations)):
         pytest.fail(f"Invalid structure in {registry_yaml_path}: 'integrations' list should contain objects.")
-    return integrations
+    return cast(list[dict], integrations)
 
 
 @pytest.fixture(scope="module")
@@ -121,7 +122,7 @@ def untested_integrations(registry_data: list[dict]) -> set[str]:
             names.add(name)
 
     # TODO: wconnti27: remove this and ensure this list populates registry.yaml
-    from ddtrace.contrib.integration_registry.mappings import EXCLUDED_FROM_TESTING
+    from mappings import EXCLUDED_FROM_TESTING
 
     for name in EXCLUDED_FROM_TESTING:
         names.add(name)
@@ -147,9 +148,9 @@ def integration_dir_names(internal_contrib_dir: Path) -> set[str]:
 
 
 @pytest.fixture(scope="module")
-def riot_venvs() -> set[str]:
+def riot_venvs() -> Any:
     """Gets all Venv defined in riotfile.py."""
-    return riotfile.venv.venvs
+    return riotfile.venv.venvs  # type: ignore[attr-defined]
 
 
 @pytest.fixture(scope="module")
@@ -157,7 +158,7 @@ def riot_venv_names() -> set[str]:
     """Finds all Venv names defined in riotfile.py."""
 
     names: set[str] = set()
-    nodes_to_visit: list[Any] = [riotfile.venv]
+    nodes_to_visit: list[Any] = [riotfile.venv]  # type: ignore[attr-defined]
 
     while nodes_to_visit:
         current_node = nodes_to_visit.pop()
@@ -181,7 +182,7 @@ def docs_index_path(project_root: Path) -> Path:
 @pytest.fixture(scope="module")
 def dependency_to_integration_mapping() -> dict[str, str]:
     """Returns the dependency to integration mapping from the registry mappings."""
-    from ddtrace.contrib.integration_registry.mappings import DEPENDENCY_TO_INTEGRATION_MAPPING
+    from mappings import DEPENDENCY_TO_INTEGRATION_MAPPING
 
     return DEPENDENCY_TO_INTEGRATION_MAPPING
 

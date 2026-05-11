@@ -1,0 +1,358 @@
+[[
+  {
+    "name": "Bedrock Agent EITYAHSOCJ",
+    "service": "aws",
+    "resource": "aws.bedrock-agent-runtime",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.botocore",
+      "_dd.llmobs.model_provider": "bedrock",
+      "_dd.llmobs.span_kind": "agent",
+      "_dd.llmobs.submitted": "1",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69f9fc8100000000",
+      "_dd.svc_src": "botocore",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.botocore",
+      "language": "python",
+      "llmobs_parent_id": "539914402737329314",
+      "llmobs_trace_id": "69f9fc8100000000a5c01015da122cd8",
+      "runtime-id": "826e7b3996074025a3b94a51ad8f1a57"
+    },
+    "metrics": {
+      "_dd.llmobs.enabled": 1.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 27635.0
+    },
+    "duration": 29364696349408000,
+    "start": 1748626088886678016
+  },
+     {
+       "name": "guardrailTrace Step",
+       "service": "aws",
+       "resource": "guardrailTrace Step",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.botocore",
+         "_dd.llmobs.submitted": "1",
+         "_dd.svc_src": "botocore"
+       },
+       "duration": 364999936,
+       "start": 1748626088886678016
+     },
+        {
+          "name": "guardrail",
+          "service": "aws",
+          "resource": "guardrail",
+          "trace_id": 0,
+          "span_id": 8,
+          "parent_id": 2,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.contrib.botocore",
+            "_dd.llmobs.submitted": "1",
+            "_dd.svc_src": "botocore"
+          },
+          "duration": 364999936,
+          "start": 1748626088886678016
+        },
+     {
+       "name": "orchestrationTrace Step",
+       "service": "aws",
+       "resource": "orchestrationTrace Step",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.botocore",
+         "_dd.llmobs.submitted": "1",
+         "_dd.svc_src": "botocore"
+       },
+       "duration": 6617870080,
+       "start": 1748626089287908096
+     },
+        {
+          "name": "modelInvocation",
+          "service": "aws",
+          "resource": "modelInvocation",
+          "trace_id": 0,
+          "span_id": 9,
+          "parent_id": 3,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.contrib.botocore",
+            "_dd.llmobs.submitted": "1",
+            "_dd.svc_src": "botocore"
+          },
+          "duration": 6252000000,
+          "start": 1748626089288150016
+        },
+        {
+          "name": "reasoning",
+          "service": "aws",
+          "resource": "reasoning",
+          "trace_id": 0,
+          "span_id": 10,
+          "parent_id": 3,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.contrib.botocore",
+            "_dd.llmobs.submitted": "1",
+            "_dd.svc_src": "botocore"
+          },
+          "duration": 999936,
+          "start": 1748626095542091008
+        },
+        {
+          "name": "location_suggestion",
+          "service": "aws",
+          "resource": "location_suggestion",
+          "trace_id": 0,
+          "span_id": 11,
+          "parent_id": 3,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.contrib.botocore",
+            "_dd.llmobs.submitted": "1",
+            "_dd.svc_src": "botocore"
+          },
+          "duration": 362000128,
+          "start": 1748626095543778048
+        },
+     {
+       "name": "orchestrationTrace Step",
+       "service": "aws",
+       "resource": "orchestrationTrace Step",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.botocore",
+         "_dd.llmobs.submitted": "1",
+         "_dd.svc_src": "botocore"
+       },
+       "duration": 2543670016,
+       "start": 1748626095908092928
+     },
+        {
+          "name": "modelInvocation",
+          "service": "aws",
+          "resource": "modelInvocation",
+          "trace_id": 0,
+          "span_id": 12,
+          "parent_id": 4,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.contrib.botocore",
+            "_dd.llmobs.submitted": "1",
+            "_dd.svc_src": "botocore"
+          },
+          "duration": 2523000064,
+          "start": 1748626095908442880
+        },
+        {
+          "name": "reasoning",
+          "service": "aws",
+          "resource": "reasoning",
+          "trace_id": 0,
+          "span_id": 13,
+          "parent_id": 4,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.contrib.botocore",
+            "_dd.llmobs.submitted": "1",
+            "_dd.svc_src": "botocore"
+          },
+          "duration": 999936,
+          "start": 1748626098432940032
+        },
+        {
+          "name": "location_suggestion",
+          "service": "aws",
+          "resource": "location_suggestion",
+          "trace_id": 0,
+          "span_id": 14,
+          "parent_id": 4,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.contrib.botocore",
+            "_dd.llmobs.submitted": "1",
+            "_dd.svc_src": "botocore"
+          },
+          "duration": 16999936,
+          "start": 1748626098434763008
+        },
+     {
+       "name": "orchestrationTrace Step",
+       "service": "aws",
+       "resource": "orchestrationTrace Step",
+       "trace_id": 0,
+       "span_id": 5,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.botocore",
+         "_dd.llmobs.submitted": "1",
+         "_dd.svc_src": "botocore"
+       },
+       "duration": 3233084928,
+       "start": 1748626098453121024
+     },
+        {
+          "name": "modelInvocation",
+          "service": "aws",
+          "resource": "modelInvocation",
+          "trace_id": 0,
+          "span_id": 15,
+          "parent_id": 5,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.contrib.botocore",
+            "_dd.llmobs.submitted": "1",
+            "_dd.svc_src": "botocore"
+          },
+          "duration": 3216000000,
+          "start": 1748626098453502976
+        },
+        {
+          "name": "reasoning",
+          "service": "aws",
+          "resource": "reasoning",
+          "trace_id": 0,
+          "span_id": 16,
+          "parent_id": 5,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.contrib.botocore",
+            "_dd.llmobs.submitted": "1",
+            "_dd.svc_src": "botocore"
+          },
+          "duration": 999936,
+          "start": 1748626101670398976
+        },
+        {
+          "name": "location_suggestion",
+          "service": "aws",
+          "resource": "location_suggestion",
+          "trace_id": 0,
+          "span_id": 17,
+          "parent_id": 5,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.contrib.botocore",
+            "_dd.llmobs.submitted": "1",
+            "_dd.svc_src": "botocore"
+          },
+          "duration": 14000128,
+          "start": 1748626101672205824
+        },
+     {
+       "name": "orchestrationTrace Step",
+       "service": "aws",
+       "resource": "orchestrationTrace Step",
+       "trace_id": 0,
+       "span_id": 6,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.botocore",
+         "_dd.llmobs.submitted": "1",
+         "_dd.svc_src": "botocore"
+       },
+       "duration": 8901772032,
+       "start": 1748626101689204992
+     },
+        {
+          "name": "modelInvocation",
+          "service": "aws",
+          "resource": "modelInvocation",
+          "trace_id": 0,
+          "span_id": 18,
+          "parent_id": 6,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.contrib.botocore",
+            "_dd.llmobs.submitted": "1",
+            "_dd.svc_src": "botocore"
+          },
+          "duration": 8900000000,
+          "start": 1748626101689591040
+        },
+        {
+          "name": "reasoning",
+          "service": "aws",
+          "resource": "reasoning",
+          "trace_id": 0,
+          "span_id": 19,
+          "parent_id": 6,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.contrib.botocore",
+            "_dd.llmobs.submitted": "1",
+            "_dd.svc_src": "botocore"
+          },
+          "duration": 999936,
+          "start": 1748626110589977088
+        },
+     {
+       "name": "guardrailTrace Step",
+       "service": "aws",
+       "resource": "guardrailTrace Step",
+       "trace_id": 0,
+       "span_id": 7,
+       "parent_id": 1,
+       "type": "llm",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.botocore",
+         "_dd.llmobs.submitted": "1",
+         "_dd.svc_src": "botocore"
+       },
+       "duration": 229999872,
+       "start": 1748626110590828800
+     },
+        {
+          "name": "guardrail",
+          "service": "aws",
+          "resource": "guardrail",
+          "trace_id": 0,
+          "span_id": 20,
+          "parent_id": 7,
+          "type": "llm",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "tests.contrib.botocore",
+            "_dd.llmobs.submitted": "1",
+            "_dd.svc_src": "botocore"
+          },
+          "duration": 229999872,
+          "start": 1748626110590828800
+        }]]
