@@ -43,20 +43,10 @@ def test_gather_triggers_link_tasks() -> None:
     """
     import asyncio
 
-    from ddtrace.internal.datadog.profiling import stack
-    from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import captured_link_calls
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
-    p = profiler.Profiler()
-    p.start()
-    try:
-        recorded_children: list[int] = []
-        original_link = stack.link_tasks
-
-        def recorder(parent, child) -> None:
-            recorded_children.append(id(child))
-            return original_link(parent, child)
-
-        stack.link_tasks = recorder
+    with started_profiler(), captured_link_calls("link_tasks") as recorded:
 
         async def child() -> int:
             await asyncio.sleep(0)
@@ -70,36 +60,21 @@ def test_gather_triggers_link_tasks() -> None:
 
         t1_id, t2_id = asyncio.run(main())
 
-        assert t1_id in recorded_children, "gather did not link first child"
-        assert t2_id in recorded_children, "gather did not link second child"
-    finally:
-        p.stop()
+        assert t1_id in recorded, "gather did not link first child"
+        assert t2_id in recorded, "gather did not link second child"
 
 
 @pytest.mark.subprocess(err=None)
 def test_shield_triggers_link_tasks() -> None:
     """``asyncio.shield(awaitable)`` must invoke ``stack.link_tasks`` for the
-    shielded future. The wrapper additionally wraps the awaitable into a
-    ``Future`` via ``ensure_future`` and substitutes it back into the call —
-    we only check that link_tasks fires; the substitution correctness is
-    covered by the existing ``test_asyncio_shield.py`` integration test.
+    shielded future.
     """
     import asyncio
 
-    from ddtrace.internal.datadog.profiling import stack
-    from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import captured_link_calls
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
-    p = profiler.Profiler()
-    p.start()
-    try:
-        recorded: list[int] = []
-        original_link = stack.link_tasks
-
-        def recorder(parent, child) -> None:
-            recorded.append(id(child))
-            return original_link(parent, child)
-
-        stack.link_tasks = recorder
+    with started_profiler(), captured_link_calls("link_tasks") as recorded:
 
         async def child() -> int:
             await asyncio.sleep(0)
@@ -108,11 +83,8 @@ def test_shield_triggers_link_tasks() -> None:
         async def main() -> int:
             return await asyncio.shield(child())
 
-        result = asyncio.run(main())
-        assert result == 7
+        assert asyncio.run(main()) == 7
         assert len(recorded) >= 1, "shield did not fire link_tasks"
-    finally:
-        p.stop()
 
 
 @pytest.mark.subprocess(err=None)
@@ -122,39 +94,23 @@ def test_as_completed_triggers_link_tasks_per_child() -> None:
     """
     import asyncio
 
-    from ddtrace.internal.datadog.profiling import stack
-    from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import captured_link_calls
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
-    p = profiler.Profiler()
-    p.start()
-    try:
-        recorded: list[int] = []
-        original_link = stack.link_tasks
-
-        def recorder(parent, child) -> None:
-            recorded.append(id(child))
-            return original_link(parent, child)
-
-        stack.link_tasks = recorder
+    with started_profiler(), captured_link_calls("link_tasks") as recorded:
 
         async def child(x: int) -> int:
             await asyncio.sleep(0)
             return x
 
         async def main() -> list[int]:
-            coros = [child(i) for i in range(3)]
             results = []
-            for fut in asyncio.as_completed(coros):
+            for fut in asyncio.as_completed([child(i) for i in range(3)]):
                 results.append(await fut)
             return sorted(results)
 
-        results = asyncio.run(main())
-        assert results == [0, 1, 2]
-        # as_completed wraps each coro into a Future via ensure_future and
-        # links each one — so we expect at least 3 callbacks.
-        assert len(recorded) >= 3, "as_completed fired link_tasks %d times, expected >= 3" % len(recorded)
-    finally:
-        p.stop()
+        assert asyncio.run(main()) == [0, 1, 2]
+        assert len(recorded) >= 3, f"as_completed fired link_tasks {len(recorded)} times, expected >= 3"
 
 
 @pytest.mark.subprocess(err=None)
@@ -164,20 +120,10 @@ def test_wait_triggers_link_tasks_per_future() -> None:
     """
     import asyncio
 
-    from ddtrace.internal.datadog.profiling import stack
-    from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import captured_link_calls
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
-    p = profiler.Profiler()
-    p.start()
-    try:
-        recorded: list[int] = []
-        original_link = stack.link_tasks
-
-        def recorder(parent, child) -> None:
-            recorded.append(id(child))
-            return original_link(parent, child)
-
-        stack.link_tasks = recorder
+    with started_profiler(), captured_link_calls("link_tasks") as recorded:
 
         async def child() -> None:
             await asyncio.sleep(0)
@@ -189,12 +135,8 @@ def test_wait_triggers_link_tasks_per_future() -> None:
             return id(t1), id(t2)
 
         t1_id, t2_id = asyncio.run(main())
-        # wait may also fire gather-style link_tasks on the inner _GatheringFuture
-        # — we only require both leaf futures show up.
         assert t1_id in recorded, "wait did not link first future"
         assert t2_id in recorded, "wait did not link second future"
-    finally:
-        p.stop()
 
 
 @pytest.mark.skipif(sys.version_info < (3, 11), reason="TaskGroup is Python 3.11+")
@@ -205,20 +147,10 @@ def test_taskgroup_triggers_link_tasks() -> None:
     """
     import asyncio
 
-    from ddtrace.internal.datadog.profiling import stack
-    from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import captured_link_calls
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
-    p = profiler.Profiler()
-    p.start()
-    try:
-        recorded: list[int] = []
-        original_link = stack.link_tasks
-
-        def recorder(parent, child) -> None:
-            recorded.append(id(child))
-            return original_link(parent, child)
-
-        stack.link_tasks = recorder
+    with started_profiler(), captured_link_calls("link_tasks") as recorded:
 
         async def child(x: int) -> int:
             await asyncio.sleep(0)
@@ -226,19 +158,16 @@ def test_taskgroup_triggers_link_tasks() -> None:
 
         async def main() -> list[int]:
             results: list[int] = []
-            # mypy doesn't know about TaskGroup on older type stubs and the
-            # skipif gate above means this code only runs on 3.11+.
+            # mypy doesn't know about TaskGroup on older type stubs; the
+            # skipif gate above means this only runs on 3.11+.
             async with asyncio.TaskGroup() as tg:  # type: ignore[attr-defined]
                 tasks = [tg.create_task(child(i)) for i in range(3)]
             for t in tasks:
                 results.append(t.result())
             return sorted(results)
 
-        results = asyncio.run(main())
-        assert results == [0, 1, 2]
-        assert len(recorded) >= 3, "TaskGroup.create_task fired link_tasks %d times, expected >= 3" % len(recorded)
-    finally:
-        p.stop()
+        assert asyncio.run(main()) == [0, 1, 2]
+        assert len(recorded) >= 3, f"TaskGroup.create_task fired link_tasks {len(recorded)} times, expected >= 3"
 
 
 @pytest.mark.subprocess(err=None)
@@ -248,22 +177,10 @@ def test_set_event_loop_triggers_track_asyncio_loop() -> None:
     """
     import asyncio
 
-    from ddtrace.internal.datadog.profiling import stack
-    from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import captured_link_calls
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
-    p = profiler.Profiler()
-    p.start()
-    try:
-        recorded: list[int] = []
-        original_track = stack.track_asyncio_loop
-
-        def recorder(thread_id, loop) -> None:
-            if loop is not None:
-                recorded.append(id(loop))
-            return original_track(thread_id, loop)
-
-        stack.track_asyncio_loop = recorder
-
+    with started_profiler(), captured_link_calls("track_asyncio_loop") as recorded:
         loop = asyncio.new_event_loop()
         try:
             asyncio.set_event_loop(loop)
@@ -271,8 +188,6 @@ def test_set_event_loop_triggers_track_asyncio_loop() -> None:
         finally:
             asyncio.set_event_loop(None)
             loop.close()
-    finally:
-        p.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -321,20 +236,10 @@ def test_pre_cached_reference_still_triggers_callback() -> None:
     # modules effectively do at their own module-init time.
     from asyncio.tasks import create_task as pre_cached_create_task
 
-    from ddtrace.internal.datadog.profiling import stack
-    from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import captured_link_calls
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
-    p = profiler.Profiler()
-    p.start()
-    try:
-        recorded_child_ids: list[int] = []
-        original_weak_link = stack.weak_link_tasks
-
-        def recorder(parent, child) -> None:
-            recorded_child_ids.append(id(child))
-            return original_weak_link(parent, child)
-
-        stack.weak_link_tasks = recorder
+    with started_profiler(), captured_link_calls("weak_link_tasks") as recorded:
 
         async def child() -> None:
             await asyncio.sleep(0)
@@ -347,13 +252,11 @@ def test_pre_cached_reference_still_triggers_callback() -> None:
 
         task_id = asyncio.run(main())
 
-        assert task_id in recorded_child_ids, (
+        assert task_id in recorded, (
             "create_task invoked through a reference cached before profiler "
             "start did not trigger stack.weak_link_tasks — identity-preserving "
             "wrap is broken"
         )
-    finally:
-        p.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -372,11 +275,9 @@ def test_keyword_arg_form_does_not_double_substitute() -> None:
     """
     import asyncio
 
-    from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
-    p = profiler.Profiler()
-    p.start()
-    try:
+    with started_profiler():
 
         async def child(x: int) -> int:
             await asyncio.sleep(0)
@@ -393,8 +294,6 @@ def test_keyword_arg_form_does_not_double_substitute() -> None:
 
         assert asyncio.run(main_shield()) == 11
         assert asyncio.run(main_as_completed()) == [0, 1, 2]
-    finally:
-        p.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -410,11 +309,9 @@ def test_gather_with_return_exceptions_keeps_kwarg() -> None:
     """
     import asyncio
 
-    from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
-    p = profiler.Profiler()
-    p.start()
-    try:
+    with started_profiler():
 
         async def good() -> int:
             return 1
@@ -427,8 +324,6 @@ def test_gather_with_return_exceptions_keeps_kwarg() -> None:
             return [type(r).__name__ if isinstance(r, BaseException) else r for r in results]
 
         assert asyncio.run(main()) == [1, "ValueError"]
-    finally:
-        p.stop()
 
 
 @pytest.mark.subprocess(err=None)
@@ -436,11 +331,9 @@ def test_wait_returns_done_pending_tuple() -> None:
     """``asyncio.wait`` must still return a ``(done, pending)`` tuple."""
     import asyncio
 
-    from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
-    p = profiler.Profiler()
-    p.start()
-    try:
+    with started_profiler():
 
         async def child(x: int) -> int:
             await asyncio.sleep(0)
@@ -455,8 +348,6 @@ def test_wait_returns_done_pending_tuple() -> None:
         n_done, n_pending = asyncio.run(main())
         assert n_done == 2
         assert n_pending == 0
-    finally:
-        p.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -471,30 +362,16 @@ def test_gather_empty_does_not_link() -> None:
     """
     import asyncio
 
-    from ddtrace.internal.datadog.profiling import stack
-    from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import captured_link_calls
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
-    p = profiler.Profiler()
-    p.start()
-    try:
-        recorded: list[int] = []
-        original_link = stack.link_tasks
-
-        def recorder(parent, child) -> None:
-            recorded.append(id(child))
-            return original_link(parent, child)
-
-        stack.link_tasks = recorder
+    with started_profiler(), captured_link_calls("link_tasks") as recorded:
 
         async def main():
             return await asyncio.gather()
 
-        result = asyncio.run(main())
-        assert result == []
-        # Empty gather → no children → no link_tasks calls
+        assert asyncio.run(main()) == []
         assert recorded == [], f"Empty gather fired link_tasks: {recorded}"
-    finally:
-        p.stop()
 
 
 @pytest.mark.subprocess(err=None)
@@ -504,11 +381,9 @@ def test_create_task_propagates_exception() -> None:
     """
     import asyncio
 
-    from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
-    p = profiler.Profiler()
-    p.start()
-    try:
+    with started_profiler():
 
         async def child() -> int:
             raise RuntimeError("expected boom")
@@ -522,8 +397,6 @@ def test_create_task_propagates_exception() -> None:
             return None
 
         assert asyncio.run(main()) == "expected boom"
-    finally:
-        p.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -540,11 +413,9 @@ def test_taskgroup_exception_propagates_through_wrapper() -> None:
     """
     import asyncio
 
-    from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
-    p = profiler.Profiler()
-    p.start()
-    try:
+    with started_profiler():
 
         async def child_ok() -> int:
             await asyncio.sleep(0)
@@ -559,8 +430,6 @@ def test_taskgroup_exception_propagates_through_wrapper() -> None:
                     tg.create_task(child_ok())
                     tg.create_task(child_bad())
             except BaseException as outer:
-                # Could be ExceptionGroup (3.11+) or BaseExceptionGroup;
-                # check the structure includes our ValueError.
                 exc_strs = []
 
                 def collect(e):
@@ -574,10 +443,7 @@ def test_taskgroup_exception_propagates_through_wrapper() -> None:
                 return exc_strs
             return []
 
-        result = asyncio.run(main())
-        assert ("ValueError", "expected") in result, f"Unexpected: {result}"
-    finally:
-        p.stop()
+        assert ("ValueError", "expected") in asyncio.run(main())
 
 
 # ---------------------------------------------------------------------------
@@ -594,35 +460,30 @@ def test_wrapping_persists_across_profiler_restart() -> None:
     """
     import asyncio
 
-    from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
+    from tests.profiling.collector._asyncio_wrap_helpers import captured_link_calls
 
+    # First cycle: start + stop.
     p = profiler.Profiler()
     p.start()
     p.stop()
 
+    # Second cycle: wraps should still be in place.
     p2 = profiler.Profiler()
     p2.start()
     try:
-        recorded: list[int] = []
-        original = stack.weak_link_tasks
+        with captured_link_calls("weak_link_tasks") as recorded:
 
-        def recorder(parent, child) -> None:
-            recorded.append(id(child))
-            return original(parent, child)
+            async def child() -> None:
+                await asyncio.sleep(0)
 
-        stack.weak_link_tasks = recorder
+            async def main():
+                t = asyncio.create_task(child())
+                await t
+                return id(t)
 
-        async def child() -> None:
-            await asyncio.sleep(0)
-
-        async def main():
-            t = asyncio.create_task(child())
-            await t
-            return id(t)
-
-        task_id = asyncio.run(main())
-        assert task_id in recorded, "Wrapping did not survive profiler restart"
+            task_id = asyncio.run(main())
+            assert task_id in recorded, "Wrapping did not survive profiler restart"
     finally:
         p2.stop()
 
