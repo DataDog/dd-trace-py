@@ -1,6 +1,5 @@
 from abc import ABC
 from abc import abstractmethod
-import asyncio
 from copy import copy
 from copy import deepcopy
 from dataclasses import dataclass
@@ -1289,8 +1288,8 @@ def _build_span_copies(
     timestamps = [r["timestamp"] for r in rows_with_span if r.get("timestamp")]
     min_start_ns = min(timestamps) if timestamps else 0
     offset_ns = time.time_ns() - min_start_ns
-    new_trace_id = str(uuid.uuid4())
-    id_map: dict[str, str] = {r["span_id"]: str(uuid.uuid4()) for r in rows_with_span}
+    new_trace_id = uuid.uuid4().hex
+    id_map: dict[str, str] = {r["span_id"]: uuid.uuid4().hex for r in rows_with_span}
 
     spans = []
     for row in rows_with_span:
@@ -3377,6 +3376,7 @@ class SyncExperiment:
                             with rows that have task errors, LLMObs is not enabled, or the
                             experiment has not been run yet (``self._experiment._id`` is None).
         """
+        asyncio = get_asyncio()
         if missing_task_strategy not in ("raise", "skip", "retry"):
             raise ValueError(
                 "missing_task_strategy must be 'raise', 'skip', or 'retry', got '{}'.".format(missing_task_strategy)
