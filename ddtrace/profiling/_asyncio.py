@@ -24,43 +24,27 @@ from ddtrace.internal.utils import get_argument_value
 ASYNCIO_IMPORTED: bool = False
 
 
-# Trampoline dispatch table.
+# Wrap registry, looked up at call time by the trampoline's bytecode.
 # Key: ``id(code)`` of the trampoline-clone we grafted onto the wrapped
 # function. Each wrap site gets a fresh code object via ``code.replace()``
 # so ids are unique. The code object is kept alive by ``original.__code__``.
 # Value: (user_wrapper, original_copy)
-_WRAP_REGISTRY: dict[int, tuple[typing.Callable[..., typing.Any], types.FunctionType]] = {}
+_ddtrace_wrap_registry: dict[int, tuple[typing.Callable[..., typing.Any], types.FunctionType]] = {}
 
 
-def _ddtrace_dispatch_wrap(args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> typing.Any:
-    """Sync dispatcher — called by the sync trampoline template's bytecode.
-
-    Identifies which wrap site is calling by reading the caller frame's
-    code-object id.  Each wrapped function has a unique cloned trampoline
-    code object (via ``code.replace()``), so ``id(f_code)`` is a stable
-    per-wrap-site key.
-    """
-    wrapper, original_copy = _WRAP_REGISTRY[id(sys._getframe(1).f_code)]
+# Template trampolines: their ``__code__`` is what we clone via
+# ``CodeType.replace()`` per wrap site and graft onto the original
+# function.  Each clone has a unique ``id(code)`` which the trampoline
+# itself reads via ``sys._getframe(0).f_code`` to look up its wrapper.
+# Two templates (sync / async) cover all wrap targets.
+def _ddtrace_trampoline_sync(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+    wrapper, original_copy = _ddtrace_wrap_registry[id(sys._getframe(0).f_code)]
     return wrapper(original_copy, args, kwargs)
 
 
-async def _ddtrace_dispatch_wrap_async(args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> typing.Any:
-    """Async dispatcher for coroutine-function wrap sites — see sync variant."""
-    wrapper, original_copy = _WRAP_REGISTRY[id(sys._getframe(1).f_code)]
-    return await wrapper(original_copy, args, kwargs)
-
-
-# Template trampolines.  Their ``__code__`` is the bytecode we reuse: per
-# wrap site we ``replace()`` the template's code object to stamp the
-# original's filename / lineno / co_name, then graft it onto the original
-# function.  Each ``.replace()`` returns a fresh code object, giving the
-# dispatcher's ``id(f_code)`` lookup a unique key per wrap site.
-def _ddtrace_trampoline_sync(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
-    return _ddtrace_dispatch_wrap(args, kwargs)
-
-
 async def _ddtrace_trampoline_async(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
-    return await _ddtrace_dispatch_wrap_async(args, kwargs)
+    wrapper, original_copy = _ddtrace_wrap_registry[id(sys._getframe(0).f_code)]
+    return await wrapper(original_copy, args, kwargs)
 
 
 def _wrap(
@@ -103,7 +87,6 @@ def _wrap(
 
         is_async = inspect.iscoroutinefunction(original)
         template = _ddtrace_trampoline_async if is_async else _ddtrace_trampoline_sync
-        dispatcher = _ddtrace_dispatch_wrap_async if is_async else _ddtrace_dispatch_wrap
 
         # Clone the template's bytecode and stamp original's metadata for
         # stack-trace clarity.  ``replace()`` always returns a new code
@@ -113,14 +96,23 @@ def _wrap(
             co_firstlineno=original.__code__.co_firstlineno,
             co_name=original.__code__.co_name,
         )
-        _WRAP_REGISTRY[id(new_code)] = (wrapper, original_copy)
+        _ddtrace_wrap_registry[id(new_code)] = (wrapper, original_copy)
 
-        # The trampoline bytecode uses LOAD_GLOBAL on the dispatcher name,
-        # resolved against original's module globals at call time.  Inject
-        # it there once per module (idempotent across wrap sites).
-        original.__globals__.setdefault(dispatcher.__name__, dispatcher)
+        # The trampoline bytecode does LOAD_GLOBAL on ``_ddtrace_wrap_registry``
+        # and ``sys``, resolved against original's module globals at call
+        # time.  Inject both (sys is normally already imported by asyncio
+        # internals, but ``setdefault`` is harmless and covers exotic
+        # targets).  Idempotent across wrap sites in the same module.
+        original.__globals__.setdefault("_ddtrace_wrap_registry", _ddtrace_wrap_registry)
+        original.__globals__.setdefault("sys", sys)
 
         original.__code__ = new_code
+        # Preserve introspection: the trampoline's (*args, **kwargs) shape
+        # would otherwise leak through to ``inspect.signature(original)``
+        # and break callers that adapt to the original signature (FastAPI,
+        # validators, etc.).  ``inspect.signature`` follows ``__wrapped__``
+        # to return the underlying callable's signature.
+        original.__wrapped__ = original_copy  # type: ignore[attr-defined]
         return original
 
     # Fallback for Cython / C builtins or Python functions with closure
