@@ -35,6 +35,11 @@ venv = Venv(
         "DD_TRACE_COMPUTE_STATS": "false",
     },
     venvs=[
+        Venv(
+            name="smoke_test",
+            command="python tests/smoke_test.py {cmdargs}",
+            pys=select_pys(),
+        ),
         # VERSION_SUPPORT_VENVS_START
         # VERSION_SUPPORT_VENVS_END
     ],

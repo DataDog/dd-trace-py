@@ -9,6 +9,10 @@ import pprint
 import shutil
 from typing import Any
 
+from packaging.specifiers import InvalidSpecifier
+from packaging.specifiers import SpecifierSet
+from packaging.version import InvalidVersion
+from packaging.version import Version
 from riot import Venv
 
 import riotfile
@@ -109,9 +113,75 @@ def _get_venv_python_versions(venv: Venv) -> list[str]:
     return [getattr(py, "_hint", py) for py in pys]
 
 
-def _merge_base_child_defaults(base_venv: Venv, target: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    """Merge package and env defaults from matching base child Venvs."""
-    matched_children = []
+def _as_list(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
+def _version_matches_specifier(version: str, specifier: str) -> bool:
+    """Return whether an exact version satisfies a riot package specifier."""
+    if specifier == "":
+        return True
+    try:
+        return Version(version.lstrip("=")) in SpecifierSet(specifier)
+    except (InvalidSpecifier, InvalidVersion):
+        return False
+
+
+def _target_versions_match_package_spec(target_versions: list[str], package_spec: Any) -> bool:
+    """Return whether all requested exact versions fit a riot package spec."""
+    specifiers = _as_list(package_spec)
+    for target_version in target_versions:
+        if not isinstance(target_version, str):
+            return False
+        if not any(
+            isinstance(specifier, str) and _version_matches_specifier(target_version, specifier)
+            for specifier in specifiers
+        ):
+            return False
+    return True
+
+
+def _version_match_score(package_spec: Any) -> int:
+    """Prefer more-specific riot child defaults when multiple specs match."""
+    score = 0
+    for specifier in _as_list(package_spec):
+        if not isinstance(specifier, str):
+            continue
+        if specifier.startswith("=="):
+            score = max(score, 4)
+        elif specifier.startswith("~="):
+            score = max(score, 3)
+        elif specifier:
+            score = max(score, 2)
+        else:
+            score = max(score, 1)
+    return score
+
+
+def _find_version_matched_child(base_venv: Venv, target: dict[str, Any]) -> Venv | None:
+    """Find the child Venv whose package constraints best match the requested version."""
+    package = target["package"]
+    target_versions = target["version_to_test"]
+    matches = []
+    for child in base_venv.venvs:
+        child_pkgs = getattr(child, "pkgs", None) or {}
+        if package not in child_pkgs:
+            continue
+        package_spec = child_pkgs[package]
+        if _target_versions_match_package_spec(target_versions, package_spec):
+            matches.append((_version_match_score(package_spec), child))
+    if not matches:
+        return None
+    return max(matches, key=lambda item: item[0])[1]
+
+
+def _merge_base_child_defaults(
+    base_venv: Venv, target: dict[str, Any]
+) -> tuple[str | None, dict[str, Any], dict[str, Any] | None]:
+    """Merge package/env/command defaults from matching base child Venvs."""
+    matched_python_children = []
     matched_child_ids = set()
     for py in target["pys"]:
         for child in base_venv.venvs:
@@ -119,22 +189,29 @@ def _merge_base_child_defaults(base_venv: Venv, target: dict[str, Any]) -> tuple
                 continue
             child_id = id(child)
             if child_id not in matched_child_ids:
-                matched_children.append(child)
+                matched_python_children.append(child)
                 matched_child_ids.add(child_id)
             break
 
-    pkgs = {}
-    env = {}
-    for child in matched_children:
+    version_child = _find_version_matched_child(base_venv, target)
+
+    pkgs = dict(getattr(base_venv, "pkgs", None) or {})
+    env = dict(getattr(base_venv, "env", None) or {})
+    command = getattr(base_venv, "command", None)
+    for child in matched_python_children:
         pkgs.update(getattr(child, "pkgs", None) or {})
         env.update(getattr(child, "env", None) or {})
+    if version_child is not None:
+        command = getattr(version_child, "command", None) or command
+        pkgs.update(getattr(version_child, "pkgs", None) or {})
+        env.update(getattr(version_child, "env", None) or {})
 
     pkgs[target["package"]] = target["version_to_test"]
     pkgs.update(target["pkgs"])
 
     target_env = target["env"] or {}
     env.update(target_env)
-    return pkgs, env or None
+    return command, pkgs, env or None
 
 
 def generate_new_riot_venvs(test_spec, base_venvs):
@@ -145,11 +222,13 @@ def generate_new_riot_venvs(test_spec, base_venvs):
         children = []
         base_venv = base_venvs_by_name[integration_name]
         for target in targets:
-            pkgs, env = _merge_base_child_defaults(base_venv, target)
+            command, pkgs, env = _merge_base_child_defaults(base_venv, target)
             kwargs = {
                 "pys": target["pys"],
                 "pkgs": pkgs,
             }
+            if command:
+                kwargs["command"] = command
             if env:
                 kwargs["env"] = env
             child = Venv(**kwargs)
@@ -253,7 +332,48 @@ def _needs_for_python_versions(pys: set[str]) -> str:
     return "\n".join(lines)
 
 
-def write_pipeline(suite_specs: list[str], test_spec: dict[str, list[dict[str, Any]]]) -> None:
+def _yaml_scalar(value: Any) -> str:
+    if isinstance(value, bool):
+        return f'"{str(value).lower()}"'
+    if value is None:
+        return '""'
+    return f'"{str(value).replace(chr(92), chr(92) + chr(92)).replace(chr(34), chr(92) + chr(34))}"'
+
+
+def _suite_services(suite_spec: dict[str, Any]) -> list[str]:
+    services = ["ddagent"]
+    if suite_spec.get("snapshot"):
+        services.append("testagent")
+    for service in suite_spec.get("services", []) or []:
+        if service not in services:
+            services.append(service)
+    return services
+
+
+def _render_suite_services(suite_spec: dict[str, Any]) -> str:
+    return "\n".join(f"    - !reference [.services, {service}]" for service in _suite_services(suite_spec))
+
+
+def _render_suite_before_script(suite_spec: dict[str, Any]) -> str:
+    lines = ["    - !reference [.version_support_base_riot, before_script]"]
+    wait_for = list(suite_spec.get("services", []) or [])
+    if suite_spec.get("snapshot"):
+        lines.append('    - export DD_TRACE_AGENT_URL="http://testagent:9126"')
+        lines.append('    - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"')
+        if "testagent" not in wait_for:
+            wait_for.append("testagent")
+    if wait_for:
+        lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
+    return "\n".join(lines)
+
+
+def _render_suite_variables(clean_name: str, suite_spec: dict[str, Any]) -> str:
+    env = dict(suite_spec.get("env", {}) or {})
+    env.setdefault("SUITE_NAME", suite_spec.get("pattern", clean_name))
+    return "\n".join(f"    {key}: {_yaml_scalar(value)}" for key, value in env.items())
+
+
+def write_pipeline(suite_specs: dict[str, dict[str, Any]], test_spec: dict[str, list[dict[str, Any]]]) -> None:
     """Write the GitLab pipeline that builds venvs once and runs each generated version-support suite."""
     all_python_versions = _collect_python_versions(test_spec)
     pipeline = f"""\
@@ -287,8 +407,6 @@ prepare_version_support_riot:
   extends: .testrunner
   stage: test
   parallel: 4
-  services:
-    - !reference [.services, ddagent]
   before_script:
     - !reference [.testrunner, before_script]
     - unset DD_SERVICE
@@ -316,17 +434,21 @@ prepare_version_support_riot:
         ${{RIOT_RUN_CMD}} "${{hash}}" -- --ddtrace
       done
 """
-    for suite_spec in suite_specs:
-        clean_name = suite_spec.split("::")[-1]
+    for suite_name, suite_spec in suite_specs.items():
+        clean_name = suite_name.split("::")[-1]
         python_versions = _collect_integration_python_versions(test_spec, clean_name)
         pipeline += f"""\
 
 {clean_name}:
   extends: .version_support_base_riot
+  services:
+{_render_suite_services(suite_spec)}
   needs:
 {_needs_for_python_versions(python_versions)}
+  before_script:
+{_render_suite_before_script(suite_spec)}
   variables:
-    SUITE_NAME: {clean_name}
+{_render_suite_variables(clean_name, suite_spec)}
 """
 
     PIPELINE_PATH.write_text(pipeline)

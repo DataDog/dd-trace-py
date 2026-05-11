@@ -27,7 +27,7 @@ build_base_venvs:
     riot {riotfile_args} -P -v generate --python=$PYTHON_VERSION
     .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
-    riot -v run -s --python=$PYTHON_VERSION smoke_test
+    riot {riotfile_args} -v run -s --python=$PYTHON_VERSION smoke_test
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:

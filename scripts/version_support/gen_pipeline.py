@@ -3,6 +3,7 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
+#     "packaging>=24",
 #     "riot==0.21.0",
 #     "ruamel.yaml==0.18.6",
 # ]
@@ -81,11 +82,11 @@ def generate_pipeline():
     target_integrations = set(test_spec.keys())
 
     # suites we want to run
-    target_suite_specs = []
+    target_suite_specs = {}
     for integration in target_integrations:
-        for suite_spec in all_suite_specs:
-            if integration == suite_spec.split("::")[-1]:
-                target_suite_specs.append(suite_spec)
+        for suite_name, suite_spec in all_suite_specs.items():
+            if integration == suite_name.split("::")[-1]:
+                target_suite_specs[suite_name] = suite_spec
 
     base_venvs = get_riot_venvs(target_integrations)
     updated_venvs = generate_new_riot_venvs(test_spec, base_venvs)
