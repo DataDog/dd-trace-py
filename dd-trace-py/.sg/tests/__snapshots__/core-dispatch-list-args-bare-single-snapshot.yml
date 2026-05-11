@@ -1,0 +1,31 @@
+id: core-dispatch-list-args-bare-single
+snapshots:
+  ? |
+    from ddtrace.internal.core import dispatch
+    dispatch(
+        "my.event",
+        [ctx],
+    )
+  : fixed: |
+      from ddtrace.internal.core import dispatch
+      dispatch("my.event", (ctx,))
+    labels:
+    - source: |-
+        dispatch(
+            "my.event",
+            [ctx],
+        )
+      style: primary
+      start: 43
+      end: 81
+  ? |
+    from ddtrace.internal.core import dispatch
+    dispatch("my.event", [arg])
+  : fixed: |
+      from ddtrace.internal.core import dispatch
+      dispatch("my.event", (arg,))
+    labels:
+    - source: dispatch("my.event", [arg])
+      style: primary
+      start: 43
+      end: 70

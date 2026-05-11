@@ -1,8 +1,10 @@
 from unittest.mock import Mock
 
 import pytest
+from strands.hooks import AfterInvocationEvent
 from strands.hooks import AfterModelCallEvent
 from strands.hooks import AfterToolCallEvent
+from strands.hooks import BeforeInvocationEvent
 from strands.hooks import BeforeModelCallEvent
 from strands.hooks import BeforeToolCallEvent
 from strands.interrupt import _InterruptState
@@ -53,6 +55,25 @@ def mock_agent(messages=None, system_prompt=None):
     # Required by BeforeToolCallEvent which inherits from _Interruptible
     agent._interrupt_state = _InterruptState()
     return agent
+
+
+def before_invocation_event(invocation_state=None, messages=None):
+    """Build a BeforeInvocationEvent with a mock agent."""
+    agent = mock_agent()
+    return BeforeInvocationEvent(
+        agent=agent,
+        invocation_state=invocation_state if invocation_state is not None else {},
+        messages=messages,
+    )
+
+
+def after_invocation_event(invocation_state=None):
+    """Build an AfterInvocationEvent with a mock agent."""
+    agent = mock_agent()
+    return AfterInvocationEvent(
+        agent=agent,
+        invocation_state=invocation_state if invocation_state is not None else {},
+    )
 
 
 def before_model_event(messages=None, system_prompt=None):
