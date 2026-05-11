@@ -26,14 +26,14 @@ IMAGE="${WINDOWS_BUILD_IMAGE:?WINDOWS_BUILD_IMAGE is required}"
 setup_env
 
 # Git Bash path → Windows path (required for docker -v flag on Windows)
-PROJECT_DIR_WIN=$(cygpath -w "${PROJECT_DIR}")
+PROJECT_DIR_WIN=$(cygpath -w "${PROJECT_DIR}/dd-trace-py")
 
 section_start "docker_pull" "Pulling Windows build image"
 docker pull "${IMAGE}"
 section_end "docker_pull"
 
 section_start "build_wheel" "Building wheel (${UV_PYTHON}, ${WINDOWS_ARCH})"
-rm -rf "${PROJECT_DIR}/dist"
+rm -rf "${PROJECT_DIR}/dd-trace-py/dist"
 
 docker run --rm \
   -v "${PROJECT_DIR_WIN}:C:\\workspace" \
@@ -42,11 +42,11 @@ docker run --rm \
   -w 'C:\workspace' \
   "${IMAGE}" \
   powershell -NoProfile -NonInteractive \
-    -File 'C:\workspace\dd-trace-py\.gitlab\scripts\windows-docker-build.ps1' \
+    -File 'C:\workspace\.gitlab\scripts\windows-docker-build.ps1' \
     -VcArch "${VC_ARCH}"
 
 export BUILT_WHEEL_FILE
-BUILT_WHEEL_FILE=$(ls "${PROJECT_DIR}/dist/"*.whl | head -n 1)
+BUILT_WHEEL_FILE=$(ls "${PROJECT_DIR}/dd-trace-py/dist/"*.whl | head -n 1)
 echo "Built wheel: ${BUILT_WHEEL_FILE}"
 cp "${BUILT_WHEEL_FILE}" "${TMP_WHEEL_DIR}/"
 section_end "build_wheel"
@@ -60,6 +60,6 @@ docker run --rm \
   -w 'C:\workspace' \
   "${IMAGE}" \
   powershell -NoProfile -NonInteractive \
-    -File 'C:\workspace\dd-trace-py\.gitlab\scripts\windows-docker-test.ps1' \
+    -File 'C:\workspace\.gitlab\scripts\windows-docker-test.ps1' \
     -UvPython "${UV_PYTHON}"
 section_end "test_wheel"

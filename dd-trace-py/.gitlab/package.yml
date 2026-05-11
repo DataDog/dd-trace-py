@@ -261,8 +261,8 @@ variables:
     - bash dd-trace-py/.gitlab/scripts/build-wheel-windows.sh
   artifacts:
     paths:
-      - "pywheels/*.whl"
-      - "debugwheelhouse/*.log"
+      - "dd-trace-py/pywheels/*.whl"
+      - "dd-trace-py/debugwheelhouse/*.log"
 
 # Downloads win_arm64 wheels from GitHub Actions (arm64 cannot be cross-compiled
 # from the amd64 Windows runners available in GitLab).
