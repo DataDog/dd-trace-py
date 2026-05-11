@@ -108,16 +108,11 @@ def _wrap(
         # Clone the template's bytecode and stamp original's metadata for
         # stack-trace clarity.  ``replace()`` always returns a new code
         # object, so ``id(new_code)`` is unique per wrap site.
-        replace_kwargs: dict[str, typing.Any] = dict(
+        new_code = template.__code__.replace(
             co_filename=original.__code__.co_filename,
             co_firstlineno=original.__code__.co_firstlineno,
             co_name=original.__code__.co_name,
         )
-        # co_qualname is 3.11+; preserve it when available so qualified
-        # stack frames stay accurate.
-        if hasattr(original.__code__, "co_qualname"):
-            replace_kwargs["co_qualname"] = original.__code__.co_qualname
-        new_code = template.__code__.replace(**replace_kwargs)
         _WRAP_REGISTRY[id(new_code)] = (wrapper, original_copy)
 
         # The trampoline bytecode uses LOAD_GLOBAL on the dispatcher name,
@@ -126,12 +121,6 @@ def _wrap(
         original.__globals__.setdefault(dispatcher.__name__, dispatcher)
 
         original.__code__ = new_code
-        # Preserve introspection: the trampoline's (*args, **kwargs) shape
-        # would otherwise leak through to ``inspect.signature(original)``
-        # and break callers that adapt to the original signature (FastAPI,
-        # validators, etc.).  ``inspect.signature`` follows ``__wrapped__``
-        # to return the underlying callable's signature.
-        original.__wrapped__ = original_copy  # type: ignore[attr-defined]
         return original
 
     # Fallback for Cython / C builtins or Python functions with closure
