@@ -2418,7 +2418,9 @@ class TestRerunEvaluators:
 
         # experiment_create IS called once for the re-run experiment
         assert len(create_calls) == 1
-        # The original experiment ID is unchanged
+        # parent_experiment_id is set to the original experiment's id
+        assert create_calls[0]["parent_experiment_id"] == original_id
+        # The original experiment ID is unchanged on the parent SyncExperiment
         assert exp._experiment._id == original_id
 
     def test_experiment_run_without_task_raises(self, llmobs):

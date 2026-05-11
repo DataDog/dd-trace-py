@@ -1007,6 +1007,7 @@ class LLMObs(Service):
         inner_exp._dataset_id = dataset_id
         if experiment_meta._dataset is not None:
             inner_exp._tags["dataset_name"] = experiment_meta._dataset.name
+            inner_exp._dataset_version = experiment_meta._dataset._version
 
         return SyncExperiment(name=experiment_meta.name, _experiment=inner_exp, _result=result)
 
