@@ -4829,15 +4829,6 @@ def test_prepare_summary_evaluator_data_handles_none_metadata():
     assert metadata_list == [{"experiment_config": {}}]
 
 
-@pytest.fixture
-def _reset_git_fallback_cache():
-    import ddtrace.llmobs._experiment as _exp_mod
-
-    _exp_mod._GIT_FALLBACK_CACHE = None
-    yield
-    _exp_mod._GIT_FALLBACK_CACHE = None
-
-
 @pytest.mark.parametrize(
     "gitmetadata_tags,fallback_url,fallback_sha,expected",
     [
@@ -4860,66 +4851,47 @@ def _reset_git_fallback_cache():
     ],
     ids=["gitmetadata-wins", "fallback-only", "partial-merge"],
 )
-def test_resolve_experiment_git_metadata(
-    gitmetadata_tags, fallback_url, fallback_sha, expected, _reset_git_fallback_cache
-):
-    from ddtrace.llmobs._experiment import _resolve_experiment_git_metadata
+def test_resolve_llmobs_git_metadata(gitmetadata_tags, fallback_url, fallback_sha, expected):
+    from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
 
     with (
-        mock.patch("ddtrace.llmobs._experiment.gitmetadata.get_git_tags", return_value=gitmetadata_tags),
-        mock.patch("ddtrace.llmobs._experiment.git.extract_commit_sha", return_value=fallback_sha),
-        mock.patch("ddtrace.llmobs._experiment.git.extract_repository_url", return_value=fallback_url),
+        mock.patch("ddtrace.llmobs._utils.gitmetadata.get_git_tags", return_value=gitmetadata_tags),
+        mock.patch("ddtrace.llmobs._utils._git.extract_commit_sha", return_value=fallback_sha),
+        mock.patch("ddtrace.llmobs._utils._git.extract_repository_url", return_value=fallback_url),
     ):
-        assert _resolve_experiment_git_metadata() == expected
+        assert resolve_llmobs_git_metadata() == expected
 
 
-def test_resolve_experiment_git_metadata_returns_empty_when_fallback_fails(_reset_git_fallback_cache):
-    from ddtrace.llmobs._experiment import _resolve_experiment_git_metadata
+def test_resolve_llmobs_git_metadata_returns_empty_when_fallback_fails():
+    from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
 
     with (
-        mock.patch("ddtrace.llmobs._experiment.gitmetadata.get_git_tags", return_value=("", "", "")),
-        mock.patch("ddtrace.llmobs._experiment.git.extract_commit_sha", side_effect=ValueError("not a git repo")),
-        mock.patch("ddtrace.llmobs._experiment.git.extract_repository_url", side_effect=ValueError("not a git repo")),
+        mock.patch("ddtrace.llmobs._utils.gitmetadata.get_git_tags", return_value=("", "", "")),
+        mock.patch("ddtrace.llmobs._utils._git.extract_commit_sha", side_effect=ValueError("not a git repo")),
+        mock.patch("ddtrace.llmobs._utils._git.extract_repository_url", side_effect=ValueError("not a git repo")),
     ):
-        assert _resolve_experiment_git_metadata() == ("", "")
+        assert resolve_llmobs_git_metadata() == ("", "")
 
 
-def test_resolve_experiment_git_metadata_strips_url_credentials(_reset_git_fallback_cache):
-    from ddtrace.llmobs._experiment import _resolve_experiment_git_metadata
+def test_resolve_llmobs_git_metadata_strips_url_credentials():
+    from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
 
     with (
-        mock.patch("ddtrace.llmobs._experiment.gitmetadata.get_git_tags", return_value=("", "", "")),
-        mock.patch("ddtrace.llmobs._experiment.git.extract_commit_sha", return_value="abc"),
+        mock.patch("ddtrace.llmobs._utils.gitmetadata.get_git_tags", return_value=("", "", "")),
+        mock.patch("ddtrace.llmobs._utils._git.extract_commit_sha", return_value="abc"),
         mock.patch(
-            "ddtrace.llmobs._experiment.git.extract_repository_url",
+            "ddtrace.llmobs._utils._git.extract_repository_url",
             return_value="https://x-token:secret@github.com/example/repo.git",
         ),
     ):
-        url, _ = _resolve_experiment_git_metadata()
+        url, _ = resolve_llmobs_git_metadata()
     assert "secret" not in url
 
 
-def test_resolve_experiment_git_metadata_caches_fallback(_reset_git_fallback_cache):
-    from ddtrace.llmobs._experiment import _resolve_experiment_git_metadata
-
-    with (
-        mock.patch("ddtrace.llmobs._experiment.gitmetadata.get_git_tags", return_value=("", "", "")),
-        mock.patch("ddtrace.llmobs._experiment.git.extract_commit_sha", return_value="abc") as sha_mock,
-        mock.patch(
-            "ddtrace.llmobs._experiment.git.extract_repository_url",
-            return_value="https://github.com/example/repo",
-        ) as url_mock,
-    ):
-        for _ in range(3):
-            _resolve_experiment_git_metadata()
-    assert sha_mock.call_count == 1
-    assert url_mock.call_count == 1
-
-
-def test_experiment_tags_pick_up_resolver_output(_reset_git_fallback_cache):
+def test_experiment_tags_pick_up_resolver_output():
     dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
     with mock.patch(
-        "ddtrace.llmobs._experiment._resolve_experiment_git_metadata",
+        "ddtrace.llmobs._experiment._experiment_git_metadata",
         return_value=("https://github.com/example/repo", "abc123"),
     ):
         exp = Experiment(
@@ -4933,10 +4905,10 @@ def test_experiment_tags_pick_up_resolver_output(_reset_git_fallback_cache):
     assert exp._tags["git.repository_url"] == "https://github.com/example/repo"
 
 
-def test_experiment_user_supplied_git_tags_take_precedence(_reset_git_fallback_cache):
+def test_experiment_user_supplied_git_tags_take_precedence():
     dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
     with mock.patch(
-        "ddtrace.llmobs._experiment._resolve_experiment_git_metadata",
+        "ddtrace.llmobs._experiment._experiment_git_metadata",
         return_value=("https://github.com/example/repo", "abc123"),
     ):
         exp = Experiment(
@@ -4949,3 +4921,26 @@ def test_experiment_user_supplied_git_tags_take_precedence(_reset_git_fallback_c
         )
     assert exp._tags["git.commit.sha"] == "user-override"
     assert exp._tags["git.repository_url"] == "https://github.com/example/repo"
+
+
+def test_experiment_reuses_llmobs_resolved_git_metadata():
+    """When LLM Obs is enabled, Experiment should read from its class attrs and not re-resolve."""
+    from ddtrace.llmobs._llmobs import LLMObs
+
+    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
+    with (
+        mock.patch.object(LLMObs, "enabled", True),
+        mock.patch.object(LLMObs, "_git_repository_url", "https://github.com/example/cached"),
+        mock.patch.object(LLMObs, "_git_commit_sha", "cachedsha"),
+        mock.patch("ddtrace.llmobs._experiment.resolve_llmobs_git_metadata") as resolver_mock,
+    ):
+        exp = Experiment(
+            name="test",
+            task=dummy_task,
+            dataset=dataset,
+            evaluators=[dummy_evaluator],
+            project_name="test-project",
+        )
+    assert exp._tags["git.repository_url"] == "https://github.com/example/cached"
+    assert exp._tags["git.commit.sha"] == "cachedsha"
+    resolver_mock.assert_not_called()

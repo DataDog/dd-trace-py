@@ -77,9 +77,10 @@ class TestMLApp:
 
 class TestGitMetadata:
     def test_git_tags_set_on_span_when_available(self, llmobs, tracer):
-        with mock.patch(
-            "ddtrace.llmobs._llmobs.gitmetadata.get_git_tags",
-            return_value=("https://github.com/example/repo", "abc123def456", ""),
+        cls = llmobs._instance.__class__
+        with (
+            mock.patch.object(cls, "_git_repository_url", "https://github.com/example/repo"),
+            mock.patch.object(cls, "_git_commit_sha", "abc123def456"),
         ):
             with llmobs.workflow("root_llm_span") as span:
                 pass
@@ -88,10 +89,8 @@ class TestGitMetadata:
         assert tags["git.repository_url"] == "https://github.com/example/repo"
 
     def test_git_tags_absent_when_unavailable(self, llmobs, tracer):
-        with mock.patch(
-            "ddtrace.llmobs._llmobs.gitmetadata.get_git_tags",
-            return_value=("", "", ""),
-        ):
+        cls = llmobs._instance.__class__
+        with mock.patch.object(cls, "_git_repository_url", ""), mock.patch.object(cls, "_git_commit_sha", ""):
             with llmobs.workflow("root_llm_span") as span:
                 pass
         tags = get_llmobs_tags(span)
