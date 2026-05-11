@@ -471,7 +471,7 @@ class AI_GUARD(metaclass=Constant_Class):
         "http.client_ip",
         "network.client.ip",
         "usr.id",
-        "session.id",
+        "usr.session.id",
     )
 
     # meta struct
