@@ -15,9 +15,20 @@ reset between tests.
 
 from __future__ import annotations
 
+import os
 import sys
 
 import pytest
+
+
+# Tests that exercise ``stack.weak_link_tasks`` must skip under uvloop —
+# uvloop tasks don't support weak-link tracking the same way asyncio's
+# native tasks do. Mirrors the gate on ``tests/profiling/collector/
+# test_asyncio_weak_links.py``.
+_SKIP_ON_UVLOOP = pytest.mark.skipif(
+    os.environ.get("USE_UVLOOP", "0") == "1",
+    reason="uvloop does not support weak link detection the same way as asyncio",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +86,7 @@ def test_function_metadata_preserved_after_wrapping() -> None:
 # ---------------------------------------------------------------------------
 
 
+@_SKIP_ON_UVLOOP
 @pytest.mark.subprocess(err=None)
 def test_create_task_via_both_bindings_triggers_callback() -> None:
     """``asyncio.create_task(...)`` and ``asyncio.tasks.create_task(...)`` must
@@ -800,6 +812,7 @@ def test_taskgroup_exception_propagates_through_wrapper() -> None:
 # ---------------------------------------------------------------------------
 
 
+@_SKIP_ON_UVLOOP
 @pytest.mark.subprocess(err=None)
 def test_wrapping_persists_across_profiler_restart() -> None:
     """The wrapping is installed once on first ``Profiler.start()`` (via the
