@@ -1366,7 +1366,7 @@ def test_agentless_writer_serialize_span_fields():
         "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
         "DD_API_KEY": None,
     },
-    err=b"APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.\n",
+    err=b"APM Agentless requested but DD_API_KEY is not set. Agentless mode will be disabled.\n",
 )
 def test_agentless_writer_no_api_key():
     from ddtrace.internal.writer.writer import AgentlessTraceWriter

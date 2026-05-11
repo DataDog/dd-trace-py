@@ -10,6 +10,7 @@ import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
+import ddtrace.llmobs._writer as _llmobs_writer
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import override_env
@@ -32,6 +33,13 @@ def vcr_logs(request):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "vcr_logs: mark test to use recorded request/responses")
+
+
+@pytest.fixture(autouse=True)
+def reset_agentless_cache():
+    _llmobs_writer._SHOULD_USE_AGENTLESS = None
+    yield
+    _llmobs_writer._SHOULD_USE_AGENTLESS = None
 
 
 @pytest.fixture
