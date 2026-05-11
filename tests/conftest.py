@@ -868,3 +868,12 @@ def caplog(caplog):
 
     finally:
         ddtrace_logger.propagate = original_propagate
+
+
+@pytest.fixture(autouse=True)
+def reset_agentless_cache():
+    import ddtrace.llmobs._writer as _llmobs_writer
+
+    _llmobs_writer._SHOULD_USE_AGENTLESS = None
+    yield
+    _llmobs_writer._SHOULD_USE_AGENTLESS = None
