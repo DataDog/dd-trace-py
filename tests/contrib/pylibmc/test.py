@@ -9,6 +9,7 @@ import pytest
 from ddtrace.contrib.internal.pylibmc.client import TracedClient
 from ddtrace.contrib.internal.pylibmc.patch import patch
 from ddtrace.contrib.internal.pylibmc.patch import unpatch
+from ddtrace.ext import memcached
 
 # project
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -227,6 +228,7 @@ class PylibmcCore(object):
         assert_is_measured(s)
         assert s.start > start
         assert s.start + s.duration < end
+        assert s.service == memcached.SERVICE
         assert s.span_type == "cache"
         assert s.name == "memcached.cmd"
         assert s.get_tag("out.host") == cfg["host"]
