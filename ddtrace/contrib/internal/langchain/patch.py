@@ -314,8 +314,6 @@ def traced_chat_stream(func, instance, args, kwargs):
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
-    core.dispatch("langchain.chatmodel.stream.before", (instance, args, kwargs), allow_raise=True)
-
     def _on_span_started(span: Span):
         integration.record_instance(instance, span)
 
@@ -340,6 +338,8 @@ def traced_chat_stream(func, instance, args, kwargs):
         on_span_finished=_on_span_finished,
         provider=llm_provider,
         model=model,
+        aiguard_before_event="langchain.chatmodel.stream.before",
+        aiguard_finally_event="langchain.chatmodel.stream.finally",
     )
 
 
@@ -347,16 +347,6 @@ def traced_llm_stream(func, instance, args, kwargs):
     integration: LangChainIntegration = langchain_core._datadog_integration
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
-
-    core.dispatch(
-        "langchain.llm.stream.before",
-        (
-            instance,
-            args,
-            kwargs,
-        ),
-        allow_raise=True,
-    )
 
     def _on_span_start(span: Span):
         integration.record_instance(instance, span)
@@ -377,6 +367,8 @@ def traced_llm_stream(func, instance, args, kwargs):
         on_span_finished=_on_span_finished,
         provider=llm_provider,
         model=model,
+        aiguard_before_event="langchain.llm.stream.before",
+        aiguard_finally_event="langchain.llm.stream.finally",
     )
 
 

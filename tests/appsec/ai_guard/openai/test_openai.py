@@ -1,12 +1,4 @@
-"""Integration and unit tests for the AI Guard + OpenAI integration.
-
-Covers ``_convert_openai_messages`` / ``_convert_openai_response`` unit tests,
-sync + async chat completion allow/block flows (cassette + mock transport),
-streaming bypass (AI Guard short-circuits ``stream=True`` requests pending
-follow-up streaming support), collision-avoidance (ContextVar isolation
-across tasks and threads), ``init_ai_guard()`` registration gating, and
-fail-open behaviour.
-"""
+"""Integration and unit tests for the AI Guard + OpenAI integration."""
 
 import asyncio
 import gc
@@ -60,22 +52,8 @@ def reset_ai_guard_loaded():
 
 CHAT_PROMPT = "When do you use 'whom' instead of 'who'?"
 CHAT_MODEL = "gpt-3.5-turbo"
-# NOTE: request params (``stream=False``, ``temperature=0.0`` as float, and
-# message key order ``content`` before ``role``) are chosen so the OpenAI SDK
-# serializes a body that byte-matches the 200-response testagent VCR cassette
-# at tests/cassettes/openai/openai_chat_completions_post_caac525c.json.
-# The dd-apm-test-agent VCR derives the cassette hash from a sorted-keys JSON
-# dump, so key order does not matter for matching — but float/int type does
-# (``0.0`` vs ``0`` hash differently, picking different cassette responses).
 CHAT_PARAMS = dict(model=CHAT_MODEL, max_tokens=256, n=1, temperature=0.0, stream=False)
 
-# Tool-call cassette: request matches
-# tests/cassettes/openai/openai_chat_completions_post_c180b8dd.json
-# (user asks "What is the sum of 1 and 2?" with an `add` tool; the response
-# returns a tool_call to `add(a=1, b=2)`). The description string must match
-# exactly — the testagent hashes a sorted-keys JSON dump of the request body,
-# but the string payload (including the embedded newline and 8-space indent)
-# is part of that hash.
 TOOL_CALL_MODEL = "gpt-3.5-turbo-0125"
 TOOL_CALL_PROMPT = "What is the sum of 1 and 2?"
 ADD_TOOL = {
@@ -99,11 +77,6 @@ ADD_TOOL = {
 
 def _user_messages(content=CHAT_PROMPT):
     return [{"content": content, "role": "user"}]
-
-
-# ---------------------------------------------------------------------------
-# Message conversion unit tests
-# ---------------------------------------------------------------------------
 
 
 class TestConvertOpenAIMessages:
@@ -723,59 +696,39 @@ async def test_chat_async_block_config_disabled(mock_execute_request, async_open
         mock_execute_request.assert_called()
 
 
-# ---------------------------------------------------------------------------
-# Streaming: AI Guard bypasses ``stream=True`` requests entirely.
-#
-# The integration's scope today is non-streaming chat completions only;
-# streaming evaluation (input + reconstructed output via a streamed-response
-# wrapper) lands in a follow-up PR. The before-hook short-circuits on
-# ``kwargs.get("stream")`` so framework streaming paths (e.g. langchain
-# ``stream`` / ``astream``) don't need collision-avoidance machinery against
-# this provider listener — there is simply no provider-level evaluation to
-# collide with on streaming calls.
-#
-# Uses the ``*_stream`` fixtures that mock the httpx transport — ddtrace's
-# openai patch mutates streaming requests by injecting
-# ``stream_options={"include_usage": True}`` before the HTTP call, and no
-# 200-response testagent VCR cassette matches that mutated body. AI Guard's
-# bypass runs before the mutation so the behaviour under test is unaffected.
-# ---------------------------------------------------------------------------
-
-
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_chat_streaming_sync_bypasses_evaluation(mock_execute_request, openai_client_stream):
-    """Streaming sync call MUST NOT invoke AI Guard — pinned to keep the
-    ``stream=True`` short-circuit in ``_openai_chat_completion_before`` from
-    regressing into a partial input-only evaluation.
-    """
+def test_chat_streaming_sync_evaluates_input(mock_execute_request, openai_client_stream):
+    """ALLOW: streaming sync call invokes AI Guard once on the input messages."""
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     stream = openai_client_stream.chat.completions.create(model=CHAT_MODEL, messages=_user_messages(), stream=True)
     for _ in stream:
         pass
 
-    mock_execute_request.assert_not_called()
+    mock_execute_request.assert_called_once()
 
 
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_chat_streaming_sync_does_not_block(mock_execute_request, openai_client_stream, decision):
-    """Even when the (would-be) evaluator is configured to DENY/ABORT, a
-    streaming call MUST proceed without raising AIGuardAbortError — the bypass
-    means the evaluator is never asked.
+def test_chat_streaming_sync_blocks_on_deny(mock_execute_request, openai_client_stream, decision):
+    """DENY/ABORT before-model on streaming: AIGuardAbortError raised by
+    ``chat.completions.create`` itself, before any iteration; OpenAI HTTP call
+    is never reached.
     """
+    import openai
+
     mock_execute_request.return_value = mock_evaluate_response(decision)
 
-    stream = openai_client_stream.chat.completions.create(model=CHAT_MODEL, messages=_user_messages(), stream=True)
-    for _ in stream:
-        pass
+    with pytest.raises(openai.UnprocessableEntityError) as exc_info:
+        openai_client_stream.chat.completions.create(model=CHAT_MODEL, messages=_user_messages(), stream=True)
 
-    mock_execute_request.assert_not_called()
+    assert isinstance(exc_info.value, AIGuardAbortError)
+    mock_execute_request.assert_called_once()
 
 
 @pytest.mark.asyncio
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-async def test_chat_streaming_async_bypasses_evaluation(mock_execute_request, async_openai_client_stream):
+async def test_chat_streaming_async_evaluates_input(mock_execute_request, async_openai_client_stream):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     stream = await async_openai_client_stream.chat.completions.create(
@@ -784,22 +737,160 @@ async def test_chat_streaming_async_bypasses_evaluation(mock_execute_request, as
     async for _ in stream:
         pass
 
-    mock_execute_request.assert_not_called()
+    mock_execute_request.assert_called_once()
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-async def test_chat_streaming_async_does_not_block(mock_execute_request, async_openai_client_stream, decision):
+async def test_chat_streaming_async_blocks_on_deny(mock_execute_request, async_openai_client_stream, decision):
+    import openai
+
     mock_execute_request.return_value = mock_evaluate_response(decision)
 
-    stream = await async_openai_client_stream.chat.completions.create(
-        model=CHAT_MODEL, messages=_user_messages(), stream=True
-    )
-    async for _ in stream:
+    with pytest.raises(openai.UnprocessableEntityError) as exc_info:
+        await async_openai_client_stream.chat.completions.create(
+            model=CHAT_MODEL, messages=_user_messages(), stream=True
+        )
+
+    assert isinstance(exc_info.value, AIGuardAbortError)
+    mock_execute_request.assert_called_once()
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_streaming_after_hook_not_invoked(mock_execute_request, openai_client_stream):
+    """Phase B contract pin: streamed responses are NOT re-evaluated at end-of-stream.
+
+    AI Guard mirrors LangChain's input-only pattern for streaming today; only
+    the before-hook fires. A regression that wires up an end-of-stream after
+    evaluator (e.g. by lifting the ``not kwargs.get("stream")`` gate at the
+    dispatch site) would surface here as a second ``_execute_request`` call.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    stream = openai_client_stream.chat.completions.create(model=CHAT_MODEL, messages=_user_messages(), stream=True)
+    for _ in stream:
         pass
 
-    mock_execute_request.assert_not_called()
+    assert mock_execute_request.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Span observability on AI Guard block
+#
+# AI Guard's before-hook is dispatched *inside* the ``_traced_endpoint``
+# generator lifecycle (after the openai/LLMObs span is created). On block,
+# the AIGuardAbortError raised by the dispatch flows through the existing
+# ``except BaseException`` arm in ``_patched_endpoint`` and the ``g.send((None, err))``
+# in ``finally`` finishes the openai span with ``set_exc_info``. Net result:
+# both spans are emitted — the AI Guard span (resource ``ai_guard`` with
+# ``action`` / ``blocked`` tags) and the LLMObs/openai span (with
+# ``error.type`` set to the abort exception). These tests pin that contract.
+# ---------------------------------------------------------------------------
+
+
+def _find_ai_guard_span(spans):
+    from ddtrace.appsec._constants import AI_GUARD
+
+    for span in spans:
+        if span.name == AI_GUARD.RESOURCE_TYPE:
+            return span
+    return None
+
+
+def _find_openai_span(spans):
+    from ddtrace.appsec._constants import AI_GUARD
+
+    for span in spans:
+        if span.name != AI_GUARD.RESOURCE_TYPE and "openai" in (span.service or "").lower():
+            return span
+    for span in spans:
+        if span.name != AI_GUARD.RESOURCE_TYPE:
+            return span
+    return None
+
+
+def _assert_block_emits_both_spans(test_spans, decision):
+    from ddtrace.appsec._constants import AI_GUARD
+
+    spans = test_spans.spans
+    ai_guard_span = _find_ai_guard_span(spans)
+    assert ai_guard_span is not None, f"AI Guard span not found in {[s.name for s in spans]}"
+    assert ai_guard_span.get_tag(AI_GUARD.ACTION_TAG) == decision
+    assert ai_guard_span.get_tag(AI_GUARD.BLOCKED_TAG) == "true"
+
+    openai_span = _find_openai_span(spans)
+    assert openai_span is not None, f"OpenAI/LLMObs span not found in {[s.name for s in spans]}"
+    assert openai_span.error == 1, "OpenAI span should have error=1 after AI Guard block"
+    assert "AIGuardAbortError" in (openai_span.get_tag("error.type") or ""), (
+        f"OpenAI span error.type should reference AIGuardAbortError, got: {openai_span.get_tag('error.type')!r}"
+    )
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_block_emits_ai_guard_and_openai_spans(mock_execute_request, openai_client_mock, test_spans, decision):
+    """Non-streaming sync block: both AI Guard and openai/LLMObs spans are emitted."""
+    import openai
+
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    with pytest.raises(openai.UnprocessableEntityError):
+        openai_client_mock.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    _assert_block_emits_both_spans(test_spans, decision)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_chat_async_block_emits_ai_guard_and_openai_spans(
+    mock_execute_request, async_openai_client_mock, test_spans, decision
+):
+    """Non-streaming async block: both AI Guard and openai/LLMObs spans are emitted."""
+    import openai
+
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    with pytest.raises(openai.UnprocessableEntityError):
+        await async_openai_client_mock.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    _assert_block_emits_both_spans(test_spans, decision)
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_streaming_sync_block_emits_ai_guard_and_openai_spans(
+    mock_execute_request, openai_client_stream, test_spans, decision
+):
+    """Streaming sync block: AI Guard span AND openai LLMObs span are emitted with error info."""
+    import openai
+
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    with pytest.raises(openai.UnprocessableEntityError):
+        openai_client_stream.chat.completions.create(model=CHAT_MODEL, messages=_user_messages(), stream=True)
+
+    _assert_block_emits_both_spans(test_spans, decision)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_chat_streaming_async_block_emits_ai_guard_and_openai_spans(
+    mock_execute_request, async_openai_client_stream, test_spans, decision
+):
+    """Streaming async block: AI Guard span AND openai LLMObs span are emitted with error info."""
+    import openai
+
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    with pytest.raises(openai.UnprocessableEntityError):
+        await async_openai_client_stream.chat.completions.create(
+            model=CHAT_MODEL, messages=_user_messages(), stream=True
+        )
+
+    _assert_block_emits_both_spans(test_spans, decision)
 
 
 # ---------------------------------------------------------------------------

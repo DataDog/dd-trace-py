@@ -46,11 +46,16 @@ def _langchain_listen(client: AIGuardClient):
     # counter that the matching ``.before`` listener bumped. We listen on
     # ``.finally`` (always fires from the contrib's ``finally`` block) rather
     # than ``.after`` (only fires on success) so the counter does not leak
-    # when the underlying LLM call raises.
+    # when the underlying LLM call raises. The stream variants are dispatched
+    # from ``BaseLangchainStreamHandler.finalize_stream`` (and from
+    # ``shared_stream``'s except path when ``func(...)`` raises before a
+    # stream handler exists).
     core.on("langchain.chatmodel.generate.finally", _langchain_generate_finally)
     core.on("langchain.chatmodel.agenerate.finally", _langchain_generate_finally)
     core.on("langchain.llm.generate.finally", _langchain_generate_finally)
     core.on("langchain.llm.agenerate.finally", _langchain_generate_finally)
+    core.on("langchain.chatmodel.stream.finally", _langchain_generate_finally)
+    core.on("langchain.llm.stream.finally", _langchain_generate_finally)
 
 
 def _openai_listen(client: AIGuardClient):

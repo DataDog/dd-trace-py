@@ -473,59 +473,157 @@ async def test_streamed_llm_async_block(mock_execute_request, langchain_openai, 
     mock_execute_request.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# Span observability on AI Guard block (non-streaming)
-#
-# The four non-stream LangChain wrappers (``traced_llm_generate`` /
-# ``traced_chat_model_generate`` and async variants) catch ``DDBlockException``
-# explicitly and call ``span.set_exc_info`` before re-raising. Without that
-# explicit arm, ``AIGuardAbortError`` (a ``BaseException`` subclass via
-# ``DDBlockException``) would slip past ``except Exception:`` and the LLM span
-# would finish with no error info — leaving a hole between the AI Guard span
-# (block decision) and the LLM span (no link back to the abort).
-# ---------------------------------------------------------------------------
-
-
-def _find_llm_span_with_error(test_spans):
-    """Return the non-AI-Guard span (the LLM span) and its error tags."""
-    from ddtrace.appsec._constants import AI_GUARD
-
-    spans = test_spans.spans
-    llm_span = next((s for s in spans if s.name != AI_GUARD.RESOURCE_TYPE), None)
-    assert llm_span is not None, f"No LLM span found among: {[s.name for s in spans]}"
-    return llm_span
-
-
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_chat_block_tags_llm_span_with_set_exc_info(
-    mock_execute_request, langchain_openai, openai_url, tracer, test_spans
-):
-    """On AI Guard block, the LLM span must carry ``error == 1`` and an
-    ``error.type`` containing ``AIGuardAbortError``.
-    """
-    mock_execute_request.return_value = mock_evaluate_response("DENY")
+def test_streamed_chat_resets_context_after_success(mock_execute_request, langchain_openai, openai_url):
+    """After a successful sync chat stream, the AI Guard active counter is back at zero."""
+    from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 
-    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
-    with pytest.raises(AIGuardAbortError):
-        chat.invoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
 
-    llm_span = _find_llm_span_with_error(test_spans)
-    assert llm_span.error == 1
-    assert "AIGuardAbortError" in (llm_span.get_tag("error.type") or "")
+    assert is_aiguard_context_active() is False
+    for _ in model.stream(input="how can langsmith help with testing?"):
+        pass
+    assert is_aiguard_context_active() is False
 
 
 @pytest.mark.asyncio
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-async def test_chat_async_block_tags_llm_span_with_set_exc_info(
-    mock_execute_request, langchain_openai, openai_url, tracer, test_spans
-):
-    """Async variant of ``test_chat_block_tags_llm_span_with_set_exc_info``."""
+async def test_streamed_chat_resets_context_after_async_success(mock_execute_request, langchain_openai, openai_url):
+    """After a successful async chat stream, the AI Guard active counter is back at zero."""
+    from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    assert is_aiguard_context_active() is False
+    async for _ in model.astream(input="how can langsmith help with testing?"):
+        pass
+    assert is_aiguard_context_active() is False
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_streamed_chat_resets_context_after_block(mock_execute_request, langchain_openai, openai_url):
+    """A blocked chat stream still releases the active counter (paired in the
+    contrib's ``finally`` path / ``except`` path of ``shared_stream``).
+    """
+    from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
+
     mock_execute_request.return_value = mock_evaluate_response("DENY")
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    assert is_aiguard_context_active() is False
+    with pytest.raises(AIGuardAbortError):
+        for _ in model.stream(input="how can langsmith help with testing?"):
+            pass
+    assert is_aiguard_context_active() is False
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_streamed_llm_resets_context_after_success(mock_execute_request, langchain_openai, openai_url):
+    from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+
+    assert is_aiguard_context_active() is False
+    for _ in llm.stream(input="How do I write technical documentation?"):
+        pass
+    assert is_aiguard_context_active() is False
+
+
+# ---------------------------------------------------------------------------
+# Span observability on AI Guard block
+#
+# Both non-streaming (``traced_llm_generate`` / ``traced_chat_model_generate``)
+# and streaming (``shared_stream``) wrappers create the LLMObs span *before*
+# dispatching the AI Guard before-hook. On block, the AIGuardAbortError is
+# captured on the LLM span via ``set_exc_info`` and the span is finished
+# normally — alongside the AI Guard span produced by ``client.evaluate``.
+# These tests pin that contract so a regression to "AI Guard span only,
+# no LLM span" surfaces immediately.
+# ---------------------------------------------------------------------------
+
+
+def _assert_langchain_block_spans(test_spans, decision):
+    from ddtrace.appsec._constants import AI_GUARD
+
+    spans = test_spans.spans
+    ai_guard_span = next((s for s in spans if s.name == AI_GUARD.RESOURCE_TYPE), None)
+    assert ai_guard_span is not None, f"AI Guard span not found in {[s.name for s in spans]}"
+    assert ai_guard_span.get_tag(AI_GUARD.ACTION_TAG) == decision
+    assert ai_guard_span.get_tag(AI_GUARD.BLOCKED_TAG) == "true"
+
+    llm_span = next((s for s in spans if s.name != AI_GUARD.RESOURCE_TYPE), None)
+    assert llm_span is not None, f"LangChain LLM span not found in {[s.name for s in spans]}"
+    assert llm_span.error == 1, "LangChain LLM span should have error=1 after AI Guard block"
+    assert "AIGuardAbortError" in (llm_span.get_tag("error.type") or ""), (
+        f"LangChain span error.type should reference AIGuardAbortError, got: {llm_span.get_tag('error.type')!r}"
+    )
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_block_emits_ai_guard_and_llm_spans(
+    mock_execute_request, langchain_openai, openai_url, test_spans, decision
+):
+    """Non-streaming sync chat: both spans on block."""
+    mock_execute_request.return_value = mock_evaluate_response(decision)
 
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
     with pytest.raises(AIGuardAbortError):
-        await chat.ainvoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+        chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
-    llm_span = _find_llm_span_with_error(test_spans)
-    assert llm_span.error == 1
-    assert "AIGuardAbortError" in (llm_span.get_tag("error.type") or "")
+    _assert_langchain_block_spans(test_spans, decision)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_chat_async_block_emits_ai_guard_and_llm_spans(
+    mock_execute_request, langchain_openai, openai_url, test_spans, decision
+):
+    """Non-streaming async chat: both spans on block."""
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+    with pytest.raises(AIGuardAbortError):
+        await chat.ainvoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+
+    _assert_langchain_block_spans(test_spans, decision)
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_streamed_chat_block_emits_ai_guard_and_llm_spans(
+    mock_execute_request, langchain_openai, openai_url, test_spans, decision
+):
+    """Streaming sync chat: both spans on block. The LangChain LLMObs span is
+    created in ``shared_stream`` *before* the AI Guard dispatch; the AI Guard
+    abort flows through the existing ``except Exception`` arm and finishes
+    the span with ``set_exc_info``.
+    """
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+    with pytest.raises(AIGuardAbortError):
+        for _ in model.stream(input="how can langsmith help with testing?"):
+            pass
+
+    _assert_langchain_block_spans(test_spans, decision)
+
+
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_streamed_llm_block_emits_ai_guard_and_llm_spans(
+    mock_execute_request, langchain_openai, openai_url, test_spans, decision
+):
+    """Streaming sync llm: both spans on block (mirrors ``traced_llm_stream``)."""
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+    with pytest.raises(AIGuardAbortError):
+        for _ in llm.stream(input="How do I write technical documentation?"):
+            pass
+
+    _assert_langchain_block_spans(test_spans, decision)

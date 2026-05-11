@@ -245,14 +245,19 @@ def _patched_endpoint(patch_hook):
 
         integration = openai._datadog_integration
         is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
-        if is_chat:
-            core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
 
+        # AIDEV-NOTE: dispatch the AI Guard before-hook *after* ``_traced_endpoint``
+        # creates the span so a blocked request still emits an LLMObs span finished
+        # with ``set_exc_info`` (matching ``traced_chat_model_generate`` in the
+        # langchain contrib). The AI Guard span ends up nested under the LLM span,
+        # which is the desired UX in trace views.
         g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
         g.send(None)
         resp, err = None, None
         override_return = None
         try:
+            if is_chat:
+                core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
             resp = func(*args, **kwargs)
         except BaseException as e:
             err = e
@@ -411,23 +416,28 @@ def _patched_endpoint_async(patch_hook):
             # ``gather`` / ``create_task`` assume cheap construction with work
             # starting at await/scheduling), and (b) evaluate (and bill) AI
             # Guard even when the caller never awaits the returned coroutine.
-            if is_chat:
-                try:
-                    core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
-                except DDBlockException:
-                    # AI Guard blocked the request — discard the unstarted SDK
-                    # coroutine so Python doesn't emit a "coroutine was never
-                    # awaited" warning for it.
-                    if hasattr(result, "close"):
-                        result.close()
-                    raise
-
+            #
+            # The dispatch runs *inside* the ``_traced_endpoint`` lifecycle
+            # (after ``g.send(None)`` starts the span) so that a blocked
+            # request still emits an LLMObs span finished with
+            # ``set_exc_info`` — matching the sync path and
+            # ``traced_chat_model_generate`` in the langchain contrib.
             integration = openai._datadog_integration
             g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
             g.send(None)
             resp, err = None, None
             override_return = None
             try:
+                if is_chat:
+                    try:
+                        core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
+                    except DDBlockException:
+                        # AI Guard blocked the request — discard the unstarted SDK
+                        # coroutine so Python doesn't emit a "coroutine was never
+                        # awaited" warning for it.
+                        if hasattr(result, "close"):
+                            result.close()
+                        raise
                 resp = await result
             except BaseException as e:
                 err = e
