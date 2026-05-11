@@ -165,7 +165,6 @@ def _step_id(name: str, execution_arn: str) -> str:
 _TRACEPARENT_RE = re.compile(r"^([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$")
 
 
-
 def _read_prior_checkpoint_payload(state) -> Optional[dict]:
     """Parsed headers dict from the highest-N ``_datadog_*`` operation, or ``None``.
 
