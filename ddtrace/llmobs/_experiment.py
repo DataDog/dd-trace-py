@@ -1724,14 +1724,7 @@ class Experiment:
         self._tags["project_name"] = project_name
         self._tags["dataset_name"] = dataset.name
         self._tags["experiment_name"] = name
-        # Reuse what LLMObs.enable() already resolved when available, otherwise
-        # resolve directly. Import inline to avoid a circular import.
-        from ddtrace.llmobs._llmobs import LLMObs
-
-        if LLMObs.enabled and (LLMObs._git_repository_url or LLMObs._git_commit_sha):
-            repository_url, commit_sha = LLMObs._git_repository_url, LLMObs._git_commit_sha
-        else:
-            repository_url, commit_sha = resolve_llmobs_git_metadata()
+        repository_url, commit_sha = resolve_llmobs_git_metadata()
         if repository_url and git.REPOSITORY_URL not in self._tags:
             self._tags[git.REPOSITORY_URL] = repository_url
         if commit_sha and git.COMMIT_SHA not in self._tags:

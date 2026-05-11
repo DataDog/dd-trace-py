@@ -49,16 +49,9 @@ ValidatedPromptDict = dict[str, Union[str, dict[str, Any], list[str], list[dict[
 
 
 def resolve_llmobs_git_metadata() -> tuple[str, str]:
-    """Resolve ``(repository_url, commit_sha)`` for LLM Observability tagging.
-
-    Prefers the standard ``gitmetadata`` source (DD_GIT_* env vars or the main
-    package's ``Project-URL`` metadata). For any field gitmetadata leaves
-    empty, falls back to running ``git`` against the current working directory
-    — useful for notebooks and workstation runs. Honors
-    ``DD_TRACE_GIT_METADATA_ENABLED``: when disabled, returns ``("", "")``
-    without consulting either source. Designed to be called once per LLM Obs
-    lifecycle (at ``LLMObs.enable()`` or ``Experiment`` construction) and the
-    result propagated to span tags from there.
+    """Return ``(repository_url, commit_sha)`` from ``DD_GIT_*`` env vars or
+    package ``Project-URL``, falling back to ``git`` against the current
+    working directory. Honors ``DD_TRACE_GIT_METADATA_ENABLED``.
     """
     if not gitmetadata.config.enabled:
         return "", ""
