@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from functools import partial
 from functools import wraps
+import inspect
 import sys
 from types import ModuleType
 import typing
@@ -31,12 +32,23 @@ def _wrap(
     """Replace ``owner.name`` with a callable that invokes
     ``wrapper(original, args, kwargs)``, mirroring the replacement onto every
     ``(alias_owner, alias_name)`` in ``aliases``.
+
+    Async-def targets get an ``async def`` wrapper so the wrapped binding
+    remains a coroutine function — the C-level stack sampler walks
+    ``cr_await`` chains to attribute samples to the running task, and
+    swapping in a plain ``def`` would change the chain shape.
     """
     original = getattr(owner, name)
 
     @wraps(original)
-    def wrapped(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+    async def _async_wrapped(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+        return await wrapper(original, args, kwargs)
+
+    @wraps(original)
+    def _sync_wrapped(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
         return wrapper(original, args, kwargs)
+
+    wrapped = _async_wrapped if inspect.iscoroutinefunction(original) else _sync_wrapped
 
     setattr(owner, name, wrapped)
     for alias_owner, alias_name in aliases:
