@@ -48,6 +48,7 @@ from .integration import IntegrationConfig
 log = get_logger(__name__)
 
 ENDPOINT_FETCHED_CONFIG = fetch_config_from_endpoint()
+DEFAULT_SERVICE_KEYS = frozenset(["_default_service", "_default_service_worker", "_default_service_producer"])
 
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"(?ix)"
@@ -207,6 +208,14 @@ INTEGRATION_CONFIGS = frozenset(
         "google_cloud_pubsub",
     }
 )
+
+
+def _integration_default_service_names_from_config(int_config: IntegrationConfig) -> set[str]:
+    names: set[str] = set()
+    for attribute in DEFAULT_SERVICE_KEYS:
+        if value := int_config.get(attribute):
+            names.add(value)
+    return names
 
 
 def _parse_propagation_styles(styles_str: str) -> Optional[list[str]]:
@@ -447,6 +456,8 @@ class Config(object):
 
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs: dict[str, IntegrationConfig] = {}
+        # Union of `_default_service*` string values from integrations registered via `_add`.
+        self._integration_default_services: frozenset[str] = frozenset()
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
@@ -469,9 +480,7 @@ class Config(object):
 
         self._http = HttpConfig(header_tags=self._trace_http_header_tags)
         self._remote_config_enabled = _get_config("DD_REMOTE_CONFIGURATION_ENABLED", True, asbool)
-        self._remote_config_poll_interval = _get_config(
-            ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "DD_REMOTECONFIG_POLL_SECONDS"], 5.0, float
-        )
+        self._remote_config_poll_interval = _get_config("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", 5.0, float)
         self._trace_api = _get_config("DD_TRACE_API_VERSION")
         if self._trace_api == "v0.3":
             log.error(
@@ -553,7 +562,7 @@ class Config(object):
             and validate_and_report_otel_metrics_exporter_enabled()
         )
         self._runtime_metrics_runtime_id_enabled = _get_config(
-            ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"], False, asbool
+            "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", False, asbool
         )
         self._experimental_features_enabled = _get_config(
             "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: set(x.strip().upper().split(","))
@@ -586,7 +595,7 @@ class Config(object):
         if self._propagation_behavior_extract != _PROPAGATION_BEHAVIOR_IGNORE:
             self._propagation_style_extract = _parse_propagation_styles(
                 _get_config(
-                    ["DD_TRACE_PROPAGATION_STYLE_EXTRACT", "DD_TRACE_PROPAGATION_STYLE"],
+                    "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
                     _PROPAGATION_STYLE_DEFAULT,
                     otel_env="OTEL_PROPAGATORS",
                 )
@@ -599,7 +608,7 @@ class Config(object):
             self._propagation_style_extract = [_PROPAGATION_STYLE_NONE]
         self._propagation_style_inject = _parse_propagation_styles(
             _get_config(
-                ["DD_TRACE_PROPAGATION_STYLE_INJECT", "DD_TRACE_PROPAGATION_STYLE"],
+                "DD_TRACE_PROPAGATION_STYLE_INJECT",
                 _PROPAGATION_STYLE_DEFAULT,
                 otel_env="OTEL_PROPAGATORS",
             )
@@ -622,12 +631,10 @@ class Config(object):
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
-        self._raise = _get_config("DD_TESTING_RAISE", False, asbool)
+        _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
 
         trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
-        self._trace_compute_stats = _get_config(
-            ["DD_TRACE_COMPUTE_STATS", "DD_TRACE_STATS_COMPUTATION_ENABLED"], trace_compute_stats_default, asbool
-        )
+        self._trace_compute_stats = _get_config("DD_TRACE_COMPUTE_STATS", trace_compute_stats_default, asbool)
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
@@ -736,6 +743,14 @@ class Config(object):
             self._health_metrics_enabled = False
 
     @property
+    def _raise(self) -> bool:
+        return _native_config.get_raise()
+
+    @_raise.setter
+    def _raise(self, value: bool) -> None:
+        _native_config.set_raise(bool(value))
+
+    @property
     def _128_bit_trace_id_enabled(self) -> bool:
         return _native_config.get_128_bit_trace_id_enabled()
 
@@ -771,6 +786,12 @@ class Config(object):
         while len(self._extra_services) > 64:
             self._extra_services.pop()
         return self._extra_services
+
+    def _recompute_integration_default_services(self) -> None:
+        names: set[str] = set()
+        for int_conf in self._integration_configs.values():
+            names.update(_integration_default_service_names_from_config(int_conf))
+        self._integration_default_services = frozenset(names)
 
     def _add(self, integration, settings, merge=True):
         """Internal API that registers an integration with given default
@@ -808,6 +829,8 @@ class Config(object):
             )
         else:
             self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
+
+        self._recompute_integration_default_services()
 
     @cachedmethod()
     def _header_tag_name(self, header_name: str) -> Optional[str]:

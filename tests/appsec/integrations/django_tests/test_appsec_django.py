@@ -222,6 +222,43 @@ def test_django_login_sucess_identification(client, test_spans, tracer, use_logi
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("mode", (LOGIN_EVENTS_MODE.IDENT, LOGIN_EVENTS_MODE.ANON))
+def test_django_authenticated_request_tags_session_id(client, test_spans, tracer, mode):
+    """
+    Per-request auto-user path must tag both `usr.id` and `usr.session_id` on the entry span
+    of authenticated follow-up requests, not only on the `django.contrib.auth.login` event span.
+    """
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    with (
+        override_global_config(
+            dict(
+                _asm_enabled=True,
+                _auto_user_instrumentation_local_mode=mode,
+            )
+        ),
+        update_django_config(),
+    ):
+        test_user = User.objects.create(username="fred", first_name="Fred", email="fred@test.com")
+        test_user.set_password("secret")
+        test_user.save()
+        assert client.login(username="fred", password="secret")
+        assert get_user(client).is_authenticated
+        session_key = client.session.session_key
+        assert session_key
+
+        test_spans.reset()
+        response = client.get("/")
+        assert response.status_code == 200
+
+        request_span = test_spans.find_span(name="django.request")
+        assert request_span.get_tag(user.SESSION_ID) == session_key
+        if mode == LOGIN_EVENTS_MODE.IDENT:
+            assert request_span.get_tag(user.ID)
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize("use_login", (False, True))
 @pytest.mark.parametrize("use_email", (False, True))
 @pytest.mark.parametrize("use_realname", (False, True))

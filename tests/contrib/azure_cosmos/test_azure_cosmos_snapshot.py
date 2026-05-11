@@ -11,7 +11,7 @@ from .common import run_test_async
 CONNECTION_STRING = "AccountEndpoint=http://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
 ERR_DB_NAME = "db.azure_cosmos_error"
 ERR_CONTAINER_NAME = "container.azure_cosmos_error"
-SNAPSHOT_IGNORES = ["meta.http.useragent", "meta.error.stack"]
+SNAPSHOT_IGNORES = ["meta.http.useragent", "meta.error.stack", "meta._dd.base_service"]
 
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 

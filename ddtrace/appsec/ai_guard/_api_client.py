@@ -14,6 +14,7 @@ from ddtrace.appsec._trace_utils import _aiguard_manual_keep
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
+from ddtrace.internal._exceptions import DDBlockException
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
@@ -94,8 +95,13 @@ class AIGuardClientError(Exception):
         super().__init__(message)
 
 
-class AIGuardAbortError(Exception):
-    """Exception to abort current execution due to security policy."""
+class AIGuardAbortError(DDBlockException):
+    """Exception to abort current execution due to security policy.
+
+    Inherits from ``DDBlockException`` (which is ``BaseException``-derived) so
+    that a generic ``except Exception:`` in user code does not accidentally
+    swallow an AI Guard block decision.
+    """
 
     def __init__(
         self,

@@ -37,6 +37,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings import env as _env
+from ddtrace.internal.settings.integration import _integration_env_var_id
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
@@ -514,9 +515,8 @@ class LLMObs(Service):
 
         span_event = None
         try:
-            if not self._prepare_llmobs_span_data(span, span_kind):
-                return
-            span_event = self._llmobs_span_event(span)
+            if self._prepare_llmobs_span_data(span, span_kind):
+                span_event = self._llmobs_span_event(span)
         except (KeyError, TypeError, ValueError):
             log.error(
                 "Error generating LLMObs span event for span %s, likely due to malformed span",
@@ -525,6 +525,8 @@ class LLMObs(Service):
             )
 
         if not span_event:
+            # clear meta_struct if no event to export (dropped by user processor / error during preparation/assembly)
+            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             return
 
         if self._evaluator_runner and span_kind == "llm":
@@ -1832,7 +1834,7 @@ class LLMObs(Service):
             for integration in llm_integrations
         }
         for module, _ in integrations_to_patch.items():
-            env_var = "DD_TRACE_%s_ENABLED" % module.upper()
+            env_var = "DD_TRACE_%s_ENABLED" % _integration_env_var_id(module)
             if env_var in _env:
                 integrations_to_patch[module] = asbool(_env[env_var])
         dd_patch_modules = _env.get("DD_PATCH_MODULES")
@@ -2349,7 +2351,8 @@ class LLMObs(Service):
         :param tool_definitions: list of tool definition dictionaries for tool calling scenarios.
                             - This argument is only applicable to LLM spans.
                             - Each tool definition is a dictionary containing a required "name" (string),
-                                   and optional "description" (string) and "schema" (JSON serializable dictionary) keys.
+                                   and optional "description" (string), "schema" (JSON serializable dictionary),
+                                   and "version" (string) keys.
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
         """
