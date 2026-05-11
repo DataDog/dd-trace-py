@@ -282,28 +282,11 @@ def test_save_inherits_parent_id_from_child_context():
     assert state._captured[0][0].parent_id == "ctx-op-7"
 
 
-def test_save_skips_when_headers_unchanged():
-    state = _make_state()
-    durable = SimpleNamespace(state=state, _parent_id=None)
-    span = _fake_span()
-
-    def _inject(_span, headers):
-        headers["x-datadog-trace-id"] = "111"
-
-    with mock.patch.object(trace_checkpoint.HTTPPropagator, "inject", side_effect=_inject):
-        trace_checkpoint.maybe_save_trace_context_checkpoint(durable, span)
-        trace_checkpoint.maybe_save_trace_context_checkpoint(durable, span)
-
-    assert len(state._captured) == 1
-
-
 def test_save_skips_when_matches_prior_checkpoint_in_state_operations():
     """A new invocation reads the latest existing ``_datadog_*`` from
-    ``state.operations``. If the new (override-applied, stable) headers match
-    that prior checkpoint's stable headers, no new checkpoint is written —
-    even though the in-memory ``_dd_last_propagation_headers`` stash is empty
-    at the start of the invocation. This is the regression test for
-    accumulated identical checkpoints across invocations.
+    ``state.operations``. If the new stable headers match that prior
+    checkpoint's stable headers, no new checkpoint is written. This is the
+    regression test for accumulated identical checkpoints across invocations.
     """
     # The prior checkpoint includes a different `dd=p:` (per-span volatile)
     # value than what the new save will produce — the diff must ignore it

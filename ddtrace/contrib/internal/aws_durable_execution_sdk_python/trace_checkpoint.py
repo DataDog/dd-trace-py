@@ -45,7 +45,6 @@ log = get_logger(__name__)
 
 
 _CHECKPOINT_NAME_PREFIX = "_datadog_"
-_STATE_LAST_HEADERS_ATTR = "_dd_last_propagation_headers"
 _STATE_NEXT_N_ATTR = "_dd_next_checkpoint_n"
 # Module-global lock serializing checkpoint-N allocation across all states.
 # ExecutionState is shared across worker threads (parallel/map), so two threads
@@ -277,17 +276,9 @@ def maybe_save_trace_context_checkpoint(durable_context: "DurableContext", span:
         # (it rotates per span) and the ``dd=p:`` segment of ``tracestate``,
         # so the override value does not participate in the comparison —
         # we can defer it until we know we're actually going to save.
-        # Two suppression layers:
-        #   1. Within this invocation: in-memory stash from the most recent
-        #      successful save (defensive — current control flow saves at
-        #      most once, but we don't want a future refactor to regress).
-        #   2. Across invocations: parsed payload of the latest existing
-        #      ``_datadog_*`` operation in ``state.operations``.
-        # If either matches, nothing meaningful changed since the last write.
+        # Suppress if our stable headers match the prior checkpoint's; that
+        # means trace context didn't change since the last persisted save.
         stable = _stable_headers(headers)
-        last_local = getattr(state, _STATE_LAST_HEADERS_ATTR, None)
-        if last_local is not None and last_local == stable:
-            return
         if prior_payload is not None and _stable_headers(prior_payload) == stable:
             return
 
@@ -327,14 +318,5 @@ def maybe_save_trace_context_checkpoint(durable_context: "DurableContext", span:
             state.create_checkpoint(update, is_sync=False)
         except Exception:
             log.debug("Failed to enqueue trace-context checkpoint", exc_info=True)
-            return
-
-        # Stash the headers we just persisted so the next call can diff and
-        # avoid writing a no-op checkpoint.
-        try:
-            setattr(state, _STATE_LAST_HEADERS_ATTR, stable)
-        except Exception:  # nosec B110
-            # The checkpoint is already enqueued; this duplicate-write cache is best-effort.
-            pass
     except Exception:
         log.debug("maybe_save_trace_context_checkpoint failed", exc_info=True)
