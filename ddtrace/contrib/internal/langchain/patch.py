@@ -89,6 +89,7 @@ def traced_llm_generate(func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        core.dispatch("langchain.llm.generate.finally", ())
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
@@ -121,6 +122,7 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        core.dispatch("langchain.llm.agenerate.finally", ())
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
@@ -152,6 +154,7 @@ def traced_chat_model_generate(func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        core.dispatch("langchain.chatmodel.generate.finally", ())
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()
@@ -183,6 +186,7 @@ async def traced_chat_model_agenerate(func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        core.dispatch("langchain.chatmodel.agenerate.finally", ())
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()

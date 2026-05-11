@@ -3626,10 +3626,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # process_vm_readv fallback (safe_memcpy is now default)
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "0",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3682,10 +3682,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # process_vm_readv fallback (safe_memcpy is now default)
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "0",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3724,10 +3724,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # process_vm_readv fallback (safe_memcpy is now default)
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "0",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3767,10 +3767,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # process_vm_readv fallback (safe_memcpy is now default)
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "0",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -4431,6 +4431,15 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="ai_guard_openai",
+            command="pytest {cmdargs} tests/appsec/ai_guard/openai/",
+            pys=select_pys(),
+            pkgs={
+                "pytest-asyncio": "==0.23.7",
+                "openai": ["==1.102.0", latest],
+            },
         ),
         Venv(
             name="claude_agent_sdk",

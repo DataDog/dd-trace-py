@@ -1740,7 +1740,6 @@ class TestGenericLockProfiling(LockCollectorTestBase):
                 "init_location",
                 "acquired_time",
                 "name",
-                "is_internal",
             }
             assert set(_ProfiledLock.__slots__) == expected_slots
 
@@ -2033,22 +2032,24 @@ class BaseSemaphoreTest(LockCollectorTestBase):
         )
 
     def test_stdlib_internal_lock_is_native(self) -> None:
-        """Verify that locks created internally by threading.py are native (unwrapped).
-
-        Because 'threading' is in _ALWAYS_EXCLUDED_MODULES, any lock allocated
-        from within the threading module should be returned as a raw _thread.lock,
-        not a _ProfiledLock wrapper.
+        """Locks created internally by threading.py (e.g., inside Condition/Semaphore) must be
+        native (not _ProfiledLock), because threading/asyncio are always excluded from profiling.
         """
+        from ddtrace.profiling.collector._lock import _ProfiledLock
         from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
         with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
-            sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
+            regular_lock: LockTypeInst = threading.Lock()
+            assert isinstance(regular_lock, _ProfiledLock), "User lock should be profiled"
 
-            # The Condition's internal lock (sem._cond._lock) is allocated by
-            # threading.py, so it must be a native lock, not a _ProfiledLock.
-            internal_lock = sem._cond._lock  # type: ignore[union-attr]
-            assert not hasattr(internal_lock, "_ProfiledLock__wrapped"), (
-                "Internal lock from threading stdlib should be a native lock, not a _ProfiledLock"
+            sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
+            assert isinstance(sem, _ProfiledLock), "User semaphore should be profiled"
+
+            # Internal lock (Semaphore -> Condition -> Lock, allocated inside threading.py)
+            # must be a native lock, NOT a _ProfiledLock
+            internal_lock = sem._cond._lock
+            assert not isinstance(internal_lock, _ProfiledLock), (
+                f"Lock created by threading.py (inside Condition) should be native, got {type(internal_lock).__name__}"
             )
 
     def test_acquire_return_values_preserved(self) -> None:
