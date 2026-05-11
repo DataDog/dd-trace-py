@@ -37,21 +37,14 @@ Global Configuration
 .. py:data:: ddtrace.config.faststream["distributed_tracing_enabled"]
 
    Whether to propagate distributed-tracing context through message headers.
-   When enabled (default), the integration injects the active trace context
-   into outgoing message headers and extracts it from incoming messages so
-   that producer and consumer spans land in the same trace.
+   When enabled, the integration injects the active trace context into
+   outgoing message headers and extracts it from incoming messages so that
+   producer and consumer spans land in the same trace.
 
    This option can also be set with the ``DD_FASTSTREAM_DISTRIBUTED_TRACING``
    environment variable.
 
-   Default: ``True``
-
-.. note::
-
-   Unlike the ``aiokafka`` integration which defaults distributed tracing to
-   ``False``, FastStream defaults to ``True`` because FastStream applications
-   tend to operate as services within a Datadog-traced mesh where end-to-end
-   trace propagation is the expected behavior.
+   Default: ``False``
 
 
 Span Model
@@ -67,7 +60,7 @@ Common tags emitted on every span:
 
 - ``component`` — ``"faststream"``
 - ``messaging.system`` — ``"kafka"``, ``"rabbitmq"``, ``"nats"``, ``"redis"``,
-  ``"mqtt"``, or ``"faststream"`` (for unknown brokers)
+  or ``"faststream"`` (for unknown brokers)
 - ``messaging.destination.name`` — topic / queue / subject / channel
 - ``messaging.message_id`` — when present
 - ``messaging.message.conversation_id`` — correlation id when present

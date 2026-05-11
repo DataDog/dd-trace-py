@@ -1861,7 +1861,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.10", max_version="3.13"),
-                    pkgs={"faststream[kafka,rabbit,nats,redis,confluent]": ["~=0.6.0", latest]},
+                    pkgs={"faststream[kafka,rabbit,nats,redis,confluent]": ["==0.6.0", latest]},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.14"),

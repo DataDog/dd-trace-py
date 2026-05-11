@@ -40,7 +40,6 @@ def _destination_tag_key(messaging_system: str) -> str:
         "rabbitmq": "topic",
         "nats": "subject",
         "redis": "channel",
-        "mqtt": "topic",
     }.get(messaging_system, "topic")
 
 

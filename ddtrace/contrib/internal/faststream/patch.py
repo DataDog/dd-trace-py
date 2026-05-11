@@ -18,7 +18,7 @@ config._add(
     "faststream",
     {
         "_default_service": schematize_service_name("faststream"),
-        "distributed_tracing_enabled": asbool(env.get("DD_FASTSTREAM_DISTRIBUTED_TRACING", default=True)),
+        "distributed_tracing_enabled": asbool(env.get("DD_FASTSTREAM_DISTRIBUTED_TRACING", default=False)),
     },
 )
 

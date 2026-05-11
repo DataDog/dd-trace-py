@@ -128,7 +128,8 @@ class TestFastStreamUnit(TracerTestCase):
             captured["headers"] = dict(c.headers)
             return None
 
-        _run(middleware.publish_scope(call_next, cmd))
+        with self.override_config("faststream", dict(distributed_tracing_enabled=True)):
+            _run(middleware.publish_scope(call_next, cmd))
 
         header_keys_lower = {k.lower() for k in captured.get("headers", {}).keys()}
         assert "x-datadog-trace-id" in header_keys_lower
@@ -216,7 +217,8 @@ class TestFastStreamBrokers(TracerTestCase):
             async with TestBrokerCls(broker) as test_broker:
                 await test_broker.publish("payload", "dt-topic")
 
-        _run(run())
+        with self.override_config("faststream", dict(distributed_tracing_enabled=True)):
+            _run(run())
 
         spans = self.get_spans()
         publish_spans = [s for s in spans if s.name.endswith("publish")]

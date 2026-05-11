@@ -51,7 +51,6 @@ _BROKER_TO_MESSAGING_SYSTEM: Dict[str, str] = {
     "RabbitBroker": "rabbitmq",
     "NatsBroker": "nats",
     "RedisBroker": "redis",
-    "MQTTBroker": "mqtt",
 }
 
 
@@ -155,14 +154,6 @@ def _redis_publish(cmd: "PublishCommand") -> _TagsResult:
     return getattr(cmd, "destination", None), {}, None
 
 
-def _mqtt_consume(msg: "StreamMessage[Any]") -> _TagsResult:
-    return getattr(msg.raw_message, "topic", None), {}, None
-
-
-def _mqtt_publish(cmd: "PublishCommand") -> _TagsResult:
-    return getattr(cmd, "destination", None), {}, None
-
-
 def _generic_consume(msg: "StreamMessage[Any]") -> _TagsResult:
     raw = getattr(msg, "raw_message", None)
     if raw is None:
@@ -189,7 +180,6 @@ _BROKER_HANDLERS: Dict[
     "rabbitmq": (_rabbit_consume, _rabbit_publish),
     "nats": (_nats_consume, _nats_publish),
     "redis": (_redis_consume, _redis_publish),
-    "mqtt": (_mqtt_consume, _mqtt_publish),
 }
 
 
