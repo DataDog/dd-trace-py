@@ -72,7 +72,7 @@ import os
 from pathlib import Path
 import re
 import shutil
-import subprocess
+import subprocess  # nosec B404 — script orchestrates git/gh/aws CLIs
 import sys
 import tempfile
 from typing import Optional
@@ -88,7 +88,7 @@ import tomllib
 # producing confusing "no such file" errors later in the flow.
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 PYPROJECT: Path = REPO_ROOT / "pyproject.toml"
-assert PYPROJECT.is_file(), f"REPO_ROOT misconfigured: {PYPROJECT} does not exist"
+assert PYPROJECT.is_file(), f"REPO_ROOT misconfigured: {PYPROJECT} does not exist"  # nosec B101 — startup invariant; OK to drop under -O
 
 # Slack webhook env vars. The script supports two channel webhooks (test +
 # prod) and one optional DM webhook. ``--slack-channel`` selects which channel
@@ -143,7 +143,7 @@ def run(
 ) -> subprocess.CompletedProcess:
     """Run a subprocess, echoing the command for transparency."""
     print(f"$ {' '.join(cmd)}", file=sys.stderr)
-    return subprocess.run(
+    return subprocess.run(  # nosec B603 — cmd is argv list from controlled callers, never shell-interpreted
         cmd,
         check=check,
         cwd=str(cwd) if cwd else None,
@@ -215,7 +215,9 @@ def ensure_clean_tree() -> None:
 
 
 def ensure_gh_auth() -> None:
-    cp: subprocess.CompletedProcess = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True)
+    cp: subprocess.CompletedProcess = subprocess.run(  # nosec B603 B607 — invokes gh CLI, trusted PATH
+        ["gh", "auth", "status"], capture_output=True, text=True
+    )
     if cp.returncode != 0:
         raise SystemExit("gh CLI is not authenticated. Run `gh auth login` first.")
 
@@ -268,7 +270,7 @@ def run_external_with_stderr(cmd: list[str], stdin_text: Optional[str] = None) -
     the stderr is forwarded to the user's terminal in real time; otherwise it's
     captured and only surfaced on failure.
     """
-    cp: subprocess.CompletedProcess = subprocess.run(
+    cp: subprocess.CompletedProcess = subprocess.run(  # nosec B603 — cmd is argv list from controlled callers
         cmd,
         input=stdin_text,
         stdout=subprocess.PIPE,
@@ -301,7 +303,7 @@ def print_tool_versions() -> None:
             print(f"  {name}: not on PATH", file=sys.stderr)
             continue
         try:
-            cp: subprocess.CompletedProcess = subprocess.run(
+            cp: subprocess.CompletedProcess = subprocess.run(  # nosec B603 — cmd is hardcoded version-flag invocations
                 cmd, capture_output=True, text=True, check=False, timeout=5
             )
             # Most tools print version info on stdout; some on stderr (gh, aws).
@@ -319,7 +321,7 @@ def get_gh_oauth_scopes() -> set[str]:
     `gh api`. Returns an empty set on any error so the caller decides whether
     to be strict.
     """
-    cp: subprocess.CompletedProcess = subprocess.run(
+    cp: subprocess.CompletedProcess = subprocess.run(  # nosec B603 B607 — invokes gh CLI, trusted PATH
         ["gh", "auth", "status"], capture_output=True, text=True, check=False
     )
     # The output looks like "Token scopes: 'repo', 'read:org', 'workflow'".
@@ -368,7 +370,7 @@ def fetch_ssm_parameter(name: str) -> str:
             "Install via `brew install awscli` or set the corresponding env "
             "var to the literal URL."
         )
-    cp: subprocess.CompletedProcess = subprocess.run(
+    cp: subprocess.CompletedProcess = subprocess.run(  # nosec B603 B607 — invokes aws CLI, trusted PATH
         [
             "aws",
             "ssm",
@@ -545,7 +547,7 @@ def ensure_ci_green(sha: str, allow_failure: bool = False) -> None:
 
 def _release_tag_is_published(tag: str) -> bool:
     """True iff a non-draft release exists for the given tag."""
-    cp: subprocess.CompletedProcess = subprocess.run(
+    cp: subprocess.CompletedProcess = subprocess.run(  # nosec B603 B607 — invokes gh CLI, trusted PATH
         ["gh", "release", "view", tag, "--json", "isDraft", "--jq", ".isDraft"],
         capture_output=True,
         text=True,
@@ -609,7 +611,7 @@ def cmd_bump_rc(args: argparse.Namespace) -> int:
             f"branch {branch!r} already exists on origin. Delete it first "
             f"(`git push origin --delete {branch}`) or rebump."
         )
-    local_check: subprocess.CompletedProcess = subprocess.run(
+    local_check: subprocess.CompletedProcess = subprocess.run(  # nosec B603 B607 — invokes git CLI, trusted PATH
         ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"],
         cwd=str(REPO_ROOT),
         capture_output=True,
@@ -643,6 +645,7 @@ def cmd_bump_rc(args: argparse.Namespace) -> int:
                 "gh",
                 "pr",
                 "create",
+                "--draft",
                 "--base",
                 base_branch,
                 "--head",
@@ -1043,7 +1046,7 @@ def cmd_draft_release(args: argparse.Namespace) -> int:
     # invoke gh. A future refactor that drops one of these would otherwise
     # silently start publishing real releases on first run.
     missing: list[str] = [f for f in _GH_RELEASE_REQUIRED_FLAGS if f not in gh_release_args]
-    assert not missing, f"gh release create args missing required flags: {missing}"
+    assert not missing, f"gh release create args missing required flags: {missing}"  # nosec B101 — safety contract; OK to drop under -O
 
     try:
         url: str = run_out(gh_release_args, cwd=REPO_ROOT)
@@ -1082,7 +1085,7 @@ def post_webhook(url: str, text: str) -> None:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=10) as resp:
+    with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310 — url is a Slack hooks.slack.com URL from env, not user input
         body: str = resp.read().decode("utf-8", errors="replace").strip()
         # Classic incoming webhooks return "ok"; Workflow Builder webhooks return
         # JSON like {"ok":true,...}. Accept both; treat anything else as a failure.
