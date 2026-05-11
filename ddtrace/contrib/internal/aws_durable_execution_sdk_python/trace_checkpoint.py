@@ -48,15 +48,16 @@ _CHECKPOINT_NAME_PREFIX = "_datadog_"
 _STATE_LAST_HEADERS_ATTR = "_dd_last_propagation_headers"
 _STATE_PRIOR_PAYLOAD_ATTR = "_dd_prior_checkpoint_payload"
 _STATE_NEXT_N_ATTR = "_dd_next_checkpoint_n"
-_STATE_COUNTER_LOCK_ATTR = "_dd_next_checkpoint_n_lock"
 # Sentinel: tells _get_prior_payload "I haven't tried to load yet" — a real
 # load can return ``None`` (no prior checkpoint), so we can't use ``None`` for
 # both meanings.
 _PRIOR_NOT_LOADED = object()
-# Module-level lock guards the lazy install of the per-state lock.  ExecutionState
-# is shared across worker threads (parallel/map), so two threads can race here
-# the very first time we touch a fresh state.
-_INIT_LOCK = threading.Lock()
+# Module-global lock serializing checkpoint-N allocation across all states.
+# ExecutionState is shared across worker threads (parallel/map), so two threads
+# can race on the counter.  The critical section is microseconds and the SDK
+# already serializes per-state work in practice, so a single lock is simpler
+# than per-state locks and not a measurable bottleneck.
+_COUNTER_LOCK = threading.Lock()
 
 # Header keys that change on every span without affecting logical context.
 # Diffing skips these so we don't write a new checkpoint after every span.
@@ -145,18 +146,7 @@ def _allocate_checkpoint_n(state) -> int:
     because AWS doesn't update that until the batch lands.  So we keep a
     process-local counter on the state itself.
     """
-    lock = getattr(state, _STATE_COUNTER_LOCK_ATTR, None)
-    if lock is None:
-        with _INIT_LOCK:
-            lock = getattr(state, _STATE_COUNTER_LOCK_ATTR, None)
-            if lock is None:
-                lock = threading.Lock()
-                try:
-                    setattr(state, _STATE_COUNTER_LOCK_ATTR, lock)
-                except Exception:
-                    log.debug("Could not install checkpoint counter lock", exc_info=True)
-                    return -1
-    with lock:
+    with _COUNTER_LOCK:
         n = getattr(state, _STATE_NEXT_N_ATTR, None)
         if n is None:
             n = _max_existing_checkpoint_n(state) + 1
@@ -177,13 +167,6 @@ def _step_id(name: str, execution_arn: str) -> str:
 # `traceparent` format: <version>-<trace_id>-<parent_id>-<flags>
 _TRACEPARENT_RE = re.compile(r"^([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$")
 
-
-def _checkpoint_anchor_span_id(span) -> Optional[int]:
-    """Return the span id to use for the first checkpoint save.
-    We anchor cross-invocation durable replay linkage to the first `aws.durable.execute` span id.
-    """
-    span_id = getattr(span, "span_id", None)
-    return span_id if span_id is not None else None
 
 
 def _read_prior_checkpoint_payload(state) -> Optional[dict]:
@@ -242,8 +225,7 @@ def _get_prior_payload(state) -> Optional[dict]:
 
 
 def _resolve_override_parent_id(span, state) -> Optional[str]:
-    """Port of the JS ``overrideParentId``.
-
+    """
     1. **Prior checkpoint** — if any ``_datadog_*`` already exists on the
        state (i.e. this is a replay invocation), reuse its saved parent id
        verbatim. Across all invocations of the same durable execution this
@@ -256,7 +238,7 @@ def _resolve_override_parent_id(span, state) -> Optional[str]:
         pid = prior.get("x-datadog-parent-id")
         if pid is not None:
             return str(pid)
-    anchor_span_id = _checkpoint_anchor_span_id(span)
+    anchor_span_id = getattr(span, "span_id", None)
     return str(anchor_span_id) if anchor_span_id is not None else None
 
 
