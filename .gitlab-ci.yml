@@ -5,11 +5,5 @@ default:
         cd "${CI_PROJECT_DIR}/dd-trace-py"
         export CI_PROJECT_DIR="$(pwd)"
       fi
-  after_script:
-    - |
-      if [ -d "${CI_PROJECT_DIR}/dd-trace-py" ]; then
-        cd "${CI_PROJECT_DIR}/dd-trace-py"
-        export CI_PROJECT_DIR="$(pwd)"
-      fi
 include:
   - local: dd-trace-py/.gitlab-ci.yml
