@@ -712,3 +712,11 @@ class config:
     def set_128_bit_trace_id_enabled(val: bool) -> None:
         """Set whether 128-bit trace ID generation is enabled."""
         ...
+    @staticmethod
+    def get_raise() -> bool:
+        """Return whether errors in event listeners should be re-raised (DD_TESTING_RAISE)."""
+        ...
+    @staticmethod
+    def set_raise(val: bool) -> None:
+        """Set whether errors in event listeners should be re-raised (DD_TESTING_RAISE)."""
+        ...
