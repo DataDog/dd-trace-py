@@ -61,7 +61,7 @@ def test_all_anomaly_detection_tags_copied_from_root_span(mock_execute_request, 
             root_span.set_tag("http.client_ip", "8.8.8.8")
             root_span.set_tag("network.client.ip", "8.8.8.8")
             root_span.set_tag("usr.id", "u12345")
-            root_span.set_tag("usr.session.id", "s12345")
+            root_span.set_tag("usr.session_id", "s12345")
             client.evaluate(MESSAGES)
 
     ai_guard_span = _find_ai_guard_span(test_spans)
@@ -69,7 +69,7 @@ def test_all_anomaly_detection_tags_copied_from_root_span(mock_execute_request, 
     assert ai_guard_span.get_tag("ai_guard.http.client_ip") == "8.8.8.8"
     assert ai_guard_span.get_tag("ai_guard.network.client.ip") == "8.8.8.8"
     assert ai_guard_span.get_tag("ai_guard.usr.id") == "u12345"
-    assert ai_guard_span.get_tag("ai_guard.usr.session.id") == "s12345"
+    assert ai_guard_span.get_tag("ai_guard.usr.session_id") == "s12345"
 
 
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
