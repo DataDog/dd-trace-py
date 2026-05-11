@@ -76,15 +76,17 @@ def test_service_enable_proxy(tracer, test_spans):
 
 def test_enable_agentless(tracer, test_spans):
     with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="<ml-app-name>")):
-        llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
-        llmobs_instance = llmobs_service._instance
-        assert llmobs_instance is not None
-        assert llmobs_service.enabled
-        assert llmobs_instance.tracer == tracer
-        assert llmobs_instance._llmobs_span_writer._agentless is True
-        assert run_llmobs_trace_filter(tracer, test_spans) is not None
+        # Prevent the APM writer swap so test_spans (backed by DummyWriter) stays usable.
+        with mock.patch.object(tracer._span_aggregator, "configure_agentless_writer", return_value=True):
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
+            llmobs_instance = llmobs_service._instance
+            assert llmobs_instance is not None
+            assert llmobs_service.enabled
+            assert llmobs_instance.tracer == tracer
+            assert llmobs_instance._llmobs_span_writer._agentless is True
+            assert run_llmobs_trace_filter(tracer, test_spans) is not None
 
-        llmobs_service.disable()
+            llmobs_service.disable()
 
 
 def test_enable_agent_proxy_when_agent_is_available(tracer, agent):
@@ -129,6 +131,123 @@ def test_enable_agentless_when_agent_does_not_have_proxy(tracer, agent_missing_p
         assert llmobs_instance._llmobs_span_writer._agentless is True
 
         llmobs_service.disable()
+
+
+@pytest.mark.subprocess(
+    env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+)
+def test_llmobs_apm_trace_agentless_enabled_no_api_key():
+    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
+
+    assert llmobs_apm_trace_agentless_enabled() is False
+
+
+@pytest.mark.subprocess(
+    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_AGENTLESS_ENABLED": "0", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+)
+def test_llmobs_apm_trace_agentless_enabled_explicitly_disabled():
+    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
+
+    assert llmobs_apm_trace_agentless_enabled() is False
+
+
+@pytest.mark.subprocess(
+    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_AGENTLESS_ENABLED": "1", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+)
+def test_llmobs_apm_trace_agentless_enabled_via_llmobs_flag():
+    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
+
+    assert llmobs_apm_trace_agentless_enabled() is True
+
+
+@pytest.mark.subprocess(
+    env={"DD_API_KEY": "<not-a-real-key>", "_DD_APM_TRACING_AGENTLESS_ENABLED": "1", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+)
+def test_llmobs_apm_trace_agentless_enabled_via_trace_flag():
+    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
+
+    assert llmobs_apm_trace_agentless_enabled() is True
+
+
+@pytest.mark.subprocess(
+    env={"DD_API_KEY": "<not-a-real-key>", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+)
+def test_configure_agentless_writer_swaps_writer():
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    llmobs_service.enable(agentless_enabled=False)
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    swapped = ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=True)
+    assert swapped is True
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.disable()
+
+
+@pytest.mark.subprocess(
+    env={"DD_API_KEY": "<not-a-real-key>", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+)
+def test_configure_agentless_writer_noop_when_already_agentless():
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    llmobs_service.enable(agentless_enabled=True)
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    swapped = ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=True)
+    assert swapped is False
+    llmobs_service.disable()
+
+
+@pytest.mark.subprocess(
+    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_AGENTLESS_ENABLED": "1", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+)
+def test_enable_with_agentless_config_swaps_apm_writer():
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    llmobs_service.enable()
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.disable()
+
+
+@pytest.mark.subprocess(
+    env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+)
+def test_enable_without_api_key_does_not_swap_apm_writer():
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    try:
+        llmobs_service.enable()
+    except ValueError:
+        pass
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+
+
+@pytest.mark.subprocess(
+    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_AGENTLESS_ENABLED": "1", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+)
+def test_export_llmobs_coerced_to_false_when_apm_is_agentless():
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    llmobs_service.enable()
+    assert llmobs_service._instance._export_directly_to_llmobs is False
+    llmobs_service.disable()
+
+
+@pytest.mark.subprocess(
+    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_AGENTLESS_ENABLED": "0", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+)
+def test_export_llmobs_not_coerced_when_apm_is_not_agentless():
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    llmobs_service.enable(agentless_enabled=False)
+    assert llmobs_service._instance._export_directly_to_llmobs is True
+    llmobs_service.disable()
 
 
 def test_service_disable(tracer):

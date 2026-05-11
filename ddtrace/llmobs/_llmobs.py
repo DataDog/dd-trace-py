@@ -153,6 +153,7 @@ from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
+from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
@@ -461,7 +462,19 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
-        self._export_directly_to_llmobs = _env.get("_DD_LLMOBS_EXPORT", "llmobs") == "llmobs"
+        _export_llmobs_explicit = _env.get("_DD_LLMOBS_EXPORT")
+        self._export_directly_to_llmobs = (_export_llmobs_explicit or "llmobs") == "llmobs"
+        # When the agentless APM writer ships LLMObs data via meta_struct, route through it to
+        # avoid double submission. Skip when DD_APM_TRACING_ENABLED=false since APMTracingEnabledFilter
+        # would drop the trace; the LLMObs writer must remain the export channel.
+        apm_tracing_enabled = asbool(_env.get("DD_APM_TRACING_ENABLED", "true"))
+        if self._export_directly_to_llmobs and apm_tracing_enabled and llmobs_apm_trace_agentless_enabled():
+            if _export_llmobs_explicit is not None:
+                log.warning(
+                    "_DD_LLMOBS_EXPORT=llmobs is ignored because the APM trace writer is configured "
+                    "for agentless export; coercing to 'apm' to prevent double submission of LLMObs data."
+                )
+            self._export_directly_to_llmobs = False
         # Test-only: when set, _on_span_finish skips the meta_struct["_llmobs"] scrub
         # so spans captured by tests' DummyWriter retain LLMObsSpanData for assertion.
         # Set by integration test conftests via the _DD_LLMOBS_TEST_KEEP_META_STRUCT env
@@ -850,6 +863,10 @@ class LLMObs(Service):
             # written the appropriate source; stamping "code" would mask it on precedence.
             if not _auto:
                 config._llmobs_enabled = True
+            # must run after config._llmobs_enabled is set so the reconciliation
+            # helper sees the correct state.
+            if llmobs_apm_trace_agentless_enabled():
+                ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=True)
             cls._instance.start()
 
             # Register hooks for span events
