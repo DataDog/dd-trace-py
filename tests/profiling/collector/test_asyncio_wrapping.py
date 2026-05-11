@@ -403,35 +403,58 @@ def test_wrapped_call_returns_original_result() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Sanity: pytest collects the suite even when subprocess marker is absent
+# Wrap gating: with stack profiling disabled, importing _asyncio must not
+# mutate asyncio.tasks.create_task. The wrapping inside the ModuleWatchdog
+# hook is gated on ``config.stack.enabled and stack.is_available`` (which
+# defaults to True), so the only deterministic way to assert "no wrap" is
+# to disable stack explicitly in a subprocess.
 # ---------------------------------------------------------------------------
 
 
-def test_module_imports_cleanly() -> None:
-    """The profiling _asyncio module must import without side-effects on
-    asyncio when no profiler is started. Catches accidental top-level
-    monkey-patches.
+@pytest.mark.subprocess(err=None, env={"DD_PROFILING_STACK_ENABLED": "false"})
+def test_module_import_with_stack_disabled_does_not_wrap_create_task() -> None:
+    """With ``DD_PROFILING_STACK_ENABLED=false`` the asyncio ModuleWatchdog
+    hook must run without retargeting ``asyncio.tasks.create_task`` (no
+    ``__code__`` mutation, no attribute swap). Guards against a regression
+    where the wrap escapes its ``init_stack`` gate.
     """
     import asyncio.tasks
 
-    pre_create_task = asyncio.tasks.create_task
+    pre_code = asyncio.tasks.create_task.__code__
+    pre_identity = asyncio.tasks.create_task
 
     import ddtrace.profiling._asyncio  # noqa: F401
 
-    # Importing the module alone (no profiler) must not retarget create_task.
-    # The ModuleWatchdog hook only fires when both _asyncio and asyncio are
-    # present, but the wrapping is gated on init_stack which requires an
-    # active profiler. Here we just verify the module loads and exposes
-    # the expected helpers.
-    assert hasattr(ddtrace.profiling._asyncio, "current_task")
-    assert hasattr(ddtrace.profiling._asyncio, "get_running_loop")
-    # If this assertion fails, the module monkey-patches asyncio at import
-    # time, which would be a regression — wrapping should only happen when
-    # the profiler is started.
-    assert asyncio.tasks.create_task is pre_create_task or callable(asyncio.tasks.create_task)
-    # Note: we deliberately allow the second clause as a soft assertion
-    # because some test runners may have already started a profiler in a
-    # parent test in the same process.
+    assert ddtrace.profiling._asyncio.ASYNCIO_IMPORTED, "ModuleWatchdog hook must have fired"
+    assert asyncio.tasks.create_task is pre_identity, "create_task identity changed"
+    assert asyncio.tasks.create_task.__code__ is pre_code, "create_task __code__ mutated"
+
+
+@pytest.mark.subprocess(err=None)
+def test_create_task_identity_preserved_when_wrapped() -> None:
+    """When stack profiling IS enabled (default), the wrap path must preserve
+    function identity — pre-existing captured references (``from asyncio
+    import create_task`` style) keep pointing at the same object and see the
+    wrapped behaviour. The ``__code__`` swap is what makes this work; a
+    naive ``setattr`` replacement would fail this test.
+    """
+    import asyncio.tasks
+
+    pre_identity = asyncio.tasks.create_task
+    pre_code = asyncio.tasks.create_task.__code__
+
+    from ddtrace.profiling import profiler
+
+    p = profiler.Profiler()
+    p.start()
+    try:
+        # Identity must be the same object — both module bindings share it.
+        assert asyncio.tasks.create_task is pre_identity, "identity changed under wrap"
+        assert asyncio.create_task is pre_identity, "alias diverged from canonical"
+        # But __code__ must have been swapped — otherwise wrapping is a no-op.
+        assert asyncio.tasks.create_task.__code__ is not pre_code, "__code__ was not swapped"
+    finally:
+        p.stop()
 
 
 # ---------------------------------------------------------------------------
