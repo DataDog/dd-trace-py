@@ -2,6 +2,7 @@ import inspect
 import sys
 
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
@@ -91,8 +92,13 @@ def shared_stream(
             resp,
             LangchainStreamHandler(integration, span, args, kwargs, **handler_kwargs),
         )
-    except Exception:
-        # error with the method call itself
+    except (DDBlockException, Exception):
+        # AIDEV-NOTE: catch ``DDBlockException`` explicitly (parent of
+        # ``AIGuardAbortError``) since it inherits from ``BaseException`` —
+        # otherwise the AI Guard abort would slip past ``except Exception:``
+        # and the LLM span would never get ``set_exc_info`` / ``finish``,
+        # leaving a hole between the AI Guard span (block decision) and the
+        # LLM span (no link back to the abort).
         span.set_exc_info(*sys.exc_info())
         span.finish()
         # AIDEV-NOTE: when ``func(...)`` raises before a stream handler exists,
