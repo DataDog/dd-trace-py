@@ -4904,43 +4904,8 @@ def test_resolve_llmobs_git_metadata_honors_disable_flag():
     url_mock.assert_not_called()
 
 
-def test_experiment_tags_pick_up_resolver_output():
-    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
-    with mock.patch(
-        "ddtrace.llmobs._experiment._experiment_git_metadata",
-        return_value=("https://github.com/example/repo", "abc123"),
-    ):
-        exp = Experiment(
-            name="test",
-            task=dummy_task,
-            dataset=dataset,
-            evaluators=[dummy_evaluator],
-            project_name="test-project",
-        )
-    assert exp._tags["git.commit.sha"] == "abc123"
-    assert exp._tags["git.repository_url"] == "https://github.com/example/repo"
-
-
-def test_experiment_user_supplied_git_tags_take_precedence():
-    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
-    with mock.patch(
-        "ddtrace.llmobs._experiment._experiment_git_metadata",
-        return_value=("https://github.com/example/repo", "abc123"),
-    ):
-        exp = Experiment(
-            name="test",
-            task=dummy_task,
-            dataset=dataset,
-            evaluators=[dummy_evaluator],
-            project_name="test-project",
-            tags={"git.commit.sha": "user-override"},
-        )
-    assert exp._tags["git.commit.sha"] == "user-override"
-    assert exp._tags["git.repository_url"] == "https://github.com/example/repo"
-
-
 def test_experiment_reuses_llmobs_resolved_git_metadata():
-    """When LLM Obs is enabled, Experiment should read from its class attrs and not re-resolve."""
+    """When LLM Obs is enabled, Experiment reads from its class attrs and does not re-resolve."""
     from ddtrace.llmobs._llmobs import LLMObs
 
     dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
@@ -4960,3 +4925,47 @@ def test_experiment_reuses_llmobs_resolved_git_metadata():
     assert exp._tags["git.repository_url"] == "https://github.com/example/cached"
     assert exp._tags["git.commit.sha"] == "cachedsha"
     resolver_mock.assert_not_called()
+
+
+def test_experiment_user_supplied_git_tags_take_precedence():
+    from ddtrace.llmobs._llmobs import LLMObs
+
+    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
+    with (
+        mock.patch.object(LLMObs, "enabled", True),
+        mock.patch.object(LLMObs, "_git_repository_url", "https://github.com/example/repo"),
+        mock.patch.object(LLMObs, "_git_commit_sha", "abc123"),
+    ):
+        exp = Experiment(
+            name="test",
+            task=dummy_task,
+            dataset=dataset,
+            evaluators=[dummy_evaluator],
+            project_name="test-project",
+            tags={"git.commit.sha": "user-override"},
+        )
+    assert exp._tags["git.commit.sha"] == "user-override"
+    assert exp._tags["git.repository_url"] == "https://github.com/example/repo"
+
+
+def test_experiment_falls_back_to_resolver_when_llmobs_disabled():
+    """When LLM Obs is not enabled (e.g. distributed worker bootstrap), Experiment calls the resolver directly."""
+    from ddtrace.llmobs._llmobs import LLMObs
+
+    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
+    with (
+        mock.patch.object(LLMObs, "enabled", False),
+        mock.patch(
+            "ddtrace.llmobs._experiment.resolve_llmobs_git_metadata",
+            return_value=("https://github.com/example/repo", "abc123"),
+        ),
+    ):
+        exp = Experiment(
+            name="test",
+            task=dummy_task,
+            dataset=dataset,
+            evaluators=[dummy_evaluator],
+            project_name="test-project",
+        )
+    assert exp._tags["git.commit.sha"] == "abc123"
+    assert exp._tags["git.repository_url"] == "https://github.com/example/repo"
