@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import Any
 
 import pytest
 
@@ -52,7 +53,7 @@ def test_gather_triggers_link_tasks() -> None:
             await asyncio.sleep(0)
             return 1
 
-        async def main():
+        async def main() -> tuple[int, int]:
             t1 = asyncio.ensure_future(child())
             t2 = asyncio.ensure_future(child())
             await asyncio.gather(t1, t2)
@@ -128,7 +129,7 @@ def test_wait_triggers_link_tasks_per_future() -> None:
         async def child() -> None:
             await asyncio.sleep(0)
 
-        async def main():
+        async def main() -> tuple[int, int]:
             t1 = asyncio.ensure_future(child())
             t2 = asyncio.ensure_future(child())
             await asyncio.wait([t1, t2])
@@ -349,7 +350,7 @@ def test_gather_with_return_exceptions_keeps_kwarg() -> None:
         async def bad() -> int:
             raise ValueError("boom")
 
-        async def main():
+        async def main() -> list[Any]:
             results = await asyncio.gather(good(), bad(), return_exceptions=True)
             return [type(r).__name__ if isinstance(r, BaseException) else r for r in results]
 
@@ -369,7 +370,7 @@ def test_wait_returns_done_pending_tuple() -> None:
             await asyncio.sleep(0)
             return x
 
-        async def main():
+        async def main() -> tuple[int, int]:
             t1 = asyncio.ensure_future(child(1))
             t2 = asyncio.ensure_future(child(2))
             done, pending = await asyncio.wait([t1, t2])
@@ -397,7 +398,7 @@ def test_gather_empty_does_not_link() -> None:
 
     with started_profiler(), captured_link_calls("link_tasks") as recorded:
 
-        async def main():
+        async def main() -> list[Any]:
             return await asyncio.gather()
 
         assert asyncio.run(main()) == []
@@ -418,7 +419,7 @@ def test_create_task_propagates_exception() -> None:
         async def child() -> int:
             raise RuntimeError("expected boom")
 
-        async def main():
+        async def main() -> str | None:
             t = asyncio.create_task(child())
             try:
                 await t
@@ -454,17 +455,18 @@ def test_taskgroup_exception_propagates_through_wrapper() -> None:
         async def child_bad() -> int:
             raise ValueError("expected")
 
-        async def main():
+        async def main() -> list[tuple[str, str]]:
             try:
-                async with asyncio.TaskGroup() as tg:
+                async with asyncio.TaskGroup() as tg:  # type: ignore[attr-defined]
                     tg.create_task(child_ok())
                     tg.create_task(child_bad())
             except BaseException as outer:
-                exc_strs = []
+                exc_strs: list[tuple[str, str]] = []
 
-                def collect(e):
-                    if hasattr(e, "exceptions"):
-                        for sub in e.exceptions:
+                def collect(e: BaseException) -> None:
+                    sub_excs = getattr(e, "exceptions", None)
+                    if sub_excs is not None:
+                        for sub in sub_excs:
                             collect(sub)
                     else:
                         exc_strs.append((type(e).__name__, str(e)))
@@ -507,7 +509,7 @@ def test_wrapping_persists_across_profiler_restart() -> None:
             async def child() -> None:
                 await asyncio.sleep(0)
 
-            async def main():
+            async def main() -> int:
                 t = asyncio.create_task(child())
                 await t
                 return id(t)
