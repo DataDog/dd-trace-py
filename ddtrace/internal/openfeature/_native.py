@@ -93,7 +93,7 @@ def resolve_flag(
 
     # Call native resolve_value which returns ResolutionDetails
     # ResolutionDetails contains: value, variant, reason, error_code, error_message,
-    # allocation_key, do_log, extra_logging
+    # allocation_key, do_log
     # JSON flags may contain "null" which is a valid value that should be returned.
     # The way to check for absent value is by checking variant field—if it's None,
     # then there's no value returned from evaluation.

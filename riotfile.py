@@ -2000,6 +2000,7 @@ venv = Venv(
                 "pytest-xdist": latest,
                 "pytest-benchmark": latest,
                 "pytest-bdd": latest,
+                "pytest-timeout": latest,
             },
             env={
                 "DD_AGENT_PORT": "9126",
@@ -3203,21 +3204,21 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.9"),
                     pkgs={
-                        "pydantic-ai": ["==0.8.1"],
+                        "pydantic-ai-slim[openai]": ["==0.8.1"],
                         "pydantic": "==2.12.0a1",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "pydantic-ai": ["==0.8.1", "==1.0.0"],
+                        "pydantic-ai-slim[openai]": ["==0.8.1", "==1.0.0"],
                         "pydantic": "==2.12.0a1",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "pydantic-ai": ["==1.63.0"],
+                        "pydantic-ai-slim[openai]": ["==1.63.0"],
                     },
                 ),
             ],
@@ -3306,6 +3307,15 @@ venv = Venv(
                 "datadog-lambda": [">=6.105.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
+            },
+        ),
+        Venv(
+            name="aws_durable_execution_sdk_python",
+            command="pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python",
+            pys=select_pys(min_version="3.11"),
+            pkgs={
+                "aws-durable-execution-sdk-python": ["~=1.4.0", latest],
+                "aws-durable-execution-sdk-python-testing": [latest],
             },
         ),
         Venv(
