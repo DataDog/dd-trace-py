@@ -164,7 +164,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                     self._finalize_tool_span(tool_data, tool_output)
 
         # Only open the next LLM span when this UserMessage actually concluded a
-        # tool turn. UserMessages without tool results don't represent the start of 
+        # tool turn. UserMessages without tool results don't represent the start of
         # a new LLM call.
         if chunk_type == "UserMessage" and not self._active_tool_spans and has_tool_result:
             if self._accumulated_input_messages is None:
