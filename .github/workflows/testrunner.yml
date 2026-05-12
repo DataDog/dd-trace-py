@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - 'main'
+      - "main"
     paths:
-      - 'docker/**'
+      - "docker/**"
 
 jobs:
   build-and-publish:
@@ -14,10 +14,10 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     with:
-      tags: 'ghcr.io/datadog/dd-trace-py/testrunner:${{ github.sha }},ghcr.io/datadog/dd-trace-py/testrunner:latest'
-      platforms: 'linux/amd64,linux/arm64/v8'
-      build-args: ''
+      tags: "ghcr.io/datadog/dd-trace-py/testrunner:${{ github.sha }},ghcr.io/datadog/dd-trace-py/testrunner:latest"
+      platforms: "linux/amd64,linux/arm64/v8"
+      build-args: ""
       context: ./docker
-    secrets:
-      token: ${{ secrets.GITHUB_TOKEN }}
+      octo-sts-policy: self.testrunner

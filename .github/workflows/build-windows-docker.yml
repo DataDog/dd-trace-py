@@ -17,6 +17,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -33,8 +34,15 @@ jobs:
             if ($timeout -le 0) { throw "Docker daemon did not start in time" }
           }
 
+      - name: Get GitHub Token via dd-octo-sts
+        id: generate-token
+        uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+        with:
+          scope: DataDog/dd-trace-py
+          policy: self.build-windows-docker
+
       - name: Log in to GHCR
-        run: docker login ghcr.io -u publisher -p ${{ secrets.GITHUB_TOKEN }}
+        run: docker login ghcr.io -u publisher -p ${{ steps.generate-token.outputs.token }}
         shell: powershell
 
       - name: Build Windows Docker image

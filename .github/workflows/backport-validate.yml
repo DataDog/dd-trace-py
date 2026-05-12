@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+      id-token: write
     if: >
       github.event.action == 'labeled' && contains(github.event.label.name, 'backport')
     steps:
@@ -18,11 +19,18 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      - name: Get GitHub Token via dd-octo-sts
+        id: generate-token
+        uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+        with:
+          scope: DataDog/dd-trace-py
+          policy: self.backport-validate
+
       - name: Check Conflicts
         env:
           BACKPORT_LABEL: ${{ github.event.label.name }}
           PR_BRANCH: ${{ github.head_ref }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         id: backport_validation
         run: |
 
@@ -58,6 +66,7 @@ jobs:
       - name: Comment PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
         with:
+          github-token: ${{ steps.generate-token.outputs.token }}
           file-path: comment.txt
           message: |
             ${{ steps.backport_validation.outputs.results }}
