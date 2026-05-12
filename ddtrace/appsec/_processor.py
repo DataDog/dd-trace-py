@@ -224,6 +224,12 @@ class AppSecSpanProcessor(SpanProcessor):
             return
 
         entry_span = span._service_entry_span
+        # AIDEV-NOTE: A service-entry span represents one inbound service segment.
+        # Nested WEB spans for that same entry (for example outer WSGI middleware
+        # around Flask) must enrich one ASM environment instead of replacing it.
+        if _asm_request_context.get_active_asm_context_for_entry_span(entry_span):
+            return
+
         entry_span._set_attribute(APPSEC.ENABLED, 1.0)
         entry_span._set_attribute(_RUNTIME_FAMILY, "python")
 

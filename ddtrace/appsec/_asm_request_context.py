@@ -144,6 +144,13 @@ def get_active_asm_context() -> Optional[ASM_Environment]:
     return env
 
 
+def get_active_asm_context_for_entry_span(entry_span: Span) -> Optional[ASM_Environment]:
+    env = _get_asm_context()
+    if env is not None and not env.finalized and env.entry_span is entry_span:
+        return env
+    return None
+
+
 def in_asm_context() -> bool:
     return core.find_item(_ASM_CONTEXT) is not None
 
@@ -659,12 +666,6 @@ def store_waf_results_data(data: "list[WafEvent]") -> None:
 
 def start_context(waf_callable: Optional[WafCallable], span: Span, rc_products: str) -> None:
     if asm_config._asm_enabled:
-        # Skip creating a new ASM context if one already exists in a parent context
-        # AND this is a sub-app span (e.g., mounted FastAPI/Starlette sub-application).
-        # The parent's ASM context already has the request data (body, headers, etc.)
-        # and is accessible via core.find_item thanks to context tree traversal.
-        if in_asm_context() and core.find_item("is_subapp"):
-            return
         core.set_item(
             _ASM_CONTEXT,
             ASM_Environment(
