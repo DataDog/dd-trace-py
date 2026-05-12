@@ -4,6 +4,8 @@ Since claude-agent-sdk uses subprocess/CLI transport (not HTTP), we mock
 the internal transport layer and provide mock message responses.
 """
 
+from typing import Optional
+
 from claude_agent_sdk import AssistantMessage
 from claude_agent_sdk import ResultMessage
 from claude_agent_sdk import SystemMessage
@@ -75,7 +77,7 @@ EXPECTED_ASSISTANT_USAGE = {
 }
 
 
-def create_mock_assistant_message(text: str, model: str = MOCK_MODEL, usage: dict = None) -> AssistantMessage:
+def create_mock_assistant_message(text: str, model: str = MOCK_MODEL, usage: Optional[dict] = None) -> AssistantMessage:
     """Create a mock AssistantMessage for testing."""
     msg = AssistantMessage(
         content=[TextBlock(text=text)],
@@ -110,8 +112,8 @@ def create_mock_result_message(
     num_turns: int = 1,
     session_id: str = "test-session-id",
     total_cost_usd: float = 0.0484227,
-    result: str = "4",
-    usage: dict = None,
+    result: Optional[str] = "4",
+    usage: Optional[dict] = None,
     stop_reason: str = "end_turn",
     structured_output: object = None,
 ) -> ResultMessage:
@@ -253,6 +255,13 @@ MOCK_TOOL_ERROR_RESPONSE_SEQUENCE = [
     MOCK_MULTI_TURN_RESULT_MESSAGE,
 ]
 
+
+MOCK_TERMINAL_TOOL_USE_RESPONSE_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_TOOL_USE_ASSISTANT,  # AssistantMessage with ToolUseBlock
+    MOCK_TOOL_RESULT_USER_READ,  # UserMessage with ToolResultBlock → opens phantom step+llm
+    MOCK_RESULT_MESSAGE,  # ResultMessage arrives with no follow-up AssistantMessage
+]
 
 MOCK_STRUCTURED_OUTPUT = {"answer": 4, "unit": "integer"}
 MOCK_STRUCTURED_RESULT_MESSAGE = create_mock_result_message(

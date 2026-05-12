@@ -271,7 +271,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 if type(block).__name__ == "ToolResultBlock":
                     self._handle_tool_result_block(block)
 
-        # Once all tool results are in, finalize the deferred step and open the next step+llm span
+        # Once all tool results are in, finalize the deferred step and accumulate the user turn context.
+        # The next step+llm span is created lazily when the next AssistantMessage arrives.
         if not self._active_tool_spans and self._step_response_chunk is not None:
             self._finalize_step_span(self._step_response_chunk)
             self._step_response_chunk = None
@@ -281,7 +282,6 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 )
             user_content = getattr(chunk, "content", []) or []
             self._accumulated_input_messages.extend(self.integration.parse_content_blocks("user", user_content))
-            self._create_step_span()
 
     def _handle_tool_use_block(self, block: Any) -> None:
         """Open a tool span for a ToolUseBlock and register it as awaiting a result."""

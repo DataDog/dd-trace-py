@@ -843,6 +843,28 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
         )
 
+    async def test_llmobs_no_phantom_spans_after_terminal_tool_use(
+        self, claude_agent_sdk, mock_internal_client_terminal_tool_use, claude_agent_sdk_llmobs, test_spans
+    ):
+        """When ResultMessage follows tool results with no follow-up AssistantMessage, no phantom
+        step or llm spans should be created. The next step+llm pair is created lazily on the
+        next AssistantMessage, so a terminal tool use produces only agent+step+llm+tool = 4 spans.
+        """
+        prompt = "Read /etc/hostname"
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        # agent + step + llm + tool = 4 spans (no phantom step/llm)
+        assert len(spans) == 4
+
+        step_spans = [s for s in spans if s.name == "claude_agent_sdk.step"]
+        llm_spans = [s for s in spans if s.name == "claude_agent_sdk.llm"]
+        assert len(step_spans) == 1
+        assert len(llm_spans) == 1
+        assert _get_llmobs_data_metastruct(step_spans[0]) is not None
+        assert _get_llmobs_data_metastruct(llm_spans[0]) is not None
+
     async def test_llmobs_tool_error_marks_tool_span_as_error(
         self, claude_agent_sdk, mock_internal_client_tool_error, claude_agent_sdk_llmobs, test_spans
     ):
