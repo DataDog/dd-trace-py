@@ -5,6 +5,7 @@ Integration tests are in tests/test_integration.py.
 """
 
 import os
+import typing as t
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -926,7 +927,7 @@ class TestResetPytestTimeout:
         item.config.pluginmanager.hasplugin.return_value = hasplugin
         return item
 
-    def _make_settings(self, timeout: float = 5.0, func_only: bool = False) -> Mock:
+    def _make_settings(self, timeout: t.Optional[float] = 5.0, func_only: bool = False) -> Mock:
         settings = Mock()
         settings.timeout = timeout
         settings.func_only = func_only

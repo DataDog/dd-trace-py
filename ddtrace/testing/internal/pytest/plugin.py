@@ -56,10 +56,11 @@ import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
 
+
 try:
     from pytest_timeout import _get_item_settings as _pytest_timeout_get_item_settings
 except (ImportError, AttributeError):
-    _pytest_timeout_get_item_settings = None  # type: ignore[assignment]
+    _pytest_timeout_get_item_settings = None
 
 
 if t.TYPE_CHECKING:
