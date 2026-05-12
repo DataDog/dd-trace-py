@@ -1,12 +1,15 @@
 """Behavioural tests for the asyncio function-wrapping in
 ``ddtrace/profiling/_asyncio.py``.
 
-These tests exercise the contract that the wrapping must guarantee — alias
-identity preservation, function metadata preservation, and that each profiler
-callback fires when the corresponding asyncio API is exercised. They are
-deliberately implementation-agnostic: they pass against the bytecode-based
-``ddtrace.internal.wrapping.wrap`` (main) and the setattr-based local
-``_wrap`` helper introduced in this branch.
+These tests exercise the user-visible contract the wrap must guarantee —
+identity preservation across module aliases, signature preservation,
+correct callback firing per asyncio API, and correct argument
+pass-through. They assert observable behaviour only, so they pass against
+both ``main``'s ``bytecode.wrap`` (which mutates ``__code__`` in place
+and stamps arg metadata onto the new code object) and this branch's
+``_wrap`` (which clones a template trampoline via ``code.replace()`` and
+sets ``__wrapped__``). Whether either approach is in tree, the contract
+is the same.
 
 Each test runs in its own subprocess (via ``@pytest.mark.subprocess``)
 because the wrapping mutates global asyncio state and cannot be safely
@@ -201,9 +204,10 @@ def test_set_event_loop_triggers_track_asyncio_loop() -> None:
 @pytest.mark.subprocess(err=None)
 def test_wrap_preserves_inspect_signature() -> None:
     """``inspect.signature(asyncio.tasks.create_task)`` after profiler start
-    must match the unwrapped signature.  The trampoline carries a
-    ``(*args, **kwargs)`` shape; ``__wrapped__`` set on the original lets
-    ``inspect.signature`` recover the real argument metadata.
+    must match the unwrapped signature.  Implementations can satisfy this
+    by either stamping arg metadata onto the trampoline code (``main``'s
+    ``bytecode.wrap``) or by setting ``__wrapped__`` on the original
+    (this branch).  We only assert the user-visible property.
     """
     import asyncio
     import inspect
@@ -215,9 +219,6 @@ def test_wrap_preserves_inspect_signature() -> None:
     with started_profiler():
         post_sig = inspect.signature(asyncio.tasks.create_task)
         assert str(post_sig) == str(pre_sig), f"signature regressed under wrap: {pre_sig} -> {post_sig}"
-        assert hasattr(asyncio.tasks.create_task, "__wrapped__"), (
-            "__wrapped__ must be set so inspect.signature() can recover the original signature"
-        )
 
 
 # ---------------------------------------------------------------------------
