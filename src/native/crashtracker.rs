@@ -1,4 +1,3 @@
-use anyhow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
@@ -31,6 +30,7 @@ pub trait RustWrapper {
 #[pyclass(
     eq,
     eq_int,
+    from_py_object,
     name = "StacktraceCollection",
     module = "datadog.internal._native"
 )]
@@ -58,6 +58,7 @@ impl From<StacktraceCollectionPy> for StacktraceCollection {
 }
 
 #[pyclass(
+    skip_from_py_object,
     name = "CrashtrackerConfiguration",
     module = "datadog.internal._native"
 )]
@@ -79,6 +80,7 @@ pub struct CrashtrackerConfigurationPy {
 impl CrashtrackerConfigurationPy {
     #[new]
     #[pyo3(signature = (additional_files, create_alt_stack, use_alt_stack, timeout_ms, resolve_frames, endpoint=None, unix_socket_path=None, test_token=None))]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         additional_files: Vec<String>,
         create_alt_stack: bool,
@@ -123,6 +125,7 @@ impl RustWrapper for CrashtrackerConfigurationPy {
 }
 
 #[pyclass(
+    skip_from_py_object,
     name = "CrashtrackerReceiverConfig",
     module = "datadog.internal._native"
 )]
@@ -163,7 +166,7 @@ impl RustWrapper for CrashtrackerReceiverConfigPy {
     }
 }
 
-#[pyclass(name = "CrashtrackerMetadata", module = "datadog.internal._native")]
+#[pyclass(skip_from_py_object, name = "CrashtrackerMetadata", module = "datadog.internal._native")]
 #[derive(Clone)]
 pub struct CrashtrackerMetadataPy {
     metadata: Option<Metadata>,
