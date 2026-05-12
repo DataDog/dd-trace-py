@@ -6,8 +6,8 @@ use pyo3::{
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 
-use crate::py_string::PyBackedString;
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
+use crate::py_string::PyBackedString;
 
 #[pyo3::pyclass(frozen, name = "SpanLink", module = "ddtrace.internal.native._native")]
 pub struct SpanLink {

@@ -8,8 +8,8 @@ use pyo3::{
 };
 
 use super::attributes::{AttrKey, AttributeMap, AttributeValue};
-use crate::py_string::{PyBackedString, PyTraceData};
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
+use crate::py_string::{PyBackedString, PyTraceData};
 use libdd_trace_utils::span::{
     v04::{
         AttributeAnyValue, AttributeArrayValue, SpanEvent as NativeSpanEvent,

@@ -47,13 +47,11 @@ pub unsafe fn init_dump_traceback_fn() {
 
             const RTLD_DEFAULT: *mut std::ffi::c_void = ptr::null_mut();
 
-            let symbol_ptr = dlsym(
-                RTLD_DEFAULT,
-                c"_Py_DumpTracebackThreads".as_ptr(),
-            );
+            let symbol_ptr = dlsym(RTLD_DEFAULT, c"_Py_DumpTracebackThreads".as_ptr());
 
             if !symbol_ptr.is_null() {
-                DUMP_TRACEBACK_FN = Some(std::mem::transmute::<*mut c_void, PyDumpTracebackThreadsFn>(symbol_ptr));
+                DUMP_TRACEBACK_FN =
+                    Some(std::mem::transmute::<*mut c_void, PyDumpTracebackThreadsFn>(symbol_ptr));
             }
         }
 

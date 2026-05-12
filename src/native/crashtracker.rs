@@ -166,7 +166,11 @@ impl RustWrapper for CrashtrackerReceiverConfigPy {
     }
 }
 
-#[pyclass(skip_from_py_object, name = "CrashtrackerMetadata", module = "datadog.internal._native")]
+#[pyclass(
+    skip_from_py_object,
+    name = "CrashtrackerMetadata",
+    module = "datadog.internal._native"
+)]
 #[derive(Clone)]
 pub struct CrashtrackerMetadataPy {
     metadata: Option<Metadata>,

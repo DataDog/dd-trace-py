@@ -6,6 +6,7 @@ mod config;
 mod data_pipeline;
 #[cfg(feature = "stats")]
 mod ddsketch;
+mod ddtrace_utils;
 #[cfg(feature = "ffe")]
 mod ffe;
 mod library_config;
@@ -15,7 +16,6 @@ mod rand;
 mod shared_runtime;
 mod span;
 mod tracer_flare;
-mod ddtrace_utils;
 
 use pyo3::prelude::*;
 
