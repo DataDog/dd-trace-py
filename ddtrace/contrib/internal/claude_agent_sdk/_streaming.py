@@ -1,4 +1,5 @@
 import inspect
+import time
 from typing import Any
 from typing import Optional
 
@@ -85,6 +86,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_response_chunk: Any = None  # deferred AssistantMessage for steps with tool calls
         self._step_input_snapshot: Optional[list[Message]] = None  # input captured before llm extension
         self._accumulated_input_messages: Optional[list[Message]] = None
+        self._next_turn_start_ns: Optional[int] = None  # timestamp recorded when tool results arrive
         self._create_step_span()
 
     async def process_chunk(self, chunk, iterator=None):
@@ -147,7 +149,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         finally:
             self.primary_span.finish()
 
-    def _create_step_span(self) -> None:
+    def _create_step_span(self, start_ns: Optional[int] = None) -> None:
         """Open a step span and an llm child span for the next inference cycle."""
         self.current_step_span = self.integration.trace(
             "claude_agent_sdk.step",
@@ -155,12 +157,16 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             span_name="claude_agent_sdk.step",
             instance=self.instance,
         )
+        if start_ns is not None:
+            self.current_step_span.start_ns = start_ns
         self.current_llm_span = self.integration.trace(
             "claude_agent_sdk.llm",
             submit_to_llmobs=True,
             span_name="claude_agent_sdk.llm",
             instance=self.instance,
         )
+        if start_ns is not None:
+            self.current_llm_span.start_ns = start_ns
 
     def _finalize_llm_span(self, chunk: Any, exception: BaseException | None = None) -> None:
         """Close the llm span with the AssistantMessage data."""
@@ -243,7 +249,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
     def _handle_assistant_message(self, chunk: Any, content: Any) -> None:
         """Snapshot step input, finalize the llm span, open tool spans, and finalize or defer the step."""
         if self.current_step_span is None:
-            self._create_step_span()
+            self._create_step_span(start_ns=self._next_turn_start_ns)
+            self._next_turn_start_ns = None
 
         if self._accumulated_input_messages is None:
             self._accumulated_input_messages = self.integration.extract_llm_input_messages(
@@ -272,10 +279,11 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                     self._handle_tool_result_block(block)
 
         # Once all tool results are in, finalize the deferred step and accumulate the user turn context.
-        # The next step+llm span is created lazily when the next AssistantMessage arrives.
+        # Record the current time so the lazily-created next step+llm span reflects actual model latency.
         if not self._active_tool_spans and self._step_response_chunk is not None:
             self._finalize_step_span(self._step_response_chunk)
             self._step_response_chunk = None
+            self._next_turn_start_ns = time.monotonic_ns()
             if self._accumulated_input_messages is None:
                 self._accumulated_input_messages = self.integration.extract_llm_input_messages(
                     self.request_args, self.request_kwargs, self.primary_span
