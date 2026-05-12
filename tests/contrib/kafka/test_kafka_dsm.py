@@ -9,6 +9,9 @@ from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
+from tests.datastreams.utils import all_pathway_stat_keys
+from tests.datastreams.utils import max_commit_offset
+from tests.datastreams.utils import max_produce_offset
 
 
 DSM_TEST_PATH_HEADER_SIZE = 28
@@ -70,11 +73,12 @@ def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, s
     message = None
     while message is None or str(message.value()) != str(PAYLOAD):
         message = deserializing_consumer.poll()
-    buckets = dsm_processor._buckets
-    assert len(buckets) == 1
+    edge_tags = [key[0] for key in all_pathway_stat_keys(dsm_processor)]
+    assert any("direction:out" in tags for tags in edge_tags), "Producer DSM checkpoint missing"
+    assert any("direction:in" in tags for tags in edge_tags), "Consumer DSM checkpoint missing"
 
 
-def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
+def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic, group_id):
     PAYLOAD = bytes("data streams", encoding="utf-8")
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
@@ -82,9 +86,6 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
     message = None
     while message is None or str(message.value()) != str(PAYLOAD):
         message = consumer.poll()
-    buckets = dsm_processor._buckets
-    assert len(buckets) == 1
-    first = list(buckets.values())[0].pathway_stats
     ctx = DataStreamsCtx(dsm_processor, 0, 0, 0)
     parent_hash = ctx._compute_hash(
         sorted(
@@ -98,17 +99,20 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
                 "direction:in",
                 "kafka_cluster_id:5L6g3nShT-eMCtK--X86sw",
                 "type:kafka",
-                "group:test_group",
+                "group:{}".format(group_id),
                 "topic:{}".format(kafka_topic),
             ]
         ),
         parent_hash,
     )
-    assert (parent_hash, 0) in [(tag[1], tag[2]) for tag in first.keys()]
-    assert (child_hash, parent_hash) in [(tag[1], tag[2]) for tag in first.keys()]
+    hash_pairs = {(key[1], key[2]) for key in all_pathway_stat_keys(dsm_processor)}
+    assert (parent_hash, 0) in hash_pairs
+    assert (child_hash, parent_hash) in hash_pairs
 
 
-def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_commit_consumer, producer, kafka_topic):
+def test_data_streams_kafka_offset_monitoring_messages(
+    dsm_processor, non_auto_commit_consumer, producer, kafka_topic, group_id
+):
     def _read_single_message(consumer):
         message = None
         while message is None or str(message.value()) != str(PAYLOAD):
@@ -119,32 +123,28 @@ def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_c
 
     PAYLOAD = bytes("data streams", encoding="utf-8")
     consumer = non_auto_commit_consumer
-    buckets = dsm_processor._buckets
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
 
     _message = _read_single_message(consumer)  # noqa: F841
 
-    assert len(buckets) == 1
     cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
-    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0, cluster_id)] > 0
+    produce_key = PartitionKey(kafka_topic, 0, cluster_id)
+    commit_key = ConsumerPartitionKey(group_id, kafka_topic, 0, cluster_id)
+    assert max_produce_offset(dsm_processor, produce_key) > 0
     first_offset = consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset
     assert first_offset
-    assert (
-        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0, cluster_id)]
-        == first_offset
-    )
+    assert max_commit_offset(dsm_processor, commit_key) == first_offset
 
     _message = _read_single_message(consumer)  # noqa: F841
     assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == first_offset + 1
-    assert (
-        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0, cluster_id)]
-        == first_offset + 1
-    )
+    assert max_commit_offset(dsm_processor, commit_key) == first_offset + 1
 
 
-def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_commit_consumer, producer, kafka_topic):
+def test_data_streams_kafka_offset_monitoring_offsets(
+    dsm_processor, non_auto_commit_consumer, producer, kafka_topic, group_id
+):
     def _read_single_message(consumer):
         message = None
         while message is None or str(message.value()) != str(PAYLOAD):
@@ -166,25 +166,19 @@ def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_co
     _message = _read_single_message(consumer)  # noqa: F841
 
     cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
-    buckets = dsm_processor._buckets
-    assert len(buckets) == 1
-    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0, cluster_id)] > 0
+    produce_key = PartitionKey(kafka_topic, 0, cluster_id)
+    commit_key = ConsumerPartitionKey(group_id, kafka_topic, 0, cluster_id)
+    assert max_produce_offset(dsm_processor, produce_key) > 0
     first_offset = consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset
     assert first_offset > 0
-    assert (
-        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0, cluster_id)]
-        == first_offset
-    )
+    assert max_commit_offset(dsm_processor, commit_key) == first_offset
 
     _message = _read_single_message(consumer)  # noqa: F841
     assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == first_offset + 1
-    assert (
-        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0, cluster_id)]
-        == first_offset + 1
-    )
+    assert max_commit_offset(dsm_processor, commit_key) == first_offset + 1
 
 
-def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consumer, producer, kafka_topic):
+def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consumer, producer, kafka_topic, group_id):
     def _read_single_message(consumer):
         message = None
         while message is None or str(message.value()) != str(PAYLOAD):
@@ -198,15 +192,16 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.flush()
 
-    buckets = dsm_processor._buckets
     # Read a single message, which should commit it automatically since auto commit is true
     _message = _read_single_message(consumer)  # noqa: F841
 
-    assert len(buckets) == 1
     cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
-    assert PartitionKey(kafka_topic, 0, cluster_id) in list(buckets.values())[0].latest_produce_offsets, (
-        "DSM did not track the produce — delivery callback may not have fired"
-    )
+    produce_key = PartitionKey(kafka_topic, 0, cluster_id)
+    with dsm_processor._lock:
+        produce_tracked = any(
+            produce_key in bucket.latest_produce_offsets for bucket in dsm_processor._buckets.values()
+        )
+    assert produce_tracked, "DSM did not track the produce — delivery callback may not have fired"
 
     def _wait_for_auto_commit_and_fetch_offset(timeout=5.0):
         start_time = time.time()
@@ -226,9 +221,7 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     # Auto commit is enabled so we want to wait for the commit event to fire
     first_offset = _wait_for_auto_commit_and_fetch_offset()
     assert first_offset is not None, "Auto-commit did not complete within 5 seconds"
-    dsm_offset = list(buckets.values())[0].latest_commit_offsets[
-        ConsumerPartitionKey("test_group", kafka_topic, 0, cluster_id)
-    ]
+    dsm_offset = max_commit_offset(dsm_processor, ConsumerPartitionKey(group_id, kafka_topic, 0, cluster_id))
     # DSM tracks offsets at poll time while the broker commits asynchronously,
     # so the DSM offset may be >= the broker's reported committed offset.
     assert dsm_offset >= first_offset
@@ -248,10 +241,8 @@ def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, p
     producer.produce(kafka_topic, key="test_key_3")
     producer.flush()
 
-    buckets = dsm_processor._buckets
-    assert len(buckets) == 1
     cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
-    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0, cluster_id)] == 5
+    assert max_produce_offset(dsm_processor, PartitionKey(kafka_topic, 0, cluster_id)) == 5
 
 
 def test_data_streams_kafka_offset_backlog_has_cluster_id(
@@ -276,7 +267,9 @@ def test_data_streams_kafka_offset_backlog_has_cluster_id(
 
     serialized = dsm_processor._serialize_buckets()
     assert len(serialized) >= 1
-    backlogs = serialized[0].get("Backlogs", [])
+    # Produce and commit backlogs can land in different serialized buckets when the
+    # test straddles a 10s wall-clock boundary; flatten across all buckets.
+    backlogs = [b for s in serialized for b in s.get("Backlogs", [])]
     commit_backlogs = [b for b in backlogs if "type:kafka_commit" in b["Tags"]]
     produce_backlogs = [b for b in backlogs if "type:kafka_produce" in b["Tags"]]
     assert len(commit_backlogs) >= 1, "Expected at least one kafka_commit backlog entry"
@@ -332,7 +325,9 @@ def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer,
     assert consume_span.get_tag("pathway.hash") is not None
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset", "meta.messaging.kafka.bootstrap.servers"])
+@pytest.mark.snapshot(
+    ignores=["metrics.kafka.message_offset", "meta.kafka.group_id", "meta.messaging.kafka.bootstrap.servers"]
+)
 @pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, ddtrace_run=True, err=None)
 def test_data_streams_kafka_enabled():
     """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to Kafka messages."""
@@ -352,18 +347,26 @@ def test_data_streams_kafka_enabled():
 
     producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
     consumer = confluent_kafka.Consumer(
-        {"bootstrap.servers": BOOTSTRAP_SERVERS, "group.id": "test_group", "auto.offset.reset": "earliest"}
+        {"bootstrap.servers": BOOTSTRAP_SERVERS, "group.id": topic_name, "auto.offset.reset": "earliest"}
     )
 
     try:
+        import time
+
         consumer.subscribe([topic_name])
+
+        assignment_deadline = time.time() + 5
+        while not consumer.assignment() and time.time() < assignment_deadline:
+            consumer.poll(timeout=0.1)
+
         producer.produce(topic_name, b"test")
         producer.flush()
 
-        import time
+        message = None
+        message_deadline = time.time() + 5
+        while message is None and time.time() < message_deadline:
+            message = consumer.poll(timeout=0.5)
 
-        time.sleep(0.5)
-        message = consumer.poll(timeout=5.0)
         assert message is not None
         assert "dd-pathway-ctx-base64" in [h[0] for h in message.headers()]
 

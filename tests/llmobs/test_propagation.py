@@ -7,12 +7,14 @@ from ddtrace.contrib.internal.asyncio.patch import patch as patch_asyncio
 from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 
 
@@ -371,7 +373,7 @@ print(json.dumps(headers))
         assert get_llmobs_ml_app(span) == "test-app"
 
 
-def test_threading_submit_propagation(llmobs, llmobs_events, patched_futures):
+def test_threading_submit_propagation(llmobs, test_spans, patched_futures):
     import concurrent.futures
 
     def fn():
@@ -383,21 +385,23 @@ def test_threading_submit_propagation(llmobs, llmobs_events, patched_futures):
             future = executor.submit(fn)
             result = future.result()
             assert result == 42
-    assert len(llmobs_events) == 2
+    spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
+    assert len(spans) == 2
     main_thread_span, executor_thread_span = None, None
-    for span in llmobs_events:
-        if span["name"] == "main.thread":
+    for span in spans:
+        if span.name == "main.thread":
             main_thread_span = span
         else:
             executor_thread_span = span
-    assert main_thread_span["parent_id"] == ROOT_PARENT_ID
-    assert executor_thread_span["parent_id"] == main_thread_span["span_id"]
-    assert main_thread_span["trace_id"] == executor_thread_span["trace_id"]
-    assert main_thread_span["_dd"]["apm_trace_id"] == executor_thread_span["_dd"]["apm_trace_id"]
-    assert main_thread_span["trace_id"] != main_thread_span["_dd"]["apm_trace_id"]
+    main_apm_trace_id = format_trace_id(main_thread_span.trace_id)
+    assert get_llmobs_parent_id(main_thread_span) == ROOT_PARENT_ID
+    assert get_llmobs_parent_id(executor_thread_span) == str(main_thread_span.span_id)
+    assert get_llmobs_trace_id(main_thread_span) == get_llmobs_trace_id(executor_thread_span)
+    assert main_apm_trace_id == format_trace_id(executor_thread_span.trace_id)
+    assert get_llmobs_trace_id(main_thread_span) != main_apm_trace_id
 
 
-def test_threading_map_propagation(llmobs, llmobs_events, patched_futures):
+def test_threading_map_propagation(llmobs, test_spans, patched_futures):
     import concurrent.futures
 
     def fn(value):
@@ -407,25 +411,28 @@ def test_threading_map_propagation(llmobs, llmobs_events, patched_futures):
     with llmobs.workflow("main.thread"):
         with concurrent.futures.ThreadPoolExecutor() as executor:
             _ = executor.map(fn, (1, 2))
-    assert len(llmobs_events) == 3
+    spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
+    assert len(spans) == 3
     main_thread_span = None
     executor_thread_spans = []
-    for span in llmobs_events:
-        if span["name"] == "main.thread":
+    for span in spans:
+        if span.name == "main.thread":
             main_thread_span = span
         else:
             executor_thread_spans.append(span)
-    assert main_thread_span["parent_id"] == ROOT_PARENT_ID
-    assert executor_thread_spans[0]["parent_id"] == main_thread_span["span_id"]
-    assert executor_thread_spans[1]["parent_id"] == main_thread_span["span_id"]
-    assert main_thread_span["trace_id"] == executor_thread_spans[0]["trace_id"]
-    assert main_thread_span["trace_id"] == executor_thread_spans[1]["trace_id"]
-    assert main_thread_span["_dd"]["apm_trace_id"] == executor_thread_spans[0]["_dd"]["apm_trace_id"]
-    assert main_thread_span["_dd"]["apm_trace_id"] == executor_thread_spans[1]["_dd"]["apm_trace_id"]
-    assert main_thread_span["trace_id"] != main_thread_span["_dd"]["apm_trace_id"]
+    main_apm_trace_id = format_trace_id(main_thread_span.trace_id)
+    main_trace_id = get_llmobs_trace_id(main_thread_span)
+    assert get_llmobs_parent_id(main_thread_span) == ROOT_PARENT_ID
+    assert get_llmobs_parent_id(executor_thread_spans[0]) == str(main_thread_span.span_id)
+    assert get_llmobs_parent_id(executor_thread_spans[1]) == str(main_thread_span.span_id)
+    assert main_trace_id == get_llmobs_trace_id(executor_thread_spans[0])
+    assert main_trace_id == get_llmobs_trace_id(executor_thread_spans[1])
+    assert main_apm_trace_id == format_trace_id(executor_thread_spans[0].trace_id)
+    assert main_apm_trace_id == format_trace_id(executor_thread_spans[1].trace_id)
+    assert main_trace_id != main_apm_trace_id
 
 
-async def test_asyncio_create_task(llmobs, llmobs_events, patched_asyncio):
+async def test_asyncio_create_task(llmobs, test_spans, patched_asyncio):
     import asyncio
 
     async def fn():
@@ -437,17 +444,19 @@ async def test_asyncio_create_task(llmobs, llmobs_events, patched_asyncio):
 
     await asyncio.sleep(0)  # Need this to allow fn() task to run
 
+    spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
     main_task_span, side_task_span = None, None
-    for span in llmobs_events:
-        if span["name"] == "main_task":
+    for span in spans:
+        if span.name == "main_task":
             main_task_span = span
         else:
             side_task_span = span
-    assert main_task_span["parent_id"] == ROOT_PARENT_ID
-    assert side_task_span["parent_id"] == main_task_span["span_id"]
-    assert main_task_span["trace_id"] == side_task_span["trace_id"]
-    assert main_task_span["_dd"]["apm_trace_id"] == side_task_span["_dd"]["apm_trace_id"]
-    assert main_task_span["trace_id"] != main_task_span["_dd"]["apm_trace_id"]
+    main_apm_trace_id = format_trace_id(main_task_span.trace_id)
+    assert get_llmobs_parent_id(main_task_span) == ROOT_PARENT_ID
+    assert get_llmobs_parent_id(side_task_span) == str(main_task_span.span_id)
+    assert get_llmobs_trace_id(main_task_span) == get_llmobs_trace_id(side_task_span)
+    assert main_apm_trace_id == format_trace_id(side_task_span.trace_id)
+    assert get_llmobs_trace_id(main_task_span) != main_apm_trace_id
 
 
 _HEX_TRACE_ID = "ef017ddb6db557ea44fb6ce732fd0687"
@@ -493,14 +502,15 @@ def test_activate_non_numeric_header_passthrough_does_not_raise(llmobs):
         assert get_llmobs_trace_id(span) == custom_tid
 
 
-def test_submitted_event_trace_id_is_hex_when_upstream_sent_decimal(llmobs, llmobs_events):
+def test_submitted_event_trace_id_is_hex_when_upstream_sent_decimal(llmobs, test_spans):
     """Backend must always see hex so trace joining works even across mixed-version upstreams."""
     ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("w"):
         pass
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0]["trace_id"] == _HEX_TRACE_ID
+    spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
+    assert len(spans) == 1
+    assert get_llmobs_trace_id(spans[0]) == _HEX_TRACE_ID
 
 
 def test_inject_skips_header_when_trace_id_is_empty(llmobs, monkeypatch):
@@ -519,7 +529,7 @@ _AMBIGUOUS_HEX_TRACE_ID = "12345678901234567890123456789012"
 _AMBIGUOUS_WIRE_TRACE_ID = str(int(_AMBIGUOUS_HEX_TRACE_ID, 16))
 
 
-def test_submitted_event_trace_id_matches_stored_for_ambiguous_hex(llmobs, llmobs_events):
+def test_submitted_event_trace_id_matches_stored_for_ambiguous_hex(llmobs, test_spans):
     """Regression: submit must not re-normalize the stored hex. A trace_id whose 32-char hex
     form is all-[0-9] with no leading zero would otherwise be mangled by
     _normalize_wire_trace_id_to_hex reinterpreting it as decimal.
@@ -529,6 +539,7 @@ def test_submitted_event_trace_id_matches_stored_for_ambiguous_hex(llmobs, llmob
     with llmobs.workflow("w") as span:
         stored = get_llmobs_trace_id(span)
     assert stored == _AMBIGUOUS_HEX_TRACE_ID
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0]["trace_id"] == _AMBIGUOUS_HEX_TRACE_ID
-    assert llmobs_events[0]["trace_id"] == stored
+    spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
+    assert len(spans) == 1
+    assert get_llmobs_trace_id(spans[0]) == _AMBIGUOUS_HEX_TRACE_ID
+    assert get_llmobs_trace_id(spans[0]) == stored

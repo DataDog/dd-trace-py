@@ -6,6 +6,11 @@ control and validation of all environment variable access in ddtrace.
 All DD_* and OTEL_* environment variable accesses are validated against the
 registry in supported-configurations.json. Unregistered variables produce a
 debug log.
+
+Reads also honor ``CONFIGURATION_ALIASES`` from the registry: a read for a
+canonical name falls back to its registered legacy aliases if the canonical
+is unset. Aliases registered here must be pure renames (same value space) —
+translations like OTEL→DD belong in ``_otel_remapper.py`` instead.
 """
 
 from collections.abc import MutableMapping
@@ -60,7 +65,12 @@ class EnvConfig(MutableMapping):
 
     def __getitem__(self, key: str) -> str:
         _validate_key(key)
-        return os.environ[key]
+        if (value := os.environ.get(key)) is not None:
+            return value
+        for alias in CONFIGURATION_ALIASES.get(key, ()):
+            if (value := os.environ.get(alias)) is not None:
+                return value
+        raise KeyError(key)
 
     def __setitem__(self, key: str, value: str) -> None:
         _validate_key(key)
@@ -72,6 +82,9 @@ class EnvConfig(MutableMapping):
     def __contains__(self, key: object) -> bool:
         if isinstance(key, str):
             _validate_key(key)
+            if key in os.environ:
+                return True
+            return any(alias in os.environ for alias in CONFIGURATION_ALIASES.get(key, ()))
         return key in os.environ
 
     def __iter__(self) -> Iterator[str]:

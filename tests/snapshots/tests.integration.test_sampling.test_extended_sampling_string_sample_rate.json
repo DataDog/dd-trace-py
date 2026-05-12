@@ -11,19 +11,18 @@
     "meta": {
       "_dd.p.dm": "-3",
       "_dd.p.ksr": "0",
-      "_dd.p.tid": "69dfabd400000000",
-      "_dd.svc_src": "ddtrace_subprocess_dir",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpcs8bzwbw,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "_dd.p.tid": "69f39dfc00000000",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpbxj91lrv,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "language": "python",
-      "runtime-id": "c7c2f046d36e4c42a01d498dc02fe88f"
+      "runtime-id": "b3316b0a15bb4ccf9451ee278119bc84"
     },
     "metrics": {
       "_dd.rule_psr": 0.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1.0,
-      "process_id": 4483.0
+      "process_id": 62647.0
     },
-    "duration": 55833,
-    "start": 1776266196377813251
+    "duration": 55042,
+    "start": 1777573372643539669
   }]]
