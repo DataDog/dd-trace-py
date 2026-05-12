@@ -1,10 +1,6 @@
 ---
 other:
   - |
-    profiling: Each uploaded profile now carries a snapshot of the effective profiler
-    configuration in the upload event's user-visible ``info`` field. Every setting is
-    emitted as its own top-level key using the fully qualified config path (e.g.
-    ``dd.profiling.stack.enabled``, ``dd.profiling.stack.adaptive_sampling``,
-    ``dd.profiling.upload_interval``), so the backend can index and filter profiles on
-    any individual setting. Internal knobs such as the adaptive sampling parameters and
-    stack v2 internals are included alongside user-facing settings.
+    profiling: Each uploaded profile now exposes the effective profiler configuration
+    as ``dd.profiling.*`` keys in the upload event's ``info`` field, so profiles can be
+    filtered by individual settings.
