@@ -50,7 +50,6 @@ Datadog::ProfilerStats::reset_state()
     heap_tracker_size = std::nullopt;
     asyncio_task_count = std::nullopt;
     greenlet_count = std::nullopt;
-    sample_capture_cpu_time_us = 0;
     // fast_copy_memory_enabled is intentionally not reset: it reflects a static configuration
 }
 
@@ -151,15 +150,15 @@ Datadog::ProfilerStats::get_greenlet_count() const
 }
 
 void
-Datadog::ProfilerStats::add_sample_capture_cpu_time_us(size_t cpu_time_us)
+Datadog::ProfilerStats::set_profiler_settings_json(std::string_view settings_json)
 {
-    sample_capture_cpu_time_us += cpu_time_us;
+    profiler_settings_json.emplace(settings_json);
 }
 
-size_t
-Datadog::ProfilerStats::get_sample_capture_cpu_time_us() const
+const std::optional<std::string>&
+Datadog::ProfilerStats::get_profiler_settings_json() const
 {
-    return sample_capture_cpu_time_us;
+    return profiler_settings_json;
 }
 
 std::string
@@ -229,10 +228,12 @@ Datadog::ProfilerStats::get_internal_metadata_json()
 
     internal_metadata_json += R"("copy_memory_error_count": )";
     append_to_string(internal_metadata_json, copy_memory_error_count);
-    internal_metadata_json += ",";
 
-    internal_metadata_json += R"("sample_capture_cpu_time_us": )";
-    append_to_string(internal_metadata_json, sample_capture_cpu_time_us);
+    const auto& maybe_settings = get_profiler_settings_json();
+    if (maybe_settings && !maybe_settings->empty()) {
+        internal_metadata_json += R"(,"profiler_settings": )";
+        internal_metadata_json += *maybe_settings;
+    }
 
     internal_metadata_json += "}";
 

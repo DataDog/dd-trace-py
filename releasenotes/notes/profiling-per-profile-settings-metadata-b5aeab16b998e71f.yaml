@@ -1,0 +1,8 @@
+---
+other:
+  - |
+    profiling: Each uploaded profile now carries a snapshot of the effective profiler
+    configuration in its internal metadata under the ``profiler_settings`` key. This
+    mirrors the ``info.profiler.settings`` channel emitted by ``dd-trace-go`` and lets
+    backend consumers surface per-profile settings (including internal knobs like
+    adaptive sampling parameters and stack v2 internals) on the profile page.

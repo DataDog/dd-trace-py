@@ -117,6 +117,59 @@ def test_always_excluded_modules_contains_required_entries() -> None:
     assert "concurrent" in _ALWAYS_EXCLUDED_MODULES
 
 
+class TestDumpSettings:
+    """Tests for the profiler-settings serializer used in per-profile metadata."""
+
+    def test_includes_private_keys(self) -> None:
+        from ddtrace.internal.telemetry import dump_settings
+
+        settings = dump_settings(ProfilingConfig())
+
+        for key in (
+            "enabled",
+            "upload_interval",
+            "stack.enabled",
+            "stack.adaptive_sampling",
+            "stack.adaptive_sampling_target_overhead",
+            "stack.adaptive_sampling_max_interval",
+            "stack.fast_copy",
+            "stack.max_threads",
+            "exception.enabled",
+            "exception.sampling_interval",
+        ):
+            assert key in settings, f"missing {key!r} in dumped settings"
+
+    def test_keys_use_dotted_python_names(self) -> None:
+        from ddtrace.internal.telemetry import dump_settings
+
+        settings = dump_settings(ProfilingConfig())
+
+        for key in settings:
+            assert not key.startswith("DD_"), f"unexpected env-var-style key: {key!r}"
+            assert not key.startswith("_DD_"), f"unexpected private env-var-style key: {key!r}"
+
+    def test_values_are_json_serializable(self) -> None:
+        import json
+
+        from ddtrace.internal.telemetry import dump_settings
+
+        settings = dump_settings(ProfilingConfig())
+        json.dumps(settings)  # must not raise
+
+    def test_reflects_env_overrides(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.telemetry import dump_settings
+
+        monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED", "0")
+        monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_TARGET_OVERHEAD", "5.0")
+        monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "30.0")
+
+        settings = dump_settings(ProfilingConfig())
+
+        assert settings["stack.adaptive_sampling"] is False
+        assert settings["stack.adaptive_sampling_target_overhead"] == 5.0
+        assert settings["upload_interval"] == 30.0
+
+
 @pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES=""))
 def test_always_excluded_modules_cannot_be_overridden() -> None:
     """Even with an empty user exclude list, stdlib modules (threading, asyncio, concurrent)

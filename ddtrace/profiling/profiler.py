@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+import json
 import logging
 from typing import Any
 from typing import Callable
@@ -19,6 +20,7 @@ from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env as _env
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.internal.settings.profiling import config_str
+from ddtrace.internal.telemetry import dump_settings
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
@@ -199,6 +201,16 @@ class _ProfilerInstance(service.Service):
             process_tags=self.process_tags,
         )
         ddup.start()
+
+        # Surface the effective profiler configuration on each uploaded profile
+        # so the backend can render per-profile settings (parity with dd-trace-go's
+        # info.profiler.settings). This is a one-shot snapshot at startup;
+        # runtime-mutable values (e.g. the adaptive sampling interval) are
+        # already exposed via ProfilerStats fields.
+        try:
+            ddup.set_profiler_settings_json(json.dumps(dump_settings(profiling_config)))
+        except Exception:
+            LOG.debug("Failed to publish profiler settings to internal metadata", exc_info=True)
 
     def __post_init__(self) -> None:
         if self._exception_profiling_enabled:
