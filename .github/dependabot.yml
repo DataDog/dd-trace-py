@@ -65,3 +65,8 @@ updates:
     # docker-compose is a non-semver ecosystem: only `default-days` is supported.
     cooldown:
       default-days: 2
+
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule:
+      interval: "weekly"

@@ -18,8 +18,9 @@ from tests.utils import override_global_config
 
 
 # Get fixtures directory path
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-FLAGS_CONFIG_PATH = Path(__file__).parent / "flags-v1.json"
+FFE_SYSTEM_TEST_DATA_DIR = Path(__file__).parent / "ffe-system-test-data"
+FIXTURES_DIR = FFE_SYSTEM_TEST_DATA_DIR / "evaluation-cases"
+FLAGS_CONFIG_PATH = FFE_SYSTEM_TEST_DATA_DIR / "ufc-config.json"
 
 
 def load_flags_config():
@@ -37,7 +38,7 @@ def load_fixture_test_cases(fixture_file):
 
 def get_all_fixture_files():
     """Get all fixture JSON files."""
-    return [f.name for f in FIXTURES_DIR.glob("*.json")]
+    return sorted(f.name for f in FIXTURES_DIR.glob("*.json"))
 
 
 def variation_type_to_method(provider, variation_type):
@@ -65,6 +66,8 @@ for fixture_file in fixture_files:
             all_test_cases.append((fixture_file, test_case, test_id))
     except Exception as e:
         print(f"Warning: Could not load fixture {fixture_file}: {e}")
+
+assert all_test_cases, f"No FFE JSON fixtures found in {FIXTURES_DIR}"
 
 
 @pytest.fixture
@@ -124,10 +127,12 @@ def test_fixture_case(provider, flags_config, fixture_file, test_case, test_id):
 
     # Assert the result matches expectations
     expected_value = expected_result.get("value")
+    expected_reason = expected_result.get("reason")
     assert result.value == expected_value, (
         f"Flag '{flag_key}' with context (targetingKey='{targeting_key}', attributes={attributes}) "
         f"returned {result.value}, expected {expected_value}"
     )
+    assert result.reason == expected_reason
 
 
 class TestFixtureSpecificCases:
