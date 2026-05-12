@@ -802,6 +802,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             intake_url=self.intake_url,
             processing_interval=self._interval,
             compute_stats_enabled=self._compute_stats_enabled,
+            client_side_stats_obfuscation=self._client_side_stats_obfuscation,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
             dogstatsd=self.dogstatsd,
