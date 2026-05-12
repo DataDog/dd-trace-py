@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue in the Claude Agent SDK integration
+    where some LLM spans were not being properly finished. The handler now 
+    finalizes any open LLM span before opening a new one.

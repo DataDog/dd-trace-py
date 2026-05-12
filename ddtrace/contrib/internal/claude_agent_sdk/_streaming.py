@@ -85,6 +85,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._create_llm_span()
 
     def _create_llm_span(self) -> None:
+        if self.current_llm_span is not None:
+            self._finalize_llm_span(None)
         self.current_llm_span = self.integration.trace(
             "claude_agent_sdk.llm",
             submit_to_llmobs=True,
