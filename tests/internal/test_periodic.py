@@ -48,20 +48,24 @@ def test_periodic_double_start():
     t.join()
 
 
-def test_periodic_awake_after_stop_raises_not_hangs():
+def test_periodic_awake_after_stop_returns_not_hangs():
     """Regression: awake() after a completed stop() used to block forever.
 
     Once a worker has fully stopped, there is nothing left that can serve a
-    new awake request. The native awake() path must therefore reject the call
+    new awake request. The native awake() path must therefore short-circuit
     instead of waiting forever for a completion signal that will never come.
+
+    We deliberately make awake() a silent no-op (not a RuntimeError) so that
+    a racy stop()/awake() interleaving never surfaces a timing-dependent
+    exception to callers.
     """
     t = periodic.PeriodicThread(60.0, lambda: None)
     t.start()
     t.stop()
     t.join()  # fully drained
 
-    with pytest.raises(RuntimeError):
-        t.awake()
+    # Must return promptly. Before the fix this hung forever.
+    t.awake()
 
 
 def test_periodic_awake_does_not_deadlock_with_stop_from_callback():
