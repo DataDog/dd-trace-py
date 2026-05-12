@@ -144,8 +144,11 @@ def pytest_timeout_cancel_timer(item):
         """
         )
 
-        # test_new is not in known_tests, so EFD retries it 10 times.
-        known_tests: set[TestRef] = set()
+        # known_tests must be non-empty for EFD to activate; test_new is absent so
+        # EFD treats it as a new test and retries it 10 times.
+        known_tests: set[TestRef] = {
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known_other"),
+        }
 
         with (
             patch(
