@@ -57,6 +57,12 @@ from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
 
 
+try:
+    from pytest_timeout import _get_item_settings as _pytest_timeout_get_item_settings
+except (ImportError, AttributeError):
+    _pytest_timeout_get_item_settings = None
+
+
 if t.TYPE_CHECKING:
     from _pytest.terminal import TerminalReporter
 
@@ -78,17 +84,6 @@ TEST_FRAMEWORK = "pytest"
 _EXTERNAL_RERUN_PLUGINS = {"rerunfailures": "no:rerunfailures", "flaky": "no:flaky"}
 
 log = logging.getLogger(__name__)
-
-
-# The tuple pytest expects as the `longrepr` field of reports for failed or skipped tests.
-_Longrepr = tuple[
-    # 1st field: pathname of the test file
-    str,
-    # 2nd field: line number.
-    int,
-    # 3rd field: skip reason.
-    str,
-]
 
 
 # The tuple pytest expects as the output of the `pytest_report_teststatus` hook.
@@ -542,9 +537,34 @@ class TestOptPlugin:
             self.manager.writer.put_item(test_module)
             TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
+    def _reset_pytest_timeout(self, item: pytest.Item) -> None:
+        """Cancel and re-arm pytest-timeout's timer so this attempt gets a fresh budget.
+
+        pytest-timeout installs its per-test timer in its pytest_runtest_protocol hookwrapper,
+        which only fires once even when we retry by calling runtestprotocol() directly. Without
+        this reset, all retry attempts share the original timer and later attempts can time out
+        mid-teardown despite each attempt individually being well within the budget.
+
+        We only reset when func_only=False (the default), because when func_only=True pytest-timeout
+        installs the timer in pytest_runtest_call, which runtestprotocol() re-invokes per attempt
+        and therefore already gets a fresh budget on every retry.
+        """
+        if _pytest_timeout_get_item_settings is None or not item.config.pluginmanager.hasplugin("timeout"):
+            return
+        try:
+            settings = _pytest_timeout_get_item_settings(item)
+            if settings.timeout and settings.timeout > 0 and not settings.func_only:
+                hooks = item.config.pluginmanager.hook
+                hooks.pytest_timeout_cancel_timer(item=item)
+                hooks.pytest_timeout_set_timer(item=item, settings=settings)
+        except Exception:
+            log.debug("Could not reset pytest-timeout timer for test attempt", exc_info=True)
+
     def _do_one_test_run(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item], context: TestContext
     ) -> tuple[TestRun, _ReportGroup]:
+        self._reset_pytest_timeout(item)
+
         test = self.tests_by_nodeid[item.nodeid]
         test_run = test.make_test_run()
         test_run.start()
@@ -577,8 +597,6 @@ class TestOptPlugin:
                 item, nextitem, test, t.cast(RetryHandler, retry_handler), reports
             )
         else:
-            if _get_user_property(item, "dd_disabled_attempt_to_fix"):
-                self._mark_attempt_to_fix_report_group_as_skipped(item, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
 
@@ -627,6 +645,11 @@ class TestOptPlugin:
         retry_reports.log_test_report(item, reports, TestPhase.SETUP)
         # The call report may not exist if setup failed or skipped.
         retry_reports.log_test_report(item, reports, TestPhase.CALL)
+        # Track teardown outcome without logging it to pytest (other plugins expect only one teardown per
+        # test). We still need it in reports_by_outcome because _get_test_outcome considers teardown when
+        # setting the test_run status, and make_final_report must be able to find a matching source report.
+        if teardown_report := reports.get(TestPhase.TEARDOWN):
+            retry_reports.track_report(teardown_report)
 
         test_run = test.last_test_run
         retry_handler.set_tags_for_test_run(test_run)
@@ -645,6 +668,8 @@ class TestOptPlugin:
             # multiple setups for a test does not seem to cause an issue with junitxml, at least.)
             if not retry_reports.log_test_report(item, reports, TestPhase.CALL):
                 retry_reports.log_test_report(item, reports, TestPhase.SETUP)
+            if teardown_report := reports.get(TestPhase.TEARDOWN):
+                retry_reports.track_report(teardown_report)
 
             test_run.finish()
 
@@ -664,16 +689,11 @@ class TestOptPlugin:
         if extra_failed_report := retry_reports.get_extra_failed_report(test, final_status):
             self.extra_failed_reports.append(extra_failed_report)
 
-        if _get_user_property(item, "dd_disabled_attempt_to_fix"):
-            self._mark_attempt_to_fix_report_as_skipped(item, final_report)
-
         item.ihook.pytest_runtest_logreport(report=final_report)
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
         # closes the <testcase> element when teardown is logged.
         teardown_report = last_reports.get(TestPhase.TEARDOWN)
-        if _get_user_property(item, "dd_disabled_attempt_to_fix"):
-            self._mark_attempt_to_fix_report_as_skipped(item, teardown_report)
         item.ihook.pytest_runtest_logreport(report=teardown_report)
 
     def _check_applicable_retry_handlers(self, test: Test) -> t.Optional[RetryHandler]:
@@ -701,37 +721,6 @@ class TestOptPlugin:
     def _mark_test_reports_as_retry(self, reports: _ReportGroup, retry_handler: RetryHandler) -> None:
         if not self._mark_test_report_as_retry(reports, retry_handler, TestPhase.CALL):
             self._mark_test_report_as_retry(reports, retry_handler, TestPhase.SETUP)
-
-    def _mark_attempt_to_fix_report_as_skipped(self, item: pytest.Item, report: t.Optional[pytest.TestReport]) -> None:
-        """
-        Modify a test report for an attempt-to-fix test to make it look like it was skipped.
-
-        This is called *after* ``_get_test_outcome`` has already captured the real status (FAIL/PASS), so the
-        backend sees the true result while the terminal/junitxml shows the test as skipped (quarantined).
-        """
-        if report is None:
-            return
-
-        if report.when == TestPhase.TEARDOWN:
-            report.outcome = "passed"
-        else:
-            line_number = item.location[1] or 0
-            longrepr: _Longrepr = (str(item.path), line_number, "Quarantined (Attempt to Fix)")
-            report.longrepr = longrepr
-            report.outcome = "skipped"
-
-    def _mark_attempt_to_fix_report_group_as_skipped(self, item: pytest.Item, reports: _ReportGroup) -> None:
-        """
-        Modify the test reports for an attempt-to-fix test to make it look like it was skipped.
-        """
-        if call_report := reports.get(TestPhase.CALL):
-            self._mark_attempt_to_fix_report_as_skipped(item, call_report)
-            reports[TestPhase.SETUP].outcome = "passed"
-            reports[TestPhase.TEARDOWN].outcome = "passed"
-        else:
-            setup_report = reports.get(TestPhase.SETUP)
-            self._mark_attempt_to_fix_report_as_skipped(item, setup_report)
-            reports[TestPhase.TEARDOWN].outcome = "passed"
 
     def _mark_test_report_as_retry(self, reports: _ReportGroup, retry_handler: RetryHandler, when: str) -> bool:
         if call_report := reports.get(when):
@@ -773,12 +762,6 @@ class TestOptPlugin:
 
         if getattr(report, "wasxfail", None) == "dd_quarantined":
             return ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
-
-        if _get_user_property(report, "dd_disabled_attempt_to_fix"):
-            if report.when == TestPhase.TEARDOWN:
-                return ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
-            else:
-                return ("", "", "")
 
         if _get_user_property(report, "dd_flaky"):
             return ("flaky", "K", ("FLAKY", {"yellow": True}))
@@ -911,6 +894,11 @@ class RetryReports:
     def __init__(self):
         self.reports_by_outcome = defaultdict(lambda: [])
 
+    def track_report(self, report: pytest.TestReport) -> None:
+        """Track a report's outcome in reports_by_outcome without logging it to pytest."""
+        outcome = _get_user_property(report, "dd_retry_outcome") or report.outcome
+        self.reports_by_outcome[outcome].append(report)
+
     def log_test_report(self, item: pytest.Item, reports: _ReportGroup, when: str) -> bool:
         """
         Collect and log the test report for a given test phase, if it exists.
@@ -920,8 +908,7 @@ class RetryReports:
         """
         if report := reports.get(when):
             item.ihook.pytest_runtest_logreport(report=report)
-            outcome = _get_user_property(report, "dd_retry_outcome") or report.outcome
-            self.reports_by_outcome[outcome].append(report)
+            self.track_report(report)
             return True
 
         return False

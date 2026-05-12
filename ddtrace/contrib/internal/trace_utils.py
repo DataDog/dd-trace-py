@@ -39,7 +39,8 @@ from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
-import ddtrace.internal.utils.wrappers
+from ddtrace.internal.utils.wrappers import iswrapped  # noqa: F401
+from ddtrace.internal.utils.wrappers import unwrap  # noqa: F401
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -52,8 +53,6 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 wrap = wrapt.wrap_function_wrapper
-unwrap = ddtrace.internal.utils.wrappers.unwrap
-iswrapped = ddtrace.internal.utils.wrappers.iswrapped
 
 REQUEST = "request"
 RESPONSE = "response"
@@ -400,14 +399,13 @@ def set_service_and_source(
         span.set_tag(_SERVICE_SOURCE, "opt.split_by_domain")
     # NB "not service" here makes svc_src make sense in cases of service inheritance
     elif not service or service == int_config.get(default_service_key):
-        span.set_tag(
-            _SERVICE_SOURCE,
-            getattr(
-                int_config,
-                "integration_name",
-                int_config.get("integration_name", "m") if hasattr(int_config, "get") else "m",
-            ),
+        service_source = getattr(
+            int_config,
+            "integration_name",
+            int_config.get("integration_name", "") if hasattr(int_config, "get") else "",
         )
+        if service_source:
+            span.set_tag(_SERVICE_SOURCE, service_source)
     if service:
         span.service = service
 
@@ -519,7 +517,7 @@ def set_http_meta(
 
     core.dispatch(
         "set_http_meta_for_asm",
-        [
+        (
             span,
             request_ip,
             raw_uri,
@@ -535,7 +533,7 @@ def set_http_meta(
             response_cookies,
             peer_ip,
             headers_are_case_sensitive,
-        ],
+        ),
     )
 
     if route is not None:
