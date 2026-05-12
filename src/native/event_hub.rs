@@ -126,7 +126,7 @@ fn repr_field(py: Python<'_>, field: &Option<Py<PyAny>>) -> PyResult<String> {
     })
 }
 
-/// Native Python class mirroring the old Python EventResult dataclass.
+/// Python-exported result of a single event listener invocation.
 /// Fields are Option<Py<PyAny>> so __clear__ can drop them without a Python token —
 /// pyo3 0.28 defers Py<T> decrefs, so dropping Option::None is always safe.
 /// is_ok is a private fast path for __bool__ that avoids Python equality.
@@ -203,7 +203,7 @@ impl EventResult {
     }
 }
 
-/// Native dict subclass mirroring the old Python EventResultDict.
+/// dict subclass mapping listener name keys to EventResult values.
 /// __missing__ returns the _MissingEvent singleton for absent keys.
 /// __getattr__ enables attribute-style access: result.listener_name.
 /// GC is inherited from PyDict — no extra fields to traverse or clear.
