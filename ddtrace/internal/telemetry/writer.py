@@ -44,7 +44,7 @@ from .metrics_namespaces import MetricType
 log = get_logger(__name__)
 
 
-class LogData(dict):
+class LogData(dict[str, Any]):
     def __hash__(self):
         return hash((self["message"], self["level"], self.get("tags"), self.get("stack_trace")))
 
@@ -588,7 +588,7 @@ class TelemetryWriter(PeriodicService):
                 tags,
             )
 
-    def _report_logs(self) -> set[dict[str, Any]]:
+    def _report_logs(self) -> set[LogData]:
         with self._service_lock:
             logs = self._logs
             self._logs = set()
