@@ -1,5 +1,3 @@
-stages:
-  - "ddtrace-internal:package"
 "ddtrace-internal:build sdist":
   extends: .build_base
   stage: "ddtrace-internal:package"
