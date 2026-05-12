@@ -164,10 +164,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                     self._finalize_tool_span(tool_data, tool_output)
 
         # Only open the next LLM span when this UserMessage actually concluded a
-        # tool turn. UserMessages without tool results (e.g. subagent context
-        # propagation) don't represent the start of a new LLM call, and opening
-        # a span for them would overwrite an already-open LLM span — dropping
-        # the previous one and hiding any descendants in the trace UI.
+        # tool turn. UserMessages without tool results don't represent the start of 
+        # a new LLM call.
         if chunk_type == "UserMessage" and not self._active_tool_spans and has_tool_result:
             if self._accumulated_input_messages is None:
                 self._accumulated_input_messages = self.integration.extract_llm_input_messages(
