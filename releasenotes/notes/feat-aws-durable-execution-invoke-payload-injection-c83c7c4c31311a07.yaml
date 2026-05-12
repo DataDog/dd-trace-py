@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    aws_durable_execution_sdk_python: Inject Datadog propagation headers into the
+    payload of outgoing ``DurableContext.invoke`` calls. The callee Lambda's
+    ``datadog-lambda-python`` extractor reads them as a priority-2 fallback (under
+    ``_datadog`` in the input payload) when no ``_datadog_{N}`` checkpoint exists,
+    so chained durable executions remain part of the same trace from the very first
+    invocation.

@@ -26,6 +26,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
+from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import tracer
 
 
@@ -169,6 +170,22 @@ def _is_dynamic_parent() -> bool:
     return isinstance(parent_event, AwsDurableOperationEvent) and parent_event.operation in _DYNAMIC_PARENT_OPERATIONS
 
 
+def _inject_invoke_payload(args: tuple, kwargs: dict, span) -> tuple[tuple, dict]:
+    """Inject Datadog trace headers into DurableContext.invoke payload."""
+    try:
+        payload = get_argument_value(args, kwargs, 1, "payload", optional=True)
+        if not isinstance(payload, dict):
+            return args, kwargs
+        # Avoid collisions with user keys by nesting under `_datadog`.
+        carrier = payload.setdefault("_datadog", {})
+        if not isinstance(carrier, dict):
+            return args, kwargs
+        HTTPPropagator.inject(span, carrier)
+    except Exception:
+        log.debug("Failed to inject trace context into invoke payload", exc_info=True)
+    return args, kwargs
+
+
 def _trace_with_event(event, wrapped: Callable, args: tuple, kwargs: dict):
     """Run ``wrapped`` inside a context with ``event``, attaching the cause on suspension."""
     with core.context_with_event(event) as ctx:
@@ -194,7 +211,18 @@ def _traced_invoke(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
         invoke_function_name=get_argument_value(args, kwargs, 0, "function_name"),
         name=name,
     )
-    return _trace_with_event(event, wrapped, args, kwargs)
+    with core.context_with_event(event) as ctx:
+        if ctx.span is not None:
+            args, kwargs = _inject_invoke_payload(args, kwargs, ctx.span)
+        try:
+            return wrapped(*args, **kwargs)
+        except SuspendExecution:
+            cause_exc_info = ctx.event.suspend_cause_exc_info
+            if cause_exc_info is not None:
+                ctx.dispatch_ended_event(*cause_exc_info)
+            else:
+                ctx.dispatch_ended_event()
+            raise
 
 
 def _traced_operation(operation: str, name_pos: int) -> Callable:
