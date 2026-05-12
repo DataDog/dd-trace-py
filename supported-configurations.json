@@ -1283,20 +1283,6 @@
         "default": null
       }
     ],
-    "DD_DJANGO-DATABASE_SERVICE": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
-      }
-    ],
-    "DD_DJANGO-DATABASE_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
-      }
-    ],
     "DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS": [
       {
         "implementation": "A",
@@ -1311,11 +1297,24 @@
         "default": null
       }
     ],
+    "DD_DJANGO_DATABASE_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_DJANGO-DATABASE_SERVICE"
+        ]
+      }
+    ],
     "DD_DJANGO_DATABASE_SERVICE_NAME": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_DJANGO-DATABASE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX": [
@@ -3817,10 +3816,7 @@
       {
         "implementation": "B",
         "type": "map",
-        "default": "",
-        "aliases": [
-          "OTEL_RESOURCE_ATTRIBUTES"
-        ]
+        "default": ""
       }
     ],
     "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED": [
@@ -4376,10 +4372,7 @@
       {
         "implementation": "B",
         "type": "boolean",
-        "default": "true",
-        "aliases": [
-          "OTEL_TRACES_EXPORTER"
-        ]
+        "default": "true"
       }
     ],
     "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED": [

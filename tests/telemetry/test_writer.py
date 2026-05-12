@@ -160,18 +160,6 @@ import opentelemetry
     assert configurations
     configurations.sort(key=lambda x: x["name"])
 
-    def _normalize_frozenset_str(val: object) -> object:
-        """Normalize frozenset string representations so ordering doesn't matter."""
-        if isinstance(val, str) and val.startswith("frozenset("):
-            try:
-                return str(sorted(eval(val)))
-            except Exception:
-                pass
-        return val
-
-    for cfg in configurations:
-        cfg["value"] = _normalize_frozenset_str(cfg["value"])
-
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
@@ -225,9 +213,11 @@ import opentelemetry
         {"name": "DD_CIVISIBILITY_ITR_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_LOG_LEVEL", "origin": "default", "value": "info"},
         {"name": "DD_CODE_ORIGIN_FOR_SPANS_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_CRASHTRACKING_COLLECT_ALL_THREADS", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_CREATE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_DEBUG_URL", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_CRASHTRACKING_MAX_THREADS", "origin": "default", "value": 128},
         {
             "name": "DD_CRASHTRACKING_STACKTRACE_RESOLVER",
             "origin": "default",
@@ -251,9 +241,9 @@ import opentelemetry
         {"name": "DD_DYNAMIC_INSTRUMENTATION_MAX_PAYLOAD_SIZE", "origin": "default", "value": 1048576},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_METRICS_ENABLED", "origin": "default", "value": True},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_PROBE_FILE", "origin": "default", "value": None},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_IDENTIFIERS", "origin": "default", "value": "set()"},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES", "origin": "default", "value": "set()"},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS", "origin": "default", "value": "set()"},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_IDENTIFIERS", "origin": "default", "value": ""},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES", "origin": "default", "value": ""},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS", "origin": "default", "value": ""},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_INTERVAL_SECONDS", "origin": "default", "value": 1.0},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_TIMEOUT", "origin": "default", "value": 30},
         {"name": "DD_ENV", "origin": "default", "value": None},
@@ -326,7 +316,7 @@ import opentelemetry
         {
             "name": "DD_PROFILING_LOCK_EXCLUDE_MODULES",
             "origin": "default",
-            "value": str(
+            "value": ",".join(
                 sorted(
                     [
                         "anyio",
@@ -376,7 +366,7 @@ import opentelemetry
             "origin": "env_var",
             "value": str(file),
         },
-        {"name": "DD_SYMBOL_DATABASE_INCLUDES", "origin": "default", "value": "set()"},
+        {"name": "DD_SYMBOL_DATABASE_INCLUDES", "origin": "default", "value": ""},
         {"name": "DD_SYMBOL_DATABASE_UPLOAD_ENABLED", "origin": "default", "value": True},
         {"name": "DD_TAGS", "origin": "env_var", "value": "team:apm,component:web"},
         {"name": "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "origin": "default", "value": True},
@@ -394,7 +384,7 @@ import opentelemetry
         {"name": "DD_TRACE_COMPUTE_STATS", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", "origin": "default", "value": "set()"},
+        {"name": "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", "origin": "default", "value": ""},
         {"name": "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL", "origin": "default", "value": 120.0},
         {"name": "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", "origin": "default", "value": 10.0},
         {"name": "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "origin": "default", "value": False},

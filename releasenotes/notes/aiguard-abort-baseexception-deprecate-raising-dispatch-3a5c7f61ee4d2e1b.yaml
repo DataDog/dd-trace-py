@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    AI Guard: ``ddtrace.appsec.ai_guard.AIGuardAbortError`` now derives from
+    ``ddtrace.internal._exceptions.DDBlockException`` (a ``BaseException``
+    subclass) instead of ``Exception``. This brings AI Guard block decisions in
+    line with how ASM blocks are surfaced and prevents a generic
+    ``except Exception:`` in user code from silently swallowing a block.

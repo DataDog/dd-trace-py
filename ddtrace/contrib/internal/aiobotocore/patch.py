@@ -87,10 +87,7 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
             # inherit parent attributes
             span.resource = self._self_parent_span.resource
             span.span_type = self._self_parent_span.span_type
-            for _k, _v in self._self_parent_span._get_str_attributes().items():
-                span._set_attribute(_k, _v)
-            for _k, _v in self._self_parent_span._get_numeric_attributes().items():
-                span._set_attribute(_k, _v)
+            span._set_attributes(self._self_parent_span._get_attributes())
 
             result = await self.__wrapped__.read(*args, **kwargs)
             span.set_tag("Length", len(result))

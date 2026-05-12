@@ -95,15 +95,25 @@ unsafe fn dump_python_traceback_as_string(
     let read_fd = pipefd[0];
     let write_fd = pipefd[1];
 
-    fcntl(read_fd, libc::F_SETFL as c_int, libc::O_NONBLOCK as c_int);
+    if fcntl(read_fd, libc::F_SETFL as c_int, libc::O_NONBLOCK as c_int) == -1 {
+        // Non-fatal: log and continue; read may block but won't crash.
+        let msg = b"<fcntl_O_NONBLOCK_failed>\0";
+        libc::write(
+            libc::STDERR_FILENO,
+            msg.as_ptr() as *const libc::c_void,
+            msg.len(),
+        );
+    }
 
     // Use null thread state for signal-safety; CPython will dump all threads.
     let error_msg = dump_fn(write_fd, ptr::null_mut(), ptr::null_mut());
 
-    close(write_fd);
+    // Ignore close return: EINTR cannot occur on Linux for close, and
+    // any other error means the fd is already gone — nothing to recover.
+    let _ = close(write_fd);
 
     if !error_msg.is_null() {
-        close(read_fd);
+        let _ = close(read_fd);
         emit_stacktrace_string(error_msg as *const c_char);
         return;
     }
@@ -115,7 +125,7 @@ unsafe fn dump_python_traceback_as_string(
         MAX_TRACEBACK_SIZE,
     );
 
-    close(read_fd);
+    let _ = close(read_fd);
 
     if bytes_read > 0 {
         let bytes_read = bytes_read as usize;
