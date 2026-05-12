@@ -19,10 +19,7 @@ stages:
     - .gitlab/scripts/build-sdist.sh
   artifacts:
     paths:
-      - "ddtrace-internal/pywheels/*.whl"
       - "ddtrace-internal/pywheels/*.tar.gz"
-      - "ddtrace-internal/debugwheelhouse/*.log"
-      - "ddtrace-internal/debugwheelhouse/*.zip"
   cache:
     - key: v1-ddtrace-internal-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
       paths:
