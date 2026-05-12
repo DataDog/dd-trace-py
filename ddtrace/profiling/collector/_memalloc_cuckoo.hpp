@@ -21,50 +21,32 @@ using filter_hash_t = std::hash<T>;
 
 /* Cuckoo filter for fast-reject on the heap profiler free path.
  *
- * The heap profiler samples ~1% of allocations. Without a filter, every
- * free() must probe allocs_m (an absl::flat_hash_map) to find out, paying
- * 50-100 cycles even for the 99% of frees that aren't sampled. This filter
- * answers "is this pointer sampled?" in ~10-15 cycles by checking two
- * candidate buckets containing 16-bit fingerprints.
+ * ~99% of frees aren't sampled. The filter answers "is this pointer
+ * sampled?" in ~10-15 cycles by probing two buckets of 16-bit fingerprints,
+ * versus 50-100 cycles for an allocs_m miss.
  *
- * Critical invariant: the filter MUST be a superset of allocs_m's keys.
- *   - False positives are tolerated (extract returns an empty node).
- *   - False negatives MUST NOT occur — they would skip a real entry and
- *     leak heap-tracker state.
+ * Invariant: filter ⊇ allocs_m keys. False positives fall through to an
+ * empty extract; false negatives would leak heap-tracker state.
  *
- * Saturation handling: when the eviction chain can't terminate within
- * MAX_KICKS, the displaced fingerprint is parked in a single-slot victim
- * cache (instead of being orphaned). contains() and erase() consult both
- * the table and the victim. This restores the strict superset invariant
- * for the first saturation. If a SECOND saturation occurs while the
- * victim is still occupied, insert() returns false WITHOUT mutating the
- * table (we refuse before starting the eviction chain), and the caller
- * MUST drop the sample. At our 50% load both events are essentially
- * unreachable; the victim closes the rare-but-nonzero leak window of the
- * naive cuckoo filter.
+ * Saturation: when the eviction chain can't terminate within MAX_KICKS,
+ * the displaced fingerprint is parked in a single-slot victim cache so the
+ * superset invariant survives. contains()/erase() consult both. A second
+ * back-to-back saturation while the victim is occupied returns false from
+ * insert() without mutating the table; the caller must drop the sample.
+ * At 50% load both events have probability < 1e-10 per insert.
  *
- * Sizing rationale:
- *   - 4 slots per bucket × 32768 buckets = 131072 slots
- *   - The heap tracker stops accepting new samples once allocs_m exceeds
- *     TRACEBACK_ARRAY_MAX_COUNT (65535), so live entries top out at 65536
- *   - Worst-case load factor ≈ 50%, well below the 95% where eviction
- *     failure becomes likely. At 50% load the literature puts the
- *     per-insert MAX_KICKS=500 failure probability below 1e-10
- *   - 16-bit fingerprints stored as uint16_t (no bit-packing). With b=4
- *     slots per bucket and f=16 fingerprint bits, the standard cuckoo
- *     filter False Positive Rate formula is: `2b/2^f = 8/65536 ≈ 1/8192 ≈ 0.012%`
- *     per probe of an absent key. Table footprint = 32768 × 4 × 2 bytes
- *     = 256 KB, fits in L2 on every target platform.
+ * Sizing: 32768 buckets × 4 slots × 2 bytes = 256 KB (fits in L2). Load
+ * factor caps at ~50% because the heap tracker stops at
+ * TRACEBACK_ARRAY_MAX_COUNT (65535) live entries. With f=16, b=4 the
+ * standard false-positive-rate formula 2b/2^f ≈ 1/8192 (~0.012%) per absent-key probe.
  *
- * Hashing uses the standard partial-key cuckoo trick (Fan et al. 2014):
+ * Hashing: standard partial-key cuckoo (Fan et al. 2014):
  *   h1 = hash(ptr) mod NUM_BUCKETS
  *   h2 = h1 ^ (hash(fp) mod NUM_BUCKETS)
- * Because XOR is involutive, alt_bucket(alt_bucket(i, fp), fp) == i. This
- * is what makes deletion possible without storing the full key in the slot.
+ * XOR is involutive, so deletion works without storing the full key.
  *
- * Thread safety: not thread-safe. Same constraint as allocs_m, which
- * assumes the GIL is held. When PEP 703 free-threading lands, both will
- * need to migrate to atomics together.
+ * Not thread-safe (GIL-protected like allocs_m). PEP 703 will require
+ * migrating both to atomics together.
  */
 /* Template parameters expose the filter's geometry so tests can instantiate
  * tiny variants (e.g. CuckooFilterImpl<2, 2, 4>) and exercise the
@@ -128,15 +110,11 @@ class CuckooFilterImpl
                 return true;
             }
         }
-        /* Eviction chain didn't terminate within MAX_KICKS.
-         * The new fingerprint was successfully placed at the start of the
-         * chain (b2[slot]); what we couldn't relocate (still in `fp` here)
-         * is an *earlier-tracked* fingerprint. Park it in the victim slot
-         * along with `b` (one of its two valid buckets) so future
-         * contains()/erase() can still locate it. This preserves the
-         * strict superset invariant. At 50% load, reaching this branch
-         * has probability < 1e-10 per insert; reaching it with the victim
-         * already occupied is effectively impossible. */
+        /* Eviction saturated. The new fingerprint already landed at the
+         * start of the chain; `fp` here is an earlier-tracked fingerprint
+         * we couldn't relocate. Park it with one of its valid buckets in
+         * the victim slot so contains()/erase() still find it, preserving
+         * the superset invariant. */
         victim_fp_ = fp;
         victim_bucket_ = b;
         victim_occupied_ = true;
@@ -154,19 +132,15 @@ class CuckooFilterImpl
         if (bucket_contains(b2, h.fp)) {
             return true;
         }
-        /* A fingerprint's two valid buckets are (b, alt(b, fp))
-         * for any b in the pair. If the victim's fp matches and its stored
-         * bucket equals either of the query's two candidate buckets, the
-         * victim represents a logically-present entry for this ptr. */
+        /* Victim hit only if its fp matches and its parked bucket is one
+         * of this ptr's two candidate buckets. */
         return victim_occupied_ && victim_fp_ == h.fp && (victim_bucket_ == h.bucket || victim_bucket_ == b2);
     }
 
-    /* Clears one slot matching the pointer's fingerprint, if any. Checks
-     * the table first, then the victim. Callers must only
-     * erase pointers that were previously inserted — otherwise, in the
-     * rare same-fp/same-bucket-pair collision, this could clear an
-     * unrelated tracked entry and induce a false negative on its
-     * eventual untrack. */
+    /* Clears one slot matching the pointer's fingerprint (table first,
+     * then victim). Caller must only erase previously-inserted pointers:
+     * a same-fp/same-bucket collision could otherwise clear an unrelated
+     * tracked entry and induce a false negative on its later untrack. */
     void erase(const void* ptr) noexcept
     {
         const Hashed h = hash_ptr(ptr);

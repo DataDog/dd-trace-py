@@ -149,11 +149,8 @@ class heap_tracker_t
     uint64_t current_sample_size;
     /* Tracked allocations - using unique_ptr for automatic memory management */
     HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
-    /* Fast-reject filter for the free path. MUST be a superset
-     * of allocs_m's keys: if the filter says "absent", we can skip the
-     * allocs_m probe. False positives fall through harmlessly to an empty
-     * extract; false negatives would leak heap-tracker state. See
-     * _memalloc_cuckoo.hpp for invariant details. */
+    /* Fast-reject filter for the free path. Must remain a superset of
+     * allocs_m's keys; see _memalloc_cuckoo.hpp for invariant details. */
     CuckooFilter live_filter;
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
@@ -231,11 +228,8 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    /* 99% of frees aren't sampled. The filter rejects them in
-     * ~10-15 cycles vs 50-100 cycles for an allocs_m miss. False positives
-     * (FPR ≈ 1/8192 — see _memalloc_cuckoo.hpp for derivation) fall through
-     * harmlessly: extract returns an empty node and we leave both the
-     * filter and map untouched. */
+    /* Skip the allocs_m probe for the ~99% of frees that weren't sampled.
+     * False positives fall through to an empty extract. */
     if (!live_filter.contains(ptr)) {
         return;
     }
@@ -275,14 +269,9 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    /* Maintain the filter-superset invariant (filter ⊇ allocs_m
-     * keys). Insert into the filter FIRST: if it returns false (a second
-     * back-to-back saturation while the victim slot is still occupied,
-     * effectively unreachable at our 50% load), drop the sample. Adding
-     * to allocs_m without a filter entry would otherwise create a false
-     * negative — untrack_no_cpython would early-return on the real
-     * pointer and leak the traceback. The first saturation is absorbed
-     * by the filter's victim slot; see CuckooFilter::insert for details. */
+    /* Filter-first to preserve filter ⊇ allocs_m. If the filter refuses
+     * (back-to-back saturation), drop the sample — adding to allocs_m
+     * without a filter entry would create a false negative on untrack. */
     assert(!live_filter.contains(ptr) && "filter saw duplicate insert; missed untrack?");
     if (!live_filter.insert(ptr)) {
         pool_put_no_cpython(std::move(tb));
