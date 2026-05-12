@@ -1,5 +1,10 @@
+from datetime import datetime
+from datetime import timezone
+from unittest.mock import MagicMock
+
 import pytest
 
+from ddtrace.ext import SpanTypes
 from tests.contrib.botocore.bedrock_utils import AGENT_ALIAS_ID
 from tests.contrib.botocore.bedrock_utils import AGENT_ID
 from tests.contrib.botocore.bedrock_utils import AGENT_INPUT
@@ -65,7 +70,7 @@ def _assert_trace_step_spans(trace_step_spans):
     assert trace_step_spans[4]["name"].startswith("orchestrationTrace Step")
     assert trace_step_spans[5]["name"].startswith("guardrailTrace Step")
     assert all(span["meta"]["span"]["kind"] == "workflow" for span in trace_step_spans)
-    assert all(span["meta"]["metadata"]["bedrock_trace_id"] == span["span_id"] for span in trace_step_spans)
+    assert all(span["meta"]["metadata"].get("bedrock_trace_id") for span in trace_step_spans)
 
 
 def _assert_inner_span(span):
@@ -177,3 +182,63 @@ def test_agent_invoke_stream_trace_disabled(
             pass
     assert len(llmobs_events) == 1
     assert llmobs_events[0]["name"] == "Bedrock Agent {}".format(AGENT_ID)
+
+
+def test_translated_step_events_share_apm_trace_id_with_root(
+    bedrock_agent_client, request_vcr, bedrock_agents_llmobs, llmobs_events
+):
+    """Every translated step event's ``_dd.apm_trace_id`` must match the root agent span's,
+    proving they were created via ``tracer.start_span(child_of=...)`` rather than synthesized.
+    """
+    with request_vcr.use_cassette("agent_invoke.yaml"):
+        response = bedrock_agent_client.invoke_agent(
+            agentAliasId=AGENT_ALIAS_ID,
+            agentId=AGENT_ID,
+            sessionId="test_session",
+            enableTrace=True,
+            inputText=AGENT_INPUT,
+        )
+        for _ in response["completion"]:
+            pass
+    assert len(llmobs_events) == 20
+    apm_trace_ids = {event["_dd"]["apm_trace_id"] for event in llmobs_events}
+    assert len(apm_trace_ids) == 1, "expected all step events to share the root agent's apm_trace_id"
+    root_event = next(e for e in llmobs_events if e["name"] == "Bedrock Agent {}".format(AGENT_ID))
+    trace_step_spans = _extract_trace_step_spans(llmobs_events)
+    step_event_ids = {e["span_id"] for e in trace_step_spans}
+    inner_events = _extract_inner_spans(llmobs_events)
+    assert all(e["parent_id"] == root_event["span_id"] for e in trace_step_spans)
+    assert all(e["parent_id"] in step_event_ids for e in inner_events)
+
+
+def _build_model_invocation_input_trace(trace_step_id, when):
+    """Construct a minimal orchestrationTrace.modelInvocationInput event."""
+    return {
+        "trace": {
+            "orchestrationTrace": {
+                "modelInvocationInput": {
+                    "traceId": trace_step_id,
+                    "foundationModel": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                    "text": '{"system":"sys","messages":[{"role":"user","content":"hi"}]}',
+                }
+            }
+        },
+        "eventTime": when,
+    }
+
+
+def test_translate_bedrock_traces_finishes_orphaned_step_spans(bedrock_agents_llmobs, llmobs_events, tracer):
+    """A pending ``modelInvocationInput`` without a matching output event must still be finished
+    by the safety net in ``translate_bedrock_traces``.
+    """
+    from ddtrace.llmobs._integrations.bedrock import BedrockIntegration
+
+    integration = BedrockIntegration(MagicMock())
+    assert integration.llmobs_enabled is True
+
+    with tracer.trace("Bedrock Agent {}".format(AGENT_ID), span_type=SpanTypes.LLM) as root_span:
+        traces = [_build_model_invocation_input_trace("step-orphan", datetime.now(tz=timezone.utc))]
+        integration.translate_bedrock_traces(traces, root_span)
+
+    names = sorted(e["name"] for e in llmobs_events)
+    assert names == sorted(["modelInvocation", "orchestrationTrace Step"])
