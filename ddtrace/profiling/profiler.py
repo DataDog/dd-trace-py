@@ -207,7 +207,12 @@ class _ProfilerInstance(service.Service):
         # runtime-mutable values (e.g. the adaptive sampling interval) are
         # already exposed via ProfilerStats fields.
         try:
-            info_payload = {"profiler": {"settings": profiling_config.dump_settings()}}
+            settings = profiling_config.dump_settings()
+            # Drop `tags`: user/process tags already ride on the upload event's
+            # dedicated tag channel and would otherwise be duplicated into
+            # `info.profiler.settings.tags.*` for no extra signal.
+            settings.pop("tags", None)
+            info_payload = {"profiler": {"settings": settings}}
             ddup.set_profiler_settings_json(json.dumps(info_payload))
         except Exception:
             LOG.debug("Failed to publish profiler settings to info channel", exc_info=True)
