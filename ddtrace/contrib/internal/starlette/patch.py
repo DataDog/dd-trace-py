@@ -69,7 +69,7 @@ def _supported_versions() -> dict[str, str]:
 
 
 def traced_init(wrapped, instance, args, kwargs):
-    mw = kwargs.pop("middleware", [])
+    mw = list(kwargs.pop("middleware", None) or [])
     mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
     kwargs.update({"middleware": mw})
 
