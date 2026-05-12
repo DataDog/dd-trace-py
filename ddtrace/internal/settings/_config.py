@@ -703,7 +703,7 @@ class Config(object):
                 category=DDTraceDeprecationWarning,
             )
         self._inferred_proxy_services_enabled = _get_config(
-            ["DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", "DD_TRACE_INFERRED_SPANS_ENABLED"], False, asbool
+            "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool
         )
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
 

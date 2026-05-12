@@ -56,17 +56,8 @@ class IntegrationConfig(AttrDict):
         self.setdefault("analytics_sample_rate", 1.0)
 
         env_var_id = _integration_env_var_id(name)
-        service = env.get(
-            "DD_%s_SERVICE" % env_var_id,
-            default=env.get(
-                "DD_%s_SERVICE_NAME" % env_var_id,
-                default=None,
-            ),
-        )
+        service = env.get("DD_%s_SERVICE" % env_var_id, default=None)
         self.setdefault("service", service)
-        # TODO[v1.0]: this is required for backwards compatibility since some
-        # integrations use service_name instead of service. These should be
-        # unified.
         self.setdefault("service_name", service)
 
         object.__setattr__(

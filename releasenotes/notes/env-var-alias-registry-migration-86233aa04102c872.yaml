@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    ``DD_KOMBU_SERVICE``, ``DD_JINJA2_SERVICE``, ``DD_DJANGO_DATABASE_SERVICE``,
+    ``DD_CELERY_PRODUCER_SERVICE``, ``DD_CELERY_WORKER_SERVICE``, and
+    ``DD_DJANGO_CACHE_SERVICE`` now override the service tag on their
+    respective spans. Previously they were ignored in favor of the
+    ``DD_<INTEGRATION>_SERVICE_NAME`` form.
