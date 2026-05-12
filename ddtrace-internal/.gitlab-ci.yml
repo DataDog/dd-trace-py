@@ -25,7 +25,7 @@ stages:
     - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
       paths:
         - .download_cache
-"build sdist":
+"build ddtrace-internal sdist":
   extends: .build_base
   image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
   tags: ["arch:${ARCH_TAG}"]
