@@ -56,6 +56,11 @@ import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
 
+try:
+    from pytest_timeout import _get_item_settings as _pytest_timeout_get_item_settings
+except (ImportError, AttributeError):
+    _pytest_timeout_get_item_settings = None  # type: ignore[assignment]
+
 
 if t.TYPE_CHECKING:
     from _pytest.terminal import TerminalReporter
@@ -531,9 +536,34 @@ class TestOptPlugin:
             self.manager.writer.put_item(test_module)
             TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
+    def _reset_pytest_timeout(self, item: pytest.Item) -> None:
+        """Cancel and re-arm pytest-timeout's timer so this attempt gets a fresh budget.
+
+        pytest-timeout installs its per-test timer in its pytest_runtest_protocol hookwrapper,
+        which only fires once even when we retry by calling runtestprotocol() directly. Without
+        this reset, all retry attempts share the original timer and later attempts can time out
+        mid-teardown despite each attempt individually being well within the budget.
+
+        We only reset when func_only=False (the default), because when func_only=True pytest-timeout
+        installs the timer in pytest_runtest_call, which runtestprotocol() re-invokes per attempt
+        and therefore already gets a fresh budget on every retry.
+        """
+        if _pytest_timeout_get_item_settings is None or not item.config.pluginmanager.hasplugin("timeout"):
+            return
+        try:
+            settings = _pytest_timeout_get_item_settings(item)
+            if settings.timeout and settings.timeout > 0 and not settings.func_only:
+                hooks = item.config.pluginmanager.hook
+                hooks.pytest_timeout_cancel_timer(item=item)
+                hooks.pytest_timeout_set_timer(item=item, settings=settings)
+        except Exception:
+            log.debug("Could not reset pytest-timeout timer for test attempt", exc_info=True)
+
     def _do_one_test_run(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item], context: TestContext
     ) -> tuple[TestRun, _ReportGroup]:
+        self._reset_pytest_timeout(item)
+
         test = self.tests_by_nodeid[item.nodeid]
         test_run = test.make_test_run()
         test_run.start()
