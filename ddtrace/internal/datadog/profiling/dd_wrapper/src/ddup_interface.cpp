@@ -120,7 +120,18 @@ ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
 void
 ddup_set_profiler_settings_json(std::string_view settings_json) // cppcheck-suppress unusedFunction
 {
-    Datadog::Sample::profile_borrow().stats().set_profiler_settings_json(settings_json);
+    // Strip the outer braces of the caller-supplied compact JSON object once,
+    // so that get_internal_metadata_json() can splice the entries inline
+    // without any per-upload string work. Empty objects ("{}") and inputs
+    // that aren't a JSON object are dropped silently. Stored on ProfilerState
+    // (process-global) so the value survives the per-upload std::swap of
+    // ProfilerStats in UploaderBuilder::build().
+    auto& entries = Datadog::ProfilerState::get().profiler_settings_entries;
+    if (settings_json.size() > 2 && settings_json.front() == '{' && settings_json.back() == '}') {
+        entries.assign(settings_json.substr(1, settings_json.size() - 2));
+    } else {
+        entries.clear();
+    }
 }
 
 bool

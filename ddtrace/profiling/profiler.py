@@ -20,7 +20,6 @@ from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env as _env
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.internal.settings.profiling import config_str
-from ddtrace.internal.telemetry import dump_settings
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
@@ -208,7 +207,7 @@ class _ProfilerInstance(service.Service):
         # runtime-mutable values (e.g. the adaptive sampling interval) are
         # already exposed via ProfilerStats fields.
         try:
-            ddup.set_profiler_settings_json(json.dumps(dump_settings(profiling_config)))
+            ddup.set_profiler_settings_json(json.dumps(profiling_config.dump_settings()))
         except Exception:
             LOG.debug("Failed to publish profiler settings to internal metadata", exc_info=True)
 

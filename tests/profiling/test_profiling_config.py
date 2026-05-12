@@ -121,9 +121,7 @@ class TestDumpSettings:
     """Tests for the profiler-settings serializer used in per-profile metadata."""
 
     def test_includes_private_keys(self) -> None:
-        from ddtrace.internal.telemetry import dump_settings
-
-        settings = dump_settings(ProfilingConfig())
+        settings = ProfilingConfig().dump_settings()
 
         for key in (
             "dd.profiling.enabled",
@@ -140,9 +138,7 @@ class TestDumpSettings:
             assert key in settings, f"missing {key!r} in dumped settings"
 
     def test_keys_are_prefixed_and_dotted(self) -> None:
-        from ddtrace.internal.telemetry import dump_settings
-
-        settings = dump_settings(ProfilingConfig())
+        settings = ProfilingConfig().dump_settings()
 
         for key in settings:
             assert key.startswith("dd.profiling."), f"unexpected key without prefix: {key!r}"
@@ -151,19 +147,15 @@ class TestDumpSettings:
     def test_values_are_json_serializable(self) -> None:
         import json
 
-        from ddtrace.internal.telemetry import dump_settings
-
-        settings = dump_settings(ProfilingConfig())
+        settings = ProfilingConfig().dump_settings()
         json.dumps(settings)  # must not raise
 
     def test_reflects_env_overrides(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from ddtrace.internal.telemetry import dump_settings
-
         monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED", "0")
         monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_TARGET_OVERHEAD", "5.0")
         monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "30.0")
 
-        settings = dump_settings(ProfilingConfig())
+        settings = ProfilingConfig().dump_settings()
 
         assert settings["dd.profiling.stack.adaptive_sampling"] is False
         assert settings["dd.profiling.stack.adaptive_sampling_target_overhead"] == 5.0

@@ -1,5 +1,7 @@
 #include "profiler_stats.hpp"
 
+#include "profiler_state.hpp"
+
 #include <charconv>
 
 namespace {
@@ -149,18 +151,6 @@ Datadog::ProfilerStats::get_greenlet_count() const
     return greenlet_count;
 }
 
-void
-Datadog::ProfilerStats::set_profiler_settings_json(std::string_view settings_json)
-{
-    profiler_settings_json.emplace(settings_json);
-}
-
-const std::optional<std::string>&
-Datadog::ProfilerStats::get_profiler_settings_json() const
-{
-    return profiler_settings_json;
-}
-
 std::string
 Datadog::ProfilerStats::get_internal_metadata_json()
 {
@@ -231,14 +221,12 @@ Datadog::ProfilerStats::get_internal_metadata_json()
 
     // Splice the user's profiler settings as top-level keys (e.g.
     // "dd.profiling.stack.enabled") so the backend can index and filter on
-    // each one individually. The caller passes a compact JSON object string
-    // (produced by json.dumps); we trust it to be well-formed and strip the
-    // outer braces before appending.
-    const auto& maybe_settings = get_profiler_settings_json();
-    if (maybe_settings && maybe_settings->size() > 2 && maybe_settings->front() == '{' &&
-        maybe_settings->back() == '}') {
+    // each one individually. Entries live on ProfilerState (pre-formatted
+    // with outer braces stripped at setter time), so this is a single append.
+    const auto& entries = Datadog::ProfilerState::get().profiler_settings_entries;
+    if (!entries.empty()) {
         internal_metadata_json += ",";
-        internal_metadata_json.append(*maybe_settings, 1, maybe_settings->size() - 2);
+        internal_metadata_json += entries;
     }
 
     internal_metadata_json += "}";

@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <optional>
 #include <string>
-#include <string_view>
 
 namespace Datadog {
 
@@ -47,15 +46,6 @@ class ProfilerStats
     // Number of greenlets currently tracked by the stack profiler
     std::optional<size_t> greenlet_count;
 
-    // Snapshot of the profiler's user-facing configuration, serialized as a
-    // compact JSON object string (e.g. {"dd.profiling.enabled": true, ...}).
-    // The outer braces are stripped at serialization time and the entries are
-    // spliced into the top level of internal_metadata so the backend can index
-    // and filter on each setting individually. Set once at profiler startup;
-    // intentionally not reset across uploads since it reflects static
-    // configuration.
-    std::optional<std::string> profiler_settings_json;
-
   public:
     ProfilerStats() = default;
     ~ProfilerStats() = default;
@@ -90,11 +80,9 @@ class ProfilerStats
     void set_greenlet_count(size_t count);
     std::optional<size_t> get_greenlet_count() const;
 
-    void set_profiler_settings_json(std::string_view settings_json);
-    const std::optional<std::string>& get_profiler_settings_json() const;
-
     // Returns a JSON string containing relevant Profiler Stats to be included
-    // in the libdatadog payload.
+    // in the libdatadog payload. Also splices in the process-global profiler
+    // settings entries stored on ProfilerState (e.g. "dd.profiling.*" keys).
     std::string get_internal_metadata_json();
 
     void reset_state();

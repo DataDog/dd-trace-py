@@ -137,43 +137,6 @@ def report_configuration(config: DDConfig) -> None:
         telemetry_writer.add_configuration(env_name, env_val, config.value_source(env_name), config.config_id)
 
 
-def _json_safe_value(value: t.Any) -> t.Any:
-    if value is None or isinstance(value, (bool, int, float, str)):
-        return value
-    if isinstance(value, (list, tuple, set, frozenset)):
-        return [_json_safe_value(v) for v in value]
-    if isinstance(value, dict):
-        return {str(k): _json_safe_value(v) for k, v in value.items()}
-    return repr(value)
-
-
-def dump_settings(config: DDConfig) -> dict[str, t.Any]:
-    """Return a {fully_qualified_name: value} snapshot of a DDConfig tree,
-    including private items.
-
-    Companion to :func:`report_configuration`. Unlike telemetry reporting,
-    this is intended for per-profile metadata channels (e.g. the profiler's
-    internal metadata JSON) where the goal is to expose the full effective
-    configuration to backend consumers regardless of `private=True`.
-
-    Keys are the fully qualified dotted config path including the config's
-    own prefix (e.g. ``dd.profiling.stack.adaptive_sampling``). Each key is
-    emitted at the top level of the returned dict so consumers can index and
-    filter on each setting individually rather than treating the whole bag
-    as one opaque blob.
-    """
-    prefix = getattr(type(config), "__prefix__", "") or ""
-    settings: dict[str, t.Any] = {}
-    for name, _ in type(config).items(recursive=True):
-        env_val = config
-        for p in name.split("."):
-            env_val = getattr(env_val, p)
-
-        key = f"{prefix}.{name}" if prefix else name
-        settings[key] = _json_safe_value(env_val)
-    return settings
-
-
 def _invalid_otel_config(otel_env):
     log.warning(
         "Setting %s to %s is not supported by ddtrace, this configuration will be ignored.",
