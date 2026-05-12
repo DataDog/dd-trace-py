@@ -721,7 +721,8 @@ def test_listener_calls_core_api_reentrantly(clean_event_hub):
 def test_listener_dispatches_same_event_does_not_deadlock(clean_event_hub):
     """A listener that dispatches the same event it's registered on must not deadlock.
     The read lock is dropped before listeners are invoked, so nested acquisition is safe.
-    Bounded by a depth counter to avoid RecursionError."""
+    Bounded by a depth counter to avoid RecursionError.
+    """
     depth = [0]
 
     def listener(*_):

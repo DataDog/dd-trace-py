@@ -280,7 +280,7 @@ pub fn on(
     for (existing_key, existing_cb) in vec.iter_mut() {
         let existing_bound = existing_key.bind(py);
         let new_bound = key.bind(py);
-        if existing_bound.is(&new_bound) || existing_bound.eq(&new_bound)? {
+        if existing_bound.is(new_bound) || existing_bound.eq(new_bound)? {
             *existing_cb = callback;
             return Ok(());
         }
