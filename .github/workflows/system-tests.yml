@@ -194,6 +194,10 @@ jobs:
       - name: Run RUNTIME_METRICS_ENABLED
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh RUNTIME_METRICS_ENABLED
+        
+      - name: Run TELEMETRY_APP_STARTED_PRODUCTS_DISABLED
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        run: ./run.sh TELEMETRY_APP_STARTED_PRODUCTS_DISABLED
 
       - name: Run AI_GUARD
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other' && matrix.weblog-variant == 'flask-poc'
