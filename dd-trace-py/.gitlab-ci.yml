@@ -89,13 +89,13 @@ tests-gen:
         # Use dd-octo-sts to get GitHub token
         export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
       fi
-    - scripts/gen_gitlab_config.py --verbose
+    - dd-trace-py/scripts/gen_gitlab_config.py --verbose
   needs: []
   artifacts:
     paths:
-      - .gitlab/tests-gen.yml
-      - .gitlab/benchmarks/microbenchmarks-gen.yml
-      - .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
+      - dd-trace-py/.gitlab/tests-gen.yml
+      - dd-trace-py/.gitlab/benchmarks/microbenchmarks-gen.yml
+      - dd-trace-py/.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
 
 run-tests-trigger:
  stage: tests
@@ -110,7 +110,7 @@ run-tests-trigger:
    - allow_failure: false
  trigger:
    include:
-     - artifact: .gitlab/tests-gen.yml
+     - artifact: dd-trace-py/.gitlab/tests-gen.yml
        job: tests-gen
    strategy: depend
 
