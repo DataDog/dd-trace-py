@@ -211,18 +211,6 @@ class ProfilingConfig(DDConfig):
         help="**Deprecated**: whether to ignore the profiler in the generated data",
     )
 
-    mem_domain_enabled = DDConfig.v(
-        bool,
-        "mem_domain_enabled",
-        default=False,
-        help_type="Boolean",
-        help=(
-            "Whether to track MEM-domain allocations (PyMem_Malloc/Calloc/Realloc) in "
-            "the heap profiler. When enabled, allocations such as list internal buffers "
-            "and array.array data are captured. Requires Python 3.12 and later."
-        ),
-    )
-
     max_time_usage_pct = DDConfig.v(
         float,
         "max_time_usage_pct",
@@ -439,6 +427,23 @@ class ProfilingConfigMemory(DDConfig):
         validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help="",
+    )
+
+    mem_domain_enabled = DDConfig.v(
+        bool,
+        "mem_domain_enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Whether to track MEM-domain allocations (PyMem_Malloc/Calloc/Realloc) in "
+            "the heap profiler. When enabled, allocations such as list internal buffers "
+            "and array.array data are captured. Requires Python 3.12 or later. "
+            "Disabled by default: MEM-domain interposition adds per-allocation overhead "
+            "on hot paths (list/dict resize, buffer growth) and can extend the time "
+            "threads hold Python locks that allocate inside critical sections. Enable "
+            "this when you need visibility into PyMem_*-only allocations that the "
+            "OBJ-domain hook does not capture."
+        ),
     )
 
 

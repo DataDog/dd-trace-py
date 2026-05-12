@@ -59,7 +59,7 @@ static std::atomic<const PyMemAllocatorEx*> g_saved_alloc_pub{ nullptr };
  * an independent buffer + atomic pair so each domain's lifecycle is fully
  * isolated.  only installed on Python 3.12+.  Earlier versions
  * run GC inline during allocation, which can use-after-free through the
- * MEM-realloc path (see PROF-11496, PR #14550).  The OBJ hook works around
+ * MEM-realloc path (see #14550).  The OBJ hook works around
  * this with pygc_temp_disable_guard_t in memalloc_heap_track_invokes_cpython;
  * extending the same workaround to MEM is deferred. */
 static PyMemAllocatorEx g_saved_alloc_mem_buf[2];
@@ -173,10 +173,9 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 #ifdef _PY312_AND_LATER
 /* ---------------------------------------------------------------------------
  * PYMEM_DOMAIN_MEM hooks — direct copies of the OBJ hooks above, reading
- * the MEM-domain saved-allocator atomic pair.  Kept as separate functions
- * (rather than parameterized) so each hook's translation unit can be
- * audited / reverted independently and so we keep the same defensive
- * pattern that has shipped safely for OBJ.
+ * the MEM-domain saved-allocator atomic pair. Kept as separate function
+ * definitions (rather than parameterizing hooks) so each function
+ * can be reverted independently of the other.
  * --------------------------------------------------------------------------- */
 
 static void
@@ -276,7 +275,12 @@ PyDoc_STRVAR(memalloc_start__doc__,
              "If heap_sample_interval is set to 0, it is disabled entirely.\n"
              "If mem_domain_enabled is true and the Python version supports it\n"
              "(>= 3.12), MEM-domain allocations (PyMem_Malloc/Calloc/Realloc)\n"
-             "are tracked in addition to OBJ-domain allocations.\n");
+             "are tracked in addition to OBJ-domain allocations. This is off\n"
+             "by default because MEM-domain interposition adds per-allocation\n"
+             "overhead on hot paths (list/dict resize, buffer growth) and can\n"
+             "extend the time threads hold Python locks that allocate inside\n"
+             "critical sections. Enable it when you need visibility into\n"
+             "PyMem_*-only allocations that the OBJ hook does not capture.\n");
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
