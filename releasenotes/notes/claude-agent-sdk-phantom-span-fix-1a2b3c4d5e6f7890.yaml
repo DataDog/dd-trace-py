@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    claude_agent_sdk: Fixed phantom LLMObs events with empty model name and missing token metrics
+    that were emitted when a ``ResultMessage`` arrived immediately after tool results with no
+    follow-up ``AssistantMessage`` (e.g., StructuredOutput terminal tool). The speculative
+    step+llm span pair is now created lazily when the next ``AssistantMessage`` actually arrives.
