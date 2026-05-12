@@ -19,7 +19,7 @@ template<typename T>
 using filter_hash_t = std::hash<T>;
 #endif
 
-/* AIDEV-NOTE: Cuckoo filter for fast-reject on the heap profiler free path.
+/* Cuckoo filter for fast-reject on the heap profiler free path.
  *
  * The heap profiler samples ~1% of allocations. Without a filter, every
  * free() must probe allocs_m (an absl::flat_hash_map) to find out, paying
@@ -128,7 +128,7 @@ class CuckooFilterImpl
                 return true;
             }
         }
-        /* AIDEV-NOTE: Eviction chain didn't terminate within MAX_KICKS.
+        /* Eviction chain didn't terminate within MAX_KICKS.
          * The new fingerprint was successfully placed at the start of the
          * chain (b2[slot]); what we couldn't relocate (still in `fp` here)
          * is an *earlier-tracked* fingerprint. Park it in the victim slot
@@ -154,7 +154,7 @@ class CuckooFilterImpl
         if (bucket_contains(b2, h.fp)) {
             return true;
         }
-        /* AIDEV-NOTE: A fingerprint's two valid buckets are (b, alt(b, fp))
+        /* A fingerprint's two valid buckets are (b, alt(b, fp))
          * for any b in the pair. If the victim's fp matches and its stored
          * bucket equals either of the query's two candidate buckets, the
          * victim represents a logically-present entry for this ptr. */
@@ -162,7 +162,7 @@ class CuckooFilterImpl
     }
 
     /* Clears one slot matching the pointer's fingerprint, if any. Checks
-     * the table first, then the victim. AIDEV-NOTE: callers must only
+     * the table first, then the victim. Callers must only
      * erase pointers that were previously inserted — otherwise, in the
      * rare same-fp/same-bucket-pair collision, this could clear an
      * unrelated tracked entry and induce a false negative on its

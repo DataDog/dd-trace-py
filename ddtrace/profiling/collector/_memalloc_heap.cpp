@@ -149,7 +149,7 @@ class heap_tracker_t
     uint64_t current_sample_size;
     /* Tracked allocations - using unique_ptr for automatic memory management */
     HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
-    /* AIDEV-NOTE: Fast-reject filter for the free path. MUST be a superset
+    /* Fast-reject filter for the free path. MUST be a superset
      * of allocs_m's keys: if the filter says "absent", we can skip the
      * allocs_m probe. False positives fall through harmlessly to an empty
      * extract; false negatives would leak heap-tracker state. See
@@ -231,7 +231,7 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    /* AIDEV-NOTE: 99% of frees aren't sampled. The filter rejects them in
+    /* 99% of frees aren't sampled. The filter rejects them in
      * ~10-15 cycles vs 50-100 cycles for an allocs_m miss. False positives
      * (FPR ≈ 1/8192 — see _memalloc_cuckoo.hpp for derivation) fall through
      * harmlessly: extract returns an empty node and we leave both the
@@ -275,7 +275,7 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    /* AIDEV-NOTE: Maintain the filter-superset invariant (filter ⊇ allocs_m
+    /* Maintain the filter-superset invariant (filter ⊇ allocs_m
      * keys). Insert into the filter FIRST: if it returns false (a second
      * back-to-back saturation while the victim slot is still occupied,
      * effectively unreachable at our 50% load), drop the sample. Adding
