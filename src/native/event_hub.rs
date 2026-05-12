@@ -127,8 +127,6 @@ fn repr_field(py: Python<'_>, field: &Option<Py<PyAny>>) -> PyResult<String> {
 }
 
 /// Python-exported result of a single event listener invocation.
-/// Fields are Option<Py<PyAny>> so __clear__ can drop them without a Python token —
-/// pyo3 0.28 defers Py<T> decrefs, so dropping Option::None is always safe.
 /// is_ok is a private fast path for __bool__ that avoids Python equality.
 /// response_type is get-only to keep is_ok consistent; value and exception are mutable.
 #[pyclass(module = "ddtrace.internal.native._native")]
@@ -178,8 +176,6 @@ impl EventResult {
         ))
     }
 
-    // __traverse__ registers this class with Python's cyclic GC. In pyo3 0.28
-    // defining this method is sufficient — no #[pyclass(gc)] needed.
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
         if let Some(ref o) = self.response_type {
             visit.call(o)?;
@@ -193,8 +189,6 @@ impl EventResult {
         Ok(())
     }
 
-    // __clear__ breaks reference cycles. Option fields can be taken without
-    // acquiring the GIL — pyo3 0.28 defers the decref automatically.
     fn __clear__(&mut self) {
         self.response_type = None;
         self.value = None;
@@ -275,12 +269,12 @@ pub fn on(
     callback: Py<PyAny>,
     name: Option<Py<PyAny>>,
 ) -> PyResult<()> {
+    // When name is omitted, key by the callback itself so Python __eq__ handles
+    // deduplication correctly — including bound methods whose identity differs
+    // on every attribute access (a.m is not a.m) but compare equal via __eq__.
     let key: Py<PyAny> = match name {
         Some(n) => n,
-        None => {
-            let ptr = callback.as_ptr() as isize;
-            ptr.into_pyobject(py)?.into_any().unbind()
-        }
+        None => callback.clone_ref(py),
     };
     let mut guard = LISTENERS.write().unwrap();
     let vec = guard.entry(event_id).or_default();

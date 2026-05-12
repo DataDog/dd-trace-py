@@ -559,6 +559,48 @@ def test_on_name_deduplication(clean_event_hub):
     assert calls == ["second"]
 
 
+def test_on_unnamed_same_func_deduplicates(clean_event_hub):
+    """Registering the same callable twice without a name replaces the first entry."""
+    calls = []
+
+    def listener():
+        calls.append(1)
+
+    core.on("test.event", listener)
+    core.on("test.event", listener)  # same object → replace, not append
+    core.dispatch("test.event", ())
+    assert calls == [1]
+
+
+def test_on_unnamed_different_funcs_not_deduplicated(clean_event_hub):
+    """Two different callables without a name are both registered."""
+    calls = []
+    core.on("test.event", lambda: calls.append("first"))
+    core.on("test.event", lambda: calls.append("second"))
+    core.dispatch("test.event", ())
+    assert calls == ["first", "second"]
+
+
+def test_on_bound_method_deduplicates_without_name(clean_event_hub):
+    """Registering the same bound method twice without a name replaces the first entry.
+    Python creates a new bound-method object on every attribute access, so pointer
+    identity fails — only __eq__ (which compares __func__ + __self__) is correct.
+    """
+
+    class Component:
+        def __init__(self):
+            self.calls = 0
+
+        def handle(self):
+            self.calls += 1
+
+    obj = Component()
+    core.on("test.event", obj.handle)  # bound method object A
+    core.on("test.event", obj.handle)  # bound method object B — same logical method
+    core.dispatch("test.event", ())
+    assert obj.calls == 1  # called exactly once, not twice
+
+
 def test_reset_listeners_removes_bound_method(clean_event_hub):
     """reset_listeners must remove a bound method even though Python creates a new
     object on every attribute access (a.method is not a.method).  Using pointer
