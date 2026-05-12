@@ -268,6 +268,95 @@ class TestContextEventsApi(unittest.TestCase):
         results = core.dispatch_with_results("my.cool.event", [3, 4])
         assert results.res.value == 7
 
+    @with_config_raise_value(raise_value=False)
+    def test_core_dispatch_allow_raise_propagates_exception(self):
+        def on_runtime_error(*_):
+            raise RuntimeError("OH NO!")
+
+        core.on("my.cool.event", on_runtime_error)
+
+        # Default allow_raise=False: Exception is swallowed
+        assert core.dispatch("my.cool.event", (1,)) is None
+
+        # allow_raise=True: Exception propagates
+        with pytest.raises(RuntimeError):
+            core.dispatch("my.cool.event", (1,), allow_raise=True)
+
+    @with_config_raise_value(raise_value=False)
+    def test_core_dispatch_allow_raise_short_circuits_listeners(self):
+        calls = []
+
+        def first(*_):
+            calls.append("first")
+            raise RuntimeError("first failed")
+
+        def second(*_):
+            calls.append("second")
+
+        core.on("my.cool.event", first, "first")
+        core.on("my.cool.event", second, "second")
+
+        with pytest.raises(RuntimeError):
+            core.dispatch("my.cool.event", (), allow_raise=True)
+        assert calls == ["first"]
+
+    @with_config_raise_value(raise_value=False)
+    def test_core_dispatch_ddblockexception_always_propagates(self):
+        from ddtrace.internal._exceptions import DDBlockException
+
+        class FakeBlock(DDBlockException):
+            pass
+
+        def on_block(*_):
+            raise FakeBlock()
+
+        core.on("my.cool.event", on_block)
+
+        # allow_raise=False (default): BaseException-derived block still propagates
+        # (it's not caught by the internal `except Exception:`)
+        with pytest.raises(DDBlockException):
+            core.dispatch("my.cool.event", ())
+
+        # allow_raise=True: also propagates
+        with pytest.raises(DDBlockException):
+            core.dispatch("my.cool.event", (), allow_raise=True)
+
+    @with_config_raise_value(raise_value=False)
+    def test_core_dispatch_event_allow_raise_propagates(self):
+        from ddtrace.internal.core.event_hub import dispatch_event
+
+        class FakeEvent:
+            event_name = "my.cool.event"
+
+        def listener(_):
+            raise RuntimeError("evt boom")
+
+        core.on("my.cool.event", listener)
+
+        # Default allow_raise=False: swallowed
+        assert dispatch_event(FakeEvent()) is None
+
+        # allow_raise=True: propagates
+        with pytest.raises(RuntimeError):
+            dispatch_event(FakeEvent(), allow_raise=True)
+
+    def test_ddblockexception_inheritance(self):
+        from ddtrace.internal._exceptions import BlockingException
+        from ddtrace.internal._exceptions import DDBlockException
+
+        # DDBlockException is BaseException-derived only, not Exception
+        assert issubclass(DDBlockException, BaseException)
+        assert not issubclass(DDBlockException, Exception)
+
+        # BlockingException inherits the new base class
+        assert issubclass(BlockingException, DDBlockException)
+
+        # AIGuardAbortError inherits from DDBlockException
+        from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
+
+        assert issubclass(AIGuardAbortError, DDBlockException)
+        assert not issubclass(AIGuardAbortError, Exception)
+
     def test_core_dispatch_context_ended(self):
         context_id = "my.cool.context"
         event_name = "context.ended.%s" % context_id
@@ -437,37 +526,6 @@ def clean_event_hub():
     core.reset_listeners()
     yield
     core.reset_listeners()
-
-
-def test_raising_dispatch_no_listeners(clean_event_hub):
-    core.raising_dispatch("test.event", ("arg",))
-
-
-def test_raising_dispatch_listener_returns_value(clean_event_hub):
-    core.on("test.event", lambda x: x * 2, "res")
-    core.raising_dispatch("test.event", (21,))
-
-
-def test_raising_dispatch_listener_returns_exception(clean_event_hub):
-    exc = ValueError("raised by value")
-    core.on("test.event", lambda: exc, "res")
-    with pytest.raises(ValueError, match="raised by value"):
-        core.raising_dispatch("test.event", ())
-
-
-def test_raising_dispatch_listener_raises_exception(clean_event_hub):
-    # dispatch_with_results stores the exception in .exception, not .value,
-    # so raising_dispatch does not re-raise listener exceptions.
-    def listener():
-        raise RuntimeError("not propagated")
-
-    core.on("test.event", listener, "res")
-    original = config._raise
-    config._raise = False
-    try:
-        core.raising_dispatch("test.event", ())
-    finally:
-        config._raise = original
 
 
 def test_event_result_bool(clean_event_hub):

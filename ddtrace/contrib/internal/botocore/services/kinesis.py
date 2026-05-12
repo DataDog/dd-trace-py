@@ -34,10 +34,7 @@ class TraceInjectionSizeExceed(Exception):
 def update_record(ctx, record: dict[str, Any], stream: str, inject_trace_context: bool = True) -> None:
     line_break, data_obj = get_kinesis_data_object(record["Data"])
     if data_obj is not None:
-        core.dispatch(
-            "botocore.kinesis.update_record",
-            (ctx, stream, data_obj, record, inject_trace_context),
-        )
+        core.dispatch("botocore.kinesis.update_record", (ctx, stream, data_obj, record, inject_trace_context))
 
         try:
             data_json = json.dumps(data_obj)

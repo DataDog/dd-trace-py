@@ -315,8 +315,13 @@ pub fn reset(py: Python<'_>, event_id: Option<&str>, callback: Option<Py<PyAny>>
 }
 
 #[pyfunction]
-#[pyo3(signature = (event_id, args=None))]
-pub fn dispatch(py: Python<'_>, event_id: &str, args: Option<Py<PyAny>>) -> PyResult<()> {
+#[pyo3(signature = (event_id, args=None, allow_raise=false))]
+pub fn dispatch(
+    py: Python<'_>,
+    event_id: &str,
+    args: Option<Py<PyAny>>,
+    allow_raise: bool,
+) -> PyResult<()> {
     let callbacks = {
         let guard = LISTENERS.read().unwrap();
         let v = match guard.get(event_id) {
@@ -332,7 +337,10 @@ pub fn dispatch(py: Python<'_>, event_id: &str, args: Option<Py<PyAny>>) -> PyRe
     for cb in &callbacks {
         if let Err(e) = cb.bind(py).call1(&call_args) {
             // Mirrors `except Exception:` semantics: BaseException subclasses propagate always.
-            if !e.is_instance_of::<pyo3::exceptions::PyException>(py) || crate::config::get_raise() {
+            if !e.is_instance_of::<pyo3::exceptions::PyException>(py)
+                || allow_raise
+                || crate::config::get_raise()
+            {
                 return Err(e);
             }
         }

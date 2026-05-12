@@ -9,8 +9,10 @@ fail-open behaviour.
 """
 
 import asyncio
+import gc
 import threading
 from unittest.mock import patch
+import warnings
 
 import pytest
 
@@ -630,6 +632,31 @@ async def test_chat_async_unawaited_coro_does_not_evaluate(mock_execute_request,
     coro.close()  # discard without awaiting
 
     mock_execute_request.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_chat_async_block_closes_unstarted_sdk_coroutine(mock_execute_request, async_openai_client):
+    """When AI Guard blocks at await time, the unstarted SDK coroutine MUST be
+    closed so Python doesn't emit ``RuntimeWarning: coroutine ... was never
+    awaited`` for it. Force GC inside the ``catch_warnings`` block so any
+    unclosed-coroutine warning surfaces while ``simplefilter("error")`` is
+    still active — the warning fires from ``coroutine.__del__``, not from
+    the raise itself, so a naive context exit would let it leak past the
+    assertion.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        with pytest.raises(AIGuardAbortError):
+            await async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+        gc.collect()
+
+    never_awaited = [
+        w for w in recorded if issubclass(w.category, RuntimeWarning) and "was never awaited" in str(w.message)
+    ]
+    assert not never_awaited, f"Unstarted SDK coroutine leaked: {[str(w.message) for w in never_awaited]}"
 
 
 # ---------------------------------------------------------------------------
