@@ -7,7 +7,7 @@ integrations:
   tested_versions_by_dependency:
     aiobotocore:
       min: 1.0.7
-      max: 2.24.1
+      max: 3.1.0
 
 - integration_name: aiohttp
   is_external_package: true
