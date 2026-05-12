@@ -35,11 +35,11 @@ def test_race_stop_concurrent_with_awake():
     with stop() for _awake_mutex. The middle-ground design must:
 
     1. If stop() wins the mutex first: awake() observes _stopping under the
-       mutex and bails with RuntimeError (does NOT touch _served).
+       mutex and silently bails (does NOT touch _served).
     2. If awake() wins: it publishes AWAKE; either the worker serves it
        (then exits on STOP) or the worker's cleanup _served->set() wakes us.
 
-    Either branch must complete; nothing may hang.
+    Either branch must complete without hanging.
     """
     rng = random.Random(0xBADBEEF)
 
@@ -53,13 +53,10 @@ def test_race_stop_concurrent_with_awake():
 
         awake_done = threading.Event()
         stop_done = threading.Event()
-        awake_raised = [None]  # captured exception, if any
 
         def _awake_target():
             try:
                 t.awake()
-            except RuntimeError as e:
-                awake_raised[0] = e
             finally:
                 awake_done.set()
 
@@ -85,20 +82,21 @@ def test_race_stop_concurrent_with_awake():
         t.join(timeout=2.0)
 
 
-def test_race_awake_after_completed_stop_always_raises():
-    """Tight loop: stop+join+awake must always raise, never hang.
+def test_race_awake_after_completed_stop_does_not_hang():
+    """Tight loop: stop+join+awake must always return, never hang.
 
     This is the case literally described in PR 17707. The early _stopping
     check is GIL-serialized so it must always observe the prior stop().
+    awake() short-circuits silently instead of raising — see
+    test_periodic_awake_after_stop_returns_not_hangs.
     """
-    for i in range(_ITERATIONS):
+    for _ in range(_ITERATIONS):
         t = periodic.PeriodicThread(60.0, lambda: None)
         t.start()
         t.stop()
         t.join(timeout=2.0)
 
-        with pytest.raises(RuntimeError):
-            t.awake()
+        t.awake()
 
 
 def test_race_callback_stop_with_concurrent_awakes():
@@ -108,7 +106,7 @@ def test_race_callback_stop_with_concurrent_awakes():
     parallel. None of them may deadlock or hang regardless of who wins the
     race for _awake_mutex. The first awake() to be served triggers stop()
     inside the callback; subsequent awake()s either complete (worker still
-    serving) or raise RuntimeError (worker gone).
+    serving) or silently bail (worker gone).
     """
     NUM_AWAKERS = 8
 
@@ -125,14 +123,10 @@ def test_race_callback_stop_with_concurrent_awakes():
         t.start()
 
         done_events = [threading.Event() for _ in range(NUM_AWAKERS)]
-        outcomes = [None] * NUM_AWAKERS
 
         def _awaker(idx):
             try:
                 t.awake()
-                outcomes[idx] = "ok"
-            except RuntimeError as e:
-                outcomes[idx] = "raised: %s" % e
             finally:
                 done_events[idx].set()
 
@@ -150,6 +144,3 @@ def test_race_callback_stop_with_concurrent_awakes():
         # At least one awaker must have produced the wake that triggered
         # the callback. The callback signals `called` before calling stop().
         assert called.is_set(), "iter=%d: callback never ran" % i
-        # Every outcome must be either an ok serve or a clean RuntimeError.
-        for j, o in enumerate(outcomes):
-            assert o is not None and (o == "ok" or o.startswith("raised:")), "iter=%d awaker[%d] outcome=%r" % (i, j, o)
