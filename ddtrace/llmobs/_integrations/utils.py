@@ -1520,11 +1520,13 @@ def get_final_message_converse_stream_message(
         if not tool_block:
             continue
         tool_input = tool_block.get("input")
-        tool_args = {}
-        if tool_input is not None:
+        tool_args: Any = {}
+        if isinstance(tool_input, dict):
+            tool_args = tool_input
+        elif tool_input is not None:
             try:
                 tool_args = json.loads(tool_input)
-            except (json.JSONDecodeError, ValueError):
+            except (TypeError, json.JSONDecodeError, ValueError):
                 tool_args = {"input": tool_input}
         tool_call_info = ToolCall(
             name=tool_block.get("name", ""),

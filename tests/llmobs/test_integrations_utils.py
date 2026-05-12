@@ -1,6 +1,7 @@
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
+from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 
 
 def test_basic_functionality():
@@ -339,3 +340,23 @@ class TestOpenAIParseInputResponseMessages:
         assert len(processed) == 1
         assert processed[0]["role"] == "user"
         assert tool_call_ids == []
+
+
+class TestGetFinalMessageConverseStreamMessage:
+    def _build(self, tool_input):
+        message = {"role": "assistant", "content_block_indicies": [0]}
+        tool_blocks = {0: {"name": "search", "toolUseId": "tool_1", "input": tool_input}}
+        return get_final_message_converse_stream_message(message, {}, tool_blocks)
+
+    def test_tool_input_as_json_string(self):
+        result = self._build('{"q": "weather"}')
+        assert result["tool_calls"][0]["arguments"] == {"q": "weather"}
+
+    def test_tool_input_as_dict_is_used_directly(self):
+        # Bedrock can return already-parsed dict inputs; should not raise TypeError.
+        result = self._build({"q": "weather"})
+        assert result["tool_calls"][0]["arguments"] == {"q": "weather"}
+
+    def test_tool_input_invalid_json_string_is_wrapped(self):
+        result = self._build("not-json")
+        assert result["tool_calls"][0]["arguments"] == {"input": "not-json"}
