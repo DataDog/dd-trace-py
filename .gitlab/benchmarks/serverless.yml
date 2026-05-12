@@ -1,6 +1,6 @@
 variables:
   SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
-  SLS_CI_BRANCH: onzia/support-release-branches
+  SLS_CI_BRANCH: main
 
 benchmark-serverless:
   stage: benchmarks
