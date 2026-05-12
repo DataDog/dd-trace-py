@@ -344,6 +344,7 @@ import opentelemetry
         {"name": "DD_PROFILING_MAX_TIME_USAGE_PCT", "origin": "default", "value": 1.0},
         {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_MEMORY_EVENTS_BUFFER", "origin": "default", "value": 16},
+        {"name": "DD_PROFILING_MEM_DOMAIN_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_OUTPUT_PPROF", "origin": "default", "value": None},
         {"name": "DD_PROFILING_PYTORCH_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_PYTORCH_EVENTS_LIMIT", "origin": "default", "value": 1000000},
