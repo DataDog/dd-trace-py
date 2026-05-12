@@ -12,7 +12,7 @@ log = get_logger(__name__)
 
 
 def extract_host_tag(kwargs):
-    if "host" in kwargs.get("metadata" or {}).get("headers", {}):
+    if "host" in (kwargs.get("metadata") or {}).get("headers", {}):
         return kwargs["metadata"]["headers"]["host"]
     return None
 
