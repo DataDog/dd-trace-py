@@ -581,10 +581,11 @@ def test_on_unnamed_different_funcs_not_deduplicated(clean_event_hub):
     assert calls == ["first", "second"]
 
 
-def test_on_bound_method_deduplicates_without_name(clean_event_hub):
-    """Registering the same bound method twice without a name replaces the first entry.
-    Python creates a new bound-method object on every attribute access, so pointer
-    identity fails — only __eq__ (which compares __func__ + __self__) is correct.
+def test_on_bound_method_without_name_deduplicates(clean_event_hub):
+    """Registering the same bound method twice without a name deduplicates.
+    Python creates a new object on every attribute access (a.m is not a.m), but
+    bound methods compare equal via __eq__ (__func__ + __self__), so the second
+    registration replaces the first and only one listener fires.
     """
 
     class Component:
@@ -598,7 +599,7 @@ def test_on_bound_method_deduplicates_without_name(clean_event_hub):
     core.on("test.event", obj.handle)  # bound method object A
     core.on("test.event", obj.handle)  # bound method object B — same logical method
     core.dispatch("test.event", ())
-    assert obj.calls == 1  # called exactly once, not twice
+    assert obj.calls == 1  # deduped — called exactly once
 
 
 def test_reset_listeners_removes_bound_method(clean_event_hub):
@@ -669,6 +670,41 @@ def test_dispatch_with_results_base_exception_propagates_regardless_of_raise_fla
             core.dispatch_with_results("test.event", ())
     finally:
         config._raise = original
+
+
+def test_on_unnamed_reentrant_eq_does_not_deadlock(clean_event_hub):
+    """__eq__ called during listener registration must not hold the hub lock.
+    Both read (has_listeners) and write (on) hub operations from inside __eq__
+    must succeed — they would deadlock if __eq__ were called under the write lock.
+    """
+    eq_called = []
+    done = threading.Event()
+
+    class ReentrantListener:
+        def __call__(self, *_):
+            pass
+
+        def __eq__(self, other):
+            # Both of these would deadlock if the hub write lock were held here.
+            core.has_listeners("reentrant.eq.event")
+            core.on("inner.reentrant.event", lambda: None)
+            eq_called.append(True)
+            return NotImplemented
+
+        def __hash__(self):
+            return id(self)
+
+    first = ReentrantListener()
+    core.on("reentrant.eq.event", first)
+
+    def register():
+        core.on("reentrant.eq.event", ReentrantListener())
+        done.set()
+
+    t = threading.Thread(target=register, daemon=True)
+    t.start()
+    assert done.wait(timeout=2.0), "on() deadlocked while __eq__ reentered the hub"
+    assert eq_called, "__eq__ must be called (and must not deadlock)"
 
 
 def test_core_dispatch_concurrent_same_event(clean_event_hub):

@@ -268,19 +268,50 @@ pub fn on(
     callback: Py<PyAny>,
     name: Option<Py<PyAny>>,
 ) -> PyResult<()> {
-    // When name is omitted, key by the callback itself so Python __eq__ handles
-    // deduplication correctly — including bound methods whose identity differs
-    // on every attribute access (a.m is not a.m) but compare equal via __eq__.
     let key: Py<PyAny> = match name {
         Some(n) => n,
         None => callback.clone_ref(py),
     };
+
+    // Phase 1: snapshot existing keys under the read lock — no Python calls.
+    // Clone to hold references so objects stay alive during the equality scan below.
+    let snapshot: Vec<Py<PyAny>> = {
+        let guard = LISTENERS.read().unwrap();
+        guard
+            .get(&event_id)
+            .filter(|v| !v.is_empty())
+            .map(|v| v.iter().map(|(k, _)| k.clone_ref(py)).collect())
+            .unwrap_or_default()
+    };
+
+    // Phase 2: equality scan with NO lock held.
+    // __eq__ can safely reenter the hub here — no lock is held.
+    let key_bound = key.bind(py);
+    let mut matched: Option<&Py<PyAny>> = None;
+    for existing_key in &snapshot {
+        let existing_bound = existing_key.bind(py);
+        if existing_bound.is(key_bound) || existing_bound.eq(key_bound)? {
+            matched = Some(existing_key);
+            break;
+        }
+    }
+
+    // Phase 3: write under lock, identity only — no Python calls.
     let mut guard = LISTENERS.write().unwrap();
     let vec = guard.entry(event_id).or_default();
+    if let Some(mk) = matched {
+        let mk_bound = mk.bind(py);
+        for (existing_key, existing_cb) in vec.iter_mut() {
+            if existing_key.bind(py).is(mk_bound) {
+                *existing_cb = callback;
+                return Ok(());
+            }
+        }
+        // Matched key was removed by a concurrent reset() — fall through to append.
+    }
+    // Identity guard: handles exact-same-object re-registration and concurrent races.
     for (existing_key, existing_cb) in vec.iter_mut() {
-        let existing_bound = existing_key.bind(py);
-        let new_bound = key.bind(py);
-        if existing_bound.is(new_bound) || existing_bound.eq(new_bound)? {
+        if existing_key.bind(py).is(key_bound) {
             *existing_cb = callback;
             return Ok(());
         }
