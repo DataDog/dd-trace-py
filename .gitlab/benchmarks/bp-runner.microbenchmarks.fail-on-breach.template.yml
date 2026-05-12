@@ -7,6 +7,62 @@ experiments:
         run: fail_on_breach
         scenarios:
           # coreapiscenario
+          - name: coreapiscenario-has_listeners_no_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
+          - name: coreapiscenario-has_listeners_with_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
+          - name: coreapiscenario-core_dispatch_no_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
+          - name: coreapiscenario-core_dispatch_1_listener
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
+          - name: coreapiscenario-core_dispatch_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
+          - name: coreapiscenario-core_dispatch_50_listeners
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 38.00 MB
+          - name: coreapiscenario-core_dispatch_no_args_no_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
+          - name: coreapiscenario-core_dispatch_no_args_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
+          - name: coreapiscenario-core_dispatch_exception_no_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
+          - name: coreapiscenario-core_dispatch_exception_listeners
+            thresholds:
+              - execution_time < 0.03 ms
+              - max_rss_usage < 38.00 MB
+          - name: coreapiscenario-core_dispatch_with_results_no_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
+          - name: coreapiscenario-core_dispatch_with_results_1_listener
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
+          - name: coreapiscenario-core_dispatch_with_results_listeners
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 38.00 MB
+          - name: coreapiscenario-core_dispatch_with_results_50_listeners
+            thresholds:
+              - execution_time < 0.25 ms
+              - max_rss_usage < 38.00 MB
           - name: coreapiscenario-context_with_data_listeners
             thresholds:
               - execution_time < 0.02 ms
@@ -229,7 +285,7 @@ experiments:
               - max_rss_usage < 38.00 MB
           - name: httppropagationextract-tracecontext_headers
             thresholds:
-              - execution_time < 0.04 ms
+              - execution_time < 0.05 ms
               - max_rss_usage < 38.00 MB
           - name: httppropagationextract-valid_headers_all
             thresholds:

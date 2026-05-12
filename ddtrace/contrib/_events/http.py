@@ -30,7 +30,12 @@ class _HttpResponseWithStatus(_HttpBaseResponse, Protocol):
     def status(self) -> int: ...
 
 
-_HttpResponse = Union[_HttpResponseWithStatus, _HttpResponseWithStatusCode]
+class _HttpResponseWithReason(_HttpBaseResponse, Protocol):
+    @property
+    def reason(self) -> str: ...
+
+
+_HttpResponse = Union[_HttpResponseWithStatus, _HttpResponseWithStatusCode, _HttpResponseWithReason]
 
 
 @dataclass
@@ -47,11 +52,13 @@ class HttpBaseEvent(Event):
 
     response_headers: Mapping[str, str] = event_field(default_factory=dict)
     response_status_code: Optional[int] = event_field(default=None)
+    response_status_msg: Optional[str] = event_field(default=None)
 
     def set_response(self, response: _HttpResponse) -> None:
         self.response_status_code = getattr(response, "status_code", None)
         if self.response_status_code is None:
             self.response_status_code = getattr(response, "status", None)
+        self.response_status_msg = getattr(response, "reason", None)
         self.response_headers = response.headers
 
 

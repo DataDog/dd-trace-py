@@ -52,7 +52,10 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
         return 0;
     }
     if (stack_size > 0) {
-        pthread_attr_setstacksize(&attr, stack_size);
+        if (pthread_attr_setstacksize(&attr, stack_size) != 0) {
+            std::cerr << "Failed to set sampling thread stack size (" << stack_size << " bytes): " << strerror(errno)
+                      << std::endl;
+        }
     }
 
     pthread_t thread_id{ 0 };

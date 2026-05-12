@@ -13,7 +13,7 @@ importlib-metadata==8.7.1
 iniconfig==2.1.0
 mock==5.2.0
 opentracing==2.4.0
-packaging==26.1
+packaging==26.2
 pluggy==1.6.0
 pygments==2.20.0
 pytest==8.4.2
