@@ -247,7 +247,7 @@ class TestContextEventsApi(unittest.TestCase):
             received.append((a, b))
 
         core.on("my.cool.event", listener)
-        core.dispatch("my.cool.event", [1, 2])
+        core.dispatch("my.cool.event", [1, 2])  # type: ignore[arg-type]  # ast-grep-ignore: core-dispatch-list-args-multi
         assert received == [(1, 2)]
 
     def test_core_dispatch_args_invalid_type_does_not_raise(self):
@@ -265,7 +265,7 @@ class TestContextEventsApi(unittest.TestCase):
     def test_core_dispatch_with_results_args_list_coerced_to_tuple(self):
         """dispatch_with_results gracefully accepts a list in place of a tuple."""
         core.on("my.cool.event", lambda a, b: a + b, "res")
-        results = core.dispatch_with_results("my.cool.event", [3, 4])
+        results = core.dispatch_with_results("my.cool.event", [3, 4])  # type: ignore[arg-type]
         assert results.res.value == 7
 
     @with_config_raise_value(raise_value=False)
@@ -631,7 +631,8 @@ def test_reset_listeners_removes_bound_method(clean_event_hub):
 
 def test_dispatch_base_exception_propagates_regardless_of_raise_flag(clean_event_hub):
     """BaseException subclasses must propagate even when config._raise is False.
-    Dispatch uses `except Exception:` semantics — BaseException is never swallowed."""
+    Dispatch uses `except Exception:` semantics — BaseException is never swallowed.
+    """
 
     class BlockingException(BaseException):
         pass
@@ -651,7 +652,8 @@ def test_dispatch_base_exception_propagates_regardless_of_raise_flag(clean_event
 
 def test_dispatch_with_results_base_exception_propagates_regardless_of_raise_flag(clean_event_hub):
     """BaseException subclasses must propagate from dispatch_with_results even when
-    config._raise is False — they are never stored as EventResult.exception."""
+    config._raise is False — they are never stored as EventResult.exception.
+    """
 
     class BlockingException(BaseException):
         pass
@@ -667,6 +669,70 @@ def test_dispatch_with_results_base_exception_propagates_regardless_of_raise_fla
             core.dispatch_with_results("test.event", ())
     finally:
         config._raise = original
+
+
+def test_core_dispatch_concurrent_same_event(clean_event_hub):
+    """N threads all dispatching the same event simultaneously — no lost dispatches."""
+    calls = [0]
+
+    def listener(*_):
+        calls[0] += 1
+
+    core.on("concurrent.event", listener)
+
+    threads = 10
+    iters = 1000
+    exceptions = []
+
+    def worker():
+        try:
+            for _ in range(iters):
+                core.dispatch("concurrent.event", ())
+        except Exception as e:
+            exceptions.append(e)
+
+    ts = [threading.Thread(target=worker) for _ in range(threads)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+
+    assert exceptions == []
+    assert calls[0] == threads * iters
+
+
+def test_listener_calls_core_api_reentrantly(clean_event_hub):
+    """A listener may call core.on / core.dispatch / core.reset without deadlocking."""
+    nested_called = []
+
+    def outer_listener(*_):
+        # Register, dispatch, then remove a nested listener from inside a dispatch.
+        core.on("inner.event", lambda *_: nested_called.append(True))
+        core.dispatch("inner.event", ())
+        core.reset_listeners("inner.event")
+
+    core.on("outer.event", outer_listener)
+    core.dispatch("outer.event", ())
+
+    assert nested_called == [True]
+    assert not core.has_listeners("inner.event")
+
+
+def test_listener_dispatches_same_event_does_not_deadlock(clean_event_hub):
+    """A listener that dispatches the same event it's registered on must not deadlock.
+    The read lock is dropped before listeners are invoked, so nested acquisition is safe.
+    Bounded by a depth counter to avoid RecursionError."""
+    depth = [0]
+
+    def listener(*_):
+        depth[0] += 1
+        if depth[0] < 3:
+            core.dispatch("reentrant.event", ())
+
+    core.on("reentrant.event", listener)
+    core.dispatch("reentrant.event", ())
+
+    assert depth[0] == 3
 
 
 def test_reset_listeners_simulate_disable_enable_cycle(clean_event_hub):

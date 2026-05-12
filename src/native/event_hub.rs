@@ -278,7 +278,9 @@ pub fn on(
     let mut guard = LISTENERS.write().unwrap();
     let vec = guard.entry(event_id).or_default();
     for (existing_key, existing_cb) in vec.iter_mut() {
-        if existing_key.bind(py).eq(key.bind(py))? {
+        let existing_bound = existing_key.bind(py);
+        let new_bound = key.bind(py);
+        if existing_bound.is(&new_bound) || existing_bound.eq(&new_bound)? {
             *existing_cb = callback;
             return Ok(());
         }
