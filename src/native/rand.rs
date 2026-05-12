@@ -6,12 +6,13 @@ use rand::{
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-// Set once at module init from DD_TRACE_SECURE_RANDOM; reads are a single Relaxed load.
+// Set once at module init (Release) from DD_TRACE_SECURE_RANDOM; every read is an Acquire
+// load so the store is visible to threads that did not participate in module import.
 static SECURE_RANDOM: AtomicBool = AtomicBool::new(false);
 
 #[inline]
 fn secure_random() -> bool {
-    SECURE_RANDOM.load(Ordering::Relaxed)
+    SECURE_RANDOM.load(Ordering::Acquire)
 }
 
 struct RngState {
@@ -245,10 +246,11 @@ mod tests {
 
 /// Register the rand module functions and set up fork safety.
 pub fn register_rand(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    // Read DD_TRACE_SECURE_RANDOM once here so rand64bits() pays only a Relaxed load.
+    // Release store: any thread that subsequently does an Acquire load will see this value,
+    // even if it was created before module import.
     SECURE_RANDOM.store(
         std::env::var("DD_TRACE_SECURE_RANDOM").as_deref() == Ok("true"),
-        Ordering::Relaxed,
+        Ordering::Release,
     );
 
     m.add_function(wrap_pyfunction!(seed, m)?)?;
