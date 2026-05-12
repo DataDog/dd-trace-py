@@ -48,6 +48,7 @@ class BackendResult:
     error_type: t.Optional[ErrorType] = None
     error_description: t.Optional[str] = None
     response: t.Optional[http.client.HTTPResponse] = None
+    request_length: t.Optional[int] = None
     response_length: t.Optional[int] = None
     response_body: t.Optional[bytes] = None
     parsed_response: t.Any = None
@@ -280,6 +281,7 @@ class BackendConnector(threading.local):
             full_headers["Content-Encoding"] = "gzip"
 
         result = BackendResult()
+        result.request_length = len(data) if data is not None else 0
         start_time = time.perf_counter()
 
         try:
@@ -376,6 +378,7 @@ class BackendConnector(threading.local):
                     response_bytes=result.response_length,
                     compressed_response=result.is_gzip_response,
                     error=result.error_type,
+                    request_bytes=result.request_length,
                 )
 
             if result.error_type and result.error_type in RETRIABLE_ERRORS and attempts_so_far < max_attempts:
@@ -389,6 +392,11 @@ class BackendConnector(threading.local):
                 time.sleep(delay_seconds)
             else:
                 break
+
+        if result.error_type:
+            log.warning(
+                "Request %s %s failed after %d attempt(s): %s", method, path, attempts_so_far, result.error_description
+            )
 
         return result
 
@@ -479,6 +487,57 @@ class FileAttachment:
     data: bytes
 
 
+class NoOpBackendConnector:
+    """
+    A connector that makes no network requests.
+
+    Used when the plugin is running in Bazel's hermetic sandbox (manifest mode
+    active), where network access is unavailable. Any call to ``request()`` or
+    its helpers is silently discarded and an empty ``BackendResult`` is returned.
+    Writers and the telemetry API receive this connector but their event
+    delivery is handled via the payload-files code path instead.
+    """
+
+    def close(self) -> None:
+        pass
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        data: t.Optional[bytes] = None,
+        headers: t.Optional[dict[str, str]] = None,
+        send_gzip: bool = False,
+        is_json_response: bool = False,
+        telemetry: t.Any = None,
+        max_attempts: int = 1,
+    ) -> BackendResult:
+        log.debug("NoOp connector: skipping %s %s in offline mode", method, path)
+        return BackendResult()
+
+    def get_json(self, path: str, **kwargs: t.Any) -> BackendResult:
+        return BackendResult()
+
+    def post_json(self, path: str, data: t.Any, **kwargs: t.Any) -> BackendResult:
+        return BackendResult()
+
+    def post_files(self, path: str, files: t.Any, **kwargs: t.Any) -> BackendResult:
+        return BackendResult()
+
+
+class NoOpBackendConnectorSetup(BackendConnectorSetup):
+    """
+    A connector setup for fully offline (Bazel sandbox) mode.
+
+    Returns ``NoOpBackendConnector`` instances for all subdomains so that no
+    network requests are attempted. ``default_env`` falls back to the standard
+    default because there is no agent to query.
+    """
+
+    def get_connector_for_subdomain(self, subdomain: Subdomain) -> "NoOpBackendConnector":  # type: ignore[override]
+        return NoOpBackendConnector()
+
+
 class UnixDomainSocketHTTPConnection(http.client.HTTPConnection):
     """An HTTP connection established over a Unix Domain Socket."""
 
@@ -490,5 +549,6 @@ class UnixDomainSocketHTTPConnection(http.client.HTTPConnection):
 
     def connect(self) -> None:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(self.timeout)
         sock.connect(self.path)
         self.sock = sock

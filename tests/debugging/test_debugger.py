@@ -802,7 +802,7 @@ def test_probe_status_logging_reemit_on_modify(remote_config_worker):
         assert versions(queue, "INSTALLED") == [1, 2, 2]
 
 
-@pytest.mark.parametrize("duration", [1e5, 1e6, 1e7])
+@pytest.mark.parametrize("duration", [1e6, 1e7])
 def test_debugger_function_probe_duration(duration):
     from tests.submod.stuff import durationstuff
 

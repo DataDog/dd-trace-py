@@ -347,6 +347,8 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         """Set test-level ITR tags"""
         super()._set_itr_tags(itr_enabled)
 
+        self.set_tag(test.ITR_TEST_SKIPPING_ENABLED, self._session_settings.itr_test_skipping_enabled)
+
         # Only set correlation ID on tests when in test-level skipping mode
         if (
             itr_enabled

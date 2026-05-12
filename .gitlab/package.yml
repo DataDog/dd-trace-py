@@ -251,10 +251,8 @@ variables:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
         WINDOWS_ARCH: ["amd64", "x86"]
-  retry: 2
   variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: "6"
-    CARGO_BUILD_JOBS: "6"
+    WINDOWS_BUILD_IMAGE: "registry.ddbuild.io/images/mirror/dd-trace-py/windows-build:d4d18a67d43d400d3ecc6bda777a5e233a24f434@sha256:58c3e28646ddf8a1021a079a380c8840e51f0b88c1489a522beee6ec99413019"
   script:
     - bash .gitlab/scripts/build-wheel-windows.sh
   artifacts:

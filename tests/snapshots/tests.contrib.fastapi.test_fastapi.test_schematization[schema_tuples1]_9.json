@@ -10,7 +10,9 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "699d774a00000000",
+      "_dd.p.tid": "69de533a00000000",
+      "_dd.svc_src": "httpx",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "httpx",
       "http.method": "GET",
       "http.status_code": "200",
@@ -18,7 +20,7 @@
       "http.useragent": "testclient",
       "language": "python",
       "out.host": "testserver",
-      "runtime-id": "c8228794dc86437fb9e88f150bf3d7e3",
+      "runtime-id": "e8c080a1193c4f61bb0f7cfeeb78c9be",
       "span.kind": "client"
     },
     "metrics": {
@@ -26,10 +28,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 82287.0
+      "process_id": 85728.0
     },
-    "duration": 13316625,
-    "start": 1771927370343637129
+    "duration": 2057625,
+    "start": 1776177978830534879
   },
      {
        "name": "fastapi.request",
@@ -42,7 +44,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
-         "_dd.p.tid": "699d774a00000000",
+         "_dd.p.tid": "69de533a00000000",
          "_dd.svc_src": "fastapi",
          "component": "fastapi",
          "http.method": "GET",
@@ -56,8 +58,8 @@
        "metrics": {
          "_dd.top_level": 1.0
        },
-       "duration": 7165125,
-       "start": 1771927370348292004
+       "duration": 1221708,
+       "start": 1776177978831067963
      },
         {
           "name": "fastapi.request",
@@ -70,7 +72,7 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "ddtrace_subprocess_dir",
-            "_dd.p.tid": "699d774a00000000",
+            "_dd.p.tid": "69de533a00000000",
             "_dd.svc_src": "fastapi",
             "component": "fastapi",
             "http.method": "GET",
@@ -80,8 +82,8 @@
             "http.version": "1.1",
             "span.kind": "server"
           },
-          "duration": 6608416,
-          "start": 1771927370348871838
+          "duration": 992292,
+          "start": 1776177978831307046
         },
            {
              "name": "fastapi.serialize_response",
@@ -94,8 +96,9 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "ddtrace_subprocess_dir",
-               "_dd.p.tid": "699d774a00000000"
+               "_dd.p.tid": "69de533a00000000",
+               "_dd.svc_src": "fastapi"
              },
-             "duration": 91750,
-             "start": 1771927370354244129
+             "duration": 28875,
+             "start": 1776177978832159254
            }]]

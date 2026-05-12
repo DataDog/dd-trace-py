@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.19)
-include(FetchContent)
 include(CheckIPOSupported)
 
 project(_memalloc)
@@ -18,35 +17,8 @@ endif()
 
 add_compile_definitions(_POSIX_C_SOURCE=200809L)
 
-# Check the DD_COMPILE_ABSEIL environment variable and build type
-if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL
-                                                                                 "false"))
-    message("==============================================================")
-    message("WARNING: DD_COMPILE_ABSEIL set to 0 or false: not using abseil")
-    message("==============================================================")
-    add_definitions(-DDONT_COMPILE_ABSEIL)
-elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message("=====================================")
-    message("WARNING: Debug mode: not using abseil")
-    message("=====================================")
-    add_definitions(-DDONT_COMPILE_ABSEIL)
-else()
-    message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
-
-    # Use a git-based fetch rather than a ZIP download: git shallow clones are more resilient to GitHub transient
-    # failures than release archive downloads. FETCHCONTENT_UPDATES_DISCONNECTED prevents re-fetching on every configure
-    # once the initial clone is in the cache (set by FETCHCONTENT_BASE_DIR in setup.py).
-    set(FETCHCONTENT_UPDATES_DISCONNECTED
-        ON
-        CACHE BOOL "" FORCE)
-    FetchContent_Declare(
-        absl
-        GIT_REPOSITORY https://github.com/abseil/abseil-cpp.git
-        GIT_TAG 20250127.1
-        GIT_SHALLOW TRUE
-        GIT_PROGRESS TRUE)
-    FetchContent_MakeAvailable(absl)
-endif()
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../cmake")
+include(AbseilDep)
 
 # Find Python (be flexible about what's available in build environments)
 find_package(Python3 COMPONENTS Interpreter Development)

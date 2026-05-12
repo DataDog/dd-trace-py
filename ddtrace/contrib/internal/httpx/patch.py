@@ -69,7 +69,7 @@ def _wrapped_sync_send_single_request(
     req: httpx.Request = get_argument_value(args, kwargs, 0, "request")
     with core.context_with_event(
         event=HttpClientSendEvent(
-            url=httpx_url_to_str(req.url),
+            request_url=httpx_url_to_str(req.url),
             request_method=req.method,
             request_headers=req.headers,
             request_body=lambda: req.content,
@@ -94,7 +94,7 @@ async def _wrapped_async_send_single_request(
     req: httpx.Request = get_argument_value(args, kwargs, 0, "request")
     with core.context_with_event(
         event=HttpClientSendEvent(
-            url=httpx_url_to_str(req.url),
+            request_url=httpx_url_to_str(req.url),
             request_method=req.method,
             request_headers=req.headers,
             request_body=lambda: req.content,
@@ -125,9 +125,9 @@ async def _wrapped_async_send(
             component=config.httpx.integration_name,
             request_method=req.method,
             request_headers=req.headers,
-            config=config.httpx,
-            url=httpx_url_to_str(req.url),
-            query=req.url.query,
+            integration_config=config.httpx,
+            request_url=httpx_url_to_str(req.url),
+            query=ensure_text(req.url.query),
             target_host=req.url.host,
         ),
         context_name_override=HttpClientEvents.HTTPX_REQUEST.value,
@@ -156,9 +156,9 @@ def _wrapped_sync_send(
             service=_get_service_name(req),
             request_method=req.method,
             request_headers=req.headers,
-            config=config.httpx,
-            url=httpx_url_to_str(req.url),
-            query=req.url.query,
+            integration_config=config.httpx,
+            request_url=httpx_url_to_str(req.url),
+            query=ensure_text(req.url.query),
             target_host=req.url.host,
         ),
         context_name_override=HttpClientEvents.HTTPX_REQUEST.value,

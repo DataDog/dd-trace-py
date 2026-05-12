@@ -48,6 +48,7 @@ from .integration import IntegrationConfig
 log = get_logger(__name__)
 
 ENDPOINT_FETCHED_CONFIG = fetch_config_from_endpoint()
+DEFAULT_SERVICE_KEYS = frozenset(["_default_service", "_default_service_worker", "_default_service_producer"])
 
 DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
     r"(?ix)"
@@ -117,6 +118,7 @@ INTEGRATION_CONFIGS = frozenset(
         "redis",
         "mako",
         "sqlite3",
+        "aws_durable_execution_sdk_python",
         "aws_lambda",
         "gevent",
         "sanic",
@@ -207,6 +209,14 @@ INTEGRATION_CONFIGS = frozenset(
         "google_cloud_pubsub",
     }
 )
+
+
+def _integration_default_service_names_from_config(int_config: IntegrationConfig) -> set[str]:
+    names: set[str] = set()
+    for attribute in DEFAULT_SERVICE_KEYS:
+        if value := int_config.get(attribute):
+            names.add(value)
+    return names
 
 
 def _parse_propagation_styles(styles_str: str) -> Optional[list[str]]:
@@ -390,6 +400,16 @@ def _default_config() -> dict[str, _ConfigItem]:
             envs=["DD_APPSEC_SCA_ENABLED"],
             modifier=asbool,
         ),
+        "_llmobs_enabled": _ConfigItem(
+            default=False,
+            envs=["DD_LLMOBS_ENABLED"],
+            modifier=asbool,
+        ),
+        "_llmobs_ml_app": _ConfigItem(
+            default=None,
+            envs=["DD_LLMOBS_ML_APP"],
+            modifier=lambda x: x,
+        ),
     }
 
 
@@ -437,6 +457,8 @@ class Config(object):
 
         # Use a dict as underlying storing mechanism for integration configs
         self._integration_configs: dict[str, IntegrationConfig] = {}
+        # Union of `_default_service*` string values from integrations registered via `_add`.
+        self._integration_default_services: frozenset[str] = frozenset()
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
@@ -459,9 +481,7 @@ class Config(object):
 
         self._http = HttpConfig(header_tags=self._trace_http_header_tags)
         self._remote_config_enabled = _get_config("DD_REMOTE_CONFIGURATION_ENABLED", True, asbool)
-        self._remote_config_poll_interval = _get_config(
-            ["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "DD_REMOTECONFIG_POLL_SECONDS"], 5.0, float
-        )
+        self._remote_config_poll_interval = _get_config("DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", 5.0, float)
         self._trace_api = _get_config("DD_TRACE_API_VERSION")
         if self._trace_api == "v0.3":
             log.error(
@@ -478,9 +498,6 @@ class Config(object):
             "DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS, asbool
         )
         self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
-
-        # Use the NativeWriter instead of the AgentWriter
-        self._trace_writer_native = _get_config("_DD_TRACE_WRITER_NATIVE", True, asbool)
 
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
@@ -500,6 +517,8 @@ class Config(object):
 
         self._inferred_base_service = detect_service(sys.argv)
 
+        if self.service is None and in_aws_lambda():
+            self.service = _get_config("AWS_LAMBDA_FUNCTION_NAME", DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and in_gcp_function():
             self.service = _get_config(["K_SERVICE", "FUNCTION_NAME"], DEFAULT_SPAN_SERVICE_NAME)
         if self.service is None and in_azure_function():
@@ -544,7 +563,7 @@ class Config(object):
             and validate_and_report_otel_metrics_exporter_enabled()
         )
         self._runtime_metrics_runtime_id_enabled = _get_config(
-            ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"], False, asbool
+            "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", False, asbool
         )
         self._experimental_features_enabled = _get_config(
             "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: set(x.strip().upper().split(","))
@@ -577,7 +596,7 @@ class Config(object):
         if self._propagation_behavior_extract != _PROPAGATION_BEHAVIOR_IGNORE:
             self._propagation_style_extract = _parse_propagation_styles(
                 _get_config(
-                    ["DD_TRACE_PROPAGATION_STYLE_EXTRACT", "DD_TRACE_PROPAGATION_STYLE"],
+                    "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
                     _PROPAGATION_STYLE_DEFAULT,
                     otel_env="OTEL_PROPAGATORS",
                 )
@@ -590,7 +609,7 @@ class Config(object):
             self._propagation_style_extract = [_PROPAGATION_STYLE_NONE]
         self._propagation_style_inject = _parse_propagation_styles(
             _get_config(
-                ["DD_TRACE_PROPAGATION_STYLE_INJECT", "DD_TRACE_PROPAGATION_STYLE"],
+                "DD_TRACE_PROPAGATION_STYLE_INJECT",
                 _PROPAGATION_STYLE_DEFAULT,
                 otel_env="OTEL_PROPAGATORS",
             )
@@ -613,12 +632,10 @@ class Config(object):
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
-        self._raise = _get_config("DD_TESTING_RAISE", False, asbool)
+        _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
 
         trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
-        self._trace_compute_stats = _get_config(
-            ["DD_TRACE_COMPUTE_STATS", "DD_TRACE_STATS_COMPUTATION_ENABLED"], trace_compute_stats_default, asbool
-        )
+        self._trace_compute_stats = _get_config("DD_TRACE_COMPUTE_STATS", trace_compute_stats_default, asbool)
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
@@ -662,9 +679,7 @@ class Config(object):
         self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
-        self._llmobs_enabled = _get_config("DD_LLMOBS_ENABLED", False, asbool)
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
-        self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
         self._llmobs_instrumented_proxy_urls = _get_config(
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
@@ -680,8 +695,23 @@ class Config(object):
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
-        self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
+        if "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED" in env:
+            deprecate(
+                "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED is deprecated",
+                message="Please use DD_TRACE_INFERRED_SPANS_ENABLED instead.",
+                removal_version="5.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+        self._inferred_proxy_services_enabled = _get_config(
+            ["DD_TRACE_INFERRED_SPANS_ENABLED", "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED"], False, asbool
+        )
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
+
+        # When True, the default span name for @tracer.wrap() on methods includes the class name.
+        # Defaults to False to preserve backwards compatibility; will become True in 5.0.0.
+        self._trace_wrap_span_name_include_class = _get_config(
+            "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS", default=False, modifier=asbool
+        )
 
         # Resource renaming
         self._trace_resource_renaming_enabled = _get_config(
@@ -712,6 +742,14 @@ class Config(object):
             setattr(self, "_trace_sampling_rules", "")
             self._report_hostname = True
             self._health_metrics_enabled = False
+
+    @property
+    def _raise(self) -> bool:
+        return _native_config.get_raise()
+
+    @_raise.setter
+    def _raise(self, value: bool) -> None:
+        _native_config.set_raise(bool(value))
 
     @property
     def _128_bit_trace_id_enabled(self) -> bool:
@@ -750,6 +788,12 @@ class Config(object):
             self._extra_services.pop()
         return self._extra_services
 
+    def _recompute_integration_default_services(self) -> None:
+        names: set[str] = set()
+        for int_conf in self._integration_configs.values():
+            names.update(_integration_default_service_names_from_config(int_conf))
+        self._integration_default_services = frozenset(names)
+
     def _add(self, integration, settings, merge=True):
         """Internal API that registers an integration with given default
         settings.
@@ -786,6 +830,8 @@ class Config(object):
             )
         else:
             self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
+
+        self._recompute_integration_default_services()
 
     @cachedmethod()
     def _header_tag_name(self, header_name: str) -> Optional[str]:

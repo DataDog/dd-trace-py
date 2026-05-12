@@ -1,6 +1,7 @@
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import initialize_native_state
+from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
@@ -19,3 +20,4 @@ def iast_request():
             yield
         finally:
             _end_iast_context_and_oce()
+            clear_all_request_context_slots()

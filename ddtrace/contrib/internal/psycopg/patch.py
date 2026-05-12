@@ -187,7 +187,6 @@ def init_cursor_from_connection_factory(psycopg_module):
             if not connection:
                 return wrapped_cursor_cls(*args, **kwargs)
 
-        pin = Pin.get_from(connection).clone()
         cfg = config.psycopg
 
         if cfg and cfg.trace_fetch_methods:
@@ -216,6 +215,6 @@ def init_cursor_from_connection_factory(psycopg_module):
         else:
             cursor = wrapped_cursor_cls(connection, *args, **kwargs)
 
-        return traced_cursor_cls(cursor=cursor, pin=pin, cfg=cfg)
+        return traced_cursor_cls(cursor=cursor, cfg=cfg, db_tags=connection._self_db_tags)
 
     return init_cursor_from_connection

@@ -7,9 +7,18 @@ Django internals are instrumented via normal `patch()`.
 specific Django apps like Django Rest Framework (DRF).
 """
 
+import asyncio
 from inspect import getmro
+from inspect import iscoroutinefunction
 from inspect import unwrap
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
+from typing import Iterable
+from typing import Optional
+from typing import Union
 from typing import cast
+import weakref
 
 import wrapt
 from wrapt.importer import when_imported
@@ -35,6 +44,11 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.vendor.packaging.version import parse as parse_version
+
+
+if TYPE_CHECKING:
+    from django.urls.resolvers import URLPattern
+    from django.urls.resolvers import URLResolver
 
 
 log = get_logger(__name__)
@@ -154,12 +168,50 @@ def traced_populate(django, pin, func, instance, args, kwargs):
         except Exception:
             log.debug("Error patching rest_framework", exc_info=True)
 
+    # Eager endpoint discovery: walk the ROOT_URLCONF resolver now that apps
+    # are ready, so the telemetry "app-endpoints" payload is populated at
+    # startup (not only when a request arrives). Dynamic per-tenant urlconfs
+    # set by middleware are still picked up by the per-request walk in
+    # traced_get_response / traced_get_response_async.
+    try:
+        from django.urls import get_resolver
+
+        _collect_routes_once(get_resolver(None))
+    except Exception:
+        log.debug("Error collecting Django routes for endpoint discovery", exc_info=True)
+
     return ret
 
 
 def traced_func(django, name, resource=None, ignored_excs=None):
     def wrapped(django, pin, func, instance, args, kwargs):
         tags = {COMPONENT: config_django.integration_name}
+
+        if iscoroutinefunction(func):
+
+            async def _async():
+                with (
+                    core.context_with_data(
+                        "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
+                    ) as ctx,
+                    ctx.span,
+                ):
+                    # Don't flag the span as errored on routine ASGI cancellation (#17728).
+                    ctx.span._ignore_exception(asyncio.CancelledError)
+                    core.dispatch(
+                        "django.func.wrapped",
+                        (
+                            args,
+                            kwargs,
+                            django.core.handlers.wsgi.WSGIRequest if hasattr(django.core.handlers, "wsgi") else object,
+                            ctx,
+                            ignored_excs,
+                        ),
+                    )
+                    return await func(*args, **kwargs)
+
+            return _async()
+
         with (
             core.context_with_data("django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin) as ctx,
             ctx.span,
@@ -203,7 +255,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
-def instrument_view(django, view, path=None):
+def instrument_view(django, view):
     """
     Helper to wrap Django views.
 
@@ -213,7 +265,7 @@ def instrument_view(django, view, path=None):
         for cls in reversed(getmro(view)):
             _instrument_view(django, cls)
 
-    return _instrument_view(django, view, path=path)
+    return _instrument_view(django, view)
 
 
 def extract_request_method_list(view):
@@ -230,7 +282,7 @@ def extract_request_method_list(view):
 _DEFAULT_METHODS = ("get", "delete", "post", "options", "head")
 
 
-def _instrument_view(django, view, path=None):
+def _instrument_view(django, view):
     """Helper to wrap Django views."""
     from . import utils
 
@@ -244,9 +296,6 @@ def _instrument_view(django, view, path=None):
 
     http_method_names = getattr(view, "http_method_names", ())
     request_method_list = extract_request_method_list(view) or http_method_names
-    if path is not None:
-        for method in request_method_list or ["*"]:
-            endpoint_collection.add_endpoint(method, path, operation_name="django.request")
     lifecycle_methods = ("setup", "dispatch", "http_method_not_allowed")
     for name in list(request_method_list or _DEFAULT_METHODS) + list(lifecycle_methods):
         try:
@@ -285,25 +334,113 @@ def _instrument_view(django, view, path=None):
     return view
 
 
+# Resolvers whose url_patterns tree has already been walked for endpoint
+# collection by _collect_routes_once(). A WeakSet lets entries auto-drop when
+# Django releases a resolver (e.g. after clear_url_caches()), which removes any
+# id-reuse risk that a plain set[int] would carry.
+_collected_resolvers: "weakref.WeakSet[URLResolver]" = weakref.WeakSet()
+
+
+def _collect_pattern_methods(callback: Optional[Callable[..., Any]]) -> list[str]:
+    """Return the HTTP methods a URLPattern.callback handles, for endpoint collection.
+
+    Extraction semantics: extract_request_method_list walks the wrapper's
+    closure chain itself (via the view_func freevar), so the outer callback is
+    passed as-is. Unwrapping via __wrapped__ first would peel past the
+    require_http_methods wrapper and lose the captured request_method_list,
+    collapsing the recorded method list to a wildcard.
+    """
+    if callback is None:
+        return ["*"]
+    http_method_names = getattr(callback, "http_method_names", ())
+    request_method_list = extract_request_method_list(callback) or http_method_names
+    return list(request_method_list) or ["*"]
+
+
+def _collect_django_routes(patterns: "Iterable[Union[URLPattern, URLResolver]]", prefix: str = "") -> None:
+    """Walk URLPattern / URLResolver nodes and register endpoints in endpoint_collection.
+
+    Joins parent and child route segments with the same semantics Django
+    itself uses in django.urls.resolvers.URLResolver._join_route for
+    request.resolver_match.route: the leading ``^`` of a regex child is
+    dropped when appending onto a non-empty prefix, so mixed re_path/path
+    trees produce the same route string Django exposes at runtime.
+    Non-URLPattern/URLResolver nodes are skipped (e.g. channels URLRouter
+    entries slipped into a resolver tree).
+    """
+    from django.urls.resolvers import URLPattern
+    from django.urls.resolvers import URLResolver
+
+    for pattern in patterns:
+        if not isinstance(pattern, (URLPattern, URLResolver)):
+            continue
+        segment = str(pattern.pattern)
+        if prefix:
+            segment = segment.removeprefix("^")
+        full_path = prefix + segment
+        if isinstance(pattern, URLResolver):
+            sub_patterns = getattr(pattern, "url_patterns", None)
+            if sub_patterns is None:
+                continue
+            _collect_django_routes(sub_patterns, prefix=full_path)
+        else:
+            for method in _collect_pattern_methods(getattr(pattern, "callback", None)):
+                endpoint_collection.add_endpoint(method, full_path, operation_name="django.request")
+
+
+def _collect_routes_once(resolver: "Optional[URLResolver]") -> None:
+    """Populate endpoint_collection by walking resolver.url_patterns once per resolver.
+
+    Called from traced_get_response / traced_get_response_async on every
+    request. The WeakSet gate makes repeated calls O(1), and naturally handles
+    per-request request.urlconf swaps (each distinct urlconf gets its own
+    resolver from django.urls.get_resolver, walked on first use). When the
+    endpoint-collection flag is off, the walk is skipped entirely — telemetry
+    would discard the collected entries anyway, and if the flag is later
+    flipped on the WeakSet stays empty so the next request will walk.
+    """
+    if resolver is None or not asm_config._api_security_endpoint_collection:
+        return
+    try:
+        if resolver in _collected_resolvers:
+            return
+    except TypeError:
+        # Unhashable / unreferenceable resolver shouldn't happen for
+        # django.urls.URLResolver, but guard against exotic custom types.
+        return
+    try:
+        patterns = getattr(resolver, "url_patterns", None)
+        if patterns is None:
+            return
+        _collect_django_routes(patterns)
+    except Exception:
+        log.debug("Failed to walk Django URL resolver for endpoint collection", exc_info=True)
+    finally:
+        # Mark as collected even on failure so we don't retry forever on a
+        # malformed urlconf. A restart recovers; a transient error is a bug
+        # we'd rather notice once via log.debug than spam every request.
+        try:
+            _collected_resolvers.add(resolver)
+        except TypeError:
+            pass
+
+
 @trace_utils.with_traced_module
 def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     """Wrapper for url path helpers to ensure all views registered as urls are traced."""
     try:
         view_from_args = False
         view = kwargs.get("view", None)
-        path = kwargs.get("route", None)
         if view is None and len(args) > 1:
             view = args[1]
             view_from_args = True
-        if path is None and args:
-            path = args[0]
 
         if view_from_args:
             args = list(args)
-            args[1] = instrument_view(django, view, path=path)
+            args[1] = instrument_view(django, view)
             args = tuple(args)
         else:
-            kwargs["view"] = instrument_view(django, view, path=path)
+            kwargs["view"] = instrument_view(django, view)
     except Exception:
         log.debug("Failed to instrument Django url path %r %r", args, kwargs, exc_info=True)
     return wrapped(*args, **kwargs)
@@ -523,6 +660,8 @@ def _unpatch(django):
     trace_utils.unwrap(django.views.generic.base.View, "as_view")
     for conn in django.db.connections.all():
         trace_utils.unwrap(conn, "cursor")
+        if hasattr(conn, "get_new_connection"):
+            trace_utils.unwrap(conn, "get_new_connection")
     trace_utils.unwrap(django.db.utils.ConnectionHandler, "__getitem__")
 
     if config.django.instrument_templates:

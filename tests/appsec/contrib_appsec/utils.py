@@ -2,6 +2,7 @@ import itertools
 import json
 import sys
 from typing import Any
+from typing import ClassVar
 from typing import Generator
 from urllib.parse import quote
 from urllib.parse import urlencode
@@ -187,6 +188,18 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
     Factorized test class for threats tests on all supported frameworks
     """
 
+    # Expected ep.path values (as stored in the endpoint collection) that must
+    # be discovered. Each child class must override with framework-specific routes.
+    ENDPOINT_DISCOVERY_EXPECTED_PATHS: ClassVar[set[str]] = set()
+
+    @staticmethod
+    def endpoint_path_to_uri(path: str) -> str:
+        """Convert an ep.path from the endpoint collection to a requestable URI.
+
+        Each framework test class must implement this with its own route format logic.
+        """
+        raise NotImplementedError("Subclasses must implement endpoint_path_to_uri")
+
     @pytest.mark.parametrize("asm_enabled", [True, False])
     def test_healthcheck(self, interface: Interface, get_entry_span_tag, asm_enabled: bool):
         # you can disable any test in a framework like that:
@@ -252,34 +265,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         """
         from ddtrace.internal.endpoints import endpoint_collection
 
-        def parse(path: str) -> str:
-            import re
+        expected = self.ENDPOINT_DISCOVERY_EXPECTED_PATHS
+        assert expected, "ENDPOINT_DISCOVERY_EXPECTED_PATHS must be set on the test class"
 
-            # substitutions to make a url path from route
-            if re.match(r"^\^.*\$$", path):
-                path = path[1:-1]
-            path = re.sub(r"<int:[a-z_]+>|\{[a-z_]+:int\}", "123", path)
-            path = re.sub(r"<(str|string):[a-z_]+>|\{[a-z_]+:str\}", "abczx", path)
-            # Tornado regex patterns (from regex.pattern, ending with $)
-            if path.endswith("$"):
-                path = path[:-1]
-            path = re.sub(r"\(\?P<[a-z_]+>\\d\+\)", "123", path)
-            path = re.sub(r"\(\?P<[a-z_]+>\[[^\]]+\]\+?\)", "abczx", path)
-            path = re.sub(r"\(\\d\+\)", "123", path)
-            path = re.sub(r"\(\[[^\]]+\]\+?\)", "abczx", path)
-            if path.endswith("/?"):
-                path = path[:-2]
-            return path if path.startswith("/") else ("/" + path)
-
-        must_found: set[str] = {
-            "",
-            "/asm/123/abczx",
-            "/asm",
-            "/new_service/abczx",
-            "/login",
-            "/login_sdk",
-            "/rasp/abczx",
-        }
         found: set[str] = set()
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
@@ -295,20 +283,20 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert ep.operation_name
                 if ep.method not in ("GET", "*", "POST") or ep.path.startswith("/static"):
                     continue
-                path = parse(ep.path)
-                found.add(path.rstrip("/"))
+                found.add(ep.path)
+                uri = self.endpoint_path_to_uri(ep.path)
                 response = (
-                    interface.client.post(path, data=json.dumps({"data": "content"}), content_type="application/json")
+                    interface.client.post(uri, data=json.dumps({"data": "content"}), content_type="application/json")
                     if ep.method == "POST"
-                    else interface.client.get(path)
+                    else interface.client.get(uri)
                 )
                 assert self.status(response) in (
                     200,
                     401,
-                ), f"ep.path failed: [{self.status(response)}] {ep.path} -> {path}"
+                ), f"ep.path failed: [{self.status(response)}] {ep.path} -> {uri}"
                 resource = "GET" + ep.resource_name[1:] if ep.resource_name.startswith("* ") else ep.resource_name
                 assert find_resource(resource)
-        assert must_found <= found
+        assert expected <= found, f"missing paths: {expected - found}"
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(

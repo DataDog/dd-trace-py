@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-import logging
 import os
 import signal
 
-import mock
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
@@ -104,21 +102,13 @@ def test_filters():
 # Have to use sync mode snapshot so that the traces are associated to this
 # test case since we use a custom writer (that doesn't have the trace headers
 # injected).
-@pytest.mark.subprocess(parametrize={"writer_class": ["AgentWriter", "NativeWriter"]})
+@pytest.mark.subprocess()
 @snapshot(async_mode=False)
-def test_synchronous_writer(writer_class):
-    import os
-
-    from ddtrace.internal.writer import AgentWriter
+def test_synchronous_writer():
     from ddtrace.internal.writer import NativeWriter
     from ddtrace.trace import tracer
 
-    if os.environ["writer_class"] == "AgentWriter":
-        writer_class = AgentWriter
-    elif os.environ["writer_class"] == "NativeWriter":
-        writer_class = NativeWriter
-
-    writer = writer_class(tracer._span_aggregator.writer.intake_url, sync_mode=True)
+    writer = NativeWriter(tracer._span_aggregator.writer.intake_url, sync_mode=True)
     tracer._span_aggregator.writer = writer
     tracer._recreate()
     with tracer.trace("operation1", service="my-svc"):
@@ -230,62 +220,6 @@ def test_wrong_service_type_not_sent():
         assert span.service is None
 
 
-@pytest.mark.parametrize(
-    "meta",
-    [
-        ({"env": "my-env", "tag1": "some_str_1", "tag2": "some_str_2", "tag3": [1, 2, 3]}),
-        ({"env": "test-env", b"tag1": {"wrong_type": True}, b"tag2": "some_str_2", b"tag3": "some_str_3"}),
-        ({"env": "my-test-env", "😐": "some_str_1", b"tag2": "some_str_2", "unicode": 12345}),
-        ({"env": set([1, 2, 3])}),
-        ({"env": None}),
-        ({"env": True}),
-        ({"env": 1.0}),
-    ],
-)
-@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
-def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
-    """Wrong meta types should raise TypeErrors during encoding and fail to send to the agent."""
-    with override_global_config(dict(_trace_api=encoding)):
-        logger = logging.getLogger("ddtrace.internal._encoding")
-        with mock.patch.object(logger, "warning") as log_warning:
-            with tracer.trace("root") as root:
-                root._meta = meta  # ast-grep-ignore: span-meta-access
-                for _ in range(299):
-                    with tracer.trace("child") as child:
-                        child._meta = meta  # ast-grep-ignore: span-meta-access
-
-            assert log_warning.call_count == 300
-            log_warning.assert_called_with(
-                "[span ID %d] Meta key %r has non-string value %r, skipping", mock.ANY, mock.ANY, mock.ANY
-            )
-
-
-@pytest.mark.parametrize(
-    "metrics,expected_warning_count",
-    [
-        ({"num1": 12345, "num2": 53421, "num3": 1, "num4": "not-a-number"}, 300),
-        ({b"num1": 123.45, b"num2": [1, 2, 3], b"num3": 11.0, b"num4": 1.20}, 300),
-        ({"😐": "123.45", b"num2": "1", "num3": {"is_number": False}, "num4": "12345"}, 1200),
-    ],
-)
-@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
-def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, expected_warning_count):
-    """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
-    with override_global_config(dict(_trace_api=encoding)):
-        logger = logging.getLogger("ddtrace.internal._encoding")
-        with mock.patch.object(logger, "warning") as log_warning:
-            with tracer.trace("root") as root:
-                root._metrics = metrics  # ast-grep-ignore: span-metrics-access
-                for _ in range(299):
-                    with tracer.trace("child") as child:
-                        child._metrics = metrics  # ast-grep-ignore: span-metrics-access
-
-            assert log_warning.call_count == expected_warning_count
-            log_warning.assert_called_with(
-                "[span ID %d] Metric key %r has non-numeric value %r, skipping", mock.ANY, mock.ANY, mock.ANY
-            )
-
-
 @pytest.mark.subprocess()
 @pytest.mark.snapshot()
 def test_tracetagsprocessor_only_adds_new_tags():
@@ -394,13 +328,11 @@ def test_aggregator_partial_flush_finished_counter_out_of_sync():
 
 @pytest.mark.parametrize("use_ddtrace_run", [True, False])
 @pytest.mark.parametrize("signum", [signal.SIGTERM, signal.SIGINT])
-@pytest.mark.parametrize("writer_class", ["AgentWriter", "NativeWriter"])
 @pytest.mark.parametrize("api_version", ["v0.4", "v0.5"])
 @pytest.mark.parametrize("compute_stats", ["false", "true"])
 def test_signal_shutdown_flushes_traces(
     use_ddtrace_run,
     signum,
-    writer_class,
     api_version,
     compute_stats,
     tmpdir,
@@ -469,7 +401,6 @@ except KeyboardInterrupt:
                 "DD_TRACE_WRITER_INTERVAL_SECONDS": "30",  # High interval to prevent auto-flush
                 "DD_TRACE_API_VERSION": api_version,
                 "DD_TRACE_COMPUTE_STATS": compute_stats,
-                "_DD_TRACE_WRITER_NATIVE": "true" if writer_class == "NativeWriter" else "false",
             }
         )
 

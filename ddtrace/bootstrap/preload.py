@@ -85,12 +85,6 @@ def _otel_signals(_):
         set_otel_meter_provider()
 
 
-if config._llmobs_enabled:
-    from ddtrace.llmobs import LLMObs
-
-    LLMObs.enable(_auto=True)
-
-
 @ModuleWatchdog.after_module_imported("gevent.monkey")
 def _(_):
     # uWSGI + gevent support: when the application module is imported, the

@@ -82,7 +82,10 @@ def trace_postrun(*args, **kwargs):
     # retrieve and finish the Span
     span = retrieve_span(task, task_id)
     if span is None:
-        log.warning("no existing span found for task_id=%s", task_id)
+        # This can happen when Task.replace() is used — the original task's
+        # postrun signal fires but the span has already been detached because
+        # the task was replaced mid-execution. This is expected, not an error.
+        log.debug("no existing span found for task_id=%s", task_id)
         return
     else:
         # request context tags

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    llmobs: Adds support for enabling and disabling LLMObs via Remote Configuration.

@@ -50,7 +50,10 @@ def _ddmap(span, attribute, value):
 
             if isinstance(value, (str, bytes)):
                 span.set_tag(meta_key, ensure_text(value))
-            if isinstance(value, (int, float)):
+            # DEV: Check bool before int/float since bool subclasses from int
+            elif isinstance(value, bool):
+                span.set_tag(meta_key, str(value))
+            elif isinstance(value, (int, float)):
                 span._set_attribute(meta_key, value)
     else:
         setattr(span, attribute, value)

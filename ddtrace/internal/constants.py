@@ -102,6 +102,13 @@ DD_TRACE_BAGGAGE_MAX_ITEMS = 64
 DD_TRACE_BAGGAGE_MAX_BYTES = 8192
 BAGGAGE_TAG_PREFIX = "baggage."
 
+# W3C Trace Context tracestate (https://www.w3.org/TR/trace-context/):
+# max 32 list-members; vendors SHOULD propagate at most 512 characters (we cap parsing to that size).
+DD_TRACE_TRACESTATE_MAX_ITEMS = 32
+DD_TRACE_TRACESTATE_MAX_BYTES = 512
+# Per W3C Trace Context, oversized list-members are preferred targets when truncating by size.
+DD_TRACE_TRACESTATE_ITEM_MAX_CHARS = 128
+
 SPAN_EVENTS_HAS_EXCEPTION = "_dd.span_events.has_exception"
 COLLECTOR_MAX_SIZE_PER_SPAN = 100
 
@@ -149,10 +156,3 @@ _REJECT_PRIORITY_INDEX = 1
 class EXPERIMENTAL_FEATURES:
     # Enables submitting runtime metrics as gauges (instead of distributions)
     RUNTIME_METRICS = "DD_RUNTIME_METRICS_ENABLED"
-
-
-AI_GUARD_ENABLED = "DD_AI_GUARD_ENABLED"
-AI_GUARD_ENDPOINT = "DD_AI_GUARD_ENDPOINT"
-AI_GUARD_MAX_CONTENT_SIZE = "DD_AI_GUARD_MAX_CONTENT_SIZE"
-AI_GUARD_MAX_MESSAGES_LENGTH = "DD_AI_GUARD_MAX_MESSAGES_LENGTH"
-AI_GUARD_TIMEOUT = "DD_AI_GUARD_TIMEOUT"

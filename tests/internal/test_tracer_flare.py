@@ -764,6 +764,27 @@ class TracerFlareSubscriberTests(unittest.TestCase):
     def _flare_upload_count(self) -> int:
         return self.tracer_flare_sub.flare._native_manager.zip_and_send.call_count
 
+    def test_configuration_order_payload_is_skipped(self):
+        """
+        AGENT_CONFIG payloads with configuration_order shape (no 'name' field) must be
+        silently skipped — no exception raised, no warning logged, flare state unchanged.
+        """
+        configuration_order_payload = {
+            "internal_order": [],
+            "order": [
+                "flare-log-level-61c7ebea-7129-4e63-9bce-95e61d38493a",
+                "flare-log-level-b9b280f9-bc3a-4d1c-898c-3ba564616241",
+            ],
+        }
+        with mock.patch("ddtrace.internal.flare._subscribers.log") as mock_log:
+            self.connector.write([build_payload("AGENT_CONFIG", configuration_order_payload, "config")])
+            self.get_data_from_connector_and_exec()
+
+        # Flare must not have started
+        assert self.tracer_flare_sub.current_request_start is None
+        # No warning logged — this is an expected payload shape, not an error
+        mock_log.warning.assert_not_called()
+
     def test_process_flare_request_success(self):
         """
         Ensure a successful tracer flare process
@@ -836,13 +857,10 @@ def test_native_logs(tmp_path):
     """
     import os
 
-    from ddtrace import config
     from ddtrace.internal.native._native import logger as native_logger
 
-    original_trace_writer_native = config._trace_writer_native
     flare = None
     try:
-        config._trace_writer_native = True
         flare = Flare(
             trace_agent_url=TRACE_AGENT_URL,
             flare_dir=tmp_path,
@@ -865,7 +883,6 @@ def test_native_logs(tmp_path):
         send_request = setup_task_request(flare, *FLARE_REQUEST_DATA)
         flare.send(send_request)
     finally:
-        config._trace_writer_native = original_trace_writer_native
         if flare is not None:
             flare.revert_configs()
             flare.clean_up_files()

@@ -30,6 +30,7 @@ from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import Options
 from ddtrace.appsec.ai_guard import ToolCall
 from ddtrace.appsec.ai_guard import new_ai_guard_client
+from ddtrace.internal.settings.asm import ai_guard_config
 
 
 GUARDRAIL_NAME = "datadog_ai_guard"
@@ -49,14 +50,15 @@ class DatadogAIGuardGuardrailException(Exception):
 class DatadogAIGuardGuardrail(CustomGuardrail):
     def __init__(
         self,
-        block: Optional[bool] = True,
+        block: Optional[bool] = None,
         **kwargs: Any,
     ):
         """
         Initialize the DatadogAIGuardGuardrail class.
 
         Args:
-            block: whether to enable blocking or not when an evaluation is not safe
+            block: whether to enable blocking or not when an evaluation is not safe.
+                   If None, delegates to the DD_AI_GUARD_BLOCK env var / default config.
         """
         self._block = block
         self._client = new_ai_guard_client()
@@ -185,6 +187,8 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
     def _resolve_block(self, dynamic_params: dict[str, Any]) -> bool:
         raw = dynamic_params.get("block")
         if raw is None:
+            if self._block is None:
+                return ai_guard_config._ai_guard_block
             return bool(self._block)
         return raw if isinstance(raw, bool) else str(raw).lower() != "false"
 

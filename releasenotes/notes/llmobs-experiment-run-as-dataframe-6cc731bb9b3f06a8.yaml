@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    LLM Observability: Add ``ExperimentRun.as_dataframe()`` to convert experiment run results
+    into a ``pandas.DataFrame`` with a two-level MultiIndex on columns. Each top-level group
+    (``input``, ``output``, ``expected_output``, ``evaluations``, ``metadata``, ``error``,
+    ``span_id``, ``trace_id``) maps to the first index level. Dict-valued fields are flattened
+    one level deep; scalar fields use an empty string as the sub-column name. Each evaluator
+    gets its own column containing the full evaluation result dict.
+    Requires ``pandas`` to be installed (``pip install pandas``).

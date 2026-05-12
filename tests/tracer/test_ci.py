@@ -626,6 +626,26 @@ def test_github_pull_request_head_sha():
     )
 
 
+def test_pull_request_base_branch_normalized_when_branch_is_tag():
+    with (
+        mock.patch("ddtrace.ext.ci.git.extract_git_metadata", return_value={}),
+        mock.patch("ddtrace.ext.ci.git.extract_user_git_metadata", return_value={}),
+    ):
+        tags = ci.tags(
+            environ={
+                "APPVEYOR": "true",
+                "APPVEYOR_REPO_PROVIDER": "github",
+                "APPVEYOR_REPO_BRANCH": "refs/heads/main",
+                "APPVEYOR_REPO_TAG_NAME": "refs/tags/v1.2.3",
+                "APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH": "refs/tags/v1.2.3",
+            }
+        )
+
+    assert tags[git.TAG] == "v1.2.3"
+    assert git.BRANCH not in tags
+    assert tags[git.PULL_REQUEST_BASE_BRANCH] == "main"
+
+
 def test_extract_git_head_metadata():
     fake_user_info = {
         "author": ("Author", "a@author.com", "date1"),
