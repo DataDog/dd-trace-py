@@ -15,9 +15,9 @@ fi
 
 INDEX_URL="${1%/}"
 
-git fetch origin apm-sdk-py-smoke-tests-staging > /dev/null 2>&1
-git checkout origin/apm-sdk-py-smoke-tests-staging > /dev/null 2>&1
-git checkout -B apm-sdk-py-smoke-tests-staging > /dev/null 2>&1
+git fetch origin apm-sdk-py-smoke-tests-staging
+git checkout origin/apm-sdk-py-smoke-tests-staging
+git checkout -B apm-sdk-py-smoke-tests-staging
 
 # If INDEX_URL points to an HTML file, fetch it but use its parent as the base for wheel URLs
 if [[ "$INDEX_URL" == *.html ]]; then

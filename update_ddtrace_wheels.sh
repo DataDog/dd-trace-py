@@ -53,9 +53,9 @@ fi
 BASE_URL="${BUCKET_URL}/${RESOLVED_REF}"
 INDEX_URL="${BASE_URL}/index-manylinux2014.html"
 
-git fetch origin apm-sdk-py-smoke-tests-staging > /dev/null 2>&1
-git checkout origin/apm-sdk-py-smoke-tests-staging > /dev/null 2>&1
-git checkout -B apm-sdk-py-smoke-tests-staging > /dev/null 2>&1
+git fetch origin apm-sdk-py-smoke-tests-staging
+git checkout origin/apm-sdk-py-smoke-tests-staging
+git checkout -B apm-sdk-py-smoke-tests-staging
 
 echo "Fetching wheel listing from ${INDEX_URL} ..."
 LISTING=$(curl -fsSL "${INDEX_URL}")
