@@ -314,6 +314,14 @@ pub fn reset(py: Python<'_>, event_id: Option<&str>, callback: Option<Py<PyAny>>
     }
 }
 
+#[inline(always)]
+fn should_propagate(e: &PyErr, py: Python<'_>, allow_raise: bool) -> bool {
+    // Mirrors `except Exception:` semantics: BaseException subclasses propagate always.
+    !e.is_instance_of::<pyo3::exceptions::PyException>(py)
+        || allow_raise
+        || crate::config::get_raise()
+}
+
 #[pyfunction]
 #[pyo3(signature = (event_id, args=None, allow_raise=false))]
 pub fn dispatch(
@@ -336,11 +344,7 @@ pub fn dispatch(
 
     for cb in &callbacks {
         if let Err(e) = cb.bind(py).call1(&call_args) {
-            // Mirrors `except Exception:` semantics: BaseException subclasses propagate always.
-            if !e.is_instance_of::<pyo3::exceptions::PyException>(py)
-                || allow_raise
-                || crate::config::get_raise()
-            {
+            if should_propagate(&e, py, allow_raise) {
                 return Err(e);
             }
         }
@@ -389,8 +393,7 @@ pub fn dispatch_with_results(
                     dict.set_item(key.bind(py), event_result.bind(py))?;
                 }
                 Err(e) => {
-                    // Mirrors `except Exception:` semantics: BaseException subclasses propagate always.
-                    if !e.is_instance_of::<pyo3::exceptions::PyException>(py) || crate::config::get_raise() {
+                    if should_propagate(&e, py, false) {
                         return Err(e);
                     }
                     let exc = e.into_value(py).into_any();
