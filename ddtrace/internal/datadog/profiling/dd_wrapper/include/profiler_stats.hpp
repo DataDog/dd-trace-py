@@ -47,10 +47,13 @@ class ProfilerStats
     // Number of greenlets currently tracked by the stack profiler
     std::optional<size_t> greenlet_count;
 
-    // Snapshot of the profiler's user-facing configuration, serialized as a JSON
-    // object string. Embedded verbatim inside the internal_metadata JSON under
-    // the "profiler_settings" key. Set once at profiler startup; intentionally
-    // not reset across uploads since it reflects static configuration.
+    // Snapshot of the profiler's user-facing configuration, serialized as a
+    // compact JSON object string (e.g. {"dd.profiling.enabled": true, ...}).
+    // The outer braces are stripped at serialization time and the entries are
+    // spliced into the top level of internal_metadata so the backend can index
+    // and filter on each setting individually. Set once at profiler startup;
+    // intentionally not reset across uploads since it reflects static
+    // configuration.
     std::optional<std::string> profiler_settings_json;
 
   public:

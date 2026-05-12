@@ -2,7 +2,9 @@
 other:
   - |
     profiling: Each uploaded profile now carries a snapshot of the effective profiler
-    configuration in its internal metadata under the ``profiler_settings`` key. This
-    mirrors the ``info.profiler.settings`` channel emitted by ``dd-trace-go`` and lets
-    backend consumers surface per-profile settings (including internal knobs like
-    adaptive sampling parameters and stack v2 internals) on the profile page.
+    configuration in its internal metadata. Every setting is emitted as its own top-level
+    key using the fully qualified config path (e.g. ``dd.profiling.stack.enabled``,
+    ``dd.profiling.stack.adaptive_sampling``, ``dd.profiling.upload_interval``), so the
+    backend can index and filter profiles on any individual setting. Internal knobs such
+    as the adaptive sampling parameters and stack v2 internals are included alongside
+    user-facing settings.

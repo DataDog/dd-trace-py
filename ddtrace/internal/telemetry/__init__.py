@@ -148,26 +148,29 @@ def _json_safe_value(value: t.Any) -> t.Any:
 
 
 def dump_settings(config: DDConfig) -> dict[str, t.Any]:
-    """Return a {dotted_name: value} snapshot of a DDConfig tree, including
-    private items.
+    """Return a {fully_qualified_name: value} snapshot of a DDConfig tree,
+    including private items.
 
     Companion to :func:`report_configuration`. Unlike telemetry reporting,
     this is intended for per-profile metadata channels (e.g. the profiler's
     internal metadata JSON) where the goal is to expose the full effective
     configuration to backend consumers regardless of `private=True`.
 
-    Keys are the dotted Python config path (e.g. ``stack.adaptive_sampling``)
-    rather than the env-var name, so private items are not prefixed with an
-    underscore and the structure mirrors dd-trace-go's ``info.profiler.settings``
-    naming.
+    Keys are the fully qualified dotted config path including the config's
+    own prefix (e.g. ``dd.profiling.stack.adaptive_sampling``). Each key is
+    emitted at the top level of the returned dict so consumers can index and
+    filter on each setting individually rather than treating the whole bag
+    as one opaque blob.
     """
+    prefix = getattr(type(config), "__prefix__", "") or ""
     settings: dict[str, t.Any] = {}
     for name, _ in type(config).items(recursive=True):
         env_val = config
         for p in name.split("."):
             env_val = getattr(env_val, p)
 
-        settings[name] = _json_safe_value(env_val)
+        key = f"{prefix}.{name}" if prefix else name
+        settings[key] = _json_safe_value(env_val)
     return settings
 
 

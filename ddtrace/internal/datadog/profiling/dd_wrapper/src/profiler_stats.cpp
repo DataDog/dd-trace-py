@@ -229,10 +229,16 @@ Datadog::ProfilerStats::get_internal_metadata_json()
     internal_metadata_json += R"("copy_memory_error_count": )";
     append_to_string(internal_metadata_json, copy_memory_error_count);
 
+    // Splice the user's profiler settings as top-level keys (e.g.
+    // "dd.profiling.stack.enabled") so the backend can index and filter on
+    // each one individually. The caller passes a compact JSON object string
+    // (produced by json.dumps); we trust it to be well-formed and strip the
+    // outer braces before appending.
     const auto& maybe_settings = get_profiler_settings_json();
-    if (maybe_settings && !maybe_settings->empty()) {
-        internal_metadata_json += R"(,"profiler_settings": )";
-        internal_metadata_json += *maybe_settings;
+    if (maybe_settings && maybe_settings->size() > 2 && maybe_settings->front() == '{' &&
+        maybe_settings->back() == '}') {
+        internal_metadata_json += ",";
+        internal_metadata_json.append(*maybe_settings, 1, maybe_settings->size() - 2);
     }
 
     internal_metadata_json += "}";
