@@ -160,7 +160,7 @@ class TelemetryWriter(PeriodicService):
         self._is_periodic = is_periodic
         self._integrations_queue: dict[str, dict] = dict()
         self._namespace = MetricNamespace()
-        self._logs: set[dict[str, Any]] = set()
+        self._logs: set[LogData] = set()
         self._events_queue: list[dict[str, Any]] = []
         self._queued_configs: list[dict] = []
         self._sent_configs: list[dict] = []
