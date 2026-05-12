@@ -635,13 +635,7 @@ def _trace_middleware_present(app):
 
 
 def test_traced_init_with_middleware_none(tracer):
-    """Regression test: Starlette(middleware=None) must not crash traced_init.
-
-    Starlette's documented public API treats middleware=None as equivalent to
-    no middleware. A subclass that forwards middleware=None (e.g. AWS
-    bedrock-agentcore) previously triggered:
-        AttributeError: 'NoneType' object has no attribute 'insert'
-    """
+    """Starlette(middleware=None) must not crash traced_init."""
     from starlette.applications import Starlette
 
     app = Starlette(middleware=None)
@@ -649,11 +643,7 @@ def test_traced_init_with_middleware_none(tracer):
 
 
 def test_traced_init_with_middleware_tuple(tracer):
-    """Regression test: Starlette(middleware=()) must not crash traced_init.
-
-    Starlette's signature accepts Sequence[Middleware]; a tuple has no
-    .insert(), so the wrapper must coerce to list before inserting.
-    """
+    """Starlette(middleware=()) must not crash traced_init."""
     from starlette.applications import Starlette
 
     app = Starlette(middleware=())
