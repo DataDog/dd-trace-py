@@ -262,7 +262,6 @@ suites:
       - tests/snapshots/tests.telemetry.*
     snapshot: true
   tracer:
-    retry: 2
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
       KUBERNETES_MEMORY_REQUEST: "4Gi"
