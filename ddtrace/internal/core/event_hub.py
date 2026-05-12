@@ -2,14 +2,12 @@ import dataclasses
 import enum
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.internal.settings._config import config
 
 
-_listeners: Dict[str, Dict[Any, Callable[..., Any]]] = {}
+_listeners: dict[str, dict[Any, Callable[..., Any]]] = {}
 
 
 class ResultType(enum.Enum):
@@ -32,7 +30,7 @@ class EventResult:
 _MissingEvent = EventResult()
 
 
-class EventResultDict(Dict[str, EventResult]):
+class EventResultDict(dict[str, EventResult]):
     def __missing__(self, key: str) -> EventResult:
         return _MissingEvent
 
@@ -75,8 +73,38 @@ def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]]
             del _listeners[event_id]
 
 
-def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
-    """Call all hooks for the provided event_id with the provided args"""
+def dispatch_event(event, allow_raise: bool = False) -> None:
+    """Call all hooks for the provided event.
+
+    When ``allow_raise=True``, listener ``Exception``s propagate to the caller
+    (the first listener to raise wins; subsequent listeners are skipped).
+    ``BaseException``-derived exceptions (including ``DDBlockException``)
+    always propagate regardless of ``allow_raise``.
+
+    PERF: Avoid calling  `dispatch` to reduce function calls/overhead of this function.
+    """
+    global _listeners
+
+    event_id = event.event_name
+    if event_id not in _listeners:
+        return
+
+    for local_hook in _listeners[event_id].values():
+        try:
+            local_hook(event)
+        except Exception:
+            if allow_raise or config._raise:
+                raise
+
+
+def dispatch(event_id: str, args: tuple[Any, ...] = (), allow_raise: bool = False) -> None:
+    """Call all hooks for the provided event_id with the provided args.
+
+    When ``allow_raise=True``, listener ``Exception``s propagate to the caller
+    (the first listener to raise wins; subsequent listeners are skipped).
+    ``BaseException``-derived exceptions (including ``DDBlockException``)
+    always propagate regardless of ``allow_raise``.
+    """
     global _listeners
 
     if event_id not in _listeners:
@@ -86,11 +114,11 @@ def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
         try:
             local_hook(*args)
         except Exception:
-            if config._raise:
+            if allow_raise or config._raise:
                 raise
 
 
-def dispatch_with_results(event_id: str, args: Tuple[Any, ...] = ()) -> EventResultDict:
+def dispatch_with_results(event_id: str, args: tuple[Any, ...] = ()) -> EventResultDict:
     """Call all hooks for the provided event_id with the provided args
     returning the results and exceptions from the called hooks
     """

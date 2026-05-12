@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: Fixes an issue where agent-based samplers could interfere with Standalone App and API Protection. In standalone mode, a trace need to be sent every minute to keep the service enabled, agent-based samplers with low sample rates could reject traces before the custom App and API Protection sampler was evaluated.

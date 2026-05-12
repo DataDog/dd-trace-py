@@ -1,7 +1,6 @@
 from flask.testing import FlaskClient
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal.packages import get_version_for_package
 from tests.appsec.contrib_appsec import utils
 from tests.utils import TracerTestCase
@@ -38,13 +37,14 @@ class BaseFlaskTestCase(TracerTestCase):
         self.app = app
         self.app.test_client_class = DDFlaskTestClient
         self.client = self.app.test_client()
-        Pin._override(self.app, tracer=self.tracer)
 
     def tearDown(self):
         super(BaseFlaskTestCase, self).tearDown()
 
 
-class Test_Flask(utils.Contrib_TestClass_For_Threats):
+class _Test_Flask_Base:
+    """Flask-specific interface, response accessors, and argument parsing."""
+
     @pytest.fixture
     def interface(self, printer):
         bftc = BaseFlaskTestCase()
@@ -85,8 +85,8 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
         with scoped_tracer() as tracer:
             interface.tracer = tracer
             interface.printer = printer
-            with utils.post_tracer(interface):
-                yield interface
+            interface.SERVER_PORT = self.SERVER_PORT
+            yield interface
 
         bftc.tearDown()
 
@@ -101,3 +101,27 @@ class Test_Flask(utils.Contrib_TestClass_For_Threats):
 
     def location(self, response):
         return response.location
+
+
+class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
+    ENDPOINT_DISCOVERY_EXPECTED_PATHS = {
+        "/",
+        "/asm/<int:param_int>/<string:param_str>",
+        "/asm/",
+        "/new_service/<string:service_name>",
+        "/login",
+        "/login_sdk",
+        "/rasp/<string:endpoint>/",
+    }
+
+    @staticmethod
+    def endpoint_path_to_uri(path: str) -> str:
+        import re
+
+        path = re.sub(r"<int:[a-z_]+>", "123", path)
+        path = re.sub(r"<(str|string):[a-z_]+>", "abczx", path)
+        return path
+
+
+class Test_Flask_RC(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats_RC):
+    pass

@@ -1,6 +1,18 @@
 """Shared utilities for profiling collector tests."""
 
+import asyncio
+import os
+from types import TracebackType
+from typing import Any
+from typing import Coroutine
+from typing import Optional
+from typing import TypeVar
+
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.profiling import profiler
+
+
+T = TypeVar("T")
 
 
 def init_ddup(test_name: str) -> None:
@@ -19,3 +31,40 @@ def init_ddup(test_name: str) -> None:
         output_filename="/tmp/" + test_name,
     )
     ddup.start()
+
+
+def async_run(coro: Coroutine[Any, Any, T]) -> T:
+    use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
+
+    if use_uvloop:
+        import uvloop
+
+        return uvloop.run(coro)
+    else:
+        return asyncio.run(coro)
+
+
+def uvloop_available() -> bool:
+    try:
+        import uvloop  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+class ProfilerContextManager:
+    def __init__(self) -> None:
+        self.profiler = profiler.Profiler()
+
+    def __enter__(self) -> profiler.Profiler:
+        self.profiler.start()
+        return self.profiler
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        self.profiler.stop()

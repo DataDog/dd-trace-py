@@ -127,7 +127,6 @@ def test_dbm_propagation_full_mode():
         DD_SERVICE="orders-app",
         DD_ENV="staging",
         DD_VERSION="v7343437-d7ac743",
-        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
     )
 )
 def test_dbm_not_propagating_base_hash_when_deactivated():
@@ -149,7 +148,7 @@ def test_dbm_not_propagating_base_hash_when_deactivated():
         injected_sql = modified_args[0]
 
         assert "ddsh" not in injected_sql
-        assert PROPAGATED_HASH not in dbspan._metrics
+        assert not dbspan._has_attribute(PROPAGATED_HASH)
 
 
 @pytest.mark.subprocess(
@@ -159,10 +158,11 @@ def test_dbm_not_propagating_base_hash_when_deactivated():
         DD_SERVICE="orders-app",
         DD_ENV="staging",
         DD_VERSION="v7343437-d7ac743",
-        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
     )
 )
 def test_dbm_propagating_base_hash_when_activated():
+    import re
+
     from ddtrace.internal import process_tags
     from ddtrace.internal.constants import PROPAGATED_HASH
     from ddtrace.propagation import _database_monitoring
@@ -179,10 +179,17 @@ def test_dbm_propagating_base_hash_when_activated():
         modified_args, _ = dbm_propagator.inject(dbspan, args, kwargs)
 
         injected_sql = modified_args[0]
+        ddsh_value = None
 
+        assert dbspan._has_attribute(PROPAGATED_HASH)
         assert "ddsh" in injected_sql
-        assert PROPAGATED_HASH in dbspan._metrics
-        assert dbspan._metrics[PROPAGATED_HASH] == process_tags.base_hash
+
+        match = re.search(r"ddsh='(\d+)'", injected_sql)
+        if match:
+            ddsh_value = match.group(1)
+
+        assert dbspan._get_str_attribute(PROPAGATED_HASH) == str(process_tags.base_hash)
+        assert ddsh_value == dbspan._get_str_attribute(PROPAGATED_HASH)
 
 
 @pytest.mark.subprocess(
@@ -215,7 +222,7 @@ def test_dbm_not_propagating_when_process_tags_disabled():
         injected_sql = modified_args[0]
 
         assert "ddsh" not in injected_sql
-        assert PROPAGATED_HASH not in dbspan._metrics
+        assert not dbspan._has_attribute(PROPAGATED_HASH)
 
 
 @pytest.mark.subprocess(
@@ -243,7 +250,7 @@ def test_dbm_dddbs_peer_service_enabled():
         ), sqlcomment
 
         with tracer.trace("dbname") as dbspan_with_peer_service:
-            dbspan_with_peer_service._set_tag_str("db.name", "db-name-test")
+            dbspan_with_peer_service._set_attribute("db.name", "db-name-test")
 
             # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
             dbm_popagator = _database_monitoring._DBM_Propagator(0, "procedure")

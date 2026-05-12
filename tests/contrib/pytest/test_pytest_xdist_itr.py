@@ -23,6 +23,7 @@ from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettin
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
+from tests.contrib.pytest.test_pytest import _assert_itr_tests_skipping_enabled_tag_propagated
 
 
 ######
@@ -177,6 +178,7 @@ CIVisibility.enable = classmethod(patched_enable)
             assert rec.ret == 0  # All tests skipped, so exit code is 0
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "test"  # load uses suite-level skipping
@@ -304,6 +306,7 @@ class TestScope2:
 
         # Assert on session span metrics - key assertion for suite-level skipping
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"  # loadscope uses suite-level skipping
@@ -406,6 +409,7 @@ CIVisibility.enable = classmethod(patched_enable)
             assert rec.ret == 0  # All tests skipped, so exit code is 0
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "test"  # load uses suite-level skipping
@@ -506,6 +510,7 @@ CIVisibility.enable = classmethod(patched_enable)
             assert rec.ret == 0  # All tests skipped, so exit code is 0
 
         spans = self.pop_spans()
+        _assert_itr_tests_skipping_enabled_tag_propagated(spans, "true")
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
         assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
@@ -743,14 +748,14 @@ class TestXdistHooksUnit:
             if skipped_count > 0:
                 session_span = mock_session_span  # Use our mock directly
                 if session_span:
-                    session_span._set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-                    session_span._set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-                    session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, skipped_count)
+                    session_span._set_attribute(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+                    session_span._set_attribute(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+                    session_span._set_attribute(test.ITR_TEST_SKIPPING_COUNT, skipped_count)
 
         # Verify the session span was tagged with ITR results
-        mock_session_span._set_tag_str.assert_any_call(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-        mock_session_span._set_tag_str.assert_any_call(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-        mock_session_span.set_metric.assert_called_with(test.ITR_TEST_SKIPPING_COUNT, 10)
+        mock_session_span._set_attribute.assert_any_call(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+        mock_session_span._set_attribute.assert_any_call(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+        mock_session_span._set_attribute.assert_called_with(test.ITR_TEST_SKIPPING_COUNT, 10)
 
         # Clean up
         delattr(pytest, "global_worker_itr_results")
@@ -777,7 +782,7 @@ class TestXdistHooksUnit:
             _pytest_sessionfinish(mock_session, 0)
 
             # Verify no ITR tags were set (worker shouldn't aggregate)
-            mock_session_span._set_tag_str.assert_not_called()
+            mock_session_span._set_attribute.assert_not_called()
             mock_session_span.set_metric.assert_not_called()
 
         # Clean up
@@ -806,7 +811,7 @@ class TestXdistHooksUnit:
             _pytest_sessionfinish(mock_session, 0)
 
             # Verify no ITR tags were set (no global results to aggregate)
-            mock_session_span._set_tag_str.assert_not_called()
+            mock_session_span._set_attribute.assert_not_called()
             mock_session_span.set_metric.assert_not_called()
 
     def test_pytest_sessionfinish_no_aggregation_when_zero_skipped(self):
@@ -831,7 +836,7 @@ class TestXdistHooksUnit:
             _pytest_sessionfinish(mock_session, 0)
 
             # Verify no ITR tags were set (zero tests skipped)
-            mock_session_span._set_tag_str.assert_not_called()
+            mock_session_span._set_attribute.assert_not_called()
             mock_session_span.set_metric.assert_not_called()
 
         # Clean up

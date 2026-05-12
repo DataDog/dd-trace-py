@@ -17,18 +17,17 @@ from tests.appsec.integrations.utils_testagent import _get_span
 
 
 _GEVENT_SERVERS_SCENARIOS = (
-    (
-        gunicorn_flask_server,
-        {"workers": "3", "use_threads": False, "use_gevent": False, "env": {}},
-    ),
+    # Multi-worker without gevent
     (
         gunicorn_flask_server,
         {"workers": "3", "use_threads": True, "use_gevent": False, "env": {}},
     ),
+    # Multi-worker with gevent
     (
         gunicorn_flask_server,
         {"workers": "3", "use_threads": True, "use_gevent": True, "env": {}},
     ),
+    # Single worker with gevent and propagation disabled
     (
         gunicorn_flask_server,
         {
@@ -40,19 +39,7 @@ _GEVENT_SERVERS_SCENARIOS = (
             },
         },
     ),
-    (
-        gunicorn_flask_server,
-        {"workers": "1", "use_threads": True, "use_gevent": True, "env": {}},
-    ),
-    (
-        gunicorn_flask_server,
-        {
-            "workers": "1",
-            "use_threads": True,
-            "use_gevent": True,
-            "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
-        },
-    ),
+    # Flask dev server (no gunicorn)
     (flask_server, {"env": {}}),
 )
 
@@ -443,7 +430,10 @@ def test_iast_unvalidated_redirect(server, iast_test_token):
     # IAST treats the path "sqlalchemy_pytest-randomly_flask~22/bin/gunicorn" as a client folder and
     # reports a second vulnerability
     assert len(vulnerabilities) >= 1
-    assert len(vulnerabilities[0]) == 1
+    # There’s one vulnerability, but it depends on the config/CI execution.
+    # IAST treats the path "randomly_flask~22/lib/python3.10/site-packages/werkzeug/" as a client folder and
+    # reports a second vulnerability
+    assert len(vulnerabilities[0]) >= 1
     vulnerability = vulnerabilities[0][0]
     assert vulnerability["type"] == VULN_UNVALIDATED_REDIRECT
     assert vulnerability["evidence"]["valueParts"] == [{"source": 0, "value": "malicious_url"}]

@@ -7,13 +7,13 @@ from types import FunctionType
 from types import ModuleType
 from typing import Any
 from typing import ClassVar
-from typing import Dict
 from typing import Mapping
 from typing import Optional
 from typing import cast
 
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
+from ddtrace.debugging._probe.model import CaptureExpression
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
@@ -33,7 +33,9 @@ from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.debugging._signal.utils import serialize
+from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
+from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.utils.time import HourGlass
 
 
@@ -51,10 +53,10 @@ def _capture_context(
     throwable: ExcInfoType,
     retval: Any = _NOTSET,
     limits: CaptureLimits = DEFAULT_CAPTURE_LIMITS,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
 
-        def timeout(_):
+        def timeout(_: Any) -> bool:
             return not hg.trickling()
 
         arguments = get_args(frame)
@@ -87,7 +89,31 @@ def _capture_context(
         }
 
 
-_EMPTY_CAPTURED_CONTEXT: Dict[str, Any] = {"arguments": {}, "locals": {}, "staticFields": {}, "throwable": None}
+def _capture_expressions(
+    exprs: list[CaptureExpression],
+    scope: Mapping[str, Any],
+) -> dict[str, Any]:
+    with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
+
+        def timeout(_: Any) -> bool:
+            return not hg.trickling()
+
+        return {
+            "captureExpressions": {
+                e.name: utils.capture_value(
+                    e.expr.eval(scope),
+                    e.limits.max_level,
+                    e.limits.max_len,
+                    e.limits.max_size,
+                    e.limits.max_fields,
+                    timeout,
+                )
+                for e in exprs
+            }
+        }
+
+
+_EMPTY_CAPTURED_CONTEXT: dict[str, Any] = {"arguments": {}, "locals": {}, "staticFields": {}, "throwable": None}
 
 
 @dataclass
@@ -127,7 +153,7 @@ class Snapshot(LogSignal):
         probe = cast(LogProbeMixin, self.probe)
         self._message = "".join([self._eval_segment(s, _locals) for s in probe.segments])
 
-    def _do(self, retval, exc_info, scope):
+    def _do(self, retval: Any, exc_info: ExcInfoType, scope: Mapping[str, Any]) -> Optional[dict[str, Any]]:
         probe = cast(LogProbeMixin, self.probe)
         frame = self.frame
 
@@ -135,12 +161,18 @@ class Snapshot(LogSignal):
 
         self._stack = utils.capture_stack(self.frame)
 
-        return _capture_context(frame, exc_info, retval=retval, limits=probe.limits) if probe.take_snapshot else None
+        if probe.take_snapshot:
+            return _capture_context(frame, exc_info, retval=retval, limits=probe.limits)
+
+        if probe.capture_expressions:
+            return _capture_expressions(probe.capture_expressions, scope)
+
+        return None
 
     def enter(self, scope: Mapping[str, Any]) -> None:
-        self.entry_capture = self._do(_NOTSET, (None, None, None), scope)
+        self.entry_capture = self._do(_NOTSET, NO_EXCEPTION, scope)
 
-    def exit(self, retval, exc_info, duration, scope) -> None:
+    def exit(self, retval: Any, exc_info: ExcInfoType, duration: int, scope: Mapping[str, Any]) -> None:
         self.duration = duration
         self.return_capture = self._do(retval, exc_info, scope)
 
@@ -155,7 +187,7 @@ class Snapshot(LogSignal):
                 break
             tb = tb.tb_next
 
-    def line(self, scope) -> None:
+    def line(self, scope: Mapping[str, Any]) -> None:
         self.line_capture = self._do(_NOTSET, sys.exc_info(), scope)
 
     @property
@@ -166,11 +198,11 @@ class Snapshot(LogSignal):
         return self._message is not None or bool(self.errors)
 
     @property
-    def data(self):
+    def data(self) -> dict[str, Any]:
         probe = self.probe
 
         captures = {}
-        if isinstance(probe, LogProbeMixin) and probe.take_snapshot:
+        if isinstance(probe, LogProbeMixin) and (probe.take_snapshot or probe.capture_expressions):
             if isinstance(probe, LineLocationMixin):
                 captures = {"lines": {str(probe.line): self.line_capture or _EMPTY_CAPTURED_CONTEXT}}
             elif isinstance(probe, FunctionLocationMixin):
@@ -187,10 +219,10 @@ class Snapshot(LogSignal):
 
 
 @probe_to_signal.register
-def _(probe: LogFunctionProbe, frame, thread, trace_context, meter):
+def _(probe: LogFunctionProbe, frame: FrameType, thread: Any, trace_context: Any, meter: Metrics.Meter) -> Snapshot:
     return Snapshot(probe=probe, frame=frame, thread=thread, trace_context=trace_context)
 
 
 @probe_to_signal.register
-def _(probe: LogLineProbe, frame, thread, trace_context, meter):
+def _(probe: LogLineProbe, frame: FrameType, thread: Any, trace_context: Any, meter: Metrics.Meter) -> Snapshot:
     return Snapshot(probe=probe, frame=frame, thread=thread, trace_context=trace_context)

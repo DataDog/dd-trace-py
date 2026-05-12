@@ -1,5 +1,3 @@
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Union
 
@@ -47,7 +45,7 @@ def _extract_conn_tags(conn_kwargs):
         return {}
 
 
-def determine_row_count(valkey_command: str, result: Optional[Union[List, Dict, str]]) -> int:
+def determine_row_count(valkey_command: str, result: Optional[Union[list, dict, str]]) -> int:
     empty_results = [b"", [], {}, None]
     # result can be an empty list / dict / string
     if result not in empty_results:
@@ -81,4 +79,4 @@ async def _run_valkey_command_async(ctx: core.ExecutionContext, func, args, kwar
             rowcount = determine_row_count(valkey_command=valkey_command, result=result)
         if valkey_command not in ROW_RETURNING_COMMANDS:
             rowcount = None
-        core.dispatch("valkey.async_command.post", [ctx, rowcount])
+        core.dispatch("valkey.async_command.post", (ctx, rowcount))

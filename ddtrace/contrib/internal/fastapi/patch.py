@@ -1,6 +1,4 @@
 import copyreg
-import os
-from typing import Dict
 
 import fastapi
 import fastapi.routing
@@ -17,11 +15,13 @@ from ddtrace.contrib.internal.starlette.patch import traced_route_init
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -71,10 +71,10 @@ config._add(
         request_span_name="fastapi.request",
         distributed_tracing=True,
         trace_query_string=None,  # Default to global config
-        obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
+        obfuscate_404_resource=env.get("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
         trace_asgi_websocket_messages=_get_config(
             "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED",
-            default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=False, modifier=asbool),
+            default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=True, modifier=asbool),
             modifier=asbool,
         ),
         asgi_websocket_messages_inherit_sampling=asbool(
@@ -88,12 +88,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(fastapi, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"fastapi": ">=0.64.0"}
 
 
@@ -122,7 +121,7 @@ async def traced_serialize_response(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("fastapi.serialize_response"):
+    with tracer.trace("fastapi.serialize_response"):
         return await wrapped(*args, **kwargs)
 
 

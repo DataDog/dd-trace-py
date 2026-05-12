@@ -5,7 +5,6 @@ Integration tests are in tests/test_integration.py.
 """
 
 import os
-import typing as t
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -19,12 +18,16 @@ from ddtrace.testing.internal.pytest.plugin import XdistTestOptPlugin
 from ddtrace.testing.internal.pytest.plugin import _encode_test_parameter
 from ddtrace.testing.internal.pytest.plugin import _get_exception_tags
 from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
+from ddtrace.testing.internal.pytest.plugin import _get_source_lines
 from ddtrace.testing.internal.pytest.plugin import _get_test_command
+from ddtrace.testing.internal.pytest.plugin import _get_test_location_info
+from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
 from ddtrace.testing.internal.pytest.plugin import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
+from tests.testing.mocks import MockDefaults
 from tests.testing.mocks import TestDataFactory
 from tests.testing.mocks import mock_test
 from tests.testing.mocks import pytest_item_mock
@@ -157,7 +160,7 @@ class TestSkippingAndITRFeatures:
         test_ref = TestDataFactory.create_test_ref("test_module", "test_suite.py", "test_function")
 
         # Create plugin and mock dependencies
-        mock_manager = session_manager_mock().build_mock()
+        mock_manager = session_manager_mock().with_settings(MockDefaults.settings(test_management=True)).build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Create mock test that is disabled but NOT attempt_to_fix
@@ -191,6 +194,130 @@ class TestSkippingAndITRFeatures:
         ]
 
         assert len(tm_skip_calls) == 1, "Disabled test should be skipped with test management reason"
+
+
+class TestFinalStatusFeatures:
+    """Test final status tag functionality."""
+
+    def test_final_status_set_for_single_test_run(self) -> None:
+        """Test that final status is set for tests without retries."""
+        # Create test references using TestDataFactory
+        test_ref = TestDataFactory.create_test_ref("test_module", "test_suite.py", "test_function")
+
+        # Create mock session manager
+        mock_manager = session_manager_mock().build_mock()
+        mock_manager.is_auto_injected = False
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Create test
+        test = mock_test(test_ref)
+        mock_manager.discover_test.return_value = (test.module, test.suite, test)
+
+        # Store test in plugin's dictionary
+        plugin.tests_by_nodeid = {"test_module/test_suite.py::test_function": test}
+
+        # Create mock pytest item and reports
+        mock_config = Mock()
+        mock_config.get_terminal_writer.return_value = Mock()
+        mock_item = (
+            pytest_item_mock("test_module/test_suite.py::test_function")
+            .with_attribute("fixturenames", [])
+            .with_attribute("config", mock_config)
+            .build()
+        )
+
+        # Mock _get_test_outcome to return a passing test
+        with patch.object(plugin, "_get_test_outcome", return_value=(TestStatus.PASS, {})):
+            # Mock trace_context
+            with patch("ddtrace.testing.internal.tracer_api.context.trace_context") as mock_trace_context:
+                mock_context = Mock()
+                mock_trace_context.return_value.__enter__.return_value = mock_context
+
+                # Call _do_test_runs (simulating a test without retries)
+                plugin._do_test_runs(mock_item, None)
+
+        # Verify that final status was set on the test run
+        assert len(test.test_runs) == 1
+        test_run = test.test_runs[0]
+        assert TestTag.FINAL_STATUS in test_run.tags
+        assert test_run.tags[TestTag.FINAL_STATUS] == TestStatus.PASS.value
+
+    def test_final_status_set_for_retry_scenario(self) -> None:
+        """Test that final status is set only on the last retry, not on any intermediate retries."""
+        from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+
+        # Create test references using TestDataFactory
+        test_ref = TestDataFactory.create_test_ref("test_module", "test_suite.py", "test_function")
+
+        # Create mock session manager with retry handler
+        mock_manager = session_manager_mock().build_mock()
+        mock_manager.is_auto_injected = False
+        retry_handler = Mock(spec=AutoTestRetriesHandler)
+        retry_handler.should_apply.return_value = True
+        retry_handler.should_retry.side_effect = [True, True, True, True, False]  # Initial check, retry 3 times, stop
+        retry_handler.get_final_status.return_value = TestStatus.PASS
+        retry_handler.get_pretty_name.return_value = "Auto Test Retries"
+        retry_handler.set_tags_for_test_run = Mock()
+
+        mock_manager.retry_handlers = [retry_handler]
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Create test
+        test = mock_test(test_ref)
+        mock_manager.discover_test.return_value = (test.module, test.suite, test)
+
+        # Store test in plugin's dictionary
+        plugin.tests_by_nodeid = {"test_module/test_suite.py::test_function": test}
+
+        # Create mock pytest item
+        mock_config = Mock()
+        mock_config.get_terminal_writer.return_value = Mock()
+        mock_item = (
+            pytest_item_mock("test_module/test_suite.py::test_function")
+            .with_attribute("fixturenames", [])
+            .with_attribute("config", mock_config)
+            .build()
+        )
+
+        # Mock _get_test_outcome to return different statuses for retries
+        # Initial attempt fails, then 2 retries fail, finally the 3rd retry passes
+        with patch.object(
+            plugin,
+            "_get_test_outcome",
+            side_effect=[
+                (TestStatus.FAIL, {}),  # Initial attempt
+                (TestStatus.FAIL, {}),  # Retry 1
+                (TestStatus.FAIL, {}),  # Retry 2
+                (TestStatus.PASS, {}),  # Retry 3 (final)
+            ],
+        ):
+            # Mock trace_context
+            with patch("ddtrace.testing.internal.tracer_api.context.trace_context") as mock_trace_context:
+                mock_context = Mock()
+                mock_trace_context.return_value.__enter__.return_value = mock_context
+
+                # Mock other methods to avoid side effects
+                with (
+                    patch.object(plugin, "_log_test_reports"),
+                    patch.object(plugin, "_mark_test_reports_as_retry"),
+                    patch("ddtrace.testing.internal.pytest.plugin.RetryReports.make_final_report"),
+                ):
+                    # Call _do_test_runs (simulating a test with retries)
+                    plugin._do_test_runs(mock_item, None)
+
+        # Verify that we have 4 test runs (initial + 3 retries)
+        assert len(test.test_runs) == 4
+
+        # Verify that final status is set ONLY on the last test run, not on any intermediate ones
+        for i, test_run in enumerate(test.test_runs[:-1]):  # All runs except the last
+            assert TestTag.FINAL_STATUS not in test_run.tags, (
+                f"Test run {i} should not have FINAL_STATUS tag (only the last run should)"
+            )
+
+        # The last run should have the final status
+        last_run = test.test_runs[-1]
+        assert TestTag.FINAL_STATUS in last_run.tags
+        assert last_run.tags[TestTag.FINAL_STATUS] == TestStatus.PASS.value
 
 
 class TestSessionManagement:
@@ -278,36 +405,20 @@ class TestReportGeneration:
 
         result = plugin.pytest_report_teststatus(mock_report)
 
-        assert result == ("dd_retry", "R", "RETRY FAILED (Auto Test Retries)")
+        assert result == ("rerun", "R", "RETRY FAILED (Auto Test Retries)")
 
-    def test_pytest_report_teststatus_quarantined(self) -> None:
-        """Test report status for quarantined tests in call phase."""
+    @pytest.mark.parametrize("when", ["call", "teardown"])
+    def test_pytest_report_teststatus_quarantined(self, when: str) -> None:
+        """Test report status for quarantined tests: QUARANTINED shown for any phase with wasxfail."""
         mock_manager = session_manager_mock().build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
 
-        # Mock report with quarantined property (call phase)
         mock_report = test_report()
-        mock_report.user_properties = [("dd_quarantined", True)]
-        mock_report.when = "call"
+        mock_report.when = when
+        mock_report.wasxfail = "dd_quarantined"
 
         result = plugin.pytest_report_teststatus(mock_report)
 
-        # In non-teardown phases, quarantined tests return empty strings (no logging)
-        assert result == ("", "", "")
-
-    def test_pytest_report_teststatus_quarantined_teardown(self) -> None:
-        """Test report status for quarantined tests in teardown phase."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        # Mock report with quarantined property (teardown phase)
-        mock_report = test_report()
-        mock_report.user_properties = [("dd_quarantined", True)]
-        mock_report.when = "teardown"
-
-        result = plugin.pytest_report_teststatus(mock_report)
-
-        # In teardown phase, quarantined tests show the quarantined status
         assert result == ("quarantined", "Q", ("QUARANTINED", {"blue": True}))
 
     def test_pytest_report_teststatus_normal(self) -> None:
@@ -337,7 +448,7 @@ class TestNodeIdToTestRef:
         nodeid = "tests/internal/test_example.py::TestClass::test_method"
         module, suite, test = nodeid_to_names(nodeid)
 
-        assert module == "tests/internal"
+        assert module == "tests.internal"
         assert suite == "test_example.py"
         assert test == "TestClass::test_method"
 
@@ -346,7 +457,7 @@ class TestNodeIdToTestRef:
         nodeid = "test_example.py::test_function"
         module, suite, test = nodeid_to_names(nodeid)
 
-        assert module == "."
+        assert module == ""  # Empty string for root-level tests (matches old plugin)
         assert suite == "test_example.py"
         assert test == "test_function"
 
@@ -355,8 +466,8 @@ class TestNodeIdToTestRef:
         nodeid = "some_weird_format"
         module, suite, test = nodeid_to_names(nodeid)
 
-        assert module == "."
-        assert suite == "."
+        assert module == "unknown_module"  # Fallback for invalid nodeids (matches old plugin)
+        assert suite == "unknown_suite"  # Fallback for invalid nodeids (matches old plugin)
         assert test == "some_weird_format"
 
 
@@ -399,6 +510,38 @@ class TestHelperFunctions:
         result = _get_module_path_from_item(mock_item)
 
         assert result == Path.cwd()
+
+    def test_get_relative_module_path_from_item_within_workspace(self) -> None:
+        """Test _get_relative_module_path_from_item when path is within workspace."""
+        from pathlib import Path
+
+        from ddtrace.testing.internal.pytest.plugin import _get_relative_module_path_from_item
+
+        mock_item = Mock()
+        mock_path = Mock()
+        mock_path.absolute.return_value.parent = Path("/workspace/tests/unit")
+        mock_item.path = mock_path
+
+        workspace_path = Path("/workspace")
+        result = _get_relative_module_path_from_item(mock_item, workspace_path)
+
+        assert str(result) == "tests/unit"  # Should be relative to workspace
+
+    def test_get_relative_module_path_from_item_outside_workspace(self) -> None:
+        """Test _get_relative_module_path_from_item when path is outside workspace."""
+        from pathlib import Path
+
+        from ddtrace.testing.internal.pytest.plugin import _get_relative_module_path_from_item
+
+        mock_item = Mock()
+        mock_path = Mock()
+        mock_path.absolute.return_value.parent = Path("/some/other/path")
+        mock_item.path = mock_path
+
+        workspace_path = Path("/workspace")
+        result = _get_relative_module_path_from_item(mock_item, workspace_path)
+
+        assert str(result) == "/some/other/path"  # Should return absolute path as fallback
 
     def test_get_exception_tags_with_excinfo(self) -> None:
         """Test _get_exception_tags with valid exception info."""
@@ -471,6 +614,20 @@ class TestHelperFunctions:
         result = _get_test_parameters_json(mock_item)
         assert result is None
 
+    def test_get_test_original_name_uses_originalname(self) -> None:
+        mock_item = Mock()
+        mock_item.originalname = "test_example"
+        mock_item.name = "test_example[param]"
+
+        assert _get_test_original_name(mock_item) == "test_example"
+
+    def test_get_test_original_name_falls_back_to_none(self) -> None:
+        mock_item = Mock()
+        mock_item.originalname = None
+        mock_item.name = "test_example[param]"
+
+        assert _get_test_original_name(mock_item) is None
+
     def test_encode_test_parameter_simple(self) -> None:
         """Test _encode_test_parameter with simple values."""
         assert _encode_test_parameter("string") == "'string'"
@@ -486,6 +643,178 @@ class TestHelperFunctions:
         # Memory address should be removed
         assert "at 0x" not in result
         assert result == "'MyObject'"
+
+    def test_get_source_lines_with_obj(self) -> None:
+        """Test _get_source_lines when item has _obj attribute."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        mock_item._obj = lambda: None  # Mock test object
+        mock_item.name = "test_function"
+        item_path = Path("/workspace/tests/test_file.py")
+
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.undecorated") as mock_undecorated,
+            patch("ddtrace.testing.internal.pytest.plugin.get_source_lines_for_test_method") as mock_get_lines,
+        ):
+            mock_undecorated.return_value = mock_item._obj
+            mock_get_lines.return_value = (10, 20)
+
+            start_line, end_line = _get_source_lines(mock_item, item_path)
+
+            assert start_line == 10
+            assert end_line == 20
+            mock_undecorated.assert_called_once_with(mock_item._obj, "test_function", item_path)
+            mock_get_lines.assert_called_once()
+
+    def test_get_source_lines_without_obj(self) -> None:
+        """Test _get_source_lines when item doesn't have _obj attribute."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        del mock_item._obj  # Remove _obj attribute
+        mock_item.reportinfo.return_value = ("/path/to/file.py", 15, "test_name")
+        item_path = Path("/workspace/tests/test_file.py")
+
+        start_line, end_line = _get_source_lines(mock_item, item_path)
+
+        assert start_line == 15
+        assert end_line == 0
+
+    def test_get_source_lines_exception_fallback(self) -> None:
+        """Test _get_source_lines falls back to reportinfo on exception."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        mock_item._obj = lambda: None
+        mock_item.name = "test_function"
+        mock_item.reportinfo.return_value = ("/path/to/file.py", 25, "test_name")
+        item_path = Path("/workspace/tests/test_file.py")
+
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.undecorated") as mock_undecorated,
+            patch("ddtrace.testing.internal.pytest.plugin.get_source_lines_for_test_method"),
+        ):
+            # Simulate exception in undecorated
+            mock_undecorated.side_effect = Exception("Test error")
+
+            start_line, end_line = _get_source_lines(mock_item, item_path)
+
+            assert start_line == 25
+            assert end_line == 0
+            mock_item.reportinfo.assert_called_once()
+
+    def test_get_source_lines_all_failures(self) -> None:
+        """Test _get_source_lines when all methods fail."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        mock_item._obj = lambda: None
+        mock_item.name = "test_function"
+        mock_item.reportinfo.side_effect = Exception("reportinfo failed")
+        item_path = Path("/workspace/tests/test_file.py")
+
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.undecorated") as mock_undecorated,
+            patch("ddtrace.testing.internal.pytest.plugin.get_source_lines_for_test_method"),
+        ):
+            mock_undecorated.side_effect = Exception("undecorated failed")
+
+            start_line, end_line = _get_source_lines(mock_item, item_path)
+
+            assert start_line == 0
+            assert end_line == 0
+
+    def test_get_test_location_info_success(self) -> None:
+        """Test _get_test_location_info with successful path extraction."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        # Mock path as a string that will be converted to Path by the function
+        mock_item.path = "/workspace/tests/test_file.py"
+
+        workspace_path = Path("/workspace")
+
+        with patch("ddtrace.testing.internal.pytest.plugin._get_source_lines") as mock_get_lines:
+            mock_get_lines.return_value = (10, 20)
+
+            relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
+
+            assert relative_path == "tests/test_file.py"
+            assert start_line == 10
+            assert end_line == 20
+
+    def test_get_test_location_info_with_fspath_fallback(self) -> None:
+        """Test _get_test_location_info falls back to fspath when path is missing."""
+        from pathlib import Path
+
+        mock_item = Mock(spec=[])  # Empty spec means no attributes by default
+        # Set only fspath, not path
+        mock_item.fspath = "/workspace/tests/test_file.py"
+
+        workspace_path = Path("/workspace")
+
+        with patch("ddtrace.testing.internal.pytest.plugin._get_source_lines") as mock_get_lines:
+            mock_get_lines.return_value = (15, 0)
+
+            relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
+
+            assert relative_path == "tests/test_file.py"
+            assert start_line == 15
+            assert end_line == 0
+
+    def test_get_test_location_info_reportinfo_fallback(self) -> None:
+        """Test _get_test_location_info falls back to reportinfo on path exception."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        # Use a path that will cause an exception when relative_to is called
+        # (path outside workspace) - this triggers ValueError
+        mock_item.path = "/other/location/tests/test_file.py"
+        mock_item.reportinfo.return_value = ("relative/path.py", 30, "test_name")
+
+        workspace_path = Path("/workspace")
+
+        relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
+
+        assert relative_path == "relative/path.py"
+        assert start_line == 30
+        assert end_line == 0
+
+    def test_get_test_location_info_all_failures(self) -> None:
+        """Test _get_test_location_info when all methods fail."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        # Use an invalid path that will cause Path() to fail
+        mock_item.path = None  # This will cause Path(None) to raise TypeError
+        mock_item.reportinfo.side_effect = Exception("reportinfo failed")
+
+        workspace_path = Path("/workspace")
+
+        relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
+
+        assert relative_path is None
+        assert start_line == 0
+        assert end_line == 0
+
+    def test_get_test_location_info_outside_workspace(self) -> None:
+        """Test _get_test_location_info when test is outside workspace."""
+        from pathlib import Path
+
+        mock_item = Mock()
+        # Path is outside workspace - will cause ValueError in relative_to()
+        mock_item.path = "/other/location/tests/test_file.py"
+        mock_item.reportinfo.return_value = ("tests/test_file.py", 10, "test_name")
+
+        workspace_path = Path("/workspace")
+
+        # Should fall back to reportinfo when path is not relative to workspace
+        relative_path, start_line, end_line = _get_test_location_info(mock_item, workspace_path)
+
+        assert relative_path == "tests/test_file.py"
+        assert start_line == 10
+        assert end_line == 0
 
 
 class TestPrivateMethods:
@@ -588,43 +917,6 @@ class TestPrivateMethods:
 
         assert result is None
 
-    def test_mark_quarantined_test_report_as_skipped_call_phase(self) -> None:
-        """Test quarantined test report modification for call phase."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_report = test_report()
-        mock_report.when = "call"
-
-        plugin._mark_quarantined_test_report_as_skipped(mock_item, mock_report)
-
-        assert mock_report.outcome == "skipped"
-        assert mock_report.longrepr == (str(mock_item.path), 10, "Quarantined")
-
-    def test_mark_quarantined_test_report_as_skipped_teardown_phase(self) -> None:
-        """Test quarantined test report modification for teardown phase."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_report = test_report()
-        mock_report.when = "teardown"
-
-        plugin._mark_quarantined_test_report_as_skipped(mock_item, mock_report)
-
-        assert mock_report.outcome == "passed"
-
-    def test_mark_quarantined_test_report_as_skipped_none_report(self) -> None:
-        """Test quarantined test report modification with None report."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-
-        # Should not raise exception
-        plugin._mark_quarantined_test_report_as_skipped(mock_item, None)
-
 
 # =============================================================================
 # COVERAGE GAPS - Additional tests for missing methods
@@ -647,6 +939,8 @@ class TestSessionLifecycleMethods:
         # Mock session with normal exit
         mock_session = Mock()
         mock_session.exitstatus = pytest.ExitCode.OK
+        # Mock the pluginmanager to return an empty list
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
 
         plugin.pytest_sessionfinish(mock_session)
 
@@ -670,6 +964,8 @@ class TestSessionLifecycleMethods:
         # Mock session with test failures
         mock_session = Mock()
         mock_session.exitstatus = pytest.ExitCode.TESTS_FAILED
+        # Mock the pluginmanager to return an empty list
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
 
         plugin.pytest_sessionfinish(mock_session)
 
@@ -691,6 +987,8 @@ class TestSessionLifecycleMethods:
         mock_session = Mock()
         mock_session.exitstatus = pytest.ExitCode.OK
         mock_session.config = Mock(workeroutput={})
+        # Mock the pluginmanager to return an empty list
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
 
         plugin.pytest_sessionfinish(mock_session)
 
@@ -718,7 +1016,7 @@ class TestReportAndLoggingMethods:
         result = plugin._mark_test_report_as_retry(reports, mock_handler, "call")
 
         assert result is True
-        assert mock_report.outcome == "dd_retry"
+        assert mock_report.outcome == "rerun"
         expected_properties = [("dd_retry_outcome", "failed"), ("dd_retry_reason", "Test Handler")]
         assert mock_report.user_properties == expected_properties
 
@@ -728,7 +1026,7 @@ class TestReportAndLoggingMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         mock_handler = Mock()
-        reports: t.Dict[str, Mock] = {}
+        reports: dict[str, Mock] = {}
 
         result = plugin._mark_test_report_as_retry(reports, mock_handler, "call")
 
@@ -751,7 +1049,7 @@ class TestReportAndLoggingMethods:
         plugin._mark_test_reports_as_retry(reports, mock_handler)
 
         # Should only mark call report
-        assert mock_call_report.outcome == "dd_retry"
+        assert mock_call_report.outcome == "rerun"
 
     def test_mark_test_reports_as_retry_setup_fallback(self) -> None:
         """Test _mark_test_reports_as_retry falls back to setup when call missing."""
@@ -770,54 +1068,7 @@ class TestReportAndLoggingMethods:
         plugin._mark_test_reports_as_retry(reports, mock_handler)
 
         # Should mark setup report
-        assert mock_setup_report.outcome == "dd_retry"
-
-
-class TestQuarantineHandling:
-    """Test quarantine handling methods."""
-
-    def test_mark_quarantined_test_report_group_as_skipped_with_call(self) -> None:
-        """Test quarantine group marking when call report exists."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_call = Mock()
-        mock_setup = Mock()
-        mock_teardown = Mock()
-
-        reports = {
-            "call": mock_call,
-            "setup": mock_setup,
-            "teardown": mock_teardown,
-        }
-
-        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, reports)
-
-        # Call should be marked as skipped, others as passed
-        assert mock_call.outcome == "skipped"
-        assert mock_setup.outcome == "passed"
-        assert mock_teardown.outcome == "passed"
-
-    def test_mark_quarantined_test_report_group_as_skipped_no_call(self) -> None:
-        """Test quarantine group marking when call report is missing."""
-        mock_manager = session_manager_mock().build_mock()
-        plugin = TestOptPlugin(session_manager=mock_manager)
-
-        mock_item = pytest_item_mock("test_file.py::test_name").build()
-        mock_setup = Mock()
-        mock_teardown = Mock()
-
-        reports = {
-            "setup": mock_setup,
-            "teardown": mock_teardown,
-        }
-
-        plugin._mark_quarantined_test_report_group_as_skipped(mock_item, reports)
-
-        # Setup should be marked as skipped, teardown as passed
-        assert mock_setup.outcome == "skipped"
-        assert mock_teardown.outcome == "passed"
+        assert mock_setup_report.outcome == "rerun"
 
 
 class TestXdistPlugin:
@@ -1039,3 +1290,87 @@ class TestOutcomeProcessing:
         assert status == TestStatus.SKIP
         assert tags[TestTag.XFAIL_REASON] == "reason: no fun"
         assert tags[TestTag.TEST_RESULT] == "xfail"
+
+
+class TestRetryReportsTeardownTracking:
+    """Regression tests: teardown outcomes must be tracked in reports_by_outcome during retries.
+
+    Root cause of the IndexError in make_final_report: _get_test_outcome considers all three phases
+    (setup, call, teardown) when determining the test_run status. A teardown failure makes the
+    test_run FAIL. But reports_by_outcome only tracked setup/call outcomes — teardown was not logged
+    during retries to avoid confusing other pytest plugins. So "failed" was never recorded in
+    reports_by_outcome, causing reports_by_outcome["failed"][0] to raise IndexError.
+
+    The fix: track_report_outcome records teardown outcomes in reports_by_outcome without logging
+    them to pytest, keeping both systems in sync.
+    """
+
+    def test_track_report_records_outcome(self) -> None:
+        """track_report should record a report's outcome in reports_by_outcome."""
+        from ddtrace.testing.internal.pytest.plugin import RetryReports
+
+        retry_reports = RetryReports()
+        teardown = test_report(outcome="failed", longrepr="Error during teardown", when="teardown")
+
+        retry_reports.track_report(teardown)
+
+        assert len(retry_reports.reports_by_outcome["failed"]) == 1
+        assert retry_reports.reports_by_outcome["failed"][0] is teardown
+
+    def test_make_final_report_with_teardown_failure(self) -> None:
+        """Regression: make_final_report should find the teardown report when final status is FAIL.
+
+        When teardown fails, _get_test_outcome returns FAIL, the retry handler returns FAIL, and
+        make_final_report needs "failed" in reports_by_outcome. With teardown tracking, it finds it.
+        """
+        from ddtrace.testing.internal.pytest.plugin import RetryReports
+
+        retry_reports = RetryReports()
+
+        # Simulate the retry path: setup and call pass, teardown fails.
+        setup = test_report(outcome="passed", when="setup")
+        call = test_report(outcome="passed", when="call")
+        call.user_properties = [("dd_retry_outcome", "passed")]
+        teardown = test_report(outcome="failed", longrepr="Error during teardown", when="teardown")
+
+        retry_reports.track_report(setup)
+        retry_reports.track_report(call)
+        retry_reports.track_report(teardown)
+
+        test_ref = TestDataFactory.create_test_ref()
+        test = mock_test(test_ref)
+        item = pytest_item_mock("test_module/test_suite.py::test_function").build()
+
+        final_report = retry_reports.make_final_report(test, item, TestStatus.FAIL)
+
+        assert final_report.outcome == "failed"
+        assert final_report.longrepr == "Error during teardown"
+
+    def test_make_final_report_without_teardown_tracking_hits_index_error(self) -> None:
+        """Without teardown tracking, make_final_report falls into the IndexError branch.
+
+        This reproduces the original bug: only setup/call are tracked, teardown is not.
+        The retry handler returns FAIL (from teardown), but "failed" is missing from
+        reports_by_outcome, so make_final_report produces a degraded report with longrepr=None.
+        """
+        from ddtrace.testing.internal.pytest.plugin import RetryReports
+
+        retry_reports = RetryReports()
+
+        setup = test_report(outcome="passed", when="setup")
+        call = test_report(outcome="passed", when="call")
+        call.user_properties = [("dd_retry_outcome", "passed")]
+
+        retry_reports.track_report(setup)
+        retry_reports.track_report(call)
+        # Teardown NOT tracked — pre-fix behavior.
+
+        test_ref = TestDataFactory.create_test_ref()
+        test = mock_test(test_ref)
+        item = pytest_item_mock("test_module/test_suite.py::test_function").build()
+
+        final_report = retry_reports.make_final_report(test, item, TestStatus.FAIL)
+
+        # Degraded report — the bug's symptom.
+        assert final_report.outcome == "failed"
+        assert final_report.longrepr is None

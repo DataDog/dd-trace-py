@@ -33,7 +33,8 @@ class TestPyramid(PyramidTestCase):
         self.override_settings({"pyramid.tweens": "pyramid.tweens.excview_tween_factory"})
         self.app.get("/json", status=200)
         spans = self.pop_spans()
-        assert len(spans) == 0
+        assert len(spans) == 1
+        assert spans[0].name == "pyramid.render"
 
     def test_http_request_header_tracing(self):
         config.pyramid.http.trace_headers(["my-header"])

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: Add the ``noopener`` and ``noreferrer`` link tags in the Datadog link in the footer of the App and API Protection HTML blocking response template. This could previously trigger a "reverse tabnabbing" vulnerability finding from other security analysis tools.

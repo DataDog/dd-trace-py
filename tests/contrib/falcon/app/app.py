@@ -8,7 +8,7 @@ from . import resources
 
 def get_app(tracer=None, distributed_tracing=None):
     # initialize a traced Falcon application
-    middleware = [TraceMiddleware(tracer, distributed_tracing=distributed_tracing)] if tracer else []
+    middleware = [TraceMiddleware(distributed_tracing=distributed_tracing)]
 
     if FALCON_VERSION >= (3, 0, 0):
         app = falcon.App(middleware=middleware)

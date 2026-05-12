@@ -14,8 +14,8 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     patch(pymysql=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.pymysql["service"]
 
@@ -33,24 +33,4 @@ Global Configuration
    Can also configured via the ``DD_PYMYSQL_TRACE_FETCH_METHODS`` environment variable.
 
    Default: ``False``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the integration on an per-connection basis use the
-``Pin`` API::
-
-    from ddtrace._trace.pin import Pin
-    from pymysql import connect
-
-    # This will report a span with the default settings
-    conn = connect(user="alice", password="b0b", host="localhost", port=3306, database="test")
-
-    # Use a pin to override the service name for this connection.
-    Pin.override(conn, service="pymysql-users")
-
-
-    cursor = conn.cursor()
-    cursor.execute("SELECT 6*7 AS the_answer;")
 """

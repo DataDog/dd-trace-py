@@ -1,15 +1,14 @@
 import os
 
+import mock
 import pytest
 import vcr
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.openai.patch import patch as patch_openai
 from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
 from ddtrace.contrib.internal.pydantic_ai.patch import patch
 from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
-from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import override_global_config
 
 
@@ -20,16 +19,6 @@ def default_global_config():
 @pytest.fixture
 def ddtrace_global_config():
     return {}
-
-
-@pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(is_agentless=True, interval=1.0, timeout=1.0)
-
-
-@pytest.fixture
-def llmobs_events(pydantic_ai_llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events
 
 
 @pytest.fixture(autouse=True)
@@ -46,19 +35,20 @@ def pydantic_ai(ddtrace_global_config, monkeypatch):
 
 
 @pytest.fixture
-def openai_patched(mock_tracer):
+def openai_patched():
     patch_openai()
     import openai
-
-    pin = Pin.get_from(openai)
-    pin._override(openai, tracer=mock_tracer)
 
     yield openai
     unpatch_openai()
 
 
 @pytest.fixture
-def pydantic_ai_llmobs(mock_tracer, llmobs_span_writer):
+def pydantic_ai_llmobs(tracer, monkeypatch):
+    # Preserve meta_struct["_llmobs"] on spans so tests can assert against
+    # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it after
+    # enqueueing to LLMObsSpanWriter.
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     llmobs_service.disable()
     with override_global_config(
         {
@@ -66,17 +56,13 @@ def pydantic_ai_llmobs(mock_tracer, llmobs_span_writer):
             "_dd_api_key": "<not-a-real-key>",
         }
     ):
-        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
+        # Replace the real LLMObsSpanWriter with a mock so we don't keep a
+        # background flush thread alive trying to ship spans during the test.
+        llmobs_service._instance._llmobs_span_writer.stop()
+        llmobs_service._instance._llmobs_span_writer = mock.MagicMock()
         yield llmobs_service
     llmobs_service.disable()
-
-
-@pytest.fixture
-def mock_tracer(pydantic_ai, tracer):
-    pin = Pin.get_from(pydantic_ai)
-    pin._override(pydantic_ai, tracer=tracer)
-    yield tracer
 
 
 @pytest.fixture

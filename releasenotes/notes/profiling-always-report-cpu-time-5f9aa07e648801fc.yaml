@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: The Profiler now always reports CPU time for threads, regardless of whether they are running when
+    the sample is captured.

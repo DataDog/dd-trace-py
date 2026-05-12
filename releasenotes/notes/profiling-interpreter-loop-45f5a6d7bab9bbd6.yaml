@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue where the stack profiler could loop
+    infinitely when iterating through Python interpreter states. This could have
+    occurred if the interpreter linked list became corrupted or contained a cycle,
+    potentially causing the profiler to hang. The fix adds both cycle detection
+    and an iteration limit (256 interpreters) to prevent unbounded loops.

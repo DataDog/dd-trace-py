@@ -3,6 +3,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
+import pytest
 
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
@@ -10,7 +11,7 @@ from tests.testing.mocks import setup_standard_mocks
 
 
 class TestPytestBenchmark:
-    def test_pytest_benchmark(self, pytester: Pytester) -> None:
+    def test_pytest_benchmark(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         pytester.makepyfile(
             test_foo="""
             import time
@@ -24,6 +25,10 @@ class TestPytestBenchmark:
         """
         )
 
+        # Strip outer xdist-worker env vars so the inner pytest session starts
+        # cleanly and benchmark detection works correctly.
+        monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+        monkeypatch.delenv("PYTEST_XDIST_TESTRUNUID", raising=False)
         with (
             patch(
                 "ddtrace.testing.internal.session_manager.APIClient",

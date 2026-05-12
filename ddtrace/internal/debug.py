@@ -1,15 +1,14 @@
 import datetime
 import logging
-import os
 import platform
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace.internal.packages import get_distributions
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.cache import callonce
@@ -20,10 +19,6 @@ from ddtrace.version import __version__
 from .logger import get_logger
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.trace import Tracer  # noqa:F401
-
-
 logger = get_logger(__name__)
 
 # The architecture function spawns the file subprocess on the interpreter
@@ -31,31 +26,29 @@ logger = get_logger(__name__)
 architecture = callonce(lambda: platform.architecture())
 
 
-def in_venv():
-    # type: () -> bool
+def in_venv() -> bool:
     # Works with both venv and virtualenv
     # https://stackoverflow.com/a/42580137
     return (
-        "VIRTUAL_ENV" in os.environ
+        "VIRTUAL_ENV" in env
         or hasattr(sys, "real_prefix")
         or (hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix)
     )
 
 
-def tags_to_str(tags):
-    # type: (Dict[str, Any]) -> str
+def tags_to_str(tags: dict[str, Any]) -> str:
     # Turn a dict of tags to a string "k1:v1,k2:v2,..."
     return ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
 
 
-def collect(tracer):
-    # type: (Tracer) -> Dict[str, Any]
+def collect() -> dict[str, Any]:
     """Collect system and library information into a serializable dict."""
 
     # Inline expensive imports to avoid unnecessary overhead on startup.
     from ddtrace.internal import gitmetadata
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.internal.settings.crashtracker import config as crashtracker_config
+    from ddtrace.trace import tracer
 
     if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"
@@ -79,7 +72,7 @@ def collect(tracer):
     is_venv = in_venv()
 
     packages_available = {name: version for (name, version) in get_distributions().items()}
-    integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
+    integration_configs: dict[str, Union[dict[str, Any], str]] = {}
     for module, enabled in ddtrace._monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
         #       between the module and the library name.
@@ -133,7 +126,7 @@ def collect(tracer):
         sampling_rules=sampling_rules,
         service=ddtrace.config.service or "",
         debug=logger.isEnabledFor(logging.DEBUG),
-        enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
+        enabled_cli="ddtrace" in env.get("PYTHONPATH", ""),
         log_injection_enabled=ddtrace.config._logs_injection,
         health_metrics_enabled=ddtrace.config._health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
@@ -153,10 +146,11 @@ def collect(tracer):
         git_repository_url=git_repository_url,
         git_commit_sha=git_commit_sha,
         git_main_package=git_main_package,
+        log_level_override=env.get("DD_TRACE_LOG_LEVEL"),
     )
 
 
-def pretty_collect(tracer, color=True):
+def pretty_collect(color=True):
     class bcolors:
         HEADER = "\033[95m"
         OKBLUE = "\033[94m"
@@ -177,7 +171,7 @@ def pretty_collect(tracer, color=True):
         bcolors.ENDC = ""
         bcolors.BOLD = ""
 
-    info = collect(tracer)
+    info = collect()
 
     info_pretty = """{blue}{bold}Tracer Configurations:{end}
     Tracer enabled: {tracer_enabled}

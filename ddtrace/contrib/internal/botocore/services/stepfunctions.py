@@ -1,6 +1,5 @@
 import json
 from typing import Any
-from typing import Dict
 
 import botocore.exceptions
 
@@ -35,14 +34,14 @@ def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
         return
 
     input_obj["_datadog"] = {}
-    core.dispatch("botocore.stepfunctions.update_input", [ctx, None, None, input_obj, None])
+    core.dispatch("botocore.stepfunctions.update_input", (ctx, None, None, input_obj, None))
     updated_input_obj = ctx.find_item(BOTOCORE_STEPFUNCTIONS_INPUT_KEY)
     if updated_input_obj:
         input_json_str = json.dumps(updated_input_obj)
         params["input"] = input_json_str
 
 
-def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, function_vars: Dict):
+def patched_stepfunction_api_call(original_func, instance, args, kwargs: dict, function_vars: dict):
     params = function_vars.get("params")
     trace_operation = function_vars.get("trace_operation")
     pin = function_vars.get("pin")
@@ -76,10 +75,11 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
             endpoint_name=endpoint_name,
             operation=operation,
             pin=pin,
+            integration_config=config.botocore,
         ) as ctx,
         ctx.span,
     ):
-        core.dispatch("botocore.patched_stepfunctions_api_call.started", [ctx])
+        core.dispatch("botocore.patched_stepfunctions_api_call.started", (ctx,))
 
         if should_update_input:
             update_stepfunction_input(ctx, params)
@@ -89,11 +89,11 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, f
         except botocore.exceptions.ClientError as e:
             core.dispatch(
                 "botocore.patched_stepfunctions_api_call.exception",
-                [
+                (
                     ctx,
                     e.response,
                     botocore.exceptions.ClientError,
                     config.botocore.operations[ctx.span.resource].is_error_code,
-                ],
+                ),
             )
             raise

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fixed an issue that prevented instrumented probes
+    from being removed correctly when Dynamic Instrumentation is disabled
+    remotely from the Datadog UI via the Settings page.

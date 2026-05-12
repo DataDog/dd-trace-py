@@ -1,0 +1,4 @@
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where the Pydantic AI integration was not properly tracing the ``StreamedRunResult.stream_responses()`` method
+    which was introduced in ``pydantic-ai==0.8.1``. This was leading to agent spans not being finished.

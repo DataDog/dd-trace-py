@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    tornado: Fixes an issue where routes inside a nested Tornado application were matched
+    in reverse declaration order, causing a catch-all pattern to win over a more-specific
+    route defined before it. This resulted in incorrect ``http.route`` tags on spans.
+  - |
+    tornado: The ``http.route`` tag is now populated for routes whose regex cannot be
+    reversed by Tornado (e.g. patterns containing non-capturing groups such as
+    ``(?:a|b)``). Capturing groups are still rendered as ``%s``, consistent with
+    Tornado's own route format, while non-capturing constructs are kept verbatim.

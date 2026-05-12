@@ -15,8 +15,8 @@ Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
     import aiokafka
     ...
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.aiokafka["service"]
 

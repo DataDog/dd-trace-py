@@ -1,3 +1,4 @@
+use libdd_capabilities_impl::NativeCapabilities;
 use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
@@ -5,6 +6,7 @@ use libdd_data_pipeline::trace_exporter::{
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
 mod exceptions;
+use crate::shared_runtime::SharedRuntimePy;
 use exceptions::TraceExporterErrorPy;
 
 /// A wrapper around [TraceExporterBuilder]
@@ -68,6 +70,11 @@ impl TraceExporterBuilderPy {
         git_commit_sha: &'_ str,
     ) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_git_commit_sha(git_commit_sha);
+        Ok(slf.into())
+    }
+
+    fn set_process_tags(mut slf: PyRefMut<'_, Self>, process_tags: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_process_tags(process_tags);
         Ok(slf.into())
     }
 
@@ -147,11 +154,12 @@ impl TraceExporterBuilderPy {
         mut slf: PyRefMut<'_, Self>,
         heartbeat_ms: u64,
         runtime_id: String,
+        debug_enabled: bool,
     ) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.enable_telemetry(TelemetryConfig {
             heartbeat: heartbeat_ms,
             runtime_id: Some(runtime_id),
-            debug_enabled: true,
+            debug_enabled,
         });
         Ok(slf.into())
     }
@@ -161,16 +169,39 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
-    /// Consumes the wrapped builder.
+    fn set_otlp_endpoint(mut slf: PyRefMut<'_, Self>, url: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_endpoint(url);
+        Ok(slf.into())
+    }
+
+    fn set_otlp_headers(
+        mut slf: PyRefMut<'_, Self>,
+        headers: Vec<(String, String)>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_otlp_headers(headers);
+        Ok(slf.into())
+    }
+
+    fn set_connection_timeout(mut slf: PyRefMut<'_, Self>, timeout_ms: u64) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_connection_timeout(Some(timeout_ms));
+        Ok(slf.into())
+    }
+
+    /// Consumes the wrapped builder, requires a shared runtime to be passed to spawn async tasks.
     ///
-    /// The builder shouldn't be reused
-    fn build(&mut self) -> PyResult<TraceExporterPy> {
+    /// The builder shouldn't be reused.
+    ///
+    /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
+    /// one without registering the fork hooks.
+    fn build(&mut self, shared_runtime: PyRef<'_, SharedRuntimePy>) -> PyResult<TraceExporterPy> {
+        let shared_runtime = shared_runtime.as_arc().clone();
+        self.try_as_mut()?.set_shared_runtime(shared_runtime);
         let exporter = TraceExporterPy {
             inner: Some(
                 self.builder
                     .take()
                     .ok_or(PyValueError::new_err("Builder has already been consumed"))?
-                    .build()
+                    .build::<NativeCapabilities>()
                     .map_err(|err| PyValueError::new_err(format!("Builder {err}")))?,
             ),
         };
@@ -185,7 +216,7 @@ impl TraceExporterBuilderPy {
 /// A python object wrapping a [TraceExporter] instance
 #[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
-    inner: Option<TraceExporter>,
+    inner: Option<TraceExporter<NativeCapabilities>>,
 }
 
 #[pymethods]
@@ -194,15 +225,15 @@ impl TraceExporterPy {
     ///
     /// The payload is passed as an immutable `bytes` object to be able to release the GIL while
     /// sending the traces.
-    fn send(&self, py: Python<'_>, data: PyBackedBytes, trace_count: usize) -> PyResult<String> {
-        py.allow_threads(move || {
+    fn send(&self, py: Python<'_>, data: PyBackedBytes) -> PyResult<String> {
+        py.detach(move || {
             match self
                 .inner
                 .as_ref()
                 .ok_or(PyValueError::new_err(
                     "TraceExporter has already been consumed",
                 ))?
-                .send(&data, trace_count)
+                .send(&data)
             {
                 Ok(res) => match res {
                     AgentResponse::Changed { body } => Ok(body),
@@ -214,17 +245,12 @@ impl TraceExporterPy {
     }
 
     fn shutdown(&mut self, timeout_ns: u64) -> PyResult<()> {
-        match self
-            .inner
-            .take()
-            .ok_or(PyValueError::new_err(
-                "TraceExporter has already been consumed",
-            ))?
-            .shutdown(Some(Duration::from_nanos(timeout_ns)))
-        {
-            Ok(_) => Ok(()),
-            Err(e) => Err(TraceExporterErrorPy::from(e).into()),
+        if let Some(exporter) = self.inner.take() {
+            exporter
+                .shutdown(Some(Duration::from_nanos(timeout_ns)))
+                .map_err(TraceExporterErrorPy::from)?;
         }
+        Ok(())
     }
 
     fn drop(&mut self) -> PyResult<()> {
@@ -232,25 +258,16 @@ impl TraceExporterPy {
         Ok(())
     }
 
-    fn run_worker(&self) -> PyResult<()> {
-        let exporter = self.inner.as_ref().ok_or(PyValueError::new_err(
-            "TraceExporter has already been consumed",
-        ))?;
-        match exporter.run_worker() {
-            Ok(_) => Ok(()),
-            Err(e) => Err(TraceExporterErrorPy::from(e).into()),
-        }
-    }
-
-    fn stop_worker(&self) -> PyResult<()> {
-        if let Some(exporter) = self.inner.as_ref() {
-            exporter.stop_worker();
-        }
-        Ok(())
-    }
-
     fn debug(&self) -> String {
         format!("{:?}", self.inner)
+    }
+}
+
+impl Drop for TraceExporterPy {
+    fn drop(&mut self) {
+        if let Some(exporter) = self.inner.take() {
+            let _ = exporter.shutdown(Some(Duration::from_secs(3)));
+        }
     }
 }
 

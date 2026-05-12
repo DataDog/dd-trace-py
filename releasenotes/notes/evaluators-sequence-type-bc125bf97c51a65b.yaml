@@ -1,0 +1,3 @@
+fixes:
+  - |
+    LLM Observability: This fix addresses an issue where the evaluators argument type for ``LLMObs.experiment`` was overly constrained due to the use of an invariant List type. The argument now uses the covariant Sequence type, allowing users to pass in a list of evaluator functions with narrower return type. 

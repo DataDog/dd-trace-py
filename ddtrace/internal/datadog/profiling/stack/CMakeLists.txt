@@ -21,12 +21,11 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 # Custom cmake modules are in the parent directory
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
-# Link against the pre-built libdd_wrapper shared library The library is built by setup.py and its location is passed
-# via NATIVE_EXTENSION_LOCATION. For standalone builds, check LIB_INSTALL_DIR first.
-if(LIB_INSTALL_DIR AND EXISTS "${LIB_INSTALL_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
-    set(DD_WRAPPER_LIB "${LIB_INSTALL_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
+# Link against the pre-built libdd_wrapper shared library.
+if(DEFINED DD_WRAPPER_DIR)
+    set(DD_WRAPPER_LIB "${DD_WRAPPER_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
 else()
-    set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
+    message(FATAL_ERROR "DD_WRAPPER_DIR is not set")
 endif()
 
 # Import the pre-built library as an imported target
@@ -56,8 +55,24 @@ if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
 endif()
 
 # Specify the target C-extension that we want to build
-add_library(${EXTENSION_NAME} SHARED src/echion/danger.cc src/echion/frame.cc src/sampler.cpp src/stack.cpp
-                                     src/stack_renderer.cpp src/thread_span_links.cpp)
+add_library(
+    ${EXTENSION_NAME} SHARED
+    src/echion/danger.cc
+    src/echion/frame.cc
+    src/echion/greenlets.cc
+    src/echion/interp.cc
+    src/echion/long.cc
+    src/echion/mirrors.cc
+    src/echion/stack_chunk.cc
+    src/echion/stacks.cc
+    src/echion/strings.cc
+    src/echion/tasks.cc
+    src/echion/threads.cc
+    src/echion/vm.cc
+    src/sampler.cpp
+    src/stack.cpp
+    src/stack_renderer.cpp
+    src/thread_span_links.cpp)
 
 # Add common config
 add_ddup_config(${EXTENSION_NAME})
@@ -133,4 +148,19 @@ endif()
 if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(test)
+endif()
+
+# Fuzzing harnesses (off by default)
+if(NOT DEFINED BUILD_FUZZING)
+    set(BUILD_FUZZING
+        OFF
+        CACHE BOOL "Build fuzzing harnesses for stack_v2/echion")
+else()
+    set(BUILD_FUZZING
+        ON
+        CACHE BOOL "Build fuzzing harnesses for stack_v2/echion")
+endif()
+
+if(BUILD_FUZZING)
+    add_subdirectory(fuzz)
 endif()

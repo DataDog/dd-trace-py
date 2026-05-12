@@ -11,13 +11,14 @@ from moto import mock_sns
 from moto import mock_sqs
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.utils_botocore import span_tags
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import patch_submodules
 from ddtrace.contrib.internal.botocore.patch import unpatch
+from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.utils.version import parse_version
+from tests.datastreams.utils import pathway_stats_merged
 from tests.utils import TracerTestCase
 
 
@@ -28,8 +29,6 @@ BOTOCORE_VERSION = parse_version(botocore.__version__)
 @pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
 class BotocoreDSMTest(TracerTestCase):
     """Botocore DSM (Data Streams Monitoring) integration tests"""
-
-    TEST_SERVICE = "test-botocore-tracing"
 
     @mock_sqs
     def setUp(self):
@@ -50,9 +49,6 @@ class BotocoreDSMTest(TracerTestCase):
 
         super(BotocoreDSMTest, self).setUp()
 
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(botocore.parsers.ResponseParser)
         # Setting the validated flag to False ensures the redaction paths configurations are re-validated
         # FIXME: Ensure AWSPayloadTagging._REQUEST_REDACTION_PATHS_DEFAULTS is always in sync with
         # config.botocore.payload_tagging_request
@@ -84,6 +80,23 @@ class BotocoreDSMTest(TracerTestCase):
     def _kinesis_generate_records(self, data, count):
         return [{"Data": data, "PartitionKey": str(i)} for i in range(count)]
 
+    def _entry_for_tags(self, pathway_stats, expected_tags, expected_parent_hash=None):
+        matching_entries = [
+            (hash_value, parent_hash, stats)
+            for (tags, hash_value, parent_hash), stats in pathway_stats.items()
+            if tags == expected_tags
+        ]
+        if expected_parent_hash is not None:
+            matching_entries = [entry for entry in matching_entries if entry[1] == expected_parent_hash]
+        assert len(matching_entries) == 1
+        hash_value, parent_hash, stats = matching_entries[0]
+        return hash_value, parent_hash, stats
+
+    def _assert_dsm_counts(self, stats, min_latency_count, payload_count):
+        assert stats.full_pathway_latency.count >= min_latency_count
+        assert stats.edge_latency.count >= min_latency_count
+        assert stats.payload_size.count == payload_count
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs(self):
         self._test_data_streams_sns_to_sqs(False)
@@ -110,9 +123,6 @@ class BotocoreDSMTest(TracerTestCase):
         # DEV: We want to mock time to ensure we only create a single bucket
         with (
             mock.patch("time.time") as mt,
-            mock.patch(
-                "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
-            ),
         ):
             mt.return_value = 1642544540
 
@@ -133,9 +143,6 @@ class BotocoreDSMTest(TracerTestCase):
                     AttributeValue="true",
                 )
 
-            Pin.get_from(sns)._clone(tracer=self.tracer).onto(sns)
-            Pin.get_from(self.sqs_client)._clone(tracer=self.tracer).onto(self.sqs_client)
-
             sns.publish(TopicArn=topic_arn, Message="test")
 
             self.get_spans()
@@ -146,59 +153,20 @@ class BotocoreDSMTest(TracerTestCase):
             # clean up resources
             sns.delete_topic(TopicArn=topic_arn)
 
-            pin = Pin.get_from(sns)
-            buckets = pin.tracer.data_streams_processor._buckets
-            assert len(buckets) == 1, "Expected 1 bucket but found {}".format(len(buckets))
-            first = list(buckets.values())[0].pathway_stats
+            processor = data_streams_processor()
+            assert processor is not None, "Datastream Monitoring is not enabled"
+            first = pathway_stats_merged(processor)
 
-            assert (
-                first[
-                    (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
-                        3337976778666780987,
-                        0,
-                    )
-                ].full_pathway_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
-                        3337976778666780987,
-                        0,
-                    )
-                ].edge_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    (
-                        "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns",
-                        3337976778666780987,
-                        0,
-                    )
-                ].payload_size.count
-                == 1
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                ].full_pathway_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                ].edge_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 13854213076663332654, 3337976778666780987)
-                ].payload_size.count
-                == 1
-            )
+            out_tags = "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns"
+            in_tags = "direction:in,topic:Test,type:sqs"
+
+            out_hash, out_parent_hash, out_stats = self._entry_for_tags(first, out_tags, expected_parent_hash=0)
+            assert out_parent_hash == 0
+            self._assert_dsm_counts(out_stats, min_latency_count=1, payload_count=1)
+
+            _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
+            assert in_parent_hash == out_hash
+            self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
@@ -206,15 +174,9 @@ class BotocoreDSMTest(TracerTestCase):
         # DEV: We want to mock time to ensure we only create a single bucket
         with (
             mock.patch("time.time") as mt,
-            mock.patch(
-                "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
-            ),
         ):
             mt.return_value = 1642544540
 
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(self.sqs_client)
             message_attributes = {
                 "one": {"DataType": "String", "StringValue": "one"},
                 "two": {"DataType": "String", "StringValue": "two"},
@@ -237,32 +199,20 @@ class BotocoreDSMTest(TracerTestCase):
                 WaitTimeSeconds=2,
             )
 
-            pin = Pin.get_from(self.sqs_client)
-            buckets = pin.tracer.data_streams_processor._buckets
-            assert len(buckets) == 1
-            first = list(buckets.values())[0].pathway_stats
+            processor = data_streams_processor()
+            assert processor is not None, "Datastream Monitoring is not enabled"
+            first = pathway_stats_merged(processor)
 
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency.count >= 1
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency.count >= 1
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 1
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].full_pathway_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].edge_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].payload_size.count
-                == 1
-            )
+            out_tags = "direction:out,topic:Test,type:sqs"
+            in_tags = "direction:in,topic:Test,type:sqs"
+
+            out_hash, out_parent_hash, out_stats = self._entry_for_tags(first, out_tags, expected_parent_hash=0)
+            assert out_parent_hash == 0
+            self._assert_dsm_counts(out_stats, min_latency_count=1, payload_count=1)
+
+            _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
+            assert in_parent_hash == out_hash
+            self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
@@ -270,15 +220,9 @@ class BotocoreDSMTest(TracerTestCase):
         # DEV: We want to mock time to ensure we only create a single bucket
         with (
             mock.patch("time.time") as mt,
-            mock.patch(
-                "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
-            ),
         ):
             mt.return_value = 1642544540
 
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(self.sqs_client)
             message_attributes = {
                 "one": {"DataType": "String", "StringValue": "one"},
                 "two": {"DataType": "String", "StringValue": "two"},
@@ -306,32 +250,20 @@ class BotocoreDSMTest(TracerTestCase):
                 WaitTimeSeconds=2,
             )
 
-            pin = Pin.get_from(self.sqs_client)
-            buckets = pin.tracer.data_streams_processor._buckets
-            assert len(buckets) == 1
-            first = list(buckets.values())[0].pathway_stats
+            processor = data_streams_processor()
+            assert processor is not None, "Datastream Monitoring is not enabled"
+            first = pathway_stats_merged(processor)
 
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency.count >= 3
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency.count >= 3
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 3
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].full_pathway_latency.count
-                >= 3
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].edge_latency.count
-                >= 3
-            )
-            assert (
-                first[
-                    ("direction:in,topic:Test,type:sqs", 15625264005677082004, 15309751356108160802)
-                ].payload_size.count
-                == 3
-            )
+            out_tags = "direction:out,topic:Test,type:sqs"
+            in_tags = "direction:in,topic:Test,type:sqs"
+
+            out_hash, out_parent_hash, out_stats = self._entry_for_tags(first, out_tags, expected_parent_hash=0)
+            assert out_parent_hash == 0
+            self._assert_dsm_counts(out_stats, min_latency_count=3, payload_count=3)
+
+            _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
+            assert in_parent_hash == out_hash
+            self._assert_dsm_counts(in_stats, min_latency_count=3, payload_count=3)
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
@@ -353,15 +285,9 @@ class BotocoreDSMTest(TracerTestCase):
         # DEV: We want to mock time to ensure we only create a single bucket
         with (
             mock.patch("time.time") as mt,
-            mock.patch(
-                "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
-            ),
         ):
             mt.return_value = 1642544540
 
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(self.sqs_client)
             message_attributes = {
                 "one": {"DataType": "String", "StringValue": "one"},
                 "two": {"DataType": "String", "StringValue": "two"},
@@ -385,121 +311,66 @@ class BotocoreDSMTest(TracerTestCase):
                 WaitTimeSeconds=2,
             )
 
-            pin = Pin.get_from(self.sqs_client)
-            buckets = pin.tracer.data_streams_processor._buckets
-            assert len(buckets) == 1
-            first = list(buckets.values())[0].pathway_stats
+            processor = data_streams_processor()
+            assert processor is not None, "Datastream Monitoring is not enabled"
+            first = pathway_stats_merged(processor)
 
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].full_pathway_latency.count >= 1
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].edge_latency.count >= 1
-            assert first[("direction:out,topic:Test,type:sqs", 15309751356108160802, 0)].payload_size.count == 1
-            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].full_pathway_latency.count >= 1
-            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].edge_latency.count >= 1
-            assert first[("direction:in,topic:Test,type:sqs", 3569019635468821892, 0)].payload_size.count == 1
+            out_tags = "direction:out,topic:Test,type:sqs"
+            in_tags = "direction:in,topic:Test,type:sqs"
+
+            _out_hash, out_parent_hash, out_stats = self._entry_for_tags(first, out_tags, expected_parent_hash=0)
+            assert out_parent_hash == 0
+            self._assert_dsm_counts(out_stats, min_latency_count=1, payload_count=1)
+
+            _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=0)
+            assert in_parent_hash == 0
+            self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
     @mock_kinesis
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @unittest.skipIf(BOTOCORE_VERSION < (1, 26, 31), "Kinesis didn't support streamARN till 1.26.31")
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_kinesis_data_streams_enabled_put_records(self):
-        with mock.patch(
-            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
-        ):
-            # (dict -> json string)[]
-            data = json.dumps({"json": "string"})
-            records = self._kinesis_generate_records(data, 2)
-            client = self.session.create_client("kinesis", region_name="us-east-1")
+        # (dict -> json string)[]
+        data = json.dumps({"json": "string"})
+        records = self._kinesis_generate_records(data, 2)
+        client = self.session.create_client("kinesis", region_name="us-east-1")
 
-            stream_name = "kinesis_put_records_data_streams"
-            shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+        stream_name = "kinesis_put_records_data_streams"
+        shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
 
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(client)
-            client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
+        client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
 
-            shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
-            client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+        client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
 
-            pin = Pin.get_from(client)
-            buckets = pin.tracer.data_streams_processor._buckets
-            assert len(buckets) == 1
-            first = list(buckets.values())[0].pathway_stats
+        processor = data_streams_processor()
+        assert processor is not None, "Datastream Monitoring is not enabled"
+        buckets = processor._buckets
+        assert len(buckets) == 1
+        first = list(buckets.values())[0].pathway_stats
 
-            in_tags = ",".join(
-                [
-                    "direction:in",
-                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
-                    "type:kinesis",
-                ]
-            )
-            out_tags = ",".join(
-                [
-                    "direction:out",
-                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
-                    "type:kinesis",
-                ]
-            )
-            assert (
-                first[
-                    (
-                        in_tags,
-                        7250761453654470644,
-                        17012262583645342129,
-                    )
-                ].full_pathway_latency.count
-                >= 2
-            )
-            assert (
-                first[
-                    (
-                        in_tags,
-                        7250761453654470644,
-                        17012262583645342129,
-                    )
-                ].edge_latency.count
-                >= 2
-            )
-            assert (
-                first[
-                    (
-                        in_tags,
-                        7250761453654470644,
-                        17012262583645342129,
-                    )
-                ].payload_size.count
-                == 2
-            )
-            assert (
-                first[
-                    (
-                        out_tags,
-                        17012262583645342129,
-                        0,
-                    )
-                ].full_pathway_latency.count
-                >= 2
-            )
-            assert (
-                first[
-                    (
-                        out_tags,
-                        17012262583645342129,
-                        0,
-                    )
-                ].edge_latency.count
-                >= 2
-            )
-            assert (
-                first[
-                    (
-                        out_tags,
-                        17012262583645342129,
-                        0,
-                    )
-                ].payload_size.count
-                == 2
-            )
+        in_tags = ",".join(
+            [
+                "direction:in",
+                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
+                "type:kinesis",
+            ]
+        )
+        out_tags = ",".join(
+            [
+                "direction:out",
+                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_records_data_streams",
+                "type:kinesis",
+            ]
+        )
+        out_hash, out_parent_hash, out_stats = self._entry_for_tags(first, out_tags, expected_parent_hash=0)
+        assert out_parent_hash == 0
+        self._assert_dsm_counts(out_stats, min_latency_count=2, payload_count=2)
+
+        _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
+        assert in_parent_hash == out_hash
+        self._assert_dsm_counts(in_stats, min_latency_count=2, payload_count=2)
 
     @mock_kinesis
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
@@ -507,102 +378,44 @@ class BotocoreDSMTest(TracerTestCase):
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_kinesis_data_streams_enabled_put_record(self):
         # (dict -> json string)[]
-        with mock.patch(
-            "ddtrace.internal.datastreams.data_streams_processor", return_value=self.tracer.data_streams_processor
-        ):
-            data = json.dumps({"json": "string"})
-            client = self.session.create_client("kinesis", region_name="us-east-1")
+        data = json.dumps({"json": "string"})
+        client = self.session.create_client("kinesis", region_name="us-east-1")
 
-            stream_name = "kinesis_put_record_data_streams"
-            shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
+        stream_name = "kinesis_put_record_data_streams"
+        shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
 
-            partition_key = "1234"
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(client)
-            client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key, StreamARN=stream_arn)
+        partition_key = "1234"
+        client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key, StreamARN=stream_arn)
 
-            shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
-            client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
+        shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
+        client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
 
-            pin = Pin.get_from(client)
-            buckets = pin.tracer.data_streams_processor._buckets
-            assert len(buckets) == 1
-            first = list(buckets.values())[0].pathway_stats
-            in_tags = ",".join(
-                [
-                    "direction:in",
-                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
-                    "type:kinesis",
-                ]
-            )
-            out_tags = ",".join(
-                [
-                    "direction:out",
-                    "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
-                    "type:kinesis",
-                ]
-            )
-            assert (
-                first[
-                    (
-                        in_tags,
-                        7186383338881463054,
-                        14715769790627487616,
-                    )
-                ].full_pathway_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    (
-                        in_tags,
-                        7186383338881463054,
-                        14715769790627487616,
-                    )
-                ].edge_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    (
-                        in_tags,
-                        7186383338881463054,
-                        14715769790627487616,
-                    )
-                ].payload_size.count
-                == 1
-            )
-            assert (
-                first[
-                    (
-                        out_tags,
-                        14715769790627487616,
-                        0,
-                    )
-                ].full_pathway_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    (
-                        out_tags,
-                        14715769790627487616,
-                        0,
-                    )
-                ].edge_latency.count
-                >= 1
-            )
-            assert (
-                first[
-                    (
-                        out_tags,
-                        14715769790627487616,
-                        0,
-                    )
-                ].payload_size.count
-                == 1
-            )
+        processor = data_streams_processor()
+        assert processor is not None, "Datastream Monitoring is not enabled"
+        buckets = processor._buckets
+        assert len(buckets) == 1
+        first = list(buckets.values())[0].pathway_stats
+        in_tags = ",".join(
+            [
+                "direction:in",
+                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
+                "type:kinesis",
+            ]
+        )
+        out_tags = ",".join(
+            [
+                "direction:out",
+                "topic:arn:aws:kinesis:us-east-1:123456789012:stream/kinesis_put_record_data_streams",
+                "type:kinesis",
+            ]
+        )
+        out_hash, out_parent_hash, out_stats = self._entry_for_tags(first, out_tags, expected_parent_hash=0)
+        assert out_parent_hash == 0
+        self._assert_dsm_counts(out_stats, min_latency_count=1, payload_count=1)
+
+        _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
+        assert in_parent_hash == out_hash
+        self._assert_dsm_counts(in_stats, min_latency_count=1, payload_count=1)
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
@@ -621,9 +434,6 @@ class BotocoreDSMTest(TracerTestCase):
         data = json.dumps({"json": "string"})
         records = self._kinesis_generate_records(data, 5)
 
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(client)
         client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
 
         shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
@@ -652,9 +462,6 @@ class BotocoreDSMTest(TracerTestCase):
         data = json.dumps({"json": "string"})
         records = self._kinesis_generate_records(data, 5)
 
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(client)
         client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
 
         shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
@@ -683,9 +490,6 @@ class BotocoreDSMTest(TracerTestCase):
         data = json.dumps({"json": "string"})
         records = self._kinesis_generate_records(data, 5)
 
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(client)
         client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
 
         shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
@@ -695,3 +499,35 @@ class BotocoreDSMTest(TracerTestCase):
         for record in response["Records"]:
             data = json.loads(record["Data"])
             assert "_datadog" not in data
+
+
+@pytest.mark.snapshot(ignores=["meta.aws.requestid"])
+@pytest.mark.subprocess(
+    env={"DD_DATA_STREAMS_ENABLED": "true", "DD_TRACE_JINJA2_ENABLED": "false"}, ddtrace_run=True, err=None
+)
+def test_data_streams_botocore_enabled():
+    """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to SQS messages."""
+    import json
+
+    import botocore.session
+    from moto import mock_sqs
+
+    with mock_sqs():
+        session = botocore.session.get_session()
+        session.set_credentials(access_key="access-key", secret_key="secret-key")
+
+        sqs_client = session.create_client("sqs", region_name="us-east-1")
+        queue_url = sqs_client.create_queue(QueueName="test_queue")["QueueUrl"]
+
+        try:
+            sqs_client.send_message(QueueUrl=queue_url, MessageBody="test")
+
+            response = sqs_client.receive_message(
+                QueueUrl=queue_url, MessageAttributeNames=["_datadog"], WaitTimeSeconds=2
+            )
+            message = response["Messages"][0]
+            context_data = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
+            assert "dd-pathway-ctx-base64" in context_data
+
+        finally:
+            sqs_client.delete_queue(QueueUrl=queue_url)

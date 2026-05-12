@@ -9,20 +9,17 @@ from threading import Thread
 from types import FrameType
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Iterator
-from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.snapshot import Snapshot
-from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import format_trace_id
 
 
@@ -30,7 +27,7 @@ log = get_logger(__name__)
 
 
 class JsonBuffer(object):
-    def __init__(self, max_size=None):
+    def __init__(self, max_size: Optional[int] = None) -> None:
         self.max_size = max_size
         self._reset()
 
@@ -49,12 +46,12 @@ class JsonBuffer(object):
         self.size += size
         return size
 
-    def _reset(self):
+    def _reset(self) -> None:
         self.size = 2
         self._buffer = bytearray(b"[")
         self._flushed = False
 
-    def flush(self):
+    def flush(self) -> bytearray:
         self._buffer += b"]"
         try:
             return self._buffer
@@ -76,11 +73,11 @@ class BufferedEncoder(abc.ABC):
         """Enqueue the given item and returns its encoded size."""
 
     @abc.abstractmethod
-    def flush(self) -> Optional[Tuple[Union[bytes, bytearray], int]]:
+    def flush(self) -> Optional[tuple[Union[bytes, bytearray], int]]:
         """Flush the buffer and return the encoded data."""
 
 
-def _logs_track_logger_details(thread: Thread, frame: FrameType) -> Dict[str, Any]:
+def _logs_track_logger_details(thread: Thread, frame: FrameType) -> dict[str, Any]:
     code = frame.f_code
 
     return {
@@ -92,7 +89,7 @@ def _logs_track_logger_details(thread: Thread, frame: FrameType) -> Dict[str, An
     }
 
 
-def add_tags(payload):
+def add_tags(payload: dict[str, Any]) -> None:
     if not di_config._tags_in_qs and di_config.tags:
         payload["ddtags"] = di_config.tags
 
@@ -100,14 +97,12 @@ def add_tags(payload):
 def _build_log_track_payload(
     service: str,
     signal: LogSignal,
-    host: Optional[str],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     context = signal.trace_context
 
     payload = {
         "service": service,
         "debugger": {"snapshot": signal.snapshot},
-        "host": host,
         "logger": _logs_track_logger_details(signal.thread, signal.frame),
         "ddsource": "dd_debugger",
         "message": signal.message,
@@ -136,26 +131,26 @@ class JSONTree:
         end: int
         level: int
         parent: Optional["JSONTree.Node"]
-        children: List["JSONTree.Node"]
+        children: list["JSONTree.Node"]
 
         pruned: int = 0
         not_captured_depth: bool = False
         not_captured: bool = False
 
         @property
-        def key(self):
+        def key(self) -> tuple[bool, int, bool, int]:
             return self.not_captured_depth, self.level, self.not_captured, len(self)
 
-        def __len__(self):
+        def __len__(self) -> int:
             return self.end - self.start
 
-        def __lt__(self, other):
+        def __lt__(self, other: Any) -> bool:
             # The Python heapq pops the smallest item, so we reverse the
             # comparison.
             return self.key > other.key
 
         @property
-        def leaves(self):
+        def leaves(self) -> Iterator["JSONTree.Node"]:
             if not self.children:
                 yield self
             else:
@@ -164,7 +159,7 @@ class JSONTree:
 
     def __init__(self, data: str) -> None:
         self._iter = enumerate(data)
-        self._stack: List[JSONTree.Node] = []  # TODO: deque
+        self._stack: list[JSONTree.Node] = []  # TODO: deque
         self.root: Optional[JSONTree.Node] = None
         self.level = 0
 
@@ -175,11 +170,11 @@ class JSONTree:
 
         self._parse()
 
-    def _depth_string(self, i, c):
+    def _depth_string(self, i: int, c: str) -> Any:
         self._stack[-1].not_captured_depth = True
         return self._object
 
-    def _not_captured(self, i, c):
+    def _not_captured(self, i: int, c: str) -> Any:
         if c == '"':
             self._string_iter = iter("depth")
             self._on_string_match = self._depth_string
@@ -190,14 +185,14 @@ class JSONTree:
 
         return self._state
 
-    def _not_captured_string(self, i, c):
+    def _not_captured_string(self, i: int, c: str) -> Any:
         self._stack[-1].not_captured = True
         return self._not_captured
 
-    def _escape(self, i, c):
+    def _escape(self, i: int, c: str) -> Any:
         return self._string
 
-    def _string(self, i, c):
+    def _string(self, i: int, c: str) -> Any:
         if c == '"':
             return (
                 self._on_string_match(i, c)
@@ -214,7 +209,9 @@ class JSONTree:
         if self._string_iter is not None and c != next(self._string_iter, None):
             self._string_iter = None
 
-    def _object(self, i, c):
+        return None
+
+    def _object(self, i: int, c: str) -> Any:
         if c == "}":
             o = self._stack.pop()
             o.end = i + 1
@@ -235,14 +232,16 @@ class JSONTree:
                 o.parent.children.append(o)
             self._stack.append(o)
 
-    def _parse(self):
+        return None
+
+    def _parse(self) -> None:
         for i, c in self._iter:
             self._state = self._state(i, c) or self._state
             if self.root is not None:
                 return
 
     @property
-    def leaves(self):
+    def leaves(self) -> list["JSONTree.Node"]:
         return list(self.root.leaves) if self.root is not None else []
 
 
@@ -250,12 +249,11 @@ class LogSignalJsonEncoder(Encoder):
     MAX_SIGNAL_SIZE = (1 << 20) - 2
     MIN_LEVEL = 5
 
-    def __init__(self, service: str, host: Optional[str] = None) -> None:
+    def __init__(self, service: str) -> None:
         self._service = service
-        self._host = host
 
     def _encode(self, item: LogSignal) -> str:
-        return json.dumps(_build_log_track_payload(self._service, item, self._host))
+        return json.dumps(_build_log_track_payload(self._service, item))
 
     def encode(self, item: LogSignal) -> bytes:
         return self._encode(item).encode("utf-8")
@@ -325,7 +323,7 @@ class SignalQueue(BufferedEncoder):
     ) -> None:
         self._encoder = encoder
         self._buffer = JsonBuffer(buffer_size)
-        self._lock = forksafe.RLock()
+        self._lock = RLock()
         self._on_full = on_full
         self.count = 0
         self.max_size = buffer_size - self._buffer.size
@@ -346,7 +344,7 @@ class SignalQueue(BufferedEncoder):
                     self._on_full(item, encoded)
                 raise
 
-    def flush(self) -> Optional[Tuple[Union[bytes, bytearray], int]]:
+    def flush(self) -> Optional[tuple[Union[bytes, bytearray], int]]:
         with self._lock:
             if self.count == 0:
                 # Reclaim memory

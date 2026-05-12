@@ -100,11 +100,11 @@ If you frequently rebuild native extensions or deploy to multiple containers, co
 
     cargo install sccache
 
-For the build system to locate `sccache`, either ensure its path is in your `PATH` environment variable or set the `SCCACHE` environment variable to its location:
+For the build system to locate `sccache`, either ensure its path is in your `PATH` environment variable or set the `SCCACHE_PATH` (or `SCCACHE`) environment variable to its location:
 
 .. code-block:: bash
 
-    export SCCACHE=/home/doe/.cargo/bin/sccache
+    export SCCACHE_PATH=/home/doe/.cargo/bin/sccache
 
 Additionally, enable `sccache` by setting the `DD_USE_SCCACHE` environment variable:
 
@@ -212,6 +212,15 @@ These environment variables modify aspects of the build process.
     version_added:
         v2.16.0:
 
+  DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY:
+    type: Boolean
+    default: False
+
+    description: |
+        If set to 1, it enables a memalloc-specific native build guard that aborts on reentrant allocator hook calls
+        (`malloc -> malloc` or `malloc -> free`). This is intended for memalloc testing and debugging builds, not
+        for production use.
+
   DD_CMAKE_INCREMENTAL_BUILD:
     type: Boolean
     default: True
@@ -266,3 +275,120 @@ These environment variables modify aspects of the build process.
 
     version_added:
         v4.1.0:
+
+  _DD_DEBUG_EXT:
+    type: Boolean
+    default: False
+
+    description: |
+        If set to any non-empty value, enables ``DebugMetadata`` timing output in ``setup.py``.
+        Per-phase and per-extension build times are written to the file specified by
+        ``_DD_DEBUG_EXT_FILE`` (default: ``debug_ext_metadata.txt``). Useful for diagnosing
+        slow warm builds.
+
+  _DD_DEBUG_EXT_FILE:
+    type: String
+    default: debug_ext_metadata.txt
+
+    description: |
+        Override the output filename for ``DebugMetadata`` timing data when ``_DD_DEBUG_EXT``
+        is set.
+
+Debugging Build Performance
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The build system compiles many native extensions (CMake C++, Cython, Rust). In CI,
+``ext_cache.py`` caches compiled ``.so`` files between runs. On a warm run (extensions
+already in cache), the entire ``pip install -e .`` should complete in **under 30s**.
+
+How the Build Works
+^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: text
+
+    riot generate
+      └─ pip install -e .
+           ├─ build_py  → LibraryDownloader.run()
+           │    ├─ CleanLibraries.remove_artifacts()  ← SKIPPED when INCREMENTAL=1
+           │    └─ LibDDWafDownload.run()
+           └─ build_ext → CustomBuildExt.run()
+                ├─ build_rust()          → Rust _native extension
+                ├─ build_libdd_wrapper() → libdd_wrapper.so (C++)
+                ├─ build_shared_deps()   → absl (once, cached by sentinel file)
+                └─ super().run()         → build_extension() for every ext
+                     ├─ CMakeExtension  → build_extension_cmake()
+                     │    └─ skip if .so newer than sources (INCREMENTAL check)
+                     └─ Cython/C ext   → skip if .so newer than .pyx sources
+
+``ext_cache.py`` flow (CI and local testing):
+
+.. code-block:: text
+
+    ext_cache.py restore  →  copies .so files into source tree
+    pip install -e .      →  skip checks fire, nothing recompiles
+    ext_cache.py save     →  copies .so files into cache
+
+Key Files
+^^^^^^^^^
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - File
+     - Purpose
+   * - ``setup.py``
+     - ``CustomBuildExt``, ``CMakeExtension.get_sources()``, ``DebugMetadata``, ``LibraryDownloader``
+   * - ``scripts/ext_cache.py``
+     - Cache/restore ``.so`` files and shared C++ dependency install trees
+   * - ``cmake/abseil/CMakeLists.txt``
+     - Standalone abseil build (shared between extensions, built once)
+   * - ``cmake/AbseilDep.cmake``
+     - CMake module included by consuming extensions to resolve abseil
+
+Shared Dependency (abseil) Cache
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Abseil is built once via ``CustomBuildExt.build_shared_deps()`` and installed to
+``.download_cache/_cmake_deps/absl_install_<arch>``. The ``SharedDep.is_built()``
+sentinel (``.dep_build_info`` file containing a config hash) prevents rebuilding on
+every run.
+
+``scripts/ext_cache.py`` caches the entire install tree under
+``.ext_cache/shared_deps/absl/<config_hash>/``. The config hash is keyed on:
+version + compile mode + platform + machine arch + ARCHFLAGS.
+
+Known Root Causes of Warm Rebuilds
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1. **``CleanLibraries.remove_artifacts()`` deletes restored ``.so`` files**
+
+   ``setup.py`` → ``LibraryDownloader.run()`` → ``CleanLibraries.remove_artifacts()``
+   used to wipe all ``.so`` files unconditionally on every run, defeating any cache
+   restore. Fixed by guarding with ``if not CustomBuildExt.INCREMENTAL:``.
+
+2. **CMakeExtension skip check gated on ``IS_EDITABLE``**
+
+   The skip check ``if IS_EDITABLE and self.INCREMENTAL`` never fired during riot's
+   ``pip install -e .`` because ``IS_EDITABLE`` was never set in that context. Fixed
+   by removing the ``IS_EDITABLE`` guard.
+
+3. **Cython-generated ``.c`` files poison CMakeExtension hashes**
+
+   ``cythonize()`` writes ``.c`` files with the current timestamp during the same
+   ``pip install`` run. Those ``.c`` files appear newer than the just-restored ``.so``,
+   causing a spurious rebuild. Fixed by excluding ``.c``, ``.so``, ``.dylib``, ``.dll``,
+   and ``.pyd`` from ``CMakeExtension.get_sources()``.
+
+4. **No skip check for Cython/C extensions**
+
+   Cython extensions had no mtime-based skip check, so they always rebuilt even when
+   the ``.so`` was restored from cache. Fixed by adding a ``newer_group`` check using
+   ``.pyx`` file mtimes (not ``.c`` files, which are touched by ``cythonize()``), plus
+   all ``.pxd`` files as invalidation inputs.
+
+5. **Double extension processing**
+
+   ``CustomBuildExt.run()`` called ``super().run()`` then looped over extensions
+   explicitly again. The second pass overwrote timing data in ``DebugMetadata``, masking
+   true rebuild costs. Fixed by removing the explicit loop.

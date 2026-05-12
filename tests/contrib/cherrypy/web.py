@@ -10,6 +10,8 @@ import os.path
 # Import CherryPy global namespace
 import cherrypy
 
+from ddtrace.trace import tracer
+
 
 logger = logging.getLogger()
 logger.level = logging.DEBUG
@@ -42,7 +44,7 @@ class StubApp:
 
     @cherrypy.expose
     def child(self):
-        with cherrypy.tools.tracer._tracer.trace("child") as span:
+        with tracer.trace("child") as span:
             span.set_tag("a", "b")
             return "child"
 
@@ -66,7 +68,7 @@ class StubApp:
 
     @cherrypy.expose
     def custom_span(self):
-        span = cherrypy.tools.tracer._tracer.current_span()
+        span = tracer.current_span()
         assert span
         span.resource = "overridden"
         return "hiya"

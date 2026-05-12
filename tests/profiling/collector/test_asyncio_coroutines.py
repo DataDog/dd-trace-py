@@ -22,14 +22,18 @@ def test_asyncio_coroutines() -> None:
 
     sleep_time = 0.2
     loop_run_time = 0.75
+    cpu_run_time = 1.0
 
     async def background_task_func() -> None:
         await asyncio.sleep(2.0)
 
     async def background_math_function() -> None:
+        target = time.time() + cpu_run_time
         s = 0.0
-        for i in range(100000):
+        i = 0
+        while time.time() < target:
             s += math.sin(i)
+            i += 1
 
     async def sub_coro() -> None:
         start_time = time.time()
@@ -67,8 +71,8 @@ def test_asyncio_coroutines() -> None:
 
     profile = pprof_utils.parse_newest_profile(output_filename)
 
-    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-    assert len(samples) > 0
+    wall_time_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    samples = wall_time_samples
 
     # Test that we see the sub_coro function
     pprof_utils.assert_profile_has_sample(
@@ -76,6 +80,7 @@ def test_asyncio_coroutines() -> None:
         samples,
         expected_sample=pprof_utils.StackEvent(
             thread_name="MainThread",
+            task_name="main",
             locations=[
                 pprof_utils.StackLocation(
                     function_name="sleep",
@@ -108,6 +113,7 @@ def test_asyncio_coroutines() -> None:
         samples,
         expected_sample=pprof_utils.StackEvent(
             thread_name="MainThread",
+            task_name="background_wait",
             locations=[
                 pprof_utils.StackLocation(
                     function_name="sleep",
@@ -129,12 +135,13 @@ def test_asyncio_coroutines() -> None:
         print_samples_on_failure=True,
     )
 
-    # Test that we see the background_math_function task
+    # Test that we see the background_math_function task in stack (wall-time) samples
     pprof_utils.assert_profile_has_sample(
         profile,
-        list(profile.sample),
+        wall_time_samples,
         expected_sample=pprof_utils.StackEvent(
             thread_name="MainThread",
+            task_name="background_math",
             locations=[
                 pprof_utils.StackLocation(
                     function_name="background_math_function",

@@ -2,14 +2,13 @@ from contextlib import contextmanager
 import functools
 import inspect
 from inspect import iscoroutinefunction
+from inspect import unwrap
 from itertools import chain
 import logging
 import os
 from os import getpid
-from threading import RLock
+from threading import Lock
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import TypeVar
 from typing import Union
@@ -34,7 +33,7 @@ from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
-from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import LOG_ATTR_ENV
 from ddtrace.internal.constants import LOG_ATTR_SERVICE
 from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
@@ -56,9 +55,11 @@ from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.internal.utils import _get_metas_to_propagate
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 
@@ -68,25 +69,54 @@ log = get_logger(__name__)
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
+def _function_has_class_scope(f: Callable) -> bool:
+    """Return True if ``f`` is a method defined directly on a class (not a nested local function)."""
+    qualname_parts = f.__qualname__.split(".")
+    return len(qualname_parts) > 1 and qualname_parts[-2] != "<locals>"
+
+
+def _wrap_span_name_with_class(f: Callable) -> str:
+    """Return the span name for ``f`` including the class scope, stripping any ``<locals>`` prefix."""
+    qualname_parts = f.__qualname__.split(".")
+    try:
+        local_scope_index = len(qualname_parts) - 1 - qualname_parts[::-1].index("<locals>")
+    except ValueError:
+        scoped_qualname = f.__qualname__
+    else:
+        scoped_qualname = ".".join(qualname_parts[local_scope_index + 1 :])
+    return f"{f.__module__}.{scoped_qualname}"
+
+
+def _default_wrap_span_name(f: Callable) -> str:
+    # Functions defined in local scopes always use the plain name.
+    if not _function_has_class_scope(f):
+        return f"{f.__module__}.{f.__name__}"
+
+    if config._trace_wrap_span_name_include_class:
+        return _wrap_span_name_with_class(f)
+
+    deprecate(
+        prefix="The default span name for @tracer.wrap on methods does not include the class name",
+        message=(
+            "In a future major release the span name will be "
+            f"'{_wrap_span_name_with_class(f)}' instead of '{f.__module__}.{f.__name__}'. "
+            "Opt in now by setting DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS=true."
+        ),
+        removal_version="5.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return f"{f.__module__}.{f.__name__}"
+
+
 def _default_span_processors_factory(
     profiling_span_processor: EndpointCallCounterProcessor,
-) -> List[SpanProcessor]:
+) -> list[SpanProcessor]:
     """Construct the default list of span processors to use."""
-    span_processors: List[SpanProcessor] = []
+    span_processors: list[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
     if config._trace_resource_renaming_enabled:
         span_processors.append(ResourceRenamingProcessor())
-
-    # When using the NativeWriter stats are computed by the native code.
-    if config._trace_compute_stats and not config._trace_writer_native:
-        # Inline the import to avoid pulling in ddsketch or protobuf
-        # when importing ddtrace.
-        from ddtrace.internal.processor.stats import SpanStatsProcessorV06
-
-        span_processors.append(
-            SpanStatsProcessorV06(),
-        )
 
     span_processors.append(profiling_span_processor)
 
@@ -127,6 +157,9 @@ class Tracer(object):
         # globally set tags
         self._tags = config.tags.copy()
 
+        # Stores custom wrappers executed by tracer.wrap()
+        self._wrap_executor = None
+
         # Runtime id used for associating data collected during runtime to
         # traces
         self._pid = getpid()
@@ -146,20 +179,14 @@ class Tracer(object):
             partial_flush_min_spans=config._partial_flush_min_spans,
             dd_processors=[PeerServiceProcessor(_ps_config), BaseServiceProcessor()],
         )
-        if config._data_streams_enabled:
-            # Inline the import to avoid pulling in ddsketch or protobuf
-            # when importing ddtrace.
-            from ddtrace.internal.datastreams.processor import DataStreamsProcessor
-
-            self.data_streams_processor = DataStreamsProcessor()
-            register_on_exit_signal(self._atexit)
 
         # Ensure that tracer exit hooks are registered and unregistered once per instance
         forksafe.register_before_fork(self._sample_before_fork)
         atexit.register(self._atexit)
+        atexit.register_on_exit_signal(self._atexit)
         forksafe.register(self._child_after_fork)
 
-        self._shutdown_lock = RLock()
+        self._shutdown_lock = Lock()
 
         self._new_process = False
 
@@ -192,11 +219,14 @@ class Tracer(object):
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
-        log.debug(
-            "Waiting %d seconds for tracer to finish. Hit %s to quit.",
-            self.SHUTDOWN_TIMEOUT,
-            key,
-        )
+        try:
+            log.debug(
+                "Waiting %d seconds for tracer to finish. Hit %s to quit.",
+                self.SHUTDOWN_TIMEOUT,
+                key,
+            )
+        except Exception:  # nosec: B110
+            pass
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
     def sample(self, span):
@@ -217,6 +247,26 @@ class Tracer(object):
         finally:
             context._reactivate = False
             self.context_provider.activate(prev_active)
+
+    @property
+    def data_streams_processor(self):
+        from ddtrace.internal.datastreams import data_streams_processor
+
+        deprecate(
+            prefix="Tracer.data_streams_processor is deprecated",
+            message="Use ddtrace.data_streams.data_streams_processor() instead.",
+            removal_version="5.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+        return data_streams_processor()
+
+    @data_streams_processor.setter
+    def data_streams_processor(self, value):
+        deprecate(
+            prefix="Setting Tracer.data_streams_processor is unsupported",
+            removal_version="5.0.0",
+            category=DDTraceDeprecationWarning,
+        )
 
     @property
     def _sampler(self):
@@ -242,7 +292,7 @@ class Tracer(object):
             return active.context
         return None
 
-    def get_log_correlation_context(self, active: Optional[Union[Context, Span]] = None) -> Dict[str, str]:
+    def get_log_correlation_context(self, active: Optional[Union[Context, Span]] = None) -> dict[str, str]:
         """Retrieves the data used to correlate a log with the current active trace.
         Generates a dictionary for custom logging instrumentation including the trace id and
         span id of the current active span, as well as the configured service, version, and environment names.
@@ -256,13 +306,15 @@ class Tracer(object):
             span_id = str(active.span_id) if active.span_id else span_id
             trace_id = format_trace_id(active.trace_id) if active.trace_id else trace_id
 
-        return {
+        log_context = {
             LOG_ATTR_TRACE_ID: trace_id,
             LOG_ATTR_SPAN_ID: span_id,
             LOG_ATTR_SERVICE: config.service or LOG_ATTR_VALUE_EMPTY,
             LOG_ATTR_VERSION: config.version or LOG_ATTR_VALUE_EMPTY,
             LOG_ATTR_ENV: config.env or LOG_ATTR_VALUE_EMPTY,
         }
+        core.dispatch("trace.log_correlation_context", (log_context,))
+        return log_context
 
     def configure(
         self,
@@ -272,7 +324,7 @@ class Tracer(object):
         appsec_enabled_origin: Optional[str] = "",
         iast_enabled: Optional[bool] = None,
         apm_tracing_disabled: Optional[bool] = None,
-        trace_processors: Optional[List[TraceProcessor]] = None,
+        trace_processors: Optional[list[TraceProcessor]] = None,
     ) -> None:
         """Configure a Tracer.
 
@@ -282,7 +334,7 @@ class Tracer(object):
         :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
         :param bool iast_enabled: Enables IAST support for the tracer
         :param bool apm_tracing_disabled: When APM tracing is disabled ensures ASM support is still enabled.
-        :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
+        :param list[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
            Trace processors are used to modify and filter traces based on certain criteria.
         """
 
@@ -327,7 +379,7 @@ class Tracer(object):
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
             try:
-                info = debug.collect(self)
+                info = debug.collect()
             except Exception as e:
                 msg = "Failed to collect start-up logs: %s" % e
                 self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)
@@ -350,7 +402,7 @@ class Tracer(object):
 
     def _recreate(
         self,
-        trace_processors: Optional[List[TraceProcessor]] = None,
+        trace_processors: Optional[list[TraceProcessor]] = None,
         compute_stats_enabled: Optional[bool] = None,
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
@@ -370,20 +422,7 @@ class Tracer(object):
             self._endpoint_call_counter_span_processor,
         )
 
-    def _start_span_after_shutdown(
-        self,
-        name: str,
-        child_of: Optional[Union[Span, Context]] = None,
-        service: Optional[str] = None,
-        resource: Optional[str] = None,
-        span_type: Optional[str] = None,
-        activate: bool = False,
-        span_api: str = SPAN_API_DATADOG,
-    ) -> Span:
-        log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
-        return self._start_span(name, child_of, service, resource, span_type, activate, span_api)
-
-    def _start_span(
+    def start_span(
         self,
         name: str,
         child_of: Optional[Union[Span, Context]] = None,
@@ -465,14 +504,22 @@ class Tracer(object):
         # 2. Parent's service name (if defined)
         # 3. Globally configured service name
         #     a. `config.service`/`DD_SERVICE`/`DD_TAGS`
+        service_source: str = ""
         if service is None:
             if parent:
                 service = parent.service
+                service_source = parent.get_tag(_SERVICE_SOURCE) or ""
             else:
                 service = config.service
+        else:
+            if service in config._integration_default_services:
+                service_source = service
+            else:
+                service_source = "m"
 
         # Update the service name based on any mapping
-        service = config.service_mapping.get(service, service)
+        if service is not None:
+            service = config.service_mapping.get(service, service)
 
         links = context._span_links if not parent and context else []
         if trace_id or links or (context and context._baggage):
@@ -501,7 +548,7 @@ class Tracer(object):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
                 if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER):
-                    span._meta[k] = v
+                    span._set_attribute(k, v)
         else:
             # this is the root span of a new trace
             span = Span(
@@ -514,18 +561,21 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
             if config._report_hostname:
-                span._set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())
+                span._set_attribute(_HOSTNAME_KEY, hostname.get_hostname())
 
         if not span._parent:
-            span._set_tag_str("runtime-id", get_runtime_id())
-            span._metrics[PID] = self._pid
+            span._set_attribute("runtime-id", get_runtime_id())
+            span._set_attribute(PID, self._pid)
 
         # Apply default global tags.
         if self._tags:
             span.set_tags(self._tags)
 
+        if service and service_source:
+            span._set_attribute(_SERVICE_SOURCE, service_source)
+
         if config.env:
-            span._set_tag_str(ENV_KEY, config.env)
+            span._set_attribute(ENV_KEY, config.env)
 
         # Only set the version tag on internal spans.
         if config.version:
@@ -537,7 +587,7 @@ class Tracer(object):
             if (root_span is None and service == config.service) or (
                 root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
-                span._set_tag_str(VERSION_KEY, config.version)
+                span._set_attribute(VERSION_KEY, config.version)
 
         if activate:
             self.context_provider.activate(span)
@@ -550,7 +600,23 @@ class Tracer(object):
         core.dispatch("trace.span_start", (span,))
         return span
 
-    start_span = _start_span
+    _start_span = start_span
+
+    def _start_span_after_shutdown(
+        self,
+        name: str,
+        child_of: Optional[Union[Span, Context]] = None,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        activate: bool = False,
+        span_api: str = SPAN_API_DATADOG,
+    ) -> Span:
+        span = self._start_span(name, child_of, service, resource, span_type, activate, span_api)
+        log.warning(
+            "Spans started after the tracer has been shut down will not be sent to the Datadog Agent: %s.", span
+        )
+        return span
 
     def _on_span_finish(self, span: Span) -> None:
         active = self.current_span()
@@ -559,13 +625,15 @@ class Tracer(object):
         if span._parent is not None and active is not span._parent:
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
+        # run handlers before flushing that don't need the span in its final state
+        core.dispatch("trace.span_finish", (span,))
+
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_finish(span)
 
-        core.dispatch("trace.span_finish", (span,))
         log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
 
     def _log_compat(self, level, msg):
@@ -696,7 +764,7 @@ class Tracer(object):
 
         @functools.wraps(f)
         def func_wrapper(*args, **kwargs):
-            if getattr(self, "_wrap_executor", None):
+            if self._wrap_executor is not None:
                 return self._wrap_executor(
                     self,
                     f,
@@ -746,7 +814,7 @@ class Tracer(object):
         :param str name: the name of the operation being traced. If not set,
                          defaults to the fully qualified function name.
         :param str service: the name of the service being traced. If not set,
-                            it will inherit the service from it's parent.
+                            it will inherit the service from its parent.
         :param str resource: an optional name of the resource being tracked.
         :param str span_type: an optional operation type.
 
@@ -788,8 +856,7 @@ class Tracer(object):
         """
 
         def wrap_decorator(f: AnyCallable) -> AnyCallable:
-            # FIXME[matt] include the class name for methods.
-            span_name = name if name else "%s.%s" % (f.__module__, f.__name__)
+            span_name = name if name else _default_wrap_span_name(f)
 
             # detect if the the given function is a coroutine and/or a generator
             # to use the right decorator; this initial check ensures that the
@@ -823,7 +890,7 @@ class Tracer(object):
                 def func_wrapper(*args, **kwargs):
                     # if a wrap executor has been configured, it is used instead
                     # of the default tracing function
-                    if getattr(self, "_wrap_executor", None):
+                    if self._wrap_executor is not None:
                         return self._wrap_executor(
                             self,
                             f,
@@ -839,11 +906,13 @@ class Tracer(object):
                     with self.trace(span_name, service=service, resource=resource, span_type=span_type):
                         return f(*args, **kwargs)
 
+            core.dispatch("tracer.wrap", (unwrap(f),))
+
             return func_wrapper
 
         return wrap_decorator
 
-    def set_tags(self, tags: Dict[str, str]) -> None:
+    def set_tags(self, tags: dict[str, str]) -> None:
         """Set some tags at the tracer level.
         This will append those tags to each span created by the tracer.
 
@@ -858,15 +927,21 @@ class Tracer(object):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        with self._shutdown_lock:
-            # Thread safety: Ensures tracer is shutdown synchronously
+        if not self._shutdown_lock.acquire(blocking=False):
+            # Already shutting down from this or another thread — skip re-entrant call
+            return
+        try:
             for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if processor:
                     processor.shutdown(timeout)
             self.enabled = False
+            self._wrap_executor = None
+            self.context_provider.activate(None)
             if self.start_span != self._start_span_after_shutdown:
                 # Ensure that tracer exit hooks are registered and unregistered once per instance
                 forksafe.unregister_before_fork(self._sample_before_fork)
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
+        finally:
+            self._shutdown_lock.release()

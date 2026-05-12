@@ -1,6 +1,6 @@
 import os
 
-import mock
+import mock  # type: ignore[import-untyped]
 
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
@@ -13,19 +13,48 @@ except ImportError:
     vcr = None
 
 import ddtrace
-from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._constants import INTEGRATION
-from ddtrace.llmobs._constants import PARENT_ID_KEY
-from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs._llmobs import _STANDARD_INTEGRATION_SPAN_NAMES
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
 
 
+DEEP_TOOL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "l1": {
+            "type": "object",
+            "properties": {
+                "l2": {
+                    "type": "object",
+                    "properties": {
+                        "l3": {
+                            "type": "object",
+                            "properties": {
+                                "l4": {
+                                    "type": "object",
+                                    "properties": {"l5": {"type": "string"}},
+                                }
+                            },
+                        }
+                    },
+                }
+            },
+        }
+    },
+}
+
+
 if vcr:
     logs_vcr = vcr.VCR(
-        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes"),
         record_mode="once",
         match_on=["path"],
         filter_headers=[
@@ -43,7 +72,37 @@ else:
     logs_vcr = None
 
 
-def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
+def get_azure_openai_vcr():
+    return vcr.VCR(
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes", "azure_openai"),
+        record_mode="once",
+        match_on=["path"],
+        filter_headers=["authorization", "api-key"],
+        ignore_localhost=True,
+    )
+
+
+def get_vertexai_vcr():
+    return vcr.VCR(
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes", "vertexai"),
+        record_mode="once",
+        match_on=["path"],
+        filter_headers=["authorization", "x-goog-api-key"],
+        ignore_localhost=True,
+    )
+
+
+def get_bedrock_vcr():
+    return vcr.VCR(
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "..", "cassettes", "bedrock"),
+        record_mode="once",
+        match_on=["path"],
+        filter_headers=["authorization", "X-Amz-Security-Token"],
+        ignore_localhost=True,
+    )
+
+
+def _expected_llmobs_tags(span, error=None, tags=None, session_id=None, is_decorator=False):
     if tags is None:
         tags = {}
     expected_tags = [
@@ -62,13 +121,13 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         expected_tags.append("error:0")
     if session_id:
         expected_tags.append("session_id:{}".format(session_id))
-    if span._get_ctx_item(INTEGRATION):
-        expected_tags.append("integration:{}".format(span._get_ctx_item(INTEGRATION)))
+    if is_decorator:
+        expected_tags.append("decorator:1")
     if tags:
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
         )
-    return expected_tags
+    return sorted(expected_tags)
 
 
 def _expected_llmobs_llm_span_event(
@@ -92,6 +151,9 @@ def _expected_llmobs_llm_span_event(
     error_stack=None,
     span_links=False,
     tool_definitions=None,
+    is_decorator=False,
+    name=None,
+    parent_id=None,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -112,6 +174,7 @@ def _expected_llmobs_llm_span_event(
     error_stack: error stack
     span_links: whether there are span links present on this span.
     tool_definitions: list of tool definitions that were available to the LLM
+    is_decorator: whether the span was created via a decorator
     """
     span_event = _llmobs_base_span_event(
         span,
@@ -124,6 +187,9 @@ def _expected_llmobs_llm_span_event(
         span_links,
         prompt_tracking_instrumentation_method,
         prompt_multimodal,
+        is_decorator=is_decorator,
+        name=name,
+        parent_id=parent_id,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
@@ -158,10 +224,12 @@ def _expected_llmobs_llm_span_event(
         meta_dict.pop("input")
     if not meta_dict["output"]:
         meta_dict.pop("output")
-    if model_name is not None:
-        meta_dict.update({"model_name": model_name})
-    if model_provider is not None:
-        meta_dict.update({"model_provider": model_provider})
+    if span_kind in ("llm", "embedding"):
+        meta_dict["model_name"] = model_name if model_name is not None else UNKNOWN_MODEL_NAME
+        meta_dict["model_provider"] = (model_provider or UNKNOWN_MODEL_PROVIDER).lower()
+    elif model_name is not None:
+        meta_dict["model_name"] = model_name
+        meta_dict["model_provider"] = (model_provider or UNKNOWN_MODEL_PROVIDER).lower()
     if tool_definitions is not None:
         meta_dict["tool_definitions"] = tool_definitions
     meta_dict.update({"metadata": metadata or {}})
@@ -187,6 +255,9 @@ def _expected_llmobs_non_llm_span_event(
     span_links=False,
     prompt_tracking_instrumentation_method=None,
     prompt_multimodal=None,
+    is_decorator=False,
+    name=None,
+    parent_id=None,
 ):
     """
     Helper function to create an expected span event of type (workflow, task, tool, retrieval).
@@ -203,6 +274,7 @@ def _expected_llmobs_non_llm_span_event(
     span_links: whether there are span links present on this span.
     prompt_tracking_instrumentation_method: prompt tracking source tag ('auto' for auto-instrumented)
     prompt_multimodal: whether prompt contains multimodal inputs (True if present)
+    is_decorator: whether the span was created via a decorator
     """
     span_event = _llmobs_base_span_event(
         span,
@@ -215,6 +287,9 @@ def _expected_llmobs_non_llm_span_event(
         span_links,
         prompt_tracking_instrumentation_method,
         prompt_multimodal,
+        is_decorator=is_decorator,
+        name=name,
+        parent_id=parent_id,
     )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "retrieval":
@@ -250,17 +325,29 @@ def _llmobs_base_span_event(
     span_links=False,
     prompt_tracking_instrumentation_method=None,
     prompt_multimodal=None,
+    is_decorator=False,
+    name=None,
+    parent_id=None,
 ):
-    expected_tags = _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id)
+    expected_tags = _expected_llmobs_tags(
+        span, tags=tags, error=error, session_id=session_id, is_decorator=is_decorator
+    )
     if prompt_tracking_instrumentation_method:
         expected_tags.append(f"prompt_tracking_instrumentation_method:{prompt_tracking_instrumentation_method}")
     if prompt_multimodal:
         expected_tags.append(f"prompt_multimodal:{prompt_multimodal}")
+    expected_tags = sorted(expected_tags)
+    if parent_id is None:
+        llmobs_parent = _get_nearest_llmobs_ancestor(span)
+        parent_id = str(llmobs_parent.span_id) if llmobs_parent else ROOT_PARENT_ID
+    span_name = name or span.name
+    if span_name in _STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":
+        span_name = span.resource
     span_event = {
         "trace_id": mock.ANY,
         "span_id": str(span.span_id),
-        "parent_id": _get_llmobs_parent_id(span),
-        "name": _get_span_name(span),
+        "parent_id": parent_id,
+        "name": span_name,
         "start_ns": span.start_ns,
         "duration": span.duration_ns,
         "status": "error" if error else "ok",
@@ -282,18 +369,6 @@ def _llmobs_base_span_event(
     return span_event
 
 
-def _get_llmobs_parent_id(span: Span):
-    if span._get_ctx_item(PARENT_ID_KEY):
-        return span._get_ctx_item(PARENT_ID_KEY)
-    if not span._parent:
-        return "undefined"
-    parent = span._parent
-    while parent is not None:
-        if parent.span_type == SpanTypes.LLM:
-            return str(parent.span_id)
-        parent = parent._parent
-
-
 def _expected_llmobs_eval_metric_event(
     metric_type,
     label,
@@ -311,6 +386,7 @@ def _expected_llmobs_eval_metric_event(
     metadata=None,
     assessment=None,
     reasoning=None,
+    eval_scope="span",
 ):
     eval_metric_event = {
         "join_on": {},
@@ -320,6 +396,7 @@ def _expected_llmobs_eval_metric_event(
             "ddtrace.version:{}".format(ddtrace.__version__),
             "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
         ],
+        "eval_scope": eval_scope,
     }
     if tag_key is not None and tag_value is not None:
         eval_metric_event["join_on"]["tag"] = {"key": tag_key, "value": tag_value}
@@ -661,6 +738,7 @@ def _dummy_evaluator_eval_metric_event(span_id, trace_id, label=None):
         metric_type="score",
         label=label or "dummy",
         tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
+        eval_scope="span",
     )
 
 
@@ -929,18 +1007,14 @@ class TestLLMObsSpanWriter(LLMObsSpanWriter):
         super().enqueue(event)
 
 
-def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
-    """
-    Assert that a span link exists between two span events, specifically the correct span ID and from/to specification.
-    """
-    found = False
-    expected_to_span_id = "undefined" if not from_span_event else from_span_event["span_id"]
-    for span_link in to_span_event["span_links"]:
+def _assert_span_link(from_span, to_span, from_io, to_io):
+    """Assert a span link from ``from_span`` (or None for "undefined") to ``to_span``."""
+    expected_to_span_id = "undefined" if from_span is None else str(from_span.span_id)
+    for span_link in get_llmobs_span_links(to_span) or []:
         if span_link["span_id"] == expected_to_span_id:
             assert span_link["attributes"] == {"from": from_io, "to": to_io}
-            found = True
-            break
-    assert found
+            return
+    assert False, "expected span link not found"
 
 
 def iterate_stream(stream):
@@ -967,3 +1041,133 @@ async def anext_stream(stream):
             await stream.__anext__()
         except StopAsyncIteration:
             break
+
+
+def assert_llmobs_span_data(
+    actual,
+    *,
+    span_kind,
+    name=None,
+    parent_id=None,
+    model_name=None,
+    model_provider=None,
+    input_messages=None,
+    input_value=None,
+    output_messages=None,
+    output_value=None,
+    input_documents=None,
+    output_documents=None,
+    error=None,
+    tool_definitions=None,
+    metadata=None,
+    tags=None,
+    metrics=None,
+):
+    """Assert against an LLMObsSpanData payload from ``meta_struct['_llmobs']``.
+
+    Structural fields (``span_kind``, ``name``, ``parent_id``, ``model_name``,
+    ``model_provider``, input/output messages/values/documents,
+    ``tool_definitions``) are strict-equality, checked only when provided.
+
+    ``error`` defaults to asserting no error payload is present. Pass
+    ``error=mock.ANY`` to skip the check.
+
+    ``metadata``, ``tags``, ``metrics`` are top-level subset only: declared
+    top-level keys must equal exactly, extras tolerated. Nested values compare
+    via ``==`` (no recursion) — pinning ``metadata={"_dd": {...}}`` requires
+    the full ``_dd`` dict to match. The ``_dd`` block lives under
+    ``metadata._dd``; pass via ``metadata``.
+    """
+    # If meta_struct is empty there's nothing else to assert against; fail fast with a
+    # clear hint about the most common cause.
+    assert actual, "expected LLMObsSpanData on span, got {!r} (was meta_struct scrubbed?)".format(actual)
+
+    actual_meta = actual.get(LLMOBS_STRUCT.META, {})
+    actual_input = actual_meta.get(LLMOBS_STRUCT.INPUT, {})
+    actual_output = actual_meta.get(LLMOBS_STRUCT.OUTPUT, {})
+
+    failures = []
+
+    def _normalize_messages(msgs):
+        """Default ``role`` to ``""`` on any message dict that omits it.
+
+        SDKs default the role to ``""`` at projection time when it isn't explicitly set
+        (matches the existing ``_expected_llmobs_llm_span_event`` helper). Normalizing
+        both sides of the comparison keeps tests writable without forcing every entry to
+        spell out ``"role": ""``.
+        """
+        if not isinstance(msgs, list):
+            return msgs
+        out = []
+        for m in msgs:
+            if isinstance(m, dict) and m.get("role") is None:
+                out.append({**m, "role": ""})
+            else:
+                out.append(m)
+        return out
+
+    def _check_eq(label, expected_value, actual_value):
+        if actual_value != expected_value:
+            failures.append(
+                "{} mismatch:\n    expected={!r}\n    actual={!r}".format(label, expected_value, actual_value)
+            )
+
+    def _check_subset(label, expected_subset, actual_dict):
+        if not expected_subset.items() <= actual_dict.items():
+            failures.append(
+                "{} subset mismatch:\n    expected={!r}\n    actual={!r}".format(label, expected_subset, actual_dict)
+            )
+
+    # Structural — strict equality on each declared field.
+    _check_eq("span.kind", span_kind, actual_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND))
+    if name is not None:
+        _check_eq("name", name, actual.get(LLMOBS_STRUCT.NAME))
+    if parent_id is not None:
+        _check_eq("parent_id", parent_id, actual.get(LLMOBS_STRUCT.PARENT_ID))
+    if model_name is not None:
+        _check_eq("meta.model_name", model_name, actual_meta.get(LLMOBS_STRUCT.MODEL_NAME))
+    if model_provider is not None:
+        _check_eq("meta.model_provider", model_provider, actual_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER))
+    if input_messages is not None:
+        _check_eq(
+            "meta.input.messages",
+            _normalize_messages(input_messages),
+            _normalize_messages(actual_input.get(LLMOBS_STRUCT.MESSAGES)),
+        )
+    if input_value is not None:
+        _check_eq("meta.input.value", input_value, actual_input.get(LLMOBS_STRUCT.VALUE))
+    if input_documents is not None:
+        _check_eq("meta.input.documents", input_documents, actual_input.get(LLMOBS_STRUCT.DOCUMENTS))
+    if output_messages is not None:
+        _check_eq(
+            "meta.output.messages",
+            _normalize_messages(output_messages),
+            _normalize_messages(actual_output.get(LLMOBS_STRUCT.MESSAGES)),
+        )
+    if output_value is not None:
+        _check_eq("meta.output.value", output_value, actual_output.get(LLMOBS_STRUCT.VALUE))
+    if output_documents is not None:
+        _check_eq("meta.output.documents", output_documents, actual_output.get(LLMOBS_STRUCT.DOCUMENTS))
+    if error is None:
+        actual_error = actual_meta.get(LLMOBS_STRUCT.ERROR)
+        if actual_error:
+            failures.append(
+                "meta.error unexpectedly present:\n    expected=<absent>\n    actual={!r}".format(actual_error)
+            )
+    else:
+        _check_eq("meta.error", error, actual_meta.get(LLMOBS_STRUCT.ERROR))
+    if tool_definitions is not None:
+        _check_eq("meta.tool_definitions", tool_definitions, actual_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS))
+
+    # Subset (shallow) — extra keys tolerated, declared keys must match exactly.
+    if metadata is not None:
+        _check_subset("meta.metadata", metadata, actual_meta.get(LLMOBS_STRUCT.METADATA, {}))
+    if tags is not None:
+        _check_subset("tags", tags, actual.get(LLMOBS_STRUCT.TAGS, {}))
+    if metrics is not None:
+        _check_subset("metrics", metrics, actual.get(LLMOBS_STRUCT.METRICS, {}))
+
+    if failures:
+        raise AssertionError(
+            "assert_llmobs_span_data found {} mismatch(es):\n  - {}".format(len(failures), "\n  - ".join(failures))
+        )

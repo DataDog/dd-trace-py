@@ -1,9 +1,14 @@
 #!/bin/bash
 # Multi-OS test script for Unix-like systems (Linux/macOS)
-set -e
+set -eo pipefail
 
-# Install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Install uv (retry up to 3 times)
+for i in 1 2 3; do
+  curl -LsSf https://astral.sh/uv/install.sh | sh && break
+  echo "uv install attempt $i failed, retrying..."
+  sleep 5
+  [ "$i" -eq 3 ] && { echo "Failed to install uv after 3 attempts"; exit 1; }
+done
 export PATH="$HOME/.local/bin:$PATH"
 
 # Create temp directory and install in isolation

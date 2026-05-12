@@ -16,8 +16,8 @@ Alternatively, use :func:`patch()<ddtrace.patch>` to manually enable the integra
     # use httpx like usual
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.httpx['service']
 
@@ -26,9 +26,7 @@ Global Configuration
    its service name from its parent span.
 
    If you are making calls to uninstrumented third party applications you can
-   set this setting, use the ``ddtrace.config.httpx['split_by_domain']`` setting,
-   or use a ``Pin`` to override an individual connection's settings (see example
-   below for ``Pin`` usage).
+   set this setting or use the ``ddtrace.config.httpx['split_by_domain']`` setting.
 
    This option can also be set with the ``DD_HTTPX_SERVICE`` environment
    variable.
@@ -45,31 +43,11 @@ Global Configuration
 
 .. py:data:: ddtrace.config.httpx['split_by_domain']
 
-   Whether or not to use the domain name of requests as the service name. This
-   setting can be overridden with session overrides (described in the Instance
-   Configuration section).
+   Whether or not to use the domain name of requests as the service name.
 
    This setting takes precedence over ``ddtrace.config.httpx['service']``
 
    Default: ``False``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure particular ``httpx`` client instances use the :class:`Pin <ddtrace.trace.Pin>` API::
-
-    import httpx
-    from ddtrace._trace.pin import Pin
-
-    client = httpx.Client()
-    # Override service name for this instance
-    Pin.override(client, service="custom-http-service")
-
-    async_client = httpx.AsyncClient(
-    # Override service name for this instance
-    Pin.override(async_client, service="custom-async-http-service")
-
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 

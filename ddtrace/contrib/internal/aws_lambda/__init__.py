@@ -10,8 +10,8 @@ The aws_lambda integration is enabled automatically for AWS Lambda
 functions which have been instrumented with Datadog.
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 This integration is configured automatically when `ddtrace-run` or `import ddtrace.auto` is used.
 

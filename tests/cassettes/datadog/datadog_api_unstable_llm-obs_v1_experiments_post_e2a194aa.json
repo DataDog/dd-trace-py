@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "384",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"experiments\", \"attributes\": {\"name\": \"test_async_experiment\", \"description\": \"\", \"dataset_id\": \"056ba26f-318d-41e8-91a7-4a48580a2810\", \"project_id\": \"569aa33c-7acf-4061-abd0-4f2078e61ee8\", \"dataset_version\": 1, \"config\": {}, \"metadata\": {\"tags\": [\"ddtrace.version:1.2.3\", \"project_id:569aa33c-7acf-4061-abd0-4f2078e61ee8\"]}, \"ensure_unique\": true, \"run_count\": 1}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "582",
+      "date": "Thu, 26 Mar 2026 20:11:49 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":{\"id\":\"ee740ebe-59b3-455c-b108-9ccae4d8e497\",\"type\":\"experiments\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"config\":{},\"created_at\":\"2026-03-26T20:11:49.564104214Z\",\"dataset_id\":\"056ba26f-318d-41e8-91a7-4a48580a2810\",\"dataset_version\":1,\"description\":\"\",\"experiment\":\"test_async_experiment\",\"metadata\":{\"tags\":[\"ddtrace.version:1.2.3\",\"project_id:569aa33c-7acf-4061-abd0-4f2078e61ee8\"]},\"name\":\"test_async_experiment-1774555909564\",\"project_id\":\"569aa33c-7acf-4061-abd0-4f2078e61ee8\",\"run_count\":1,\"updated_at\":\"2026-03-26T20:11:49.564104288Z\"}}}"
+  }
+}

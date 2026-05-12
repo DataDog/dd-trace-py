@@ -9,6 +9,7 @@ class TELEMETRY_NAMESPACE(Enum):
     MLOBS = "mlobs"
     DD_TRACE_API = "ddtraceapi"
     PROFILER = "profiler"
+    DEBUGGER = "debugger"
 
 
 class TELEMETRY_EVENT_TYPE(Enum):

@@ -1,12 +1,20 @@
 from typing import Optional
-from typing import Type
 from typing import TypeVar
 
 
-class BlockingException(BaseException):
+class DDBlockException(BaseException):
+    """
+    Base class for any in-tree decision to abort the current operation
+    (web request blocking, AI Guard policy abort, future product blocks).
+    Inherits from BaseException so a generic ``except Exception:`` handler in
+    user code does not accidentally swallow a blocking decision.
+    """
+
+
+class BlockingException(DDBlockException):
     """
     Exception raised when a request is blocked by ASM
-    It derives from BaseException to avoid being caught by the general Exception handler
+    It derives from BaseException (via DDBlockException) to avoid being caught by the general Exception handler
     """
 
 
@@ -15,7 +23,7 @@ E = TypeVar("E", bound=BaseException)
 
 def find_exception(
     exc: BaseException,
-    exception_type: Type[E],
+    exception_type: type[E],
 ) -> Optional[E]:
     """Traverse an exception and its children to find the first occurrence of a specific exception type."""
     if isinstance(exc, exception_type):

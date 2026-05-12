@@ -9,27 +9,29 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.base_service": "tests.contrib.sanic",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de54a800000000",
+      "_dd.svc_src": "sanic",
+      "_dd.tags.process": "entrypoint.basedir:sanic,entrypoint.name:run_server,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.sanic",
       "component": "sanic",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
-      "http.useragent": "python-requests/2.28.2",
+      "http.useragent": "python-requests/2.31.0",
       "language": "python",
-      "runtime-id": "95d5761a51704f358d8e92dc815192d2",
+      "runtime-id": "2b4ab2220af44055803c80d60a5681fb",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 83553
+      "_sampling_priority_v1": 1.0,
+      "process_id": 89435.0
     },
-    "duration": 39547333,
-    "start": 1692712724983737220
+    "duration": 69457584,
+    "start": 1776178344996196507
   },
      {
        "name": "random_sleep",
@@ -41,11 +43,11 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "ddtrace_subprocess_dir",
-         "_dd.p.tid": "654a694400000000"
+         "_dd.base_service": "tests.contrib.sanic",
+         "_dd.svc_src": "sanic"
        },
-       "duration": 39386375,
-       "start": 1692712724983815803
+       "duration": 69109500,
+       "start": 1776178344996289257
      }],
 [
   {
@@ -58,27 +60,29 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.base_service": "tests.contrib.sanic",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de54a900000000",
+      "_dd.svc_src": "sanic",
+      "_dd.tags.process": "entrypoint.basedir:sanic,entrypoint.name:run_server,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.sanic",
       "component": "sanic",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
-      "http.useragent": "python-requests/2.28.2",
+      "http.useragent": "python-requests/2.31.0",
       "language": "python",
-      "runtime-id": "95d5761a51704f358d8e92dc815192d2",
+      "runtime-id": "2b4ab2220af44055803c80d60a5681fb",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 83553
+      "_sampling_priority_v1": 1.0,
+      "process_id": 89435.0
     },
-    "duration": 39160708,
-    "start": 1692712725078800220
+    "duration": 47376625,
+    "start": 1776178345068757424
   },
      {
        "name": "random_sleep",
@@ -90,9 +94,9 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.base_service": "ddtrace_subprocess_dir",
-         "_dd.p.tid": "654a694400000000"
+         "_dd.base_service": "tests.contrib.sanic",
+         "_dd.svc_src": "sanic"
        },
-       "duration": 38914250,
-       "start": 1692712725078909886
+       "duration": 47033208,
+       "start": 1776178345068913299
      }]]

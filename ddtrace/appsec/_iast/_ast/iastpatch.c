@@ -250,7 +250,7 @@ static int
 str_in_list(const char* needle, const char** list, size_t count)
 {
     for (size_t i = 0; i < count; i++) {
-        if (strncmp(needle, list[i], strlen(list[i])) == 0) {
+        if (list[i] && strncmp(needle, list[i], strlen(list[i])) == 0) {
             return 1;
         }
     }
@@ -346,19 +346,27 @@ get_list_from_env(const char* env_var_name, size_t* count)
         free(env_copy);
 
         if (count_tmp > 0) {
-            modules_list = malloc(count_tmp * sizeof(char*));
+            modules_list = (char**)malloc(count_tmp * sizeof(char*));
             if (!modules_list) {
                 PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for user allowlist");
                 return NULL;
             }
             env_copy = strdup(env_value);
-            if (!env_copy)
+            if (!env_copy) {
+                free(modules_list);
+                modules_list = NULL;
                 return NULL;
+            }
             count_tmp = 0;
             token = strtok(env_copy, ",");
             while (token) {
                 char* dup = strdup(token);
                 if (!dup) {
+                    for (size_t j = 0; j < count_tmp; j++) {
+                        free(modules_list[j]);
+                    }
+                    free(modules_list);
+                    modules_list = NULL;
                     free(env_copy);
                     return NULL;
                 }
@@ -408,19 +416,32 @@ init_globals(void)
         return -1;
     }
 
-    builtin_count = (size_t)PyTuple_Size(builtin_names);
+    /* PyTuple_Size returns -1 on error; guard before casting to size_t */
+    Py_ssize_t builtin_count_s = PyTuple_Size(builtin_names);
+    if (builtin_count_s < 0) {
+        return -1;
+    }
+    builtin_count = (size_t)builtin_count_s;
     builtins_denylist_count = static_stdlib_denylist_count + builtin_count;
 
-    builtins_denylist = malloc(builtins_denylist_count * sizeof(char*));
+    builtins_denylist = (char**)malloc(builtins_denylist_count * sizeof(char*));
     if (!builtins_denylist) {
         PyErr_NoMemory();
         return -1;
     }
+    /* Initialize all entries to NULL so str_in_list never reads garbage */
+    memset(builtins_denylist, 0, builtins_denylist_count * sizeof(char*));
+
     /* Copy static stdlib names */
     for (i = 0; i < static_stdlib_denylist_count; i++) {
         char* dup = strdup(static_stdlib_denylist[i]);
-        if (!dup)
+        if (!dup) {
+            PyErr_NoMemory();
+            free_list(builtins_denylist, builtins_denylist_count);
+            builtins_denylist = NULL;
+            builtins_denylist_count = 0;
             return -1;
+        }
         for (char* p = dup; *p; p++) {
             *p = tolower(*p);
         }
@@ -430,17 +451,23 @@ init_globals(void)
     /* Copy built-in module names */
     for (size_t i = 0; i < builtin_count; i++) {
         PyObject* item = PyTuple_GetItem(builtin_names, i); /* borrowed reference */
-        if (PyUnicode_Check(item)) {
+        if (item && PyUnicode_Check(item)) {
             const char* s = PyUnicode_AsUTF8(item);
             if (s) {
                 char* dup = strdup(s);
-                if (!dup)
+                if (!dup) {
+                    PyErr_NoMemory();
+                    free_list(builtins_denylist, builtins_denylist_count);
+                    builtins_denylist = NULL;
+                    builtins_denylist_count = 0;
                     return -1;
+                }
                 for (char* p = dup; *p; p++) {
                     *p = tolower(*p);
                 }
                 builtins_denylist[static_stdlib_denylist_count + i] = dup;
             }
+            /* NULL entries left as NULL (from memset above) when s is NULL */
         }
     }
 
@@ -453,7 +480,7 @@ init_globals(void)
    and uses mostly pure C comparisons.
 */
 static PyObject*
-py_should_iast_patch(PyObject* self, PyObject* args)
+py_should_iast_patch(PyObject* Py_UNUSED(self), PyObject* args)
 {
     const char* module_name;
 
@@ -533,17 +560,11 @@ build_list_from_env(const char* env_var_name)
     if (result_list == NULL) {
         return 0;
     }
-    char** old_list = NULL;
-    size_t old_count = 0;
 
     if (strcmp(env_var_name, "_DD_IAST_PATCH_MODULES") == 0) {
-        old_list = user_allowlist;
-        old_count = user_allowlist_count;
         user_allowlist = result_list;
         user_allowlist_count = count;
     } else if (strcmp(env_var_name, "_DD_IAST_DENY_MODULES") == 0) {
-        old_list = user_denylist;
-        old_count = user_denylist_count;
         user_denylist = result_list;
         user_denylist_count = count;
     } else {
@@ -555,7 +576,7 @@ build_list_from_env(const char* env_var_name)
 }
 /* --- Exported function to build a list from an environment variable and update globals --- */
 static PyObject*
-py_build_list_from_env(PyObject* self, PyObject* args)
+py_build_list_from_env(PyObject* Py_UNUSED(self), PyObject* args)
 {
     const char* env_var_name;
     if (!PyArg_ParseTuple(args, "s", &env_var_name)) {
@@ -570,7 +591,7 @@ py_build_list_from_env(PyObject* self, PyObject* args)
 
 /* --- Exported Function:  to return the user_allowlist as a Python list --- */
 static PyObject*
-py_get_user_allowlist(PyObject* self, PyObject* args)
+py_get_user_allowlist(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     /* Convert the C list (user_allowlist) to a Python list */
     PyObject* py_list = PyList_New(user_allowlist_count);
@@ -591,7 +612,7 @@ py_get_user_allowlist(PyObject* self, PyObject* args)
 }
 
 static PyObject*
-py_set_packages_distributions(PyObject* self, PyObject* args)
+py_set_packages_distributions(PyObject* Py_UNUSED(self), PyObject* args)
 {
     PyObject* packages_set;
     if (!PyArg_ParseTuple(args, "O", &packages_set)) {
@@ -611,7 +632,7 @@ py_set_packages_distributions(PyObject* self, PyObject* args)
         return NULL;
 
     Py_ssize_t n = PySequence_Fast_GET_SIZE(fast);
-    cached_packages = malloc(n * sizeof(char*));
+    cached_packages = (char**)malloc(n * sizeof(char*));
     if (!cached_packages) {
         Py_DECREF(fast);
         return NULL;

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import valkey
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.valkey.patch import patch
 from ddtrace.contrib.internal.valkey.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -24,7 +23,6 @@ class TestValkeyClusterPatch(TracerTestCase):
         patch()
         r = self._get_test_client()
         r.flushall()
-        Pin._override(r, tracer=self.tracer)
         self.r = r
 
     def tearDown(self):
@@ -106,7 +104,6 @@ class TestValkeyClusterPatch(TracerTestCase):
         patch()
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         # Use find_redis_span to get the specific GET span
@@ -129,7 +126,6 @@ class TestValkeyClusterPatch(TracerTestCase):
         patch()
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         # Use find_redis_span to get the specific GET span
@@ -150,7 +146,6 @@ class TestValkeyClusterPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         span = find_redis_span(
@@ -170,7 +165,6 @@ class TestValkeyClusterPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         span = find_redis_span(

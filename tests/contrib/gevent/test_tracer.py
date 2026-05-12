@@ -1,9 +1,10 @@
 import subprocess  # noqa:I001
+import threading
 
 import gevent
 import gevent.pool
 
-import ddtrace
+
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
@@ -21,20 +22,26 @@ class TestGeventTracer(TracerTestCase):
     the default Tracer.
     """
 
+    # Lock to serialize test lifecycle and prevent gevent race conditions.
+    # Gevent's cooperative multitasking can allow tearDown() to yield during tracer
+    # shutdown/reinitialization, causing the next test's setUp() to run prematurely.
+    _gevent_test_lock = threading.Lock()
+
     def setUp(self):
+        """Before each test case, configure gevent patching with serialized tracer setup"""
+        # Acquire lock for entire test lifecycle (setUp → test → tearDown)
+        TestGeventTracer._gevent_test_lock.acquire()
         super(TestGeventTracer, self).setUp()
-        self._original_tracer = ddtrace.tracer
-        ddtrace.tracer = self.tracer
-        # trace gevent
         patch()
 
     def tearDown(self):
-        # clean the active Context
-        self.tracer.context_provider.activate(None)
-        # restore the original tracer
-        ddtrace.tracer = self._original_tracer
-        # untrace gevent
-        unpatch()
+        """After each test case, clean up gevent patching with serialized tracer teardown"""
+        try:
+            unpatch()
+            super(TestGeventTracer, self).tearDown()
+        finally:
+            # Always release lock to prevent deadlocks
+            TestGeventTracer._gevent_test_lock.release()
 
     def test_trace_greenlet(self):
         # a greenlet can be traced using the trace API

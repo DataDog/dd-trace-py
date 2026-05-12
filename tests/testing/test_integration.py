@@ -240,8 +240,8 @@ class TestFeaturesWithMocking:
         retry_messages = output.count("RETRY FAILED (Auto Test Retries)")
         assert retry_messages == 3, f"Expected 3 retry messages, got {retry_messages}"
 
-        # Should NOT see the final summary mentioning dd_retry
-        assert "dd_retry" not in output
+        # Should NOT see the final summary mentioning rerun
+        assert "rerun" not in output
 
         # The test should ultimately fail after all retries
         assert "test_always_fails FAILED" in output
@@ -263,7 +263,7 @@ class TestFeaturesWithMocking:
         )
 
         # Set up known tests - only include the "known" test
-        known_suite = SuiteRef(ModuleRef("."), "test_efd.py")
+        known_suite = SuiteRef(ModuleRef(""), "test_efd.py")
         known_test_ref = TestRef(known_suite, "test_known_test")
 
         # Use unified mock setup with EFD enabled
@@ -296,8 +296,8 @@ class TestFeaturesWithMocking:
         )
         assert known_test_efd_retry_messages == 0, f"Expected 0 EFD retry messages, got {known_test_efd_retry_messages}"
 
-        # Should NOT see the final summary mentioning dd_retry
-        assert "dd_retry" not in output
+        # Should NOT see the final summary mentioning rerun
+        assert "rerun" not in output
 
         # The new test should ultimately fail after EFD retries
         assert "test_new_flaky FAILED" in output
@@ -319,7 +319,7 @@ class TestFeaturesWithMocking:
         )
 
         # Set up skippable tests - mark one test as skippable
-        skippable_suite = SuiteRef(ModuleRef("."), "test_itr.py")
+        skippable_suite = SuiteRef(ModuleRef(""), "test_itr.py")
         skippable_test_ref = TestRef(skippable_suite, "test_should_be_skipped")
 
         # Use unified mock setup with ITR enabled

@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    tracing: ``Tracer.data_streams_processor`` is deprecated and will be removed in v5.0.0. Use ``ddtrace.data_streams.data_streams_processor()`` instead.

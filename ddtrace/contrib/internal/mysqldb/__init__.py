@@ -13,8 +13,8 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     patch(mysqldb=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.mysqldb["service"]
 
@@ -41,31 +41,7 @@ Global Configuration
 
    Can also be configured via the ``DD_MYSQLDB_TRACE_CONNECT`` environment variable.
 
-   Note that if you are overriding the service name via the Pin on an individual cursor, that will not affect
-   connect traces. The service name must also be overridden on the Pin on the MySQLdb module.
-
    Default: ``False``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the integration on an per-connection basis use the
-``Pin`` API::
-
-    # Make sure to import MySQLdb and not the 'connect' function,
-    # otherwise you won't have access to the patched version
-    from ddtrace._trace.pin import Pin
-    import MySQLdb
-
-    # This will report a span with the default settings
-    conn = MySQLdb.connect(user="alice", passwd="b0b", host="localhost", port=3306, db="test")
-
-    # Use a pin to override the service.
-    Pin.override(conn, service='mysql-users')
-
-    cursor = conn.cursor()
-    cursor.execute("SELECT 6*7 AS the_answer;")
 
 
 This package works for mysqlclient. Only the default full-Python integration works. The binary C connector provided by

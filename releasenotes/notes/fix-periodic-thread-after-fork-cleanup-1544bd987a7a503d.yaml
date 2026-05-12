@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed an issue with internal periodic threads that could have caused a crash during shutdown if a fork occurred.

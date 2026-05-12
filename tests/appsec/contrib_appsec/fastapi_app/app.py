@@ -1,8 +1,10 @@
 import asyncio
 import json
 import os
+from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 from typing import AsyncGenerator
 from typing import Optional
 
@@ -14,12 +16,13 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ddtrace._trace.pin import Pin
+from ddtrace import config
 import ddtrace.constants
 from ddtrace.trace import tracer
 
 
 fake_secret_token = "DataDog"
+DOWNSTREAM_HTTP_TIMEOUT = 2.0
 
 fake_db = {
     "foo": {"id": "foo", "name": "Foo", "description": "This item's description is foo."},
@@ -140,9 +143,11 @@ def get_app():
     @app.get("/new_service/{service_name:str}")
     @app.post("/new_service/{service_name:str}")
     async def new_service(service_name: str, request: Request):  # noqa: B008
-        import ddtrace
-
-        Pin._override(app, service=service_name, tracer=ddtrace.tracer)
+        config.fastapi.service = service_name
+        with tracer.start_span("span_with_new_service", service=service_name):
+            # Generate a root span with the new service name. On span finish,
+            # the service name will be added to the extra services queue.
+            pass
         return HTMLResponse(service_name, 200)
 
     async def slow_numbers(minimum, maximum):
@@ -165,8 +170,12 @@ def get_app():
                 if param.startswith("filename"):
                     filename = query_params[param]
                 try:
-                    with open(filename, "rb") as f:
-                        res.append(f"File: {f.read()}")
+                    if param.startswith("filename_pathlib"):
+                        with Path(filename).open("rb") as f:
+                            res.append(f"File (pathlib): {f.read()}")
+                    else:
+                        with open(filename, "rb") as f:
+                            res.append(f"File: {f.read()}")
                 except Exception as e:
                     res.append(f"Error: {e}")
             tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
@@ -195,6 +204,17 @@ def get_app():
                         import requests
 
                         r = requests.get(urlname, timeout=0.5)
+                        res.append(f"Url: {r.text}")
+                    elif param.startswith("url_httpx_async"):
+                        import httpx
+
+                        async with httpx.AsyncClient() as client:
+                            r = await client.get(urlname, timeout=0.5)
+                            res.append(f"Url: {r.text}")
+                    elif param.startswith("url_httpx"):
+                        import httpx
+
+                        r = httpx.get(urlname, timeout=0.5)
                         res.append(f"Url: {r.text}")
                 except Exception as e:
                     res.append(f"Error: {e}")
@@ -247,64 +267,155 @@ def get_app():
         tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HTMLResponse(f"Unknown endpoint: {endpoint}")
 
-    @app.get("/redirect/{url:str}/", response_class=JSONResponse)
-    async def redirect_get(url: str, request: Request):
+    @app.get("/redirect/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_get(route: str, port: int, request: Request):
         import urllib.request
 
-        url = "http://" + url
+        url = f"http://127.0.0.1:{port}/{route}"
         try:
-            request_urllib = urllib.request.Request(url, method="GET")
-            with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+            request_urllib = urllib.request.Request(url, method="GET", headers={"TagRoute": route})
+            with urllib.request.urlopen(request_urllib, timeout=DOWNSTREAM_HTTP_TIMEOUT) as f:
                 payload = {"payload": f.read()}
         except Exception as e:
             payload = {"error": repr(e)}
         return payload
 
-    @app.post("/redirect/{url:str}/", response_class=JSONResponse)
-    async def redirect_post(url: str, request: Request):
+    @app.post("/redirect/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_post(route: str, port: int, request: Request):
         import urllib.request
 
-        url = "http://" + url
+        url = f"http://127.0.0.1:{port}/{route}"
         try:
             request_urllib = urllib.request.Request(
-                url, method="POST", data=(await request.body()), headers={"Content-Type": "application/json"}
+                url,
+                method="POST",
+                data=(await request.body()),
+                headers={
+                    "Content-Type": "application/json",
+                    "TagRoute": route,
+                },
             )
-            with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+            with urllib.request.urlopen(request_urllib, timeout=DOWNSTREAM_HTTP_TIMEOUT) as f:
                 payload = {"payload": f.read()}
         except Exception as e:
             payload = {"error": repr(e)}
         return payload
 
-    @app.get("/redirect_requests/{url:str}/", response_class=JSONResponse)
-    async def redirect_requests_get(url: str, request: Request):
+    @app.get("/redirect_requests/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_requests_get(route: str, port: int, request: Request):
         import requests
 
-        full_url = "http://" + url
+        full_url = f"http://127.0.0.1:{port}/{route}"
         try:
             with requests.Session() as s:
-                response = s.get(full_url, timeout=0.5, headers={"TagHost": url})
+                response = s.get(full_url, timeout=DOWNSTREAM_HTTP_TIMEOUT, headers={"TagRoute": route})
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
         return payload
 
-    @app.post("/redirect_requests/{url:str}/", response_class=JSONResponse)
-    async def redirect_requests_post(url: str, request: Request):
+    @app.post("/redirect_requests/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_requests_post(route: str, port: int, request: Request):
         import requests
 
-        full_url = "http://" + url
+        full_url = f"http://127.0.0.1:{port}/{route}"
         try:
             with requests.Session() as s:
                 response = s.post(
                     full_url,
                     data=(await request.body()),
-                    headers={"Content-Type": "application/json", "TagHost": url},
-                    timeout=0.5,
+                    headers={"Content-Type": "application/json", "TagRoute": route},
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
                 )
                 payload = {"payload": response.text}
         except Exception as e:
             payload = {"error": repr(e)}
         return payload
+
+    @app.get("/redirect_httpx/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_httpx_get(route: str, port: int, request: Request):
+        import httpx
+
+        full_url = f"http://127.0.0.1:{port}/{route}"
+        try:
+            with httpx.Client() as client:
+                response = client.get(
+                    full_url,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                    headers={"TagRoute": route},
+                    follow_redirects=True,
+                )
+                payload = {"payload": response.text}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
+
+    @app.post("/redirect_httpx/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_httpx_post(route: str, port: int, request: Request):
+        import httpx
+
+        full_url = f"http://127.0.0.1:{port}/{route}"
+        try:
+            with httpx.Client() as client:
+                response = client.post(
+                    full_url,
+                    content=(await request.body()),
+                    headers={"Content-Type": "application/json", "TagRoute": route},
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                    follow_redirects=True,
+                )
+                payload = {"payload": response.text}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
+
+    @app.get("/redirect_httpx_async/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_httpx_async_get(route: str, port: int, request: Request):
+        import httpx
+
+        full_url = f"http://127.0.0.1:{port}/{route}"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    full_url,
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                    headers={"TagRoute": route},
+                    follow_redirects=True,
+                )
+                payload = {"payload": response.text}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
+
+    @app.post("/redirect_httpx_async/{route:str}/{port:int}", response_class=JSONResponse)
+    async def redirect_httpx_async_post(route: str, port: int, request: Request):
+        import httpx
+
+        full_url = f"http://127.0.0.1:{port}/{route}"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    full_url,
+                    content=(await request.body()),
+                    headers={"Content-Type": "application/json", "TagRoute": route},
+                    timeout=DOWNSTREAM_HTTP_TIMEOUT,
+                    follow_redirects=True,
+                )
+                payload = {"payload": response.text}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
+
+    @app.get("/exception-group-block")
+    async def exception_group_block(request: Request):
+        """Endpoint to test that BlockingException wrapped in BaseExceptionGroup is properly handled."""
+        if sys.version_info < (3, 11) or request.query_params.get("block") != "true":
+            return HTMLResponse("ok", status_code=200)
+
+        from ddtrace.appsec._utils import Block_config
+        from ddtrace.internal._exceptions import BlockingException
+
+        raise BaseExceptionGroup("test", [BlockingException(Block_config())])  # noqa: F821
 
     @app.get("/login/")
     async def login_user(request: Request):

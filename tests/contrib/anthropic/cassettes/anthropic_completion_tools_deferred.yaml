@@ -1,0 +1,115 @@
+interactions:
+- request:
+    body: '{"max_tokens": 200, "messages": [{"role": "user", "content": "What is the
+      weather in San Francisco, CA?"}], "model": "claude-sonnet-4-6", "tools": [{"name":
+      "get_weather", "description": "Get the weather for a specific location", "input_schema":
+      {"type": "object", "properties": {"location": {"type": "string"}}}}, {"name":
+      "search_logs", "description": "Search Datadog logs", "input_schema": {"type":
+      "object", "properties": {"query": {"type": "string"}}}, "defer_loading": true}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '482'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - Anthropic/Python 0.28.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 0.28.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.15
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA3RRXU8CMRD8K6bPkEDkI/ImJjyYkChEMBjTrL31rtqPs91CkPDf3V48FY1v152Z
+        ndm5g7C+QCMmQhlIBXajdw6pO+iOREfoggEbS9nrrwbr2/s4nS/03cuFvR7P6v3qfcgc2teYWRgj
+        lMiD4E0eQIw6EjjikfKOkL8mD4eWT94bmSK2Lvmd2Geu7LK+2W3iYrFNVidab1bTilkObNaVSHKH
+        QBWGLHV14rUHYbwC0t4xYwnubBbAKR2V75xdXYojJwBjWDH58i90QEXieHzsiEi+lgEhNvofyRog
+        4ltCp1jkkjGfwwIJtIntLDW38/YmkCT/io7B4eg8W6sKpeL9OaA8ZfRanOHiP6zVZgOsK7QYwMih
+        /cv/RvvVb5Rb8IlO4o35GgxbrVCSzvWI/McKCEXT7TOGfLgs0efmjX8Cw419AAAA//8DAOHUFD80
+        AgAA
+    headers:
+      CF-RAY:
+      - 9e6a1c896dc4f793-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Security-Policy:
+      - default-src 'none'; frame-ancestors 'none'
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 03 Apr 2026 18:24:41 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Robots-Tag:
+      - none
+      anthropic-organization-id:
+      - 4257e925-ee99-4ee8-9c62-8e53716d5203
+      anthropic-ratelimit-input-tokens-limit:
+      - '20000000'
+      anthropic-ratelimit-input-tokens-remaining:
+      - '20000000'
+      anthropic-ratelimit-input-tokens-reset:
+      - '2026-04-03T18:24:41Z'
+      anthropic-ratelimit-output-tokens-limit:
+      - '4000000'
+      anthropic-ratelimit-output-tokens-remaining:
+      - '4000000'
+      anthropic-ratelimit-output-tokens-reset:
+      - '2026-04-03T18:24:41Z'
+      anthropic-ratelimit-requests-limit:
+      - '20000'
+      anthropic-ratelimit-requests-remaining:
+      - '19998'
+      anthropic-ratelimit-requests-reset:
+      - '2026-04-03T18:24:39Z'
+      anthropic-ratelimit-tokens-limit:
+      - '24000000'
+      anthropic-ratelimit-tokens-remaining:
+      - '24000000'
+      anthropic-ratelimit-tokens-reset:
+      - '2026-04-03T18:24:41Z'
+      cf-cache-status:
+      - DYNAMIC
+      request-id:
+      - req_011CZhJiAbXbnNgXdG6uaWwN
+      server-timing:
+      - x-originResponse;dur=1444
+      set-cookie:
+      - _cfuvid=NuIj9jojCbmmrSz8Fjqy_4SCIVBTXUtvAGSR7UMo98E-1775240679.9067852-1.0.1.1-_ng7wmOL8YHtigejdGPA1JjjSMn417BVQPhuW3t0hos;
+        HttpOnly; SameSite=None; Secure; Path=/; Domain=api.anthropic.com
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-envoy-upstream-service-time:
+      - '1443'
+    status:
+      code: 200
+      message: OK
+version: 1

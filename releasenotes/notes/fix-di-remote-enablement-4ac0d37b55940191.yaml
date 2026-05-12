@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fixed an issue that prevented Dynamic
+    Instrumentation from being re-enabled once disabled via the UI while being
+    originally enabled via environment variable.

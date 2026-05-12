@@ -16,15 +16,14 @@ from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
-from tests.utils import DummyTracer
 
 
 class TestCIVisibilityTestEFD:
     """Tests that the classes in the CIVisibility API correctly handle EFD"""
 
-    def _get_session_settings(self, efd_settings: EarlyFlakeDetectionSettings):
+    def _get_session_settings(self, tracer, efd_settings: EarlyFlakeDetectionSettings):
         return TestVisibilitySessionSettings(
-            tracer=DummyTracer(),
+            tracer=tracer,
             test_service="efd_test_service",
             test_command="efd_test_command",
             test_framework="efd_test_framework",
@@ -55,13 +54,13 @@ class TestCIVisibilityTestEFD:
             (EarlyFlakeDetectionSettings(True, 7, 8, 1, 12), 321.123, 0),
         ),
     )
-    def test_efd_max_retries(self, efd_settings, efd_test_duration_s, expected_max_retries):
+    def test_efd_max_retries(self, tracer, efd_settings, efd_test_duration_s, expected_max_retries):
         """Tests that the Test class handles EFD API retry events correctly"""
 
         efd_test = TestVisibilityTest(
             name="efd_test",
             is_new=True,
-            session_settings=self._get_session_settings(efd_settings),
+            session_settings=self._get_session_settings(tracer, efd_settings),
         )
 
         mock_session = mock.Mock()
@@ -147,11 +146,11 @@ class TestCIVisibilityTestEFD:
             (TestStatus.SKIP, tuple(), (EFDTestStatus.ALL_SKIP, TestStatus.SKIP)),
         ),
     )
-    def test_efd_final_status(self, test_result, retry_results: t.Iterable[TestStatus], expected_statuses):
+    def test_efd_final_status(self, tracer, test_result, retry_results: t.Iterable[TestStatus], expected_statuses):
         """Tests that the EFD API correctly reports the final statuses of a test"""
         efd_test = TestVisibilityTest(
             name="efd_test",
-            session_settings=self._get_session_settings(EarlyFlakeDetectionSettings(True)),
+            session_settings=self._get_session_settings(tracer, EarlyFlakeDetectionSettings(True)),
             is_new=True,
         )
         mock_session = mock.Mock()
@@ -168,10 +167,10 @@ class TestCIVisibilityTestEFD:
             assert efd_test.efd_get_final_status() == expected_statuses[0]
             assert efd_test.get_status() == expected_statuses[1]
 
-    def test_efd_does_not_retry_if_disabled(self):
+    def test_efd_does_not_retry_if_disabled(self, tracer):
         efd_test = TestVisibilityTest(
             name="efd_test",
-            session_settings=self._get_session_settings(EarlyFlakeDetectionSettings(False)),
+            session_settings=self._get_session_settings(tracer, EarlyFlakeDetectionSettings(False)),
         )
         efd_test.start()
         efd_test.finish_test(TestStatus.FAIL)
@@ -180,7 +179,7 @@ class TestCIVisibilityTestEFD:
     @pytest.mark.parametrize(
         "faulty_session_threshold,expected_faulty", ((None, True), (10, True), (40, True), (50, False))
     )
-    def test_efd_session_faulty_percentage(self, faulty_session_threshold, expected_faulty):
+    def test_efd_session_faulty_percentage(self, tracer, faulty_session_threshold, expected_faulty):
         """Tests that the number of new tests in a session is correctly used to determine if a session is faulty based
         on the percentage of new tests (as opposed to the absolute number).
 
@@ -195,7 +194,7 @@ class TestCIVisibilityTestEFD:
         else:
             efd_settings = EarlyFlakeDetectionSettings(True)
 
-        ssettings = self._get_session_settings(efd_settings=efd_settings)
+        ssettings = self._get_session_settings(tracer, efd_settings=efd_settings)
         test_session = TestVisibilitySession(session_settings=ssettings)
 
         # Modules 1 and 2 each have one suite with 30 known tests and 20 new tests.
@@ -248,7 +247,7 @@ class TestCIVisibilityTestEFD:
     @pytest.mark.parametrize(
         "faulty_session_threshold,expected_faulty", ((None, True), (10, True), (40, False), (50, False))
     )
-    def test_efd_session_faulty_absolute(self, faulty_session_threshold, expected_faulty):
+    def test_efd_session_faulty_absolute(self, tracer, faulty_session_threshold, expected_faulty):
         """Tests that the number of new tests in a session is correctly used to determine if a session is faulty based
         on the absolute number of new tests.
 
@@ -263,7 +262,7 @@ class TestCIVisibilityTestEFD:
         else:
             efd_settings = EarlyFlakeDetectionSettings(True)
 
-        ssettings = self._get_session_settings(efd_settings=efd_settings)
+        ssettings = self._get_session_settings(tracer, efd_settings=efd_settings)
         test_session = TestVisibilitySession(session_settings=ssettings)
 
         # Modules 1 and 2 each have one suite with 5 known tests and 20 new tests.

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    mcp: Fixes ``anyio.ClosedResourceError`` raised during MCP server session
+    teardown when the ddtrace MCP integration is enabled.

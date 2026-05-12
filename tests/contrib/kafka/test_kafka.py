@@ -8,8 +8,6 @@ import confluent_kafka
 from confluent_kafka import TopicPartition
 import pytest
 
-from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import patch
@@ -28,6 +26,7 @@ SNAPSHOT_IGNORES = [
     "metrics.kafka.message_offset",
     "meta.error.stack",
     "meta.error.message",
+    "meta.kafka.group_id",
     "meta.messaging.kafka.bootstrap.servers",
     "meta.peer.service",
 ]
@@ -115,7 +114,6 @@ def test_producer_initialized_unpacked_config(config, expect_servers, kafka_trac
 
 
 def test_produce_single_server(kafka_tracer, test_spans, producer, kafka_topic):
-    Pin._override(producer, tracer=kafka_tracer)
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
 
@@ -126,18 +124,15 @@ def test_produce_single_server(kafka_tracer, test_spans, producer, kafka_topic):
 
 
 def test_produce_none_key(kafka_tracer, test_spans, producer, kafka_topic):
-    Pin._override(producer, tracer=kafka_tracer)
     producer.produce(kafka_topic, PAYLOAD, key=None)
     producer.flush()
 
     traces = test_spans.pop_traces()
     assert 1 == len(traces), "key=None does not cause produce() call to raise an exception"
-    Pin._override(producer, tracer=None)
 
 
 def test_produce_multiple_servers(kafka_tracer, test_spans, kafka_topic):
     producer = confluent_kafka.Producer({"bootstrap.servers": ",".join([BOOTSTRAP_SERVERS] * 3)})
-    Pin._override(producer, tracer=kafka_tracer)
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
 
@@ -145,11 +140,9 @@ def test_produce_multiple_servers(kafka_tracer, test_spans, kafka_topic):
     assert 1 == len(traces)
     produce_span = traces[0][0]
     assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == ",".join([BOOTSTRAP_SERVERS] * 3)
-    Pin._override(producer, tracer=None)
 
 
 def test_produce_topicname(kafka_tracer, test_spans, producer, kafka_topic):
-    Pin._override(producer, tracer=kafka_tracer)
     producer.produce(kafka_topic, PAYLOAD, key=KEY)
     producer.flush()
 
@@ -157,6 +150,23 @@ def test_produce_topicname(kafka_tracer, test_spans, producer, kafka_topic):
     assert 1 == len(traces)
     produce_span = traces[0][0]
     assert produce_span.get_tag("messaging.destination.name") == kafka_topic
+
+
+def test_consume_span_records_group_id(kafka_tracer, test_spans, producer, consumer, kafka_topic, group_id):
+    """Verify that kafka.group_id is tagged on consume spans (not covered by snapshot due to dynamic group IDs)."""
+    with override_config("kafka", dict(trace_empty_poll_enabled=False)):
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        message = consumer.poll()
+
+    assert message is not None
+    traces = test_spans.pop_traces()
+    consume_span = next(
+        (span for trace in traces for span in trace if span.get_tag("kafka.received_message") == "True"),
+        None,
+    )
+    assert consume_span is not None
+    assert consume_span.get_tag("kafka.group_id") == group_id
 
 
 @pytest.mark.parametrize("tombstone", [False, True])
@@ -259,23 +269,16 @@ def _generate_in_subprocess(random_topic):
     PAYLOAD = bytes("hueh hueh hueh", encoding="utf-8")
 
     ddtrace.tracer.configure(trace_processors=[KafkaConsumerPollFilter()])
-    # disable backoff because it makes these tests less reliable
-    if not config._trace_writer_native:
-        ddtrace.tracer._span_aggregator.writer._send_payload_with_backoff = (
-            ddtrace.tracer._span_aggregator.writer._send_payload
-        )
     patch()
 
     producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
     consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
-            "group.id": "test_group",
+            "group.id": random_topic,
             "auto.offset.reset": "earliest",
         }
     )
-    Pin._override(producer, tracer=ddtrace.tracer)
-    Pin._override(consumer, tracer=ddtrace.tracer)
 
     # We run all of these commands with retry attempts because the kafka-confluent API
     # sys.exits on connection failures, which causes the test to fail. We want to retry
@@ -340,9 +343,6 @@ if __name__ == "__main__":
 
 # It is not currently expected for kafka produce and consume spans to connect in a trace
 def test_tracing_context_is_not_propagated_by_default(kafka_tracer, test_spans, consumer, producer, kafka_topic):
-    Pin._override(producer, tracer=kafka_tracer)
-    Pin._override(consumer, tracer=kafka_tracer)
-
     test_string = "context test no propagation"
     test_key = "context test key no propagation"
     PAYLOAD = bytes(test_string, encoding="utf-8")
@@ -378,32 +378,33 @@ def test_tracing_context_is_not_propagated_by_default(kafka_tracer, test_spans, 
     # None of these spans are part of the same trace
     assert produce_span.trace_id != consume_span.trace_id
 
-    Pin._override(consumer, tracer=None)
-    Pin._override(producer, tracer=None)
-
 
 # Propagation should work when enabled
-def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess):
+def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess, kafka_topic):
     code = """
+import os
 import pytest
 import random
 import sys
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.kafka.patch import patch
 from tests.conftest import use_dummy_writer
 from tests.conftest import test_spans
-from tests.contrib.kafka.conftest import consumer
+from tests.contrib.kafka.conftest import group_id
 from tests.contrib.kafka.conftest import patch_kafka
-from tests.contrib.kafka.conftest import kafka_topic
 from tests.contrib.kafka.conftest import producer
 from tests.conftest import tracer
 from tests.contrib.kafka.conftest import kafka_tracer
 from tests.contrib.kafka.conftest import should_filter_empty_polls
 
+@pytest.fixture
+def kafka_topic():
+    # Also controls group_id (via conftest.group_id which inherits kafka_topic)
+    return os.environ["KAFKA_TEST_TOPIC"]
+
+from tests.contrib.kafka.conftest import consumer
+
 def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
-    Pin._override(producer, tracer=kafka_tracer)
-    Pin._override(consumer, tracer=kafka_tracer)
 
     # use a random int in this string to prevent reading a message produced by a previous test run
     test_string = "context propagation enabled test " + str(random.randint(0, 1000))
@@ -440,8 +441,6 @@ def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
     # Two of these spans are part of the same trace
     assert produce_span.trace_id == consume_span.trace_id
 
-    Pin._override(consumer, tracer=None)
-    Pin._override(producer, tracer=None)
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
@@ -449,6 +448,7 @@ if __name__ == "__main__":
 
     env = os.environ.copy()
     env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
+    env["KAFKA_TEST_TOPIC"] = kafka_topic
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
 
@@ -486,8 +486,6 @@ def test_consumer_uses_active_context_when_no_valid_distributed_context_exists(
     producer.produce(kafka_topic, PAYLOAD, key=test_key)
     producer.flush()
 
-    Pin._override(consumer, tracer=kafka_tracer)
-
     with kafka_tracer.trace("kafka consumer parent span") as parent_span:
         with override_config("kafka", dict(distributed_tracing_enabled=True)):
             message = None
@@ -500,8 +498,6 @@ def test_consumer_uses_active_context_when_no_valid_distributed_context_exists(
     # assert consumer_span parent is our custom span
     assert consume_span.name == "kafka.consume"
     assert consume_span.parent_id == parent_span.span_id
-
-    Pin._override(consumer, tracer=None)
 
 
 def test_tracing_with_serialization_works(kafka_tracer, test_spans, kafka_topic):
@@ -523,7 +519,7 @@ def test_tracing_with_serialization_works(kafka_tracer, test_spans, kafka_topic)
 
     conf = {
         "bootstrap.servers": BOOTSTRAP_SERVERS,
-        "group.id": GROUP_ID,
+        "group.id": kafka_topic,
         "auto.offset.reset": "earliest",
         "key.deserializer": json_deserializer,
         "value.deserializer": json_deserializer,
@@ -534,9 +530,6 @@ def test_tracing_with_serialization_works(kafka_tracer, test_spans, kafka_topic)
     tp.offset = 0  # we want to read the first message
     _consumer.commit(offsets=[tp])
     _consumer.subscribe([kafka_topic])
-
-    Pin._override(_producer, tracer=kafka_tracer)
-    Pin._override(_consumer, tracer=kafka_tracer)
 
     test_string = "serializing_test"
     PAYLOAD = {"val": test_string}
@@ -561,14 +554,9 @@ def test_tracing_with_serialization_works(kafka_tracer, test_spans, kafka_topic)
     # a string
     assert consume_span.get_tag("kafka.message_key") is None
 
-    Pin._override(_consumer, tracer=None)
-    Pin._override(_producer, tracer=None)
-
 
 @pytest.mark.parametrize("should_filter_empty_polls", [False])
 def test_traces_empty_poll_by_default(kafka_tracer, test_spans, consumer, kafka_topic):
-    Pin._override(consumer, tracer=kafka_tracer)
-
     message = "hello"
     while message is not None:
         message = consumer.poll(1.0)
@@ -587,22 +575,19 @@ def test_traces_empty_poll_by_default(kafka_tracer, test_spans, consumer, kafka_
 
     assert empty_poll_span_created is True
 
-    Pin._override(consumer, tracer=None)
-
 
 # Poll should not be traced when disabled
-def test_does_not_trace_empty_poll_when_disabled(ddtrace_run_python_code_in_subprocess):
+def test_does_not_trace_empty_poll_when_disabled(ddtrace_run_python_code_in_subprocess, kafka_topic):
     code = """
+import os
 import pytest
 import random
 import sys
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace import config
 
-from tests.contrib.kafka.conftest import consumer
-from tests.contrib.kafka.conftest import kafka_topic
+from tests.contrib.kafka.conftest import group_id
 from tests.contrib.kafka.conftest import producer
 from tests.conftest import tracer
 from tests.conftest import test_spans
@@ -611,9 +596,14 @@ from tests.contrib.kafka.conftest import patch_kafka
 from tests.contrib.kafka.conftest import kafka_tracer
 from tests.contrib.kafka.conftest import should_filter_empty_polls
 
+@pytest.fixture
+def kafka_topic():
+    # Also controls group_id (via conftest.group_id which inherits kafka_topic)
+    return os.environ["KAFKA_TEST_TOPIC"]
+
+from tests.contrib.kafka.conftest import consumer
+
 def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
-    Pin._override(producer, tracer=kafka_tracer)
-    Pin._override(consumer, tracer=kafka_tracer)
 
     assert config.kafka.trace_empty_poll_enabled is False
 
@@ -660,14 +650,13 @@ def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
 
     assert non_empty_poll_span_created is True
 
-    Pin._override(consumer, tracer=None)
-    Pin._override(producer, tracer=None)
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
     """
     env = os.environ.copy()
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
+    env["KAFKA_TEST_TOPIC"] = kafka_topic
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
 
@@ -685,25 +674,24 @@ def test_cluster_id_failure_caching(kafka_tracer, kafka_topic):
             "socket.timeout.ms": 1000,
         }
     )
-    Pin._override(producer_with_bad_address, tracer=kafka_tracer)
 
     start_time = time.time()
     result1 = _get_cluster_id(producer_with_bad_address, kafka_topic)
     elapsed_time1 = time.time() - start_time
 
-    assert result1 is None
+    assert result1 == ""
     # Should take approximately 1 second (our timeout)
     assert 0.5 < elapsed_time1 < 2.0, f"First call took {elapsed_time1} seconds, expected ~1 second"
 
     assert hasattr(producer_with_bad_address, "_dd_cluster_id_failure_time")
     assert producer_with_bad_address._dd_cluster_id_failure_time > 0
 
-    # Second call should return None immediately
+    # Second call should return "" immediately
     start_time = time.time()
     result2 = _get_cluster_id(producer_with_bad_address, kafka_topic)
     elapsed_time2 = time.time() - start_time
 
-    assert result2 is None
+    assert result2 == ""
     assert elapsed_time2 < 0.1, f"Second call took {elapsed_time2} seconds, expected < 0.1 seconds"
 
     producer_with_bad_address._dd_cluster_id_failure_time = 0  # Simulate 5 minutes passing
@@ -712,7 +700,7 @@ def test_cluster_id_failure_caching(kafka_tracer, kafka_topic):
     result3 = _get_cluster_id(producer_with_bad_address, kafka_topic)
     elapsed_time3 = time.time() - start_time
 
-    assert result3 is None
+    assert result3 == ""
     # Should timeout again after ~1 second
     assert 0.5 < elapsed_time3 < 2.0, f"Third call took {elapsed_time3} seconds, expected ~1 second"
 

@@ -14,8 +14,8 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     patch(psycopg=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.psycopg["service"]
 
@@ -42,21 +42,4 @@ Global Configuration
    Can also configured via the ``DD_PSYCOPG_TRACE_CONNECT`` environment variable.
 
    Default: ``False``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the psycopg integration on an per-connection basis use the
-``Pin`` API::
-
-    from ddtrace._trace.pin import Pin
-    import psycopg
-
-    db = psycopg.connect(connection_factory=factory)
-    # Use a pin to override the service name.
-    Pin.override(db, service="postgres-users")
-
-    cursor = db.cursor()
-    cursor.execute("select * from users where id = 1")
 """

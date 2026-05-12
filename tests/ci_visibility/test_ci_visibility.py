@@ -6,9 +6,8 @@ import re
 import socket
 import textwrap
 import time
-from typing import Set
+from unittest import mock
 
-import mock
 import msgpack
 import pytest
 
@@ -43,7 +42,6 @@ from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.ci_visibility.util import set_up_mock_civisibility
 from tests.utils import DummyCIVisibilityWriter
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
 
@@ -107,7 +105,7 @@ def test_filters_non_test_spans():
     assert trace_filter.process_trace(trace) is None
 
 
-def test_ci_visibility_service_enable():
+def test_ci_visibility_service_enable(tracer):
     with (
         _ci_override_env(
             dict(
@@ -122,23 +120,22 @@ def test_ci_visibility_service_enable():
         ),
     ):
         with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
-            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            CIVisibility.enable(tracer=tracer, service="test-service")
             ci_visibility_instance = CIVisibility._instance
             assert ci_visibility_instance is not None
             assert CIVisibility.enabled
-            assert ci_visibility_instance.tracer == dummy_tracer
+            assert ci_visibility_instance.tracer == tracer
             assert ci_visibility_instance._service == "test-service"
             assert ci_visibility_instance._api_settings.coverage_enabled is False
             assert ci_visibility_instance._api_settings.skipping_enabled is False
             assert any(
                 isinstance(tracer_filter, TraceCiVisibilityFilter)
-                for tracer_filter in dummy_tracer._span_aggregator.user_processors
+                for tracer_filter in tracer._span_aggregator.user_processors
             )
             CIVisibility.disable()
 
 
-def test_ci_visibility_service_enable_without_service():
+def test_ci_visibility_service_enable_without_service(tracer):
     """Test that enabling works and sets the right service when service isn't provided as a parameter to enable()"""
     with (
         _ci_override_env(
@@ -155,26 +152,38 @@ def test_ci_visibility_service_enable_without_service():
         mock.patch(
             "ddtrace.internal.ci_visibility.recorder._extract_repository_name_from_url", return_value="test-repo"
         ),
+        # AIDEV-NOTE: Patch DEFAULT_SPAN_SERVICE_NAME to None to prevent xdist worker env leakage.
+        # When running under pytest-xdist, the outer worker sets _DD_PYTEST_XDIST_INFERRED_SERVICE
+        # which freezes DEFAULT_SPAN_SERVICE_NAME at import time, causing Config().service to be
+        # non-None and override the expected service value derived from the repository URL.
+        mock.patch("ddtrace.internal.settings._config.DEFAULT_SPAN_SERVICE_NAME", None),
+        # AIDEV-NOTE: Patch ci.tags to ensure REPOSITORY_URL is present regardless of the git
+        # environment.  In Docker containers started from a git worktree, `git rev-parse` fails
+        # with "fatal: not a git repository", so ci.tags() returns no REPOSITORY_URL and the
+        # service falls back to the integration default instead of the repo-derived name.
+        mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ci.tags",
+            return_value={ci.git.REPOSITORY_URL: "https://github.com/test/repo.git"},
+        ),
     ):
         with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
-            CIVisibility.enable(tracer=dummy_tracer)
+            CIVisibility.enable(tracer=tracer)
             ci_visibility_instance = CIVisibility._instance
             assert ci_visibility_instance is not None
             assert CIVisibility.enabled
-            assert ci_visibility_instance.tracer == dummy_tracer
+            assert ci_visibility_instance.tracer == tracer
             assert ci_visibility_instance._service == "test-repo"  # Inherited from environment
             assert ci_visibility_instance._api_settings.coverage_enabled is False
             assert ci_visibility_instance._api_settings.skipping_enabled is False
             assert any(
                 isinstance(tracer_filter, TraceCiVisibilityFilter)
-                for tracer_filter in dummy_tracer._span_aggregator.user_processors
+                for tracer_filter in tracer._span_aggregator.user_processors
             )
             CIVisibility.disable()
 
 
 @mock.patch("ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase._do_request")
-def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request):
+def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request, tracer):
     with (
         _ci_override_env(
             dict(
@@ -193,8 +202,7 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
                 body='{"data":{"id":"1234","type":"ci_app_tracers_test_service_settings","attributes":'
                 '{"code_coverage":true,"tests_skipping":true}}}',
             )
-            dummy_tracer = DummyTracer()
-            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            CIVisibility.enable(tracer=tracer, service="test-service")
             assert CIVisibility._instance._api_settings.coverage_enabled is False
             assert CIVisibility._instance._api_settings.skipping_enabled is False
             CIVisibility.disable()
@@ -203,7 +211,7 @@ def test_ci_visibility_service_enable_with_app_key_and_itr_disabled(_do_request)
 @mock.patch(
     "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase._do_request", side_effect=TimeoutError
 )
-def test_ci_visibility_service_settings_timeout(_do_request):
+def test_ci_visibility_service_settings_timeout(_do_request, tracer):
     with (
         _ci_override_env(
             dict(
@@ -215,7 +223,7 @@ def test_ci_visibility_service_settings_timeout(_do_request):
         _dummy_noop_git_client(),
         mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()),
     ):
-        CIVisibility.enable(service="test-service")
+        CIVisibility.enable(tracer=tracer, service="test-service")
         assert CIVisibility._instance._api_settings.coverage_enabled is False
         assert CIVisibility._instance._api_settings.skipping_enabled is False
         CIVisibility.disable()
@@ -310,20 +318,18 @@ def test_ci_visibility_service_skippable_other_error(_do_request, _check_enabled
     ],
 )
 @mock.patch("ddtrace.internal.agent.info")
-def test_agent_evp_proxy_base_url_logic(mock_agent_info, agent_info_response, expected_path):
+def test_agent_evp_proxy_base_url_logic(mock_agent_info, agent_info_response, expected_path, tracer):
     """Tests the logic of CIVisibility._agent_evp_proxy_base_url"""
     mock_agent_info.return_value = agent_info_response
     # Create a minimal CIVisibility instance for testing the method
-    tracer = DummyTracer()
     with _dummy_noop_git_client():
         visibility = CIVisibility(tracer=tracer, service="test")
     assert visibility._agent_evp_proxy_base_url() == expected_path
 
 
 @mock.patch("ddtrace.internal.agent.info", side_effect=Exception("Agent unreachable"))
-def test_agent_evp_proxy_base_url_agent_error(mock_agent_info):
+def test_agent_evp_proxy_base_url_agent_error(mock_agent_info, tracer):
     """Tests _agent_evp_proxy_base_url when agent.info() raises an exception"""
-    tracer = DummyTracer()
     with _dummy_noop_git_client():
         visibility = CIVisibility(tracer=tracer, service="test")
     assert visibility._agent_evp_proxy_base_url() is None
@@ -347,6 +353,7 @@ def test_civisibility_init_evp_proxy_versions(
     mock_agent_evp_base_url,
     mock_evp_proxy_path,
     expected_api_client_base_url_suffix,
+    tracer,
 ):
     """Tests that CIVisibility initializes the correct EVPProxy client based on detected endpoint"""
     mock_agent_evp_base_url.return_value = mock_evp_proxy_path
@@ -355,7 +362,6 @@ def test_civisibility_init_evp_proxy_versions(
 
     with _ci_override_env({}), _dummy_noop_git_client():
         with _patch_dummy_writer():
-            tracer = DummyTracer()
             CIVisibility.enable(tracer=tracer, service="test-service")
             ci_visibility_instance = CIVisibility._instance
             assert ci_visibility_instance is not None
@@ -469,7 +475,7 @@ def test_ci_visibility_service_enable_with_app_key_and_error_response(_do_reques
         CIVisibility.disable()
 
 
-def test_ci_visibility_service_disable():
+def test_ci_visibility_service_disable(tracer):
     with (
         _ci_override_env(
             dict(DD_API_KEY="foobar.baz"),
@@ -477,8 +483,7 @@ def test_ci_visibility_service_disable():
         _dummy_noop_git_client(),
     ):
         with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
-            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            CIVisibility.enable(tracer=tracer, service="test-service")
             CIVisibility.disable()
             ci_visibility_instance = CIVisibility._instance
             assert ci_visibility_instance is None
@@ -572,32 +577,46 @@ def test_get_client_do_request_agentless_headers():
     serializer = CIVisibilityGitClientSerializerV1("foo")
     response = mock.MagicMock()
     response.status = 200
+    mock_http_connection = mock.Mock()
+    mock_http_connection.request = mock.Mock()
+    mock_http_connection.getresponse.return_value = response
+    mock_http_connection.close = mock.Mock()
 
     with (
-        mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request,
-        mock.patch("ddtrace.internal.http.HTTPConnection.getresponse", return_value=response),
+        mock.patch(
+            "ddtrace.internal.ci_visibility.git_client.get_connection", return_value=mock_http_connection
+        ) as mock_get_connection,
     ):
         CIVisibilityGitClient._do_request(
             REQUESTS_MODE.AGENTLESS_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
         )
 
-    _request.assert_called_once_with("POST", "/repository/endpoint", "payload", {"dd-api-key": "foo"})
+    mock_get_connection.assert_called_once_with("http://base_url/repository/endpoint", timeout=20)
+    mock_http_connection.request.assert_called_once_with(
+        "POST", "/repository/endpoint", "payload", {"dd-api-key": "foo"}
+    )
 
 
 def test_get_client_do_request_evp_proxy_headers():
     serializer = CIVisibilityGitClientSerializerV1("foo")
     response = mock.MagicMock()
     response.status = 200
+    mock_http_connection = mock.Mock()
+    mock_http_connection.request = mock.Mock()
+    mock_http_connection.getresponse.return_value = response
+    mock_http_connection.close = mock.Mock()
 
     with (
-        mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request,
-        mock.patch("ddtrace.internal.http.HTTPConnection.getresponse", return_value=response),
+        mock.patch(
+            "ddtrace.internal.ci_visibility.git_client.get_connection", return_value=mock_http_connection
+        ) as mock_get_connection,
     ):
         CIVisibilityGitClient._do_request(
             REQUESTS_MODE.EVP_PROXY_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
         )
 
-    _request.assert_called_once_with(
+    mock_get_connection.assert_called_once_with("http://base_url/repository/endpoint", timeout=20)
+    mock_http_connection.request.assert_called_once_with(
         "POST",
         "/repository/endpoint",
         "payload",
@@ -926,6 +945,11 @@ class TestUploadGitMetadata:
         with (
             mock.patch.multiple(
                 CIVisibilityGitClient,
+                # AIDEV-NOTE: _get_git_dir is mocked here so that upload_git_metadata() does not try to
+                # call extract_workspace_path() (which runs git commands) before spawning the worker.
+                # Without this, running in Docker from a git worktree causes "fatal: not a git repository"
+                # and the method immediately sets METADATA_UPLOAD_STATUS.FAILED.
+                _get_git_dir=mock.Mock(return_value="/fake/git/dir"),
                 _is_shallow_repository=mock.Mock(return_value=True),
                 _get_latest_commits=mock.Mock(
                     side_effect=[["latest1", "latest2"], ["latest1", "latest2", "latest3", "latest4"]]
@@ -1308,7 +1332,7 @@ def test_civisibility_enable_respects_passed_in_tracer():
         CIVisibility.disable()
 
 
-def test_ci_visibility_service_disabled_by_dd_civisibility_enabled_false():
+def test_ci_visibility_service_disabled_by_dd_civisibility_enabled_false(tracer):
     """Test that CI Visibility is disabled when DD_CIVISIBILITY_ENABLED is set to false."""
     with (
         _ci_override_env(
@@ -1325,13 +1349,12 @@ def test_ci_visibility_service_disabled_by_dd_civisibility_enabled_false():
         ),
     ):
         with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
-            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            CIVisibility.enable(tracer=tracer, service="test-service")
             assert not CIVisibility.enabled
             assert CIVisibility._instance is None
 
 
-def test_ci_visibility_service_disabled_by_dd_civisibility_enabled_0():
+def test_ci_visibility_service_disabled_by_dd_civisibility_enabled_0(tracer):
     """Test that CI Visibility is disabled when DD_CIVISIBILITY_ENABLED is set to 0."""
     with (
         _ci_override_env(
@@ -1348,13 +1371,12 @@ def test_ci_visibility_service_disabled_by_dd_civisibility_enabled_0():
         ),
     ):
         with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
-            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            CIVisibility.enable(tracer=tracer, service="test-service")
             assert not CIVisibility.enabled
             assert CIVisibility._instance is None
 
 
-def test_ci_visibility_service_enabled_by_dd_civisibility_enabled_true():
+def test_ci_visibility_service_enabled_by_dd_civisibility_enabled_true(tracer):
     """Test that CI Visibility is enabled when DD_CIVISIBILITY_ENABLED is set to true."""
     with (
         _ci_override_env(
@@ -1371,16 +1393,15 @@ def test_ci_visibility_service_enabled_by_dd_civisibility_enabled_true():
         ),
     ):
         with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
-            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            CIVisibility.enable(tracer=tracer, service="test-service")
             assert CIVisibility.enabled
             assert CIVisibility._instance is not None
-            assert CIVisibility._instance.tracer == dummy_tracer
+            assert CIVisibility._instance.tracer == tracer
             assert CIVisibility._instance._service == "test-service"
             CIVisibility.disable()
 
 
-def test_ci_visibility_service_enabled_by_dd_civisibility_enabled_1():
+def test_ci_visibility_service_enabled_by_dd_civisibility_enabled_1(tracer):
     """Test that CI Visibility is enabled when DD_CIVISIBILITY_ENABLED is set to 1."""
     with (
         _ci_override_env(
@@ -1397,16 +1418,15 @@ def test_ci_visibility_service_enabled_by_dd_civisibility_enabled_1():
         ),
     ):
         with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
-            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            CIVisibility.enable(tracer=tracer, service="test-service")
             assert CIVisibility.enabled
             assert CIVisibility._instance is not None
-            assert CIVisibility._instance.tracer == dummy_tracer
+            assert CIVisibility._instance.tracer == tracer
             assert CIVisibility._instance._service == "test-service"
             CIVisibility.disable()
 
 
-def test_ci_visibility_service_enabled_by_default_when_dd_civisibility_enabled_not_set():
+def test_ci_visibility_service_enabled_by_default_when_dd_civisibility_enabled_not_set(tracer):
     """Test that CI Visibility is enabled by default when DD_CIVISIBILITY_ENABLED is not set."""
     with (
         _ci_override_env(
@@ -1422,11 +1442,10 @@ def test_ci_visibility_service_enabled_by_default_when_dd_civisibility_enabled_n
         ),
     ):
         with _patch_dummy_writer():
-            dummy_tracer = DummyTracer()
-            CIVisibility.enable(tracer=dummy_tracer, service="test-service")
+            CIVisibility.enable(tracer=tracer, service="test-service")
             assert CIVisibility.enabled
             assert CIVisibility._instance is not None
-            assert CIVisibility._instance.tracer == dummy_tracer
+            assert CIVisibility._instance.tracer == tracer
             assert CIVisibility._instance._service == "test-service"
             CIVisibility.disable()
 
@@ -1468,7 +1487,7 @@ class TestIsITRSkippable:
     No tests should be skippable in suite-level skipping mode, and vice versa.
     """
 
-    test_level_tests_to_skip: Set[ext_api.TestId] = _make_fqdn_test_ids(
+    test_level_tests_to_skip: set[ext_api.TestId] = _make_fqdn_test_ids(
         [
             ("module_1", "module_1_suite_1.py", "test_1"),
             ("module_1", "module_1_suite_1.py", "test_2"),
@@ -1485,7 +1504,7 @@ class TestIsITRSkippable:
         ]
     )
 
-    suite_level_test_suites_to_skip: Set[ext_api.TestSuiteId] = _make_fqdn_suite_ids(
+    suite_level_test_suites_to_skip: set[ext_api.TestSuiteId] = _make_fqdn_suite_ids(
         [
             ("module_1", "module_1_suite_1.py"),
             ("module_2", "module_2_suite_1.py"),
@@ -1731,18 +1750,20 @@ class TestCIVisibilityLibraryCapabilities(TracerTestCase):
 @pytest.mark.usefixtures("_disable_ci_visibility")
 class TestCIVisibilityGzipSupport:
     @pytest.fixture(autouse=True)
-    def _setup_mocks(self):
+    def _setup_mocks(self, tracer):
         with _dummy_noop_git_client():
-            self.dummy_tracer = DummyTracer()
-            self.dummy_tracer._agent_url = "http://agent:8126"
+            self.tracer = tracer
+            self.tracer._agent_url = "http://agent:8126"
             self.civisibility = CIVisibility()
-            self.civisibility.tracer = self.dummy_tracer
+            self.civisibility.tracer = self.tracer
             self.civisibility._requests_mode = REQUESTS_MODE.EVP_PROXY_EVENTS
             self.civisibility._git_client = mock.Mock()
             self.civisibility._codeowner_patterns = []
             self.civisibility._suite_skipping_mode = False
             self.civisibility._api_settings = TestVisibilityAPISettings(False, False, False, False)
             self.civisibility._config = Config()
+            # Yield to prevent the scooped tracer from being shutdown before the test is complete.
+            yield
 
     @mock.patch("ddtrace.internal.ci_visibility.recorder.agent.info")
     def test_is_gzip_supported_by_agent_no_info(self, mock_agent_info):
@@ -1782,9 +1803,9 @@ class TestCIVisibilityGzipSupport:
     def test_configure_writer_agentless_gzip_true(self, mock_writer):
         # In agentless mode, DD_API_KEY is required.
         with _ci_override_env(dict(DD_API_KEY="key", DD_CIVISIBILITY_AGENTLESS_ENABLED="1")), _dummy_noop_git_client():
-            civis = CIVisibility(tracer=self.dummy_tracer)
+            civis = CIVisibility(tracer=self.tracer)
             # Ensure tracer is set for _configure_writer and has _span_aggregator
-            civis.tracer = self.dummy_tracer
+            civis.tracer = self.tracer
             if not hasattr(civis.tracer, "_span_aggregator"):
                 civis.tracer._span_aggregator = mock.Mock()
 
@@ -1797,8 +1818,8 @@ class TestCIVisibilityGzipSupport:
     @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
     def test_configure_writer_evp_proxy_gzip_supported(self, mock_writer):
         with _ci_override_env(dict(DD_CIVISIBILITY_AGENTLESS_ENABLED="0")), _dummy_noop_git_client():
-            civis = CIVisibility(tracer=self.dummy_tracer)
-            civis.tracer = self.dummy_tracer
+            civis = CIVisibility(tracer=self.tracer)
+            civis.tracer = self.tracer
             if not hasattr(civis.tracer, "_span_aggregator"):
                 civis.tracer._span_aggregator = mock.Mock()
 
@@ -1815,8 +1836,8 @@ class TestCIVisibilityGzipSupport:
     @mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibilityWriter")
     def test_configure_writer_evp_proxy_gzip_not_supported(self, mock_writer):
         with _ci_override_env(dict(DD_CIVISIBILITY_AGENTLESS_ENABLED="0")), _dummy_noop_git_client():
-            civis = CIVisibility(tracer=self.dummy_tracer)
-            civis.tracer = self.dummy_tracer
+            civis = CIVisibility(tracer=self.tracer)
+            civis.tracer = self.tracer
             if not hasattr(civis.tracer, "_span_aggregator"):
                 civis.tracer._span_aggregator = mock.Mock()
 
@@ -1834,8 +1855,8 @@ class TestCIVisibilityGzipSupport:
     def test_configure_writer_default_mode_agentless_gzip_true(self, mock_writer):
         # Agentless enabled implies _requests_mode = AGENTLESS_EVENTS
         with _ci_override_env(dict(DD_API_KEY="key")), _dummy_noop_git_client():
-            civis = CIVisibility(tracer=self.dummy_tracer)
-            civis.tracer = self.dummy_tracer
+            civis = CIVisibility(tracer=self.tracer)
+            civis.tracer = self.tracer
             if not hasattr(civis.tracer, "_span_aggregator"):
                 civis.tracer._span_aggregator = mock.Mock()
 
@@ -1854,8 +1875,8 @@ class TestCIVisibilityGzipSupport:
         # Simulate EVP proxy with gzip support (v4 endpoint)
         mock_agent_info.return_value = {"endpoints": [EVP_PROXY_AGENT_BASE_PATH, EVP_PROXY_AGENT_BASE_PATH_V4]}
         with _ci_override_env(dict(DD_CIVISIBILITY_AGENTLESS_ENABLED="0")), _dummy_noop_git_client():
-            civis = CIVisibility(tracer=self.dummy_tracer)
-            civis.tracer = self.dummy_tracer
+            civis = CIVisibility(tracer=self.tracer)
+            civis.tracer = self.tracer
             if not hasattr(civis.tracer, "_span_aggregator"):
                 civis.tracer._span_aggregator = mock.Mock()
 
@@ -1876,8 +1897,8 @@ class TestCIVisibilityGzipSupport:
         # Simulate EVP proxy without gzip support (e.g. only v2 endpoint)
         mock_agent_info.return_value = {"endpoints": [EVP_PROXY_AGENT_BASE_PATH]}  # No v4 endpoint
         with _ci_override_env(dict(DD_CIVISIBILITY_AGENTLESS_ENABLED="0")), _dummy_noop_git_client():
-            civis = CIVisibility(tracer=self.dummy_tracer)
-            civis.tracer = self.dummy_tracer
+            civis = CIVisibility(tracer=self.tracer)
+            civis.tracer = self.tracer
             if not hasattr(civis.tracer, "_span_aggregator"):
                 civis.tracer._span_aggregator = mock.Mock()
 

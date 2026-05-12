@@ -4,6 +4,8 @@
 
 #pragma once
 
+#define Py_BUILD_CORE
+
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <frameobject.h>
@@ -11,7 +13,6 @@
 #if PY_VERSION_HEX >= 0x030b0000
 #include <cpython/genobject.h>
 
-#define Py_BUILD_CORE
 #include <cstddef>
 #if PY_VERSION_HEX >= 0x030e0000
 #include <internal/pycore_frame.h>
@@ -27,11 +28,6 @@
 #include <opcode.h>
 #endif // PY_VERSION_HEX >= 0x30b0000
 
-#include <mutex>
-#include <stack>
-#include <unordered_map>
-#include <vector>
-
 #include <echion/config.h>
 #include <echion/errors.h>
 #include <echion/frame.h>
@@ -42,6 +38,8 @@
 #include <echion/timing.h>
 
 #include <echion/cpython/tasks.h>
+
+class EchionSampler;
 
 // Max number of recursive calls GenInfo::GenInfo and TaskInfo::TaskInfo can do
 // before raising an error.
@@ -72,8 +70,12 @@ extern "C"
 class GenInfo
 {
   public:
-    typedef std::unique_ptr<GenInfo> Ptr;
+    using Ptr = std::unique_ptr<GenInfo>;
 
+  private:
+    [[nodiscard]] static Result<GenInfo::Ptr> create_impl(PyObject* gen_addr);
+
+  public:
     // The address of the Task PyObject* the GenInfo represents
     PyObject* origin = nullptr;
 
@@ -96,95 +98,18 @@ class GenInfo
     }
 };
 
-inline Result<GenInfo::Ptr>
-GenInfo::create(PyObject* gen_addr)
-{
-    static thread_local size_t recursion_depth = 0;
-    recursion_depth++;
-
-    if (recursion_depth > MAX_RECURSION_DEPTH) {
-        recursion_depth--;
-        return ErrorKind::GenInfoError;
-    }
-
-    PyGenObject gen;
-    if (copy_type(gen_addr, gen)) {
-        recursion_depth--;
-        return ErrorKind::GenInfoError;
-    }
-
-    if (PyAsyncGenASend_CheckExact(&gen)) {
-        static_assert(
-          sizeof(PyAsyncGenASend) <= sizeof(PyGenObject),
-          "PyAsyncGenASend must be smaller than PyGenObject in order for copy_type to have copied enough data.");
-
-        // Type-pun the PyGenObject to a PyAsyncGenASend. *gen_addr was actually never a PyGenObject to begin with,
-        // but we do not care as the only thing we will use from it is the ags_gen field.
-        PyAsyncGenASend* asend = reinterpret_cast<PyAsyncGenASend*>(&gen);
-        PyAsyncGenObject* gen_ptr = asend->ags_gen;
-        auto asend_yf = reinterpret_cast<PyObject*>(gen_ptr);
-        auto result = GenInfo::create(asend_yf);
-        recursion_depth--;
-        return result;
-    }
-
-    if (!PyCoro_CheckExact(&gen) && !PyAsyncGen_CheckExact(&gen)) {
-        recursion_depth--;
-        return ErrorKind::GenInfoError;
-    }
-
-#if PY_VERSION_HEX >= 0x030b0000
-    // The frame follows the generator object
-    auto frame = (gen.gi_frame_state == FRAME_CLEARED)
-                   ? NULL
-                   : reinterpret_cast<PyObject*>(reinterpret_cast<char*>(gen_addr) + offsetof(PyGenObject, gi_iframe));
-#else
-    auto frame = (PyObject*)gen.gi_frame;
-#endif
-
-    PyFrameObject f;
-    if (copy_type(frame, f)) {
-        recursion_depth--;
-        return ErrorKind::GenInfoError;
-    }
-
-    PyObject* yf = (frame != NULL ? PyGen_yf(&gen, frame) : NULL);
-    GenInfo::Ptr await = nullptr;
-    if (yf != NULL && yf != gen_addr) {
-        auto maybe_await = GenInfo::create(yf);
-        if (maybe_await) {
-            await = std::move(*maybe_await);
-        }
-    }
-
-    // A coroutine awaiting another coroutine is never running itself,
-    // so when the coroutine is awaiting another coroutine, we use the running state of the awaited coroutine.
-    // Otherwise, we use the running state of the coroutine itself.
-    bool is_running = false;
-    if (await) {
-        is_running = await->is_running;
-    } else {
-#if PY_VERSION_HEX >= 0x030b0000
-        is_running = (gen.gi_frame_state == FRAME_EXECUTING);
-#elif PY_VERSION_HEX >= 0x030a0000
-        is_running = (frame != NULL) ? _PyFrame_IsExecuting(&f) : false;
-#else
-        is_running = gen.gi_running;
-#endif
-    }
-
-    recursion_depth--;
-    return std::make_unique<GenInfo>(gen_addr, frame, std::move(await), is_running);
-}
-
 // ----------------------------------------------------------------------------
 
 class TaskInfo
 {
   public:
-    typedef std::unique_ptr<TaskInfo> Ptr;
-    typedef std::reference_wrapper<TaskInfo> Ref;
+    using Ptr = std::unique_ptr<TaskInfo>;
+    using Ref = std::reference_wrapper<TaskInfo>;
 
+  private:
+    [[nodiscard]] static Result<TaskInfo::Ptr> create_impl(EchionSampler& echion, TaskObj*, size_t recursion_depth);
+
+  public:
     // The address of the Task PyObject* the TaskInfo represents
     PyObject* origin = nullptr;
 
@@ -207,7 +132,7 @@ class TaskInfo
     // only if it is awaiting another Task.
     TaskInfo::Ptr waiter = nullptr;
 
-    [[nodiscard]] static Result<TaskInfo::Ptr> create(TaskObj*);
+    [[nodiscard]] static Result<TaskInfo::Ptr> create(EchionSampler& echion, TaskObj*);
     TaskInfo(PyObject* origin, PyObject* loop, GenInfo::Ptr coro, StringTable::Key name, TaskInfo::Ptr waiter)
       : origin(origin)
       , loop(loop)
@@ -218,120 +143,12 @@ class TaskInfo
     {
     }
 
-    [[nodiscard]] static Result<TaskInfo::Ptr> current(PyObject*);
-    inline size_t unwind(FrameStack&);
+    size_t unwind(EchionSampler& echion, FrameStack&, bool using_uvloop);
 };
 
-inline std::unordered_map<PyObject*, PyObject*> task_link_map;
-inline std::mutex task_link_map_lock;
-
-// ----------------------------------------------------------------------------
-inline Result<TaskInfo::Ptr>
-TaskInfo::create(TaskObj* task_addr)
-{
-    static thread_local size_t recursion_depth = 0;
-    recursion_depth++;
-
-    if (recursion_depth > MAX_RECURSION_DEPTH) {
-        recursion_depth--;
-        return ErrorKind::TaskInfoError;
-    }
-
-    TaskObj task;
-    if (copy_type(task_addr, task)) {
-        recursion_depth--;
-        return ErrorKind::TaskInfoError;
-    }
-
-    auto maybe_coro = GenInfo::create(task.task_coro);
-    if (!maybe_coro) {
-        recursion_depth--;
-        return ErrorKind::TaskInfoGeneratorError;
-    }
-
-    auto maybe_name = string_table.key(task.task_name);
-    if (!maybe_name) {
-        recursion_depth--;
-        return ErrorKind::TaskInfoError;
-    }
-
-    auto name = *maybe_name;
-    auto loop = task.task_loop;
-
-    TaskInfo::Ptr waiter = nullptr;
-    if (task.task_fut_waiter) {
-        auto maybe_waiter = TaskInfo::create(reinterpret_cast<TaskObj*>(task.task_fut_waiter)); // TODO: Make lazy?
-        if (maybe_waiter) {
-            waiter = std::move(*maybe_waiter);
-        }
-    }
-
-    recursion_depth--;
-    return std::make_unique<TaskInfo>(
-      reinterpret_cast<PyObject*>(task_addr), loop, std::move(*maybe_coro), name, std::move(waiter));
-}
-
-// ----------------------------------------------------------------------------
-inline Result<TaskInfo::Ptr>
-TaskInfo::current(PyObject* loop)
-{
-    if (loop == NULL) {
-        return ErrorKind::TaskInfoError;
-    }
-
-    auto maybe_current_tasks_dict = MirrorDict::create(asyncio_current_tasks);
-    if (!maybe_current_tasks_dict) {
-        return ErrorKind::TaskInfoError;
-    }
-
-    auto current_tasks_dict = std::move(*maybe_current_tasks_dict);
-    PyObject* task = current_tasks_dict.get_item(loop);
-    if (task == NULL) {
-        return ErrorKind::TaskInfoError;
-    }
-
-    return TaskInfo::create(reinterpret_cast<TaskObj*>(task));
-}
-
-// ----------------------------------------------------------------------------
-
-inline size_t
-TaskInfo::unwind(FrameStack& stack)
-{
-    // TODO: Check for running task.
-
-    // Use a vector-based std::stack as we only push_back/pop_back
-    std::stack<PyObject*, std::vector<PyObject*>> coro_frames;
-
-    // Unwind the coro chain
-    for (auto py_coro = this->coro.get(); py_coro != NULL; py_coro = py_coro->await.get()) {
-        if (py_coro->frame != NULL)
-            coro_frames.push(py_coro->frame);
-    }
-
-    // Total number of frames added to the Stack
-    size_t count = 0;
-
-    // Unwind the coro frames
-    while (!coro_frames.empty()) {
-        PyObject* frame = coro_frames.top();
-        coro_frames.pop();
-
-        // We only need the single Task frame from each coroutine, not the full Python stack (which we already have
-        // from the Thread Stack).
-        // For a running Task, unwind_frame would also yield the asyncio runtime frames "on top"
-        // of the Task frame, but we would discard those anyway. Limiting to 1 frame avoids walking
-        // the Frame chain unnecessarily.
-        auto new_frames = unwind_frame(frame, stack, 1);
-        assert(new_frames <= 1 && "expected exactly 1 frame to be unwound (or 0 in case of an error)");
-
-        // If we failed to unwind the Frame, stop unwinding the coroutine chain; otherwise we could
-        // end up with Stacks with missing Frames between two coroutines Frames.
-        if (new_frames == 0) {
-            break;
-        }
-        count += 1;
-    }
-
-    return count;
-}
+// Checks whether a Frame is the uvloop.run coroutine wrapper.
+// When uvloop.run is used, the top-level Task contains a wrapper coroutine
+// named "run.<locals>.wrapper" that just validates the loop type and awaits the user's main
+// coroutine. We skip this frame to keep the stack clean and consistent with regular asyncio.
+bool
+is_uvloop_wrapper_frame(EchionSampler& echion, bool using_uvloop, const Frame& frame);

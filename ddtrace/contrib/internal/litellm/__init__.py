@@ -21,27 +21,12 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the LiteLL
     patch(litellm=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.litellm["service"]
 
    The service name reported by default for LiteLLM requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_LITELLM_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the LiteLLM integration on a per-instance basis use the
-``Pin`` API::
-
-    import litellm
-    from ddtrace import Pin
-
-    Pin.override(litellm, service="my-litellm-service")
+   Alternatively, set this option with the ``DD_LITELLM_SERVICE`` environment variable.
 """  # noqa: E501

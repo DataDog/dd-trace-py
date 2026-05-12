@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: Experiments now report their execution status to the backend.
+    Status transitions to ``running`` when execution starts, ``completed`` on success,
+    ``failed`` when tasks or evaluators error with ``raise_errors=False``,
+    and ``interrupted`` when the experiment is stopped by an exception. #16713

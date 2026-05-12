@@ -4,15 +4,27 @@ from _io import BytesIO
 from _io import StringIO
 import os
 from re import Match
+import sys
 from typing import Any
+from typing import Generator
 from typing import Iterator
 from typing import Literal  # noqa:F401
-from typing import Tuple
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
+
+
+TEXT_TYPES = (str, bytes, bytearray)
+
+TAINTEABLE_TYPES = TEXT_TYPES + (Match, BytesIO, StringIO)
+
+# Python 3.14+ template strings support
+if sys.version_info >= (3, 14):
+    from string.templatelib import Template as TemplateType
+
+    TAINTEABLE_TYPES += (TemplateType,)
 
 
 class Constant_Class(type):
@@ -27,8 +39,8 @@ class Constant_Class(type):
     def __setattr__(self, __name: str, __value: Any) -> None:
         raise TypeError("Constant class does not support item assignment: %s.%s" % (self.__name__, __name))
 
-    def __iter__(self) -> Iterator[Tuple[str, Any]]:
-        def aux():
+    def __iter__(self) -> Iterator[tuple[str, Any]]:
+        def aux() -> Generator[tuple[str, Any], Any, None]:
             for t in self.__dict__.items():
                 if not t[0].startswith("_"):
                     yield t
@@ -53,9 +65,9 @@ class APPSEC(metaclass=Constant_Class):
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
     ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
+    ENABLED_ORIGIN_DEFAULT: Literal["default"] = "default"
     ENABLED_ORIGIN_RC: Literal["remote_config"] = "remote_config"
     ENABLED_ORIGIN_ENV: Literal["env_var"] = "env_var"
-    ENABLED_ORIGIN_SSI: Literal["ssi"] = "ssi"
     JSON: Literal["_dd.appsec.json"] = "_dd.appsec.json"
     STRUCT: Literal["appsec"] = "appsec"
     EVENT_RULE_VERSION: Literal["_dd.appsec.event_rules.version"] = "_dd.appsec.event_rules.version"
@@ -179,8 +191,8 @@ class IAST(metaclass=Constant_Class):
         (TELEMETRY_OFF_VERBOSITY, TELEMETRY_OFF_NAME),
     )
 
-    TEXT_TYPES = (str, bytes, bytearray)
-    TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO)
+    TEXT_TYPES = TEXT_TYPES
+    TAINTEABLE_TYPES = TAINTEABLE_TYPES
     REQUEST_CONTEXT_KEY: Literal["_iast_env"] = "_iast_env"
 
 
@@ -432,6 +444,9 @@ class STACK_TRACE(metaclass=Constant_Class):
 
 
 class AI_GUARD(metaclass=Constant_Class):
+    # environment variables
+    BLOCK_ENV: Literal["DD_AI_GUARD_BLOCK"] = "DD_AI_GUARD_BLOCK"
+
     # span related information
     RESOURCE_TYPE: Literal["ai_guard"] = "ai_guard"
 
@@ -441,6 +456,11 @@ class AI_GUARD(metaclass=Constant_Class):
     TARGET_TAG: str = TAG + ".target"
     BLOCKED_TAG: str = TAG + ".blocked"
     TOOL_NAME_TAG: str = TAG + ".tool_name"
+    EVENT_TAG: str = TAG + ".event"
+
+    # core-context key used to stash the candidate client IP during an HTTP request, so it can be
+    # applied to the service-entry span only if an ai_guard span is actually created.
+    CLIENT_IP_CORE_KEY: Literal["ai_guard.http.client_ip"] = "ai_guard.http.client_ip"
 
     # meta struct
     STRUCT: Literal["ai_guard"] = "ai_guard"
@@ -449,3 +469,16 @@ class AI_GUARD(metaclass=Constant_Class):
     METRIC_PREFIX: Literal["ai_guard"] = "ai_guard"
     REQUESTS_METRIC: str = METRIC_PREFIX + ".requests"
     TRUNCATED_METRIC: str = METRIC_PREFIX + ".truncated"
+
+    # environment variables
+    ENV_ENABLED: Literal["DD_AI_GUARD_ENABLED"] = "DD_AI_GUARD_ENABLED"
+    ENV_ENDPOINT: Literal["DD_AI_GUARD_ENDPOINT"] = "DD_AI_GUARD_ENDPOINT"
+    ENV_MAX_CONTENT_SIZE: Literal["DD_AI_GUARD_MAX_CONTENT_SIZE"] = "DD_AI_GUARD_MAX_CONTENT_SIZE"
+    ENV_MAX_MESSAGES_LENGTH: Literal["DD_AI_GUARD_MAX_MESSAGES_LENGTH"] = "DD_AI_GUARD_MAX_MESSAGES_LENGTH"
+    ENV_TIMEOUT: Literal["DD_AI_GUARD_TIMEOUT"] = "DD_AI_GUARD_TIMEOUT"
+
+
+class SCA(metaclass=Constant_Class):
+    """SCA (Software Composition Analysis) related constants."""
+
+    ENV_ENABLED: Literal["DD_APPSEC_SCA_ENABLED"] = "DD_APPSEC_SCA_ENABLED"

@@ -3,6 +3,7 @@ import itertools
 import os
 import subprocess
 import types
+import uuid
 
 import django
 from django.core.signals import request_started
@@ -706,16 +707,13 @@ Database tests
 @pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_DATABASES": "true"})
 def test_connection():
     from tests.contrib.django.utils import setup_django_test_spans
-    from tests.contrib.django.utils import with_django_db
-
-    setup = setup_django_test_spans()
-    test_spans = setup.__enter__()
+    from tests.contrib.django.utils import with_default_django_db
 
     """
     When database queries are made from Django
         The queries are traced
     """
-    with with_django_db(test_spans):
+    with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
         from django.contrib.auth.models import User
 
         users = User.objects.count()
@@ -731,7 +729,6 @@ def test_connection():
         assert span.span_type == "sql"
         assert span.get_tag("django.db.vendor") == "sqlite"
         assert span.get_tag("django.db.alias") == "default"
-    setup.__exit__(None, None, None)
 
 
 """
@@ -1601,13 +1598,10 @@ def test_cached_view():
     from django.test import Client
 
     from tests.contrib.django.utils import setup_django_test_spans
-    from tests.contrib.django.utils import with_django_db
-
-    setup = setup_django_test_spans()
-    test_spans = setup.__enter__()
+    from tests.contrib.django.utils import with_default_django_db
 
     # make the first request so that the view is cached
-    with with_django_db(test_spans):
+    with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
         client = Client()
         response = client.get("/cached-users/")
         assert response.status_code == 200
@@ -1642,6 +1636,7 @@ def test_cached_view():
         assert span_header.error == 0
 
         expected_meta_view = {
+            "_dd.svc_src": "django",
             "component": "django",
             "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
             "django.cache.key": (
@@ -1651,6 +1646,7 @@ def test_cached_view():
         }
 
         expected_meta_header = {
+            "_dd.svc_src": "django",
             "component": "django",
             "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
             "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
@@ -1659,7 +1655,6 @@ def test_cached_view():
 
         assert span_view.get_tags() == expected_meta_view, span_view.get_tags()
         assert span_header.get_tags() == expected_meta_header
-    setup.__exit__(None, None, None)
 
 
 """
@@ -1741,11 +1736,9 @@ def test_schematized_default_db_service_name(
 import django
 
 from tests.contrib.django.utils import setup_django_test_spans
-from tests.contrib.django.utils import with_django_db
+from tests.contrib.django.utils import with_default_django_db
 
-setup = setup_django_test_spans()
-test_spans = setup.__enter__()
-with with_django_db(test_spans):
+with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
     from django.contrib.auth.models import User
 
     users = User.objects.count()
@@ -1760,7 +1753,6 @@ with with_django_db(test_spans):
     assert span.span_type == "sql"
     assert span.get_tag("django.db.vendor") == "sqlite"
     assert span.get_tag("django.db.alias") == "default"
-setup.__exit__(None, None, None)
     """.format(expected_service_name)
 
     env = os.environ.copy()
@@ -1825,12 +1817,9 @@ if __name__ == "__main__":
 )
 def test_database_service_prefix_can_be_overridden():
     from tests.contrib.django.utils import setup_django_test_spans
-    from tests.contrib.django.utils import with_django_db
+    from tests.contrib.django.utils import with_default_django_db
 
-    setup = setup_django_test_spans()
-    test_spans = setup.__enter__()
-
-    with with_django_db(test_spans):
+    with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
         from django.contrib.auth.models import User
 
         User.objects.count()
@@ -1840,18 +1829,16 @@ def test_database_service_prefix_can_be_overridden():
 
         span = spans[0]
         assert span.service == "my-defaultdb"
-    setup.__exit__(None, None, None)
 
 
-@pytest.mark.subprocess(env={"DD_DJANGO_INSTRUMENT_DATABASES": "true", "DD_DJANGO_DATABASE_SERVICE_NAME": "django-db"})
+@pytest.mark.subprocess(
+    env={"DD_DJANGO_INSTRUMENT_DATABASES": "true", "DD_DJANGO_DATABASE_SERVICE_NAME": "django-db"}, err=None
+)
 def test_database_service_can_be_overridden():
     from tests.contrib.django.utils import setup_django_test_spans
-    from tests.contrib.django.utils import with_django_db
+    from tests.contrib.django.utils import with_default_django_db
 
-    setup = setup_django_test_spans()
-    test_spans = setup.__enter__()
-
-    with with_django_db(test_spans):
+    with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
         from django.contrib.auth.models import User
 
         User.objects.count()
@@ -1861,7 +1848,6 @@ def test_database_service_can_be_overridden():
 
         span = spans[0]
         assert span.service == "django-db"
-    setup.__exit__(None, None, None)
 
 
 @pytest.mark.subprocess(
@@ -1873,12 +1859,9 @@ def test_database_service_can_be_overridden():
 )
 def test_database_service_prefix_precedence():
     from tests.contrib.django.utils import setup_django_test_spans
-    from tests.contrib.django.utils import with_django_db
+    from tests.contrib.django.utils import with_default_django_db
 
-    setup = setup_django_test_spans()
-    test_spans = setup.__enter__()
-
-    with with_django_db(test_spans):
+    with setup_django_test_spans() as test_spans, with_default_django_db(test_spans):
         from django.contrib.auth.models import User
 
         User.objects.count()
@@ -1888,7 +1871,6 @@ def test_database_service_prefix_precedence():
 
         span = spans[0]
         assert span.service == "django-db"
-    setup.__exit__(None, None, None)
 
 
 @pytest.mark.subprocess(
@@ -2273,37 +2255,54 @@ def test_urlpatterns_repath(client, test_spans):
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
 @pytest.mark.django_db
-def test_user_name_included(client, test_spans):
+@pytest.mark.parametrize("pk_type", ["int", "uuid"])
+def test_user_name_included(client, test_spans, pk_type):
     """
     When making a request to a Django app with user name included
         We correctly add the `django.user.name` tag to the root span
     """
-    resp = client.get("/authenticated/")
+    resp = client.get(f"/authenticated/{pk_type}/")
     assert resp.status_code == 200
 
     # user name should be present in root span tags
     root = test_spans.get_root_span()
     assert root.get_tag("django.user.name") == "Jane Doe"
     assert root.get_tag("django.user.is_authenticated") == "True"
-    assert root.get_tag(user.ID) == "1"
+
+    if pk_type == "int":
+        assert root.get_tag(user.ID) == "1"
+    else:
+        assert root.get_tag(user.ID) is not None
+        try:
+            uuid.UUID(root.get_tag(user.ID))
+        except ValueError:
+            assert False, "User ID span tag was not a valid UUID"
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+@pytest.mark.parametrize("pk_type", ["int", "uuid"])
 @pytest.mark.django_db
-def test_user_name_excluded(client, test_spans):
+def test_user_name_excluded(client, test_spans, pk_type):
     """
     When making a request to a Django app with user name excluded
         We correctly omit the `django.user.name` tag to the root span
     """
     with override_config("django", dict(include_user_name=False)):
-        resp = client.get("/authenticated/")
+        resp = client.get(f"/authenticated/{pk_type}/")
     assert resp.status_code == 200
 
     # user name should not be present in root span tags
     root = test_spans.get_root_span()
     assert "django.user.name" not in root.get_tags()
     assert root.get_tag("django.user.is_authenticated") == "True"
-    assert root.get_tag(user.ID) == "1"
+    if pk_type == "int":
+        assert root.get_tag(user.ID) == "1"
+    else:
+        assert root.get_tag(user.ID) is not None
+        try:
+            uuid.UUID(root.get_tag(user.ID))
+        except ValueError:
+            assert False, "User ID span tag was not a valid UUID"
 
 
 def test_django_use_handler_resource_format(client, test_spans):
@@ -2724,3 +2723,189 @@ def test_django_base_handler_failure(client, test_spans):
         assert root.resource == "GET ^$"
     finally:
         client.handler.get_response = original
+
+
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async views require Django 4.1+")
+@pytest.mark.asyncio
+async def test_async_class_view(test_spans):
+    """Async class-based views should be traced without raising
+    'RuntimeError: coroutine ignored GeneratorExit' on Python 3.13+.
+
+    Regression test for the fix to traced_func which previously used a sync
+    context manager around an unawaited coroutine return.
+    """
+    from django.test import AsyncClient
+
+    async_client = AsyncClient()
+    resp = await async_client.get("/async-view/")
+    assert resp.status_code == 200
+    assert resp.content == b"async response"
+
+    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
+    spans = list(test_spans.filter_spans(name="django.view.get"))
+    assert len(spans) == 1
+    span = spans[0]
+    span.assert_matches(
+        resource="tests.contrib.django.views.AsyncView.get",
+        error=0,
+    )
+
+
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async views require Django 4.1+")
+@pytest.mark.asyncio
+async def test_async_function_view(test_spans):
+    """Async function-based views should be traced without raising
+    'RuntimeError: coroutine ignored GeneratorExit' on Python 3.13+.
+    """
+    from django.test import AsyncClient
+
+    async_client = AsyncClient()
+    resp = await async_client.get("/async-fn-view/")
+    assert resp.status_code == 200
+    assert resp.content == b"async function response"
+
+    assert len(list(test_spans.filter_spans(name="django.view"))) == 1
+
+
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async views require Django 4.1+")
+@pytest.mark.asyncio
+async def test_async_view_cancellation_does_not_tag_span_errored(test_spans):
+    """#17728: routine ASGI cancellation must not tag django.view as errored."""
+    import asyncio
+
+    from django.core.handlers.asgi import ASGIHandler
+
+    app = ASGIHandler()
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/async-sleep/",
+        "raw_path": b"/async-sleep/",
+        "query_string": b"",
+        "headers": [(b"host", b"localhost")],  # in ALLOWED_HOSTS; raw 127.0.0.1 hits DisallowedHost
+        "server": ("127.0.0.1", 8000),
+        "client": ("127.0.0.1", 12345),
+    }
+
+    async def cancel_one_request():
+        sent_request = False
+
+        async def receive():
+            nonlocal sent_request
+            if not sent_request:
+                sent_request = True
+                return {"type": "http.request", "body": b"", "more_body": False}
+            await asyncio.sleep(0.05)  # disconnect mid-await so the handler cancels the view task
+            return {"type": "http.disconnect"}
+
+        async def send(_msg):
+            pass
+
+        await app(scope, receive, send)
+
+    for _ in range(5):
+        await cancel_one_request()
+
+    all_spans = test_spans.get_spans()
+    view_spans = [s for s in all_spans if s.name == "django.view"]
+    assert view_spans, f"expected at least one django.view span; got spans: {sorted({s.name for s in all_spans})}"
+    errored = [s for s in view_spans if s.error]
+    assert not errored, (
+        f"{len(errored)}/{len(view_spans)} django.view spans tagged errored on routine "
+        f"client-disconnect cancellation (#17728); first: error.type="
+        f"{errored[0].get_tag('error.type')!r}"
+    )
+
+
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async middleware require Django 4.1+")
+@pytest.mark.asyncio
+async def test_async_middleware_hook_cancellation_does_not_tag_span_errored(test_spans):
+    """#17728: same as the view test, but for `_make_async_traced_middleware_hook`."""
+    import asyncio
+
+    from ddtrace.contrib.internal.django.middleware import _make_async_traced_middleware_hook
+
+    wrapper = _make_async_traced_middleware_hook("tests.contrib.django.middleware.AsyncCallMiddleware", "__call__")
+
+    class _Mw:
+        """Stand-in for a class-level `async def __call__` middleware."""
+
+    async def cancelling_inner(*_args, **_kwargs):
+        raise asyncio.CancelledError()
+
+    with pytest.raises(asyncio.CancelledError):
+        await wrapper(cancelling_inner, _Mw(), (None,), {})
+
+    mw_spans = [s for s in test_spans.get_spans() if s.name == "django.middleware"]
+    assert mw_spans, "expected at least one django.middleware span"
+    errored = [s for s in mw_spans if s.error]
+    assert not errored, (
+        f"{len(errored)}/{len(mw_spans)} django.middleware spans tagged errored on routine "
+        f"cancellation (#17728); first: error.type={errored[0].get_tag('error.type')!r}"
+    )
+
+
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async middleware require Django 4.1+")
+@pytest.mark.asyncio
+async def test_async_function_middleware_cancellation_does_not_tag_span_errored(test_spans):
+    """#17728: same as the view test, but for the function-style `traced_async_middleware_func`."""
+    import asyncio
+
+    from ddtrace.contrib.internal.django.middleware import traced_middleware_factory
+
+    async def cancelling_middleware(request):
+        raise asyncio.CancelledError()
+
+    def factory(get_response):
+        return cancelling_middleware
+
+    wrapped = traced_middleware_factory(factory, (lambda r: r,), {})
+
+    with pytest.raises(asyncio.CancelledError):
+        await wrapped(None)
+
+    mw_spans = [s for s in test_spans.get_spans() if s.name == "django.middleware"]
+    assert mw_spans, "expected at least one django.middleware span"
+    errored = [s for s in mw_spans if s.error]
+    assert not errored, (
+        f"{len(errored)}/{len(mw_spans)} django.middleware spans tagged errored on routine "
+        f"cancellation (#17728); first: error.type={errored[0].get_tag('error.type')!r}"
+    )
+
+
+@pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async middleware require Django 4.1+")
+def test_wrap_middleware_class_async_hooks():
+    """wrap_middleware_class should use wrapt wrapping (not bytecode wrapping)
+    for async middleware hooks to avoid 'RuntimeError: coroutine ignored
+    GeneratorExit' on Python 3.13+.
+    """
+    from inspect import iscoroutinefunction
+
+    from ddtrace.contrib.internal import trace_utils as contrib_trace_utils
+    from ddtrace.contrib.internal.django.middleware import wrap_middleware_class
+    from ddtrace.internal.wrapping import is_wrapped
+    from tests.contrib.django.middleware import AsyncCallMiddleware
+
+    async_hooks = ("__call__", "process_view", "process_request", "process_exception")
+
+    # Verify that all hooks are async before wrapping
+    for hook in async_hooks:
+        assert iscoroutinefunction(getattr(AsyncCallMiddleware, hook)), f"{hook} should be async"
+
+    wrap_middleware_class(AsyncCallMiddleware, "tests.contrib.django.middleware.AsyncCallMiddleware")
+
+    try:
+        for hook in async_hooks:
+            # Async hooks should be wrapt-wrapped (not bytecode-wrapped)
+            assert contrib_trace_utils.iswrapped(AsyncCallMiddleware, hook), f"{hook} should be wrapt-wrapped"
+            assert not is_wrapped(getattr(AsyncCallMiddleware, hook).__wrapped__), (
+                f"{hook} should not be bytecode-wrapped"
+            )
+    finally:
+        # Clean up wrapt wrapping so it doesn't affect other tests
+        for hook in async_hooks:
+            if contrib_trace_utils.iswrapped(AsyncCallMiddleware, hook):
+                contrib_trace_utils.unwrap(AsyncCallMiddleware, hook)

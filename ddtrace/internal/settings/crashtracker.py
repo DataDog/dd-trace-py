@@ -1,3 +1,4 @@
+import sys
 import typing as t
 
 from ddtrace.internal.settings._core import DDConfig
@@ -5,7 +6,9 @@ from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.utils.formats import parse_tags_str
 
 
-resolver_default = "full"
+# Out-of-process symbolication (receiver mode) works on Linux only.
+# On other platforms, fall back to in-process symbolication.
+resolver_default = "safe" if sys.platform == "linux" else "full"
 
 
 def _derive_stacktrace_resolver(config: "CrashtrackingConfig") -> t.Optional[str]:
@@ -56,6 +59,16 @@ class CrashtrackingConfig(DDConfig):
         default=None,
         help_type="String",
         help="Overrides the URL parameter set by the ddtrace library. "
+        "This is generally useful only for dd-trace-py development.",
+    )
+
+    _test_token = DDConfig.v(
+        t.Optional[str],
+        "test_token",
+        default=None,
+        private=True,
+        help_type="String",
+        help="Sets the X-Datadog-Test-Session-Token header on crashtracker telemetry requests. "
         "This is generally useful only for dd-trace-py development.",
     )
 
@@ -120,15 +133,6 @@ class CrashtrackingConfig(DDConfig):
         help_type="Boolean",
         help="Whether to wait for the crashtracking receiver",
     )
-
-    # TODO: Add this back in post Code Freeze (need to update config registry)
-    # emit_runtime_stacks = DDConfig.v(
-    #     bool,
-    #     "emit_runtime_stacks",
-    #     default=False,
-    #     help_type="Boolean",
-    #     help="Whether to emit runtime stacks during a crash.",
-    # )
 
 
 config = CrashtrackingConfig()

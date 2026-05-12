@@ -93,10 +93,10 @@ def _iast_report_unvalidated_redirect(headers):
                 headers, origins_to_exclude=UNVALIDATED_REDIRECT_ORIGIN_EXCLUSIONS
             )
 
-            if UnvalidatedRedirect.has_quota() and is_tainted:
-                result = UnvalidatedRedirect.report(evidence_value=headers)
-                if result:
-                    add_secure_mark(headers, [VulnerabilityType.UNVALIDATED_REDIRECT])
+            if is_tainted:
+                if UnvalidatedRedirect.has_quota():
+                    UnvalidatedRedirect.report(evidence_value=headers)
+                add_secure_mark(headers, [VulnerabilityType.UNVALIDATED_REDIRECT])
 
             # Reports Span Metrics
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, UnvalidatedRedirect.vulnerability_type)

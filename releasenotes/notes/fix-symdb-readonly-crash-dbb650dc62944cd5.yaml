@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixes a ``RuntimeError: generator didn't yield`` in the
+    Symbol DB remote config subscriber when the process has no writable temporary directory.

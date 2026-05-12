@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    litellm: This fix resolves an issue where litellm>=1.74.15 wrapped router streaming responses in ``FallbackStreamWrapper`` (introduced for mid-stream fallback support) that caused an ``AttributeError`` when attempting to access the ``.handler`` attribute. The integration now gracefully handles both the original response format and wrapped responses by falling back to ddtrace's own stream wrapping when needed.

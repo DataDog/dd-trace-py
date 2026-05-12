@@ -16,6 +16,7 @@ Environment:
     PACKAGE_VERSION: Version from pyproject.toml (set by "package version" job)
 """
 
+import argparse
 import os
 from pathlib import Path
 import sys
@@ -38,23 +39,30 @@ BASE_PLATFORMS = [
     "win32",
     "win_amd64",
 ]
+SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
 
-def build_expected_set(version: str) -> set[tuple[str, str, str]]:
-    """Build set of expected (version, python_tag, platform) tuples."""
-    expected: set[tuple[str, str, str]] = set()
+def build_expected_set(version: str, args: argparse.Namespace) -> set[tuple[str, str, str, str]]:
+    """Build set of expected (version, python_tag, platform, flavor) tuples."""
+    expected: set[tuple[str, str, str, str]] = set()
     for py_tag in PYTHON_TAGS:
-        for platform in BASE_PLATFORMS:
-            expected.add((version, py_tag, platform))
-        # Add win_arm64 for Python 3.11+
-        if py_tag in WIN_ARM64_PYTHON_TAGS:
-            expected.add((version, py_tag, "win_arm64"))
+        if args.mode == "serverless":
+            for platform in SERVERLESS_PLATFORMS:
+                expected.add((version, py_tag, platform, "_serverless"))
+        else:
+            for platform in BASE_PLATFORMS:
+                expected.add((version, py_tag, platform, ""))
+            # Add win_arm64 for Python 3.11+
+            if py_tag in WIN_ARM64_PYTHON_TAGS:
+                expected.add((version, py_tag, "win_arm64", ""))
+
     return expected
 
 
-def reconstruct_wheel_filename(version: str, python_tag: str, platform: str) -> str:
+def reconstruct_wheel_filename(version: str, python_tag: str, platform: str, flavor: str) -> str:
     """Reconstruct wheel filename from components."""
-    return f"ddtrace-{version}-{python_tag}-{python_tag}-{platform}.whl"
+    package_name = f"ddtrace{flavor}"
+    return f"{package_name}-{version}-{python_tag}-{python_tag}-{platform}.whl"
 
 
 def validate_sdist(wheels_dir: str, package_version: str) -> tuple[bool, str, str | None]:
@@ -87,13 +95,15 @@ def validate_sdist(wheels_dir: str, package_version: str) -> tuple[bool, str, st
         return False, f"Failed to parse sdist filename: {e}", sdist_path.name
 
 
-def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str]], list[str], int]:
+def parse_actual_wheels(
+    wheels_dir: str,
+) -> tuple[set[tuple[str, str, str, str]], list[str], int]:
     """Parse actual wheel files.
 
     Returns:
         tuple: (actual_set: set, errors: list[str], valid_count: int)
     """
-    actual: set[tuple[str, str, str]] = set()
+    actual: set[tuple[str, str, str, str]] = set()
     errors: list[str] = []
 
     for wheel_file in sorted(Path(wheels_dir).glob("*.whl")):
@@ -107,13 +117,14 @@ def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str]], lis
             # We know: name=ddtrace, abi=python tag (e.g., cp310)
             # So platform is everything after: ddtrace-{version}-{python}-{python}-
             wheel_base = wheel_file.name.replace(".whl", "")
-            marker = f"ddtrace-{version}-{py_tag}-{py_tag}-"
+            marker = f"{name.replace('-', '_')}-{version}-{py_tag}-{py_tag}-"
             if marker in wheel_base:
                 platform = wheel_base.split(marker)[1]
             else:
-                raise ValueError(f"Cannot parse platform from {wheel_file.name}")
+                raise ValueError(f"Cannot parse platform from {wheel_file.name} - searched for marker {marker}")
 
-            actual.add((str(version), py_tag, platform))
+            flavor = name.replace("ddtrace", "").replace("-", "_")
+            actual.add((str(version), py_tag, platform, flavor))
         except Exception as e:
             errors.append(f"{wheel_file.name}: {e}")
 
@@ -121,23 +132,20 @@ def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str]], lis
 
 
 def identify_version_mismatches(
-    actual_set: set[tuple[str, str, str]], package_version: str
+    actual_set: set[tuple[str, str, str, str]], package_version: str
 ) -> dict[str, tuple[str, str]]:
     """Identify wheels with wrong versions."""
     mismatches: dict[str, tuple[str, str]] = {}
-    for version, py_tag, platform in actual_set:
+    for version, py_tag, platform, flavor in actual_set:
         if version != package_version:
-            key = reconstruct_wheel_filename(version, py_tag, platform)
+            key = reconstruct_wheel_filename(version, py_tag, platform, flavor)
             mismatches[key] = (package_version, version)
     return mismatches
 
 
-def main() -> None:
-    """Main validation function."""
-    # Get arguments
-    wheels_dir = sys.argv[1] if len(sys.argv) > 1 else "pywheels"
+def main(args: argparse.Namespace) -> None:
+    wheels_dir = args.wheels_dir
 
-    # Get version from environment
     package_version: str | None = os.environ.get("PACKAGE_VERSION")
     if not package_version:
         print("[ERROR] PACKAGE_VERSION not set. Ensure 'package version' job ran.")
@@ -164,19 +172,23 @@ def main() -> None:
     print()
 
     # Phase 2: SDist Validation
-    print("[Phase 2] SDist Validation")
-    sdist_ok, sdist_msg, sdist_name = validate_sdist(wheels_dir, package_version)
-    if not sdist_ok:
-        print(f"✗ {sdist_msg}")
-        errors.append(f"SDist validation: {sdist_msg}")
-    else:
-        print(f"✓ Found sdist: {sdist_name}")
-        print(f"✓ {sdist_msg}")
-    print()
+    sdist_ok = False
+    if args.mode != "serverless":
+        print("[Phase 2] SDist Validation")
+        sdist_ok, sdist_msg, sdist_name = validate_sdist(wheels_dir, package_version)
+        if not sdist_ok:
+            print(f"✗ {sdist_msg}")
+            errors.append(f"SDist validation: {sdist_msg}")
+        else:
+            print(f"✓ Found sdist: {sdist_name}")
+            print(f"✓ {sdist_msg}")
+        print()
 
     # Phase 3: Parse Actual Wheels
     print("[Phase 3] Parsing Actual Wheels")
     actual_set, parse_errors, valid_count = parse_actual_wheels(wheels_dir)
+    for a in actual_set:
+        print(a)
 
     if parse_errors:
         print(f"✗ Failed to parse {len(parse_errors)} wheel(s):")
@@ -189,11 +201,12 @@ def main() -> None:
 
     # Phase 4: Build Expected Set
     print("[Phase 4] Building Expected Set")
-    expected_set = build_expected_set(package_version)
+    expected_set = build_expected_set(package_version, args)
     print(f"Expected {len(expected_set)} wheels:")
     print(f"  - {len(PYTHON_TAGS)} Python versions (cp39-cp314)")
     print(f"  - {len(BASE_PLATFORMS)} base platforms")
     print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
+    print(f"  - {len(SERVERLESS_PLATFORMS)} platforms with ddtrace-serverless builds")
     print()
 
     # Phase 5: Set Comparison
@@ -203,8 +216,8 @@ def main() -> None:
     missing_wheels = expected_set - actual_set
     if missing_wheels:
         print(f"✗ Missing {len(missing_wheels)} wheel(s):")
-        for version, py_tag, platform in sorted(missing_wheels):
-            filename = reconstruct_wheel_filename(version, py_tag, platform)
+        for version, py_tag, platform, flavor in sorted(missing_wheels):
+            filename = reconstruct_wheel_filename(version, py_tag, platform, flavor)
             print(f"  - {filename}")
         errors.append(f"Missing wheels: {len(missing_wheels)}")
 
@@ -221,13 +234,15 @@ def main() -> None:
     unexpected_wheels = actual_set - expected_set
     # Filter out version mismatches (they're already reported)
     unexpected_non_version = [
-        (v, p, pl) for v, p, pl in unexpected_wheels if reconstruct_wheel_filename(v, p, pl) not in version_mismatches
+        (v, p, pl, fl)
+        for v, p, pl, fl in unexpected_wheels
+        if reconstruct_wheel_filename(v, p, pl, fl) not in version_mismatches
     ]
 
     if unexpected_non_version:
         print(f"⚠ Unexpected {len(unexpected_non_version)} wheel(s) (warnings only):")
-        for version, py_tag, platform in sorted(unexpected_non_version):
-            filename = reconstruct_wheel_filename(version, py_tag, platform)
+        for version, py_tag, platform, flavor in sorted(unexpected_non_version):
+            filename = reconstruct_wheel_filename(version, py_tag, platform, flavor)
             print(f"  - {filename}")
         warnings.append(f"Unexpected wheels: {len(unexpected_non_version)}")
 
@@ -273,4 +288,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(prog="Validate DDTrace Package")
+    parser.add_argument("--mode", choices=["main", "serverless"], default="main")
+    parser.add_argument("wheels_dir", nargs="?", default="pywheels")
+    args = parser.parse_args()
+    main(args)

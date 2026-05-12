@@ -1,40 +1,26 @@
 from typing import Any
-from typing import Dict
 from typing import Generator
-from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import INTEGRATION
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
-from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROXY_REQUEST
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import TAGS
-from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._integrations import BaseLLMIntegration
-from ddtrace.llmobs._integrations.bedrock_agents import _create_or_update_bedrock_trace_step_span
+from ddtrace.llmobs._integrations.bedrock_agents import DEFAULT_SPAN_DURATION_NS
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
+from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_type
+from ddtrace.llmobs._integrations.bedrock_agents import _get_or_create_bedrock_trace_step_span
+from ddtrace.llmobs._integrations.bedrock_agents import _max_finish_ns
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
 from ddtrace.llmobs._integrations.bedrock_utils import normalize_input_tokens
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
-from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
-from ddtrace.llmobs._telemetry import record_bedrock_agent_span_event_created
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.trace import Span
@@ -45,14 +31,12 @@ log = get_logger(__name__)
 
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
-    _spans: Dict[str, LLMObsSpanEvent] = {}  # Maps LLMObs span ID to LLMObs span events
-    _active_span_by_step_id: Dict[str, LLMObsSpanEvent] = {}  # Maps trace step ID to currently active span
 
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -103,15 +87,13 @@ class BedrockIntegration(BaseLLMIntegration):
         prompt = request_params.get("prompt", "")
         tool_config = request_params.get("tool_config", {})
         tool_definitions = self._extract_tool_definitions(tool_config)
-        if tool_definitions:
-            span._set_ctx_item(TOOL_DEFINITIONS, tool_definitions)
 
         is_converse = ctx["resource"] in ("Converse", "ConverseStream")
         input_messages = (
             self._extract_input_message_for_converse(prompt) if is_converse else self._extract_input_message(prompt)
         )
 
-        output_messages: List[Message] = [Message(content="")]
+        output_messages: list[Message] = [Message(content="")]
         if not span.error and response is not None:
             if ctx["resource"] == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
@@ -133,19 +115,45 @@ class BedrockIntegration(BaseLLMIntegration):
             else:
                 output_messages = self._extract_output_message(response)
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: span_kind,
-                MODEL_NAME: ctx.get_item("model_name") or "",
-                MODEL_PROVIDER: ctx.get_item("model_provider") or "",
-                INPUT_MESSAGES: input_messages,
-                METADATA: metadata,
-                METRICS: usage_metrics if span_kind != "workflow" else {},
-                OUTPUT_MESSAGES: output_messages,
-            }
+        model_id = ctx.get_item("model_id") or ctx.get_item("model_name") or ""
+
+        _annotate_llmobs_span_data(
+            span,
+            kind=span_kind,
+            model_name=model_id,
+            model_provider="amazon_bedrock",
+            input_messages=input_messages,
+            metadata=metadata,
+            metrics=usage_metrics if span_kind != "workflow" else {},
+            output_messages=output_messages,
+            tags={LLMOBS_STRUCT.INTEGRATION: "bedrock"},
+            tool_definitions=tool_definitions if tool_definitions else None,
         )
 
-        update_proxy_workflow_input_output_value(span, span_kind)
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        if operation == "agent":
+            span_kind = "agent"
+            usage_metrics = {}
+            model_id = None
+        else:
+            ctx = args[0]
+            span_kind = "workflow" if ctx.get_item(PROXY_REQUEST) else "llm"
+            usage_metrics = dict(ctx.get_item("llmobs.usage") or {})
+            normalize_input_tokens(usage_metrics)
+            if "total_tokens" not in usage_metrics and (
+                "input_tokens" in usage_metrics or "output_tokens" in usage_metrics
+            ):
+                usage_metrics["total_tokens"] = usage_metrics.get("input_tokens", 0) + usage_metrics.get(
+                    "output_tokens", 0
+                )
+            model_id = ctx.get_item("model_id") or ctx.get_item("model_name")
+        self._apply_shadow_metrics(
+            span,
+            usage_metrics,
+            span_kind,
+            model_name=model_id,
+            model_provider="bedrock",
+        )
 
     def _llmobs_set_tags_agent(self, span, args, kwargs, response):
         if not self.llmobs_enabled or not span:
@@ -155,44 +163,55 @@ class BedrockIntegration(BaseLLMIntegration):
         agent_id = input_args.get("agentId", "")
         agent_alias_id = input_args.get("agentAliasId", "")
         session_id = input_args.get("sessionId", "")
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "agent",
-                INPUT_VALUE: str(input_value),
-                TAGS: {"session_id": session_id},
-                METADATA: {"agent_id": agent_id, "agent_alias_id": agent_alias_id},
-                INTEGRATION: "bedrock_agents",
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind="agent",
+            input_value=str(input_value),
+            tags={LLMOBS_STRUCT.SESSION_ID: session_id, LLMOBS_STRUCT.INTEGRATION: "bedrock_agents"},
+            metadata={"agent_id": agent_id, "agent_alias_id": agent_alias_id},
         )
         if not response:
             return
-        span._set_ctx_item(OUTPUT_VALUE, str(response))
+        _annotate_llmobs_span_data(span, output_value=str(response))
 
     def translate_bedrock_traces(self, traces, root_span) -> None:
-        """Translate bedrock agent traces to LLMObs span events."""
+        """Translate bedrock agent traces to back-dated APM child spans of ``root_span``."""
         if not traces or not self.llmobs_enabled:
             return
+        step_spans_by_step_id: dict[str, Span] = {}
+        # Holds a span whose output event hasn't arrived yet (e.g. modelInvocationInput waiting
+        # for its matching modelInvocationOutput).
+        pending_span_by_step_id: dict[str, Span] = {}
+        child_spans_by_step_id: dict[str, list[Span]] = {}
         for trace in traces:
             trace_step_id = _extract_trace_step_id(trace)
-            current_active_span_event = self._active_span_by_step_id.pop(trace_step_id, None)
-            translated_span_event, finished = translate_bedrock_trace(
-                trace, root_span, current_active_span_event, trace_step_id
+            if trace_step_id is None:
+                # Malformed AWS response: traceId is missing. Skip rather than key a step span on None.
+                log.debug("Skipping Bedrock trace event with no traceId (type=%s)", _extract_trace_type(trace))
+                continue
+            step_span = _get_or_create_bedrock_trace_step_span(trace, trace_step_id, root_span, step_spans_by_step_id)
+            pending_span = pending_span_by_step_id.pop(trace_step_id, None)
+            translated_span, finished = translate_bedrock_trace(
+                trace, root_span, step_span, pending_span, trace_step_id
             )
-            if translated_span_event:
-                self._spans[translated_span_event["span_id"]] = translated_span_event
+            if translated_span is not None:
+                child_spans_by_step_id.setdefault(trace_step_id, []).append(translated_span)
                 if not finished:
-                    self._active_span_by_step_id[trace_step_id] = translated_span_event
-            _create_or_update_bedrock_trace_step_span(
-                trace, trace_step_id, translated_span_event, root_span, self._spans
-            )
-        for _, span_event in self._spans.items():
-            LLMObs._instance._llmobs_span_writer.enqueue(span_event)
-            record_bedrock_agent_span_event_created(span_event)
-        self._spans.clear()
-        self._active_span_by_step_id.clear()
+                    pending_span_by_step_id[trace_step_id] = translated_span
+        # Safety-net: finish orphaned input spans (never got a matching output) at start+1ms, then size each step span.
+        for step_id, step_span in step_spans_by_step_id.items():
+            child_spans = child_spans_by_step_id.get(step_id, [])
+            for child in child_spans:
+                child.finish(finish_time=(child.start_ns + DEFAULT_SPAN_DURATION_NS) / 1e9)
+            if child_spans:
+                step_span.start_ns = min(step_span.start_ns, *(s.start_ns for s in child_spans))
+                step_finish_ns = max(_max_finish_ns(s) for s in child_spans)
+            else:
+                step_finish_ns = step_span.start_ns + DEFAULT_SPAN_DURATION_NS
+            step_span.finish(finish_time=step_finish_ns / 1e9)
 
     @staticmethod
-    def _extract_input_message_for_converse(prompt: List[Dict[str, Any]]) -> List[Message]:
+    def _extract_input_message_for_converse(prompt: list[dict[str, Any]]) -> list[Message]:
         """Extract input messages from the stored prompt for converse
 
         `prompt` is an array of `message` objects. Each `message` has a role and content field.
@@ -205,7 +224,7 @@ class BedrockIntegration(BaseLLMIntegration):
         if not isinstance(prompt, list):
             log.warning("Bedrock input is not a list of messages or a string.")
             return [Message(content="")]
-        input_messages: List[Message] = []
+        input_messages: list[Message] = []
         for message in prompt:
             if not isinstance(message, dict):
                 continue
@@ -217,7 +236,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return input_messages
 
     @staticmethod
-    def _extract_output_message_for_converse(response: Dict[str, Any]):
+    def _extract_output_message_for_converse(response: dict[str, Any]):
         """Extract output messages from the stored prompt for converse
 
         `response` contains an `output` field that stores a nested `message` field.
@@ -227,7 +246,7 @@ class BedrockIntegration(BaseLLMIntegration):
         For more info, see bedrock converse response syntax:
         https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html#API_runtime_Converse_ResponseSyntax
         """
-        default_content: List[Message] = [Message(content="")]
+        default_content: list[Message] = [Message(content="")]
         message = response.get("output", {}).get("message", {})
         if not message:
             return default_content
@@ -240,8 +259,8 @@ class BedrockIntegration(BaseLLMIntegration):
     @staticmethod
     def _converse_output_stream_processor() -> Generator[
         None,
-        Dict[str, Any],
-        Tuple[List[Message], Dict[str, str], Dict[str, int]],
+        dict[str, Any],
+        tuple[list[Message], dict[str, str], dict[str, int]],
     ]:
         """
         Listens for output chunks from a converse streamed response and builds a
@@ -256,14 +275,14 @@ class BedrockIntegration(BaseLLMIntegration):
         For more info, see bedrock converse response stream response syntax:
         https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ConverseStream.html#API_runtime_ConverseStream_ResponseSyntax
         """
-        usage_metrics: Dict[str, int] = {}
-        metadata: Dict[str, str] = {}
-        messages: List[Message] = []
+        usage_metrics: dict[str, int] = {}
+        metadata: dict[str, str] = {}
+        messages: list[Message] = []
 
-        text_content_blocks: Dict[int, str] = {}
-        tool_content_blocks: Dict[int, Dict[str, Any]] = {}
+        text_content_blocks: dict[int, str] = {}
+        tool_content_blocks: dict[int, dict[str, Any]] = {}
 
-        current_message: Optional[Dict[str, Any]] = None
+        current_message: Optional[dict[str, Any]] = None
 
         chunk = yield
 
@@ -341,7 +360,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return messages, metadata, usage_metrics
 
     @staticmethod
-    def _extract_input_message(prompt) -> List[Message]:
+    def _extract_input_message(prompt) -> list[Message]:
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
         """
@@ -350,7 +369,7 @@ class BedrockIntegration(BaseLLMIntegration):
         if not isinstance(prompt, list):
             log.warning("Bedrock input is not a list of messages or a string.")
             return [Message(content="")]
-        input_messages: List[Message] = []
+        input_messages: list[Message] = []
         for p in prompt:
             content = p.get("content", "")
             if isinstance(content, list) and isinstance(content[0], dict):
@@ -365,7 +384,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return input_messages
 
     @staticmethod
-    def _extract_output_message(response) -> List[Message]:
+    def _extract_output_message(response) -> list[Message]:
         """Extract output messages from the stored response.
         Anthropic allows for chat messages, which requires some special casing.
         """
@@ -379,7 +398,7 @@ class BedrockIntegration(BaseLLMIntegration):
                 return [Message(content=resp_text[0].get("text", ""))]
         return []
 
-    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance")
         endpoint = getattr(instance, "_endpoint", None)
         endpoint_host = getattr(endpoint, "host", None) if endpoint else None
@@ -390,7 +409,7 @@ class BedrockIntegration(BaseLLMIntegration):
         if self._is_instrumented_proxy_url(base_url):
             ctx.set_item(PROXY_REQUEST, True)
 
-    def _extract_tool_definitions(self, tool_config: Dict[str, Any]) -> List[ToolDefinition]:
+    def _extract_tool_definitions(self, tool_config: dict[str, Any]) -> list[ToolDefinition]:
         """Extract tool definitions from the stored tool config."""
         tools = _get_attr(tool_config, "tools", [])
         tool_definitions = []

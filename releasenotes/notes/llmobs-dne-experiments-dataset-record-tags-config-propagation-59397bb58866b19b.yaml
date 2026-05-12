@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    LLM Observability: Experiments spans now contain config from the experiment initialization, allowing for searching
+    of relevant spans using the experiment config.
+  - |
+    LLM Observability: Experiments spans now contain the tags from the dataset records, allowing for searching of
+    relevant spans using the dataset record tags.

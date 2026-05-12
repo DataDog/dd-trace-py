@@ -1,5 +1,4 @@
 from typing import Any
-from typing import Dict
 from typing import Optional
 
 import ddtrace
@@ -30,20 +29,19 @@ class Pin(object):
         >>> conn = sqlite.connect('/tmp/image.db')
     """
 
-    __slots__ = ["tags", "_tracer", "_target", "_config", "_initialized"]
+    __slots__ = ["tags", "_target", "_config", "_initialized"]
 
     def __init__(
         self,
         service: Optional[str] = None,
-        tags: Optional[Dict[str, str]] = None,
-        _config: Optional[Dict[str, Any]] = None,
+        tags: Optional[dict[str, str]] = None,
+        _config: Optional[dict[str, Any]] = None,
     ) -> None:
         self.tags = tags or {}
-        self._tracer = ddtrace.tracer
         self._target: Optional[int] = None
         # keep the configuration attribute internal because the
         # public API to access it is not the Pin class
-        self._config: Dict[str, Any] = _config or {}
+        self._config: dict[str, Any] = _config or {}
         # [Backward compatibility]: service argument updates the `Pin` config
         self._config["service_name"] = service
         self._initialized = True
@@ -56,16 +54,12 @@ class Pin(object):
         return self._config["service_name"]
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if getattr(self, "_initialized", False) and name not in ("_target", "_tracer"):
+        if getattr(self, "_initialized", False) and name != "_target":
             raise AttributeError("can't mutate a pin, use override() or clone() instead")
         super(Pin, self).__setattr__(name, value)
 
-    @property
-    def tracer(self) -> Any:
-        return self._tracer
-
     def __repr__(self) -> str:
-        return "Pin(service=%s, tags=%s, tracer=%s)" % (self.service, self.tags, self.tracer)
+        return "Pin(service=%s, tags=%s)" % (self.service, self.tags)
 
     @staticmethod
     def _find(*objs: Any) -> Optional["Pin"]:
@@ -116,7 +110,7 @@ class Pin(object):
         cls,
         obj: Any,
         service: Optional[str] = None,
-        tags: Optional[Dict[str, str]] = None,
+        tags: Optional[dict[str, str]] = None,
     ) -> None:
         """Override an object with the given attributes.
 
@@ -127,19 +121,6 @@ class Pin(object):
             >>> # Override a pin for a specific connection
             >>> Pin.override(conn, service='user-db')
         """
-        Pin._override(obj, service=service, tags=tags)
-
-    @classmethod
-    def _override(
-        cls,
-        obj: Any,
-        service: Optional[str] = None,
-        tags: Optional[Dict[str, str]] = None,
-        tracer: Optional[Any] = None,
-    ) -> None:
-        """
-        Internal method that allows overriding the global tracer in tests
-        """
         if not obj:
             return
 
@@ -148,14 +129,10 @@ class Pin(object):
             pin = Pin(service=service, tags=tags)
         else:
             pin = pin.clone(service=service, tags=tags)
-
-        if tracer:
-            pin._tracer = tracer
         pin.onto(obj)
 
     def enabled(self) -> bool:
-        """Return true if this pin's tracer is enabled."""
-        return bool(self.tracer) and (self.tracer.enabled or asm_config._apm_opt_out)
+        return ddtrace.tracer.enabled or asm_config._apm_opt_out
 
     def onto(self, obj: Any, send: bool = True) -> None:
         """Patch this pin onto the given object. If send is true, it will also
@@ -190,19 +167,9 @@ class Pin(object):
     def clone(
         self,
         service: Optional[str] = None,
-        tags: Optional[Dict[str, str]] = None,
+        tags: Optional[dict[str, str]] = None,
     ) -> "Pin":
         """Return a clone of the pin with the given attributes replaced."""
-        return self._clone(service=service, tags=tags)
-
-    def _clone(
-        self,
-        service: Optional[str] = None,
-        tags: Optional[Dict[str, str]] = None,
-        tracer: Optional[Any] = None,
-    ) -> "Pin":
-        """Internal method that can clone the tracer from an existing Pin. This is used in tests"""
-        # do a shallow copy of Pin dicts
         if not tags and self.tags:
             tags = self.tags.copy()
 
@@ -219,5 +186,4 @@ class Pin(object):
             tags=tags,
             _config=config,
         )
-        pin._tracer = tracer or self.tracer
         return pin

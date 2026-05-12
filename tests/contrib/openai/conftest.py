@@ -1,18 +1,14 @@
 import os
-import sys
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import mock
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.openai.patch import patch
 from ddtrace.contrib.internal.openai.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.trace import TraceFilter
-from tests.utils import override_config
 from tests.utils import override_global_config
 
 
@@ -60,12 +56,9 @@ def openai(openai_api_key, openai_organization, api_key_in_env):
     # When testing locally to generate new cassette files, comment the line below to use the real OpenAI API key.
     os.environ["OPENAI_API_KEY"] = "<not-a-real-key>"
     openai.organization = openai_organization
+    patch()
     yield openai
-    # Since unpatching doesn't work (see the unpatch() function),
-    # wipe out all the OpenAI modules so that state is reset for each test case.
-    mods = list(k for k in sys.modules.keys() if k.startswith("openai"))
-    for m in mods:
-        del sys.modules[m]
+    unpatch()
 
 
 @pytest.fixture
@@ -82,75 +75,40 @@ def azure_openai_config(openai):
 class FilterOrg(TraceFilter):
     """Replace the organization tag on spans with fake data."""
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: list["Span"]) -> Optional[list["Span"]]:
         for span in trace:
             if span.get_tag("organization"):
-                span._set_tag_str("organization", "not-a-real-org")
+                span._set_attribute("organization", "not-a-real-org")
         return trace
 
 
-@pytest.fixture()
-def mock_llmobs_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    try:
-        LLMObsSpanWriterMock = patcher.start()
-        m = mock.MagicMock()
-        LLMObsSpanWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
+@pytest.fixture
+def snapshot_tracer(tracer, openai):
+    tracer.configure(trace_processors=[FilterOrg()])
+    return tracer
 
 
 @pytest.fixture
-def ddtrace_config_openai():
-    config = {}
-    return config
-
-
-@pytest.fixture
-def ddtrace_global_config():
-    config = {}
-    return config
-
-
-def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>"}
-
-
-@pytest.fixture
-def patch_openai(ddtrace_global_config, ddtrace_config_openai, openai_api_key, openai_organization, api_key_in_env):
-    global_config = default_global_config()
-    global_config.update(ddtrace_global_config)
-    with override_global_config(global_config):
-        with override_config("openai", ddtrace_config_openai):
-            if api_key_in_env:
-                openai.api_key = openai_api_key
-            openai.organization = openai_organization
-            patch()
-            yield
-            unpatch()
-
-
-@pytest.fixture
-def snapshot_tracer(openai, patch_openai):
-    pin = Pin.get_from(openai)
-    pin.tracer.configure(trace_processors=[FilterOrg()])
-
-    yield pin.tracer
-
-
-@pytest.fixture
-def mock_tracer(ddtrace_global_config, openai, patch_openai, tracer):
-    pin = Pin.get_from(openai)
-    pin._override(openai, tracer=tracer)
-    pin.tracer.configure(trace_processors=[FilterOrg()])
-
-    if ddtrace_global_config.get("_llmobs_enabled", False):
-        # Have to disable and re-enable LLMObs to use to mock tracer.
-        LLMObs.disable()
-        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
-
-    yield tracer
-
+def openai_llmobs(snapshot_tracer, monkeypatch):
+    # Preserve meta_struct["_llmobs"] on spans so tests can assert against
+    # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it after
+    # enqueueing to LLMObsSpanWriter.
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+    LLMObs.disable()
+    with override_global_config(
+        {
+            "_llmobs_ml_app": "<ml-app-name>",
+            "_dd_api_key": "<not-a-real-key>",
+        }
+    ):
+        LLMObs.enable(
+            _tracer=snapshot_tracer,
+            integrations_enabled=False,
+            instrumented_proxy_urls={"http://localhost:4000"},
+        )
+        # Replace the real LLMObsSpanWriter with a mock so we don't keep a
+        # background flush thread alive trying to ship spans during the test.
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        yield LLMObs
     LLMObs.disable()

@@ -1,16 +1,11 @@
 import json
 import time
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Sequence
-from typing import Set
-from typing import Tuple
 
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_config
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_get_version
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object_free
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_run
@@ -20,11 +15,11 @@ from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_context_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_known_addresses
 from ddtrace.appsec._ddwaf.ddwaf_types import py_remove_config
-from ddtrace.appsec._ddwaf.waf_stubs import WAF
-from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_info
-from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
+from ddtrace.appsec._metrics import report_error
+from ddtrace.appsec._utils import DDWaf_info
+from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType
@@ -42,7 +37,7 @@ DDWAF_MATCH = 1
 ASM_DD_DEFAULT = "ASM_DD/default"
 
 
-class DDWaf(WAF):
+class DDWaf:
     empty_observator = _observator()
 
     def __init__(
@@ -50,11 +45,7 @@ class DDWaf(WAF):
         ruleset_json_str: bytes,
         obfuscation_parameter_key_regexp: bytes,
         obfuscation_parameter_value_regexp: bytes,
-        metrics,
-    ):
-        # avoid circular import
-
-        self.report_error = metrics._set_waf_error_log
+    ) -> None:
         config = ddwaf_config(
             key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
         )
@@ -79,14 +70,13 @@ class DDWaf(WAF):
                 info.errors,
             )
         self._default_ruleset = ruleset_map_object
-        metrics.ddwaf_version = version()
-        self._rc_products: Dict[str, Set[str]] = {}
+        self._rc_products: dict[str, set[str]] = {}
         self._rc_products_str: str = ""
         self._rc_updates: int = 0
         self._lifespan: int = 0
 
     @property
-    def required_data(self) -> List[str]:
+    def required_data(self) -> list[str]:
         return py_ddwaf_known_addresses(self._handle) if self._handle else []
 
     def _set_info(self, diagnostics: ddwaf_object, action: str) -> None:
@@ -98,9 +88,9 @@ class DDWaf(WAF):
         for key, value in info_struct.items():
             if isinstance(value, dict):
                 if error := value.get("error", False):
-                    self.report_error(f"appsec.waf.error::{action}::{key}::{error}", self._cached_version, action)
+                    report_error(f"appsec.waf.error::{action}::{key}::{error}", self._cached_version, action)
                 elif errors := value.get("errors", False):
-                    self.report_error(
+                    report_error(
                         f"appsec.waf.error::{action}::{key}::{str(errors)}",
                         self._cached_version,
                         action,
@@ -119,7 +109,7 @@ class DDWaf(WAF):
         return self._info
 
     def update_rules(
-        self, removals: Sequence[Tuple[str, str]], updates: Sequence[Tuple[str, str, PayloadType]]
+        self, removals: Sequence[tuple[str, str]], updates: Sequence[tuple[str, str, PayloadType]]
     ) -> bool:
         """update the rules of the WAF instance. return False if an error occurs."""
         ok = True
@@ -168,9 +158,6 @@ class DDWaf(WAF):
             LOGGER.debug("DDWaf._at_request_start: failure to create the context.")
         return ctx
 
-    def _at_request_end(self) -> None:
-        pass
-
     def run(
         self,
         ctx: ddwaf_context_capsule,
@@ -187,7 +174,8 @@ class DDWaf(WAF):
         observator = _observator()
         wrapper = ddwaf_object(data, observator=observator)
         wrapper_ephemeral = ddwaf_object(ephemeral_data, observator=observator) if ephemeral_data else None
-        error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, result_obj, int(timeout_ms * 1000))
+        with ctx._lock:
+            error = ddwaf_run(ctx.ctx, wrapper, wrapper_ephemeral, result_obj, int(timeout_ms * 1000))
         if error < 0:
             LOGGER.debug("run DDWAF error: %d\ninput %s\nerror %s", error, wrapper.struct, self.info.errors)
         result = result_obj.struct
@@ -213,10 +201,6 @@ class DDWaf(WAF):
     def initialized(self) -> bool:
         return bool(self._handle)
 
-    def __del__(self):
+    def __del__(self) -> None:
         if hasattr(self, "_default_ruleset"):
             ddwaf_object_free(self._default_ruleset)
-
-
-def version() -> str:
-    return ddwaf_get_version().decode("UTF-8")

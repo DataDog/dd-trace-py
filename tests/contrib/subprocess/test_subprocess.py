@@ -5,7 +5,6 @@ import sys
 
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.contrib.internal.subprocess.patch import SubprocessCmdLine
 from ddtrace.contrib.internal.subprocess.patch import patch
@@ -241,7 +240,6 @@ def test_truncation(cmdline_obj, expected_str, expected_list, truncated):
 def test_ossystem(tracer, test_spans, config):
     with override_global_config(config):
         patch()
-        Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             ret = os.system("dir -l /")
             assert ret == 0
@@ -262,11 +260,6 @@ def test_ossystem(tracer, test_spans, config):
 def test_ossystem_disabled(tracer, test_spans, config):
     with override_global_config(config):
         patch()
-        pin = Pin.get_from(os)
-        # Pin may be None if _load_modules is False (patch returns early)
-        # Pin will be set if _load_modules is True but instrumentation is disabled
-        if pin is not None:
-            pin._clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             ret = os.system("dir -l /")
             assert ret == 0
@@ -282,7 +275,6 @@ def test_ossystem_disabled(tracer, test_spans, config):
 def test_fork(tracer, test_spans):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("ossystem_test"):
             pid = os.fork()
             if pid == 0:
@@ -309,7 +301,6 @@ def test_fork(tracer, test_spans):
 def test_unpatch(tracer, test_spans):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("os.system"):
             ret = os.system("dir -l /")
             assert ret == 0
@@ -322,10 +313,6 @@ def test_unpatch(tracer, test_spans):
 
     unpatch()
     with override_global_config(dict(_ep_enabled=False)):
-        # After unpatch, Pin is removed, so we need to create a new one
-        # to verify that even with a Pin set, no subprocess spans are created
-        Pin().onto(os)
-        Pin.get_from(os)._clone(tracer=tracer).onto(os)
         with tracer.trace("os.system_unpatch"):
             ret = os.system("dir -l /")
             assert ret == 0
@@ -348,14 +335,14 @@ def test_ossystem_noappsec(tracer, test_spans):
         patch()
         assert not hasattr(os.system, "__wrapped__")
         assert not hasattr(os._spawnvef, "__wrapped__")
-        assert not hasattr(subprocess.Popen.__init__, "__wrapped__")
+        # Popen.__init__ is always wrapped for session lineage injection, even without ASM
+        assert hasattr(subprocess.Popen.__init__, "__wrapped__")
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
 def test_ospopen(tracer, test_spans, config):
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("os.popen"):
             pipe = os.popen("dir -li /")
             content = pipe.read()
@@ -402,7 +389,6 @@ _PARAMS_ENV = _PARAMS + [{"fooenv": "bar"}]  # type: ignore
 def test_osspawn_variants(tracer, test_spans, function, mode, arguments):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(os)._clone(tracer=tracer).onto(os)
 
         if "_" in function.__name__:
             # wrapt changes function names when debugging
@@ -442,7 +428,6 @@ def test_osspawn_variants(tracer, test_spans, function, mode, arguments):
 def test_subprocess_init_shell_true(tracer, test_spans, config):
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(["dir", "-li", "/"], shell=True)
             subp.wait()
@@ -463,7 +448,6 @@ def test_subprocess_init_shell_true(tracer, test_spans, config):
 def test_subprocess_init_shell_false(tracer, test_spans, config):
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(["dir", "-li", "/"], shell=False)
             subp.wait()
@@ -481,7 +465,6 @@ def test_subprocess_wait_shell_false(tracer, config):
     args = ["dir", "-li", "/"]
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(args=args, shell=False)
             subp.wait()
@@ -495,7 +478,6 @@ def test_subprocess_wait_shell_false(tracer, config):
 def test_subprocess_wait_shell_true(tracer, config):
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.init", span_type=SpanTypes.SYSTEM):
             subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
             subp.wait()
@@ -507,7 +489,6 @@ def test_subprocess_wait_shell_true(tracer, config):
 def test_subprocess_run(tracer, test_spans, config):
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.wait"):
             result = subprocess.run(["dir", "-l", "/"], shell=True)
             assert result.returncode == 0
@@ -698,7 +679,6 @@ def test_cache_maxsize():
 def test_subprocess_communicate(tracer, test_spans):
     with override_global_config(dict(_asm_enabled=True)):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
         with tracer.trace("subprocess.Popen.wait"):
             subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
             subp.communicate()
@@ -739,7 +719,6 @@ def test_nested_subprocess_calls(tracer, test_spans, config):
     """Test subprocess that spawns another subprocess - verify span ordering"""
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
 
         with tracer.trace("parent_operation"):
             # Parent subprocess that calls another subprocess
@@ -769,7 +748,6 @@ def test_complex_shell_command_with_pipes(tracer, test_spans, config):
     """Test complex shell commands with pipes and redirections"""
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
 
         with tracer.trace("complex_shell"):
             # Complex shell command with pipes
@@ -797,8 +775,6 @@ def test_mixed_subprocess_functions_sequence(tracer, test_spans, config):
     """Test sequence of different subprocess functions and verify span order"""
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
-        Pin.get_from(os)._clone(tracer=tracer).onto(os)
 
         with tracer.trace("mixed_subprocess_operations"):
             # Use different subprocess functions in sequence
@@ -832,7 +808,6 @@ def test_concurrent_subprocess_calls(tracer, test_spans, config):
 
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
 
         results = []
 
@@ -905,12 +880,51 @@ def test_subprocess_error_propagation_nested(tracer, config):
             subprocess.run(["python", "-c", "import subprocess; subprocess.run(['sleep', '10'])"], timeout=0.1)
 
 
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    parametrize={"DD_TRACE_SUBPROCESS_ENABLED": [None, "true", "false"]},
+)
+def test_subprocess_session_lineage_env_vars():
+    """Session lineage env vars are propagated to child processes when enabled."""
+    import os
+    import subprocess
+    import sys
+
+    from ddtrace.internal.runtime import get_runtime_id
+
+    result = subprocess.run(
+        [
+            "ddtrace-run",
+            sys.executable,
+            "-c",
+            "import os;"
+            "from ddtrace.internal.runtime import get_parent_runtime_id;"
+            "from ddtrace.internal.runtime import get_ancestor_runtime_id;"
+            "print(get_parent_runtime_id());"
+            "print(get_ancestor_runtime_id())",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    subp_parent_id, subp_root_id = result.stdout.strip().splitlines()
+
+    runtime_id = get_runtime_id()
+    propagation_enabled = os.environ.get("DD_TRACE_SUBPROCESS_ENABLED") in ("true", None)
+
+    if propagation_enabled:
+        assert subp_root_id == runtime_id
+        assert subp_parent_id == runtime_id
+    else:
+        assert subp_parent_id == "None"
+        assert subp_root_id == "None"
+
+
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
 def test_subprocess_resource_cleanup_on_error(tracer, test_spans, config):
     """Test that resources are properly cleaned up when subprocess fails"""
     with override_global_config(config):
         patch()
-        Pin.get_from(subprocess)._clone(tracer=tracer).onto(subprocess)
 
         with tracer.trace("cleanup_test"):
             # Test that file descriptors are properly managed even on errors
@@ -933,3 +947,33 @@ def test_subprocess_resource_cleanup_on_error(tracer, test_spans, config):
         # Verify exit code is recorded even for failed processes
         span = subprocess_spans[-1]  # Last subprocess span
         assert span.get_tag(COMMANDS.EXIT_CODE) == "1"
+
+
+@pytest.mark.subprocess(ddtrace_run=True)
+def test_popen_positional_env_no_typeerror():
+    """Positional ``env`` must not conflict with the wrapper's merged env (no duplicate ``env`` binding)."""
+    import os
+    import subprocess
+    import sys
+
+    env = os.environ.copy()
+    # ``env`` at positional index 10; stdout/stderr only positionally so we do not duplicate kwargs.
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "import sys; sys.exit(0)"],
+        -1,
+        None,
+        None,
+        subprocess.DEVNULL,
+        subprocess.DEVNULL,
+        None,
+        False,
+        False,
+        None,
+        env,
+    )
+    try:
+        assert proc.wait() == 0
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            proc.wait()

@@ -2,7 +2,6 @@ from unittest import mock
 
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.appsec._iast import load_iast
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.contrib.dbapi import TracedCursor
@@ -56,9 +55,7 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            pin = Pin("dbapi_service")
-            pin._tracer = self.tracer
-            traced_cursor = TracedCursor(cursor, pin, cfg)
+            traced_cursor = TracedCursor(cursor, cfg=cfg)
             traced_cursor.execute(query)
             cursor.execute.assert_called_once_with(query)
 
@@ -81,9 +78,7 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            pin = Pin("dbapi_service")
-            pin._tracer = self.tracer
-            traced_cursor = TracedCursor(cursor, pin, cfg)
+            traced_cursor = TracedCursor(cursor, cfg=cfg)
             traced_cursor.execute(query, (query_arg,))
             cursor.execute.assert_called_once_with(query, (query_arg,))
 
@@ -98,9 +93,7 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            pin = Pin("dbapi_service")
-            pin._tracer = self.tracer
-            traced_cursor = TracedCursor(cursor, pin, cfg)
+            traced_cursor = TracedCursor(cursor, cfg=cfg)
             traced_cursor.execute(query)
             cursor.execute.assert_called_once_with(query)
 
@@ -116,9 +109,7 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            pin = Pin("dbapi_service")
-            pin._tracer = self.tracer
-            traced_cursor = TracedCursor(cursor, pin, cfg)
+            traced_cursor = TracedCursor(cursor, cfg=cfg)
             traced_cursor.execute(query, (query_arg,))
             cursor.execute.assert_called_once_with(query, (query_arg,))
 
@@ -138,9 +129,7 @@ class TestTracedCursor(TracerTestCase):
 
             cursor = self.cursor
             cfg = IntegrationConfig(Config(), "sqlite", service="dbapi_service")
-            pin = Pin("dbapi_service")
-            pin._tracer = self.tracer
-            traced_cursor = TracedCursor(cursor, pin, cfg)
+            traced_cursor = TracedCursor(cursor, cfg=cfg)
             traced_cursor.execute(query)
             cursor.execute.assert_called_once_with(query)
 

@@ -1,8 +1,11 @@
 import asyncio
 from contextlib import asynccontextmanager
+import copy
 import inspect
 import sys
 from types import CoroutineType
+from types import FunctionType
+from typing import cast
 
 import pytest
 
@@ -10,6 +13,7 @@ from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+from ddtrace.internal.wrapping.context import BaseWrappingContext
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.context import _UniversalWrappingContext
@@ -630,6 +634,41 @@ def test_wrapping_context_unwrapping():
     assert wc.exc_info is None
 
 
+def test_wrapping_context_deepcopy():
+    """Deepcopy of a route holding a wrapping context (e.g. Cadwyn/Airflow 3) must not raise.
+    This is a regression for: https://github.com/DataDog/dd-trace-py/issues/16443.
+    """
+
+    def endpoint():
+        return 1
+
+    wc = DummyLazyWrappingContext(endpoint)
+    wc.wrap()
+
+    class Route:
+        """Minimal route-like container (e.g. Starlette APIRoute)."""
+
+        def __init__(self, endpoint, ctx):
+            self.endpoint = endpoint
+            self.ctx = ctx
+
+    route = Route(endpoint, wc)
+    route_copy = copy.deepcopy(route)
+
+    assert route_copy.ctx is not wc
+    assert hasattr(route_copy.ctx, "_storage")
+    assert hasattr(route_copy.ctx, "_trampoline_lock")
+    # Use base __enter__/__exit__ so we don't trigger __frame__ (which expects
+    # to run inside a wrapped call). This verifies the copied context's
+    # _storage is a new, working ContextVar.
+    BaseWrappingContext.__enter__(route_copy.ctx)
+    try:
+        route_copy.ctx.set("k", 99)
+        assert route_copy.ctx.get("k") == 99
+    finally:
+        BaseWrappingContext.__exit__(route_copy.ctx, None, None, None)
+
+
 def test_wrapping_context_exc():
     def foo():
         raise ValueError("foo")
@@ -758,6 +797,38 @@ def test_wrapping_context_recursive():
     assert values == [5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5]
 
 
+@pytest.mark.asyncio
+async def test_wrapping_context_async_storage_isolation():
+    """Storage set in one coroutine must not bleed into a concurrent sibling."""
+    barrier = asyncio.Event()
+
+    class StorageIsolationContext(WrappingContext):
+        pass
+
+    async def coro(value, *, first: bool):
+        ctx = StorageIsolationContext.extract(cast(FunctionType, coro))
+        ctx.set("value", value)
+        if first:
+            # Yield control so the second task runs and sets its own value.
+            await barrier.wait()
+        return ctx.get("value")
+
+    wc = StorageIsolationContext(coro)
+    wc.wrap()
+
+    task1 = asyncio.create_task(coro(1, first=True))
+    # Let task1 reach the barrier before starting task2.
+    await asyncio.sleep(0)
+    task2 = asyncio.create_task(coro(2, first=False))
+    await task2
+    barrier.set()
+    result1 = await task1
+
+    # task1 set "value" to 1; even though task2 ran in between and set its own
+    # "value" to 2, task1 should still read back 1.
+    assert result1 == 1
+
+
 def test_wrapping_context_generator():
     def foo():
         yield from range(10)
@@ -873,6 +944,7 @@ def test_wrapping_context_method_leaks():
     import gc
 
     from ddtrace.internal.wrapping.context import WrappingContext
+    from ddtrace.internal.wrapping.context import _UniversalWrappingContext
 
     NOTSET = object()
 
@@ -909,15 +981,46 @@ def test_wrapping_context_method_leaks():
     wc = DummyWrappingContext(foo)
     wc.wrap()
 
-    method_count = len([_ for _ in gc.get_objects() if type(_).__name__ == "method"])
+    # Disable auto-GC to prevent non-deterministic collection between measurements,
+    # and narrow to bound methods of _UniversalWrappingContext (the __enter__,
+    # __return__, and _exit bound methods injected into the wrapped bytecode) to
+    # avoid counting unrelated method objects from background threads or imports.
+    def is_wrapping_method(obj):
+        return type(obj).__name__ == "method" and isinstance(getattr(obj, "__self__", None), _UniversalWrappingContext)
+
+    gc.disable()
+    gc.collect()
+    # Store only IDs before the run — no object references held, so nothing is kept alive artificially.
+    before_ids = {id(obj) for obj in gc.get_objects() if is_wrapping_method(obj)}
 
     for _ in range(10000):
         foo()
 
     gc.collect()
 
-    new_method_count = len([_ for _ in gc.get_objects() if type(_).__name__ == "method"])
-    assert new_method_count <= method_count + 1
+    # After measurement is complete it is safe to hold references for inspection.
+    after_objects = [obj for obj in gc.get_objects() if is_wrapping_method(obj)]
+    gc.enable()
+
+    new_objects = [obj for obj in after_objects if id(obj) not in before_ids]
+    assert len(after_objects) <= len(before_ids) + 1, (
+        f"Expected at most {len(before_ids) + 1} wrapping methods, got {len(after_objects)}.\n"
+        + "\n".join(
+            f"  NEW {obj!r} __func__={getattr(obj, '__func__', None)!r} referrers={gc.get_referrers(obj)!r}"
+            for obj in new_objects
+        )
+    )
+
+
+class DummyLazyWrappingContext(LazyWrappingContext):
+    def __init__(self, f):
+        super().__init__(f)
+
+        self.count = 0
+
+    def __enter__(self):
+        self.count += 1
+        return super().__enter__()
 
 
 def test_wrapping_context_lazy():
@@ -926,24 +1029,16 @@ def test_wrapping_context_lazy():
     def foo():
         return free
 
-    class DummyLazyWrappingContext(LazyWrappingContext):
-        def __init__(self, f):
-            super().__init__(f)
-
-            self.count = 0
-
-        def __enter__(self):
-            self.count += 1
-            return super().__enter__()
-
     (wc := DummyLazyWrappingContext(foo)).wrap()
 
-    assert not DummyLazyWrappingContext.is_wrapped(foo)
+    assert DummyLazyWrappingContext.is_wrapped(foo)
+    assert not _UniversalWrappingContext.is_wrapped(foo)
 
     for _ in range(n := 10):
         assert foo() == free
 
-        assert DummyLazyWrappingContext.is_wrapped(foo)
+        assert not DummyLazyWrappingContext.is_wrapped(foo)
+        assert _UniversalWrappingContext.is_wrapped(foo)
 
     assert wc.count == n
 
@@ -953,7 +1048,219 @@ def test_wrapping_context_lazy():
 
     for _ in range(10):
         assert not DummyLazyWrappingContext.is_wrapped(foo)
+        assert not _UniversalWrappingContext.is_wrapped(foo)
 
         assert foo() == free
 
     assert wc.count == 0
+
+
+def test_wrapping_context_lazy_multiple_wrappers():
+    free = 42
+
+    def foo():
+        return free
+
+    class Context1(LazyWrappingContext):
+        def __init__(self, f):
+            super().__init__(f)
+
+            self.count = 0
+
+        def __enter__(self):
+            self.count += 1
+            return super().__enter__()
+
+    class Context2(LazyWrappingContext):
+        def __init__(self, f):
+            super().__init__(f)
+
+            self.count = 0
+
+        def __enter__(self):
+            self.count += 1
+            return super().__enter__()
+
+    (c1 := Context1(foo)).wrap()
+    (c2 := Context2(foo)).wrap()
+
+    for _ in range(n := 10):
+        assert foo() == free
+
+    assert c1.count == c2.count == n
+
+    c1.count = c2.count = 0
+
+    c1.unwrap()
+    c2.unwrap()
+
+    for _ in range(10):
+        assert foo() == free
+
+    assert c1.count == c2.count == 0
+
+
+def test_wrapping_context_lazy_unwrap_before_call():
+    free = 42
+
+    def foo():
+        return free
+
+    (wc := DummyLazyWrappingContext(foo)).wrap()
+
+    assert DummyLazyWrappingContext.is_wrapped(foo)
+    assert not _UniversalWrappingContext.is_wrapped(foo)
+
+    wc.unwrap()
+
+    assert not DummyLazyWrappingContext.is_wrapped(foo)
+    assert not _UniversalWrappingContext.is_wrapped(foo)
+
+    for _ in range(10):
+        assert foo() == free
+
+        assert not DummyLazyWrappingContext.is_wrapped(foo)
+        assert not _UniversalWrappingContext.is_wrapped(foo)
+
+    assert wc.count == 0
+
+
+@pytest.mark.asyncio
+async def test_async_wrapper_frames_have_valid_linenos():
+    """Regression test: async wrapping must not inject instructions with lineno=None.
+
+    When wrap() is applied to an async function, the injected COROUTINE_ASSEMBLY
+    instructions (GET_AWAITABLE, SEND, YIELD_VALUE, RESUME, ...) were previously
+    emitted without line-number information, leaving f_lineno=None on the
+    suspended trampoline frame.  inspect.stack() / inspect.getframeinfo() does
+    ``lineno - 1 - context//2`` and raises TypeError when lineno is None.  Any
+    code that inspects the call stack from inside or above a wrapped coroutine
+    (e.g. IAST's report_stack) would therefore crash silently.
+    """
+    stack_from_inside = []
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    async def coro(x):
+        # Capture the full call stack from inside the coroutine body.
+        stack_from_inside.extend(inspect.stack())
+        return x + 1
+
+    wrap(coro, wrapper)
+
+    result = await coro(41)
+    assert result == 42
+
+    # Every frame captured while the wrapped coroutine was running must have a
+    # valid (non-None) line number so that inspect.getframeinfo() cannot crash.
+    for frame_info in stack_from_inside:
+        lineno = frame_info.lineno
+        assert lineno is not None, (
+            f"Frame {frame_info.filename}:{frame_info.function} has lineno=None — "
+            "async wrapping injected instructions without line-number information"
+        )
+
+
+@pytest.mark.asyncio
+async def test_lazy_async_wrapper_frames_have_valid_linenos():
+    """Same lineno regression check for LazyWrappingContext on async functions.
+
+    LazyWrappingContext applies a trampoline on first call, then promotes to
+    full UniversalWrappingContext bytecode wrapping.  Both phases must produce
+    frames with valid linenos.
+    """
+    for call_index in range(2):
+        stack_from_inside = []
+
+        async def coro(x):
+            stack_from_inside.extend(inspect.stack())
+            return x + 1
+
+        DummyLazyWrappingContext(coro).wrap()
+
+        result = await coro(41)
+        assert result == 42
+
+        for frame_info in stack_from_inside:
+            lineno = frame_info.lineno
+            assert lineno is not None, (
+                f"[call {call_index}] Frame {frame_info.filename}:{frame_info.function} "
+                f"has lineno=None — async wrapping injected instructions without "
+                f"line-number information"
+            )
+
+
+@pytest.mark.asyncio
+async def test_async_wrapper_throw_forwarding():
+    """Regression test: throw() on a wrapped coroutine must be forwarded to the inner.
+
+    Python 3.12+ uses CLEANUP_THROW bytecode in compiled ``return await sub_coro``
+    to forward exceptions thrown into the outer coroutine to the inner one.  For
+    Python's own ``_PyGen_yf`` mechanism to work correctly, the wrapping bytecode
+    (COROUTINE_ASSEMBLY) must keep the inner coroutine as the top-of-stack iterator
+    so that a ``throw()`` call on the wrapper is forwarded to the wrapped coroutine
+    rather than absorbed by the wrapper frame.
+    """
+    received_cancel = []
+
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    async def inner():
+        try:
+            # Suspension point so throw() can be tested
+            await asyncio.sleep(0)
+        except asyncio.CancelledError:
+            received_cancel.append(True)
+            raise
+
+    wrap(inner, wrapper)
+
+    # Advance wrapped coroutine to its first suspension point, then throw
+    c = inner()
+    try:
+        c.send(None)
+    except StopIteration:
+        pass  # completed without suspending (shouldn't happen here)
+
+    try:
+        c.throw(asyncio.CancelledError())
+    except (asyncio.CancelledError, StopIteration):
+        pass
+
+    assert received_cancel, (
+        "CancelledError was not forwarded to the inner coroutine by the wrapper; throw() interception is broken"
+    )
+
+
+@pytest.mark.asyncio
+async def test_lazy_async_wrapper_throw_forwarding():
+    """Same throw-forwarding regression check for LazyWrappingContext."""
+    for call_index in range(2):
+        received_cancel = []
+
+        async def inner():
+            try:
+                await asyncio.sleep(0)
+            except asyncio.CancelledError:
+                received_cancel.append(True)
+                raise
+
+        DummyLazyWrappingContext(inner).wrap()
+
+        c = inner()
+        try:
+            c.send(None)
+        except StopIteration:
+            pass
+
+        try:
+            c.throw(asyncio.CancelledError())
+        except (asyncio.CancelledError, StopIteration):
+            pass
+
+        assert received_cancel, (
+            f"[call {call_index}] CancelledError was not forwarded to the inner "
+            "coroutine by the lazy wrapper; throw() interception is broken"
+        )

@@ -19,7 +19,7 @@ class CodeProvenance
     CodeProvenance(CodeProvenance const&) = delete;
     CodeProvenance& operator=(CodeProvenance const&) = delete;
 
-    void set_json_str(std::string_view json_str);
+    void set_file_path(std::string_view file_path);
     std::string_view get_json_str();
 
   private:

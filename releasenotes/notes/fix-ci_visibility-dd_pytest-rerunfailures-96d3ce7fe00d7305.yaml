@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where pytest plugins ``pytest-rerunfailures`` and ``flaky`` were
+    silently overridden by the ddtrace plugin. With this change, external rerun plugins will now
+    drive retries as expected when Auto Test Retries and Early Flake Detection features are both
+    disabled, otherwise our retry mechanism takes precedence and a warning is emitted.

@@ -1,11 +1,10 @@
-
 AArch
 adk
 agentless
 aiobotocore
 aiohttp
-aiomysql
 aiokafka
+aiomysql
 aiopg
 aioredis
 algolia
@@ -20,6 +19,8 @@ appsec
 AppSec
 aredis
 args
+ARN
+ASAN
 ascii
 asgi
 asm
@@ -38,13 +39,13 @@ avro
 Avro
 aws
 AWS
-ARN
 backend
 backends
 backoff
 backport
 backported
 backporting
+Bazel
 bdd
 bikeshedding
 Blowfish
@@ -56,8 +57,11 @@ cattrs
 cetera
 CGroup
 cgroups
+cmake
 cherrypy
 ciapp
+claude
+claude-agent-sdk
 client_ip
 CMake
 codepath
@@ -68,13 +72,13 @@ composable
 config
 contextvar
 contextvars
+contrib
 coroutine
 coroutines
 CPU
 CPython
 CUPTI
 Cython
-contrib
 datadog
 datadoghq
 dataset
@@ -83,10 +87,14 @@ datastores
 dbapi
 ddtrace
 deallocating
+debuggability
+deps
 decompiling
 deprecations
+dereferences
 DES
 deserializing
+dev
 django
 docstring
 docstrings
@@ -115,11 +123,15 @@ eventbridge
 exec
 Fargate
 fastapi
+frozenset
 Firehose
 flamegraph
 fnmatch
 formatter
 freezegun
+fuzzer
+fuzzers
+fuzzing
 gdb
 genai
 generativeai
@@ -135,6 +147,8 @@ grpc
 gRPC
 gunicorn
 Gunicorn
+harness
+harnesses
 hostname
 hostnames
 hotspot
@@ -168,11 +182,14 @@ kwarg
 kwargs
 langchain
 langchain_community
+libclang
 libdatadog
 libddwaf
+libFuzzer
 lifecycle
 linters
 litellm
+LlamaIndex
 LLM
 lockfiles
 logbook
@@ -182,12 +199,16 @@ loopback
 macOS
 mako
 mariadb
+memalloc
 memcached
 metadata
+MiB
 microservices
 middleware
 middlewares
 misencoded
+mlflow
+MLflow
 moderations
 mongoengine
 msgpack
@@ -199,6 +220,7 @@ mysql
 MySQL
 mysqlclient
 mysqldb
+onboarding
 # tests/contrib/openai/test_openai_v1.py
 Nam
 namespace
@@ -238,6 +260,7 @@ protobuf
 proxying
 psutil
 psycopg
+pubsub
 py
 pyenv
 PyFrameObject
@@ -253,6 +276,7 @@ pytest-bdd
 PyTorch
 quickstart
 ratelimit
+reentrant
 redis
 rediscluster
 renderer
@@ -261,6 +285,7 @@ repo
 resolvers
 respawn
 riotfile
+rlocation
 RLock
 rowcount
 rq
@@ -272,6 +297,7 @@ runtimes
 Runtimes
 sanic
 screenshots
+sdk
 serializable
 serverless
 Serverless
@@ -289,6 +315,7 @@ starlette
 statsd
 stderr
 stdout
+setuptools
 stringable
 struct
 structlog
@@ -313,6 +340,7 @@ tokenizer
 tracecontext
 tracestate
 tweens
+UBSAN
 # docs/configuration.rst
 uest
 unbuffered
@@ -331,6 +359,7 @@ url
 urls
 username
 uvicorn
+uvloop
 uWSGI
 valkey
 vendored
@@ -353,3 +382,12 @@ openai-agents
 validators
 jitter
 durations
+numer
+denom
+mtime
+mtimes
+txt
+anyio
+ddsketch
+werkzeug
+wrapt

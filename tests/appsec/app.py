@@ -1,6 +1,7 @@
 """This Flask application is imported on tests.appsec.appsec_utils.gunicorn_flask_server"""
 
 import os
+import sys
 
 
 if os.getenv("_USE_DDTRACE_COMMAND", False) not in ("1", "true", "True"):
@@ -197,6 +198,34 @@ def index():
     return "OK_index", 200
 
 
+@app.route("/sca-test-requests")
+def sca_test_requests():
+    """Endpoint that exercises requests.Session.send (CVE-2024-35195 target)."""
+    import requests as _requests
+
+    session = _requests.Session()
+    try:
+        # The SCA hook fires at Session.send entry — the actual request
+        # outcome doesn't matter for reachability detection.
+        session.get("http://localhost:1")
+    except Exception:
+        pass
+    return "OK_sca", 200
+
+
+@app.route("/sca-test-requests-alt")
+def sca_test_requests_alt():
+    """Alternate endpoint that exercises the same CVE-2024-35195 target from a different call site."""
+    import requests as _requests
+
+    session = _requests.Session()
+    try:
+        session.post("http://localhost:1", data="x")
+    except Exception:
+        pass
+    return "OK_sca_alt", 200
+
+
 @app.route("/submit/file", methods=["POST"])
 def submit_file():
     user_file = request.stream.read()
@@ -308,8 +337,8 @@ def iast_code_injection_vulnerability():
 
 @app.route("/shutdown", methods=["GET"])
 def shutdown_view():
-    tracer.shutdown()
-    return "OK"
+    tracer.shutdown(timeout=10)
+    sys.exit(0)
 
 
 @app.route("/iast-stacktrace-leak-vulnerability", methods=["GET"])

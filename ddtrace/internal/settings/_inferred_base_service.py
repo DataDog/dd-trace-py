@@ -4,12 +4,10 @@ import os
 import pathlib
 import re
 import sys
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
@@ -18,7 +16,7 @@ log = get_logger(__name__)
 INIT_PY = "__init__.py"
 ALL_PY_FILES = "*.py"
 
-CACHE: Dict[Tuple[str, ...], Optional[str]] = {}
+CACHE: dict[tuple[str, ...], Optional[str]] = {}
 
 
 class ServiceMetadata:
@@ -28,7 +26,7 @@ class ServiceMetadata:
 
 
 class PythonDetector:
-    def __init__(self, environ: Dict[str, str]):
+    def __init__(self, environ: dict[str, str]):
         self.environ = environ
         self.name = "python"
 
@@ -39,7 +37,7 @@ class PythonDetector:
         # - Match /python, /python3, /python3.7, etc.
         self.pattern = re.compile(r"(^|/)(?!.*\.py$)(" + re.escape("python") + r"(\d+(\.\d+)?)?$)")
 
-    def detect(self, args: List[str], skip_args_preceded_by_flags=True) -> Optional[ServiceMetadata]:
+    def detect(self, args: list[str], skip_args_preceded_by_flags=True) -> Optional[ServiceMetadata]:
         """
         Detects and returns service metadata based on the provided list of arguments.
 
@@ -50,7 +48,7 @@ class PythonDetector:
         to generate service metadata.
 
         Args:
-            args (List[str]): A list of command-line arguments.
+            args (list[str]): A list of command-line arguments.
 
         Returns:
             Optional[ServiceMetadata]:
@@ -94,12 +92,12 @@ class PythonDetector:
 
         return None
 
-    def deduce_package_name(self, fp: pathlib.Path) -> Tuple[str, bool]:
+    def deduce_package_name(self, fp: pathlib.Path) -> tuple[str, bool]:
         # Walks the file path until a `__init__.py` is not found.
         # All the dir traversed are joined then with `.`
         up = pathlib.Path(fp).parent
         current = fp
-        traversed: List[str] = []
+        traversed: list[str] = []
 
         while current != up:
             if not (current / INIT_PY).exists():
@@ -130,7 +128,7 @@ class PythonDetector:
         return bool(self.pattern.search(command))
 
 
-def detect_service(args: List[str]) -> Optional[str]:
+def detect_service(args: list[str]) -> Optional[str]:
     """
     Detects and returns the name of a service based on the provided list of command-line arguments.
 
@@ -140,13 +138,23 @@ def detect_service(args: List[str]) -> Optional[str]:
     arguments in order to determine a service name.
 
     Args:
-        args (List[str]): A list of command-line arguments.
-        detector_classes (List[Type[Detector]]): A list of detector classes to use for service detection.
+        args (list[str]): A list of command-line arguments.
+        detector_classes (list[Type[Detector]]): A list of detector classes to use for service detection.
             Defaults to [PythonDetector].
 
     Returns:
         Optional[str]: The name of the detected service, or None if no service was detected.
     """
+    # DEV: pytest-xdist workers run as "python -c ..." so sys.argv=['-c'], which
+    # would yield no inferred service. When xdist workers are active the pytest
+    # conftest propagates the controller's already-resolved service name via this
+    # env var; workers inherit it at spawn time and detect_service short-circuits
+    # here. The conftest pops the var right after `import ddtrace` so it never
+    # leaks into test code.
+    xdist_service = env.get("_DD_PYTEST_XDIST_INFERRED_SERVICE")
+    if xdist_service is not None:
+        return xdist_service or None
+
     detector_classes = [PythonDetector]
 
     if not args:
@@ -161,10 +169,10 @@ def detect_service(args: List[str]) -> Optional[str]:
         possible_commands = [*args, sys.executable]
         executable_args = set()
 
-        # List of detectors to try in order
+        # list of detectors to try in order
         detectors = {}
         for detector_class in detector_classes:
-            detector_instance = detector_class(dict(os.environ))
+            detector_instance = detector_class(dict(env))
 
             for i, command in enumerate(possible_commands):
                 detector_name = detector_instance.name

@@ -5,11 +5,10 @@ from tests.contrib.google_genai.utils import EMBED_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import FULL_GENERATE_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import TOOL_GENERATE_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import get_current_weather
-from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 
 
-def test_global_tags(mock_generate_content, genai_client, mock_tracer):
+def test_global_tags(mock_generate_content, genai_client, test_spans):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -23,7 +22,7 @@ def test_global_tags(mock_generate_content, genai_client, mock_tracer):
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
 
-    span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert span.resource == "Models.generate_content"
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
@@ -164,10 +163,10 @@ async def test_google_genai_generate_content_async_stream_error(
         ("qodo-7b", "qodo", "qodo-7b"),
         ("mars-7b", "camb.ai", "mars-7b"),
         # edge cases
-        ("weird_directory/unknown-model", "custom", "unknown-model"),
-        ("", "custom", "custom"),
-        ("just-a-slash/", "custom", "custom"),
-        ("multiple/slashes/in/path/model-name", "custom", "model-name"),
+        ("weird_directory/unknown-model", "unknown", "unknown-model"),
+        ("", "unknown", "unknown"),
+        ("just-a-slash/", "unknown", "unknown"),
+        ("multiple/slashes/in/path/model-name", "unknown", "model-name"),
     ],
 )
 def test_extract_provider_and_model_name(model_name, expected_provider, expected_model):

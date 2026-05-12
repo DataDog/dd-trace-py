@@ -15,7 +15,7 @@ FIXTURES_SECRETS_PATH = "tests/appsec/iast/fixtures/taint_sinks/weak_randomness_
 
 @pytest.mark.parametrize(
     "random_func",
-    DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
+    sorted(DEFAULT_WEAK_RANDOMNESS_FUNCTIONS),
 )
 def test_weak_randomness(random_func, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random")
@@ -45,7 +45,7 @@ def test_weak_randomness_no_dynamic_import(iast_context_defaults):
 
 @pytest.mark.parametrize(
     "random_func",
-    DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
+    sorted(DEFAULT_WEAK_RANDOMNESS_FUNCTIONS),
 )
 def test_weak_randomness_module(random_func, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random_module")
@@ -67,7 +67,7 @@ def test_weak_randomness_module(random_func, iast_context_defaults):
 
 @pytest.mark.parametrize(
     "random_func",
-    DEFAULT_WEAK_RANDOMNESS_FUNCTIONS,
+    sorted(DEFAULT_WEAK_RANDOMNESS_FUNCTIONS),
 )
 def test_weak_randomness_secure_module(random_func, iast_context_defaults):
     mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.weak_randomness_random_secure_module")

@@ -1,8 +1,9 @@
 import base64
+from collections.abc import Mapping
 from http.cookies import SimpleCookie
 import json
 from typing import Any
-from typing import Dict
+from typing import MutableMapping
 from typing import Optional
 from typing import Union
 from urllib.parse import parse_qs
@@ -12,27 +13,24 @@ import ddtrace.vendor.xmltodict as xmltodict
 
 
 def normalize_headers(
-    request_headers: Dict[str, str],
-) -> Dict[str, Optional[str]]:
+    request_headers: Mapping[str, str],
+) -> dict[str, str]:
     """Normalize headers according to the WAF expectations.
-
-    The WAF expects headers to be lowercased and empty values to be None.
+    The WAF expects headers to be lowercased.
     """
-    headers: Dict[str, Optional[str]] = {}
+    headers: dict[str, str] = {}
     for key, value in request_headers.items():
         normalized_key = http_utils.normalize_header_name(key)
-        if value:
+        if normalized_key is not None:
             headers[normalized_key] = str(value).strip()
-        else:
-            headers[normalized_key] = None
     return headers
 
 
 def parse_http_body(
-    normalized_headers: Dict[str, Optional[str]],
+    normalized_headers: dict[str, str],
     body: Optional[str],
     is_body_base64: bool,
-) -> Union[str, Dict[str, Any], None]:
+) -> Union[str, dict[str, Any], None]:
     """Parse a request body based on the content-type header."""
     if body is None:
         return None
@@ -65,8 +63,8 @@ def parse_http_body(
 
 
 def extract_cookies_from_headers(
-    normalized_headers: Dict[str, Optional[str]],
-) -> Optional[Dict[str, str]]:
+    normalized_headers: MutableMapping[str, str],
+) -> Optional[dict[str, str]]:
     """Extract cookies from the WAF headers."""
     cookie_names = {"cookie", "set-cookie"}
     for name in cookie_names:

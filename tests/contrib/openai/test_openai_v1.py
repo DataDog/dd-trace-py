@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 import mock
@@ -9,7 +10,6 @@ from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
 from tests.contrib.openai.utils import multi_message_input
-from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 from tests.utils import snapshot_context
 
@@ -101,7 +101,7 @@ async def test_model_aretrieve(api_key_in_env, request_api_key, openai, openai_v
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_llmobs_writer, snapshot_tracer):
+def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_completion",
         ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
@@ -130,12 +130,9 @@ def test_completion(api_key_in_env, request_api_key, openai, openai_vcr, mock_ll
         assert choice.logprobs == expected_choices[idx]["logprobs"]
         assert choice.text == expected_choices[idx]["text"]
 
-    mock_llmobs_writer.start.assert_not_called()
-    mock_llmobs_writer.enqueue.assert_not_called()
-
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
-async def test_acompletion(api_key_in_env, request_api_key, openai, openai_vcr, mock_llmobs_writer, snapshot_tracer):
+async def test_acompletion(api_key_in_env, request_api_key, openai, openai_vcr, snapshot_tracer):
     with snapshot_context(
         token="tests.contrib.openai.test_openai.test_acompletion",
         ignores=["meta.http.useragent", "meta.openai.api_type", "meta.openai.api_base"],
@@ -170,11 +167,8 @@ async def test_acompletion(api_key_in_env, request_api_key, openai, openai_vcr, 
     for key, value in expected_choices.items():
         assert getattr(resp.choices[0], key, None) == value
 
-    mock_llmobs_writer.start.assert_not_called()
-    mock_llmobs_writer.enqueue.assert_not_called()
 
-
-def test_global_tags(openai_vcr, openai, mock_tracer):
+def test_global_tags(openai_vcr, openai, test_spans):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -190,7 +184,7 @@ def test_global_tags(openai_vcr, openai, mock_tracer):
                 model="ada", prompt="Hello world", temperature=0.8, n=2, stop=".", max_tokens=10, user="ddtrace-test"
             )
 
-    span = TracerSpanContainer(mock_tracer).pop_traces()[0][0]
+    span = test_spans.pop_traces()[0][0]
     assert span.service == "test-svc"
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
@@ -220,25 +214,25 @@ def test_completion_raw_response(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
 )
-def test_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
+def test_completion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         client = openai.OpenAI()
         client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
 
-    assert len(TracerSpanContainer(mock_tracer).pop_traces()) == 0
+    assert len(test_spans.pop_traces()) == 0
 
 
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
 )
-async def test_acompletion_raw_response_stream(openai, openai_vcr, mock_tracer):
+async def test_acompletion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("completion_streamed.yaml"):
         client = openai.AsyncOpenAI()
         await client.completions.with_raw_response.create(model="ada", prompt="Hello world", stream=True, n=None)
 
-    assert len(TracerSpanContainer(mock_tracer).pop_traces()) == 0
+    assert len(test_spans.pop_traces()) == 0
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -347,7 +341,7 @@ def test_chat_completion_raw_response(openai, openai_vcr, snapshot_tracer):
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
 )
-def test_chat_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
+def test_chat_completion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
         client = openai.OpenAI()
@@ -361,13 +355,13 @@ def test_chat_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
             n=None,
         )
 
-    assert len(TracerSpanContainer(mock_tracer).pop_traces()) == 0
+    assert len(test_spans.pop_traces()) == 0
 
 
 @pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
 )
-async def test_achat_completion_raw_response_stream(openai, openai_vcr, mock_tracer):
+async def test_achat_completion_raw_response_stream(openai, openai_vcr, test_spans):
     """Assert that no spans are created when streaming and with_raw_response is used."""
     with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
         client = openai.AsyncOpenAI()
@@ -381,7 +375,46 @@ async def test_achat_completion_raw_response_stream(openai, openai_vcr, mock_tra
             n=None,
         )
 
-    assert len(TracerSpanContainer(mock_tracer).pop_traces()) == 0
+    assert len(test_spans.pop_traces()) == 0
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 8, 0),
+    reason="with_raw_response available in openai >= 1.8.0",
+)
+async def test_achat_completion_raw_response_non_stream(openai, openai_vcr, snapshot_tracer, test_spans):
+    """Regression test: async non-streamed with_raw_response requests must produce
+    a properly finished span. The pre-parse fix runs on this path (stream=False
+    raw-response does not hit the early return), so verify it doesn't break.
+    """
+    with openai_vcr.use_cassette("chat_completion_async.yaml"):
+        with snapshot_tracer.trace("parent_workflow"):
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.with_raw_response.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "user", "content": "Who won the world series in 2020?"},
+                ],
+                user="ddtrace-test",
+            )
+            parsed = resp.parse()
+            if asyncio.iscoroutine(parsed):
+                parsed = await parsed
+            assert parsed is not None
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    spans = traces[0]
+    assert len(spans) == 2
+
+    parent = next(s for s in spans if s.name == "parent_workflow")
+    child = next(s for s in spans if s.name == "openai.request")
+
+    assert child.duration is not None
+    assert child.error == 0
+    assert child.parent_id == parent.span_id
+    assert child.trace_id == parent.trace_id
+    assert child.resource == "createChatCompletion"
 
 
 @pytest.mark.parametrize("api_key_in_env", [True, False])
@@ -838,6 +871,47 @@ async def test_chat_completion_async_stream_context_manager(openai, openai_vcr, 
             _ = [c async for c in resp]
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 26, 0),
+    reason="Streamed tokens available in 1.26.0+",
+)
+async def test_chat_completion_async_stream_span_finished(openai, openai_vcr, snapshot_tracer, test_spans):
+    """Regression test: async streaming spans must be finished with correct parent-child
+    relationships. Previously AsyncAPIResponse.parse() returned an unawaited coroutine,
+    leaving spans unfinished.
+    """
+    with openai_vcr.use_cassette("chat_completion_streamed_tokens.yaml"):
+        with snapshot_tracer.trace("parent_workflow"):
+            client = openai.AsyncOpenAI()
+            resp = await client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "Who won the world series in 2020?"}],
+                stream=True,
+                n=None,
+                user="ddtrace-test",
+            )
+            chunks = [c async for c in resp]
+
+    assert len(chunks) > 0
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    spans = traces[0]
+    assert len(spans) == 2  # parent + openai request
+
+    parent = next(s for s in spans if s.name == "parent_workflow")
+    child = next(s for s in spans if s.name == "openai.request")
+
+    assert child.duration is not None  # span was finished (the bug left it open)
+    assert child.error == 0
+    assert child.parent_id == parent.span_id
+    assert child.trace_id == parent.trace_id
+    assert child.resource == "createChatCompletion"
+    assert child.get_tag("openai.request.endpoint") == "/v1/chat/completions"
+    assert child.get_tag("openai.request.method") == "POST"
+    assert child.get_tag("openai.request.model") == "gpt-3.5-turbo"
+
+
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai_v1.test_integration_sync", ignores=["meta.http.useragent"], async_mode=False
 )
@@ -859,10 +933,10 @@ def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess)
         """
 import openai
 import ddtrace
+from ddtrace.trace import tracer
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace._trace.pin.Pin.get_from(openai)
-pin.tracer.configure(trace_processors=[FilterOrg()])
+tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(
@@ -900,10 +974,10 @@ def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess
 import asyncio
 import openai
 import ddtrace
+from ddtrace.trace import tracer
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace._trace.pin.Pin.get_from(openai)
-pin.tracer.configure(trace_processors=[FilterOrg()])
+tracer.configure(trace_processors=[FilterOrg()])
 async def task():
     with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
         client = openai.AsyncOpenAI()
@@ -1093,10 +1167,10 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
             """
 import openai
 import ddtrace
+from ddtrace.trace import tracer
 from tests.contrib.openai.conftest import FilterOrg
 from tests.contrib.openai.test_openai_v1 import get_openai_vcr
-pin = ddtrace._trace.pin.Pin.get_from(openai)
-pin.tracer.configure(trace_processors=[FilterOrg()])
+tracer.configure(trace_processors=[FilterOrg()])
 with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
     client = openai.OpenAI()
     resp = client.completions.create(model="ada", prompt="hello world")
@@ -1267,6 +1341,41 @@ async def test_aresponse_stream(openai, openai_vcr, snapshot_tracer):
         _ = [c async for c in resp]
 
 
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66, 0),
+    reason="Responses API available in openai >= 1.66",
+)
+async def test_response_async_stream_span_finished(openai, openai_vcr, snapshot_tracer, test_spans):
+    """Regression test: async streaming response spans must be finished with correct
+    parent-child relationships.
+    """
+    with openai_vcr.use_cassette("response_stream.yaml"):
+        with snapshot_tracer.trace("parent_workflow"):
+            client = openai.AsyncOpenAI()
+            resp = await client.responses.create(
+                model="gpt-4.1",
+                input="Hello world",
+                stream=True,
+            )
+            chunks = [c async for c in resp]
+
+    assert len(chunks) > 0
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    spans = traces[0]
+    assert len(spans) == 2
+
+    parent = next(s for s in spans if s.name == "parent_workflow")
+    child = next(s for s in spans if s.name == "openai.request")
+
+    assert child.duration is not None
+    assert child.error == 0
+    assert child.parent_id == parent.span_id
+    assert child.trace_id == parent.trace_id
+    assert child.resource == "createResponse"
+
+
 @pytest.mark.snapshot
 def test_empty_streamed_chat_completion_resp_returns(openai, openai_vcr, snapshot_tracer):
     client = openai.OpenAI()
@@ -1354,8 +1463,6 @@ async def test_empty_streamed_response_resp_returns_async(openai, snapshot_trace
 )
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_chat_completion_parse")
 def test_chat_completion_parse(openai, openai_vcr, snapshot_tracer):
-    from typing import List
-
     from pydantic import BaseModel
 
     class Step(BaseModel):
@@ -1363,7 +1470,7 @@ def test_chat_completion_parse(openai, openai_vcr, snapshot_tracer):
         output: str
 
     class MathResponse(BaseModel):
-        steps: List[Step]
+        steps: list[Step]
         final_answer: str
 
     with openai_vcr.use_cassette("chat_completion_parse.yaml"):
@@ -1383,8 +1490,6 @@ def test_chat_completion_parse(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_chat_completion_parse")
 async def test_achat_completion_parse(openai, openai_vcr, snapshot_tracer):
-    from typing import List
-
     from pydantic import BaseModel
 
     class Step(BaseModel):
@@ -1392,7 +1497,7 @@ async def test_achat_completion_parse(openai, openai_vcr, snapshot_tracer):
         output: str
 
     class MathResponse(BaseModel):
-        steps: List[Step]
+        steps: list[Step]
         final_answer: str
 
     with openai_vcr.use_cassette("chat_completion_parse.yaml"):
@@ -1412,8 +1517,6 @@ async def test_achat_completion_parse(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_response_parse")
 def test_response_parse(openai, openai_vcr, snapshot_tracer):
-    from typing import List
-
     from pydantic import BaseModel
 
     class Step(BaseModel):
@@ -1421,7 +1524,7 @@ def test_response_parse(openai, openai_vcr, snapshot_tracer):
         output: str
 
     class MathResponse(BaseModel):
-        steps: List[Step]
+        steps: list[Step]
         final_answer: str
 
     with openai_vcr.use_cassette("response_parse.yaml"):
@@ -1438,8 +1541,6 @@ def test_response_parse(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_response_parse")
 async def test_aresponse_parse(openai, openai_vcr, snapshot_tracer):
-    from typing import List
-
     from pydantic import BaseModel
 
     class Step(BaseModel):
@@ -1447,7 +1548,7 @@ async def test_aresponse_parse(openai, openai_vcr, snapshot_tracer):
         output: str
 
     class MathResponse(BaseModel):
-        steps: List[Step]
+        steps: list[Step]
         final_answer: str
 
     with openai_vcr.use_cassette("response_parse.yaml"):

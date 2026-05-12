@@ -1,41 +1,23 @@
 # -*- encoding: utf-8 -*-
-import atexit
 import typing  # noqa:F401
 
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
-from ddtrace.internal._threads import PeriodicThread
-from ddtrace.internal._threads import periodic_threads
-
-
-@atexit.register
-def _():
-    # If the interpreter is shutting down we need to make sure that the threads
-    # are stopped before the runtime is marked as finalising. This is because
-    # any attempt to acquire the GIL while the runtime is finalising will cause
-    # the acquiring thread to be terminated with pthread_exit (on Linux). This
-    # causes a SIGABRT with GCC that cannot be caught, so we need to avoid
-    # getting to that stage.
-    for thread in periodic_threads.values():
-        thread._atexit()
-
-
-@forksafe.register
-def _():
-    # No threads are running after a fork so we clean up the periodic threads
-    for thread in periodic_threads.values():
-        thread._after_fork()
-    periodic_threads.clear()
+from ddtrace.internal.threads import PeriodicThread
 
 
 class PeriodicService(service.Service):
-    """A service that runs periodically."""
+    """A service that runs periodically.
 
-    def __init__(self, interval: float = 0.0, no_wait_at_start: bool = False) -> None:
+    It automatically resumes its execution after a fork.
+    """
+
+    def __init__(self, interval: float = 0.0, no_wait_at_start: bool = False, autorestart: bool = True) -> None:
         super().__init__()
         self._interval = interval
         self._worker: typing.Optional[PeriodicThread] = None
         self._no_wait_at_start = no_wait_at_start
+        self._autorestart = autorestart
 
     @property
     def interval(self):
@@ -63,6 +45,7 @@ class PeriodicService(service.Service):
             on_shutdown=self.on_shutdown,
             no_wait_at_start=self._no_wait_at_start,
         )
+        self._worker.__autorestart__ = self._autorestart
         self._worker.start()
 
     def _stop_service(self, *args, **kwargs):
@@ -99,7 +82,7 @@ class AwakeablePeriodicService(PeriodicService):
 
 
 class ForksafeAwakeablePeriodicService(AwakeablePeriodicService):
-    """An awakeable periodic service that auto-restarts on fork."""
+    """An awakeable periodic service that auto-resets on fork."""
 
     def reset(self) -> None:
         """Reset the service on fork.
@@ -111,7 +94,6 @@ class ForksafeAwakeablePeriodicService(AwakeablePeriodicService):
 
     def _restart(self) -> None:
         self.reset()
-        super()._start_service()
 
     def _start_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         super()._start_service(*args, **kwargs)
@@ -120,3 +102,50 @@ class ForksafeAwakeablePeriodicService(AwakeablePeriodicService):
     def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
         forksafe.unregister(self._restart)
         super()._stop_service(*args, **kwargs)
+
+
+class Timer:
+    """
+    A simple one-shot timer that calls timeout after the specified interval.
+
+    :param interval: The interval in seconds after which to call timeout.
+
+    The timer can be started with start() and stopped with stop(). The timer can
+    be reset with reset(), which stops the timer (if running) and starts it
+    again.
+    """
+
+    def __init__(self, interval: float) -> None:
+        self._interval = interval
+        self._set_worker()
+
+    def _set_worker(self) -> None:
+        self._worker = PeriodicThread(
+            self._interval,
+            target=self._periodic,
+            name="%s:%s" % (self.__class__.__module__, self.__class__.__name__),
+            no_wait_at_start=False,
+        )
+
+    def start(self) -> None:
+        self._worker.start()
+
+    def stop(self) -> None:
+        self._worker.stop()
+
+    def timeout(self) -> None:
+        raise NotImplementedError()
+
+    def _periodic(self):
+        self.timeout()
+        self.stop()
+
+    def reset(self) -> None:
+        self.stop()
+
+        self._set_worker()
+
+        self.start()
+
+    def join(self, timeout: typing.Optional[float] = None) -> None:
+        self._worker.join(timeout)

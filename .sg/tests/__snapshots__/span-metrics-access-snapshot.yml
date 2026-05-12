@@ -1,0 +1,34 @@
+id: span-metrics-access
+snapshots:
+  ? |
+    s = tracer.trace("op")
+    s._metrics["key"] = 1.0
+  : labels:
+    - source: s._metrics
+      style: primary
+      start: 23
+      end: 33
+  self._metrics[key]:
+    labels:
+    - source: self._metrics
+      style: primary
+      start: 0
+      end: 13
+  span._metrics.get("key"):
+    labels:
+    - source: span._metrics
+      style: primary
+      start: 0
+      end: 13
+  span._metrics["key"]:
+    labels:
+    - source: span._metrics
+      style: primary
+      start: 0
+      end: 13
+  span._metrics["key"] = 42:
+    labels:
+    - source: span._metrics
+      style: primary
+      start: 0
+      end: 13

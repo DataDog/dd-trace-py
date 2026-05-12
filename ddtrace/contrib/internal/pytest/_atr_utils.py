@@ -1,5 +1,3 @@
-import typing as t
-
 import _pytest
 import pytest
 
@@ -38,13 +36,13 @@ class _QUARANTINE_ATR_RETRY_OUTCOMES(_ATR_RETRY_OUTCOMES):
     ATR_FINAL_FAILED = "dd_quarantine_atr_final_failed"
 
 
-_FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
+_FINAL_OUTCOMES: dict[TestStatus, str] = {
     TestStatus.PASS: _ATR_RETRY_OUTCOMES.PASSED,
     TestStatus.FAIL: _ATR_RETRY_OUTCOMES.FAILED,
 }
 
 
-_QUARANTINE_FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
+_QUARANTINE_FINAL_OUTCOMES: dict[TestStatus, str] = {
     TestStatus.PASS: _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
     TestStatus.FAIL: _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
 }
@@ -53,7 +51,7 @@ _QUARANTINE_FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
 def atr_handle_retries(
     test_id: TestId,
     item: pytest.Item,
-    test_reports: t.Dict[str, pytest_TestReport],
+    test_reports: dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,
     is_quarantined: bool = False,
 ):
@@ -106,23 +104,28 @@ def atr_handle_retries(
     item.ihook.pytest_runtest_logreport(report=teardown_report)
 
 
-def atr_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> t.List[pytest_TestReport]:
+def atr_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> list[pytest_TestReport]:
     return terminalreporter.getreports(_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED)
 
 
 def _atr_do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     test_id = _get_test_id_from_item(item)
 
+    # Send the original test FIRST (it's already finished before retries start)
+    InternalTest.finish(test_id)
+
     while InternalTest.atr_should_retry(test_id):
         retry_num = InternalTest.atr_add_retry(test_id, start_immediately=True)
-
         retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
+        # atr_finish_retry now auto-writes the span (and will set final_status on the last one)
         InternalTest.atr_finish_retry(
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )
 
-    return InternalTest.atr_get_final_status(test_id)
+    final_status = InternalTest.atr_get_final_status(test_id)
+
+    return final_status
 
 
 def _atr_write_report_for_status(
@@ -130,8 +133,8 @@ def _atr_write_report_for_status(
     status_key: str,
     status_text: str,
     report_outcome: str,
-    raw_strings: t.List[str],
-    markedup_strings: t.List[str],
+    raw_strings: list[str],
+    markedup_strings: list[str],
     color: str,
     delete_reports: bool = True,
     retry_reason: str = RetryReason.AUTO_TEST_RETRY,
@@ -156,8 +159,8 @@ def _atr_prepare_attempts_strings(
     terminalreporter: _pytest.terminal.TerminalReporter,
     reports_key: str,
     reports_text: str,
-    raw_strings: t.List[str],
-    markedup_strings: t.List[str],
+    raw_strings: list[str],
+    markedup_strings: list[str],
     color: str,
     bold: bool = False,
 ):

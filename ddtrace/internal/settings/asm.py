@@ -1,11 +1,10 @@
-import os
 import os.path
 from platform import machine
 from platform import system
 import sys
-from typing import List
 from typing import Optional
 
+from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
@@ -16,12 +15,8 @@ from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import AI_GUARD_ENABLED
-from ddtrace.internal.constants import AI_GUARD_ENDPOINT
-from ddtrace.internal.constants import AI_GUARD_MAX_CONTENT_SIZE
-from ddtrace.internal.constants import AI_GUARD_MAX_MESSAGES_LENGTH
-from ddtrace.internal.constants import AI_GUARD_TIMEOUT
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config as tracer_config
 from ddtrace.internal.settings._core import DDConfig
 
@@ -36,7 +31,7 @@ def _validate_percentage(r: float) -> None:
         raise ValueError("percentage value must be between 0 and 100")
 
 
-def _parse_options(options: List[str]):
+def _parse_options(options: list[str]):
     def parse(str_in: str) -> str:
         for o in options:
             if o.startswith(str_in.lower()):
@@ -68,7 +63,7 @@ def build_libddwaf_filename() -> str:
 
 class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
-    _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_UNKNOWN
+    _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_DEFAULT
     _asm_static_rule_file = DDConfig.var(Optional[str], APPSEC.RULE_FILE, default=None)
     # prevent empty string
     if _asm_static_rule_file == "":
@@ -114,12 +109,13 @@ class ASMConfig(DDConfig):
     _api_security_active = False
     _asm_libddwaf = build_libddwaf_filename()
     _asm_libddwaf_available = os.path.exists(_asm_libddwaf)
+    _ddwaf_version: str = "unloaded"
 
     _waf_timeout = DDConfig.var(
         float,
         "DD_APPSEC_WAF_TIMEOUT",
         default=DEFAULT.WAF_TIMEOUT,
-        help_type=float,
+        help_type="float",
         help="Timeout in milliseconds for WAF computations",
     )
     _asm_deduplication_enabled = DDConfig.var(bool, "_DD_APPSEC_DEDUPLICATION_ENABLED", default=True)
@@ -196,9 +192,7 @@ class ASMConfig(DDConfig):
 
     # DOWNSTREAM REQUESTS INSTRUMENTATION
     # sample rate for body analysis
-    _dr_sample_rate: float = DDConfig.var(
-        float, "DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE", default=0.5
-    )
+    _dr_sample_rate: float = DDConfig.var(float, "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", default=0.5)
     # max number of downstream requests analysis  with bodies per request
     _dr_body_limit_per_request: int = DDConfig.var(
         int, "DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS", default=1
@@ -305,12 +299,7 @@ class ASMConfig(DDConfig):
 
     @property
     def asm_enabled_origin(self):
-        if self._asm_enabled:
-            if self._asm_enabled_origin == APPSEC.ENABLED_ORIGIN_RC:
-                return APPSEC.ENABLED_ORIGIN_RC
-            if tracer_config._lib_was_injected is True:
-                return APPSEC.ENABLED_ORIGIN_SSI
-        if APPSEC_ENV in os.environ:
+        if APPSEC_ENV in env:
             return APPSEC.ENABLED_ORIGIN_ENV
         return self._asm_enabled_origin
 
@@ -319,10 +308,10 @@ class ASMConfig(DDConfig):
         self.__init__()
 
     def _eval_asm_can_be_enabled(self) -> None:
-        self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+        self._asm_can_be_enabled = APPSEC_ENV not in env and tracer_config._remote_config_enabled
         self._load_modules = bool(self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
         self._asm_rc_enabled = (self._asm_enabled and tracer_config._remote_config_enabled) or self._asm_can_be_enabled
-        if APPSEC_ENV in os.environ and self._asm_enabled:
+        if APPSEC_ENV in env and self._asm_enabled:
             tracer_config._trace_resource_renaming_enabled = True
 
     @property
@@ -348,16 +337,18 @@ config = ASMConfig()
 
 
 class AIGuardConfig(DDConfig):
-    _ai_guard_enabled = DDConfig.var(bool, AI_GUARD_ENABLED, default=False)
-    _ai_guard_endpoint = DDConfig.var(str, AI_GUARD_ENDPOINT, default="")
-    _ai_guard_max_content_size = DDConfig.var(int, AI_GUARD_MAX_CONTENT_SIZE, default=512 * 1024)
-    _ai_guard_max_messages_length = DDConfig.var(int, AI_GUARD_MAX_MESSAGES_LENGTH, default=16)
-    _ai_guard_timeout = DDConfig.var(int, AI_GUARD_TIMEOUT, default=10_000)
+    _ai_guard_enabled = DDConfig.var(bool, AI_GUARD.ENV_ENABLED, default=False)
+    _ai_guard_endpoint = DDConfig.var(str, AI_GUARD.ENV_ENDPOINT, default="")
+    _ai_guard_block = DDConfig.var(bool, AI_GUARD.BLOCK_ENV, default=True)
+    _ai_guard_max_content_size = DDConfig.var(int, AI_GUARD.ENV_MAX_CONTENT_SIZE, default=512 * 1024)
+    _ai_guard_max_messages_length = DDConfig.var(int, AI_GUARD.ENV_MAX_MESSAGES_LENGTH, default=16)
+    _ai_guard_timeout = DDConfig.var(int, AI_GUARD.ENV_TIMEOUT, default=10_000)
 
     # for tests purposes
     _ai_guard_config_keys = [
         "_ai_guard_enabled",
         "_ai_guard_endpoint",
+        "_ai_guard_block",
         "_ai_guard_max_content_size",
         "_ai_guard_max_messages_length",
         "_ai_guard_timeout",

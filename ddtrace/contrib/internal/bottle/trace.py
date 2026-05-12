@@ -1,15 +1,18 @@
+from typing import MutableMapping
+from typing import cast
+
 from bottle import HTTPError
 from bottle import HTTPResponse
 from bottle import request
 from bottle import response
 
-import ddtrace
 from ddtrace import config
-from ddtrace.ext import SpanTypes
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.vendor.debtcollector import deprecate
 
 
 class TracePlugin(object):
@@ -17,8 +20,14 @@ class TracePlugin(object):
     api = 2
 
     def __init__(self, service="bottle", tracer=None, distributed_tracing=None):
+        if tracer is not None:
+            deprecate(
+                "The tracer parameter is deprecated",
+                message="The global tracer will be used instead.",
+                category=DDTraceDeprecationWarning,
+                removal_version="5.0.0",
+            )
         self.service = config._get_service(default=service)
-        self.tracer = tracer or ddtrace.tracer
         if distributed_tracing is not None:
             config.bottle.distributed_tracing = distributed_tracing
 
@@ -32,32 +41,31 @@ class TracePlugin(object):
 
     def apply(self, callback, route):
         def wrapped(*args, **kwargs):
-            if not self.tracer or not self.tracer.enabled:
+            if not is_tracing_enabled():
                 return callback(*args, **kwargs)
 
             resource = "{} {}".format(request.method, route.rule)
 
-            with (
-                core.context_with_data(
-                    "bottle.request",
-                    span_name=schematize_url_operation(
-                        "bottle.request", protocol="http", direction=SpanDirection.INBOUND
-                    ),
-                    span_type=SpanTypes.WEB,
+            method = request.method
+            url = request.url
+            full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
+
+            with core.context_with_event(
+                WebFrameworkRequestEvent(
+                    http_operation="bottle.request",
                     service=self.service,
                     resource=resource,
-                    tags={},
-                    tracer=self.tracer,
-                    distributed_headers=request.headers,
+                    component=config.bottle.integration_name,
+                    request_headers=cast(MutableMapping[str, str], request.headers),
+                    request_url=url,
+                    query=request.query_string,
+                    request_route=full_route,
+                    request_method=method,
                     integration_config=config.bottle,
                     headers_case_sensitive=True,
                     activate_distributed_headers=True,
-                ) as ctx,
-                ctx.span as req_span,
-            ):
-                ctx.set_item("req_span", req_span)
-                core.dispatch("web.request.start", (ctx, config.bottle))
-
+                )
+            ) as ctx:
                 code = None
                 result = None
                 try:
@@ -85,24 +93,8 @@ class TracePlugin(object):
                         # will be default
                         response_code = response.status_code
 
-                    method = request.method
-                    url = request.urlparts._replace(query="").geturl()
-                    full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
-
-                    core.dispatch(
-                        "web.request.finish",
-                        (
-                            req_span,
-                            config.bottle,
-                            method,
-                            url,
-                            response_code,
-                            request.query_string,
-                            request.headers,
-                            response.headers,
-                            full_route,
-                            False,
-                        ),
-                    )
+                    event: WebFrameworkRequestEvent = ctx.event
+                    event.response_status_code = response_code
+                    event.response_headers = response.headers
 
         return wrapped

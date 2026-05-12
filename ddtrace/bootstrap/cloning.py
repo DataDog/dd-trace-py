@@ -1,22 +1,20 @@
 import logging
-import os
 import sys
 import warnings
 
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import is_module_installed
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
 
 
 MODULES_REQUIRING_CLEANUP = ("gevent",)
 
-
 enabled = (
     any(is_module_installed(m) for m in MODULES_REQUIRING_CLEANUP)
-    if (_unload_modules := os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()) == "auto"
+    if (_unload_modules := env.get("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()) == "auto"
     else asbool(_unload_modules)
 )
-
 
 if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
     import gevent.monkey  # noqa:F401
@@ -80,6 +78,7 @@ def cleanup_loaded_modules() -> None:
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
             "wrapt",
             "bytecode",  # needed by before-fork hooks
+            "pathlib",  # used in singledispatch
         ]
     )
     for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):

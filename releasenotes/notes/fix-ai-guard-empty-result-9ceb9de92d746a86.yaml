@@ -1,0 +1,4 @@
+fixes:
+  - |
+    ai_guard: Fix TypeError while processing failed AI Guard responses, leading to overriding the original error.
+

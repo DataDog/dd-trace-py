@@ -8,6 +8,7 @@ import sys
 import typing  # noqa:F401
 
 import ddtrace
+from ddtrace.internal.settings import env
 from ddtrace.version import __version__
 
 
@@ -43,13 +44,13 @@ def _add_bootstrap_to_pythonpath(bootstrap_dir):
     Add our bootstrap directory to the head of $PYTHONPATH to ensure
     it is loaded before program code
     """
-    python_path = os.environ.get("PYTHONPATH", "")
+    python_path = env.get("PYTHONPATH", "")
 
     if python_path:
-        new_path = "%s%s%s" % (bootstrap_dir, os.path.pathsep, os.environ["PYTHONPATH"])
-        os.environ["PYTHONPATH"] = new_path
+        new_path = "%s%s%s" % (bootstrap_dir, os.path.pathsep, env["PYTHONPATH"])
+        env["PYTHONPATH"] = new_path
     else:
-        os.environ["PYTHONPATH"] = bootstrap_dir
+        env["PYTHONPATH"] = bootstrap_dir
 
 
 def _get_arg_parser() -> argparse.ArgumentParser:
@@ -79,17 +80,17 @@ def _get_arg_parser() -> argparse.ArgumentParser:
 def _prepare_env(parser: argparse.ArgumentParser):
     args = parser.parse_args()
     if args.profiling:
-        os.environ["DD_PROFILING_ENABLED"] = "true"
+        env["DD_PROFILING_ENABLED"] = "true"
 
     if args.debug or ddtrace.config._debug_mode:
         logging.basicConfig(level=logging.DEBUG)
-        os.environ["DD_TRACE_DEBUG"] = "true"
+        env["DD_TRACE_DEBUG"] = "true"
 
     if args.info:
         # Inline imports for performance.
         from ddtrace.internal.debug import pretty_collect
 
-        print(pretty_collect(ddtrace.tracer, color=not args.colorless))
+        print(pretty_collect(color=not args.colorless))
         sys.exit(0)
 
     root_dir = os.path.dirname(ddtrace.__file__)
@@ -99,7 +100,7 @@ def _prepare_env(parser: argparse.ArgumentParser):
     log.debug("ddtrace bootstrap: %s", bootstrap_dir)
 
     _add_bootstrap_to_pythonpath(bootstrap_dir)
-    log.debug("PYTHONPATH: %s", os.environ["PYTHONPATH"])
+    log.debug("PYTHONPATH: %s", env["PYTHONPATH"])
     log.debug("sys.path: %s", sys.path)
 
     if not args.command:

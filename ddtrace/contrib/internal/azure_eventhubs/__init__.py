@@ -7,8 +7,8 @@ Enabling
 The azure_eventhubs integration is enabled by default when using :ref:`import ddtrace.auto<ddtraceauto>`.
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.azure_eventhubs["service"]
 

@@ -1,4 +1,3 @@
-from typing import List  # noqa:F401
 from typing import Mapping  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
@@ -17,8 +16,7 @@ class HttpConfig(object):
     related to the http context.
     """
 
-    def __init__(self, header_tags=None):
-        # type: (Optional[Mapping[str, str]]) -> None
+    def __init__(self, header_tags: Optional[Mapping[str, str]] = None) -> None:
         self._header_tags = {normalize_header_name(k): v for k, v in header_tags.items()} if header_tags else {}
         self.trace_query_string = None
 
@@ -27,8 +25,7 @@ class HttpConfig(object):
         self._header_tag_name.cache_clear()
 
     @cachedmethod()
-    def _header_tag_name(self, header_name):
-        # type: (str) -> Optional[str]
+    def _header_tag_name(self, header_name: str) -> Optional[str]:
         if not self._header_tags:
             return None
 
@@ -37,12 +34,10 @@ class HttpConfig(object):
         return self._header_tags.get(normalized_header_name)
 
     @property
-    def is_header_tracing_configured(self):
-        # type: () -> bool
+    def is_header_tracing_configured(self) -> bool:
         return len(self._header_tags) > 0
 
-    def trace_headers(self, whitelist):
-        # type: (Union[List[str], str]) -> Optional[HttpConfig]
+    def trace_headers(self, whitelist: Union[list[str], str]) -> Optional["HttpConfig"]:
         """
         Registers a set of headers to be traced at global level or integration level.
         :param whitelist: the case-insensitive list of traced headers
@@ -67,8 +62,7 @@ class HttpConfig(object):
 
         return self
 
-    def header_is_traced(self, header_name):
-        # type: (str) -> bool
+    def header_is_traced(self, header_name: str) -> bool:
         """
         Returns whether or not the current header should be traced.
         :param header_name: the header name

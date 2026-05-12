@@ -1,0 +1,38 @@
+id: os-environ-usage
+message: Use ddtrace.internal.settings.env instead of os to access environment variables
+severity: error
+language: python
+files:
+  - "ddtrace/**"
+ignores:
+  - "ddtrace/internal/settings/env.py"
+  - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
+  - "ddtrace/vendor/**"
+  - "ddtrace/testing/**"
+rule:
+  any:
+    # Aliased imports — cannot auto-fix because the alias is used throughout the file
+    - pattern: from os import environ as $ALIAS
+    - pattern: from os import getenv as $ALIAS
+    # Comma-separated imports containing environ — cannot auto-fix (need to split the import)
+    - pattern: from os import $$$IMPORTS, environ
+    - pattern: from os import $$$IMPORTS, environ as $ALIAS
+    - pattern: from os import environ, $$$IMPORTS
+    - pattern: from os import environ as $ALIAS, $$$IMPORTS
+    # Comma-separated imports containing getenv — cannot auto-fix (need to split the import)
+    - pattern: from os import $$$IMPORTS, getenv
+    - pattern: from os import $$$IMPORTS, getenv as $ALIAS
+    - pattern: from os import getenv, $$$IMPORTS
+    - pattern: from os import getenv as $ALIAS, $$$IMPORTS
+note: |
+  Direct access to `os.environ` or `os.getenv` is not allowed in `ddtrace/`.
+  Use `env` from `ddtrace.internal.settings` instead:
+
+  Before:
+    import os
+    value = os.environ.get("DD_TRACE_DEBUG", "false")
+    value = os.getenv("DD_TRACE_DEBUG", "false")
+
+  After:
+    from ddtrace.internal.settings import env
+    value = env.get("DD_TRACE_DEBUG", "false")

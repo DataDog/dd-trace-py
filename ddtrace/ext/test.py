@@ -41,6 +41,9 @@ SKIP_REASON = TEST_SKIP_REASON = "test.skip_reason"
 # Test Status
 STATUS = TEST_STATUS = "test.status"
 
+# Test Final Status
+FINAL_STATUS = TEST_FINAL_STATUS = "test.final_status"
+
 # Traits
 TRAITS = TEST_TRAITS = "test.traits"
 

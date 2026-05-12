@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracer: Removes wrap executor and context provider after tracer shutdown.

@@ -1,4 +1,13 @@
-#!/usr/bin/env python3
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#   "lxml==5.3.0",
+#   "ruamel.yaml==0.18.6",
+#   "vcrpy==6.0.2",
+# ]
+# ///
 
 from argparse import ArgumentParser
 import fnmatch
@@ -106,7 +115,7 @@ def github_api(path: str, query: t.Optional[dict] = None) -> t.Any:
 
 
 @cache
-def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]:
+def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> set[str]:
     """Get the files changed in a PR
 
     Try with the GitHub REST API for the most accurate result. If that fails,
@@ -217,7 +226,7 @@ def _get_pr_number() -> int:
     raise RuntimeError("Could not determine PR number")
 
 
-def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None], git_selections: t.Set[str]):
+def for_each_testrun_needed(suites: list[str], action: t.Callable[[str], None], git_selections: set[str]):
     try:
         pr_number = _get_pr_number()
     except Exception:
@@ -231,7 +240,13 @@ def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None]
             action(suite)
 
 
-def pr_matches_patterns(patterns: t.Set[str]) -> bool:
+# Can be set externally to override changed file detection (used for local testing via --file)
+_changed_files_override: t.Optional[set[str]] = None
+
+
+def pr_matches_patterns(patterns: set[str]) -> bool:
+    if _changed_files_override is not None:
+        return bool([_ for p in patterns for _ in fnmatch.filter(_changed_files_override, p)])
     try:
         changed_files = get_changed_files(_get_pr_number())
     except Exception:
@@ -240,7 +255,7 @@ def pr_matches_patterns(patterns: t.Set[str]) -> bool:
     return bool([_ for p in patterns for _ in fnmatch.filter(changed_files, p)])
 
 
-def extract_git_commit_selections(git_commit_message: str) -> t.Set[str]:
+def extract_git_commit_selections(git_commit_message: str) -> set[str]:
     """Extract the selected suites from git commit message."""
     suites = set()
     for token in git_commit_message.split():

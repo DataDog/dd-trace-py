@@ -5,7 +5,6 @@ that we expect to be implicitly traced via `ddtrace-run`
 
 import redis
 
-from ddtrace._trace.pin import Pin
 from tests.contrib.config import REDIS_CONFIG
 from tests.utils import TracerSpanContainer
 from tests.utils import scoped_tracer
@@ -13,13 +12,10 @@ from tests.utils import scoped_tracer
 
 if __name__ == "__main__":
     r = redis.Redis(host=REDIS_CONFIG["host"], port=REDIS_CONFIG["port"])
-    pin = Pin.get_from(r)
-    assert pin
-
     tracer_scope = scoped_tracer()
-    pin._tracer = tracer_scope.__enter__()
+    tracer = tracer_scope.__enter__()
     r.flushall()
-    spans = TracerSpanContainer(pin._tracer).pop()
+    spans = TracerSpanContainer(tracer).pop()
 
     assert len(spans) == 1
     assert spans[0].service == "redis"
@@ -28,7 +24,7 @@ if __name__ == "__main__":
     long_cmd = "mget %s" % " ".join(map(str, range(1000)))
     us = r.execute_command(long_cmd)
 
-    spans = TracerSpanContainer(pin._tracer).pop()
+    spans = TracerSpanContainer(tracer).pop()
     assert len(spans) == 1
     span = spans[0]
     assert span.service == "redis"

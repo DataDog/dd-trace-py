@@ -5,7 +5,6 @@ import psycopg
 from psycopg.sql import SQL
 from psycopg.sql import Literal
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from tests.contrib.asyncio.utils import AsyncioTestCase
@@ -17,9 +16,6 @@ TEST_PORT = POSTGRES_CONFIG["port"]
 
 
 class PsycopgCore(AsyncioTestCase):
-    # default service
-    TEST_SERVICE = "postgres"
-
     def setUp(self):
         super(PsycopgCore, self).setUp()
 
@@ -30,13 +26,9 @@ class PsycopgCore(AsyncioTestCase):
 
         unpatch()
 
-    async def _get_conn(self, service=None):
+    async def _get_conn(self):
         print(POSTGRES_CONFIG)
         conn = await psycopg.AsyncConnection.connect(**POSTGRES_CONFIG)
-        pin = Pin.get_from(conn)
-        if pin:
-            pin._clone(service=service, tracer=self.tracer).onto(conn)
-
         return conn
 
     async def test_patch_unpatch(self):
@@ -44,11 +36,9 @@ class PsycopgCore(AsyncioTestCase):
         patch()
         patch()
 
-        service = "fo"
-
-        conn = await self._get_conn(service=service)
+        conn = await self._get_conn()
         await conn.cursor().execute("""select 'blah'""")
-        self.assert_structure(dict(name="postgres.query", service=service))
+        self.assert_structure(dict(name="postgres.query"))
         self.reset()
 
         # Test unpatch
@@ -61,11 +51,11 @@ class PsycopgCore(AsyncioTestCase):
         # Test patch again
         patch()
 
-        conn = await self._get_conn(service=service)
+        conn = await self._get_conn()
         await conn.cursor().execute("""select 'blah'""")
-        self.assert_structure(dict(name="postgres.query", service=service))
+        self.assert_structure(dict(name="postgres.query"))
 
-    async def assert_conn_is_traced_async(self, db, service):
+    async def assert_conn_is_traced_async(self, db):
         # ensure the trace pscyopg client doesn't add non-standard
         # methods
         try:
@@ -86,7 +76,7 @@ class PsycopgCore(AsyncioTestCase):
         self.assertEqual(rows, [("foobarblah",)])
 
         self.assert_structure(
-            dict(name="postgres.query", resource=q, service=service, error=0, span_type="sql"),
+            dict(name="postgres.query", resource=q, error=0, span_type="sql"),
         )
         root = self.get_root_span()
         self.assertIsNone(root.get_tag("sql.query"))
@@ -108,7 +98,6 @@ class PsycopgCore(AsyncioTestCase):
             dict(
                 name="postgres.query",
                 resource=q,
-                service=service,
                 error=1,
                 span_type="sql",
                 meta={
@@ -152,22 +141,20 @@ class PsycopgCore(AsyncioTestCase):
         self.assert_has_no_spans()
 
     async def test_connect_factory(self):
-        services = ["db", "another"]
-        for service in services:
-            conn = await self._get_conn(service=service)
-            await self.assert_conn_is_traced_async(conn, service)
+        conn = await self._get_conn()
+        await self.assert_conn_is_traced_async(conn)
 
     async def test_commit(self):
         conn = await self._get_conn()
         await conn.commit()
 
-        self.assert_structure(dict(name="psycopg.connection.commit", service=self.TEST_SERVICE))
+        self.assert_structure(dict(name="psycopg.connection.commit"))
 
     async def test_rollback(self):
         conn = await self._get_conn()
         await conn.rollback()
 
-        self.assert_structure(dict(name="psycopg.connection.rollback", service=self.TEST_SERVICE))
+        self.assert_structure(dict(name="psycopg.connection.rollback"))
 
     async def test_composed_query(self):
         """Checks whether execution of composed SQL string is traced"""
@@ -243,11 +230,10 @@ class PsycopgCore(AsyncioTestCase):
         assert spans[0].name == "postgresql.query"
 
     async def test_contextmanager_connection(self):
-        service = "fo"
-        db = await self._get_conn(service=service)
+        db = await self._get_conn()
         async with db.cursor() as cursor:
             await cursor.execute("""select 'blah'""")
-            self.assert_structure(dict(name="postgres.query", service=service))
+            self.assert_structure(dict(name="postgres.query"))
 
     async def test_connection_execute(self):
         """Checks whether connection execute shortcute method works as normal"""

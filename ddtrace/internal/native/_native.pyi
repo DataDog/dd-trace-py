@@ -1,9 +1,15 @@
 from enum import Enum
 from typing import Any
-from typing import Dict
-from typing import List
+from typing import Iterator
 from typing import Literal
+from typing import Mapping
 from typing import Optional
+from typing import TypeVar
+from typing import Union
+
+from ddtrace._trace.types import _AttributeValueType
+
+_SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
 class DDSketch:
     def __init__(self): ...
@@ -37,7 +43,7 @@ class PyConfigurator:
         :param file: The path to the managed file to override.
         """
         ...
-    def get_configuration(self) -> List[Dict[str, str]]:
+    def get_configuration(self) -> list[dict[str, str]]:
         """
         Retrieve the on-disk configuration.
         :return: A list of dictionaries containing the configuration:
@@ -68,27 +74,28 @@ class StacktraceCollection:
 class CrashtrackerConfiguration:
     def __init__(
         self,
-        additional_files: List[str],
+        additional_files: list[str],
         create_alt_stack: bool,
         use_alt_stack: bool,
         timeout_ms: int,
         resolve_frames: StacktraceCollection,
-        endpoint: Optional[str],
-        unix_socket_path: Optional[str],
+        endpoint: Optional[str] = None,
+        unix_socket_path: Optional[str] = None,
+        test_token: Optional[str] = None,
     ): ...
 
 class CrashtrackerReceiverConfig:
     def __init__(
         self,
-        args: List[str],
-        env: Dict[str, str],
+        args: list[str],
+        env: dict[str, str],
         path_to_receiver_binary: str,
         stderr_filename: Optional[str],
         stdout_filename: Optional[str],
     ): ...
 
 class CrashtrackerMetadata:
-    def __init__(self, library_name: str, library_version: str, family: str, tags: Dict[str, str]): ...
+    def __init__(self, library_name: str, library_version: str, family: str, tags: dict[str, str]): ...
 
 class CrashtrackerStatus:
     NotInitialized: "CrashtrackerStatus"
@@ -99,8 +106,6 @@ def crashtracker_init(
     config: CrashtrackerConfiguration,
     receiver_config: CrashtrackerReceiverConfig,
     metadata: CrashtrackerMetadata,
-    # TODO: Add this back in post Code Freeze (need to update config registry)
-    # emit_runtime_stacks: bool,
 ) -> None: ...
 def crashtracker_on_fork(
     config: CrashtrackerConfiguration, receiver_config: CrashtrackerReceiverConfig, metadata: CrashtrackerMetadata
@@ -153,6 +158,34 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     ...
 
+class SharedRuntime:
+    """
+    SharedRuntime manages a shared Tokio async runtime used by TraceExporter instances.
+    It provides fork-safety hooks to pause and resume the runtime around process forks.
+    """
+
+    def __init__(self) -> None: ...
+    def before_fork(self) -> None:
+        """Prepare the shared runtime for forking. Call this before os.fork()."""
+        ...
+    def after_fork_parent(self) -> None:
+        """Resume the shared runtime in the parent process after forking."""
+        ...
+    def after_fork_child(self) -> None:
+        """Re-initialize the shared runtime in the child process after forking."""
+        ...
+    def shutdown(self, timeout_ms: Optional[int] = None) -> None:
+        """Gracefully shut down the shared runtime.
+
+        Args:
+            timeout_ms: Maximum time in milliseconds to wait for shutdown.
+                If None, waits indefinitely.
+        """
+        ...
+    def debug(self) -> str:
+        """Returns a string representation of the runtime. Should only be used for debugging."""
+        ...
+
 class TraceExporter:
     """
     TraceExporter is a class responsible for exporting traces to the Agent.
@@ -163,11 +196,10 @@ class TraceExporter:
         Initialize a TraceExporter.
         """
         ...
-    def send(self, data: bytes, trace_count: int) -> str:
+    def send(self, data: bytes) -> str:
         """
         Send a trace payload to the Agent.
         :param data: The msgpack encoded trace payload to send.
-        :param trace_count: The number of traces in the data payload.
         """
         ...
     def shutdown(self, timeout_ns: int) -> None:
@@ -180,22 +212,6 @@ class TraceExporter:
     def drop(self) -> None:
         """
         Drop the TraceExporter, releasing any resources without sending pending stats.
-        """
-        ...
-    def run_worker(self) -> None:
-        """
-        Start the rust worker threads.
-        This starts the runtime required to process rust async tasks including stats and telemetry sending.
-        The runtime will also be created when calling `send`,
-        this method can be used to start the runtime before sending any traces.
-        """
-        ...
-    def stop_worker(self) -> None:
-        """
-        Stop the rust worker threads.
-        This stops the async runtime and must be called before forking to avoid deadlocks after forking.
-        This should be called even if `run_worker` hasn't been called as the runtime will be started
-        when calling `send`.
         """
         ...
     def debug(self) -> str:
@@ -255,6 +271,12 @@ class TraceExporterBuilder:
         """
         Set the git commit sha of the TraceExporter.
         :param git_commit_sha: The git commit SHA of the current code version.
+        """
+        ...
+    def set_process_tags(self, process_tags: str) -> TraceExporterBuilder:
+        """
+        Set the process tags to be included in the stats payload.
+        :param process_tags: Comma-separated list of key:value process tags (e.g., "key1:val1,key2:val2").
         """
         ...
     def set_tracer_version(self, version: str) -> TraceExporterBuilder:
@@ -329,11 +351,13 @@ class TraceExporterBuilder:
         self,
         heartbeat_ms: int,
         runtime_id: str,
+        debug_enabled: bool,
     ) -> TraceExporterBuilder:
         """
         Emit telemetry in the TraceExporter
         :param heartbeat: The flush interval for telemetry metrics in milliseconds.
         :param runtime_id: The runtime id to use for telemetry.
+        :param debug_enabled: Whether to enable debug logging for telemetry.
         """
         ...
     def enable_health_metrics(self) -> TraceExporterBuilder:
@@ -341,10 +365,32 @@ class TraceExporterBuilder:
         Enable health metrics in the TraceExporter
         """
         ...
-    def build(self) -> TraceExporter:
+    def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
+        """
+        Set the OTLP HTTP/JSON endpoint for trace export.
+        When set, traces are sent to this endpoint instead of the Datadog agent.
+        The host language is responsible for resolving the endpoint from its own
+        configuration (e.g. OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).
+        :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
+        """
+        ...
+    def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
+        """
+        Set additional HTTP headers for OTLP trace export requests.
+        :param headers: A list of (key, value) header pairs.
+        """
+        ...
+    def set_connection_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
+        """
+        Set the connection timeout in milliseconds for trace export requests.
+        :param timeout_ms: Timeout in milliseconds.
+        """
+        ...
+    def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
         This method consumes the builder, so it cannot be used again after calling build.
+        :param shared_runtime: A SharedRuntime instance to share with this exporter.
         :return: A configured TraceExporter instance.
         :raises ValueError: If the builder has already been consumed or if required settings are missing.
         """
@@ -366,6 +412,13 @@ class AgentError(Exception):
 class BuilderError(Exception):
     """
     Raised when there is an error in the TraceExporterBuilder configuration.
+    """
+
+    ...
+
+class SharedRuntimeError(Exception):
+    """
+    Raised when there is an error in the SharedRuntime lifecycle (fork hooks, shutdown, etc.).
     """
 
     ...
@@ -505,9 +558,163 @@ class ffe:
         def flag_metadata(self) -> dict[str, str]: ...
         @property
         def do_log(self) -> bool: ...
-        @property
-        def extra_logging(self) -> Optional[dict[str, str]]: ...
 
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...
         def resolve_value(self, flag_key: str, expected_type: ffe.FlagType, context: dict) -> ffe.ResolutionDetails: ...
+
+class native_flare:
+    class ListeningError(Exception): ...
+    class LockError(Exception): ...
+    class ParsingError(Exception): ...
+    class SendError(Exception): ...
+    class ZipError(Exception): ...
+
+    class FlareAction:
+        def __repr__(self) -> str: ...
+        def is_send(self) -> bool: ...
+        def is_set(self) -> bool: ...
+        def is_unset(self) -> bool: ...
+        @property
+        def level(self) -> Optional[str]: ...
+        @property
+        def case_id(self) -> Optional[str]: ...
+        @staticmethod
+        def none_action() -> native_flare.FlareAction: ...
+
+    class TracerFlareManager:
+        def __init__(self, agent_url: str) -> None: ...
+        def handle_remote_config_data(self, data: Any, product: str) -> native_flare.FlareAction: ...
+        def zip_and_send(self, directory: str, send_action: native_flare.FlareAction) -> None: ...
+        def set_current_log_level(self, level: str) -> None: ...
+
+class SpanData:
+    name: str
+    service: Optional[str]
+    resource: str
+    span_type: Optional[str]
+    start_ns: int
+    duration_ns: Optional[int]  # None when not set (duration == -1 sentinel)
+    error: int
+    span_id: int
+    trace_id: int
+    _trace_id_64bits: int
+    start: float  # Convenience property: start_ns / 1e9 (in seconds)
+    duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
+    parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
+    _span_api: str
+
+    def __new__(
+        cls: type[_SpanDataT],
+        name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        parent_id: Optional[int] = None,
+        start: Optional[float] = None,
+        context: Optional[Any] = None,  # placeholder for Span.__init__
+        on_finish: Optional[Any] = None,  # placeholder for Span.__init__
+        span_api: Optional[str] = None,
+        links: Optional[list[SpanLink]] = None,  # placeholder for Span.__init__
+    ) -> _SpanDataT: ...
+    @property
+    def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
+    def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
+    def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
+    def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
+    def _has_meta_structs(self) -> bool: ...
+    def _get_meta_structs(self) -> dict[str, Any]: ...
+    def _set_link(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str] = None,
+        flags: Optional[int] = None,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
+    ) -> None: ...
+    def _add_event(
+        self,
+        name: str,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
+        time_unix_nano: Optional[int] = None,
+    ) -> None: ...
+    def _get_links(self) -> list["SpanLink"]: ...
+    def _get_events(self) -> list["SpanEvent"]: ...
+    def _has_links(self) -> bool: ...
+    def _has_events(self) -> bool: ...
+
+    # Attribute API
+    def _set_attribute(self, key: str, value: Union[str, int, float]) -> None: ...
+    def _set_attributes(self, attrs: dict[str, Union[str, int, float]]) -> None: ...
+    def _has_attribute(self, key: str) -> bool: ...
+    def _remove_attribute(self, key: str) -> None: ...
+    def _get_attribute(self, key: str) -> Optional[Union[str, int, float]]: ...
+    def _get_str_attribute(self, key: str) -> Optional[str]: ...
+    def _get_numeric_attribute(self, key: str) -> Optional[Union[int, float]]: ...
+    def _get_attributes(self) -> Mapping[str, Union[str, int, float]]: ...
+    def _get_str_attributes(self) -> Mapping[str, str]: ...
+    def _get_numeric_attributes(self) -> Mapping[str, Union[int, float]]: ...
+    def _set_default_attributes(self, values: Mapping[str, Union[str, int, float]]) -> None: ...
+
+class SpanEvent:
+    name: str
+    time_unix_nano: int  # u64 in Rust; always non-negative
+    attributes: dict[str, Any]
+    def __init__(
+        self,
+        name: str,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
+        time_unix_nano: Optional[int] = None,
+    ): ...
+    def __repr__(self) -> str: ...
+    def __iter__(self) -> Iterator[tuple[str, Any]]: ...
+    def __reduce__(self) -> tuple: ...
+
+class SpanLink:
+    trace_id: int
+    span_id: int
+    tracestate: Optional[str]
+    flags: Optional[int]
+    attributes: dict[str, Any]
+
+    def __init__(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str] = None,
+        flags: Optional[int] = None,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
+        _skip_validation: bool = False,
+    ) -> None: ...
+    def to_dict(self) -> dict[str, Any]: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __repr__(self) -> str: ...
+    def __reduce__(self) -> tuple: ...
+
+def flatten_key_value(root_key: str, value: Any) -> dict[str, Any]: ...
+def is_sequence(obj: Any) -> bool: ...
+def seed() -> None: ...
+def rand64bits() -> int: ...
+def generate_128bit_trace_id() -> int: ...
+
+class config:
+    """Native config module for tracer configuration managed in Rust."""
+
+    @staticmethod
+    def get_128_bit_trace_id_enabled() -> bool:
+        """Return whether 128-bit trace ID generation is enabled."""
+        ...
+    @staticmethod
+    def set_128_bit_trace_id_enabled(val: bool) -> None:
+        """Set whether 128-bit trace ID generation is enabled."""
+        ...
+    @staticmethod
+    def get_raise() -> bool:
+        """Return whether errors in event listeners should be re-raised (DD_TESTING_RAISE)."""
+        ...
+    @staticmethod
+    def set_raise(val: bool) -> None:
+        """Set whether errors in event listeners should be re-raised (DD_TESTING_RAISE)."""
+        ...

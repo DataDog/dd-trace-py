@@ -4,6 +4,7 @@
 
 #pragma once
 
+#define Py_BUILD_CORE
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <unicodeobject.h>
@@ -11,158 +12,128 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 
 #include <echion/long.h>
-#include <echion/render.h>
 #include <echion/vm.h>
 
 constexpr ssize_t MAX_STRING_SIZE = 1 << 20; // 1 MiB
 
 // ----------------------------------------------------------------------------
-static std::unique_ptr<unsigned char[]>
-pybytes_to_bytes_and_size(PyObject* bytes_addr, Py_ssize_t* size)
-{
-    PyBytesObject bytes;
-
-    if (copy_type(bytes_addr, bytes))
-        return nullptr;
-
-    *size = bytes.ob_base.ob_size;
-    if (*size < 0 || *size > MAX_STRING_SIZE)
-        return nullptr;
-
-    auto data = std::make_unique<unsigned char[]>(*size);
-    if (copy_generic(reinterpret_cast<char*>(bytes_addr) + offsetof(PyBytesObject, ob_sval), data.get(), *size))
-        return nullptr;
-
-    return data;
-}
+std::unique_ptr<unsigned char[]>
+pybytes_to_bytes_and_size(PyObject* bytes_addr, Py_ssize_t* size);
 
 // ----------------------------------------------------------------------------
-static Result<std::string>
-pyunicode_to_utf8(PyObject* str_addr)
-{
-    PyUnicodeObject str;
-    if (copy_type(str_addr, str))
-        return ErrorKind::PyUnicodeError;
-
-    PyASCIIObject& ascii = str._base._base;
-
-    if (ascii.state.kind != 1)
-        return ErrorKind::PyUnicodeError;
-
-    const char* data = ascii.state.compact
-                         ? reinterpret_cast<const char*>(reinterpret_cast<const uint8_t*>(str_addr) + sizeof(ascii))
-                         : static_cast<const char*>(str._base.utf8);
-    if (data == NULL)
-        return ErrorKind::PyUnicodeError;
-
-    Py_ssize_t size = ascii.state.compact ? ascii.length : str._base.utf8_length;
-    if (size < 0 || size > 1024)
-        return ErrorKind::PyUnicodeError;
-
-    auto dest = std::string(size, '\0');
-    if (copy_generic(data, dest.data(), size))
-        return ErrorKind::PyUnicodeError;
-
-    return Result<std::string>(dest);
-}
+Result<std::string>
+pyunicode_to_utf8(PyObject* str_addr);
 
 // ----------------------------------------------------------------------------
+// NOTE: StringTag is used to salt the upper bits of string table keys.
+// This prevents collisions when Python reuses memory addresses for different
+// types of strings (e.g., a Task name getting deallocated and the same address
+// being reused for a code object's name). Without tags, we'd return stale
+// cached values for the wrong string type.
+enum class StringTag : uint8_t
+{
+    Unknown = 0,     // Default/untagged (for backwards compatibility)
+    FileName = 1,    // co_filename from code objects
+    FuncName = 2,    // co_name / co_qualname from code objects
+    TaskName = 3,    // asyncio Task names
+    GreenletName = 4 // greenlet names
+};
 
-class StringTable : public std::unordered_map<uintptr_t, std::string>
+class StringTable
 {
   public:
     using Key = uintptr_t;
+    using Map = std::unordered_map<Key, std::string>;
+
+    // Tag is stored in the upper 8 bits of the key (bits 56-63).
+    // On x86_64, only 48 bits are used for virtual addresses, so this is safe.
+    // On other architectures with larger address spaces, collisions are still
+    // unlikely and the worst case is just a cache miss (re-read the string).
+    static constexpr int TAG_SHIFT = 56;
+    static constexpr Key TAG_MASK = static_cast<Key>(0xFF) << TAG_SHIFT;
+
+    [[nodiscard]] static constexpr Key make_tagged_key(uintptr_t addr, StringTag tag)
+    {
+        return (addr & ~TAG_MASK) | (static_cast<Key>(tag) << TAG_SHIFT);
+    }
+
+    [[nodiscard]] static constexpr StringTag extract_tag(Key key)
+    {
+        return static_cast<StringTag>((key & TAG_MASK) >> TAG_SHIFT);
+    }
+
+    static constexpr bool is_ephemeral(StringTag tag)
+    {
+        // NOTE: GreenletName is NOT ephemeral because greenlet names are cached in
+        // GreenletInfo::name as StringTable keys. If clear_ephemeral ran while a
+        // GreenletInfo still held the key, subsequent lookups would fail and
+        // sampling would be lost for that greenlet. Greenlet strings are
+        // explicitly removed via StringTable::erase in untrack_greenlet.
+        return tag == StringTag::TaskName;
+    }
 
     static constexpr Key INVALID = 1;
     static constexpr Key UNKNOWN = 2;
     static constexpr Key C_FRAME = 3;
 
     // Python string object
-    [[nodiscard]] inline Result<Key> key(PyObject* s)
+    [[nodiscard]] Result<Key> key(PyObject* s, StringTag tag = StringTag::Unknown);
+
+    [[nodiscard]] Result<std::reference_wrapper<const std::string>> lookup(Key key) const;
+
+    [[nodiscard]] inline size_t size() const
     {
         const std::lock_guard<std::mutex> lock(table_lock);
+        return stable_.size() + ephemeral_.size();
+    }
 
-        auto k = reinterpret_cast<Key>(s);
-
-        if (this->find(k) == this->end()) {
-#if PY_VERSION_HEX >= 0x030c0000
-            // The task name might hold a PyLong for deferred task name formatting.
-            std::string str = "Task-";
-
-            auto maybe_long = pylong_to_llong(s);
-            if (maybe_long) {
-                str += std::to_string(*maybe_long);
-            } else {
-                auto maybe_unicode = pyunicode_to_utf8(s);
-                if (!maybe_unicode) {
-                    return ErrorKind::PyUnicodeError;
-                }
-
-                str = *maybe_unicode;
-            }
-#else
-            auto maybe_unicode = pyunicode_to_utf8(s);
-            if (!maybe_unicode) {
-                return ErrorKind::PyUnicodeError;
-            }
-
-            std::string str = std::move(*maybe_unicode);
-#endif
-            this->emplace(k, str);
-            Renderer::get().string(k, str);
-        }
-
-        return Result<Key>(k);
-    };
-
-    // Python string object
-    [[nodiscard]] inline Key key_unsafe(PyObject* s)
+    [[nodiscard]] inline size_t stable_size() const
     {
         const std::lock_guard<std::mutex> lock(table_lock);
+        return stable_.size();
+    }
 
-        auto k = reinterpret_cast<Key>(s);
-
-        if (this->find(k) == this->end()) {
-#if PY_VERSION_HEX >= 0x030c0000
-            // The task name might hold a PyLong for deferred task name formatting.
-            auto str =
-              (PyLong_CheckExact(s)) ? "Task-" + std::to_string(PyLong_AsLong(s)) : std::string(PyUnicode_AsUTF8(s));
-#else
-            auto str = std::string(PyUnicode_AsUTF8(s));
-#endif
-            this->emplace(k, str);
-            Renderer::get().string(k, str);
-        }
-
-        return k;
-    };
-
-    [[nodiscard]] inline Result<std::reference_wrapper<const std::string>> lookup(Key key) const
+    [[nodiscard]] inline size_t ephemeral_size() const
     {
         const std::lock_guard<std::mutex> lock(table_lock);
+        return ephemeral_.size();
+    }
 
-        const auto it = this->find(key);
-        if (it == this->cend())
-            return ErrorKind::LookupError;
+    void clear_ephemeral()
+    {
+        const std::lock_guard<std::mutex> lock(table_lock);
+        ephemeral_.clear();
+    }
 
-        return std::ref(it->second);
-    };
+    void erase(Key key)
+    {
+        const std::lock_guard<std::mutex> lock(table_lock);
+        table_for(extract_tag(key)).erase(key);
+    }
 
     StringTable()
-      : std::unordered_map<uintptr_t, std::string>()
     {
-        this->emplace(0, "");
-        this->emplace(INVALID, "<invalid>");
-        this->emplace(UNKNOWN, "<unknown>");
-    };
+        stable_.emplace(0, "");
+        stable_.emplace(INVALID, "<invalid>");
+        stable_.emplace(UNKNOWN, "<unknown>");
+    }
+
+    void postfork_child()
+    {
+        // NB placement-new to re-init and leak the mutex because doing anything else is UB
+        new (&table_lock) std::mutex();
+    }
 
   private:
+    Map& table_for(StringTag tag) { return is_ephemeral(tag) ? ephemeral_ : stable_; }
+    const Map& table_for(StringTag tag) const { return is_ephemeral(tag) ? ephemeral_ : stable_; }
+
+    const Map& table_for_key(Key k) const { return table_for(extract_tag(k)); }
+
+    Map stable_;
+    Map ephemeral_;
     mutable std::mutex table_lock;
 };
-
-// We make this a reference to a heap-allocated object so that we can avoid
-// the destruction on exit. We are in charge of cleaning up the object. Note
-// that the object will leak, but this is not a problem.
-inline StringTable& string_table = *(new StringTable());

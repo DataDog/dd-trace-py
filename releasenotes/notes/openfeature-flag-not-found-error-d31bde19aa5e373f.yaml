@@ -1,0 +1,11 @@
+---
+api:
+  - |
+    openfeature: Flag evaluations for non-existent flags now return ``Reason.ERROR`` with
+    ``ErrorCode.FLAG_NOT_FOUND`` instead of ``Reason.DEFAULT`` when configuration is available
+    but the flag is not found. The previous behavior (``Reason.DEFAULT``) is preserved when
+    no configuration is loaded. This aligns Python with other Datadog SDK implementations.
+upgrade:
+  - |
+    openfeature: The minimum required version of ``openfeature-sdk`` is now 0.8.0 (previously 0.6.0).
+    This is required for the ``finally_after`` hook to receive evaluation details for metrics tracking.

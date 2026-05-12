@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: Adds support for user-defined dataset record IDs. Users can now supply an
+    optional ``id`` field when creating dataset records via ``Dataset.append()``,
+    ``Dataset.extend()``, ``create_dataset()``, or ``create_dataset_from_csv()`` (via the new
+    ``id_column`` parameter). If no ``id`` is provided, the SDK generates one automatically.

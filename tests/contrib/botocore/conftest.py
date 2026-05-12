@@ -1,14 +1,14 @@
 import os
 
 import botocore
+import mock
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
 from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
-from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs import LLMObs
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import override_global_config
@@ -36,21 +36,7 @@ def aws_credentials():
 
 
 @pytest.fixture
-def mock_tracer(bedrock_client, tracer):
-    pin = Pin.get_from(bedrock_client)
-    pin._override(bedrock_client, tracer=tracer)
-    yield tracer
-
-
-@pytest.fixture
-def mock_tracer_agent(bedrock_agent_client, tracer):
-    pin = Pin.get_from(bedrock_agent_client)
-    pin._override(bedrock_agent_client, tracer=tracer)
-    yield tracer
-
-
-@pytest.fixture
-def boto3(aws_credentials, llmobs_span_writer, ddtrace_global_config):
+def boto3(aws_credentials, ddtrace_global_config):
     global_config = {"_dd_api_key": "<not-a-real-api_key>"}
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
@@ -105,26 +91,47 @@ def llmobs_span_writer():
 
 
 @pytest.fixture
-def mock_tracer_proxy(bedrock_client_proxy, tracer):
-    pin = Pin.get_from(bedrock_client_proxy)
-    pin._override(bedrock_client_proxy, tracer=tracer)
-    yield tracer
-
-
-@pytest.fixture
-def bedrock_llmobs(tracer, mock_tracer, llmobs_span_writer):
-    llmobs_service.disable()
+def bedrock_llmobs(tracer, monkeypatch):
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+    LLMObs.disable()
     with override_global_config(
-        {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.llmobs"}
+        {
+            "_llmobs_ml_app": "<ml-app-name>",
+            "_dd_api_key": "<not-a-real-key>",
+        }
     ):
-        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-        yield llmobs_service
-    llmobs_service.disable()
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        yield LLMObs
+    LLMObs.disable()
 
 
 @pytest.fixture
-def llmobs_events(bedrock_llmobs, llmobs_span_writer):
+def bedrock_agents_llmobs(tracer, llmobs_span_writer):
+    """LLMObs fixture for bedrock_agents tests.
+
+    Keeps the real ``TestLLMObsSpanWriter`` (instead of a mock) because the
+    bedrock_agents integration synthesizes span events without a backing APM
+    span — the enqueued events are not derivable from ``meta_struct`` and must
+    be read out of the writer via ``llmobs_events``.
+    """
+    LLMObs.disable()
+    with override_global_config(
+        {
+            "_llmobs_ml_app": "<ml-app-name>",
+            "_dd_api_key": "<not-a-real-key>",
+        }
+    ):
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = llmobs_span_writer
+        yield LLMObs
+    LLMObs.disable()
+
+
+@pytest.fixture
+def llmobs_events(llmobs_span_writer):
     return llmobs_span_writer.events
 
 

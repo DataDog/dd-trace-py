@@ -1,7 +1,6 @@
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as get_package_version
-from typing import Dict
 from urllib import parse
 
 from wrapt import wrap_function_wrapper as _w
@@ -14,6 +13,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.elasticsearch.quantize import quantize
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import elasticsearch as metadata
@@ -23,6 +23,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -63,17 +64,15 @@ def get_version_tuple(elasticsearch):
     return getattr(elasticsearch, "__version__", "")
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"elasticsearch": ">=1.10"}
 
 
-def get_versions():
-    # type: () -> Dict[str, str]
+def get_versions() -> dict[str, str]:
     if not ES_MODULE_VERSIONS:
         for es_module in ES_PACKAGE_TO_MODULE_NAME.keys():
             try:
@@ -139,19 +138,17 @@ def _get_perform_request_coro(transport):
             yield func(*args, **kwargs)
             return
 
-        with pin.tracer.trace(
-            "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
-        ) as span:
+        with tracer.trace("elasticsearch.query", span_type=SpanTypes.ELASTICSEARCH) as span:
+            set_service_and_source(span, ext_service(pin, config.elasticsearch), config.elasticsearch)
             if pin.tags:
                 span.set_tags(pin.tags)
 
-            span._set_tag_str(COMPONENT, config.elasticsearch.integration_name)
+            span._set_attribute(COMPONENT, config.elasticsearch.integration_name)
 
             # set span.kind to the type of request being performed
-            span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-            # PERF: avoid setting via Span.set_tag
-            span.set_metric(_SPAN_MEASURED_KEY, 1)
+            span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
             method, target = args
             params = kwargs.get("params")
@@ -165,9 +162,9 @@ def _get_perform_request_coro(transport):
             else:
                 encoded_params = parsed.query
 
-            span._set_tag_str(metadata.METHOD, method)
-            span._set_tag_str(metadata.URL, url)
-            span._set_tag_str(metadata.PARAMS, encoded_params)
+            span._set_attribute(metadata.METHOD, method)
+            span._set_attribute(metadata.URL, url)
+            span._set_attribute(metadata.PARAMS, encoded_params)
             try:
                 # elasticsearch<8
                 connections = instance.connection_pool.connections
@@ -177,12 +174,12 @@ def _get_perform_request_coro(transport):
             for connection in connections:
                 hostname, _ = extract_netloc_and_query_info_from_url(connection.host)
                 if hostname:
-                    span._set_tag_str(net.TARGET_HOST, hostname)
-                    span._set_tag_str(net.SERVER_ADDRESS, hostname)
+                    span._set_attribute(net.TARGET_HOST, hostname)
+                    span._set_attribute(net.SERVER_ADDRESS, hostname)
                     break
 
             if config.elasticsearch.trace_query_string:
-                span._set_tag_str(http.QUERY_STRING, encoded_params)
+                span._set_attribute(http.QUERY_STRING, encoded_params)
 
             if method in ["GET", "POST"]:
                 try:
@@ -197,9 +194,9 @@ def _get_perform_request_coro(transport):
                 # Ideally the body should be truncated, however we cannot truncate as the obfuscation
                 # logic for the body lives in the agent and truncating would make the body undecodable.
                 if len(ser_body) <= _limits.MAX_SPAN_META_VALUE_LEN:
-                    span._set_tag_str(metadata.BODY, ser_body)
+                    span._set_attribute(metadata.BODY, ser_body)
                 else:
-                    span._set_tag_str(
+                    span._set_attribute(
                         metadata.BODY,
                         "<body size %s exceeds limit of %s>" % (len(ser_body), _limits.MAX_SPAN_META_VALUE_LEN),
                     )
@@ -210,7 +207,7 @@ def _get_perform_request_coro(transport):
             try:
                 result = yield func(*args, **kwargs)
             except transport.TransportError as e:
-                span.set_tag(http.STATUS_CODE, getattr(e, "status_code", 500))
+                span._set_attribute(http.STATUS_CODE, getattr(e, "status_code", 500))
                 span.error = 1
                 raise
 
@@ -231,12 +228,12 @@ def _get_perform_request_coro(transport):
 
                 took = data.get("took")
                 if took:
-                    span.set_metric(metadata.TOOK, int(took))
+                    span._set_attribute(metadata.TOOK, int(took))
             except Exception:
                 log.debug("Unexpected exception", exc_info=True)
 
             if status:
-                span.set_tag(http.STATUS_CODE, status)
+                span._set_attribute(http.STATUS_CODE, status)
 
             return
 

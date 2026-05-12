@@ -96,6 +96,7 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django_q",
+    "tests.contrib.django.django_app",
 ]
 
 Q_CLUSTER = {

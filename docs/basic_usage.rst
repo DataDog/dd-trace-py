@@ -104,41 +104,16 @@ the `ddtrace.profiling.Profiler` object::
    e.g. building a context manager.
 
 
-Asyncio Support
----------------
+``asyncio`` Support
+-------------------
 
 The profiler supports the ``asyncio`` library and retrieves the
-``asyncio.Task`` names to tag along the profiled data.
+``asyncio.Task`` names to tag stacks in the profiles.
 
-For this to work, the profiler `replaces the default event loop policy
-<https://docs.python.org/3/library/asyncio-policy.html#asyncio-policies>`_ with
-a custom policy that tracks threads to loop mapping.
+``asyncio.Task``\ s that are related to other ``asyncio.Task``\ s (when one awaits another)
+have their stacks merged into a single stack.
 
-The custom asyncio loop policy is installed by default at profiler startup. You
-can disable this behavior by using the ``asyncio_loop_policy`` parameter and
-passing it ``None``::
-
-  from ddtrace.profiling import Profiler
-
-  prof = Profiler(asyncio_loop_policy=None)
-
-You can also pass a custom class that implements the interface from
-``ddtrace.profiling.profiler.DdtraceProfilerEventLoopPolicy``::
-
-
-  from ddtrace.profiling import Profiler
-
-  prof = Profiler(asyncio_loop_policy=MyLoopPolicy())
-
-
-If the loop policy has been overridden after the profiler has started, you can
-always restore the profiler asyncio loop policy by calling
-the ``set_asyncio_event_loop_policy`` method::
-
-  from ddtrace.profiling import Profiler
-
-  prof = Profiler()
-  prof.set_asyncio_event_loop_policy()
+This is done automatically and does not require additional code or configuration.
 
 Error Tracking
 ~~~~~~~~~~~~~~

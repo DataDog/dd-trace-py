@@ -5,7 +5,6 @@ import uuid
 import pytest
 import yaaredis
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.yaaredis.patch import patch
 from ddtrace.contrib.internal.yaaredis.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
@@ -37,14 +36,12 @@ def test_patching():
         We unwrap the correct methods
     """
     assert is_wrapted(yaaredis.client.StrictRedis.execute_command)
-    assert is_wrapted(yaaredis.client.StrictRedis.pipeline)
     assert is_wrapted(yaaredis.pipeline.StrictPipeline.execute)
     assert is_wrapted(yaaredis.pipeline.StrictPipeline.immediate_execute_command)
 
     unpatch()
 
     assert not is_wrapted(yaaredis.client.StrictRedis.execute_command)
-    assert not is_wrapted(yaaredis.client.StrictRedis.pipeline)
     assert not is_wrapted(yaaredis.pipeline.StrictPipeline.execute)
     assert not is_wrapted(yaaredis.pipeline.StrictPipeline.immediate_execute_command)
 
@@ -112,10 +109,6 @@ async def test_pipeline_immediate(snapshot_context, traced_yaaredis):
 
 @pytest.mark.asyncio
 async def test_meta_override(tracer, test_spans, traced_yaaredis):
-    pin = Pin.get_from(traced_yaaredis)
-    assert pin is not None
-    pin._clone(tags={"cheese": "camembert"}, tracer=tracer).onto(traced_yaaredis)
-
     await traced_yaaredis.get("cheese")
     test_spans.assert_trace_count(1)
     test_spans.assert_span_count(1)
@@ -123,25 +116,20 @@ async def test_meta_override(tracer, test_spans, traced_yaaredis):
     assert test_spans.spans[0].get_tag("component") == "yaaredis"
     assert test_spans.spans[0].get_tag("span.kind") == "client"
     assert test_spans.spans[0].get_tag("db.system") == "redis"
-    assert "cheese" in test_spans.spans[0].get_tags() and test_spans.spans[0].get_tag("cheese") == "camembert"
 
 
 @pytest.mark.asyncio
 async def test_service_name(tracer, test_spans, traced_yaaredis):
-    service = str(uuid.uuid4())
-    Pin._override(traced_yaaredis, service=service, tracer=tracer)
-
     await traced_yaaredis.set("cheese", "1")
     test_spans.assert_trace_count(1)
     test_spans.assert_span_count(1)
-    assert test_spans.spans[0].service == service
+    assert test_spans.spans[0].service == "redis"
 
 
 @pytest.mark.asyncio
 async def test_service_name_config(tracer, test_spans, traced_yaaredis):
     service = str(uuid.uuid4())
     with override_config("yaaredis", dict(service=service)):
-        Pin._override(traced_yaaredis, tracer=tracer)
         await traced_yaaredis.set("cheese", "1")
         test_spans.assert_trace_count(1)
         test_spans.assert_span_count(1)
@@ -183,12 +171,15 @@ if __name__ == "__main__":
         env["DD_SERVICE"] = service
     if schema:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema
+    env["PYTHONWARNINGS"] = "ignore::UserWarning:ddtrace.internal.module"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 
 
-@pytest.mark.subprocess(env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false"))
+@pytest.mark.subprocess(
+    env=dict(DD_REDIS_RESOURCE_ONLY_COMMAND="false", PYTHONWARNINGS="ignore::UserWarning:ddtrace.internal.module")
+)
 @pytest.mark.snapshot
 def test_full_command_in_resource_env():
     import ddtrace.auto  # noqa

@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 import typing as t
 
@@ -7,12 +6,16 @@ import pytest
 
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
-from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
-from ddtrace.contrib.internal.coverage.data import _coverage_data
+from ddtrace.contrib.internal.coverage.patch import _is_coverage_available
+from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
+from ddtrace.contrib.internal.coverage.patch import reset_coverage_state
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
+from ddtrace.contrib.internal.coverage.patch import start_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
+from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
+from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
 from ddtrace.contrib.internal.pytest._report_links import print_test_report_links
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
@@ -38,11 +41,11 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retr
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.contrib.internal.pytest._utils import reports_by_item
-from ddtrace.contrib.internal.pytest._xdist import PYTEST_XDIST_WORKER_VALUE
 from ddtrace.contrib.internal.pytest._xdist import XDIST_UNSET
 from ddtrace.contrib.internal.pytest._xdist import XdistHooks
 from ddtrace.contrib.internal.pytest._xdist import _parse_xdist_args_from_cmd
 from ddtrace.contrib.internal.pytest._xdist import _skipping_level_for_xdist_parallelization_mode
+from ddtrace.contrib.internal.pytest._xdist import is_xdist_worker_env
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
@@ -64,6 +67,7 @@ from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.test_visibility.api import InternalTest
@@ -98,7 +102,6 @@ if _pytest_version_supports_attempt_to_fix():
     from ddtrace.contrib.internal.pytest._attempt_to_fix import attempt_to_fix_pytest_terminal_summary_post_yield
 
 log = get_logger(__name__)
-
 
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
@@ -172,6 +175,30 @@ def _handle_itr_xdist_skipped_suite(item, suite_id) -> bool:
     return True
 
 
+def _is_coverage_report_upload_enabled() -> bool:
+    """
+    Check if coverage report upload is enabled, following V3 pattern:
+    1. First, get setting from API (via CI visibility service)
+    2. Then, allow environment variable to override
+
+    This should only be called after pytest_sessionstart when settings are available.
+    """
+    # Get API setting (should be available after InternalTestSession.discover())
+    coverage_report_upload_enabled = False
+    try:
+        ci_visibility_service = require_ci_visibility_service()
+        if hasattr(ci_visibility_service, "_api_settings") and ci_visibility_service._api_settings:
+            coverage_report_upload_enabled = ci_visibility_service._api_settings.coverage_report_upload_enabled
+    except Exception:
+        log.debug("Unable to check if coverage report upload is enabled from settings", exc_info=True)
+
+    # Allow environment variable to override (same pattern as V3)
+    if asbool(env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
+        coverage_report_upload_enabled = True
+
+    return coverage_report_upload_enabled
+
+
 def _handle_test_management(item, test_id):
     """Add a user property to identify quarantined tests, and mark them for skipping if quarantine is enabled in
     skipping mode.
@@ -180,7 +207,7 @@ def _handle_test_management(item, test_id):
     is_disabled = InternalTest.is_disabled_test(test_id)
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
-    if is_quarantined and asbool(os.getenv("_DD_TEST_SKIP_QUARANTINED_TESTS")):
+    if is_quarantined and asbool(env.get("_DD_TEST_SKIP_QUARANTINED_TESTS")):
         # For internal use: treat quarantined tests as disabled.
         is_disabled = True
 
@@ -188,7 +215,9 @@ def _handle_test_management(item, test_id):
         # A test that is both disabled and quarantined should be skipped just like a regular disabled test.
         # It should still have both disabled and quarantined event tags, though.
         item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
-    elif is_quarantined or (is_disabled and is_attempt_to_fix):
+    elif is_attempt_to_fix:
+        return
+    elif is_quarantined:
         # We add this information to user_properties to have it available in pytest_runtest_makereport().
         item.user_properties += [USER_PROPERTY_QUARANTINED]
 
@@ -207,7 +236,7 @@ def _coverage_collector_exit(coverage_collector) -> None:
     coverage_collector.__exit__()
 
 
-def _coverage_collector_get_covered_lines(coverage_collector) -> t.Dict[str, CoverageLines]:
+def _coverage_collector_get_covered_lines(coverage_collector) -> dict[str, CoverageLines]:
     """
     Wraps coverage collector get_covered_lines call for testing purposes
     """
@@ -245,7 +274,7 @@ def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
         record_code_coverage_empty()
         return
 
-    coverage_data: t.Dict[Path, CoverageLines] = {}
+    coverage_data: dict[Path, CoverageLines] = {}
 
     for path_str, covered_lines in test_covered_lines.items():
         coverage_data[Path(path_str).absolute()] = covered_lines
@@ -302,7 +331,7 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     take_over_logger_stream_handler()
 
     # Log early initialization details
-    is_worker = PYTEST_XDIST_WORKER_VALUE is not None
+    is_worker = is_xdist_worker_env()
     process_type = "WORKER" if is_worker else "MAIN"
     log.debug("EARLY_INIT: %s process starting pytest_load_initial_conftests_pre_yield", process_type)
 
@@ -364,22 +393,51 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         _disable_ci_visibility()
 
 
-def _is_pytest_cov_enabled(config) -> bool:
-    if not config.pluginmanager.get_plugin("pytest_cov"):
-        return False
-    cov_option = config.getoption("--cov", default=False)
-    nocov_option = config.getoption("--no-cov", default=False)
-    if nocov_option is True:
-        return False
-    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
-        return True
-    return cov_option
+def _handle_coverage_patch_early(config):
+    """
+    Handle coverage patching in pytest_configure (must be early for pytest-cov).
+    Coverage start decision is deferred to pytest_sessionstart when API settings are available.
+    """
+    pytest_cov_enabled = _is_pytest_cov_enabled(config)
+
+    # Check environment variable (API settings not available yet)
+    env_coverage_upload = asbool(env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false"))
+
+    # Patch if pytest-cov is enabled OR env var suggests we might need coverage
+    if not (pytest_cov_enabled or env_coverage_upload):
+        return
+
+    # Patch coverage.py early (needed for pytest-cov to work)
+    patch_coverage()
+
+    # Verify patching worked
+    if not _is_coverage_available():
+        log.debug("Coverage requested but coverage.py not available - install with 'pip install coverage'")
+        return
+
+    if pytest_cov_enabled:
+        log.debug("pytest-cov detected, coverage.py patched successfully")
+
+    # Simplified: No callbacks needed, will handle upload directly in session finish
+    if pytest_cov_enabled or env_coverage_upload:
+        log.debug("Coverage upload will be handled in session finish")
 
 
 def pytest_configure(config: pytest_Config) -> None:
-    global skip_pytest_runtest_protocol
+    global skip_pytest_runtest_protocol, skipped_suites
 
-    if os.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
+    # AIDEV-NOTE: Reset per-session module-level state for every new main-process
+    # session. This is necessary when inline_run() calls pytest.main() inside an
+    # outer xdist worker: the module is already imported, so module-level
+    # initialisations don't re-run. Without this reset, skipped_suites accumulates
+    # entries from previous sessions and skip_pytest_runtest_protocol may stay True.
+    # The hasattr(config, "workerinput") check identifies the main process of the
+    # *current* session (not the outer-run process).
+    if not hasattr(config, "workerinput"):
+        skipped_suites = set()
+        skip_pytest_runtest_protocol = False
+
+    if env.get("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
         # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
         deprecate(
             "the DD_PYTEST_USE_NEW_PLUGIN_BETA environment variable is deprecated",
@@ -394,8 +452,8 @@ def pytest_configure(config: pytest_Config) -> None:
         if is_enabled(config):
             unpatch_unittest()
             enable_test_visibility(config=dd_config.pytest)
-            if _is_pytest_cov_enabled(config):
-                patch_coverage()
+
+            _handle_coverage_patch_early(config)
 
             skip_pytest_runtest_protocol = False
 
@@ -419,8 +477,15 @@ def pytest_configure(config: pytest_Config) -> None:
             if config.pluginmanager.hasplugin("xdist"):
                 config.pluginmanager.register(XdistHooks())
 
-                if not hasattr(config, "workerinput") and PYTEST_XDIST_WORKER_VALUE is None:
-                    # Main process
+                if not hasattr(config, "workerinput"):
+                    # Main process: reset per-session xdist ITR skip counter.
+                    # AIDEV-NOTE: Do NOT guard with PYTEST_XDIST_WORKER_VALUE is None here.
+                    # PYTEST_XDIST_WORKER_VALUE is a module-level constant frozen at import time.
+                    # When inline_run() is called inside an outer xdist worker, the constant is
+                    # "gw0" for the entire process lifetime, so the reset would never fire and
+                    # pytest.global_worker_itr_results would accumulate across inline_run calls.
+                    # hasattr(config, "workerinput") is the correct check: it is True only for
+                    # worker configs of the *current* session, not for outer-run workers.
                     pytest.global_worker_itr_results = 0
 
         else:
@@ -440,6 +505,9 @@ def pytest_unconfigure(config: pytest_Config) -> None:
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
+    # Reset stale coverage state from any previous in-process session (e.g. pytester.inline_run)
+    reset_coverage_state()
+
     if not is_test_visibility_enabled():
         return
 
@@ -469,6 +537,22 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         )
 
         InternalTestSession.set_library_capabilities(library_capabilities)
+
+        # Handle coverage configuration
+        workspace_path = InternalTestSession.get_workspace_path()
+
+        # Start our own coverage if pytest-cov is NOT enabled but coverage upload is needed
+        # If pytest-cov IS enabled, we respect the user's configuration and don't modify it
+        if (
+            not _is_pytest_cov_enabled(session.config)
+            and _is_coverage_available()
+            and _is_coverage_report_upload_enabled()
+        ):
+            if workspace_path:
+                start_coverage(source=[str(workspace_path)])
+                log.debug("Started coverage.py for report upload")
+            else:
+                log.debug("Coverage report upload enabled but workspace path not available")
 
         extracted_context = None
         distributed_children = False
@@ -606,7 +690,10 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
         if reports_dict:
             test_outcome = _process_reports_dict(item, reports_dict)
-            InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+            InternalTest.prepare_for_finish(
+                test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info
+            )
+            InternalTest.finish(test_id)
         else:
             log.debug("Test %s has no entry in reports_by_item", test_id)
             InternalTest.finish(test_id)
@@ -693,14 +780,14 @@ def _pytest_run_one_test(item, nextitem):
 
     if not InternalTest.is_finished(test_id):
         _handle_collected_coverage(item, test_id, _current_coverage_collector)
-        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+        InternalTest.prepare_for_finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     for report in reports:
         if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
             setup_or_teardown_failed = True
 
         if report.when == TestPhase.CALL or "failed" in report.outcome:
-            if is_quarantined or is_disabled:
+            if (is_quarantined or is_disabled) and not is_attempt_to_fix:
                 # Ensure test doesn't count as failed for pytest's exit status logic
                 # (see <https://github.com/pytest-dev/pytest/blob/8.3.x/src/_pytest/main.py#L654>).
                 report.outcome = OUTCOME_QUARANTINED
@@ -730,11 +817,45 @@ def _pytest_run_one_test(item, nextitem):
             is_quarantined=is_quarantined,
         )
     else:
+        # Set final_status tag on the finished span for tests without retries
+        # This will be overridden by retry handlers for tests that are retried
+        # We access the span directly to set the tag after finishing
+        if test_outcome.status is None:
+            log.debug("Test status for %s is None", test_id)
+        else:
+            InternalTest.set_final_status(test_id, test_outcome.status)
+
         # If no retry handler, we log the reports ourselves.
         for report in reports:
             item.ihook.pytest_runtest_logreport(report=report)
 
+    InternalTest.finish(test_id)
+
     item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
+
+
+def _handle_coverage_report_upload(config: pytest_Config) -> None:
+    """Handle coverage report upload if enabled using shared implementation."""
+
+    def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
+        """Upload coverage report using native V2 writer/recorder infrastructure."""
+        try:
+            # Get the CI visibility service (recorder)
+            ci_visibility_service = require_ci_visibility_service()
+
+            # Use the recorder's native upload method which integrates with writer infrastructure
+            return ci_visibility_service.upload_coverage_report(coverage_report_bytes, coverage_format)
+
+        except Exception as e:
+            log.debug("Error during coverage upload: %s", e)
+            return False
+
+    handle_coverage_report(
+        config=config,
+        upload_func=upload_func,
+        is_pytest_cov_enabled_func=_is_pytest_cov_enabled,
+        stop_coverage_func=None,  # V2 plugin doesn't need to stop coverage manually
+    )
 
 
 def _process_reports_dict(item, reports) -> _TestOutcome:
@@ -945,16 +1066,18 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)
+    coverage_report_upload_enabled = _is_coverage_report_upload_enabled()
+
     if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
         if invoked_by_coverage_run_status and not pytest_cov_status:
             run_coverage_report()
 
-        lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
+        lines_pct_value = get_coverage_percentage()
         if lines_pct_value is None:
             log.debug("Unable to retrieve coverage data for the session span")
         elif not isinstance(lines_pct_value, (float, int)):
             t = type(lines_pct_value)
-            log.warning(
+            log.debug(
                 "Unexpected format for total covered percentage: type=%s.%s, value=%r",
                 t.__module__,
                 t.__name__,
@@ -962,6 +1085,14 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             )
         else:
             InternalTestSession.set_covered_lines_pct(lines_pct_value)
+
+    # Handle coverage report upload if enabled
+    # This runs after pytest_terminal_summary, so pytest-cov data (if enabled) is already finalized
+    # and our own coverage (if we started it) has been stopped above
+    if coverage_report_upload_enabled:
+        _handle_coverage_report_upload(session.config)
+
+    # No callbacks to clean up in simplified version
 
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()

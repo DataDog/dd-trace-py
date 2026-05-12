@@ -17,27 +17,12 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the OpenAI
     patch(openai_agents=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.openai_agents["service"]
 
    The service name reported by default for OpenAI Agents requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_OPENAI_AGENTS_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the OpenAI Agents integration on a per-instance basis use the
-``Pin`` API::
-
-    import agents
-    from ddtrace._trace.pin import Pin
-
-    Pin.override(agents, service="my-agents-service")
+   Alternatively, set this option with the ``DD_OPENAI_AGENTS_SERVICE`` environment variable.
 """  # noqa: E501

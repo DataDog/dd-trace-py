@@ -1,19 +1,17 @@
 import time
 from typing import Any
-from typing import Dict
 from typing import Optional
-from typing import Set
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
-from ddtrace.llmobs._constants import INTEGRATION
-from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
-from ddtrace.llmobs._constants import SESSION_ID
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._utils import _get_ml_app
+from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_model_provider
+from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_session_id
+from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
 
@@ -34,6 +32,10 @@ class LLMObsTelemetryMetrics:
     INJECT_HEADERS = "inject_distributed_headers"
     ACTIVATE_HEADERS = "activate_distributed_headers"
     USER_PROCESSOR_CALLED = "user_processor_called"
+    PROMPT_SOURCE = "prompt.source"
+    PROMPT_FETCH_ERROR = "prompt.fetch.error"
+    COST_TAGS_ANNOTATED = "cost_tags.annotated"
+    COST_TAGS_SUBMITTED = "cost_tags.submitted"
 
 
 def _find_tag_value_from_tags(tags, tag_key):
@@ -71,7 +73,7 @@ def record_llmobs_enabled(
     site: str,
     start_ns: int,
     auto: bool,
-    instrumented_proxy_urls: Optional[Set[str]],
+    instrumented_proxy_urls: Optional[set[str]],
     ml_app: Optional[str],
 ):
     tags = _base_tags(error)
@@ -100,14 +102,15 @@ def record_span_started():
 
 
 def record_span_created(span: Span):
-    is_root_span = span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID
-    has_session_id = span._get_ctx_item(SESSION_ID) is not None
-    integration = span._get_ctx_item(INTEGRATION)
+    is_root_span = get_llmobs_parent_id(span) == ROOT_PARENT_ID
+    llmobs_tags = get_llmobs_tags(span) or {}
+    has_session_id = get_llmobs_session_id(span) is not None
+    integration = llmobs_tags.get("integration")
     autoinstrumented = integration is not None
-    decorator = span._get_ctx_item(DECORATOR) is True
-    span_kind = span._get_ctx_item(SPAN_KIND)
-    model_provider = span._get_ctx_item("model_provider")
-    ml_app = _get_ml_app(span)
+    decorator = llmobs_tags.get("decorator") is not None
+    span_kind = get_llmobs_span_kind(span)
+    model_provider = get_llmobs_model_provider(span)
+    ml_app = get_llmobs_ml_app(span)
 
     tags = [
         ("autoinstrumented", str(int(autoinstrumented))),
@@ -121,19 +124,6 @@ def record_span_created(span: Span):
     if not autoinstrumented:
         tags.append(("decorator", str(int(decorator))))
     if model_provider:
-        tags.append(("model_provider", model_provider))
-    telemetry_writer.add_count_metric(
-        namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPAN_FINISHED, value=1, tags=tuple(tags)
-    )
-
-
-def record_bedrock_agent_span_event_created(span_event: LLMObsSpanEvent):
-    is_root_span = span_event["parent_id"] == ROOT_PARENT_ID
-    has_session_id = any("session_id" in tag for tag in span_event["tags"])
-    tags = _get_tags_from_span_event(span_event)
-    tags.extend([("has_session_id", str(int(has_session_id))), ("is_root_span", str(int(is_root_span)))])
-    model_provider = span_event["meta"]["metadata"].get("model_provider")
-    if model_provider is not None:
         tags.append(("model_provider", model_provider))
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPAN_FINISHED, value=1, tags=tuple(tags)
@@ -178,11 +168,43 @@ def record_llmobs_annotate(span: Optional[Span], error: Optional[str]):
     span_kind = "N/A"
     is_root_span = "0"
     if span and isinstance(span, Span):
-        span_kind = span._get_ctx_item(SPAN_KIND) or "N/A"
-        is_root_span = str(int(span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID))
+        span_kind = get_llmobs_span_kind(span) or "N/A"
+        is_root_span = str(int(get_llmobs_parent_id(span) == ROOT_PARENT_ID))
     tags.extend([("span_kind", span_kind), ("is_root_span", is_root_span)])
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.ANNOTATIONS, value=1, tags=tuple(tags)
+    )
+
+
+def record_cost_tags_annotated(span: Span, source: str) -> None:
+    tags = [
+        ("span_kind", get_llmobs_span_kind(span) or "N/A"),
+        ("source", source),
+        ("ml_app", get_llmobs_ml_app(span) or "N/A"),
+        ("model_provider", get_llmobs_model_provider(span) or "N/A"),
+    ]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.COST_TAGS_ANNOTATED,
+        value=1,
+        tags=tuple(tags),
+    )
+
+
+def record_cost_tags_submitted(span: Span, count: int, source: str, state: str, reason: str = "none") -> None:
+    tags = [
+        ("span_kind", get_llmobs_span_kind(span) or "N/A"),
+        ("source", source),
+        ("ml_app", get_llmobs_ml_app(span) or "N/A"),
+        ("model_provider", get_llmobs_model_provider(span) or "N/A"),
+        ("state", state),
+        ("reason", reason),
+    ]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.COST_TAGS_SUBMITTED,
+        value=count,
+        tags=tuple(tags),
     )
 
 
@@ -196,8 +218,8 @@ def record_llmobs_user_processor_called(error: bool) -> None:
     )
 
 
-def record_llmobs_submit_evaluation(join_on: Dict[str, Any], metric_type: str, error: Optional[str]):
-    _metric_type = metric_type if metric_type in ("categorical", "score", "boolean") else "other"
+def record_llmobs_submit_evaluation(join_on: dict[str, Any], metric_type: str, error: Optional[str]):
+    _metric_type = metric_type if metric_type in ("categorical", "score", "boolean", "json") else "other"
     custom_joining_key = str(int(join_on.get("tag") is not None))
     tags = _base_tags(error)
     tags.extend([("metric_type", _metric_type), ("custom_joining_key", custom_joining_key)])
@@ -211,8 +233,8 @@ def record_span_exported(span: Optional[Span], error: Optional[str]):
     span_kind = "N/A"
     is_root_span = "0"
     if span and isinstance(span, Span):
-        span_kind = span._get_ctx_item(SPAN_KIND) or "N/A"
-        is_root_span = str(int(span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID))
+        span_kind = get_llmobs_span_kind(span) or "N/A"
+        is_root_span = str(int(get_llmobs_parent_id(span) == ROOT_PARENT_ID))
     tags.extend([("span_kind", span_kind), ("is_root_span", is_root_span)])
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPANS_EXPORTED, value=1, tags=tuple(tags)
@@ -237,4 +259,26 @@ def record_activate_distributed_headers(error: Optional[str]):
     tags = _base_tags(error)
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.ACTIVATE_HEADERS, value=1, tags=tuple(tags)
+    )
+
+
+def record_prompt_source(source: str):
+    """Record the source of a prompt fetch (hot_cache, warm_cache, registry, fallback)."""
+    tags = [("from", source)]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.PROMPT_SOURCE,
+        value=1,
+        tags=tuple(tags),
+    )
+
+
+def record_prompt_fetch_error(error_type: str):
+    """Record a prompt fetch error."""
+    tags = [("error_type", error_type)]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.PROMPT_FETCH_ERROR,
+        value=1,
+        tags=tuple(tags),
     )

@@ -6,14 +6,14 @@
   variables:
     DD_IAST_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
 
 os tests ubuntu:
   extends: .multi_os_test_base
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   tags: ["arch:amd64"]
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
   needs:
     - job: "build linux"
       parallel:
@@ -37,25 +37,29 @@ os tests ubuntu:
 os tests macos:
   extends: .multi_os_test_base
   tags: ["macos:sonoma-amd64", "specific:true"]
-  needs:
-    - job: "build macos"
-      parallel:
-        matrix:
-          - ARCH_TAG: "amd64"
-            UV_PYTHON: "3.10"
-          - ARCH_TAG: "amd64"
-            UV_PYTHON: "3.12"
-          - ARCH_TAG: "amd64"
-            UV_PYTHON: "3.14"
+  needs: [ "build macos" ]
   variables:
     WHEEL_PATTERN: "macosx*x86_64.whl"
     PLATFORM: "macOS"
   script:
-    - bash .gitlab/scripts/multi-os-tests.sh
+    - |
+      for PYTHON_VERSION in 3.10 3.12 3.14; do
+        export PYTHON_VERSION
+        bash .gitlab/scripts/multi-os-tests.sh
+      done
 
 os tests windows:
   extends: .multi_os_test_base
   tags: ["windows-v2:2022"]
-  needs: ["download windows wheels"]
+  needs:
+    - job: "build windows"
+      artifacts: true
+      parallel:
+        matrix:
+          - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
+            WINDOWS_ARCH: "amd64"
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
   script:
     - powershell -File .gitlab/scripts/multi-os-tests.ps1

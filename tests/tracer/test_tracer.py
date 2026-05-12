@@ -29,8 +29,6 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
-import ddtrace.internal  # noqa: F401
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.trace import Context
@@ -206,20 +204,31 @@ class TracerTestCases(TracerTestCase):
         )
 
     def test_tracer_wrap_class(self):
-        class Foo(object):
-            @staticmethod
-            @self.tracer.wrap()
-            def s():
-                return 1
+        """By default (DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS=false) class scope is NOT included."""
+        import warnings
 
-            @classmethod
-            @self.tracer.wrap()
-            def c(cls):
-                return 2
+        from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
-            @self.tracer.wrap()
-            def i(cls):
-                return 3
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            class Foo(object):
+                @staticmethod
+                @self.tracer.wrap()
+                def s():
+                    return 1
+
+                @classmethod
+                @self.tracer.wrap()
+                def c(cls):
+                    return 2
+
+                @self.tracer.wrap()
+                def i(cls):
+                    return 3
+
+        deprecation_warnings = [x for x in w if issubclass(x.category, DDTraceDeprecationWarning)]
+        assert len(deprecation_warnings) == 3, "Expected one deprecation warning per method"
 
         f = Foo()
         self.assertEqual(f.s(), 1)
@@ -230,6 +239,46 @@ class TracerTestCases(TracerTestCase):
         self.spans[0].assert_matches(name="tests.tracer.test_tracer.s")
         self.spans[1].assert_matches(name="tests.tracer.test_tracer.c")
         self.spans[2].assert_matches(name="tests.tracer.test_tracer.i")
+
+    def test_tracer_wrap_class_include_class_scope(self):
+        """With DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS=true the class name is included in the span name."""
+        with self.override_global_config({"_trace_wrap_span_name_include_class": True}):
+
+            class Foo(object):
+                @staticmethod
+                @self.tracer.wrap()
+                def s():
+                    return 1
+
+                @classmethod
+                @self.tracer.wrap()
+                def c(cls):
+                    return 2
+
+                @self.tracer.wrap()
+                def i(cls):
+                    return 3
+
+            f = Foo()
+            self.assertEqual(f.s(), 1)
+            self.assertEqual(f.c(), 2)
+            self.assertEqual(f.i(), 3)
+
+        self.assert_span_count(3)
+        self.spans[0].assert_matches(name="tests.tracer.test_tracer.Foo.s")
+        self.spans[1].assert_matches(name="tests.tracer.test_tracer.Foo.c")
+        self.spans[2].assert_matches(name="tests.tracer.test_tracer.Foo.i")
+
+    def test_tracer_wrap_local_function_no_locals_in_name(self):
+        @self.tracer.wrap()
+        def local_func():
+            pass
+
+        local_func()
+
+        self.assert_span_count(1)
+        self.spans[0].assert_matches(name="tests.tracer.test_tracer.local_func")
+        assert "<locals>" not in self.spans[0].name
 
     def test_tracer_wrap_factory(self):
         def wrap_executor(tracer, fn, args, kwargs, span_name=None, service=None, resource=None, span_type=None):
@@ -364,7 +413,7 @@ class TracerTestCases(TracerTestCase):
                     next(signals)
                 except StopIteration as e:
                     assert e.value == 10
-                    span.set_metric("num_signals", e.value)
+                    span._set_attribute("num_signals", e.value)
                     break
 
         self.assert_span_count(2)
@@ -393,7 +442,7 @@ class TracerTestCases(TracerTestCase):
         # a weird case where manually calling finish with an unserializable
         # span was causing an loop of serialization.
         with self.trace("parent") as span:
-            span._metrics["as"] = np.int64(1)  # circumvent the data checks
+            span._set_attribute("as", np.int64(1))
             span.finish()
 
     def test_tracer_disabled_mem_leak(self):
@@ -673,6 +722,30 @@ class TracerTestCases(TracerTestCase):
             assert span.context.dd_user_id == user_id_string
             assert user_id == "44Om44O844K244O8SUQ="
 
+    def test_tracer_wrap_executor_shutdown(self):
+        assert self.tracer._wrap_executor is None
+        self.tracer._wrap_executor = lambda *args, **kwargs: None
+
+        @self.tracer.wrap()
+        def f():
+            pass
+
+        f()
+
+        spans = self.pop_spans()
+        # Wrap executor should override the default tracing function
+        assert len(spans) == 0
+        self.tracer.shutdown()
+        # After shutdown, the wrap executor should be reset
+        assert self.tracer._wrap_executor is None
+
+    def test_tracer_context_provider_shutdown(self):
+        context = Context(trace_id=1, span_id=1)
+        self.tracer.context_provider.activate(context)
+        assert self.tracer.context_provider.active() == context
+        self.tracer.shutdown()
+        assert self.tracer.context_provider.active() is None
+
 
 @pytest.mark.subprocess(env=dict(DD_AGENT_PORT=None, DD_AGENT_HOST=None, DD_TRACE_AGENT_URL=None))
 def test_tracer_url_default():
@@ -710,24 +783,39 @@ def test_tracer_shutdown_timeout():
 
 
 @pytest.mark.subprocess(
-    err=b"Spans started after the tracer has been shut down will not be sent to the Datadog Agent.\n",
+    err=b"Spans started after the tracer has been shut down will not be sent to the Datadog Agent: "
+    b"<Span(id=2,trace_id=1,parent_id=None,name=span_created_after_shutdown)>.\n",
+    parametrize={"USE_START_SPAN": ["true", "false"]},
 )
 def test_tracer_shutdown():
+    import os
+
     import mock
 
+    from ddtrace._trace.span import Span
     from ddtrace.trace import tracer as t
 
     t.shutdown()
 
-    with mock.patch.object(t._span_aggregator.writer, "write") as mock_write:
-        with t.trace("something"):
-            pass
+    if os.environ.get("USE_START_SPAN") == "true":
+        create_span = t.start_span
+    else:
+        create_span = t.trace
+
+    with (
+        mock.patch.object(t._span_aggregator.writer, "write") as mock_write,
+        mock.patch.object(Span, "trace_id", new_callable=mock.PropertyMock) as mock_trace_id,
+        mock.patch.object(Span, "span_id", new_callable=mock.PropertyMock) as mock_span_id,
+    ):
+        mock_trace_id.return_value = 1
+        mock_span_id.return_value = 2
+        create_span("span_created_after_shutdown").finish()
 
     mock_write.assert_not_called()
 
 
 @pytest.mark.skip(reason="Fails to Pickle RateLimiter in the Tracer")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_tracer_fork():
     import contextlib
     import multiprocessing
@@ -981,6 +1069,20 @@ def test_detect_agentless_env_with_lambda():
     )
 
 
+@pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-lambda-func"))
+def test_service_name_defaults_to_lambda_function_name():
+    import ddtrace
+
+    assert ddtrace.config.service == "my-lambda-func"
+
+
+@pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-lambda-func", DD_SERVICE="override-svc"))
+def test_dd_service_takes_precedence_over_lambda_function_name():
+    import ddtrace
+
+    assert ddtrace.config.service == "override-svc"
+
+
 def test_tracer_set_runtime_tags():
     with global_tracer.start_span("foobar") as span:
         pass
@@ -1000,7 +1102,7 @@ def _test_tracer_runtime_tags_fork_task(tracer, q):
 
 
 @pytest.mark.skip(reason="Fails to Pickle RateLimiter in the Tracer")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_tracer_runtime_tags_fork():
     import multiprocessing
 
@@ -1043,14 +1145,14 @@ def test_enable():
 @pytest.mark.subprocess(
     err=b"Shutting down tracer with 2 spans. "
     b"These spans will not be sent to Datadog: "
-    b"trace_id=123 parent_id=0 span_id=456 name=unfinished_span1 "
-    b"resource=my_resource1 started=46121775360.0 sampling_priority=2, "
+    b"trace_id=123 parent_id=None span_id=456 name=unfinished_span1 "
+    b"resource=my_resource1 started=1234567890.0 sampling_priority=2, "
     b"trace_id=123 parent_id=456 span_id=666 name=unfinished_span2 "
-    b"resource=my_resource1 started=167232131231.0 sampling_priority=2\n"
+    b"resource=my_resource1 started=1987654321.0 sampling_priority=2\n"
 )
 def test_unfinished_span_warning_log():
     """Test that a warning log is emitted when the tracer is shut down with unfinished spans."""
-    from ddtrace.constants import MANUAL_KEEP_KEY
+    from ddtrace.constants import USER_KEEP
     from ddtrace.trace import tracer
 
     # Create two unfinished spans
@@ -1060,13 +1162,13 @@ def test_unfinished_span_warning_log():
     span1.trace_id = 123
     span1.parent_id = 0
     span1.span_id = 456
-    span1.start = 46121775360
-    span1.set_tag(MANUAL_KEEP_KEY)
+    span1.start = 1234567890  # Fri Feb 13 2009 23:31:30 GMT (realistic Unix timestamp)
+    span1._override_sampling_decision(USER_KEEP)
     span2.trace_id = 123
     span2.parent_id = 456
     span2.span_id = 666
-    span2.start = 167232131231
-    span2.set_tag(MANUAL_KEEP_KEY)
+    span2.start = 1987654321  # Wed Oct 17 2033 11:32:01 GMT (future but realistic)
+    span2._override_sampling_decision(USER_KEEP)
 
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
@@ -1098,11 +1200,7 @@ def test_runtime_id_parent_only(tracer):
     assert isinstance(rtid, str)
 
 
-@pytest.mark.skipif(
-    PYTHON_VERSION_INFO >= (3, 12),
-    reason="This test runs in a multithreaded process, using os.fork() may cause deadlocks in child processes",
-)
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_runtime_id_fork():
     import os
 
@@ -1216,7 +1314,7 @@ def test_early_exit(tracer, test_spans):
     ]
     mock_logger.assert_has_calls(calls)
     assert s1.parent_id is None
-    assert s2.parent_id is s1.span_id
+    assert s2.parent_id == s1.span_id
 
     traces = test_spans.pop_traces()
     assert len(traces) == 1
@@ -1333,7 +1431,8 @@ def test_ctx(tracer, test_spans):
     assert s3.parent_id == s2.span_id
     assert s4.parent_id == s1.span_id
     assert s1.trace_id == s2.trace_id == s3.trace_id == s4.trace_id
-    assert s1.get_metric(_SAMPLING_PRIORITY_KEY) == 1
+    # Agent based sampling may set the sampling priority to either 0 or 1.
+    assert s1.get_metric(_SAMPLING_PRIORITY_KEY) in (AUTO_KEEP, AUTO_REJECT)
     assert s2.get_metric(_SAMPLING_PRIORITY_KEY) is None
     assert _ORIGIN_KEY not in s1.get_tags()
 
@@ -1416,14 +1515,14 @@ def test_ctx_distributed(tracer, test_spans):
 def test_manual_keep(tracer, test_spans):
     # On a root span
     with tracer.trace("asdf") as s:
-        s.set_tag(MANUAL_KEEP_KEY)
+        s.set_tag(MANUAL_KEEP_KEY)  # ast-grep-ignore: span-set-tag-manual-keep
     spans = test_spans.pop()
     assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
-            s.set_tag(MANUAL_KEEP_KEY)
+            s.set_tag(MANUAL_KEEP_KEY)  # ast-grep-ignore: span-set-tag-manual-keep
     spans = test_spans.pop()
     assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
@@ -1432,8 +1531,8 @@ def test_manual_keep_then_drop(tracer, test_spans):
     # Test changing the value before finish.
     with tracer.trace("asdf") as root:
         with tracer.trace("child") as child:
-            child.set_tag(MANUAL_KEEP_KEY)
-        root.set_tag(MANUAL_DROP_KEY)
+            child.set_tag(MANUAL_KEEP_KEY)  # ast-grep-ignore: span-set-tag-manual-keep
+        root.set_tag(MANUAL_DROP_KEY)  # ast-grep-ignore: span-set-tag-manual-drop
     spans = test_spans.pop()
     assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
@@ -1441,14 +1540,14 @@ def test_manual_keep_then_drop(tracer, test_spans):
 def test_manual_drop(tracer, test_spans):
     # On a root span
     with tracer.trace("asdf") as s:
-        s.set_tag(MANUAL_DROP_KEY)
+        s.set_tag(MANUAL_DROP_KEY)  # ast-grep-ignore: span-set-tag-manual-drop
     spans = test_spans.pop()
     assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
-            s.set_tag(MANUAL_DROP_KEY)
+            s.set_tag(MANUAL_DROP_KEY)  # ast-grep-ignore: span-set-tag-manual-drop
     spans = test_spans.pop()
     assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
@@ -1686,7 +1785,7 @@ def test_closing_other_context_spans_multi_spans(tracer, test_spans):
     assert len(spans) == 2
 
 
-@pytest.mark.subprocess(err=None)
+@pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_manual_span_same_context():
     import ddtrace.auto  # noqa
 
@@ -1716,7 +1815,7 @@ def test_fork_manual_span_same_context():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(err=None)
+@pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_manual_span_different_contexts():
     import ddtrace.auto  # noqa
 
@@ -1741,7 +1840,7 @@ def test_fork_manual_span_different_contexts():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(err=None)
+@pytest.mark.subprocess(err=None, env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_pid():
     import ddtrace.auto  # noqa
 

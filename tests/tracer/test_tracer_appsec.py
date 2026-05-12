@@ -3,6 +3,8 @@ import pytest
 import ddtrace
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import TraceProcessor
+from ddtrace._trace.sampler import RateSampler
+from ddtrace.constants import AUTO_KEEP
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -10,9 +12,9 @@ from ddtrace.ext import net
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Span
+from ddtrace.trace import Tracer
 from tests.appsec.utils import asm_context
 from tests.utils import override_env
 
@@ -35,8 +37,7 @@ def span(tracer):
         yield span
 
 
-@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
-def test_aggregator_reset_with_args(writer_class):
+def test_aggregator_reset_with_args():
     """
     Validates that the span aggregator can reset trace buffers, sampling processor,
     user processors/filters and trace api version (when ASM is enabled)
@@ -51,7 +52,7 @@ def test_aggregator_reset_with_args(writer_class):
         user_processors=[user_proc],
     )
 
-    aggr.writer = writer_class("http://localhost:8126", api_version="v0.5")
+    aggr.writer = NativeWriter("http://localhost:8126", api_version="v0.5")
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
 
@@ -195,6 +196,36 @@ def test_set_http_meta(
         for header, value in request_headers.items():
             tag = "http.request.headers." + header
             assert span.get_tag(tag) == value
+
+
+def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
+    """
+    In ASM standalone mode, agent-based samplers should not interfere
+    with the rate limiter.
+    """
+    with override_env({"DD_APPSEC_SCA_ENABLED": "true"}):
+        ddtrace.config._reset()
+        tracer.configure(appsec_enabled=True, apm_tracing_disabled=True)
+
+        try:
+            sampler = tracer._sampler
+            sampler._agent_based_samplers = {
+                "service:asm_standalone,env:": RateSampler(sample_rate=0),
+            }
+
+            # Create a span - it should be sampled despite the low agent-based sample rate
+            with tracer.trace("test_span", service="asm_standalone") as span:
+                pass
+
+            assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_KEEP, (
+                f"Expected AUTO_KEEP (1), got {span._get_numeric_attribute('_sampling_priority_v1')}. "
+                "Agent-based samplers should not interfere with ASM standalone mode."
+            )
+
+        finally:
+            with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
+                ddtrace.config._reset()
+                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
 
 
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the ``@llm`` decorator did not automatically annotate
+    the return value as output in traces. The decorator now captures the return value and annotates
+    it as output, consistent with ``@workflow`` and ``@task`` decorators. Manual annotations via
+    ``LLMObs.annotate()`` still take precedence.

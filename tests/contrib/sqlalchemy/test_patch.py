@@ -1,7 +1,6 @@
 import sqlalchemy
 from sqlalchemy import text
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.sqlalchemy.patch import get_version
 from ddtrace.contrib.internal.sqlalchemy.patch import patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch
@@ -19,13 +18,9 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
 
     def setUp(self):
         super(SQLAlchemyPatchTestCase, self).setUp()
-
-        # create a traced engine with the given arguments
-        # and configure the current PIN instance
         patch()
         dsn = "postgresql://%(user)s:%(password)s@%(host)s:%(port)s/%(dbname)s" % POSTGRES_CONFIG
         self.engine = sqlalchemy.create_engine(dsn)
-        Pin._override(self.engine, tracer=self.tracer)
 
         # prepare a connection
         self.conn = self.engine.connect()
@@ -55,27 +50,12 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
         assert span.error == 0
         assert span.duration > 0
 
-    def test_engine_pin_service(self):
-        # ensures that the engine service is updated with the PIN object
-        Pin._override(self.engine, service="replica-db")
-        rows = self.conn.execute(text("SELECT 1")).fetchall()
-        assert len(rows) == 1
-
-        traces = self.pop_traces()
-        # trace composition
-        assert len(traces) == 1
-        assert len(traces[0]) == 1
-        span = traces[0][0]
-        # check subset of span fields
-        assert_is_measured(span)
-        assert span.name == "postgres.query"
-        assert span.service == "replica-db"
         assert span.error == 0
         assert span.duration > 0
 
     def test_and_emit_get_version(self):
         version = get_version()
-        assert type(version) == str
+        assert isinstance(version, str)
         assert version != ""
 
         emit_integration_and_version_to_test_agent("sqlalchemy", version)

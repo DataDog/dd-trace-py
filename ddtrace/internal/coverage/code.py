@@ -5,6 +5,7 @@ from inspect import getmodule
 import os
 from pathlib import Path
 import sys
+import threading as _threading
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -27,16 +28,34 @@ log = get_logger(__name__)
 
 _original_exec = exec
 
-ctx_covered: ContextVar[t.List[t.DefaultDict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
+# Bytecode for an empty module — used to detect empty __init__.py files.
+# Compiled at import time so it matches the running Python version.
+_EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
+
+_PY_GE_312 = sys.version_info >= (3, 12)
+_PY_GE_313 = sys.version_info >= (3, 13)
+_PY_GE_314 = sys.version_info >= (3, 14)
+
+ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
+# Python 3.14+ sys.monitoring callbacks run in a snapshot context and don't see ContextVar changes
+# made within the current thread. Use threading.local() as a fallback for context-level coverage.
+_tls_coverage = _threading.local()
 
-def _get_ctx_covered_lines() -> t.DefaultDict[str, CoverageLines]:
+
+def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
     if ctx_coverage_enabled.get():
         if context_stack := ctx_covered.get():
             return context_stack[-1]
         log.debug("_get_ctx_covered_lines() called but ctx_covered stack is empty")
+
+    # Fallback for Python 3.14+ where sys.monitoring callbacks can't see ContextVars
+    if _PY_GE_314:
+        tls_covered = getattr(_tls_coverage, "covered", None)
+        if tls_covered is not None:
+            return tls_covered
 
     return defaultdict(CoverageLines)
 
@@ -48,26 +67,26 @@ class ModuleCodeCollector(ModuleWatchdog):
         super().__init__()
         # Coverage collection configuration
         self._collect_import_coverage: bool = False
-        self._include_paths: t.List[Path] = []
+        self._include_paths: list[Path] = []
         # By default, exclude standard / venv paths (eg: avoids over-instrumenting cases where a virtualenv is created
         # in the root directory of a repository)
-        self._exclude_paths: t.List[Path] = [stdlib_path, platstdlib_path, platlib_path, purelib_path]
+        self._exclude_paths: list[Path] = [stdlib_path, platstdlib_path, platlib_path, purelib_path]
 
         # Avoid instrumenting anything in the current module
         self._exclude_paths.append(Path(__file__).resolve().parent)
 
         self._coverage_enabled: bool = False
-        self.seen: t.Set[t.Tuple[CodeType, str]] = set()
+        self.seen: set[tuple[CodeType, str]] = set()
 
         # Data structures for coverage data
-        self.lines: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
-        self.covered: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
+        self.lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
+        self.covered: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
 
         # Import-time coverage data
-        self._import_time_covered: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
-        self._import_time_contexts: t.Dict[str, "ModuleCodeCollector.CollectInContext"] = {}
-        self._import_time_name_to_path: t.Dict[str, str] = {}
-        self._import_names_by_path: t.Dict[str, t.Set[t.Tuple[str, t.Tuple[str, ...]]]] = defaultdict(set)
+        self._import_time_covered: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
+        self._import_time_contexts: dict[str, "ModuleCodeCollector.CollectInContext"] = {}
+        self._import_time_name_to_path: dict[str, str] = {}
+        self._import_names_by_path: dict[str, set[tuple[str, tuple[str, ...]]]] = defaultdict(set)
 
         # Replace the built-in exec function with our own in the pytest globals
         try:
@@ -78,7 +97,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             pass
 
     @classmethod
-    def install(cls, include_paths: t.Optional[t.List[Path]] = None, collect_import_time_coverage: bool = False):
+    def install(cls, include_paths: t.Optional[list[Path]] = None, collect_import_time_coverage: bool = False):
         if ModuleCodeCollector.is_installed():
             return
 
@@ -99,17 +118,17 @@ class ModuleCodeCollector(ModuleWatchdog):
                 lambda x: True, cls._instance._exit_context_on_exception_hook
             )
 
-    def hook(self, arg: t.Tuple[int, str, t.Optional[t.Tuple[str, t.Tuple[str, ...]]]]):
+    def hook(self, arg: tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]]):
         line: int
         path: str
-        import_name: t.Optional[t.Tuple[str, t.Tuple[str, ...]]]
+        import_name: t.Optional[tuple[str, tuple[str, ...]]]
         line, path, import_name = arg
 
         if self._coverage_enabled:
             lines = self.covered[path]
             lines.add(line)
 
-        if ctx_coverage_enabled.get():
+        if ctx_coverage_enabled.get() or (_PY_GE_314 and getattr(_tls_coverage, "covered", None) is not None):
             # Import-time contexts store their lines in a non-context variable to be aggregated on request when
             # reporting coverage
             ctx_lines = _get_ctx_covered_lines()[path]
@@ -121,8 +140,8 @@ class ModuleCodeCollector(ModuleWatchdog):
     @classmethod
     def inject_coverage(
         cls,
-        lines: t.Optional[t.Dict[str, CoverageLines]] = None,
-        covered: t.Optional[t.Dict[str, CoverageLines]] = None,
+        lines: t.Optional[dict[str, CoverageLines]] = None,
+        covered: t.Optional[dict[str, CoverageLines]] = None,
     ):
         """Inject coverage data into the collector. This can be used to arbitrarily add covered files."""
         instance = cls._instance
@@ -167,7 +186,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         with open(filename, "w") as f:
             f.write(gen_json_report(executable_lines, covered_lines, workspace_path, ignore_nocover=ignore_nocover))
 
-    def _get_covered_lines(self, include_imported: bool = False) -> t.Dict[str, CoverageLines]:
+    def _get_covered_lines(self, include_imported: bool = False) -> dict[str, CoverageLines]:
         # Covered lines should always be a copy to make sure the original cannot be altered
         covered_lines = deepcopy(_get_ctx_covered_lines() if ctx_coverage_enabled.get() else self.covered)
         if include_imported:
@@ -232,9 +251,14 @@ class ModuleCodeCollector(ModuleWatchdog):
             if self.is_import_coverage:
                 ctx_is_import_coverage.set(self.is_import_coverage)
 
+            # Python 3.14+ sys.monitoring callbacks can't see ContextVar changes,
+            # so also store in thread-local as a fallback for the hook.
+            if _PY_GE_314:
+                _tls_coverage.covered = ctx_covered.get()[-1]
+
             # For Python 3.12+, re-enable monitoring that was disabled by previous contexts
             # This ensures each test/suite gets accurate coverage data
-            if sys.version_info >= (3, 12):
+            if _PY_GE_312:
                 sys.monitoring.restart_events()
 
             return self
@@ -246,8 +270,12 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Stop coverage if we're exiting the last context
             if len(covered_lines_stack) == 0:
                 ctx_coverage_enabled.set(False)
+                if _PY_GE_314:
+                    _tls_coverage.covered = None
+            elif _PY_GE_314:
+                _tls_coverage.covered = covered_lines_stack[-1]
 
-        def get_covered_lines(self) -> t.Dict[str, CoverageLines]:
+        def get_covered_lines(self) -> dict[str, CoverageLines]:
             covered_lines = _get_ctx_covered_lines()
             if global_instance := ModuleCodeCollector._instance:
                 global_instance._add_import_time_lines(covered_lines)
@@ -274,9 +302,9 @@ class ModuleCodeCollector(ModuleWatchdog):
         return cls._instance._coverage_enabled
 
     @classmethod
-    def get_import_coverage_for_paths(cls, paths: t.Iterable[Path]) -> t.Optional[t.Dict[Path, CoverageLines]]:
+    def get_import_coverage_for_paths(cls, paths: t.Iterable[Path]) -> t.Optional[dict[Path, CoverageLines]]:
         """Returns import-time coverage data for the given paths"""
-        coverages: t.Dict[Path, CoverageLines] = {}
+        coverages: dict[Path, CoverageLines] = {}
         if cls._instance is None:
             return {}
         for path in paths:
@@ -348,6 +376,14 @@ class ModuleCodeCollector(ModuleWatchdog):
             module_context = self.CollectInContext(is_import_coverage=True)
             module_context.__enter__()
             self._import_time_contexts[code.co_filename] = module_context
+
+        # Python 3.13+ doesn't fire sys.monitoring LINE events for empty modules.
+        # Call hook directly after the import-time context is set up so coverage is
+        # recorded in the correct context.
+        if _PY_GE_313 and code.co_code == _EMPTY_MODULE_BYTES:
+            package = _module.__package__ if _module is not None else ""
+            import_info = (package, ("",)) if package else None
+            self.hook((0, code.co_filename, import_info))
 
         return retval
 

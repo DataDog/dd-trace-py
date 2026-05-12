@@ -90,7 +90,7 @@ def run_tests():
 
     # m1_s1_t1 test expect to pass on the 4th retry
     api.InternalTest.start(m1_s1_t1_id)
-    api.InternalTest.finish(m1_s1_t1_id, TestStatus.FAIL)
+    api.InternalTest.finish(m1_s1_t1_id, TestStatus.FAIL, final=False)  # Not final - retries will follow
 
     m1_s1_t1_retry_count = 0
     while api.InternalTest.atr_should_retry(m1_s1_t1_id):
@@ -105,7 +105,7 @@ def run_tests():
 
     # m1_s1_t2 test: expect to pass on the 2nd retry
     api.InternalTest.start(m1_s1_t2_id)
-    api.InternalTest.mark_fail(m1_s1_t2_id)
+    api.InternalTest.mark_fail(m1_s1_t2_id, final=False)  # Not final - retries will follow
 
     m1_s1_t2_retry_count = 0
     while api.InternalTest.atr_should_retry(m1_s1_t2_id):
@@ -154,7 +154,7 @@ def run_tests():
 
     # expect to pass on 5th retry, and skips every other
     api.InternalTest.start(m2_s1_t2_id)
-    api.InternalTest.mark_fail(m2_s1_t2_id)
+    api.InternalTest.mark_fail(m2_s1_t2_id, final=False)  # Not final - retries will follow
     m2_s1_t2_retry_count = 0
     while InternalTest.atr_should_retry(m2_s1_t2_id):
         m2_s1_t2_retry_count += 1

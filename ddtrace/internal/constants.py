@@ -55,7 +55,7 @@ DEFAULT_BUFFER_SIZE = 20 << 20  # 20 MB
 DEFAULT_MAX_PAYLOAD_SIZE = 20 << 20  # 20 MB
 DEFAULT_PROCESSING_INTERVAL = 1.0
 DEFAULT_REUSE_CONNECTIONS = False
-BLOCKED_RESPONSE_HTML = """<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>You've been blocked</title><style>a,body,div,html,span{margin:0;padding:0;border:0;font-size:100%;font:inherit;vertical-align:baseline}body{background:-webkit-radial-gradient(26% 19%,circle,#fff,#f4f7f9);background:radial-gradient(circle at 26% 19%,#fff,#f4f7f9);display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-ms-flex-line-pack:center;align-content:center;width:100%;min-height:100vh;line-height:1;flex-direction:column}p{display:block}main{text-align:center;flex:1;display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-ms-flex-line-pack:center;align-content:center;flex-direction:column}p{font-size:18px;line-height:normal;color:#646464;font-family:sans-serif;font-weight:400}a{color:#4842b7}footer{width:100%;text-align:center}footer p{font-size:16px}.security-response-id{font-size:14px;color:#999;margin-top:20px;font-family:monospace}</style></head><body><main><p>Sorry, you cannot access this page. Please contact the customer service team.</p><p class="security-response-id">Security Response ID: [security_response_id]</p></main><footer><p>Security provided by <a href="https://www.datadoghq.com/product/security-platform/application-security-monitoring/" target="_blank">Datadog</a></p></footer></body></html>"""  # noqa: E501
+BLOCKED_RESPONSE_HTML = """<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>You've been blocked</title><style>a,body,div,html,span{margin:0;padding:0;border:0;font-size:100%;font:inherit;vertical-align:baseline}body{background:-webkit-radial-gradient(26% 19%,circle,#fff,#f4f7f9);background:radial-gradient(circle at 26% 19%,#fff,#f4f7f9);display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-ms-flex-line-pack:center;align-content:center;width:100%;min-height:100vh;line-height:1;flex-direction:column}p{display:block}main{text-align:center;flex:1;display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-ms-flex-line-pack:center;align-content:center;flex-direction:column}p{font-size:18px;line-height:normal;color:#646464;font-family:sans-serif;font-weight:400}a{color:#4842b7}footer{width:100%;text-align:center}footer p{font-size:16px}.security-response-id{font-size:14px;color:#999;margin-top:20px;font-family:monospace}</style></head><body><main><p>Sorry, you cannot access this page. Please contact the customer service team.</p><p class="security-response-id">Security Response ID: [security_response_id]</p></main><footer><p>Security provided by <a href="https://www.datadoghq.com/product/security-platform/application-security-monitoring/" target="_blank" rel="noopener noreferrer">Datadog</a></p></footer></body></html>"""  # noqa: E501
 BLOCKED_RESPONSE_JSON = """{"errors":[{"title":"You've been blocked","detail":"Sorry, you cannot access this page. Please contact the customer service team. Security provided by Datadog."}],"security_response_id":"[security_response_id]"}"""  # noqa: E501
 HTTP_REQUEST_BLOCKED = "http.request.blocked"
 RESPONSE_HEADERS = "http.response.headers"
@@ -73,6 +73,7 @@ REQUEST_PATH_PARAMS = "http.request.path_params"
 STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
 PROCESS_TAGS = "_dd.tags.process"
 PROPAGATED_HASH = "_dd.propagated_hash"
+_SERVICE_SOURCE = "_dd.svc_src"
 
 CONTAINER_ID_HEADER_NAME = "Datadog-Container-Id"
 CONTAINER_TAGS_HASH = "Datadog-Container-Tags-Hash"
@@ -101,6 +102,13 @@ DD_TRACE_BAGGAGE_MAX_ITEMS = 64
 DD_TRACE_BAGGAGE_MAX_BYTES = 8192
 BAGGAGE_TAG_PREFIX = "baggage."
 
+# W3C Trace Context tracestate (https://www.w3.org/TR/trace-context/):
+# max 32 list-members; vendors SHOULD propagate at most 512 characters (we cap parsing to that size).
+DD_TRACE_TRACESTATE_MAX_ITEMS = 32
+DD_TRACE_TRACESTATE_MAX_BYTES = 512
+# Per W3C Trace Context, oversized list-members are preferred targets when truncating by size.
+DD_TRACE_TRACESTATE_ITEM_MAX_CHARS = 128
+
 SPAN_EVENTS_HAS_EXCEPTION = "_dd.span_events.has_exception"
 COLLECTOR_MAX_SIZE_PER_SPAN = 100
 
@@ -127,6 +135,7 @@ class SamplingMechanism(object):
     DATA_JOBS_MONITORING = 10  # not used in ddtrace
     REMOTE_USER_TRACE_SAMPLING_RULE = 11
     REMOTE_DYNAMIC_TRACE_SAMPLING_RULE = 12
+    AI_GUARD = 13
 
 
 SAMPLING_MECHANISM_TO_PRIORITIES = {
@@ -147,10 +156,3 @@ _REJECT_PRIORITY_INDEX = 1
 class EXPERIMENTAL_FEATURES:
     # Enables submitting runtime metrics as gauges (instead of distributions)
     RUNTIME_METRICS = "DD_RUNTIME_METRICS_ENABLED"
-
-
-AI_GUARD_ENABLED = "DD_AI_GUARD_ENABLED"
-AI_GUARD_ENDPOINT = "DD_AI_GUARD_ENDPOINT"
-AI_GUARD_MAX_CONTENT_SIZE = "DD_AI_GUARD_MAX_CONTENT_SIZE"
-AI_GUARD_MAX_MESSAGES_LENGTH = "DD_AI_GUARD_MAX_MESSAGES_LENGTH"
-AI_GUARD_TIMEOUT = "DD_AI_GUARD_TIMEOUT"

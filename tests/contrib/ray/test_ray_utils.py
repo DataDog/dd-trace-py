@@ -1,8 +1,8 @@
 from ddtrace.contrib.internal.ray.constants import RAY_METADATA_PREFIX
 from ddtrace.contrib.internal.ray.constants import REDACTED_PATH
-from ddtrace.contrib.internal.ray.utils import flatten_metadata_dict
-from ddtrace.contrib.internal.ray.utils import get_dd_job_name_from_entrypoint
-from ddtrace.contrib.internal.ray.utils import redact_paths
+from ddtrace.contrib.internal.ray.core.utils import flatten_metadata_dict
+from ddtrace.contrib.internal.ray.core.utils import get_dd_job_name_from_entrypoint
+from ddtrace.contrib.internal.ray.core.utils import redact_paths
 
 
 def test_get_dd_job_name_from_entrypoint():

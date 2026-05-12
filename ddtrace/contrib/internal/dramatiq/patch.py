@@ -1,13 +1,12 @@
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import Tuple
 
 import dramatiq
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.settings._config import Config
@@ -18,7 +17,7 @@ def get_version() -> str:
     return str(dramatiq.__version__)
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"dramatiq": ">=1.10.0"}
 
 
@@ -56,13 +55,15 @@ def _traced_send_with_options_function(integration_config: Config) -> Callable[[
     """
 
     def _traced_send_with_options(
-        func: Callable[[Any], Any], instance: dramatiq.Actor, args: Tuple[Any], kwargs: Dict[Any, Any]
+        func: Callable[[Any], Any], instance: dramatiq.Actor, args: tuple[Any], kwargs: dict[Any, Any]
     ) -> Callable[[Any], Any]:
         with tracer.trace(
             "dramatiq.Actor.send_with_options",
             span_type=SpanTypes.WORKER,
-            service=trace_utils.ext_service(pin=None, int_config=integration_config),
         ) as span:
+            set_service_and_source(
+                span, trace_utils.ext_service(pin=None, int_config=integration_config), integration_config
+            )
             span.set_tags(
                 {
                     SPAN_KIND: SpanKind.PRODUCER,

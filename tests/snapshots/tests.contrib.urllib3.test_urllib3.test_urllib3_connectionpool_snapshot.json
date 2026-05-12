@@ -7,27 +7,29 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
-    "error": 0,
     "meta": {
       "_dd.base_service": "tests.contrib.urllib3",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69fb065300000000",
+      "_dd.svc_src": "urllib3",
+      "_dd.tags.process": "entrypoint.basedir:project,entrypoint.name:-c,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.urllib3",
       "component": "urllib3",
       "http.method": "GET",
       "http.status_code": "200",
+      "http.status_msg": "OK",
       "http.url": "http://localhost:8001/status/200",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "2b4a2b664b6b48e29aac07578be10a07",
+      "runtime-id": "025a114cb628421ab9f8f4dbb603d073",
       "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 9975
+      "_sampling_priority_v1": 1.0,
+      "process_id": 610.0
     },
-    "duration": 1447750,
-    "start": 1692650462309622427
+    "duration": 3123750,
+    "start": 1778058835945991880
   }]]

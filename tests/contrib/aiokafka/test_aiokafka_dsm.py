@@ -1,14 +1,17 @@
 from aiokafka.structs import TopicPartition
-import mock
 import pytest
 
 from ddtrace.contrib.internal.aiokafka.patch import patch
 from ddtrace.contrib.internal.aiokafka.patch import unpatch
+from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
+from tests.datastreams.utils import max_commit_offset
+from tests.datastreams.utils import max_produce_offset
+from tests.datastreams.utils import pathway_stats_merged
 
 from .utils import BOOTSTRAP_SERVERS
 from .utils import GROUP_ID
@@ -27,12 +30,12 @@ def patch_aiokafka():
 
 
 @pytest.fixture
-def dsm_processor(tracer):
-    processor = tracer.data_streams_processor
-    with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
-        yield processor
-        # Processor should be recreated by the tracer fixture
-        processor.shutdown(timeout=5)
+def dsm_processor():
+    processor = data_streams_processor(reset=True)
+    assert processor is not None, "Datastream Monitoring is not enabled"
+    yield processor
+    # Processor should be recreated by the tracer fixture
+    processor.shutdown(timeout=5)
 
 
 @pytest.mark.asyncio
@@ -62,11 +65,7 @@ async def test_data_streams_pathway_stats(dsm_processor):
         await consumer.getone()
         await consumer.commit()
 
-    buckets = dsm_processor._buckets
-    assert len(buckets) == 1
-
-    bucket = list(buckets.values())[0]
-    pathway_stats = bucket.pathway_stats
+    pathway_stats = pathway_stats_merged(dsm_processor)
 
     # Compute expected hashes based on edge tags to verify pathway continuity
     ctx = DataStreamsCtx(dsm_processor, 0, 0, 0)
@@ -111,19 +110,8 @@ async def test_data_streams_offset_monitoring_auto_commit(dsm_processor):
     async with consumer_ctx([topic], enable_auto_commit=True) as consumer:
         msg = await consumer.getone()
 
-    buckets = dsm_processor._buckets
-    assert len(buckets) == 1
-
-    bucket = list(buckets.values())[0]
-
-    # Check produce offsets were tracked
-    produce_offset = bucket.latest_produce_offsets.get(PartitionKey(topic, 0))
-    assert produce_offset is not None and produce_offset == 1
-
-    # Check consume offsets were tracked
-    commit_key = ConsumerPartitionKey(GROUP_ID, topic, 0)
-    commit_offset = bucket.latest_commit_offsets.get(commit_key)
-    assert commit_offset is not None and commit_offset == msg.offset + 1
+    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, "")) == 1
+    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, "")) == msg.offset + 1
 
 
 @pytest.mark.asyncio
@@ -147,19 +135,8 @@ async def test_data_streams_offset_monitoring_commit(dsm_processor, offsets):
         msg = await consumer.getone()
         await consumer.commit(offsets)
 
-    buckets = dsm_processor._buckets
-    assert len(buckets) == 1
-
-    bucket = list(buckets.values())[0]
-
-    # Check produce offsets were tracked
-    produce_offset = bucket.latest_produce_offsets.get(PartitionKey(topic, 0))
-    assert produce_offset is not None and produce_offset == 1
-
-    # Check consume offsets were tracked
-    commit_key = ConsumerPartitionKey(GROUP_ID, topic, 0)
-    commit_offset = bucket.latest_commit_offsets.get(commit_key)
-    assert commit_offset is not None and commit_offset == msg.offset + 1
+    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, "")) == 1
+    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, "")) == msg.offset + 1
 
 
 @pytest.mark.asyncio
@@ -176,21 +153,25 @@ async def test_data_streams_getmany(dsm_processor):
         await consumer.getmany(timeout_ms=2000)
         await consumer.commit()
 
-    buckets = dsm_processor._buckets
-    assert len(buckets) == 1
+    # Same checkpoint key can recur across DSM buckets when sends straddle a 10s
+    # boundary; collect keys and SUM full_pathway_latency.count per direction in
+    # a single pass.
+    producer_keys, consumer_keys = set(), set()
+    producer_count = consumer_count = 0
+    with dsm_processor._lock:
+        for bucket in dsm_processor._buckets.values():
+            for key, stats in bucket.pathway_stats.items():
+                if "direction:out" in key[0]:
+                    producer_keys.add(key)
+                    producer_count += stats.full_pathway_latency.count
+                elif "direction:in" in key[0]:
+                    consumer_keys.add(key)
+                    consumer_count += stats.full_pathway_latency.count
 
-    bucket = list(buckets.values())[0]
-    pathway_stats = bucket.pathway_stats
-
-    # Should have both producer and consumer checkpoints
-    producer_checkpoints = [k for k in pathway_stats.keys() if "direction:out" in k[0]]
-    consumer_checkpoints = [k for k in pathway_stats.keys() if "direction:in" in k[0]]
-
-    assert len(producer_checkpoints) == 1, "Should have one producer checkpoint"
-    assert len(consumer_checkpoints) == 1, "Should have one consumer checkpoint"
-
-    for stats in pathway_stats.values():
-        assert stats.full_pathway_latency.count == 3, "Should track latency for all 3 messages"
+    assert len(producer_keys) == 1, "Should have one producer checkpoint"
+    assert len(consumer_keys) == 1, "Should have one consumer checkpoint"
+    assert producer_count == 3, "Should track latency for all 3 producer sends"
+    assert consumer_count == 3, "Should track latency for all 3 consumer reads"
 
 
 @pytest.mark.asyncio
@@ -219,18 +200,22 @@ async def test_data_streams_payload_size_tracking(dsm_processor):
         if h_val is not None:
             expected_payload_size += len(h_val)
 
-    buckets = dsm_processor._buckets
-    assert len(buckets) == 1
+    # DSM aggregates into 10s wall-clock buckets; produce and consume checkpoints
+    # can land in different buckets when the test straddles a boundary. Iterate
+    # all buckets and assert each recorded sketch matches expected_payload_size.
+    # Hold _lock so the periodic flusher can't mutate _buckets mid-iteration.
+    expected_sketch = DDSketch()
+    expected_sketch.add(expected_payload_size)
+    expected_proto = expected_sketch.to_proto()
 
-    bucket = list(buckets.values())[0]
-    pathway_stats = bucket.pathway_stats
-
-    for stats in pathway_stats.values():
-        assert stats.payload_size.count >= 1
-
-        expected_sketch = DDSketch()
-        expected_sketch.add(expected_payload_size)
-        assert stats.payload_size.to_proto() == expected_sketch.to_proto()
+    pathway_stats_count = 0
+    with dsm_processor._lock:
+        for bucket in dsm_processor._buckets.values():
+            for stats in bucket.pathway_stats.values():
+                pathway_stats_count += 1
+                assert stats.payload_size.count >= 1
+                assert stats.payload_size.to_proto() == expected_proto
+    assert pathway_stats_count >= 1, "no DSM pathway stats recorded for produce/consume"
 
 
 @pytest.mark.asyncio
@@ -267,23 +252,67 @@ async def test_data_streams_multiple_topics(dsm_processor):
     # Verify we got messages from both topics
     assert len(messages) >= 1, "Should receive messages"
 
-    buckets = dsm_processor._buckets
-    assert len(buckets) == 1
-
-    bucket = list(buckets.values())[0]
-    pathway_stats = bucket.pathway_stats
-
-    # Extract all topics from pathway stats
+    # Extract all topics from pathway stats across DSM buckets (produce/consume can
+    # straddle a 10s boundary).
     checkpoint_topics = set()
-    for key in pathway_stats.keys():
-        edge_tags = key[0]
-        for tag in edge_tags.split(","):
+    for key in pathway_stats_merged(dsm_processor).keys():
+        for tag in key[0].split(","):
             if tag.startswith("topic:"):
                 checkpoint_topics.add(tag.split(":", 1)[1])
 
     # Both topics should be tracked
     assert topic1 in checkpoint_topics, f"Topic {topic1} should be tracked"
     assert topic2 in checkpoint_topics, f"Topic {topic2} should be tracked"
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, ddtrace_run=True, err=None)
+def test_data_streams_aiokafka_enabled():
+    """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to aiokafka messages."""
+    import asyncio
+
+    from aiokafka import AIOKafkaConsumer
+    from aiokafka import AIOKafkaProducer
+    from aiokafka.admin import AIOKafkaAdminClient
+    from aiokafka.admin import NewTopic
+
+    from tests.contrib.config import KAFKA_CONFIG
+
+    BOOTSTRAP_SERVERS = f"127.0.0.1:{KAFKA_CONFIG['port']}"
+    topic_name = "test_data_streams_aiokafka_enabled"
+
+    async def _test():
+        admin = AIOKafkaAdminClient(bootstrap_servers=[BOOTSTRAP_SERVERS])
+        await admin.start()
+        try:
+            await admin.create_topics([NewTopic(topic_name, 1, 1)])
+        except Exception:
+            pass
+        finally:
+            await admin.close()
+
+        producer = AIOKafkaProducer(bootstrap_servers=[BOOTSTRAP_SERVERS])
+        await producer.start()
+
+        consumer = AIOKafkaConsumer(
+            topic_name, bootstrap_servers=[BOOTSTRAP_SERVERS], group_id="test_group", auto_offset_reset="earliest"
+        )
+        await consumer.start()
+
+        try:
+            await producer.send_and_wait(topic_name, value=b"test")
+
+            import time
+
+            time.sleep(0.5)
+            message = await consumer.getone()
+            assert "dd-pathway-ctx-base64" in [h[0] for h in message.headers]
+
+        finally:
+            await consumer.stop()
+            await producer.stop()
+
+    asyncio.run(_test())
 
 
 @pytest.mark.asyncio

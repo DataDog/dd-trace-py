@@ -10,7 +10,6 @@ import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import override_env
@@ -148,15 +147,6 @@ def reset_ragas_answer_relevancy_llm():
 
 
 @pytest.fixture
-def mock_ragas_evaluator(mock_llmobs_eval_metric_writer, ragas):
-    patcher = mock.patch("ddtrace.llmobs._evaluators.ragas.faithfulness.RagasFaithfulnessEvaluator.evaluate")
-    LLMObsMockRagas = patcher.start()
-    LLMObsMockRagas.return_value = 1.0
-    yield RagasFaithfulnessEvaluator
-    patcher.stop()
-
-
-@pytest.fixture
 def mock_ragas_answer_relevancy_calculate_similarity():
     import numpy
 
@@ -172,7 +162,7 @@ def llmobs_env():
     return {
         "DD_API_KEY": os.environ.get("DD_API_KEY", "<default-not-a-real-key>"),
         "DD_LLMOBS_ML_APP": "unnamed-ml-app",
-        "DD_LLMOBS_PROJECT_NAME": "test-project",
+        "DD_LLMOBS_PROJECT_NAME": os.environ.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean"),
     }
 
 
@@ -232,19 +222,26 @@ def llmobs_backend(_llmobs_backend):
 
         def wait_for_num_events(self, num, attempts=1000):
             for _ in range(attempts):
-                if len(reqs) == num:
-                    return [json.loads(r["body"]) for r in reqs]
+                # Filter to only LLMObs events to ignore other requests
+                # (e.g. telemetry heartbeats from the native TraceExporter).
+                llmobs_reqs = [r for r in reqs if "/evp_proxy/" in r["path"] or "/api/v2/llmobs" in r["path"]]
+                if len(llmobs_reqs) == num:
+                    return [json.loads(r["body"]) for r in llmobs_reqs]
                 # time.sleep will yield the GIL so the server can process the request
                 time.sleep(0.001)
             else:
-                raise TimeoutError(f"Expected {num} events, got {len(reqs)}: {pprint.pprint(reqs)}")
+                llmobs_reqs = [r for r in reqs if "/evp_proxy/" in r["path"] or "/api/v2/llmobs" in r["path"]]
+                raise TimeoutError(
+                    f"Expected {num} LLMObs events, got {len(llmobs_reqs)} "
+                    f"({len(reqs)} total requests): {pprint.pformat(reqs)}"
+                )
 
     return _LLMObsBackend()
 
 
 @pytest.fixture
 def llmobs_enable_opts():
-    yield {"project_name": "test-project"}
+    yield {"project_name": os.environ.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean")}
 
 
 @pytest.fixture
@@ -266,6 +263,7 @@ def llmobs(
 ):
     for env, val in llmobs_env.items():
         monkeypatch.setenv(env, val)
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     global_config = default_global_config()
     global_config.update(dict(_llmobs_ml_app=llmobs_env.get("DD_LLMOBS_ML_APP")))
     global_config.update(ddtrace_global_config)

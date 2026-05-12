@@ -63,7 +63,7 @@ def _inject_handled_exception_reporting(func, callback: t.Optional[CallbackType]
         log.debug("Could not set the code of %s", code_to_instr, exc_info=True)
 
 
-def _find_except_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
+def _find_except_bytecode_indexes_3_10(code: CodeType) -> list[int]:
     """Find the offset of the starting line after the except keyword for Python3.10
 
     They are two ways of detecting an except in the bytecodes:
@@ -145,7 +145,7 @@ def _find_except_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
     return sorted(list(injection_indexes))
 
 
-def _find_except_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
+def _find_except_bytecode_indexes_3_11(code: CodeType) -> list[int]:
     """Find the offset of the starting line after the except keyword for Python3.11
 
     They are two ways of detecting an except in the bytecodes:
@@ -191,7 +191,7 @@ def _find_except_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
             start += 2
         return co_code[start]
 
-    injection_indexes: t.Set[int] = set()
+    injection_indexes: set[int] = set()
     co_code = code.co_code
     for idx in range(0, len(code.co_code), 2):
         # Typed exception handlers

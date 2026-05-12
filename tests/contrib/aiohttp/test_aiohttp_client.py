@@ -3,7 +3,6 @@ import os
 import aiohttp
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.aiohttp.patch import extract_netloc_and_query_info_from_url
 from ddtrace.contrib.internal.aiohttp.patch import patch
 from ddtrace.contrib.internal.aiohttp.patch import unpatch
@@ -95,13 +94,22 @@ async def test_200_request_distributed_tracing(tracer):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("variant", ["pin", "global"])
-async def test_distributed_tracing_disabled(ddtrace_run_python_code_in_subprocess, variant):
+async def test_200_request_distributed_tracing_with_empty_headers():
+    async with aiohttp.ClientSession() as session:
+        async with session.get("%s/headers" % URL, headers={}) as resp:
+            assert resp.status == 200
+            data = await resp.json()
+            assert "X-Datadog-Trace-Id" in data["headers"]
+            assert "X-Datadog-Parent-Id" in data["headers"]
+            assert "X-Datadog-Sampling-Priority" in data["headers"]
+
+
+@pytest.mark.asyncio
+async def test_distributed_tracing_disabled(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
 import sys
 import aiohttp
-from ddtrace._trace.pin import Pin
 from tests.contrib.aiohttp.test_aiohttp_client import URL
 
 async def test():
@@ -116,8 +124,7 @@ async def test():
 asyncio.run(test())
     """
     env = os.environ.copy()
-    if variant == "global":
-        env["DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING"] = "false"
+    env["DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING"] = "false"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
     assert err == b""
@@ -178,28 +185,6 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot()
-def test_configure_service_name_pin(ddtrace_run_python_code_in_subprocess):
-    code = """
-import asyncio
-import sys
-import aiohttp
-from ddtrace._trace.pin import Pin
-from tests.contrib.aiohttp.test_aiohttp_client import URL_200
-
-async def test():
-    async with aiohttp.ClientSession() as session:
-        Pin._override(session, service="pin-custom-svc")
-        async with session.get(URL_200) as resp:
-            pass
-
-asyncio.run(test())
-    """
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=os.environ.copy())
-    assert status == 0, err
-    assert err == b""
-
-
 @pytest.mark.asyncio
 async def test_configure_service_name_split_by_domain(snapshot_context):
     """
@@ -233,9 +218,7 @@ async def test_trace_query_string(snapshot_context):
 
 
 @pytest.mark.asyncio
-async def test_trace_parenting(snapshot_context):
-    pin = Pin.get_from(aiohttp)
-    tracer = pin.tracer
+async def test_trace_parenting(snapshot_context, tracer):
     with snapshot_context():
         with tracer.trace("parent"):
             async with aiohttp.ClientSession() as session:
@@ -252,4 +235,20 @@ async def test_trace_multiple(snapshot_context):
             async with session.get(URL_200) as resp:
                 assert resp.status == 200
             async with session.get(URL_200) as resp:
+                assert resp.status == 200
+
+
+@pytest.mark.skipif(
+    tuple(int(x) for x in aiohttp.__version__.split(".")[:2]) < (3, 8),
+    reason="base_url parameter added in aiohttp 3.8.0",
+)
+@pytest.mark.asyncio
+async def test_base_url(snapshot_context):
+    """
+    When ClientSession is initialized with base_url
+        The full URL (base + path) is captured in the span
+    """
+    with snapshot_context():
+        async with aiohttp.ClientSession(base_url="http://{}".format(SOCKET)) as session:
+            async with session.get("/status/200") as resp:
                 assert resp.status == 200

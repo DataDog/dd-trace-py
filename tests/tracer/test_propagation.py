@@ -19,10 +19,14 @@ from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ddtrace.internal.constants import _PROPAGATION_STYLE_BAGGAGE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
@@ -327,7 +331,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
                 assert span.parent_id == 5678
                 # Priority is unset
                 assert span.context.sampling_priority is None
-                assert "_sampling_priority_v1" not in span._metrics
+                assert not span._has_attribute("_sampling_priority_v1")
                 assert span.context.dd_origin == "synthetics"
                 assert "_dd.p.test" in span.context._meta
                 assert "_dd.p.ts" not in span.context._meta
@@ -344,7 +348,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
 
             # Span priority was unset, but as we keep 1 per min, it should be kept
             # Since we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
-            assert span._metrics["_sampling_priority_v1"] == AUTO_KEEP
+            assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_KEEP
 
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
@@ -393,7 +397,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
             assert "x-datadog-sampling-priority" not in next_headers
 
             # Ensure span is dropped (no appsec event upstream or in this span)
-            assert span._metrics["_sampling_priority_v1"] == AUTO_REJECT
+            assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_REJECT
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
                 ddtrace.config._reset()
@@ -429,7 +433,7 @@ def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept
         assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
 
         # Ensure span is user keep
-        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+        assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP
     finally:
         tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
@@ -472,7 +476,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
                 assert span.parent_id == 5678
                 # Priority is unset
                 assert span.context.sampling_priority is None
-                assert "_sampling_priority_v1" not in span._metrics
+                assert not span._has_attribute("_sampling_priority_v1")
                 assert span.context.dd_origin == "synthetics"
                 assert "_dd.p.test" in span.context._meta
                 assert "_dd.p.ts" not in span.context._meta
@@ -489,7 +493,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
 
             # Priority was unset, and trace is not kept, so it should be dropped
             # As we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
-            assert span._metrics["_sampling_priority_v1"] == AUTO_REJECT
+            assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_REJECT
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
                 ddtrace.config._reset()
@@ -538,7 +542,7 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
         assert "_dd.p.ts=02" in next_headers["x-datadog-tags"]
 
         # Ensure span has force-keep priority now
-        assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+        assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP
 
     finally:
         tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
@@ -608,7 +612,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
                 assert next_headers["x-datadog-tags"] == "_dd.p.ts=02"
 
             # Ensure span sets user keep regardless of received priority (appsec event upstream)
-            assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+            assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP
 
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
@@ -681,7 +685,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
                 assert next_headers["x-datadog-tags"].startswith("_dd.p.ts=02,")
 
             # Ensure span set to user keep regardless received priority (appsec event upstream)
-            assert span._metrics["_sampling_priority_v1"] == USER_KEEP  # user keep always
+            assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP  # user keep always
 
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
@@ -739,6 +743,30 @@ def test_extract_128bit_trace_ids_datadog():
             assert span.parent_id == span_id
             with tracer.trace("child_span") as child_span:
                 assert child_span.trace_id == expected_trace_id
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
+    check_logs=False,
+)
+def test_extract_128bit_trace_id_uppercase_tid_is_rejected():
+    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace.propagation.http import HTTPPropagator
+    from ddtrace.trace import tracer  # noqa:F811
+
+    low_64_bits = 13088165645273925489
+    uppercase_tid = "AABBCCDD00112233"
+    headers = {
+        "x-datadog-trace-id": str(low_64_bits),
+        "x-datadog-parent-id": "1",
+        "x-datadog-tags": "=".join([HIGHER_ORDER_TRACE_ID_BITS, uppercase_tid]),
+    }
+    context = HTTPPropagator.extract(headers)
+    tracer.context_provider.activate(context)
+    with tracer.trace("local_root_span") as span:
+        assert span.trace_id == low_64_bits
+        assert span.context._meta.get("_dd.propagation_error") == "malformed_tid {}".format(uppercase_tid)
+        assert HIGHER_ORDER_TRACE_ID_BITS not in span.context._meta
 
 
 @pytest.mark.subprocess(
@@ -902,7 +930,10 @@ def test_extract_unicode(tracer):  # noqa: F811
         ("_dd.p.dm=-", {"_dd.propagation_error": "decoding_error"}),
         ("_dd.p.dm=--1", {"_dd.propagation_error": "decoding_error"}),
         ("_dd.p.dm=-1.0", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=-13", {"_dd.propagation_error": "decoding_error"}),
+        (
+            "_dd.p.dm=-22",
+            {"_dd.propagation_error": "decoding_error"},
+        ),  # This test validates a value that does not exist in the SamplingMechanism enum
     ],
 )
 def test_extract_dm(x_datadog_tags, expected_trace_tags):
@@ -1088,6 +1119,115 @@ TRACECONTEXT_HEADERS_VALID_64_bit = {
 def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_priority_ts, expected_sampling_priority):
     traceparent_values = _TraceContext._get_sampling_priority(sampling_priority_tp, sampling_priority_ts)
     assert traceparent_values == expected_sampling_priority
+
+
+def test_tracecontext_get_context_truncates_tracestate_list_member_count():
+    many_members = ",".join("z%d=%d" % (i, i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS + 3))
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, many_members, {})
+    stored = ctx._meta[W3C_TRACESTATE_KEY]
+    assert stored.count(",") == DD_TRACE_TRACESTATE_MAX_ITEMS - 1
+    assert ("z%d=" % (DD_TRACE_TRACESTATE_MAX_ITEMS - 1)) in stored
+    assert ("z%d=" % DD_TRACE_TRACESTATE_MAX_ITEMS) not in stored
+
+
+def test_tracecontext_get_context_truncates_tracestate_byte_length():
+    short_dd = "dd=s:2;o:rum"
+    # First member (12 B) + comma + second must exceed DD_TRACE_TRACESTATE_MAX_BYTES so the second is dropped.
+    ys = DD_TRACE_TRACESTATE_MAX_BYTES - len(short_dd.encode("utf-8")) - 2
+    long_second = "b=" + ("y" * ys)
+    ts = short_dd + "," + long_second
+    assert len(ts.encode("utf-8")) > DD_TRACE_TRACESTATE_MAX_BYTES
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    assert ctx._meta[W3C_TRACESTATE_KEY] == short_dd
+    assert ctx.sampling_priority == 2
+
+
+def test_tracecontext_get_context_max_items_plus_one_each_max_bytes_plus_one():
+    """MAX_ITEMS+1 members each longer than MAX_BYTES: item cap then byte cap leaves nothing stored."""
+    member_len = DD_TRACE_TRACESTATE_MAX_BYTES + 1
+
+    def one_member(i: int) -> str:
+        prefix = "k%02d=" % i
+        pad = member_len - len(prefix.encode("utf-8"))
+        assert pad >= 0
+        return prefix + ("x" * pad)
+
+    members = [one_member(i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS + 1)]
+    for m in members:
+        assert len(m.encode("utf-8")) == member_len
+    ts = ",".join(members)
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    assert ctx._meta[W3C_TRACESTATE_KEY] == ""
+    assert ctx.sampling_priority == 1
+    assert ctx.dd_origin is None
+
+
+def test_tracecontext_get_context_keeps_dd_when_oversized_vendor_members_fill_budget():
+    """``dd=`` is retained first; oversized non-dd members do not displace it."""
+    member_len = DD_TRACE_TRACESTATE_MAX_BYTES + 1
+
+    def one_member(i: int) -> str:
+        prefix = "k%02d=" % i
+        pad = member_len - len(prefix.encode("utf-8"))
+        return prefix + ("x" * pad)
+
+    members = [one_member(i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS + 1)]
+    dd_mem = "dd=s:2;o:rum"
+    ts = ",".join(members + [dd_mem])
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    assert ctx._meta[W3C_TRACESTATE_KEY] == dd_mem
+    assert ctx.sampling_priority == 2
+    assert ctx.dd_origin == "rum"
+
+
+def test_tracecontext_get_context_dd_preferred_when_not_first_and_byte_capped():
+    long_first = "b=" + ("y" * (DD_TRACE_TRACESTATE_MAX_BYTES - 1))
+    short_dd = "dd=s:2;o:rum"
+    ts = long_first + "," + short_dd
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    assert ctx._meta[W3C_TRACESTATE_KEY] == short_dd
+    assert ctx.sampling_priority == 2
+    assert ctx.dd_origin == "rum"
+
+
+def test_tracecontext_get_context_dd_survives_list_member_count_when_last():
+    # 32 small vendors + dd = 33 list-members; trim non-dd to 31 so dd + 31 vendors remain.
+    prefix_members = ["z%d=%d" % (i, i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS)]
+    ts = ",".join(prefix_members + ["dd=s:1"])
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    stored = ctx._meta[W3C_TRACESTATE_KEY]
+    assert stored.startswith("dd=")
+    assert "z0=0" in stored
+    assert "z30=30" in stored
+    assert "z31=31" not in stored
+    assert stored.count(",") == DD_TRACE_TRACESTATE_MAX_ITEMS - 1
+
+
+def test_tracecontext_get_context_drops_oversized_vendor_before_small_when_item_capped():
+    # 31 small keys + one oversized + ``dd`` => 32 non-dd slots would be exceeded by one extra
+    # small vendor; ``others`` length 32 must shrink to 31: drop ``h=`` (oversized) first, not z30.
+    small = ["z%d=%d" % (i, i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS - 1)]  # z0..z30
+    huge = "h=" + ("x" * (DD_TRACE_TRACESTATE_ITEM_MAX_CHARS + 50))
+    assert len(huge) > DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+    ts = ",".join(small + [huge] + ["dd=s:1"])
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    stored = ctx._meta[W3C_TRACESTATE_KEY]
+    assert "h=" not in stored
+    assert "z30=30" in stored
+    assert stored.startswith("dd=")
+
+
+def test_tracecontext_get_context_skips_oversized_member_under_byte_budget_after_dd():
+    # ``dd`` first; next member alone would exceed byte cap and is over ITEM_MAX_CHARS, so it is
+    # skipped and a later small member is still included.
+    huge = "a=" + ("x" * (DD_TRACE_TRACESTATE_MAX_BYTES - 1))
+    assert len(huge) > DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+    ts = "dd=s:2;o:rum," + huge + ",z=9"
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
+    stored = ctx._meta[W3C_TRACESTATE_KEY]
+    assert stored.startswith("dd=")
+    assert "z=9" in stored
+    assert huge not in stored
 
 
 @pytest.mark.parametrize(
@@ -2762,14 +2902,20 @@ def test_multiple_context_interactions(name, styles, headers, expected_context):
         assert context == expected_context
 
 
-def test_span_links_set_on_root_span_not_child(fastapi_client, fastapi_tracer, test_spans):  # noqa: F811
+def test_span_links_set_on_root_span_not_child(fastapi_client, fastapi_tracer, fastapi_test_spans):  # noqa: F811
     response = fastapi_client.get("/", headers={"sleep": "False", **ALL_HEADERS})
     assert response.status_code == 200
     assert response.json() == {"Homepage Read": "Success"}
 
-    spans = test_spans.pop_traces()
-    assert spans[0][0].name == "fastapi.request"
-    assert [link for link in spans[0][0]._links if link.span_id == 67667974448284343] == [
+    spans = fastapi_test_spans.pop_traces()
+    assert len(spans) > 0
+    assert len(spans[0]) > 0
+    root_span = spans[0][0]
+    assert root_span.name == "fastapi.request", (
+        f"Expected root span 'fastapi.request', got '{root_span.name}'. "
+        f"Trace has {len(spans[0])} spans: {[s.name for s in spans[0]]}"
+    )
+    assert [link for link in root_span._get_links() if link.span_id == 67667974448284343] == [
         SpanLink(
             trace_id=171395628812617415352188477958425669623,
             span_id=67667974448284343,
@@ -2778,7 +2924,7 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, fastapi_tracer, t
             attributes={"reason": "terminated_context", "context_headers": "tracecontext"},
         )
     ]
-    assert spans[0][1]._links == []
+    assert spans[0][1]._get_links() == []
     assert spans[0][1].context._span_links == []
 
 
@@ -3429,6 +3575,65 @@ def test_baggageheader_maxbytes_inject():
     assert header_size <= DD_TRACE_BAGGAGE_MAX_BYTES
     assert "key4" not in header_value
     assert "key2" in header_value
+
+
+def test_baggageheader_maxitems_extract():
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+
+    pairs = [f"k{i}=v{i}" for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 3)]
+    header_value = ",".join(pairs)
+    context = _BaggageHeader._extract({"baggage": header_value})
+    assert len(context._baggage) == DD_TRACE_BAGGAGE_MAX_ITEMS
+    for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS):
+        assert context._baggage[f"k{i}"] == f"v{i}"
+    assert f"k{DD_TRACE_BAGGAGE_MAX_ITEMS}" not in context._baggage
+
+
+def test_baggageheader_maxitems_maxbytes_extract():
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+
+    pairs = []
+    for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 3):
+        prefix = f"k{i}="
+        pad_len = DD_TRACE_BAGGAGE_MAX_BYTES - len(prefix.encode("utf-8"))
+        val = "v" * pad_len
+        pair = f"k{i}={val}"
+        assert len(pair.encode("utf-8")) == DD_TRACE_BAGGAGE_MAX_BYTES
+        pairs.append(pair)
+
+    header_value = ",".join(pairs)
+    context = _BaggageHeader._extract({"baggage": header_value})
+    # First segment fills the byte budget; comma + next segment exceed DD_TRACE_BAGGAGE_MAX_BYTES.
+    assert len(context._baggage) == 1
+    assert context._baggage["k0"] == pairs[0].split("=", 1)[1]
+    assert f"k{DD_TRACE_BAGGAGE_MAX_ITEMS}" not in context._baggage
+
+
+def test_baggageheader_maxbytes_extract():
+    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+
+    # Single pair whose raw segment exceeds the byte limit — nothing parsed into baggage.
+    huge = "x" * (DD_TRACE_BAGGAGE_MAX_BYTES + 1)
+    context = _BaggageHeader._extract({"baggage": f"k={huge}"})
+    assert context._baggage == {}
+
+    # Multiple pairs: keep a prefix whose comma-separated wire size stays within the limit.
+    chunk = "a" * (DD_TRACE_BAGGAGE_MAX_BYTES // 3)
+    header_value = ",".join([f"key{i}={chunk}" for i in range(4)])
+    context = _BaggageHeader._extract({"baggage": header_value})
+    total_size = 0
+    expected_baggage = {}
+    for seg in header_value.split(","):
+        segment_bytes = len(seg.encode("utf-8")) + (1 if expected_baggage else 0)
+        if total_size + segment_bytes > DD_TRACE_BAGGAGE_MAX_BYTES:
+            break
+        key, _, value = seg.partition("=")
+        expected_baggage[key] = value
+        total_size += segment_bytes
+    assert context._baggage == expected_baggage
+    assert total_size <= DD_TRACE_BAGGAGE_MAX_BYTES
+    assert "key3" not in context._baggage
 
 
 @pytest.mark.parametrize(

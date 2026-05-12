@@ -14,7 +14,6 @@ without the whole trace being dropped.
 Run with `DD_PATCH_MODULES=kombu:true`::
 
     import ddtrace.auto
-    from ddtrace import Pin
     import kombu
 
     # If not patched yet, you can patch kombu specifically
@@ -31,6 +30,15 @@ Run with `DD_PATCH_MODULES=kombu:true`::
                      routing_key=task_queue.routing_key,
                      declare=[task_queue])
 
-    # Use a pin to specify metadata related to this client
-    Pin.override(producer, service='kombu-consumer')
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.kombu["service"]
+
+   The service name reported by default for kombu spans.
+
+   This option can also be set with the ``DD_KOMBU_SERVICE`` environment
+   variable.
+
+   Default: ``"kombu"``
 """

@@ -6,7 +6,6 @@ import pytest
 import redis
 import redis.asyncio
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
@@ -54,12 +53,8 @@ def test_patching():
         We unwrap the correct methods
     """
     assert is_wrapted(redis.asyncio.client.Redis.execute_command)
-    assert is_wrapted(redis.asyncio.client.Redis.pipeline)
-    assert is_wrapted(redis.asyncio.client.Pipeline.pipeline)
     unpatch()
     assert not is_wrapted(redis.asyncio.client.Redis.execute_command)
-    assert not is_wrapted(redis.asyncio.client.Redis.pipeline)
-    assert not is_wrapted(redis.asyncio.client.Pipeline.pipeline)
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1)
@@ -126,13 +121,6 @@ async def test_override_service_name(redis_client):
         if isinstance(val, bytes):
             val = val.decode()
         assert val == "my-cheese"
-
-
-@pytest.mark.snapshot(wait_for_num_traces=1)
-async def test_pin(redis_client):
-    Pin._override(redis_client, service="my-redis")
-    val = await redis_client.get("cheese")
-    assert val is None
 
 
 @pytest.mark.snapshot(wait_for_num_traces=1)

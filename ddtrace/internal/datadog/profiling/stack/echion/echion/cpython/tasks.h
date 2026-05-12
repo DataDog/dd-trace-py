@@ -5,12 +5,12 @@
 #pragma once
 
 #define PY_SSIZE_T_CLEAN
+#define Py_BUILD_CORE
 #include <Python.h>
 
 #if PY_VERSION_HEX >= 0x030b0000
 #include <cpython/genobject.h>
 
-#define Py_BUILD_CORE
 #if PY_VERSION_HEX >= 0x030e0000
 #include <cstddef>
 #include <internal/pycore_frame.h>
@@ -377,7 +377,11 @@ extern "C"
             if (c == nullptr)
                 return NULL;
 
-            if (c[(frame.f_lasti + 1) * sizeof(_Py_CODEUNIT)] != YIELD_FROM)
+            Py_ssize_t idx = (frame.f_lasti + 1) * sizeof(_Py_CODEUNIT);
+            if (idx < 0 || idx >= s)
+                return NULL;
+
+            if (c[idx] != YIELD_FROM)
                 return NULL;
 
             ssize_t nvalues = frame.f_stackdepth;
@@ -421,7 +425,11 @@ extern "C"
             if (c == nullptr)
                 return NULL;
 
-            if (c[f->f_lasti + sizeof(_Py_CODEUNIT)] != YIELD_FROM)
+            Py_ssize_t idx = frame.f_lasti + sizeof(_Py_CODEUNIT);
+            if (idx < 0 || idx >= s)
+                return NULL;
+
+            if (c[idx] != YIELD_FROM)
                 return NULL;
 
             auto stacktop = std::make_unique<PyObject*>();

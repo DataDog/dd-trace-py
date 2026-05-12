@@ -1,5 +1,3 @@
-import typing as t
-
 import _pytest
 import pytest
 
@@ -34,7 +32,7 @@ class _RETRY_OUTCOMES:
     FINAL_SKIPPED = "dd_fix_final_skipped"
 
 
-_FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
+_FINAL_OUTCOMES: dict[TestStatus, str] = {
     TestStatus.PASS: PYTEST_STATUS.PASSED,
     TestStatus.FAIL: PYTEST_STATUS.FAILED,
     TestStatus.SKIP: PYTEST_STATUS.SKIPPED,
@@ -44,7 +42,7 @@ _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
 def attempt_to_fix_handle_retries(
     test_id: TestId,
     item: pytest.Item,
-    test_reports: t.Dict[str, pytest_TestReport],
+    test_reports: dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,
     is_quarantined: bool = False,
 ):
@@ -101,16 +99,21 @@ def attempt_to_fix_handle_retries(
 def _do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     test_id = _get_test_id_from_item(item)
 
+    # Send the original test FIRST (it's already finished before retries start)
+    InternalTest.finish(test_id)
+
     while InternalTest.attempt_to_fix_should_retry(test_id):
         retry_num = InternalTest.attempt_to_fix_add_retry(test_id, start_immediately=True)
-
         retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
+        # attempt_to_fix_finish_retry now auto-writes the span (and will set final_status on the last one)
         InternalTest.attempt_to_fix_finish_retry(
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
         )
 
-    return InternalTest.attempt_to_fix_get_final_status(test_id)
+    final_status = InternalTest.attempt_to_fix_get_final_status(test_id)
+
+    return final_status
 
 
 def attempt_to_fix_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_return_type:

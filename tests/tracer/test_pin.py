@@ -85,8 +85,6 @@ class PinTestCase(TestCase):
         # but it's a copy
         assert p1.tags is not p2.tags
         assert p1._config is not p2._config
-        # of almost everything
-        assert p1.tracer is p2.tracer
 
     def test_none(self):
         # ensure get_from returns None if a Pin is not available

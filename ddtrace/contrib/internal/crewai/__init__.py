@@ -17,27 +17,12 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the CrewAI
     patch(crewai=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.crewai["service"]
 
    The service name reported by default for CrewAI requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_CREWAI_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the CrewAI integration on a per-instance basis use the
-``Pin`` API::
-
-    import crewai
-    from ddtrace._trace.pin import Pin
-
-    Pin.override(crewai, service="my-crewai-service")
+   Alternatively, set this option with the ``DD_CREWAI_SERVICE`` environment variable.
 """  # noqa: E501

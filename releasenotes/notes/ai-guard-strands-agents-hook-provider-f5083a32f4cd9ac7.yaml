@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    AI Guard: This introduces AI Guard support for ``Strands Agents<https://strandsagents.com/>``. The Plugin API requires 
+    ``strands-agents>=1.29.0``; the HookProvider works with any version that exposes the hooks system.

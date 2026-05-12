@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    profiling: A redundant syscall per thread during stack sampling was eliminated by caching the thread running state
+    when updating CPU time, reducing syscall overhead from 3 to 2 calls per thread on Linux.

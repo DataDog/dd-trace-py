@@ -1,0 +1,42 @@
+id: no-unittest-test-classes
+valid:
+  # Plain pytest-style test class (no TestCase base) — OK
+  - |
+    class TestSomething:
+        def test_something(self):
+            assert True
+  # pytest-style test functions — OK
+  - |
+    def test_something():
+        assert True
+  # Class with unrelated base class — OK
+  - |
+    class TestSomething(SomeOtherBase):
+        def test_something(self):
+            assert True
+invalid:
+  # Direct unittest.TestCase subclass
+  - |
+    class MyTest(unittest.TestCase):
+        def test_something(self):
+            pass
+  # Bare TestCase (from `from unittest import TestCase`)
+  - |
+    class MyTest(TestCase):
+        def test_something(self):
+            pass
+  # TracerTestCase subclass
+  - |
+    class MyTest(TracerTestCase):
+        def test_something(self):
+            pass
+  # BaseTestCase subclass
+  - |
+    class MyTest(BaseTestCase):
+        def test_something(self):
+            pass
+  # SubprocessTestCase subclass
+  - |
+    class MyTest(SubprocessTestCase):
+        def test_something(self):
+            pass

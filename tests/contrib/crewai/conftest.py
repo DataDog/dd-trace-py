@@ -1,5 +1,6 @@
 import os
 import time
+from unittest import mock
 
 from crewai import Agent
 from crewai import Crew
@@ -15,15 +16,13 @@ from crewai.tools import tool
 import pytest
 import vcr
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
-from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs import LLMObs
 from tests.contrib.crewai.utils import budget_text
 from tests.contrib.crewai.utils import fun_fact_text
 from tests.contrib.crewai.utils import itinerary_text
 from tests.contrib.crewai.utils import welcome_email_text
-from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import override_global_config
 
 
@@ -344,29 +343,18 @@ def crewai(monkeypatch):
 
 
 @pytest.fixture
-def mock_tracer(crewai, tracer):
-    pin = Pin.get_from(crewai)
-    pin._override(crewai, tracer=tracer)
-    yield tracer
-
-
-@pytest.fixture
-def crewai_llmobs(mock_tracer, llmobs_span_writer):
-    llmobs_service.disable()
+def crewai_llmobs(tracer, monkeypatch):
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+    LLMObs.disable()
     with override_global_config(
-        {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.crewai"}
+        {
+            "_llmobs_ml_app": "<ml-app-name>",
+            "_dd_api_key": "<not-a-real-api_key>",
+            "service": "tests.contrib.crewai",
+        }
     ):
-        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-        yield llmobs_service
-    llmobs_service.disable()
-
-
-@pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
-
-
-@pytest.fixture
-def llmobs_events(crewai_llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        yield LLMObs
+    LLMObs.disable()

@@ -7,7 +7,6 @@ import sqlalchemy
 import starlette
 from starlette.testclient import TestClient
 
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.sqlalchemy.patch import patch as sql_patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
@@ -40,7 +39,6 @@ def engine():
 @pytest.fixture
 def tracer(engine):
     with scoped_tracer() as tracer:
-        Pin._override(engine, tracer=tracer)
         starlette_patch()
         yield tracer
         starlette_unpatch()
@@ -543,7 +541,7 @@ def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     # background task should link to the request span
     assert background_span
     assert background_span.parent_id is None
-    [link, *others] = [link for link in background_span._links if link.span_id == request_span.span_id]
+    [link, *others] = [link for link in background_span._get_links() if link.span_id == request_span.span_id]
     assert not others
     assert link.trace_id == request_span.trace_id
     assert link.span_id == request_span.span_id

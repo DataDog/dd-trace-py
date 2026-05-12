@@ -1,4 +1,3 @@
-from typing import Dict
 from typing import Optional
 
 from ddtrace.internal.settings._core import DDConfig
@@ -16,7 +15,7 @@ class ProfilingConfig(DDConfig):
     max_time_usage_pct: float
     api_timeout_ms: int
     timeline_enabled: bool
-    tags: Dict[str, str]
+    tags: dict[str, str]
     enable_asserts: bool
     sample_pool_capacity: int
     stack: ProfilingConfigStack
@@ -24,14 +23,21 @@ class ProfilingConfig(DDConfig):
     memory: ProfilingConfigMemory
     heap: ProfilingConfigHeap
     pytorch: ProfilingConfigPytorch
+    exception: ProfilingConfigException
 
 class ProfilingConfigStack(DDConfig):
     enabled: bool
-    v2_adaptive_sampling: bool
+    adaptive_sampling: bool
+    adaptive_sampling_target_overhead: float
+    adaptive_sampling_max_interval: int
+    max_threads: int
+    native_frames: bool
+    fast_copy: bool
 
 class ProfilingConfigLock(DDConfig):
     enabled: bool
     name_inspect_dir: bool
+    exclude_modules: frozenset[str]
 
 class ProfilingConfigMemory(DDConfig):
     enabled: bool
@@ -45,6 +51,11 @@ class ProfilingConfigHeap(DDConfig):
 class ProfilingConfigPytorch(DDConfig):
     enabled: bool
     events_limit: int
+
+class ProfilingConfigException(DDConfig):
+    enabled: bool
+    sampling_interval: int
+    collect_message: bool
 
 config: ProfilingConfig
 ddup_failure_msg: Optional[str]

@@ -10,6 +10,7 @@ Inspired by the coverage.py multiprocessing support at
 https://github.com/nedbat/coveragepy/blob/401a63bf08bdfd780b662f64d2dfe3603f2584dd/coverage/multiproc.py
 """
 
+from collections import defaultdict
 import json
 import multiprocessing
 from multiprocessing.connection import Connection
@@ -19,6 +20,8 @@ import pickle  # nosec: B403  -- pickle is only used to serialize coverage data 
 import typing as t
 
 from ddtrace.internal.coverage.code import ModuleCodeCollector
+from ddtrace.internal.coverage.code import _get_ctx_covered_lines
+from ddtrace.internal.coverage.code import ctx_coverage_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
@@ -41,8 +44,16 @@ def _is_patched():
 
 
 class CoverageCollectingMultiprocess(BaseProcess):
+    _parent_ctx_covered: t.Optional[defaultdict[str, CoverageLines]]
+
     def _absorb_child_coverage(self) -> None:
-        if not ModuleCodeCollector.coverage_enabled() or ModuleCodeCollector._instance is None:
+        if not self._dd_coverage_enabled or ModuleCodeCollector._instance is None:
+            return
+
+        # Don't absorb if coverage has been fully stopped and no context capture is active.
+        # Without this guard, inject_coverage() would merge executable lines but skip covered
+        # lines (both are gated on their respective enabled flags), inflating the denominator.
+        if not ModuleCodeCollector.coverage_enabled() and self._parent_ctx_covered is None:
             return
 
         if self._parent_conn is None:
@@ -59,10 +70,24 @@ class CoverageCollectingMultiprocess(BaseProcess):
                         log.debug("Could not unpickle coverage data, not injecting coverage")
                         raise
 
-                    lines: t.Dict[str, CoverageLines] = data.get("lines", {})
-                    covered: t.Dict[str, CoverageLines] = data.get("covered", {})
+                    lines: dict[str, CoverageLines] = data.get("lines", {})
+                    covered: dict[str, CoverageLines] = data.get("covered", {})
 
-                    ModuleCodeCollector.inject_coverage(lines, covered)
+                    # Always register executable lines; only pass covered when global
+                    # coverage is active — inject_coverage() drops covered when
+                    # _coverage_enabled is False, inflating the denominator.
+                    ModuleCodeCollector.inject_coverage(
+                        lines, covered if ModuleCodeCollector.coverage_enabled() else None
+                    )
+
+                    # Write covered lines directly into the parent context dict.
+                    # inject_coverage() can't reach context coverage from a management
+                    # thread (no shared ContextVars). Clear after use so subsequent
+                    # calls (e.g. close() after join()) don't write into a stale dict.
+                    if covered and self._parent_ctx_covered is not None:
+                        for path, path_covered in covered.items():
+                            self._parent_ctx_covered[path].update(path_covered)
+                        self._parent_ctx_covered = None
                 else:
                     log.debug("Child process sent empty coverage data")
             else:
@@ -105,11 +130,16 @@ class CoverageCollectingMultiprocess(BaseProcess):
 
     def __init__(self, *posargs, **kwargs) -> None:
         self._dd_coverage_enabled = False
-        self._dd_coverage_include_paths: t.List[Path] = []
+        self._dd_coverage_include_paths: list[Path] = []
 
         # If coverage is not enabled, the pipe used to communicate coverage data from child to parent is not needed
         self._parent_conn: t.Optional[Connection] = None
         self._child_conn: t.Optional[Connection] = None
+
+        # Capture the parent's context-level coverage dict so _absorb_child_coverage() can write to it
+        # directly. This is needed because join()/close() may be called from a management thread
+        # (e.g. ProcessPoolExecutor) that doesn't share the parent's ContextVars.
+        self._parent_ctx_covered = None
 
         # Only enable coverage in a child process being created if the parent process has coverage enabled
         if ModuleCodeCollector.coverage_enabled():
@@ -120,6 +150,10 @@ class CoverageCollectingMultiprocess(BaseProcess):
             self._dd_coverage_enabled = True
             if ModuleCodeCollector._instance is not None:
                 self._dd_coverage_include_paths = ModuleCodeCollector._instance._include_paths
+
+            # Capture context-level coverage dict if active (runs in the main thread)
+            if ctx_coverage_enabled.get():
+                self._parent_ctx_covered = _get_ctx_covered_lines()
 
         base_process_init(self, *posargs, **kwargs)
 
@@ -154,19 +188,19 @@ class Stowaway:
     ModuleCodeCollector in it leads to incomplete code coverage data.
     """
 
-    def __init__(self, include_paths: t.Optional[t.List[Path]] = None, dd_coverage_enabled: bool = True) -> None:
+    def __init__(self, include_paths: t.Optional[list[Path]] = None, dd_coverage_enabled: bool = True) -> None:
         self.dd_coverage_enabled: bool = dd_coverage_enabled
-        self.include_paths_strs: t.List[str] = []
+        self.include_paths_strs: list[str] = []
         if include_paths is not None:
             self.include_paths_strs = [str(include_path) for include_path in include_paths]
 
-    def __getstate__(self) -> t.Dict[str, t.Any]:
+    def __getstate__(self) -> dict[str, t.Any]:
         return {
             "include_paths_strs": json.dumps(self.include_paths_strs),
             "dd_coverage_enabled": self.dd_coverage_enabled,
         }
 
-    def __setstate__(self, state: t.Dict[str, str]) -> None:
+    def __setstate__(self, state: dict[str, str]) -> None:
         include_paths = [Path(include_path_str) for include_path_str in json.loads(state["include_paths_strs"])]
 
         if state["dd_coverage_enabled"]:
@@ -196,7 +230,7 @@ def _patch_multiprocessing():
         pass
     else:
 
-        def get_preparation_data_with_stowaway(name: str) -> t.Dict[str, t.Any]:
+        def get_preparation_data_with_stowaway(name: str) -> dict[str, t.Any]:
             """Make sure that the ModuleCodeCollector is installed as soon as possible, with the same include paths"""
             d = original_get_preparation_data(name)
             include_paths = (

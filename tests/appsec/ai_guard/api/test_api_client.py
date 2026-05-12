@@ -7,7 +7,9 @@ import pytest
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClientError
+from ddtrace.appsec.ai_guard import ContentPart
 from ddtrace.appsec.ai_guard import Function
+from ddtrace.appsec.ai_guard import ImageURL
 from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import Options
 from ddtrace.appsec.ai_guard import ToolCall
@@ -17,8 +19,8 @@ from tests.appsec.ai_guard.utils import assert_ai_guard_span
 from tests.appsec.ai_guard.utils import assert_mock_execute_request_call
 from tests.appsec.ai_guard.utils import find_ai_guard_span
 from tests.appsec.ai_guard.utils import mock_evaluate_response
+from tests.appsec.ai_guard.utils import override_ai_guard_config
 from tests.appsec.ai_guard.utils import random_string
-from tests.utils import TracerSpanContainer
 from tests.utils import override_global_config
 
 
@@ -41,7 +43,22 @@ TOOL_OUTPUT = [
 PROMPT = [
     *TOOL_OUTPUT,
     Message(role="assistant", content="2 + 2 is 5"),
-    Message(role="user", content="Are you sure?"),
+    Message(
+        role="user",
+        content=[
+            ContentPart(type="input_text", text="what's in this image?"),
+            ContentPart(
+                type="input_image",
+                image_url=ImageURL(
+                    url=(
+                        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/"
+                        "Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-"
+                        "Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+                    )
+                ),
+            ),
+        ],
+    ),
 ]
 
 
@@ -87,7 +104,7 @@ def test_evaluate_method(
     mock_execute_request,
     telemetry_mock,
     ai_guard_client,
-    tracer,
+    test_spans,
     action,
     reason,
     tags,
@@ -106,12 +123,14 @@ def test_evaluate_method(
         assert exc_info.value.action == action
         assert exc_info.value.reason == reason
         assert exc_info.value.tags == tags
+        assert exc_info.value.sds == []
     else:
         result = ai_guard_client.evaluate(messages, Options(block=blocking))
         assert result["action"] == action
         assert result["reason"] == reason
         if tags:
             assert result["tags"] == tags
+        assert result["sds"] == []
 
     expected_tags = {"ai_guard.target": target, "ai_guard.action": action}
     if target == "tool":
@@ -122,7 +141,7 @@ def test_evaluate_method(
     if tags:
         expected_meta_struct.update({"attack_categories": tags})
     assert_ai_guard_span(
-        tracer,
+        test_spans,
         expected_tags,
         expected_meta_struct,
     )
@@ -140,6 +159,28 @@ def test_evaluate_method(
     )
 
 
+@pytest.mark.parametrize(
+    "options,should_block",
+    [
+        pytest.param(None, True, id="options omitted follows remote blocking"),
+        pytest.param(Options(), True, id="block omitted follows remote blocking"),
+        pytest.param(Options(block=False), False, id="explicit block false disables blocking"),
+    ],
+)
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_block_defaults_to_remote_is_blocking_enabled(
+    mock_execute_request, ai_guard_client, options, should_block
+):
+    mock_execute_request.return_value = mock_evaluate_response("DENY", "Nope", ["deny_everything"], True)
+
+    if should_block:
+        with pytest.raises(AIGuardAbortError):
+            ai_guard_client.evaluate(TOOL_CALL, options)
+    else:
+        result = ai_guard_client.evaluate(TOOL_CALL, options)
+        assert result["action"] == "DENY"
+
+
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_http_error(mock_execute_request, telemetry_mock, ai_guard_client):
@@ -155,6 +196,24 @@ def test_evaluate_http_error(mock_execute_request, telemetry_mock, ai_guard_clie
 
     assert exc_info.value.status == 500
     assert exc_info.value.errors == errors
+    assert_telemetry(telemetry_mock, "ai_guard.requests", (("error", "true"),))
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_http_error_empty_json_body(mock_execute_request, telemetry_mock, ai_guard_client):
+    """Test HTTP error handling when the response body is empty."""
+    mock_response = Mock()
+    mock_response.status = 500
+    mock_response.get_json.return_value = None
+    mock_execute_request.return_value = mock_response
+
+    with pytest.raises(AIGuardClientError) as exc_info:
+        ai_guard_client.evaluate(TOOL_CALL)
+
+    assert str(exc_info.value) == "AI Guard service call failed, status: 500"
+    assert exc_info.value.status == 500
+    assert exc_info.value.errors == []
     assert_telemetry(telemetry_mock, "ai_guard.requests", (("error", "true"),))
 
 
@@ -208,7 +267,7 @@ def test_evaluate_invalid_action(mock_execute_request, telemetry_mock, ai_guard_
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_guard_client, tracer):
+def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     messages = []
@@ -216,31 +275,38 @@ def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_
         messages.append(Message(role="user", content="Tell me 10 things I should know about DataDog"))
     ai_guard_client.evaluate(messages)
 
-    span = find_ai_guard_span(tracer)
+    span = find_ai_guard_span(test_spans)
     meta = span._get_struct_tag(AI_GUARD.TAG)
     assert len(meta["messages"]) == ai_guard_config._ai_guard_max_messages_length
     assert_telemetry(telemetry_mock, "ai_guard.truncated", (("type", "messages"),))
 
 
+@pytest.mark.parametrize("content_part", [True, False])
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_span_meta_content_truncation(mock_execute_request, telemetry_mock, ai_guard_client, tracer):
+def test_span_meta_content_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, content_part):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     random_output = random_string(ai_guard_config._ai_guard_max_content_size + 1)
+    if content_part:
+        messages = [Message(role="user", content=[ContentPart(type="text", text=random_output)])]
+    else:
+        messages = [Message(role="user", content=random_output)]
+    ai_guard_client.evaluate(messages)
 
-    ai_guard_client.evaluate([Message(role="user", content=random_output)])
-
-    span = find_ai_guard_span(tracer)
+    span = find_ai_guard_span(test_spans)
     meta = span._get_struct_tag(AI_GUARD.TAG)
     prompt = meta["messages"][0]
-    assert len(prompt["content"]) == ai_guard_config._ai_guard_max_content_size
+    content = prompt["content"]
+    if content_part:
+        content = content[0]["text"]
+    assert len(content) == ai_guard_config._ai_guard_max_content_size
     assert_telemetry(telemetry_mock, "ai_guard.truncated", (("type", "content"),))
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_client, tracer):
+def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_client, tracer, test_spans):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     messages = [
@@ -256,11 +322,158 @@ def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_cli
             )
         )
 
-    span = TracerSpanContainer(tracer).spans[1]  # AI Guard span
+    span = test_spans.spans[1]  # AI Guard span
     meta = span._get_struct_tag(AI_GUARD.TAG)
     messages = meta["messages"]
     assert len(messages) == 1
     assert len(messages[0]["tool_calls"]) == 1
+
+
+@pytest.mark.parametrize(
+    "sds_findings",
+    [
+        pytest.param(
+            [
+                {
+                    "rule_display_name": "Credit Card Number",
+                    "rule_tag": "credit_card",
+                    "category": "pii",
+                    "matched_text": "4111111111111111",
+                    "location": {
+                        "start_index": 10,
+                        "end_index_exclusive": 26,
+                        "path": "messages[0].content[0].text",
+                    },
+                }
+            ],
+            id="single finding",
+        ),
+        pytest.param(
+            [
+                {
+                    "rule_display_name": "Credit Card Number",
+                    "rule_tag": "credit_card",
+                    "category": "pii",
+                    "matched_text": "4111111111111111",
+                    "location": {
+                        "start_index": 10,
+                        "end_index_exclusive": 26,
+                        "path": "messages[0].content[0].text",
+                    },
+                },
+                {
+                    "rule_display_name": "Social Security Number",
+                    "rule_tag": "ssn",
+                    "category": "pii",
+                    "matched_text": "123-45-6789",
+                    "location": {
+                        "start_index": 30,
+                        "end_index_exclusive": 41,
+                        "path": "messages[1].tool_calls[0].function.arguments",
+                    },
+                },
+            ],
+            id="multiple findings",
+        ),
+    ],
+)
+@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_sds_findings(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, sds_findings):
+    """Test that sds_findings from the response are added to the span meta_struct and SDK response."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW", sds_findings=sds_findings)
+
+    result = ai_guard_client.evaluate(PROMPT)
+
+    assert result["sds"] == sds_findings
+
+    expected_meta_struct = {"messages": PROMPT, "sds": sds_findings}
+    assert_ai_guard_span(
+        test_spans,
+        {"ai_guard.target": "prompt", "ai_guard.action": "ALLOW"},
+        expected_meta_struct,
+    )
+
+
+@pytest.mark.parametrize(
+    "sds_findings",
+    [
+        pytest.param(None, id="absent"),
+        pytest.param([], id="empty list"),
+    ],
+)
+@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_sds_findings_empty(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, sds_findings):
+    """Test that empty or absent sds_findings are not added to the span meta_struct."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW", sds_findings=sds_findings)
+
+    result = ai_guard_client.evaluate(PROMPT)
+
+    assert result["sds"] == (sds_findings if sds_findings else [])
+
+    span = find_ai_guard_span(test_spans)
+    meta = span._get_struct_tag(AI_GUARD.TAG)
+    assert "sds" not in meta
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_sds_findings_in_abort_error(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
+    """Test that sds_findings are included in AIGuardAbortError."""
+    sds_findings = [
+        {
+            "rule_display_name": "Credit Card Number",
+            "rule_tag": "credit_card",
+            "category": "pii",
+            "matched_text": "4111111111111111",
+            "location": {
+                "start_index": 10,
+                "end_index_exclusive": 26,
+                "path": "messages[0].content[0].text",
+            },
+        }
+    ]
+    mock_execute_request.return_value = mock_evaluate_response("ABORT", sds_findings=sds_findings)
+
+    with pytest.raises(AIGuardAbortError) as exc_info:
+        ai_guard_client.evaluate(PROMPT, Options(block=True))
+
+    assert exc_info.value.sds == sds_findings
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_tag_probabilities_in_result_and_meta_struct(mock_execute_request, ai_guard_client, test_spans):
+    """Test that tag probabilities are added to the SDK response and span meta_struct."""
+    tag_probs = {"jailbreak": 0.91, "prompt_injection": 0.42}
+    mock_execute_request.return_value = mock_evaluate_response(
+        "DENY", reason="Nope", tags=["jailbreak"], block=False, tag_probs=tag_probs
+    )
+
+    result = ai_guard_client.evaluate(PROMPT, Options(block=False))
+
+    assert result["tag_probs"] == tag_probs
+
+    expected_meta_struct = {"messages": PROMPT, "attack_categories": ["jailbreak"], "tag_probs": tag_probs}
+    assert_ai_guard_span(
+        test_spans,
+        {"ai_guard.target": "prompt", "ai_guard.action": "DENY", "ai_guard.reason": "Nope"},
+        expected_meta_struct,
+    )
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_tag_probabilities_in_abort_error(mock_execute_request, ai_guard_client):
+    """Test that tag probabilities are included in AIGuardAbortError."""
+    tag_probs = {"jailbreak": 0.91}
+    mock_execute_request.return_value = mock_evaluate_response(
+        "ABORT", reason="blocked", tags=["jailbreak"], tag_probs=tag_probs
+    )
+
+    with pytest.raises(AIGuardAbortError) as exc_info:
+        ai_guard_client.evaluate(PROMPT, Options(block=True))
+
+    assert exc_info.value.tag_probs == tag_probs
 
 
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
@@ -284,3 +497,62 @@ def test_meta_attribute(mock_execute_request):
             messages,
             {"service": "test-service", "env": "test-env"},
         )
+
+
+@pytest.mark.parametrize(
+    "site,config,param,expected",
+    [
+        pytest.param(
+            "datadoghq.com",
+            "",
+            "",
+            "https://app.datadoghq.com/api/v2/ai-guard",
+        ),
+        pytest.param(
+            "ap1.datadoghq.com",
+            "",
+            "",
+            "https://ap1.datadoghq.com/api/v2/ai-guard",
+        ),
+        pytest.param(
+            "datadoghq.com",
+            "https://from-config",
+            "",
+            "https://from-config",
+        ),
+        pytest.param(
+            "datadoghq.com",
+            "",
+            "https://from-param",
+            "https://from-param",
+        ),
+        pytest.param(
+            "datadoghq.com",
+            "https://from-config",
+            "https://from-param",
+            "https://from-param",
+        ),
+    ],
+)
+def test_endpoint_discovery(site, config, param, expected):
+    with override_global_config(
+        dict(
+            _dd_site=site,
+            _dd_api_key="test-api-key",
+            _dd_app_key="test-app-key",
+        )
+    ):
+        with override_ai_guard_config(dict(_ai_guard_endpoint=config)):
+            client = new_ai_guard_client(endpoint=param)
+            assert client._endpoint == expected
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_event_tag_in_root_span(mock_execute_request, ai_guard_client, tracer):
+    """Test that AI Guard event tag is set on the root span of the trace."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW", reason="It's fine")
+
+    with tracer.trace("root_span") as root_span:
+        ai_guard_client.evaluate(PROMPT, Options(block=False))
+
+    assert root_span.get_tag(AI_GUARD.EVENT_TAG) == "true"

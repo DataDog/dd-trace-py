@@ -1,6 +1,7 @@
 import mock
 import pytest
 
+from ddtrace._trace.span import Span
 from ddtrace.contrib.internal.grpc import utils
 
 
@@ -43,86 +44,88 @@ def test_parse_target_from_args(mock_log, args, kwargs, result, log_warning_call
 
 
 @pytest.mark.parametrize(
-    "host, port, calls",
+    "host, port, expected_tags",
     [
         (
             "localhost",
             1234,
-            [
-                mock.call("grpc.host", "localhost"),
-                mock.call("peer.hostname", "localhost"),
-                mock.call("network.destination.port", "1234"),
-                mock.call("span.kind", "client"),
-            ],
+            {
+                "grpc.host": "localhost",
+                "peer.hostname": "localhost",
+                "network.destination.port": "1234",
+                "span.kind": "client",
+            },
         ),
         (
             "localhost",
             None,
-            [
-                mock.call("grpc.host", "localhost"),
-                mock.call("peer.hostname", "localhost"),
-                mock.call("span.kind", "client"),
-            ],
+            {
+                "grpc.host": "localhost",
+                "peer.hostname": "localhost",
+                "span.kind": "client",
+            },
         ),
         (
             "127.0.0.1",
             1234,
-            [
-                mock.call("grpc.host", "127.0.0.1"),
-                mock.call("network.destination.ip", "127.0.0.1"),
-                mock.call("network.destination.port", "1234"),
-                mock.call("span.kind", "client"),
-            ],
+            {
+                "grpc.host": "127.0.0.1",
+                "network.destination.ip": "127.0.0.1",
+                "network.destination.port": "1234",
+                "span.kind": "client",
+            },
         ),
         (
             "::1",
             1234,
-            [
-                mock.call("grpc.host", "::1"),
-                mock.call("network.destination.ip", "::1"),
-                mock.call("network.destination.port", "1234"),
-                mock.call("span.kind", "client"),
-            ],
+            {
+                "grpc.host": "::1",
+                "network.destination.ip": "::1",
+                "network.destination.port": "1234",
+                "span.kind": "client",
+            },
         ),
-        (None, 1234, [mock.call("network.destination.port", "1234"), mock.call("span.kind", "client")]),
-        (None, None, [mock.call("span.kind", "client")]),
+        (None, 1234, {"network.destination.port": "1234", "span.kind": "client"}),
+        (None, None, {"span.kind": "client"}),
     ],
 )
-def test_set_grpc_client_meta(host, port, calls):
-    span = mock.MagicMock()
+def test_set_grpc_client_meta(host, port, expected_tags):
+    span = Span("test")
     utils.set_grpc_client_meta(span, host, port)
-    span._set_tag_str.assert_has_calls(calls)
+    for key, value in expected_tags.items():
+        assert span._get_attribute(key) == value, f"Expected tag {key}={value!r}, got {span._get_attribute(key)!r}"
 
 
 @pytest.mark.parametrize(
-    "method, method_kind, calls",
+    "method, method_kind, expected_tags",
     [
         (
             "/package.service/method",
             "unary",
-            [
-                mock.call("rpc.service", "package.service"),
-                mock.call("grpc.method.path", "/package.service/method"),
-                mock.call("grpc.method.package", "package"),
-                mock.call("grpc.method.service", "service"),
-                mock.call("grpc.method.name", "method"),
-                mock.call("grpc.method.kind", "unary"),
-            ],
+            {
+                "rpc.service": "package.service",
+                "grpc.method.path": "/package.service/method",
+                "grpc.method.package": "package",
+                "grpc.method.service": "service",
+                "grpc.method.name": "method",
+                "grpc.method.kind": "unary",
+            },
         ),
         (
             "/service/method",
             "unary",
-            [
-                mock.call("rpc.service", "service"),
-                mock.call("grpc.method.path", "/service/method"),
-                mock.call("grpc.method.service", "service"),
-                mock.call("grpc.method.name", "method"),
-                mock.call("grpc.method.kind", "unary"),
-            ],
+            {
+                "rpc.service": "service",
+                "grpc.method.path": "/service/method",
+                "grpc.method.service": "service",
+                "grpc.method.name": "method",
+                "grpc.method.kind": "unary",
+            },
         ),
     ],
 )
-def test_set_grpc_method_meta(method, method_kind, calls):
-    span = mock.MagicMock()
+def test_set_grpc_method_meta(method, method_kind, expected_tags):
+    span = Span("test")
     utils.set_grpc_method_meta(span, method, method_kind)
-    span._set_tag_str.assert_has_calls(calls)
+    for key, value in expected_tags.items():
+        assert span._get_attribute(key) == value, f"Expected tag {key}={value!r}, got {span._get_attribute(key)!r}"

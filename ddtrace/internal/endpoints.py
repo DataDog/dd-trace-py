@@ -1,11 +1,7 @@
 import dataclasses
 from time import monotonic
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Sequence
-from typing import Set
-from typing import Tuple
 
 
 @dataclasses.dataclass(frozen=True)
@@ -29,14 +25,14 @@ class HttpEndPoint:
         return self._hash
 
 
-def _dict_factory(lst: List[Tuple[str, Any]]) -> Dict[str, Any]:
+def _dict_factory(lst: list[tuple[str, Any]]) -> dict[str, Any]:
     return {k: v for k, v in lst if v not in ((), [], None)}
 
 
 class Singleton(type):
     """Singleton Class."""
 
-    _instances: Dict[type, object] = {}
+    _instances: dict[type, object] = {}
 
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
@@ -52,7 +48,7 @@ class HttpEndPointsCollection(metaclass=Singleton):
     It maintains a maximum size and drops endpoints after a certain time period in case of a hot reload of the server.
     """
 
-    endpoints: Set[HttpEndPoint] = dataclasses.field(default_factory=set, init=False)
+    endpoints: set[HttpEndPoint] = dataclasses.field(default_factory=set, init=False)
     is_first: bool = dataclasses.field(default=True, init=False)
     drop_time_seconds: float = dataclasses.field(default=90.0, init=False)
     last_modification_time: float = dataclasses.field(default_factory=monotonic, init=False)
@@ -101,28 +97,18 @@ class HttpEndPointsCollection(metaclass=Singleton):
                     response_code=response_code,
                 )
             )
+            self.last_modification_time = current_time
 
     def flush(self, max_length: int) -> dict:
         """
         Flush the endpoints to a payload, returning the first `max` endpoints.
         """
-        endpoints_snapshot = tuple(self.endpoints)
-        if max_length >= len(self.endpoints):
-            res = {
-                "is_first": self.is_first,
-                "endpoints": [dataclasses.asdict(ep, dict_factory=_dict_factory) for ep in endpoints_snapshot],
-            }
-            self.reset()
-            return res
-        else:
-            batch = tuple(self.endpoints.pop() for _ in range(max_length))
-            res = {
-                "is_first": self.is_first,
-                "endpoints": [dataclasses.asdict(ep, dict_factory=_dict_factory) for ep in batch],
-            }
-            self.is_first = False
-            self.last_modification_time = monotonic()
-            return res
+        endpoints_res: list[dict] = []
+        while self.endpoints and len(endpoints_res) < max_length:
+            endpoints_res.append(dataclasses.asdict(self.endpoints.pop(), dict_factory=_dict_factory))
+        res = {"is_first": self.is_first, "endpoints": endpoints_res}
+        self.is_first = False
+        return res
 
 
 endpoint_collection = HttpEndPointsCollection()

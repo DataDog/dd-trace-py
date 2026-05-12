@@ -6,7 +6,6 @@ from time import monotonic
 from time import sleep
 from typing import Any
 from typing import Generator
-from typing import List
 from typing import cast
 
 from ddtrace.debugging._config import di_config
@@ -110,7 +109,10 @@ class MockSignalUploader(SignalUploader):
                 raise PayloadWaitTimeout(_cond, timeout)
             sleep(0.05)
 
-        return self.payloads
+        try:
+            return self.payloads
+        finally:
+            self.flush()
 
     def flush(self) -> None:
         self.queue.clear()
@@ -124,7 +126,7 @@ class MockSignalUploader(SignalUploader):
         return [_ for data in self.queue for _ in json.loads(data)]
 
     @property
-    def snapshots(self) -> List[Snapshot]:
+    def snapshots(self) -> list[Snapshot]:
         return cast(TestSignalCollector, self.collector).queue
 
 
@@ -158,7 +160,7 @@ class TestDebugger(Debugger):
         return self.__uploader__.get_collector()
 
     @property
-    def snapshots(self) -> List[Snapshot]:
+    def snapshots(self) -> list[Snapshot]:
         return self.uploader.snapshots
 
     @property
@@ -177,7 +179,7 @@ class TestDebugger(Debugger):
 
         assert len(self.test_queue) == 1
 
-        yield self.test_queue[0]
+        yield self.test_queue.pop(0)
 
 
 @contextmanager

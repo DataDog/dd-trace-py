@@ -1,26 +1,30 @@
 import atexit
 import logging
-import os
 from pathlib import Path
 import re
 import typing as t
 
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal.api_client import APIClient
+from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
+from ddtrace.testing.internal.cached_file_provider import TestOptDataProvider
 from ddtrace.testing.internal.ci import CITag
-from ddtrace.testing.internal.constants import DEFAULT_ENV_NAME
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.git import Git
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
+from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
+from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.platform import get_platform_tags
 from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.settings_data import TestProperties
+from ddtrace.testing.internal.telemetry import PayloadFileTelemetryAPI
 from ddtrace.testing.internal.telemetry import TelemetryAPI
-from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
 from ddtrace.testing.internal.test_data import TestModule
@@ -30,6 +34,8 @@ from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api import Codeowners
 from ddtrace.testing.internal.utils import asbool
+from ddtrace.testing.internal.writer import PayloadFileCoverageWriter
+from ddtrace.testing.internal.writer import PayloadFileTestOptWriter
 from ddtrace.testing.internal.writer import TestCoverageWriter
 from ddtrace.testing.internal.writer import TestOptWriter
 
@@ -37,10 +43,32 @@ from ddtrace.testing.internal.writer import TestOptWriter
 log = logging.getLogger(__name__)
 
 
+def _parse_line_number(value: str) -> t.Optional[int]:
+    """Return the integer value of a source line tag, or None if it is not numeric."""
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
 class SessionManager:
     def __init__(self, session: TestSession) -> None:
-        self.connector_setup = BackendConnectorSetup.detect_setup()
-        self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
+        offline = get_offline_mode()
+        # NOTE: In manifest mode the sandbox has no network. Use a no-op connector so
+        # that writers and telemetry don't attempt to connect; the data provider reads
+        # from files instead of HTTP (see CachedFileDataProvider below).
+        if offline.manifest_enabled:
+            self.connector_setup: BackendConnectorSetup = NoOpBackendConnectorSetup()
+        else:
+            self.connector_setup = BackendConnectorSetup.detect_setup()
+
+        telemetry_output_dir = offline.payload_output_dir("telemetry")
+        if telemetry_output_dir is not None:
+            self.telemetry_api: TelemetryAPI = PayloadFileTelemetryAPI(
+                connector_setup=self.connector_setup, output_dir=telemetry_output_dir
+            )
+        else:
+            self.telemetry_api = TelemetryAPI(connector_setup=self.connector_setup)
 
         self.env_tags = get_env_tags()
         if workspace_path := self.env_tags.get(CITag.WORKSPACE_PATH):
@@ -49,14 +77,14 @@ class SessionManager:
             self.workspace_path = Path.cwd()
 
         self.platform_tags = get_platform_tags()
-        self.collected_tests: t.Set[TestRef] = set()
-        self.skippable_items: t.Set[t.Union[SuiteRef, TestRef]] = set()
+        self.collected_tests: set[TestRef] = set()
+        self.skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
         self.itr_correlation_id: t.Optional[str] = None
         self.itr_skipping_level = ITRSkippingLevel.TEST  # TODO: SUITE level not supported at the moment.
 
         self.is_user_provided_service: bool
 
-        dd_service = os.environ.get("DD_SERVICE")
+        dd_service = env.get("DD_SERVICE")
         if dd_service:
             self.is_user_provided_service = True
             self.service = dd_service
@@ -64,21 +92,42 @@ class SessionManager:
             self.is_user_provided_service = False
             self.service = _get_service_name_from_git_repo(self.env_tags) or DEFAULT_SERVICE_NAME
 
-        self.is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
+        self.is_auto_injected = bool(env.get("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
 
-        self.env = os.environ.get("_CI_DD_ENV") or os.environ.get("DD_ENV") or DEFAULT_ENV_NAME
+        self.env = env.get("_CI_DD_ENV", env.get("DD_ENV", None))
+        if self.env is None:
+            self.env = self.connector_setup.default_env()
 
-        self.api_client = APIClient(
-            service=self.service,
-            env=self.env,
-            env_tags=self.env_tags,
-            itr_skipping_level=self.itr_skipping_level,
-            configurations=self.platform_tags,
-            connector_setup=self.connector_setup,
-            telemetry_api=self.telemetry_api,
-        )
+        self.api_client: TestOptDataProvider
+        if offline.manifest_enabled:
+            if offline.test_optimization_dir is None:  # pragma: no cover — invariant: always set with manifest_enabled
+                raise RuntimeError("manifest_enabled is True but test_optimization_dir is None")
+            self.api_client = CachedFileDataProvider(
+                test_optimization_dir=offline.test_optimization_dir,
+                itr_skipping_level=self.itr_skipping_level,
+                telemetry_api=self.telemetry_api,
+            )
+        else:
+            self.api_client = APIClient(
+                service=self.service,
+                env=self.env,
+                env_tags=self.env_tags,
+                itr_skipping_level=self.itr_skipping_level,
+                configurations=self.platform_tags,
+                connector_setup=self.connector_setup,
+                telemetry_api=self.telemetry_api,
+            )
         self.settings = self.api_client.get_settings()
         self.override_settings_with_env_vars()
+
+        # Manifest mode disables test skipping: cached skippable decisions should not
+        # be applied in hermetic Bazel runs.  Matches Go's post-read override.
+        if offline.manifest_enabled:
+            if self.settings.skipping_enabled:
+                log.debug("Test skipping disabled in manifest mode")
+            self.settings.skipping_enabled = False
+            self.settings.itr_enabled = False
+
         self.show_settings()
 
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
@@ -87,20 +136,51 @@ class SessionManager:
         )
 
         self.upload_git_data()
-        self.skippable_items, self.itr_correlation_id = self.api_client.get_skippable_tests()
+        if self.settings.itr_enabled:
+            self.skippable_items, self.itr_correlation_id = self.api_client.get_skippable_tests()
+        else:
+            self.skippable_items = set()
+            self.itr_correlation_id = None
         if self.settings.require_git:
             # Fetch settings again after uploading git data, as it may change ITR settings.
             self.settings = self.api_client.get_settings()
+            self.override_settings_with_env_vars()
+
+        # Snapshot configuration errors before closing the client.
+        self.configuration_errors = dict(self.api_client.configuration_errors)
 
         self.api_client.close()
 
         # Retry handlers must be set up after collection phase for EFD faulty session logic to work.
-        self.retry_handlers: t.List[RetryHandler] = []
+        self.retry_handlers: list[RetryHandler] = []
 
-        self.writer = TestOptWriter(connector_setup=self.connector_setup)
-        self.coverage_writer = TestCoverageWriter(connector_setup=self.connector_setup)
+        tests_output_dir = offline.payload_output_dir("tests")
+        if tests_output_dir is not None:
+            self.writer: TestOptWriter = PayloadFileTestOptWriter(
+                connector_setup=self.connector_setup, output_dir=tests_output_dir
+            )
+        else:
+            self.writer = TestOptWriter(connector_setup=self.connector_setup)
+
+        coverage_output_dir = offline.payload_output_dir("coverage")
+        if coverage_output_dir is not None:
+            self.coverage_writer: TestCoverageWriter = PayloadFileCoverageWriter(
+                connector_setup=self.connector_setup, output_dir=coverage_output_dir
+            )
+        else:
+            self.coverage_writer = TestCoverageWriter(connector_setup=self.connector_setup)
         self.session = session
         self.session.set_service(self.service)
+        self.session.set_itr_attributes(
+            itr_enabled=self.settings.itr_enabled,
+            skipping_enabled=self.settings.skipping_enabled,
+            skipping_level=self.itr_skipping_level,
+        )
+
+        # Propagate configuration errors to the session event and all child events.
+        if self.configuration_errors:
+            self.session.configuration_errors = self.configuration_errors
+            self.session.set_tags(self.configuration_errors)
 
         self.writer.add_metadata("*", self.env_tags)
         self.writer.add_metadata("*", self.platform_tags)
@@ -113,6 +193,9 @@ class SessionManager:
                 TestTag.TEST_SESSION_NAME: self._get_test_session_name(),
                 TestTag.COMPONENT: self.session.test_framework,
                 TestTag.ENV: self.env,
+                # Ensure service.name is present in metadata["*"] so the uploader
+                # does not overwrite it with values from the Bazel context.json.
+                "service.name": self.service,
             },
         )
 
@@ -131,6 +214,7 @@ class SessionManager:
 
     def finish_collection(self) -> None:
         self.setup_retry_handlers()
+        self.collected_tests.clear()
 
     def setup_retry_handlers(self) -> None:
         if self.settings.test_management.enabled:
@@ -148,12 +232,12 @@ class SessionManager:
                     and new_tests_percentage > self.settings.early_flake_detection.faulty_session_threshold
                 )
                 if is_faulty_session:
-                    log.info("Not enabling Early Flake Detection: too many new tests")
+                    log.debug("Not enabling Early Flake Detection: too many new tests")
                     self.session.set_early_flake_detection_abort_reason("faulty")
                 else:
                     self.retry_handlers.append(EarlyFlakeDetectionHandler(self))
             else:
-                log.info("Not enabling Early Flake Detection: no known tests")
+                log.debug("Not enabling Early Flake Detection: no known tests")
 
         if self.settings.auto_test_retries.enabled:
             self.retry_handlers.append(AutoTestRetriesHandler(self))
@@ -162,6 +246,30 @@ class SessionManager:
         self.writer.start()
         self.coverage_writer.start()
         atexit.register(self.finish)
+
+    def upload_coverage_report(
+        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[dict[str, str]] = None
+    ) -> bool:
+        """
+        Upload a coverage report to Datadog CI Intake.
+
+        This creates a temporary API client connection to upload the coverage report.
+
+        Args:
+            coverage_report_bytes: The coverage report content (will be gzipped by the API client)
+            coverage_format: The format of the report (lcov, cobertura, jacoco, clover, opencover, simplecov)
+            tags: Optional additional tags to include in the event
+
+        Returns:
+            True if upload succeeded, False otherwise
+        """
+        try:
+            result = self.api_client.upload_coverage_report(coverage_report_bytes, coverage_format, tags)
+            return result
+
+        except Exception as e:
+            log.warning("Error uploading coverage report: %s", e)
+            return False
 
     def finish(self) -> None:
         # Avoid being called again by atexit if we've already been called by the pytest plugin.
@@ -184,7 +292,7 @@ class SessionManager:
         on_new_module: t.Callable[[TestModule], None],
         on_new_suite: t.Callable[[TestSuite], None],
         on_new_test: t.Callable[[Test], None],
-    ) -> t.Tuple[TestModule, TestSuite, Test]:
+    ) -> tuple[TestModule, TestSuite, Test]:
         """
         Return the module, suite and test objects for a given test reference, creating them if necessary.
 
@@ -194,23 +302,27 @@ class SessionManager:
         """
         test_module, created = self.session.get_or_create_child(test_ref.suite.module.name)
         if created:
+            if self.configuration_errors:
+                test_module.set_tags(self.configuration_errors)
             try:
                 on_new_module(test_module)
             except Exception:
-                log.exception("Error during discovery of module %s", test_module)
+                log.warning("Error during discovery of module %s", test_module)
 
         test_suite, created = test_module.get_or_create_child(test_ref.suite.name)
         if created:
+            if self.configuration_errors:
+                test_suite.set_tags(self.configuration_errors)
             try:
                 on_new_suite(test_suite)
             except Exception:
-                log.exception("Error during discovery of suite %s", test_suite)
+                log.warning("Error during discovery of suite %s", test_suite)
 
         test, created = test_suite.get_or_create_child(test_ref.name)
         if created:
             try:
-                self.collected_tests.add(test_ref)
-                is_new = len(self.known_tests) > 0 and test_ref not in self.known_tests
+                is_new = not test.has_parameters() and len(self.known_tests) > 0 and test_ref not in self.known_tests
+
                 test_properties = self.test_properties.get(test_ref) or TestProperties()
                 test.set_attributes(
                     is_new=is_new,
@@ -221,7 +333,7 @@ class SessionManager:
                 on_new_test(test)
                 self._set_codeowners(test)
             except Exception:
-                log.exception("Error during discovery of test %s", test)
+                log.warning("Error during discovery of test %s", test)
 
         return test_module, test_suite, test
 
@@ -258,8 +370,40 @@ class SessionManager:
         codeowners = self.codeowners.of(repo_relative_path)
         test.set_codeowners(codeowners)
 
+    def _set_suite_source_location(self, suite: TestSuite) -> None:
+        """Set test.source.file and test.source.start on a suite span.
+
+        In pytest every suite maps to a single source file, so we only set these tags when all
+        tests in the suite share the same file.  The start line is the minimum across all tests
+        (i.e. the first test in the file); when no test carries a start line we fall back to 1
+        so the UI can still link to the top of the file.
+        """
+        source_files = {sf for test in suite.children.values() if (sf := test.get_source_file())}
+        if len(source_files) != 1:
+            return
+
+        (source_file,) = source_files
+        suite.tags[TestTag.SOURCE_FILE] = source_file
+
+        start_lines = [
+            v
+            for test in suite.children.values()
+            if TestTag.SOURCE_START in test.tags
+            if (v := _parse_line_number(test.tags[TestTag.SOURCE_START])) is not None
+        ]
+        suite.tags[TestTag.SOURCE_START] = str(min(start_lines)) if start_lines else "1"
+
+        end_lines = [
+            v
+            for test in suite.children.values()
+            if TestTag.SOURCE_END in test.tags
+            if (v := _parse_line_number(test.tags[TestTag.SOURCE_END])) is not None
+        ]
+        if end_lines:
+            suite.tags[TestTag.SOURCE_END] = str(max(end_lines))
+
     def _get_test_session_name(self) -> str:
-        if session_name := os.environ.get("DD_TEST_SESSION_NAME"):
+        if session_name := env.get("DD_TEST_SESSION_NAME"):
             return session_name
 
         if job_name := self.env_tags.get(CITag.JOB_NAME):
@@ -268,10 +412,30 @@ class SessionManager:
         return self.session.test_command
 
     def upload_git_data(self) -> None:
-        git = Git()
+        # NOTE: In manifest mode (Bazel sandbox), git commands are unavailable
+        # and the external tool has already uploaded git pack data before the sandbox
+        # was created. Skip unconditionally to avoid subprocess failures.
+        offline = get_offline_mode()
+        if offline.manifest_enabled or offline.payload_files_enabled:
+            log.debug("Skipping git data upload in offline/payload-files mode")
+            return
+
+        # Missing `git` in minimal containers should not abort pytest startup.
+        try:
+            git = Git()
+        except RuntimeError:
+            log.warning("Error calling git binary, skipping metadata upload")
+            if TelemetryAPI._instance is not None:
+                TelemetryAPI.get().record_git_missing()
+            return
+
         latest_commits = git.get_latest_commits()
         backend_commits = self.api_client.get_known_commits(latest_commits)
-        # TODO: ddtrace has a "backend_commits is None" logic here with early return (is it correct?).
+        if backend_commits is None:
+            log.warning("search_commits failed, aborting git metadata upload")
+            TelemetryAPI.get().record_git_pack_data(0, 0)
+            return
+
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
         if len(commits_not_in_backend) == 0:
@@ -285,7 +449,11 @@ class SessionManager:
                 log.debug("Unshallow successful, getting latest commits from backend based on unshallowed commits")
                 latest_commits = git.get_latest_commits()
                 backend_commits = self.api_client.get_known_commits(latest_commits)
-                # TODO: ddtrace has a "backend_commits is None" logic here with early return (is it correct?).
+                if backend_commits is None:
+                    log.warning("search_commits failed after unshallow, aborting git metadata upload")
+                    TelemetryAPI.get().record_git_pack_data(0, 0)
+                    return
+
                 commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
             else:
                 log.warning("Failed to unshallow repository, continuing to send pack data")
@@ -317,29 +485,42 @@ class SessionManager:
     def override_settings_with_env_vars(self) -> None:
         # Kill switches.
         # These variables default to true, and if explicitly given a false value, disable a feature.
-        if not asbool(os.environ.get("DD_CIVISIBILITY_ITR_ENABLED", "true")):
+        if not asbool(env.get("DD_CIVISIBILITY_ITR_ENABLED", "true")):
             log.debug("Test Impact Analysis is disabled by environment variable")
             self.settings.itr_enabled = False
 
-        if not asbool(os.environ.get("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "true")):
+        if not asbool(env.get("DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "true")):
             log.debug("Early Flake Detection is disabled by environment variable")
             self.settings.early_flake_detection.enabled = False
 
-        if not asbool(os.environ.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")):
+        if not asbool(env.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "true")):
             log.debug("Auto Test Retries is disabled by environment variable")
             self.settings.auto_test_retries.enabled = False
 
+        if not asbool(env.get("DD_TEST_MANAGEMENT_ENABLED", "true")):
+            log.debug("Test Management is disabled by environment variable")
+            self.settings.test_management.enabled = False
+
+        _coverage_upload_env = env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "")
+        if _coverage_upload_env.lower() in ("false", "0"):
+            log.debug("Coverage report upload is disabled by environment variable")
+            self.settings.coverage_report_upload_enabled = False
+
         # "Reverse" kill switches.
         # These variables default to false, and if explicitly given a true value, disable a feature.
-        if asbool(os.environ.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false")):
+        if asbool(env.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "false")):
             log.debug("TIA test skipping is disabled by environment variable")
             self.settings.skipping_enabled = False
 
         # Other overrides.
         # These variables default to false, and if explicitly given a true value, enable a feature.
-        if asbool(os.environ.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
+        if asbool(env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "false")):
             log.debug("TIA code coverage collection is enabled by environment variable")
             self.settings.coverage_enabled = True
+
+        if asbool(env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
+            log.debug("Code coverage report upload is enabled by environment variable")
+            self.settings.coverage_report_upload_enabled = True
 
     def show_settings(self) -> None:
         log.info("Service: %s (env: %s)", self.service, self.env)
@@ -354,9 +535,13 @@ class SessionManager:
         )
         log.info("Test Optimization settings: Known Tests enabled: %s", self.settings.known_tests_enabled)
         log.info("Test Optimization settings: Auto Test Retries enabled: %s", self.settings.auto_test_retries.enabled)
+        log.info(
+            "Test Optimization settings: Coverage Report Upload enabled: %s",
+            self.settings.coverage_report_upload_enabled,
+        )
 
 
-def _get_service_name_from_git_repo(env_tags: t.Dict[str, str]) -> t.Optional[str]:
+def _get_service_name_from_git_repo(env_tags: dict[str, str]) -> t.Optional[str]:
     repo_name = env_tags.get(GitTag.REPOSITORY_URL)
     if repo_name and (m := re.match(r".*/([^/]+)(?:.git)/?", repo_name)):
         return m.group(1).lower()

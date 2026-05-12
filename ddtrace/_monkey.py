@@ -1,14 +1,15 @@
+from collections.abc import Callable
 import importlib
-import os
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Set
+from typing import Any
 from typing import Union
 
 from wrapt.importer import when_imported
 
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.integration import _integration_env_var_id
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.packaging.specifiers import SpecifierSet
@@ -20,14 +21,7 @@ from .internal.utils import formats
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Callable  # noqa:F401
-    from typing import List  # noqa:F401
-
-
 log = get_logger(__name__)
-
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
@@ -48,6 +42,7 @@ PATCH_MODULES = {
     "algoliasearch": True,
     "futures": True,
     "google_adk": True,
+    "google_cloud_pubsub": True,
     "google_genai": True,
     "gevent": True,
     "graphql": True,
@@ -55,6 +50,7 @@ PATCH_MODULES = {
     "httpx": True,
     "kafka": True,
     "langgraph": True,
+    "llama_index": True,
     "litellm": True,
     "mysql": True,
     "mysqldb": True,
@@ -101,8 +97,10 @@ PATCH_MODULES = {
     "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
+    "azure_cosmos": True,
     "azure_eventhubs": True,
     "azure_functions": True,
+    "azure_durable_functions": True,
     "azure_servicebus": True,
     "tornado": False,
     "openai": True,
@@ -111,6 +109,7 @@ PATCH_MODULES = {
     "crewai": True,
     "pydantic_ai": True,
     "vllm": True,
+    "mlflow": config._model_lab_enabled,
     "subprocess": True,
     "unittest": True,
     "coverage": False,
@@ -119,8 +118,8 @@ PATCH_MODULES = {
     "openai_agents": True,
     "ray": False,
     "protobuf": config._data_streams_enabled,
+    "claude_agent_sdk": True,
 }
-
 
 # this information would make sense to live in the contrib modules,
 # but that would mean getting it would require importing those modules,
@@ -128,7 +127,6 @@ PATCH_MODULES = {
 CONTRIB_DEPENDENCIES = {
     "tornado": ("futures",),
 }
-
 
 _PATCHED_MODULES = set()
 
@@ -158,14 +156,18 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
+    "azure_cosmos": ("azure.cosmos",),
     "azure_eventhubs": ("azure.eventhub",),
+    "azure_durable_functions": ("azure.durable_functions",),
     "azure_functions": ("azure.functions",),
     "azure_servicebus": ("azure.servicebus",),
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
     "google_adk": ("google.adk",),
+    "google_cloud_pubsub": ("google.cloud.pubsub_v1",),
     "google_genai": ("google.genai",),
     "langchain": ("langchain_core",),
+    "llama_index": ("llama_index.core",),
     "langgraph": (
         "langgraph",
         "langgraph.graph",
@@ -260,8 +262,9 @@ def check_module_compatibility(
     return
 
 
-def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
-    # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
+def _on_import_factory(
+    module: str, path_f: str, raise_errors: bool = True, patch_indicator: Union[bool, list[str]] = True
+) -> Callable[[Any], None]:
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
@@ -283,6 +286,7 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
                 "failed to enable ddtrace support for %s: %s",
                 module,
                 str(e),
+                extra={"send_to_telemetry": False},
             )
             telemetry.telemetry_writer.add_integration(
                 module, False, PATCH_MODULES.get(module) is True, str(e), version=e.installed_version
@@ -295,6 +299,7 @@ def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
                 module,
                 str(e),
                 exc_info=True,
+                extra={"send_to_telemetry": False},
             )
             telemetry.telemetry_writer.add_integration(module, False, PATCH_MODULES.get(module) is True, str(e))
             telemetry.telemetry_writer.add_count_metric(
@@ -346,9 +351,9 @@ def _patch_all(**patch_modules: bool) -> None:
 
     # The enabled setting can be overridden by environment variables
     for module, _enabled in modules.items():
-        env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-        if module not in _NOT_PATCHABLE_VIA_ENVVAR and env_var in os.environ:
-            modules[module] = formats.asbool(os.environ[env_var])
+        env_var = "DD_TRACE_%s_ENABLED" % _integration_env_var_id(module)
+        if module not in _NOT_PATCHABLE_VIA_ENVVAR and env_var in env:
+            modules[module] = formats.asbool(env[env_var])
 
         # Enable all dependencies for the module
         if modules[module]:
@@ -361,8 +366,7 @@ def _patch_all(**patch_modules: bool) -> None:
     patch(raise_errors=False, **modules)
 
 
-def patch(raise_errors=True, **patch_modules):
-    # type: (bool, Union[List[str], bool]) -> None
+def patch(raise_errors: bool = True, **patch_modules: Union[list[str], bool]) -> None:
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
@@ -373,9 +377,9 @@ def patch(raise_errors=True, **patch_modules):
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
     for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.
-        if not (Path(__file__).parent / "contrib" / "internal" / contrib / "patch.py").exists():
-            if raise_errors:
-                raise ModuleNotFoundException(f"{contrib} does not have automatic instrumentation")
+        base_path = Path(__file__).parent / "contrib" / "internal" / contrib
+        if raise_errors and not (base_path / "patch.py").exists() and not (base_path / "patch.pyc").exists():
+            raise ModuleNotFoundException(f"{contrib} does not have automatic instrumentation")
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
@@ -398,6 +402,6 @@ def patch(raise_errors=True, **patch_modules):
     )
 
 
-def _get_patched_modules() -> Set[str]:
+def _get_patched_modules() -> set[str]:
     """Get the list of patched modules"""
     return _PATCHED_MODULES

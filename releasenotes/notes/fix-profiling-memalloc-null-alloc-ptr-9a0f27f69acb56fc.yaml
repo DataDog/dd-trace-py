@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: A rare crash caused by the memory allocation profiler has been fixed.

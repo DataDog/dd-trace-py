@@ -3,8 +3,6 @@ import json
 import re
 import types
 from typing import Any
-from typing import List
-from typing import Optional
 from typing import Text
 from typing import Union
 import zlib
@@ -38,7 +36,7 @@ class IastTestException(Exception):
     pass
 
 
-def get_line(label: Text, filename: Optional[Text] = None):
+def get_line(label: Text, filename: Text):
     """get the line number after the label comment in source file `filename`"""
     with open(filename, "r") as file_in:
         for nb_line, line in enumerate(file_in):
@@ -47,7 +45,7 @@ def get_line(label: Text, filename: Optional[Text] = None):
     raise AssertionError("label %s not found" % label)
 
 
-def get_line_and_hash(label: Text, vuln_type: Text, filename=None, fixed_line=None):
+def get_line_and_hash(label: Text, vuln_type: Text, filename, fixed_line=None):
     """return the line number and the associated vulnerability hash for `label` and source file `filename`"""
 
     if fixed_line is not None:
@@ -100,7 +98,7 @@ class CustomBytearray(bytearray):
 non_empty_text = text().filter(lambda x: x not in ("",) and not x.startswith("\x00"))
 non_empty_binary = binary().filter(lambda x: x not in (b"",) and not x.startswith(b"\x00"))
 
-string_strategies: List[Any] = [
+string_strategies: list[Any] = [
     text(),  # regular str
     binary(),  # regular bytes
     builds(bytearray, binary()),  # regular bytearray
@@ -109,7 +107,7 @@ string_strategies: List[Any] = [
     builds(CustomBytearray, binary()),  # custom bytearray subclass
 ]
 
-string_valid_to_taint_strategies: List[Any] = [
+string_valid_to_taint_strategies: list[Any] = [
     non_empty_text,  # regular str
     non_empty_binary,  # regular bytes
     builds(bytearray, non_empty_binary),  # regular bytearray
