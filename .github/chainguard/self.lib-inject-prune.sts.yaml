@@ -5,6 +5,7 @@ subject_pattern: "repo:DataDog/dd-trace-py:ref:refs/heads/.+"
 claim_pattern:
   event_name: (schedule|workflow_dispatch)
   ref: refs/heads/.+
+  ref_protected: "true"
   job_workflow_ref: DataDog/dd-trace-py/\.github/workflows/lib-inject-prune\.yml@refs/heads/.+
 
 permissions:
