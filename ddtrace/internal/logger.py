@@ -113,7 +113,7 @@ def get_logger(name: str) -> logging.Logger:
     return logger
 
 
-_RATE_LIMITS = {}
+_RATE_LIMITS: dict[str, int] = {}
 
 
 def set_tag_rate_limit(tag: str, rate: int) -> None:
@@ -159,7 +159,7 @@ _buckets: DefaultDict[key_type, LoggingBucket] = collections.defaultdict(lambda:
 # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
 # Allow configuring via `DD_TRACE_LOGGING_RATE`
 # DEV: `DD_TRACE_LOGGING_RATE=0` means to disable all rate limiting
-_rate_limit = int(env.get("DD_TRACE_LOGGING_RATE", default=60))
+_rate_limit = int(env.get("DD_TRACE_LOGGING_RATE", 60))
 
 
 def log_filter(record: logging.LogRecord) -> bool:

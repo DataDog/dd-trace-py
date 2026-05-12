@@ -447,7 +447,7 @@ def _normalize_llmobs_meta(
 
 
 class LLMObs(Service):
-    _instance = None  # type: LLMObs
+    _instance: "LLMObs" = None  # type: ignore[assignment]
     enabled = False
     _app_key: str = _env.get("DD_APP_KEY", "")
     _project_name: str = _env.get("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)

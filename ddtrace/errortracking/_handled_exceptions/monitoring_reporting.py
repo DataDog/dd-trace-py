@@ -15,7 +15,7 @@ from ddtrace.internal.packages import is_user_code  # noqa: F401
 from ddtrace.internal.settings.errortracking import config
 
 
-INSTRUMENTED_FILE_PATHS = []
+INSTRUMENTED_FILE_PATHS: list[str | None] = []
 
 
 def create_should_report_exception_optimized(checks: set[str | None]) -> Callable[[str, Path], bool]:

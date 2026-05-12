@@ -66,7 +66,10 @@ def _iast_report_ssrf(func_name: str, module_name, *args, **kwargs):
             try:
                 if SSRF.has_quota() and SSRF.is_tainted_pyobject(report_ssrf):
                     valid_to_report = True
-                    fragment_start = report_ssrf.find("#")
+                    if isinstance(report_ssrf, str):
+                        fragment_start = report_ssrf.find("#")
+                    else:
+                        fragment_start = report_ssrf.find(b"#")
                     taint_ranges = get_ranges(report_ssrf)
                     if fragment_start != -1:
                         # If all taint ranges are in the fragment, do not report

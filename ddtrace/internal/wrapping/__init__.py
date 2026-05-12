@@ -368,7 +368,7 @@ def unwrap(wf: WrappedFunction, wrapper: Wrapper) -> FunctionType:
 
     try:
         # Update the link to the next layer.
-        wf.__dd_wrapped__ = cast(WrappedFunction, inner).__dd_wrapped__  # type: ignore[assignment]
+        wf.__dd_wrapped__ = cast(WrappedFunction, inner).__dd_wrapped__
     except AttributeError:
         # No more wrapping layers. Restore the original function by removing
         # this extra attribute.
@@ -382,4 +382,4 @@ def get_function_code(f: FunctionType) -> CodeType:
 
 
 def set_function_code(f: FunctionType, code: CodeType) -> None:
-    (cast(WrappedFunction, f).__dd_wrapped__ or f if is_wrapped(f) else f).__code__ = code  # type: ignore[misc]
+    (cast(WrappedFunction, f).__dd_wrapped__ or f if is_wrapped(f) else f).__code__ = code

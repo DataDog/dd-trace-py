@@ -244,7 +244,7 @@ class RemoteConfigClient:
         if p_tags_list := process_tags.process_tags_list:
             self._client_tracer["process_tags"] = p_tags_list
 
-        self.cached_target_files: list[AppliedConfigType] = []
+        self.cached_target_files: list[dict[str, Any]] = []
 
         # Product callbacks for single subscriber architecture
         self._product_callbacks: dict[str, RCCallback] = {}

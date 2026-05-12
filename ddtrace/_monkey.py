@@ -129,7 +129,7 @@ CONTRIB_DEPENDENCIES = {
     "tornado": ("futures",),
 }
 
-_PATCHED_MODULES = set()
+_PATCHED_MODULES: set[str] = set()
 
 # Module names that need to be patched for a given integration. If the module
 # name coincides with the integration name, then there is no need to add an

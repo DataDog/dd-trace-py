@@ -2,7 +2,7 @@ import signal
 
 
 # Track which signals have had the base exit handler installed
-_exit_handlers_installed = set()
+_exit_handlers_installed: set[int] = set()
 
 
 def _raise_default(signum, frame):
