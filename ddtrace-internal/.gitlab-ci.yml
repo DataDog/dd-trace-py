@@ -22,10 +22,10 @@ stages:
       - "ddtrace-internal/debugwheelhouse/*.log"
       - "ddtrace-internal/debugwheelhouse/*.zip"
   cache:
-    - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
+    - key: v1-ddtrace-internal-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
       paths:
         - .download_cache
-"build ddtrace-internal sdist":
+"ddtrace-internal:build sdist":
   extends: .build_base
   image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
   tags: ["arch:${ARCH_TAG}"]
