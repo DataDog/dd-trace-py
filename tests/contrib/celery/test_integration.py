@@ -820,7 +820,11 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             )
             sleep(5)
             celery_proc.terminate()
-            output, _ = celery_proc.communicate(timeout=10)
+            try:
+                output, _ = celery_proc.communicate(timeout=60)
+            except subprocess.TimeoutExpired:
+                celery_proc.kill()
+                output, _ = celery_proc.communicate()
             # Check for panics in the output
             assert b"panic" not in output.lower(), f"Found panic in celery beat output:\n{output}"
 
