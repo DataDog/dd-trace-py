@@ -1,14 +1,17 @@
 use pyo3::{prelude::*, types::PyModule};
-use rand::{rngs::{OsRng, SmallRng}, Rng, TryRngCore, SeedableRng};
+use rand::{
+    rngs::{OsRng, SmallRng},
+    Rng, SeedableRng, TryRngCore,
+};
 use std::cell::RefCell;
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-static SECURE_RANDOM: OnceLock<bool> = OnceLock::new();
+// Set once at module init from DD_TRACE_SECURE_RANDOM; reads are a single Relaxed load.
+static SECURE_RANDOM: AtomicBool = AtomicBool::new(false);
 
+#[inline]
 fn secure_random() -> bool {
-    *SECURE_RANDOM.get_or_init(|| {
-        std::env::var("DD_TRACE_SECURE_RANDOM").as_deref() == Ok("true")
-    })
+    SECURE_RANDOM.load(Ordering::Relaxed)
 }
 
 struct RngState {
@@ -74,30 +77,91 @@ pub fn generate_128bit_trace_id() -> u128 {
 mod tests {
     use super::*;
     use std::collections::HashSet;
+    use std::sync::Mutex;
+
+    // Serialize tests that mutate SECURE_RANDOM so they don't interfere with each other.
+    static SECURE_RANDOM_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    // Run `f` with SECURE_RANDOM set to `enabled`, restoring false even on panic.
+    fn with_secure_random<F: FnOnce()>(enabled: bool, f: F) {
+        let _guard = SECURE_RANDOM_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        SECURE_RANDOM.store(enabled, Ordering::Relaxed);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+        SECURE_RANDOM.store(false, Ordering::Relaxed);
+        result.unwrap();
+    }
 
     // ── secure_random() ──────────────────────────────────────────────────────
 
     #[test]
     fn test_secure_random_returns_bool() {
-        // OnceLock is initialised once per process; just verify no panic.
+        // AtomicBool defaults to false; just verify the load doesn't panic.
         let v = secure_random();
         assert!(v == true || v == false);
     }
 
-    // ── rand64bits() ─────────────────────────────────────────────────────────
+    #[test]
+    fn test_secure_random_flag_reflects_stored_value() {
+        with_secure_random(true, || {
+            assert!(
+                secure_random(),
+                "secure_random() should return true after storing true"
+            );
+        });
+        assert!(
+            !secure_random(),
+            "secure_random() should return false after restoring false"
+        );
+    }
+
+    // ── rand64bits() — SmallRng path (SECURE_RANDOM = false) ─────────────────
 
     #[test]
     fn test_rand64bits_unique_values() {
         // 2^-64 ≈ 5e-20 collision probability per pair; 1000 samples is safe.
         let values: HashSet<u64> = (0..1000).map(|_| rand64bits()).collect();
-        assert!(values.len() > 990, "Expected unique rand64bits values, got {} distinct in 1000", values.len());
+        assert!(
+            values.len() > 990,
+            "Expected unique rand64bits values, got {} distinct in 1000",
+            values.len()
+        );
     }
 
     #[test]
     fn test_rand64bits_uses_full_range() {
         // If the RNG were stuck below 2^32, none of the high 32 bits would be set.
         let any_high_bit_set = (0..100).any(|_| rand64bits() >> 32 != 0);
-        assert!(any_high_bit_set, "rand64bits never set bits above 32 — RNG range is too narrow");
+        assert!(
+            any_high_bit_set,
+            "rand64bits never set bits above 32 — RNG range is too narrow"
+        );
+    }
+
+    // ── rand64bits() — OsRng path (SECURE_RANDOM = true) ─────────────────────
+
+    #[test]
+    fn test_rand64bits_osrng_path_produces_varied_values() {
+        with_secure_random(true, || {
+            let values: HashSet<u64> = (0..100).map(|_| rand64bits()).collect();
+            assert!(
+                values.len() > 90,
+                "OsRng path in rand64bits produced insufficient diversity: {} distinct in 100",
+                values.len()
+            );
+        });
+    }
+
+    #[test]
+    fn test_rand64bits_osrng_path_uses_full_range() {
+        with_secure_random(true, || {
+            let any_high_bit_set = (0..100).any(|_| rand64bits() >> 32 != 0);
+            assert!(
+                any_high_bit_set,
+                "OsRng path in rand64bits never set bits above 32"
+            );
+        });
     }
 
     // ── seed() ───────────────────────────────────────────────────────────────
@@ -115,7 +179,11 @@ mod tests {
     #[test]
     fn test_osrng_produces_varied_values() {
         let values: HashSet<u64> = (0..100).map(|_| OsRng.try_next_u64().unwrap()).collect();
-        assert!(values.len() > 90, "Expected diverse values from OsRng, got {}", values.len());
+        assert!(
+            values.len() > 90,
+            "Expected diverse values from OsRng, got {}",
+            values.len()
+        );
     }
 
     // ── generate_128bit_trace_id() ───────────────────────────────────────────
@@ -128,8 +196,14 @@ mod tests {
         let timestamp = (id >> 96) as u32;
         // 2020-01-01T00:00:00Z = 1_577_836_800
         // 2100-01-01T00:00:00Z = 4_102_444_800
-        assert!(timestamp > 1_577_836_800, "timestamp {timestamp} is before 2020");
-        assert!(timestamp < 4_102_444_800, "timestamp {timestamp} is after 2100");
+        assert!(
+            timestamp > 1_577_836_800,
+            "timestamp {timestamp} is before 2020"
+        );
+        assert!(
+            timestamp < 4_102_444_800,
+            "timestamp {timestamp} is after 2100"
+        );
     }
 
     #[test]
@@ -138,26 +212,45 @@ mod tests {
         for _ in 0..20 {
             let id = generate_128bit_trace_id();
             let middle = ((id >> 64) & 0xFFFF_FFFF) as u32;
-            assert_eq!(middle, 0, "middle 32 bits of trace ID should be zero, got {id:#034x}");
+            assert_eq!(
+                middle, 0,
+                "middle 32 bits of trace ID should be zero, got {id:#034x}"
+            );
         }
     }
 
     #[test]
     fn test_trace_id_low_bits_vary() {
         // The low 64 bits carry the random payload; they must not be constant.
-        let lows: HashSet<u64> = (0..100).map(|_| generate_128bit_trace_id() as u64).collect();
-        assert!(lows.len() > 90, "Low 64 bits of trace IDs are not random enough: {} distinct in 100", lows.len());
+        let lows: HashSet<u64> = (0..100)
+            .map(|_| generate_128bit_trace_id() as u64)
+            .collect();
+        assert!(
+            lows.len() > 90,
+            "Low 64 bits of trace IDs are not random enough: {} distinct in 100",
+            lows.len()
+        );
     }
 
     #[test]
     fn test_trace_id_ids_are_unique() {
         let ids: HashSet<u128> = (0..1000).map(|_| generate_128bit_trace_id()).collect();
-        assert!(ids.len() > 990, "Expected unique trace IDs, got {} distinct in 1000", ids.len());
+        assert!(
+            ids.len() > 990,
+            "Expected unique trace IDs, got {} distinct in 1000",
+            ids.len()
+        );
     }
 }
 
 /// Register the rand module functions and set up fork safety.
 pub fn register_rand(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Read DD_TRACE_SECURE_RANDOM once here so rand64bits() pays only a Relaxed load.
+    SECURE_RANDOM.store(
+        std::env::var("DD_TRACE_SECURE_RANDOM").as_deref() == Ok("true"),
+        Ordering::Relaxed,
+    );
+
     m.add_function(wrap_pyfunction!(seed, m)?)?;
     m.add_function(wrap_pyfunction!(rand64bits, m)?)?;
     m.add_function(wrap_pyfunction!(generate_128bit_trace_id, m)?)?;
