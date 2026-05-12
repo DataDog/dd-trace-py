@@ -220,7 +220,6 @@ impl EventResultDict {
         let py = slf.py();
         match slf.as_any().cast::<PyDict>()?.get_item(name)? {
             Some(v) => Ok(v.unbind()),
-            // Mirror Python __getattr__: dict lookup missing → return _MissingEvent
             None => Ok(get_missing_event(py)?.clone_ref(py)),
         }
     }
@@ -235,14 +234,14 @@ fn coerce_to_tuple<'py>(py: Python<'py>, args: Option<Py<PyAny>>) -> Bound<'py, 
         return PyTuple::empty(py);
     };
     let bound = obj.into_bound(py);
-    if let Ok(t) = bound.clone().cast_into::<PyTuple>() {
-        return t;
-    }
-    if let Ok(l) = bound.clone().cast_into::<PyList>() {
-        if let Ok(t) = PyTuple::new(py, l.iter()) {
-            return t;
-        }
-    }
+    let bound = match bound.cast_into::<PyTuple>() {
+        Ok(t) => return t,
+        Err(e) => e.into_inner(),
+    };
+    let bound = match bound.cast_into::<PyList>() {
+        Ok(l) => return PyTuple::new(py, l.iter()).unwrap_or_else(|_| PyTuple::empty(py)),
+        Err(e) => e.into_inner(),
+    };
     // General iterable fallback
     let result = bound
         .try_iter()
@@ -295,9 +294,6 @@ pub fn reset(py: Python<'_>, event_id: Option<&str>, callback: Option<Py<PyAny>>
     if let Some(cb) = callback {
         if let Some(eid) = event_id {
             if let Some(vec) = guard.get_mut(eid) {
-                // Use Python value equality so bound method objects compare correctly.
-                // Python bound methods are always new objects (`a.m is not a.m`), so
-                // pointer identity would never match. `__eq__` checks __func__ + __self__.
                 vec.retain(|(_, stored_cb)| stored_cb.bind(py).ne(cb.bind(py)).unwrap_or(true));
             }
         }
