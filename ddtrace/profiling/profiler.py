@@ -202,14 +202,15 @@ class _ProfilerInstance(service.Service):
         ddup.start()
 
         # Surface the effective profiler configuration on each uploaded profile
-        # so the backend can render per-profile settings (parity with dd-trace-go's
-        # info.profiler.settings). This is a one-shot snapshot at startup;
+        # under the event's `info.profiler.settings` header, matching
+        # dd-trace-go and dd-trace-php. This is a one-shot snapshot at startup;
         # runtime-mutable values (e.g. the adaptive sampling interval) are
         # already exposed via ProfilerStats fields.
         try:
-            ddup.set_profiler_settings_json(json.dumps(profiling_config.dump_settings()))
+            info_payload = {"profiler": {"settings": profiling_config.dump_settings()}}
+            ddup.set_profiler_settings_json(json.dumps(info_payload))
         except Exception:
-            LOG.debug("Failed to publish profiler settings to internal metadata", exc_info=True)
+            LOG.debug("Failed to publish profiler settings to info channel", exc_info=True)
 
     def __post_init__(self) -> None:
         if self._exception_profiling_enabled:

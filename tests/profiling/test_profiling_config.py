@@ -124,25 +124,26 @@ class TestDumpSettings:
         settings = ProfilingConfig().dump_settings()
 
         for key in (
-            "dd.profiling.enabled",
-            "dd.profiling.upload_interval",
-            "dd.profiling.stack.enabled",
-            "dd.profiling.stack.adaptive_sampling",
-            "dd.profiling.stack.adaptive_sampling_target_overhead",
-            "dd.profiling.stack.adaptive_sampling_max_interval",
-            "dd.profiling.stack.fast_copy",
-            "dd.profiling.stack.max_threads",
-            "dd.profiling.exception.enabled",
-            "dd.profiling.exception.sampling_interval",
+            "enabled",
+            "upload_interval",
+            "stack.enabled",
+            "stack.adaptive_sampling",
+            "stack.adaptive_sampling_target_overhead",
+            "stack.adaptive_sampling_max_interval",
+            "stack.fast_copy",
+            "stack.max_threads",
+            "exception.enabled",
+            "exception.sampling_interval",
         ):
             assert key in settings, f"missing {key!r} in dumped settings"
 
-    def test_keys_are_prefixed_and_dotted(self) -> None:
+    def test_keys_are_unprefixed_dotted_paths(self) -> None:
         settings = ProfilingConfig().dump_settings()
 
         for key in settings:
-            assert key.startswith("dd.profiling."), f"unexpected key without prefix: {key!r}"
             assert not key.startswith("DD_"), f"unexpected env-var-style key: {key!r}"
+            assert not key.startswith("_DD_"), f"unexpected private env-var-style key: {key!r}"
+            assert not key.startswith("dd.profiling."), f"unexpected channel header in key: {key!r}"
 
     def test_values_are_json_serializable(self) -> None:
         import json
@@ -157,9 +158,9 @@ class TestDumpSettings:
 
         settings = ProfilingConfig().dump_settings()
 
-        assert settings["dd.profiling.stack.adaptive_sampling"] is False
-        assert settings["dd.profiling.stack.adaptive_sampling_target_overhead"] == 5.0
-        assert settings["dd.profiling.upload_interval"] == 30.0
+        assert settings["stack.adaptive_sampling"] is False
+        assert settings["stack.adaptive_sampling_target_overhead"] == 5.0
+        assert settings["upload_interval"] == 30.0
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES=""))

@@ -111,32 +111,30 @@ class DDConfig(Env):
         return self._value_source.get(env_name, ValueSource.UNKNOWN)
 
     def dump_settings(self) -> dict[str, Any]:
-        """Return a {fully_qualified_name: value} snapshot of this config tree,
+        """Return a {dotted_name: value} snapshot of this config tree,
         including ``private=True`` entries.
 
-        Keys are the fully qualified dotted config path including the config's
-        own ``__prefix__`` (e.g. ``dd.profiling.stack.adaptive_sampling``), so
-        each setting is emitted at the top level of the returned dict and
-        consumers can index/filter on individual settings rather than treating
-        the whole bag as one opaque blob. Values are coerced to JSON-friendly
-        types (bool/int/float/str/None/list/dict); anything exotic is
-        stringified via ``repr``.
+        Keys are the dotted Python config path relative to this config root
+        (e.g. ``stack.adaptive_sampling``, ``upload_interval``). The config
+        ``__prefix__`` is deliberately *not* included, because callers
+        typically wrap the dict under a channel-specific header (e.g.
+        ``info.profiler.settings``) that already conveys the scope. Values
+        are coerced to JSON-friendly types (bool/int/float/str/None/list/
+        dict); anything exotic is stringified via ``repr``.
 
         Use this when you need to publish the effective configuration on a
-        per-event channel (e.g. the profiler's per-profile internal metadata).
+        per-event channel (e.g. the profiler's per-profile ``info`` field).
         For process-level telemetry, use
         :func:`ddtrace.internal.telemetry.report_configuration`, which skips
         private items.
         """
-        prefix = getattr(type(self), "__prefix__", "") or ""
         settings: dict[str, Any] = {}
         for name, _ in type(self).items(recursive=True):
             env_val = self
             for p in name.split("."):
                 env_val = getattr(env_val, p)
 
-            key = f"{prefix}.{name}" if prefix else name
-            settings[key] = _json_safe_value(env_val)
+            settings[name] = _json_safe_value(env_val)
         return settings
 
 
