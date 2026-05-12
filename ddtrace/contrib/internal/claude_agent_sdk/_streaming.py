@@ -85,8 +85,6 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._create_llm_span()
 
     def _create_llm_span(self) -> None:
-        if self.current_llm_span is not None:
-            self._finalize_llm_span(None)
         self.current_llm_span = self.integration.trace(
             "claude_agent_sdk.llm",
             submit_to_llmobs=True,
@@ -136,6 +134,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         if not isinstance(content, list):
             return
 
+        has_tool_result = False
         for block in content:
             block_type = type(block).__name__
 
@@ -156,6 +155,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                     "tool_id": tool_id,
                 }
             if block_type == "ToolResultBlock":
+                has_tool_result = True
                 tool_use_id = getattr(block, "tool_use_id", "")
                 if tool_use_id in self._active_tool_spans:
                     tool_data = self._active_tool_spans.pop(tool_use_id)
@@ -163,9 +163,12 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                     tool_output = safe_json(result_content) or str(result_content)
                     self._finalize_tool_span(tool_data, tool_output)
 
-        # After all tool results in a UserMessage are processed, append the tool results
-        # to the growing context and open the next LLM span.
-        if chunk_type == "UserMessage" and not self._active_tool_spans:
+        # Only open the next LLM span when this UserMessage actually concluded a
+        # tool turn. UserMessages without tool results (e.g. subagent context
+        # propagation) don't represent the start of a new LLM call, and opening
+        # a span for them would overwrite an already-open LLM span — dropping
+        # the previous one and hiding any descendants in the trace UI.
+        if chunk_type == "UserMessage" and not self._active_tool_spans and has_tool_result:
             if self._accumulated_input_messages is None:
                 self._accumulated_input_messages = self.integration.extract_llm_input_messages(
                     self.request_args, self.request_kwargs, self.primary_span

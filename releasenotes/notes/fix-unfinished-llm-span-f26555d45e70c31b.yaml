@@ -2,5 +2,8 @@
 fixes:
   - |
     LLM Observability: Resolves an issue in the Claude Agent SDK integration
-    where some LLM spans were not being properly finished. The handler now 
-    finalizes any open LLM span before opening a new one.
+    where some spans were missing from traces in the LLM Observability UI.
+    The handler now only opens a new LLM span after a ``UserMessage`` that
+    actually contained tool results, so messages without tool results (such
+    as subagent context propagation) no longer overwrite the in-flight LLM
+    span.
