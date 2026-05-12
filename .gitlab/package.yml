@@ -335,7 +335,7 @@ download_dependency_wheels:
 # Upload ELF debug symbols to the Datadog symbols backend for crashtracker symbolication.
 # Runs automatically on releases/RCs, available as manual trigger for other pipelines.
 "upload debug symbols to backend":
-  stage: release
+  stage: .post
   extends: .testrunner
   needs:
     - job: "build linux"

@@ -3,8 +3,8 @@ stages:
   - tests
   - system-tests
   - fuzz
-  - shared-pipeline
   - benchmarks
+  - shared-pipeline
 
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
@@ -149,7 +149,6 @@ serverless lambda tests:
   extends: .testrunner
   stage: tests
   needs: []
-  script:
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:sg_test[collapsed=true]\r\e[0KValidate ast-grep rules"
