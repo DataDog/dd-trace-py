@@ -610,8 +610,7 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
 
     Note: when ``DD_TRACE_NATIVE_SPAN_EVENTS`` is enabled, the resolved version is
     **unconditionally forced to ``v0.4``**, overriding even an explicit ``api_version``
-    argument. This is a hard constraint: the v0.5 serialisation format does not support
-    native span events.
+    argument — v0.5 does not support native span events.
     """
     is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     default = "v0.5"
@@ -784,7 +783,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.set_process_tags(p_tags)
         # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
         if config._telemetry_enabled and sys.platform.startswith("linux"):
-            heartbeat_ms = int(config._telemetry_heartbeat_interval * 1000)
+            heartbeat_ms = int(
+                config._telemetry_heartbeat_interval * 1000
+            )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
             builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
@@ -1033,14 +1034,14 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 class NativeTraceBuffer(TraceWriter):
     """TraceWriter backed by the native Rust trace buffer.
 
-    Bypasses msgpack encoding by converting SpanData objects to native Rust
-    span types directly inside ``send_chunk``. Spans are consumed (left in an
-    empty/default state) after each call to ``write()``.
+    Converts :class:`~ddtrace.internal.native._native.SpanData` objects to native Rust
+    span types inside ``send_chunk``; each span is consumed (left in an empty/default
+    state) after the call.
 
     Limitations compared to :class:`NativeWriter`
     -----------------------------------------------
     The following exporter features are intentionally not configured on this
-    writer's underlying exporter (pending follow-up work):
+    writer's underlying exporter:
 
     * **Process tags** (``set_process_tags``) — not set.
     * **Telemetry** (``enable_telemetry``) — not emitted.
@@ -1078,8 +1079,8 @@ class NativeTraceBuffer(TraceWriter):
             self._compute_stats_enabled,
             self._stats_opt_out,
         )
-        # Input format is not set: NativeTraceBuffer passes native Span objects directly,
-        # not pre-encoded msgpack bytes, so the exporter's decode path is not used.
+        # Input format is not set: the exporter's decode path is unused because Span objects
+        # are passed directly to send_trace_chunks_async, not as pre-encoded bytes.
         builder.set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
@@ -1087,7 +1088,7 @@ class NativeTraceBuffer(TraceWriter):
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         self._test_session_token = token
-        self._native_buffer.shutdown(int(1e9))
+        self.stop()
         exporter = self._create_exporter()
         self._native_buffer = native.NativeTraceBuffer(exporter, self._response_cb)
 

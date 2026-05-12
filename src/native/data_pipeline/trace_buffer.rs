@@ -132,7 +132,7 @@ impl NativeTraceBufferPy {
     /// `response_callback` is an optional Python callable invoked after each successful export
     /// when the agent returns a changed sampling-rate payload. It receives one positional
     /// argument: `AgentResponse(rate_by_service=...)`. Only called when the agent response
-    /// body contains a `rate_by_service` key (mirrors the `NativeWriter` contract).
+    /// body contains a `rate_by_service` key.
     #[new]
     #[pyo3(signature = (exporter, response_callback = None))]
     fn new(exporter: &mut TraceExporterPy, response_callback: Option<Py<PyAny>>) -> PyResult<Self> {
@@ -175,10 +175,14 @@ impl NativeTraceBufferPy {
     /// the native span and clear the span's internal state. After this call, each span
     /// in the list is left in an empty/default state and must not be used further.
     fn send_chunk(&self, py: Python<'_>, spans: Vec<Py<SpanData>>) -> PyResult<()> {
+        let packb = py
+            .import("ddtrace.internal._encoding")
+            .and_then(|m| m.getattr("packb"))
+            .ok();
         let mut chunk: Vec<Span<PyTraceData>> = Vec::with_capacity(spans.len());
         for span in &spans {
             let mut span_ref = span.bind(py).borrow_mut();
-            chunk.push(span_ref.take_data(py));
+            chunk.push(span_ref.take_data(py, packb.as_ref().map(|f| f.as_ref())));
         }
         // Set has_pending BEFORE handing the chunk to the buffer. If we set it after,
         // the tokio worker can pick up the chunk, export it, and fire on_export_complete

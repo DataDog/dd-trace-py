@@ -408,14 +408,14 @@ class TraceExporterBuilder:
 class AgentResponse:
     """Sampling-rate response from the Datadog agent after a successful trace export."""
 
-    rate_by_service: dict[str, float]
+    rate_by_service: Mapping[str, float]
 
-    def __init__(self, rate_by_service: dict[str, float]) -> None: ...
+    def __init__(self, rate_by_service: Mapping[str, float]) -> None: ...
 
 class NativeTraceBuffer:
     """
-    Native Rust trace buffer that accepts SpanData objects directly,
-    bypassing msgpack encoding.
+    Native Rust trace buffer that serializes SpanData objects to the agent
+    wire format on a background tokio worker.
 
     Takes ownership of the TraceExporter passed to the constructor;
     after construction, the exporter's ``send()`` method will return an error.

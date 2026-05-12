@@ -66,17 +66,19 @@ impl SpanData {
     /// Move all attributes and meta_struct into `self.data`, then take and return `self.data`.
     ///
     /// After this call, `self.data` is reset to its default value and the span should not be
-    /// used further. This is intended to be called exactly once, at write time, by the native
-    /// trace buffer's `send_chunk` path.
+    /// used further. This is intended to be called exactly once, at write time.
     ///
     /// # GIL requirement
     /// The GIL must be held (`py: Python<'_>` token is required) because:
     /// - `AttrKey::as_bound` dereferences a `Py<PyString>` pointer.
     /// - `AttributeValue::Str` holds a `Py<PyString>` that must be bound to borrow its data.
-    /// - The msgpack import and call are Python FFI operations.
+    ///
+    /// `packb` is an optional reference to the `ddtrace.internal._encoding.packb` callable.
+    /// Pass `None` to skip meta_struct encoding.
     pub(crate) fn take_data(
         &mut self,
         py: Python<'_>,
+        packb: Option<&Bound<'_, PyAny>>,
     ) -> libdd_trace_utils::span::v04::Span<PyTraceData> {
         // Drain attributes into data.meta (Str) and data.metrics (Int/Float).
         for (key, value) in self.attributes.drain() {
@@ -101,25 +103,22 @@ impl SpanData {
             }
         }
 
-        // Encode each meta_struct value with msgpack and move into data.meta_struct.
-        if let Some(meta_struct) = self.meta_struct.take() {
-            if let Ok(encoding) = py.import("ddtrace.internal._encoding") {
-                for (k, v) in meta_struct.bind(py).iter() {
-                    let key_backed = match k.extract::<PyBackedString>() {
-                        Ok(k) => k,
+        if let (Some(meta_struct), Some(packb)) = (self.meta_struct.take(), packb) {
+            for (k, v) in meta_struct.bind(py).iter() {
+                let key_backed = match k.extract::<PyBackedString>() {
+                    Ok(k) => k,
+                    Err(_) => continue,
+                };
+                let packed_bytes: Vec<u8> = match packb.call1((&v,)) {
+                    Ok(result) => match result.extract() {
+                        Ok(b) => b,
                         Err(_) => continue,
-                    };
-                    let packed_bytes: Vec<u8> = match encoding.call_method1("packb", (&v,)) {
-                        Ok(result) => match result.extract() {
-                            Ok(b) => b,
-                            Err(_) => continue,
-                        },
-                        Err(_) => continue,
-                    };
-                    self.data
-                        .meta_struct
-                        .insert(key_backed, Bytes::from_vec(packed_bytes));
-                }
+                    },
+                    Err(_) => continue,
+                };
+                self.data
+                    .meta_struct
+                    .insert(key_backed, Bytes::from_vec(packed_bytes));
             }
         }
 
