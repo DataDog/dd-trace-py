@@ -1,5 +1,5 @@
 use datadog_remote_config::{RemoteConfigData, RemoteConfigProduct};
-use datadog_tracer_flare::{error::FlareError, FlareAction, TracerFlareManager};
+use libdd_tracer_flare::{error::FlareError, FlareAction, TracerFlareManager};
 use pyo3::{create_exception, exceptions::PyException, prelude::*, Bound, PyErr};
 
 create_exception!(

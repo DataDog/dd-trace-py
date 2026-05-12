@@ -16,7 +16,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "0526d7eb6ad321c14f7d4c7574cf8970089757c6"
+  SYSTEM_TESTS_REF: "1c483bf19facb9109d9debe58865b54b97ca4307"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -47,6 +47,8 @@ workflow:
       auto_cancel:
         on_new_commit: none
     - if: !reference [.is_release_branch]
+      variables:
+        DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py-release.git"
       auto_cancel:
         on_new_commit: none
     - when: always
@@ -393,6 +395,46 @@ detect_circular_imports:
     - cat cycles_report.txt
     - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
     - exit $COMPARE_EXIT
+
+
+"summarize failures":
+  stage: .post
+  extends: .testrunner
+  rules:
+    - if: !reference [.is_main]
+      when: on_failure
+      allow_failure: true
+    - if: !reference [.is_release]
+      when: on_failure
+      allow_failure: true
+    - if: !reference [.is_release_branch]
+      when: on_failure
+      allow_failure: true
+    - if: !reference [.is_gh_merge_queue]
+      when: on_failure
+      allow_failure: true
+    - if: !reference [.is_devflow_merge_queue]
+      when: on_failure
+      allow_failure: true
+    - when: manual
+      allow_failure: true
+  dependencies: []
+  timeout: 30m
+  retry: 0
+  variables:
+    CI_FAILURE_LOGS_DIR: "$CI_PROJECT_DIR/ci-failure-logs"
+  before_script:
+    - !reference [.testrunner, before_script]
+  script:
+    - .gitlab/scripts/summarize_failures.py
+  after_script: []
+  artifacts:
+    when: always
+    paths:
+      - ci-failure-logs/
+      - summary.md
+      - claude.stdout.log
+    expire_in: 1 month
 
 
 package-oci:
