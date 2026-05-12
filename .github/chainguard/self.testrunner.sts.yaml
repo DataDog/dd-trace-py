@@ -1,0 +1,11 @@
+issuer: https://token.actions.githubusercontent.com
+
+subject_pattern: "repo:DataDog/dd-trace-py:ref:refs/heads/.+"
+
+claim_pattern:
+  event_name: (push|workflow_dispatch)
+  ref: refs/heads/.+
+  job_workflow_ref: DataDog/dd-trace-py/\.github/workflows/build-and-publish-image\.yml@refs/heads/.+
+
+permissions:
+  packages: write
