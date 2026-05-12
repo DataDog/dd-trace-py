@@ -79,6 +79,8 @@ class CrashtrackerConfiguration:
         use_alt_stack: bool,
         timeout_ms: int,
         resolve_frames: StacktraceCollection,
+        collect_all_threads: bool,
+        max_threads: int,
         endpoint: Optional[str] = None,
         unix_socket_path: Optional[str] = None,
         test_token: Optional[str] = None,
