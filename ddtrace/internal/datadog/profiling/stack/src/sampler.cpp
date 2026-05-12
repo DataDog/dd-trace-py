@@ -90,7 +90,7 @@ get_thread_cpu_time_us()
         return 0;
     }
 
-    return static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
+    return static_cast<uint64_t>(ts.tv_sec * 1'000'000ULL + ts.tv_nsec / 1000);
 #elif defined(__MACH__)
     mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
     thread_basic_info_data_t info;
@@ -101,8 +101,8 @@ get_thread_cpu_time_us()
         return 0;
     }
 
-    return static_cast<uint64_t>(info.user_time.seconds * 1000000ULL + info.user_time.microseconds +
-                                 info.system_time.seconds * 1000000ULL + info.system_time.microseconds);
+    return static_cast<uint64_t>(info.user_time.seconds + info.system_time.seconds) * 1'000'000ULL +
+           info.user_time.microseconds + info.system_time.microseconds;
 #else
     return 0;
 #endif
@@ -120,10 +120,10 @@ Sampler::adapt_sampling_interval()
     };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
-    auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
+    auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1'000'000ULL + ts.tv_nsec / 1000);
 
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
-    auto new_sampler_thread_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
+    auto new_sampler_thread_count = static_cast<uint64_t>(ts.tv_sec * 1'000'000ULL + ts.tv_nsec / 1000);
 #elif defined(__MACH__)
     // Get the process CPU time
     task_thread_times_info_data_t task_info_data;
@@ -370,8 +370,9 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 borrow.stats().add_copy_memory_error_count(copy_errors);
             }
 
-            if (sample_capture_cpu_after > sample_capture_cpu_before) {
-                borrow.stats().add_sample_capture_cpu_time_us(sample_capture_cpu_after - sample_capture_cpu_before);
+            size_t cpu_diff = sample_capture_cpu_after - sample_capture_cpu_before;
+            if (cpu_diff > 0) {
+                borrow.stats().add_sample_capture_cpu_time_us(cpu_diff);
             }
         }
 
