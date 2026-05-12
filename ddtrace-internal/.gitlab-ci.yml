@@ -1,0 +1,44 @@
+stages:
+  - package
+.build_base:
+  stage: package
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: "12"
+    CARGO_BUILD_JOBS: "12"
+    CMAKE_ARGS: "-DNATIVE_TESTING=OFF"
+    # DEV: Hack to make ASM CMake able to find the Python3 library
+    CIBW_BUILD: "1"
+    # Enable sccache for Rust/C/C++ compilation caching
+    DD_USE_SCCACHE: "1"
+    # job resource requests
+    KUBERNETES_CPU_REQUEST: "6"
+    KUBERNETES_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_MEMORY_LIMIT: "10Gi"
+    DD_DISABLE_VPA: true
+  artifacts:
+    paths:
+      - "ddtrace-internal/pywheels/*.whl"
+      - "ddtrace-internal/pywheels/*.tar.gz"
+      - "ddtrace-internal/debugwheelhouse/*.log"
+      - "ddtrace-internal/debugwheelhouse/*.zip"
+  cache:
+    - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
+      paths:
+        - .download_cache
+"build sdist":
+  extends: .build_base
+  image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
+  tags: ["arch:${ARCH_TAG}"]
+  variables:
+    DD_CYTHONIZE: "0"
+    ARCH_TAG: "amd64"
+    PYTHON_TAG: "cp314-cp314"
+    UV_PYTHON: "/opt/python/cp314-cp314/bin/python"
+    IMAGE_TAG: "${MANYLINUX_AMD64_IMAGE_TAG}"
+    # S3-backed sccache
+    SCCACHE_BUCKET: "ddtrace-internal-py-builds"
+    SCCACHE_S3_KEY_PREFIX: "sccache"
+    SCCACHE_REGION: "us-east-1"
+  script:
+    - cd ddtrace-internal
+    - .gitlab/scripts/build-sdist.sh
