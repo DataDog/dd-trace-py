@@ -135,7 +135,9 @@ api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, 
 
     const std::tuple result = convert_escaped_text_to_taint_text<py::bytes>(bytes_text, ranges_orig);
     PyObject* new_result = new_pyobject_id((py::bytearray() + get<0>(result)).ptr());
-
+    if (new_result == nullptr) {
+        return taint_escaped_text;
+    }
     set_ranges(new_result, get<1>(result), tx_map);
 
     return py::reinterpret_steal<py::bytearray>(new_result);
@@ -153,7 +155,9 @@ api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const 
     }
     auto [result_text, result_ranges] = convert_escaped_text_to_taint_text<StrType>(taint_escaped_text, ranges_orig);
     PyObject* new_result = new_pyobject_id(result_text.ptr());
-
+    if (new_result == nullptr) {
+        return taint_escaped_text;
+    }
     set_ranges(new_result, result_ranges, tx_map);
     return py::reinterpret_steal<StrType>(new_result);
 }
@@ -256,8 +260,10 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const Tain
                     id_evidence = get<0>(previous_context);
                     const shared_ptr<TaintRange>& original_range =
                       get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
-                    ranges.emplace_back(
-                      safe_allocate_taint_range(start, length, original_range->source, original_range->secure_marks));
+                    if (original_range != nullptr) {
+                        ranges.emplace_back(safe_allocate_taint_range(
+                          start, length, original_range->source, original_range->secure_marks));
+                    }
                 }
                 latest_end = end;
             }
@@ -288,8 +294,10 @@ convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const Tain
                 id_evidence = get<0>(context);
                 const shared_ptr<TaintRange>& original_range =
                   get_range_by_hash(getNum(id_evidence), optional_ranges_orig);
-                ranges.emplace_back(
-                  safe_allocate_taint_range(start, end - start, original_range->source, original_range->secure_marks));
+                if (original_range != nullptr) {
+                    ranges.emplace_back(safe_allocate_taint_range(
+                      start, end - start, original_range->source, original_range->secure_marks));
+                }
             }
             latest_end = end;
         }

@@ -130,19 +130,6 @@ def record_span_created(span: Span):
     )
 
 
-def record_bedrock_agent_span_event_created(span_event: LLMObsSpanEvent):
-    is_root_span = span_event["parent_id"] == ROOT_PARENT_ID
-    has_session_id = any("session_id" in tag for tag in span_event["tags"])
-    tags = _get_tags_from_span_event(span_event)
-    tags.extend([("has_session_id", str(int(has_session_id))), ("is_root_span", str(int(is_root_span)))])
-    model_provider = span_event["meta"]["metadata"].get("model_provider")
-    if model_provider is not None:
-        tags.append(("model_provider", model_provider))
-    telemetry_writer.add_count_metric(
-        namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPAN_FINISHED, value=1, tags=tuple(tags)
-    )
-
-
 def record_span_event_raw_size(event: LLMObsSpanEvent, raw_event_size: int):
     telemetry_writer.add_distribution_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
