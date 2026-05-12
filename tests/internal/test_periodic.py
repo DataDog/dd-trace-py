@@ -48,6 +48,78 @@ def test_periodic_double_start():
     t.join()
 
 
+def test_periodic_awake_after_stop_raises_not_hangs():
+    """Regression: awake() after a completed stop() used to block forever.
+
+    Once a worker has fully stopped, there is nothing left that can serve a
+    new awake request. The native awake() path must therefore reject the call
+    instead of waiting forever for a completion signal that will never come.
+    """
+    t = periodic.PeriodicThread(60.0, lambda: None)
+    t.start()
+    t.stop()
+    t.join()  # fully drained
+
+    with pytest.raises(RuntimeError):
+        t.awake()
+
+
+def test_periodic_awake_does_not_deadlock_with_stop_from_callback():
+    """Regression: stop() called from inside a periodic callback must not
+    deadlock against a concurrent awake() holding the awake mutex.
+
+    Timer._periodic uses the pattern:
+
+        def _periodic(self):
+            self.timeout()
+            self.stop()
+
+    A naive fix that has stop() acquire _awake_mutex creates this deadlock:
+
+      1. Thread A calls t.awake() — takes _awake_mutex, publishes AWAKE,
+         then waits for completion.
+      2. The worker consumes AWAKE and runs the callback.
+      3. The callback calls t.stop() on the worker thread.
+      4. stop() blocks on _awake_mutex if awake() keeps it locked while
+         waiting.
+      5. The worker cannot finish the callback and cannot reach
+         the wake-completion path — both threads wait forever.
+
+    The middle-ground fix has awake() release _awake_mutex before waiting on
+    _served, so a worker-thread stop() can take the mutex freely.
+    """
+
+    def _target():
+        # Stop ourselves from the worker thread — this is exactly the
+        # Timer._periodic pattern.
+        t.stop()
+
+    t = periodic.PeriodicThread(60.0, _target)
+    t.start()
+
+    awake_done = Event()
+
+    def _do_awake():
+        try:
+            t.awake()
+        finally:
+            awake_done.set()
+
+    awaker = Thread(target=_do_awake)
+    awaker.start()
+
+    # The awake() call should return well within a second. Before the fix this
+    # deadlocked indefinitely because the worker-thread stop() tried to take
+    # _awake_mutex while awake() was blocked waiting for completion.
+    assert awake_done.wait(timeout=5.0), (
+        "awake() did not return within 5s — stop()-from-callback deadlocked "
+        "against a concurrent awake() holding the awake mutex"
+    )
+
+    awaker.join(timeout=1.0)
+    t.join(timeout=1.0)
+
+
 def test_periodic_error():
     x = {"OK": False}
 
