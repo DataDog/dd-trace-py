@@ -613,6 +613,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         intake_url: str,
         processing_interval: Optional[float] = None,
         compute_stats_enabled: bool = False,
+        client_side_stats_obfuscation: bool = False,
         # Match the payload size since there is no functionality
         # to flush dynamically.
         buffer_size: Optional[int] = None,
@@ -696,6 +697,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
         self._compute_stats_enabled = compute_stats_enabled
+        self._client_side_stats_obfuscation = client_side_stats_obfuscation
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
 
@@ -762,6 +764,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
             bucket_size_ns: int = int(stats_interval * 1e9)
             builder.enable_stats(bucket_size_ns)
+
+        if self._client_side_stats_obfuscation:
+            builder.enable_client_side_stats_obfuscation()
 
         # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
         if config._telemetry_enabled and sys.platform.startswith("linux"):
@@ -1083,6 +1088,7 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
         dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
         sync_mode=_use_sync_mode(),
         compute_stats_enabled=config._trace_compute_stats,
+        client_side_stats_obfuscation=config._client_side_stats_obfuscation,
         report_metrics=not asm_config._apm_opt_out,
         response_callback=response_callback,
         stats_opt_out=asm_config._apm_opt_out,

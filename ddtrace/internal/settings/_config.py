@@ -636,6 +636,9 @@ class Config(object):
 
         trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
         self._trace_compute_stats = _get_config("DD_TRACE_COMPUTE_STATS", trace_compute_stats_default, asbool)
+        self._client_side_stats_obfuscation = _get_config(
+            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", False, asbool
+        )
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
