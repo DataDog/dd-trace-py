@@ -4,7 +4,7 @@ use pyo3::pymodule;
 
 #[pymodule]
 pub mod ffe {
-    use std::{collections::HashMap, sync::Arc};
+    use std::collections::HashMap;
 
     use pyo3::{exceptions::PyValueError, prelude::*};
     use tracing::debug;
@@ -49,7 +49,6 @@ pub mod ffe {
         flag_metadata: HashMap<Str, Str>,
         #[pyo3(get)]
         do_log: bool,
-        extra_logging: Option<Arc<HashMap<String, String>>>,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -146,22 +145,11 @@ pub mod ffe {
                         .into_iter()
                         .collect(),
                     do_log: assignment.do_log,
-                    extra_logging: Some(assignment.extra_logging),
                 },
                 Err(err) => err.into(),
             };
 
             Ok(result)
-        }
-    }
-
-    #[pymethods]
-    impl ResolutionDetails {
-        // pyo3 refuses to implement IntoPyObject for Arc, so we need to do this dance with
-        // returning a reference.
-        #[getter]
-        fn extra_logging(&self) -> Option<&HashMap<String, String>> {
-            self.extra_logging.as_ref().map(|it| it.as_ref())
         }
     }
 
@@ -176,7 +164,6 @@ pub mod ffe {
                 allocation_key: None,
                 flag_metadata: HashMap::new(),
                 do_log: false,
-                extra_logging: None,
             }
         }
 
@@ -190,7 +177,6 @@ pub mod ffe {
                 allocation_key: None,
                 flag_metadata: HashMap::new(),
                 do_log: false,
-                extra_logging: None,
             }
         }
     }
