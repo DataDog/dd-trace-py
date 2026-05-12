@@ -1,5 +1,6 @@
 "ddtrace-internal:build sdist":
   extends: .build_base
+  needs:
   stage: "ddtrace-internal:package"
   image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
   tags: ["arch:${ARCH_TAG}"]
