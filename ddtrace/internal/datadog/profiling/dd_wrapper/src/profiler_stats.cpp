@@ -1,7 +1,5 @@
 #include "profiler_stats.hpp"
 
-#include "profiler_state.hpp"
-
 #include <charconv>
 
 namespace {
@@ -218,16 +216,6 @@ Datadog::ProfilerStats::get_internal_metadata_json()
 
     internal_metadata_json += R"("copy_memory_error_count": )";
     append_to_string(internal_metadata_json, copy_memory_error_count);
-
-    // Splice the user's profiler settings as top-level keys (e.g.
-    // "dd.profiling.stack.enabled") so the backend can index and filter on
-    // each one individually. Entries live on ProfilerState (pre-formatted
-    // with outer braces stripped at setter time), so this is a single append.
-    const auto& entries = Datadog::ProfilerState::get().profiler_settings_entries;
-    if (!entries.empty()) {
-        internal_metadata_json += ",";
-        internal_metadata_json += entries;
-    }
 
     internal_metadata_json += "}";
 

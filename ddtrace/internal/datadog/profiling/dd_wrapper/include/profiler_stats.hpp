@@ -81,8 +81,7 @@ class ProfilerStats
     std::optional<size_t> get_greenlet_count() const;
 
     // Returns a JSON string containing relevant Profiler Stats to be included
-    // in the libdatadog payload. Also splices in the process-global profiler
-    // settings entries stored on ProfilerState (e.g. "dd.profiling.*" keys).
+    // in the libdatadog payload.
     std::string get_internal_metadata_json();
 
     void reset_state();
