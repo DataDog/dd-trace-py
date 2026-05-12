@@ -176,6 +176,6 @@ test_wheel() {
   "${VENV_PATH}/bin/python" -c "import ddtrace; print('✓ ddtrace import successful')" || echo "✗ ddtrace import failed"
 
   echo "=== Running smoke test ==="
-  "${VENV_PATH}/bin/python" "${PROJECT_DIR}/tests/smoke_test.py"
+  "${VENV_PATH}/bin/python" "${PROJECT_DIR}/dd-trace-py/tests/smoke_test.py"
   section_end "test_wheel"
 }
