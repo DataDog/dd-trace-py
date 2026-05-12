@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Any
 
 import pytest
 
@@ -339,6 +338,7 @@ def test_gather_with_return_exceptions_keeps_kwarg() -> None:
     rather than raising. Verifies that the wrapper doesn't drop the kwarg.
     """
     import asyncio
+    from typing import Any
 
     from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
 
@@ -392,6 +392,7 @@ def test_gather_empty_does_not_link() -> None:
     fire ``link_tasks`` (no children to link).
     """
     import asyncio
+    from typing import Any
 
     from tests.profiling.collector._asyncio_wrap_helpers import captured_link_calls
     from tests.profiling.collector._asyncio_wrap_helpers import started_profiler
