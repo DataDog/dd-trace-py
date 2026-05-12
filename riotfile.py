@@ -2000,6 +2000,7 @@ venv = Venv(
                 "pytest-xdist": latest,
                 "pytest-benchmark": latest,
                 "pytest-bdd": latest,
+                "pytest-timeout": latest,
             },
             env={
                 "DD_AGENT_PORT": "9126",
