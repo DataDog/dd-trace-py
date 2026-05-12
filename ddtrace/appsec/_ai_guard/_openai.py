@@ -66,6 +66,19 @@ def _get_openai_abort_error_cls():
             Catchable as either ``openai.APIError`` / ``openai.UnprocessableEntityError``
             (idiomatic OpenAI error handling, no retry on 422) or
             ``AIGuardAbortError`` (Datadog-specific, exposes ``action`` / ``reason``).
+
+            AIDEV-NOTE: catchability asymmetry vs plain ``AIGuardAbortError``.
+            ``AIGuardAbortError`` derives from ``DDBlockException(BaseException)``
+            so a generic ``except Exception:`` does NOT catch it (by design — a
+            block decision must not be silently swallowed). However,
+            ``OpenAIAIGuardAbortError`` *also* inherits from
+            ``openai.UnprocessableEntityError``, which is ``Exception``-derived,
+            so via MRO this subclass IS catchable by ``except Exception:``.
+            That asymmetry is intentional: the OpenAI contrib must keep
+            ``except openai.APIError:`` blocks working unchanged for users
+            migrating from non-AI-Guard error handling. Code that wants
+            uniform block detection across providers should branch on
+            ``isinstance(e, AIGuardAbortError)``.
             """
 
             def __init__(self, action, reason, tags=None, sds=None, tag_probs=None):
@@ -285,7 +298,7 @@ def _openai_chat_completion_before(client, kwargs):
     try:
         client.evaluate(ai_guard_messages, Options(block=ai_guard_config._ai_guard_block))
     except AIGuardAbortError as e:
-        return _wrap_abort_error(e)
+        raise _wrap_abort_error(e)
     except Exception:
         logger.debug("Failed to evaluate OpenAI chat completion request", exc_info=True)
     return None
@@ -298,7 +311,7 @@ def _openai_chat_completion_after(client, kwargs, resp):
     returns.  Skips streaming responses (handled separately) and when a
     framework evaluation is already active.
 
-    On block: returns an ``OpenAIAIGuardAbortError`` (or plain
+    On block: raises an ``OpenAIAIGuardAbortError`` (or plain
     ``AIGuardAbortError`` when the OpenAI SDK is not importable).  Allow /
     skip paths return ``None``.
     """
@@ -316,7 +329,7 @@ def _openai_chat_completion_after(client, kwargs, resp):
     try:
         client.evaluate(all_messages, Options(block=ai_guard_config._ai_guard_block))
     except AIGuardAbortError as e:
-        return _wrap_abort_error(e)
+        raise _wrap_abort_error(e)
     except Exception:
         logger.debug("Failed to evaluate OpenAI chat completion response", exc_info=True)
     return None

@@ -244,7 +244,7 @@ def prep_context_injection(ctx, endpoint_name, operation, trace_operation, param
 
     core.dispatch(
         "botocore.prep_context_injection.post",
-        [ctx, cloud_service, schematization_function, injection_function, trace_operation],
+        (ctx, cloud_service, schematization_function, injection_function, trace_operation),
     )
 
 
@@ -274,7 +274,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         ) as ctx,
         ctx.span,
     ):
-        core.dispatch("botocore.patched_api_call.started", [ctx])
+        core.dispatch("botocore.patched_api_call.started", (ctx,))
         if args and config.botocore["distributed_tracing"]:
             prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
 
@@ -283,14 +283,14 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         except botocore.exceptions.ClientError as e:
             core.dispatch(
                 "botocore.patched_api_call.exception",
-                [
+                (
                     ctx,
                     e.response,
                     botocore.exceptions.ClientError,
                     config.botocore.operations[ctx.span.resource].is_error_code,
-                ],
+                ),
             )
             raise
         else:
-            core.dispatch("botocore.patched_api_call.success", [ctx, result])
+            core.dispatch("botocore.patched_api_call.success", (ctx, result))
             return result

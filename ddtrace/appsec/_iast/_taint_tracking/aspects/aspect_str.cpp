@@ -35,8 +35,8 @@ call_original_function(PyObject* orig_function,
     py::args py_args(py_args_list);
 
     PyObject* kwargs = kwnames_to_kwargs(args, nargs, kwnames);
-    auto res = PyObject_Call(orig_function, py_args.ptr(), kwnames_to_kwargs(args, nargs, kwnames));
-    Py_DECREF(kwargs);
+    auto res = PyObject_Call(orig_function, py_args.ptr(), kwargs);
+    Py_XDECREF(kwargs);
     return res;
 }
 
@@ -166,7 +166,13 @@ api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, Py
         }
 
         const char* encoding = has_encoding ? PyUnicode_AsUTF8(pyo_encoding) : "utf-8";
+        if (has_encoding && encoding == nullptr) {
+            return nullptr; // PyUnicode_AsUTF8 failed; exception already set
+        }
         const char* errors = has_errors ? PyUnicode_AsUTF8(pyo_errors) : "strict";
+        if (has_errors && errors == nullptr) {
+            return nullptr; // PyUnicode_AsUTF8 failed; exception already set
+        }
         result_o = PyUnicode_Decode(text_raw_bytes, text_raw_bytes_size, encoding, errors);
 
         if (PyErr_Occurred()) {

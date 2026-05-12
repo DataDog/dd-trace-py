@@ -82,21 +82,32 @@ Result<std::reference_wrapper<Frame>>
 Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 #endif
 {
+    if (frame_addr == nullptr) {
+        return ErrorKind::FrameError;
+    }
+
 #if PY_VERSION_HEX >= 0x030b0000
     _PyInterpreterFrame iframe;
     auto resolved_addr =
       stack_chunk ? reinterpret_cast<_PyInterpreterFrame*>(stack_chunk->resolve(frame_addr)) : frame_addr;
+
     if (resolved_addr != frame_addr) {
-        frame_addr = resolved_addr;
+        if (resolved_addr == nullptr) {
+            return ErrorKind::FrameError;
+        }
+
+        // The frame is in the stack chunk, try to copy it into the local frame object.
+        // Note: resolved_addr points into the stack chunk's local buffer and may not be
+        // aligned to alignof(_PyInterpreterFrame). Copy into the aligned local
+        // iframe before accessing any fields to avoid undefined behaviour.
+        std::memcpy(&iframe, resolved_addr, sizeof(iframe));
     } else {
+        // The frame is not in the stack chunk, directly copy the frame object.
         if (copy_type(frame_addr, iframe)) {
             return ErrorKind::FrameError;
         }
-        frame_addr = &iframe;
     }
-    if (frame_addr == NULL) {
-        return ErrorKind::FrameError;
-    }
+    frame_addr = &iframe;
 
 #if PY_VERSION_HEX >= 0x030c0000
 #if PY_VERSION_HEX >= 0x030e0000
