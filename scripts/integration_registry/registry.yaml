@@ -860,7 +860,7 @@ integrations:
   - ray
   tested_versions_by_dependency:
     ray:
-      min: 2.46.0
+      min: 2.47.1
       max: 2.54.1
 
 - integration_name: redis

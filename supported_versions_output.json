@@ -667,7 +667,7 @@
     {
         "dependency": "ray",
         "integration": "ray_serve",
-        "minimum_tracer_supported": "2.46.0",
+        "minimum_tracer_supported": "2.47.1",
         "max_tracer_supported": "2.54.1",
         "pinned": "true",
         "auto-instrumented": false
