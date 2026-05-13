@@ -1613,21 +1613,24 @@ class BotocoreTest(TracerTestCase):
         assert spans[1].name == "aws.lambda.invoke"
 
     @mock_events
+    @mock_sqs
     def test_eventbridge_single_entry_trace_injection(self):
+        event_bus_name = "a-test-bus-single-entry"
+        rule_name = "a-test-bus-single-entry-rule"
         bridge = self.session.create_client("events", region_name="us-east-1", endpoint_url="http://localhost:4566")
-        bridge.create_event_bus(Name="a-test-bus")
+        bridge.create_event_bus(Name=event_bus_name)
 
         entries = [
             {
                 "Source": "some-event-source",
                 "DetailType": "some-event-detail-type",
                 "Detail": json.dumps({"foo": "bar"}),
-                "EventBusName": "a-test-bus",
+                "EventBusName": event_bus_name,
             }
         ]
         bridge.put_rule(
-            Name="a-test-bus-rule",
-            EventBusName="a-test-bus",
+            Name=rule_name,
+            EventBusName=event_bus_name,
             EventPattern="""{"source": [{"prefix": ""}]}""",
             State="ENABLED",
         )
@@ -1635,8 +1638,8 @@ class BotocoreTest(TracerTestCase):
         bridge.list_rules()
         queue_url = self.sqs_test_queue["QueueUrl"]
         bridge.put_targets(
-            Rule="a-test-bus-rule",
-            Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
+            Rule=rule_name,
+            Targets=[{"Id": "%s-target" % rule_name, "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
         )
         self.reset()  # Clear spans from setup operations
 
@@ -1644,7 +1647,7 @@ class BotocoreTest(TracerTestCase):
 
         messages = self.sqs_client.receive_message(QueueUrl=queue_url, WaitTimeSeconds=2)
 
-        bridge.delete_event_bus(Name="a-test-bus")
+        bridge.delete_event_bus(Name=event_bus_name)
 
         spans = self.get_spans()
         assert spans
@@ -1655,7 +1658,7 @@ class BotocoreTest(TracerTestCase):
         span = spans[0]
         str_entries = span.get_tag("params.Entries")
         delete_bus_span = spans[2]
-        assert delete_bus_span.get_tag("rulename") == "a-test-bus"
+        assert delete_bus_span.get_tag("rulename") == event_bus_name
         assert delete_bus_span.get_tag("aws_service") == "events"
         assert delete_bus_span.get_tag("region") == "us-east-1"
         assert str_entries is None
@@ -1673,27 +1676,30 @@ class BotocoreTest(TracerTestCase):
         assert PROPAGATION_KEY_BASE_64 not in headers
 
     @mock_events
+    @mock_sqs
     def test_eventbridge_multiple_entries_trace_injection(self):
+        event_bus_name = "a-test-bus-multiple-entries"
+        rule_name = "a-test-bus-multiple-entries-rule"
         bridge = self.session.create_client("events", region_name="us-east-1", endpoint_url="http://localhost:4566")
-        bridge.create_event_bus(Name="a-test-bus")
+        bridge.create_event_bus(Name=event_bus_name)
 
         entries = [
             {
                 "Source": "another-event-source",
                 "DetailType": "a-different-event-detail-type",
                 "Detail": json.dumps({"abc": "xyz"}),
-                "EventBusName": "a-test-bus",
+                "EventBusName": event_bus_name,
             },
             {
                 "Source": "some-event-source",
                 "DetailType": "some-event-detail-type",
                 "Detail": json.dumps({"foo": "bar"}),
-                "EventBusName": "a-test-bus",
+                "EventBusName": event_bus_name,
             },
         ]
         bridge.put_rule(
-            Name="a-test-bus-rule",
-            EventBusName="a-test-bus",
+            Name=rule_name,
+            EventBusName=event_bus_name,
             EventPattern="""{"source": [{"prefix": ""}]}""",
             State="ENABLED",
         )
@@ -1701,8 +1707,8 @@ class BotocoreTest(TracerTestCase):
         bridge.list_rules()
         queue_url = self.sqs_test_queue["QueueUrl"]
         bridge.put_targets(
-            Rule="a-test-bus-rule",
-            Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
+            Rule=rule_name,
+            Targets=[{"Id": "%s-target" % rule_name, "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
         )
         self.reset()  # Clear spans from setup operations
 
@@ -1710,7 +1716,7 @@ class BotocoreTest(TracerTestCase):
 
         messages = self.sqs_client.receive_message(QueueUrl=queue_url, WaitTimeSeconds=2)
 
-        bridge.delete_event_bus(Name="a-test-bus")
+        bridge.delete_event_bus(Name=event_bus_name)
 
         spans = self.get_spans()
         assert spans
@@ -3400,6 +3406,7 @@ class BotocoreTest(TracerTestCase):
 
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_events
+    @mock_sqs
     def test_aws_payload_tagging_eventbridge(self):
         with self.override_config("botocore", dict(payload_tagging_request="all", payload_tagging_response="all")):
             bridge = self.session.create_client("events", region_name="us-east-1", endpoint_url="http://localhost:4566")

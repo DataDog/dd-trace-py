@@ -267,33 +267,36 @@ class BotocoreDSMTest(TracerTestCase):
             self._assert_dsm_counts(in_stats, min_latency_count=3, payload_count=3)
 
     @mock_events
+    @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_eventbridge(self):
         with mock.patch("time.time") as mt:
             mt.return_value = 1642544540
 
+            event_bus_name = "a-test-bus-dsm"
+            rule_name = "a-test-bus-dsm-rule"
             bridge = self.session.create_client("events", region_name="us-east-1", endpoint_url="http://localhost:4566")
-            bridge.create_event_bus(Name="a-test-bus")
+            bridge.create_event_bus(Name=event_bus_name)
 
             entries = [
                 {
                     "Source": "some-event-source",
                     "DetailType": "some-event-detail-type",
                     "Detail": json.dumps({"foo": "bar"}),
-                    "EventBusName": "a-test-bus",
+                    "EventBusName": event_bus_name,
                 }
             ]
             bridge.put_rule(
-                Name="a-test-bus-rule",
-                EventBusName="a-test-bus",
+                Name=rule_name,
+                EventBusName=event_bus_name,
                 EventPattern="""{"source": [{"prefix": ""}]}""",
                 State="ENABLED",
             )
 
             queue_url = self.sqs_test_queue["QueueUrl"]
             bridge.put_targets(
-                Rule="a-test-bus-rule",
-                Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
+                Rule=rule_name,
+                Targets=[{"Id": "%s-target" % rule_name, "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
             )
 
             bridge.put_events(Entries=entries)
@@ -308,7 +311,7 @@ class BotocoreDSMTest(TracerTestCase):
             processor = data_streams_processor()
             assert processor is not None, "Datastream Monitoring is not enabled"
             stats = pathway_stats_merged(processor)
-            out_tags = "direction:out,topic:a-test-bus,type:eventbridge"
+            out_tags = "direction:out,topic:%s,type:eventbridge" % event_bus_name
 
             out_hash, out_parent_hash, out_stats = self._entry_for_tags(stats, out_tags, expected_parent_hash=0)
             assert out_parent_hash == 0
