@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    OpenFeature: This fix resolves an issue where a ``None`` targeting key was treated as an empty string during feature flag evaluation, which could return a rollout variation instead of the default value when targeting required a subject key.
