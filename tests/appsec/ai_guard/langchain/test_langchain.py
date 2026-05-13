@@ -474,6 +474,42 @@ async def test_streamed_llm_async_block(mock_execute_request, langchain_openai, 
 
 
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_resets_context_after_block(mock_execute_request, langchain_openai, openai_url):
+    """A blocked non-streaming chat call still releases the active counter.
+
+    The ``.generate.before`` listener bumps the counter *before* evaluating
+    (so it remains active during the underlying call), and the contrib's
+    ``finally`` block dispatches ``.generate.finally`` which resets it on
+    every exit path — including a block where the dispatch raises out of
+    ``.before``.
+    """
+    from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
+
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+
+    assert is_aiguard_context_active() is False
+    with pytest.raises(AIGuardAbortError):
+        chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+    assert is_aiguard_context_active() is False
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_chat_async_resets_context_after_block(mock_execute_request, langchain_openai, openai_url):
+    """Async variant of :func:`test_chat_resets_context_after_block`."""
+    from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
+
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+
+    assert is_aiguard_context_active() is False
+    with pytest.raises(AIGuardAbortError):
+        await chat.ainvoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+    assert is_aiguard_context_active() is False
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_streamed_chat_resets_context_after_success(mock_execute_request, langchain_openai, openai_url):
     """After a successful sync chat stream, the AI Guard active counter is back at zero."""
     from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
@@ -529,6 +565,59 @@ def test_streamed_llm_resets_context_after_success(mock_execute_request, langcha
     assert is_aiguard_context_active() is False
     for _ in llm.stream(input="How do I write technical documentation?"):
         pass
+    assert is_aiguard_context_active() is False
+
+
+# AIDEV-NOTE: ``filterwarnings`` suppresses an orthogonal pre-existing
+# span-lifecycle warning: when a langchain stream is created but never
+# iterated, ``shared_stream`` has already started the LLMObs span via
+# ``integration.trace(...)`` but ``TracedStream.__iter__``'s ``finally``
+# (which runs ``finalize_stream``) never executes, so the span is left
+# open and the test runner's "Context was not cleared after test" warning
+# fires. That span leak is a separate base stream-handler concern. These
+# tests intentionally pin the *counter* contract: an unconsumed stream
+# must not leave the AI Guard active-context counter incremented,
+# regardless of whether the span itself is finalized.
+@pytest.mark.filterwarnings("ignore:Context was not cleared after test:UserWarning")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_streamed_chat_unconsumed_stream_does_not_leak_context(mock_execute_request, langchain_openai, openai_url):
+    """Creating a langchain stream and never iterating it must NOT leave the
+    AI Guard active-context counter incremented. Otherwise a subsequent
+    direct OpenAI call in the same task would see
+    ``is_aiguard_context_active()`` return ``True`` and silently skip AI
+    Guard evaluation (codex P2 finding on PR #17913). Counter is now bumped
+    lazily by the ``.stream.started`` listener fired from the
+    iteration-scoped generator wrapper in ``shared_stream`` — never running
+    when the caller doesn't iterate.
+    """
+    from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    assert is_aiguard_context_active() is False
+    stream = model.stream(input="how can langsmith help with testing?")
+    assert is_aiguard_context_active() is False
+    stream.close()
+    assert is_aiguard_context_active() is False
+
+
+@pytest.mark.filterwarnings("ignore:Context was not cleared after test:UserWarning")
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_streamed_chat_unconsumed_async_stream_does_not_leak_context(
+    mock_execute_request, langchain_openai, openai_url
+):
+    """Async variant — see sync test for rationale."""
+    from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
+
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+
+    assert is_aiguard_context_active() is False
+    stream = model.astream(input="how can langsmith help with testing?")
+    assert is_aiguard_context_active() is False
+    await stream.aclose()
     assert is_aiguard_context_active() is False
 
 

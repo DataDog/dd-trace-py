@@ -339,6 +339,7 @@ def traced_chat_stream(func, instance, args, kwargs):
         provider=llm_provider,
         model=model,
         aiguard_before_event="langchain.chatmodel.stream.before",
+        aiguard_started_event="langchain.chatmodel.stream.started",
         aiguard_finally_event="langchain.chatmodel.stream.finally",
     )
 
@@ -368,6 +369,7 @@ def traced_llm_stream(func, instance, args, kwargs):
         provider=llm_provider,
         model=model,
         aiguard_before_event="langchain.llm.stream.before",
+        aiguard_started_event="langchain.llm.stream.started",
         aiguard_finally_event="langchain.llm.stream.finally",
     )
 

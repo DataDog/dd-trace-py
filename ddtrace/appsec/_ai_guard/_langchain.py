@@ -235,19 +235,7 @@ def _langchain_generate_finally(*args, **kwargs):
 def _langchain_chatmodel_stream_before(client: AIGuardClient, instance, args, kwargs):
     input_arg = get_argument_value(args, kwargs, 0, "input")
     messages = instance._convert_input(input_arg).to_messages()
-    result = _evaluate_langchain_messages(client, messages)
-    # AIDEV-NOTE: only mark the AI Guard context active when we are going to
-    # let the call through. If ``result`` is non-None, the contrib's
-    # ``dispatch(..., allow_raise=True)`` will raise the abort out of this
-    # listener and ``shared_stream`` will never run — meaning
-    # ``finalize_stream`` (which
-    # dispatches the matching ``*.stream.finally`` event) would never fire,
-    # and the depth counter would leak into the next call in the same task.
-    # Setting the flag only on the allow path keeps the set/reset pair
-    # symmetric without needing a try/finally around the contrib's dispatch.
-    if result is None:
-        set_aiguard_context_active()
-    return result
+    return _evaluate_langchain_messages(client, messages)
 
 
 def _langchain_llm_stream_before(client: AIGuardClient, instance, args, kwargs):
@@ -255,10 +243,20 @@ def _langchain_llm_stream_before(client: AIGuardClient, instance, args, kwargs):
 
     input_arg = get_argument_value(args, kwargs, 0, "input")
     prompt = instance._convert_input(input_arg).to_string()
-    result = _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
-    if result is None:
-        set_aiguard_context_active()
-    return result
+    return _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
+
+
+def _langchain_stream_started(*args, **kwargs):
+    """Paired ``.stream.started`` listener for langchain stream events.
+
+    Acquires the AI Guard active-context counter for the duration of stream
+    iteration. Dispatched from
+    ``ddtrace.contrib.internal.langchain.utils._aiguard_scope_{sync,async}``
+    on iteration entry — so a stream that is created but never iterated
+    cannot bump the depth. The matching reset happens in
+    :func:`_langchain_generate_finally` via the ``.stream.finally`` event.
+    """
+    set_aiguard_context_active()
 
 
 def _evaluate_langchain_messages(client: AIGuardClient, messages):

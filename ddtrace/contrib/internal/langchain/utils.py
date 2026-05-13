@@ -15,17 +15,28 @@ class BaseLangchainStreamHandler:
         if chunk_callback:
             chunk_callback(chunk)
 
+    def start_stream(self):
+        # AIDEV-NOTE: dispatched lazily from ``TracedStream.__iter__`` /
+        # ``TracedAsyncStream.__aiter__`` (via ``BaseStreamHandler.start_stream``),
+        # so it only runs when the caller actually starts iterating. Bumping
+        # the AI Guard depth counter here — instead of in the ``.before``
+        # listener — means a stream that is created but never consumed cannot
+        # leak the counter into the next call in the same task. Paired with
+        # the ``.stream.finally`` event below.
+        started_event = self.options.get("aiguard_started_event")
+        if started_event:
+            core.dispatch(started_event, ())
+
     def finalize_stream(self, exception=None):
         on_span_finish = self.options.get("on_span_finish", None)
         if on_span_finish:
             on_span_finish(self.primary_span, self.chunks)
         # AIDEV-NOTE: dispatch the AI Guard ``.finally`` event before finishing
-        # the span so AI Guard's active-context counter (set by the matching
-        # ``.before`` listener) is released on every stream-exit path —
-        # success, exception, early ``break``, or ``aclose()`` — since
-        # ``finalize_stream`` is called from ``TracedStream.__iter__`` /
-        # ``__aiter__``'s ``finally`` block. Use ``core.dispatch`` (non-raising)
-        # because cleanup must not throw.
+        # the span so the active-context counter set by ``start_stream`` is
+        # released on every iteration-exit path — success, exception, early
+        # ``break``, or ``aclose()`` — since ``finalize_stream`` is called
+        # from ``TracedStream.__iter__`` / ``__aiter__``'s ``finally`` block.
+        # Use ``core.dispatch`` (non-raising) because cleanup must not throw.
         finally_event = self.options.get("aiguard_finally_event")
         if finally_event:
             core.dispatch(finally_event, ())
@@ -63,6 +74,7 @@ def shared_stream(
     options.update(extra_options)
 
     aiguard_before_event = options.pop("aiguard_before_event", None)
+    aiguard_started_event = options.pop("aiguard_started_event", None)
     aiguard_finally_event = options.get("aiguard_finally_event")
 
     span = integration.trace(**options)
@@ -78,6 +90,7 @@ def shared_stream(
         handler_kwargs = dict(
             on_span_finish=on_span_finished,
             chunk_callback=chunk_callback,
+            aiguard_started_event=aiguard_started_event,
             aiguard_finally_event=aiguard_finally_event,
         )
         if inspect.isasyncgen(resp):
@@ -95,15 +108,12 @@ def shared_stream(
         # otherwise the AI Guard abort would slip past ``except Exception:``
         # and the LLM span would never get ``set_exc_info`` / ``finish``,
         # leaving a hole between the AI Guard span (block decision) and the
-        # LLM span (no link back to the abort).
+        # LLM span (no link back to the abort). No counter cleanup is needed
+        # here: the ``.stream.started`` event is dispatched lazily from the
+        # iteration-scoped generator wrappers below, which never run when
+        # ``func(...)`` raises before we return a wrapper.
         span.set_exc_info(*sys.exc_info())
         span.finish()
-        # AIDEV-NOTE: when ``func(...)`` raises before a stream handler exists,
-        # ``finalize_stream`` will never run — release the AI Guard active
-        # counter that the matching ``.before`` listener bumped, otherwise the
-        # contextvars depth leaks into subsequent calls in the same task.
-        if aiguard_finally_event:
-            core.dispatch(aiguard_finally_event, ())
         raise
 
 

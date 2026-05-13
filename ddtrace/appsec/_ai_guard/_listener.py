@@ -11,6 +11,7 @@ from ddtrace.appsec._ai_guard._langchain import _langchain_generate_finally
 from ddtrace.appsec._ai_guard._langchain import _langchain_llm_generate_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_llm_stream_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_patch
+from ddtrace.appsec._ai_guard._langchain import _langchain_stream_started
 from ddtrace.appsec._ai_guard._langchain import _langchain_unpatch
 from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_after
 from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_before
@@ -42,14 +43,25 @@ def _langchain_listen(client: AIGuardClient):
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
 
+    # AIDEV-NOTE: ``.stream.started`` is dispatched lazily from the contrib's
+    # iteration-scoped generator wrapper (``_aiguard_scope_{sync,async}`` in
+    # ``ddtrace/contrib/internal/langchain/utils.py``), which only runs when
+    # the caller actually starts iterating. Bumping the depth counter here
+    # — instead of in the ``.before`` listener — means a stream that is
+    # created but never consumed cannot leak the counter into the next call
+    # in the same task. The matching reset happens via ``.stream.finally``
+    # below (dispatched from ``finalize_stream`` in
+    # ``TracedStream.__iter__`` / ``__aiter__``'s ``finally`` block).
+    core.on("langchain.chatmodel.stream.started", _langchain_stream_started)
+    core.on("langchain.llm.stream.started", _langchain_stream_started)
+
     # AIDEV-NOTE: ``.finally`` listeners release the AI Guard active-context
-    # counter that the matching ``.before`` listener bumped. We listen on
-    # ``.finally`` (always fires from the contrib's ``finally`` block) rather
-    # than ``.after`` (only fires on success) so the counter does not leak
-    # when the underlying LLM call raises. The stream variants are dispatched
-    # from ``BaseLangchainStreamHandler.finalize_stream`` (and from
-    # ``shared_stream``'s except path when ``func(...)`` raises before a
-    # stream handler exists).
+    # counter. For non-streaming ``*.generate.*`` paths the counter is bumped
+    # by the matching ``.before`` listener (``func(...)`` runs synchronously
+    # so set + reset wrap the SDK call). For streaming the counter is bumped
+    # by ``.stream.started`` above, and reset here once iteration ends. We
+    # listen on ``.finally`` rather than ``.after`` so the reset still fires
+    # when the underlying LLM call raises mid-iteration.
     core.on("langchain.chatmodel.generate.finally", _langchain_generate_finally)
     core.on("langchain.chatmodel.agenerate.finally", _langchain_generate_finally)
     core.on("langchain.llm.generate.finally", _langchain_generate_finally)
