@@ -1718,7 +1718,7 @@ class Experiment:
         self._summary_evaluators = list(summary_evaluators) if summary_evaluators else []
         self._description = description
         self._tags: dict[str, str] = tags or {}
-        self._tags["ddtrace_version"] = str(__version__)
+        self._tags["ddtrace.version"] = str(__version__)
         self._tags["project_name"] = project_name
         self._tags["dataset_name"] = dataset.name
         self._tags["experiment_name"] = name

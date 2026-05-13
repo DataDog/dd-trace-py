@@ -2107,7 +2107,7 @@ def test_submit_evaluation_metric_tags(llmobs, mock_llmobs_eval_metric_writer):
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace_version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
         )
     )
 
@@ -2221,7 +2221,7 @@ def test_submit_evaluation_metric_with_metadata_enqueues_metric(llmobs, mock_llm
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace_version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
         )
     )
@@ -2258,7 +2258,7 @@ def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_e
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace_version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
             assessment="fail",
         )
@@ -2282,7 +2282,7 @@ def test_submit_evaluation_enqueues_writer_with_assessment(llmobs, mock_llmobs_e
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace_version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
             assessment="fail",
         )
@@ -2320,7 +2320,7 @@ def test_submit_evaluation_enqueues_writer_with_reasoning(llmobs, mock_llmobs_ev
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace_version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
             metadata={"foo": ["bar", "baz"]},
             reasoning="the content of the message involved profanity",
         )
@@ -2474,7 +2474,7 @@ def test_submit_evaluation_trace_scope(llmobs, mock_llmobs_eval_metric_writer):
             "metric_type": "score",
             "label": "quality",
             "tags": [
-                "ddtrace_version:{}".format(ddtrace.__version__),
+                "ddtrace.version:{}".format(ddtrace.__version__),
                 "ml_app:test_app",
             ],
             "join_on": {"span": {"span_id": "123", "trace_id": "456"}},

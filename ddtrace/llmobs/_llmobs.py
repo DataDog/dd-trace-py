@@ -1943,7 +1943,7 @@ class LLMObs(Service):
             "service": span.service or "",
             "source": "integration",
             "ml_app": ml_app,
-            "ddtrace_version": __version__,
+            "ddtrace.version": __version__,
             "language": "python",
         }
         if session_id:
@@ -2720,7 +2720,7 @@ class LLMObs(Service):
             ml_app = resolve_ml_app(ml_app)
 
             evaluation_tags = {
-                "ddtrace_version": __version__,
+                "ddtrace.version": __version__,
                 "ml_app": ml_app,
             }
 

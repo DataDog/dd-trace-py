@@ -7,7 +7,7 @@
       "Content-Length": "378",
       "Content-Type": "application/json"
     },
-    "body": "{\"data\": {\"type\": \"experiments\", \"attributes\": {\"name\": \"test_experiment\", \"description\": \"\", \"dataset_id\": \"056ba26f-318d-41e8-91a7-4a48580a2810\", \"project_id\": \"c4b49fb5-7b16-46e1-86f0-de5800e8a56c\", \"dataset_version\": 1, \"config\": {}, \"metadata\": {\"tags\": [\"ddtrace_version:1.2.3\", \"project_id:c4b49fb5-7b16-46e1-86f0-de5800e8a56c\"]}, \"ensure_unique\": true, \"run_count\": 1}}}"
+    "body": "{\"data\": {\"type\": \"experiments\", \"attributes\": {\"name\": \"test_experiment\", \"description\": \"\", \"dataset_id\": \"056ba26f-318d-41e8-91a7-4a48580a2810\", \"project_id\": \"c4b49fb5-7b16-46e1-86f0-de5800e8a56c\", \"dataset_version\": 1, \"config\": {}, \"metadata\": {\"tags\": [\"ddtrace.version:1.2.3\", \"project_id:c4b49fb5-7b16-46e1-86f0-de5800e8a56c\"]}, \"ensure_unique\": true, \"run_count\": 1}}}"
   },
   "response": {
     "status": {
@@ -24,6 +24,6 @@
       "x-content-type-options": "nosniff",
       "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
     },
-    "body": "{\"data\":{\"id\":\"9d015796-6340-47d8-ba2b-806c43f53ed4\",\"type\":\"experiments\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"config\":{},\"created_at\":\"2026-03-26T20:10:24.312240316Z\",\"dataset_id\":\"056ba26f-318d-41e8-91a7-4a48580a2810\",\"dataset_version\":1,\"description\":\"\",\"experiment\":\"test_experiment\",\"metadata\":{\"tags\":[\"ddtrace_version:1.2.3\",\"project_id:c4b49fb5-7b16-46e1-86f0-de5800e8a56c\"]},\"name\":\"test_experiment-1774555824312\",\"project_id\":\"c4b49fb5-7b16-46e1-86f0-de5800e8a56c\",\"run_count\":1,\"updated_at\":\"2026-03-26T20:10:24.31224039Z\"}}}"
+    "body": "{\"data\":{\"id\":\"9d015796-6340-47d8-ba2b-806c43f53ed4\",\"type\":\"experiments\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"config\":{},\"created_at\":\"2026-03-26T20:10:24.312240316Z\",\"dataset_id\":\"056ba26f-318d-41e8-91a7-4a48580a2810\",\"dataset_version\":1,\"description\":\"\",\"experiment\":\"test_experiment\",\"metadata\":{\"tags\":[\"ddtrace.version:1.2.3\",\"project_id:c4b49fb5-7b16-46e1-86f0-de5800e8a56c\"]},\"name\":\"test_experiment-1774555824312\",\"project_id\":\"c4b49fb5-7b16-46e1-86f0-de5800e8a56c\",\"run_count\":1,\"updated_at\":\"2026-03-26T20:10:24.31224039Z\"}}}"
   }
 }

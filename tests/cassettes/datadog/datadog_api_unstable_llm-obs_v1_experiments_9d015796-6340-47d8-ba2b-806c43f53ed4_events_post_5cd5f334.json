@@ -7,7 +7,7 @@
       "Content-Length": "559",
       "Content-Type": "application/json"
     },
-    "body": "{\"data\": {\"type\": \"experiments\", \"attributes\": {\"scope\": \"experiments\", \"metrics\": [{\"metric_source\": \"custom\", \"span_id\": \"123\", \"trace_id\": \"456\", \"timestamp_ms\": 1772023135809, \"metric_type\": \"score\", \"label\": \"dummy_evaluator\", \"score_value\": 0, \"error\": null, \"tags\": [], \"experiment_id\": \"9d015796-6340-47d8-ba2b-806c43f53ed4\", \"status\": \"OK\"}], \"tags\": [\"ddtrace_version:1.2.3\", \"project_id:c4b49fb5-7b16-46e1-86f0-de5800e8a56c\", \"experiment_id:9d015796-6340-47d8-ba2b-806c43f53ed4\", \"run_id:12345678-abcd-abcd-abcd-123456789012\", \"run_iteration:1\"]}}}"
+    "body": "{\"data\": {\"type\": \"experiments\", \"attributes\": {\"scope\": \"experiments\", \"metrics\": [{\"metric_source\": \"custom\", \"span_id\": \"123\", \"trace_id\": \"456\", \"timestamp_ms\": 1772023135809, \"metric_type\": \"score\", \"label\": \"dummy_evaluator\", \"score_value\": 0, \"error\": null, \"tags\": [], \"experiment_id\": \"9d015796-6340-47d8-ba2b-806c43f53ed4\", \"status\": \"OK\"}], \"tags\": [\"ddtrace.version:1.2.3\", \"project_id:c4b49fb5-7b16-46e1-86f0-de5800e8a56c\", \"experiment_id:9d015796-6340-47d8-ba2b-806c43f53ed4\", \"run_id:12345678-abcd-abcd-abcd-123456789012\", \"run_iteration:1\"]}}}"
   },
   "response": {
     "status": {
