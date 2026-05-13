@@ -70,6 +70,30 @@ class TestDDTestLogsHandlerClose:
         mock_writer.signal_finish.assert_called_once()
         mock_writer.wait_finish.assert_called_once_with(timeout=5.0)
 
+    def test_emit_is_no_op_after_close(self) -> None:
+        """Records emitted after close() must not reach the writer (they would queue but never flush)."""
+        handler, mock_writer = _make_handler()
+        handler.close()
+        mock_writer.reset_mock()
+
+        record = logging.LogRecord("test", logging.WARNING, "", 0, "late record", (), None)
+        handler.emit(record)
+
+        mock_writer.put_event.assert_not_called()
+
+    def test_close_gates_emits_before_signalling_writer(self) -> None:
+        """_closed must be True before signal_finish() is called so no record can sneak into a draining writer."""
+        handler, mock_writer = _make_handler()
+        closed_at_signal_time: list[bool] = []
+
+        def capture_closed(*_args, **_kwargs):
+            closed_at_signal_time.append(handler._closed)
+
+        mock_writer.signal_finish.side_effect = capture_closed
+        handler.close()
+
+        assert closed_at_signal_time == [True]
+
 
 class TestDDTestLogsHandlerContextManager:
     def test_enter_returns_handler(self) -> None:

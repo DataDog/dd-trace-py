@@ -58,6 +58,8 @@ Agent/EVP proxy mode (default):
 
 from __future__ import annotations
 
+import logging
+
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.logs import LogsHandler
 from ddtrace.testing.internal.logs import LogsWriter
@@ -79,8 +81,17 @@ class DDTestLogsHandler(LogsHandler):
         writer.start()
         super().__init__(writer)
         self._shutdown_timeout = shutdown_timeout
+        self._closed = False
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if self._closed:
+            return
+        super().emit(record)
 
     def close(self) -> None:
+        # Gate new emits out before signalling the writer so that records
+        # accepted before close() cannot queue into a writer that will never flush.
+        self._closed = True
         self._writer.signal_finish()
         self._writer.wait_finish(timeout=self._shutdown_timeout)
         super().close()
