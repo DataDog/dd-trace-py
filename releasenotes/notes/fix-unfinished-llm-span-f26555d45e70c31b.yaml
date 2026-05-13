@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue in the Claude Agent SDK integration
+    where unnecessary LLM spans were being created and affecting the trace structure.
+    The handler now only opens a new LLM span after a ``UserMessage`` that
+    actually contained tool results, so messages without tool results no 
+    longer overwrite the in-flight LLM span.
