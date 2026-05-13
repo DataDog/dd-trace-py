@@ -1,5 +1,6 @@
 import logging
 import os
+import pathlib
 import sys
 import time
 from unittest import mock
@@ -614,3 +615,45 @@ def test_profiler_singleton_after_fork():
         _, status = os.waitpid(pid, 0)
         assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"Child exited with status {status}"
         p.stop(flush=False)
+
+
+def test_faulthandler_pytest_no_cycle(tmp_path: pathlib.Path) -> None:
+    """Regression test: pytest enables faulthandler before the profiler starts.
+
+    Without the fix in _faulthandler.py, faulthandler's saved handler points to
+    our SIGSEGV handler, and our handler chains back to faulthandler, creating an
+    infinite cycle.  This test runs a minimal pytest session (which auto-enables
+    faulthandler) under DD_PROFILING_ENABLED=true and asserts it exits cleanly
+    within a generous timeout.
+    """
+    import subprocess
+
+    # Minimal test file — just needs to exercise a running profiler under pytest.
+    test_file = tmp_path / "test_inner.py"
+    test_file.write_text(
+        "import time\n"
+        "def test_noop() -> None:\n"
+        "    end = time.time() + 1\n"
+        "    result = 2\n"
+        "    while time.time() < end:\n"
+        "        result *= result\n"
+    )
+
+    env = {
+        **os.environ,
+        "DD_PROFILING_ENABLED": "true",
+        "_DD_PROFILING_STACK_FAST_COPY": "true",
+        "DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "false",
+        "DD_PROFILING_ADAPTIVE_SAMPLING_MAX_INTERVAL_US": "1000",
+    }
+    result = subprocess.run(
+        ["ddtrace-run", sys.executable, "-m", "pytest", str(test_file), "-p", "faulthandler", "-x", "-q"],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=10,
+    )
+
+    print("stdout", result.stdout)
+    print("stderr", result.stderr)
+    raise SystemError

@@ -342,7 +342,7 @@ class ProfilingConfigStack(DDConfig):
     fast_copy = DDConfig.v(
         bool,
         "fast_copy",
-        default=False,
+        default=True,
         help_type="Boolean",
         help="Whether to use fast memory copying (safe_memcpy) instead of process_vm_readv for stack sampling.",
         private=True,

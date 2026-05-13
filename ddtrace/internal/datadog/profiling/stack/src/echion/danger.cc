@@ -70,6 +70,7 @@ segv_handler(int signo, siginfo_t*, void*)
 int
 init_segv_catcher()
 {
+    fprintf(stderr, "init_segv_catcher\n");
     if (t_altstack.ensure_installed() != 0) {
         return -1;
     }

@@ -23,6 +23,9 @@ from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.module import ModuleWatchdog
 
 
+FIXES = False
+
+
 @ModuleWatchdog.after_module_imported("faulthandler")
 def _(faulthandler: ModuleType) -> None:
     # Only apply the wrap if the stack module is available and fast_copy might be used
@@ -40,7 +43,9 @@ def _(faulthandler: ModuleType) -> None:
         # we save faulthandler, creating a cycle: our handler re-raises to
         # faulthandler, which restores and re-raises back to ours indefinitely.
         try:
-            stack.uninstall_segv_handler()
+            if FIXES:
+                print("Uninstalling SIGSEGV handler")
+                stack.uninstall_segv_handler()
         except Exception:  # nosec: B110
             pass
 
@@ -49,7 +54,9 @@ def _(faulthandler: ModuleType) -> None:
         except Exception:
             # faulthandler.enable failed; reinstall our handler.
             try:
-                stack.reinstall_segv_handler()
+                if FIXES:
+                    print("Reinstalling SIGSEGV handler")
+                    stack.reinstall_segv_handler()
             except Exception:  # nosec: B110
                 pass
             raise
@@ -58,7 +65,8 @@ def _(faulthandler: ModuleType) -> None:
         # init_segv_catcher saves faulthandler's handler as g_old_segv,
         # so unexpected faults chain to faulthandler for traceback output.
         try:
-            stack.reinstall_segv_handler()
+            if FIXES:
+                stack.reinstall_segv_handler()
         except Exception:  # nosec: B110
             pass
 
@@ -67,6 +75,7 @@ def _(faulthandler: ModuleType) -> None:
     # Handle case where faulthandler was already enabled before we patched
     if faulthandler.is_enabled():
         try:
-            stack.reinstall_segv_handler()
+            if FIXES:
+                stack.reinstall_segv_handler()
         except Exception:  # nosec: B110
             pass
