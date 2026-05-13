@@ -34,15 +34,32 @@ def _(faulthandler: ModuleType) -> None:
     _original_enable: Callable[..., None] = faulthandler.enable
 
     def _patched_enable(*args: typing.Any, **kwargs: typing.Any) -> None:
-        _original_enable(*args, **kwargs)
+        # Temporarily remove our SIGSEGV handler before faulthandler installs
+        # its own, so faulthandler records the previous handler (not ours) as
+        # its saved handler.  Without this, faulthandler saves our handler and
+        # we save faulthandler, creating a cycle: our handler re-raises to
+        # faulthandler, which restores and re-raises back to ours indefinitely.
+        try:
+            stack.uninstall_segv_handler()
+        except Exception:  # nosec: B110
+            pass
+
+        try:
+            _original_enable(*args, **kwargs)
+        except Exception:
+            # faulthandler.enable failed; reinstall our handler.
+            try:
+                stack.reinstall_segv_handler()
+            except Exception:  # nosec: B110
+                pass
+            raise
 
         # Reinstall our SIGSEGV handler on top of faulthandler's.
         # init_segv_catcher saves faulthandler's handler as g_old_segv,
-        # so unexpected faults still chain to faulthandler for traceback output.
+        # so unexpected faults chain to faulthandler for traceback output.
         try:
             stack.reinstall_segv_handler()
         except Exception:  # nosec: B110
-            # If the stack module isn't fully initialized, ignore
             pass
 
     faulthandler.enable = _patched_enable  # type: ignore[attr-defined]

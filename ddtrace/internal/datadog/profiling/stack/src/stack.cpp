@@ -701,6 +701,20 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
 }
 
 static PyObject*
+stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Temporarily remove our SIGSEGV/SIGBUS handlers, restoring the saved
+    // previous handlers. Call this before letting another component (e.g.,
+    // faulthandler) install its own handler so it doesn't record ours as its
+    // previous handler (which would create a signal-handler cycle).
+    // Follow with stack_reinstall_segv_handler to reinstall on top.
+    if (fast_copy_active) {
+        uninstall_segv_handler();
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     // Reinstall SIGSEGV/SIGBUS handlers if fast_copy (safe_memcpy) is active.
@@ -763,6 +777,10 @@ static PyMethodDef stack_methods[] = {
       stack_is_safe_copy_failed,
       METH_NOARGS,
       "Check if all safe copy methods failed to initialize" },
+    { "uninstall_segv_handler",
+      stack_uninstall_segv_handler,
+      METH_NOARGS,
+      "Remove SIGSEGV handler before another component installs its own" },
     { "reinstall_segv_handler",
       stack_reinstall_segv_handler,
       METH_NOARGS,
