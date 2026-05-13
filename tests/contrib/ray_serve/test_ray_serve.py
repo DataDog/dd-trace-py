@@ -25,11 +25,12 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.ray.serve.handle_source",
     "meta.error.message",
     "meta.error.stack",
+    "meta.http.useragent",
 ]
 
 RAY_SERVE_SNAPSHOT_VARIANTS = {
-    "ray_2_46": parse_version(ray.__version__) < (2, 47),
-    "ray_2_46_plus": parse_version(ray.__version__) >= (2, 47),
+    "ray_2_47": parse_version(ray.__version__) < (2, 48),
+    "ray_2_47_plus": parse_version(ray.__version__) >= (2, 48),
 }
 
 

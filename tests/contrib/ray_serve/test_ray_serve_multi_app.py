@@ -17,6 +17,7 @@ RAY_MULTI_APP_SNAPSHOT_IGNORES = [
     "meta.ray.serve.handle_source",
     "meta.error.message",
     "meta.error.stack",
+    "meta.http.useragent",
 ]
 MULTI_APP_SERVE_DIR = Path(__file__).parent / "multi_app"
 

@@ -3238,7 +3238,7 @@ venv = Venv(
             pkgs={
                 "fastapi": latest,
                 "protobuf": "==4.25.8",
-                "ray[serve]": ["~=2.46.0", latest],
+                "ray[serve]": ["~=2.47.1", "~=2.54.1"],
             },
         ),
         Venv(
