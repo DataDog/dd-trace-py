@@ -58,13 +58,6 @@
         manylinux-interpreters ensure "cp314-cp314"  # NB unpinning script requires Py>=311
       fi
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
-    - export DD_SERVERLESS_BUILD="${DD_SERVERLESS_BUILD:-0}"
-    - |
-      find src/native -type f -exec touch -t 202401010000 {} \;
-      find ddtrace/ -type f -name "*.pyx" -exec touch -t 202401010000 {} \;
-      find ddtrace/ -type f -name "*.c" -exec touch -t 202401010000 {} \;
-      find ddtrace/ -type f -name "*.cpp" -exec touch -t 202401010000 {} \;
-      find ddtrace/ -type f -name "*.h" -exec touch -t 202401010000 {} \;
     - .gitlab/scripts/build-wheel.sh
   artifacts:
     paths:
