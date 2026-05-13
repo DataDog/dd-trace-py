@@ -38,14 +38,14 @@ dependencies = [
     "bytecode>=0.15.1,<1; python_version~='3.12.0'",
     "bytecode>=0.14.0,<1; python_version~='3.11.0'",
     "bytecode>=0.13.0,<1; python_version<'3.11'",
-    "ddtrace-internal",
+    "ddtrace-internal @ file:///go/src/github.com/DataDog/apm-reliability/dd-trace-py/ddtrace-internal/pywheels/ddtrace_internal-0.0.0-py3-none-any.whl",
     "envier~=0.6.1",
     "opentelemetry-api>=1,<2",
     "wrapt>=1,<3",
 ]
 
 [tool.uv.sources]
-ddtrace-internal = {path = "/go/src/github.com/DataDog/apm-reliability/dd-trace-py/ddtrace-internal/pywheels"}
+ddtrace-internal = {path = "../ddtrace-internal/pywheels/ddtrace_internal-0.0.0-py3-none-any.whl"}
 
 [project.optional-dependencies]
 opentracing = [

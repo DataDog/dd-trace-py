@@ -24,3 +24,40 @@
     - key: v1-ddtrace-internal-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
       paths:
         - .download_cache
+
+
+"build linux":
+  extends: .build_base
+  needs: 
+  stage: "ddtrace-internal:package"
+  image: ${IMAGE_BASE_URL}:${IMAGE_TAG}
+  tags: [ "arch:$ARCH_TAG" ]
+  variables:
+    # S3-backed sccache for Linux builds
+    SCCACHE_BUCKET: "ddtrace-internal-py-builds"
+    SCCACHE_S3_KEY_PREFIX: "sccache"
+    SCCACHE_REGION: "us-east-1"
+  parallel:
+    matrix:
+      - ARCH_TAG: "amd64"
+        PYTHON_TAG: *PYTHON_TAGS
+        IMAGE_TAG: *X86_64_IMAGES
+  script:
+    - cd ddtrace-internal
+    - manylinux-interpreters ensure "${PYTHON_TAG}"
+    - |
+      if [[ "${UNPIN_DEPENDENCIES:-"false"}" == "true" ]]; then
+        manylinux-interpreters ensure "cp314-cp314"  # NB unpinning script requires Py>=311
+      fi
+    - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
+    - export DD_SERVERLESS_BUILD="${DD_SERVERLESS_BUILD:-0}"
+    - |
+      find src/native -type f -exec touch -t 202401010000 {} \;
+      find ddtrace/ -type f -name "*.pyx" -exec touch -t 202401010000 {} \;
+      find ddtrace/ -type f -name "*.c" -exec touch -t 202401010000 {} \;
+      find ddtrace/ -type f -name "*.cpp" -exec touch -t 202401010000 {} \;
+      find ddtrace/ -type f -name "*.h" -exec touch -t 202401010000 {} \;
+    - .gitlab/scripts/build-wheel.sh
+  artifacts:
+    paths:
+      - "ddtrace-internal/pywheels/*.whl"
