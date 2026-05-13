@@ -17,6 +17,9 @@ from ddtrace.contrib._events.aws_durable import AwsDurableExecuteEvent
 from ddtrace.contrib._events.aws_durable import AwsDurableInvokeEvent
 from ddtrace.contrib._events.aws_durable import AwsDurableOperationEvent
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.trace_checkpoint import (
+    mark_trace_context_checkpoints_visited,
+)
+from ddtrace.contrib.internal.aws_durable_execution_sdk_python.trace_checkpoint import (
     maybe_save_trace_context_checkpoint,
 )
 from ddtrace.contrib.trace_utils import unwrap
@@ -104,6 +107,15 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
     def traced_user_func(*inner_args, **inner_kwargs):
         durable_context = get_argument_value(inner_args, inner_kwargs, 1, "durable_context", optional=True)
         arn, is_replay = _read_execution_state(durable_context)
+
+        # Pre-visit our prior ``_datadog_*`` checkpoints so the SDK's
+        # replay tracker can transition out of REPLAY when the user code
+        # catches up.  Without this, our synthetic ops sit in
+        # state.operations as completed-but-unvisited and the SDK never
+        # un-suppresses context.logger.
+        state = getattr(durable_context, "state", None)
+        if state is not None:
+            mark_trace_context_checkpoints_visited(state)
 
         event = AwsDurableExecuteEvent(
             component=config.aws_durable_execution_sdk_python.integration_name,

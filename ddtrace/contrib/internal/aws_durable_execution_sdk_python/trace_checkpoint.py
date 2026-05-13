@@ -135,6 +135,35 @@ def _max_existing_checkpoint_n(state) -> int:
     return highest
 
 
+def mark_trace_context_checkpoints_visited(state) -> None:
+    """Tell the SDK our ``_datadog_*`` ops are already visited.
+
+    The SDK's ``track_replay`` transitions REPLAY → NEW only when every
+    completed op in ``state.operations`` is in ``_visited_operations``.
+    Our checkpoints are completed STEP ops that user code never visits,
+    so without this they would keep the SDK in REPLAY for the rest of the
+    invocation — which silently suppresses ``context.logger`` output and
+    anything else gated on ``is_replaying()``.
+
+    Mirrors what would happen if the customer had written these steps:
+    ``DurableContext.*`` methods all call ``state.track_replay(op_id)``
+    before doing anything else; we do the same for our ops at invocation
+    start.  ``track_replay`` itself acquires ``_replay_status_lock`` and
+    runs the subset check, so we don't need to touch SDK internals.
+    """
+    operations = getattr(state, "operations", None) or {}
+    track_replay = getattr(state, "track_replay", None)
+    if track_replay is None:
+        return
+    for op_id, op in list(operations.items()):
+        name = getattr(op, "name", None)
+        if isinstance(name, str) and name.startswith(_CHECKPOINT_NAME_PREFIX):
+            try:
+                track_replay(op_id)
+            except Exception:
+                log.debug("track_replay failed for %s", op_id, exc_info=True)
+
+
 def _allocate_checkpoint_n(state) -> int:
     """Atomically reserve the next ``N`` for a checkpoint write.
 

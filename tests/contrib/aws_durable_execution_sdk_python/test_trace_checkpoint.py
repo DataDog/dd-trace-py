@@ -452,6 +452,96 @@ def test_concurrent_allocate_yields_distinct_ns():
     assert sorted(seen) == list(range(len(seen)))  # contiguous from 0
 
 
+def test_mark_visited_calls_track_replay_only_for_datadog_ops():
+    """The marker delegates to ``state.track_replay`` for every ``_datadog_*``
+    op and ignores everything else.  This is what the SDK does from inside
+    ``DurableContext.*`` for the customer's own steps.
+    """
+    calls = []
+    state = SimpleNamespace(
+        operations={
+            "u-1": SimpleNamespace(name="user_step"),
+            "d-0": SimpleNamespace(name="_datadog_0"),
+            "d-1": SimpleNamespace(name="_datadog_1"),
+            "u-2": SimpleNamespace(name="another_step"),
+        },
+        track_replay=calls.append,
+    )
+
+    trace_checkpoint.mark_trace_context_checkpoints_visited(state)
+
+    assert sorted(calls) == ["d-0", "d-1"]
+
+
+def test_mark_visited_no_op_when_no_datadog_ops():
+    """No ``_datadog_*`` ops → no track_replay calls (zero overhead path)."""
+    calls = []
+    state = SimpleNamespace(
+        operations={"u-1": SimpleNamespace(name="user_step")},
+        track_replay=calls.append,
+    )
+
+    trace_checkpoint.mark_trace_context_checkpoints_visited(state)
+
+    assert calls == []
+
+
+def test_mark_visited_swallows_track_replay_errors():
+    """A misbehaving SDK or replaced ``track_replay`` must not break the
+    user's workflow — checkpoint visiting is observability, not correctness.
+    """
+
+    def _boom(_op_id):
+        raise RuntimeError("nope")
+
+    state = SimpleNamespace(
+        operations={"d-0": SimpleNamespace(name="_datadog_0")},
+        track_replay=_boom,
+    )
+
+    trace_checkpoint.mark_trace_context_checkpoints_visited(state)  # does not raise
+
+
+def test_mark_visited_unblocks_sdk_replay_transition():
+    """End-to-end with a real ``ExecutionState``: after marking, the SDK
+    transitions REPLAY → NEW as soon as user code visits its own op.
+
+    Without ``mark_trace_context_checkpoints_visited`` the subset check
+    ``completed_ops.issubset(_visited_operations)`` would stay false forever
+    because the customer's code never calls track_replay for our ops.
+    """
+    from aws_durable_execution_sdk_python.lambda_service import Operation
+    from aws_durable_execution_sdk_python.lambda_service import OperationStatus
+    from aws_durable_execution_sdk_python.lambda_service import OperationType
+    from aws_durable_execution_sdk_python.state import ExecutionState
+    from aws_durable_execution_sdk_python.state import ReplayStatus
+
+    def _op(op_id, name):
+        return Operation(
+            operation_id=op_id,
+            operation_type=OperationType.STEP,
+            status=OperationStatus.SUCCEEDED,
+            name=name,
+        )
+
+    state = ExecutionState(
+        durable_execution_arn="arn:aws:lambda:us-east-2:1:function:f:1/durable-execution/wf/abc-123",
+        initial_checkpoint_token="token",
+        operations={op.operation_id: op for op in [_op("u-1", "user_step"), _op("d-0", "_datadog_0")]},
+        service_client=mock.Mock(),
+        replay_status=ReplayStatus.REPLAY,
+    )
+
+    trace_checkpoint.mark_trace_context_checkpoints_visited(state)
+
+    # Our checkpoint is visited; user op still pending → REPLAY holds.
+    assert state.is_replaying()
+
+    # User code reaches its step → SDK now sees all completed ops visited.
+    state.track_replay("u-1")
+    assert not state.is_replaying()
+
+
 def test_save_no_op_when_state_missing():
     durable = SimpleNamespace(state=None, _parent_id=None)
     trace_checkpoint.maybe_save_trace_context_checkpoint(durable, _fake_span())
