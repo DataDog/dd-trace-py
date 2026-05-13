@@ -1065,3 +1065,96 @@ def test_stress_trace_collection(tracer_and_collector: tuple[Tracer, stack.Stack
 
     for t in threads:
         t.join()
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="fork test only on linux")
+@pytest.mark.subprocess(err=None)
+def test_span_id_in_profile_after_fork() -> None:
+    """
+    Verify that profile samples from a forked child carry span_id labels.
+    """
+    import os
+    import pathlib
+    import tempfile
+    import time
+
+    import ddtrace
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    tracer = ddtrace.tracer
+    tracer._endpoint_call_counter_span_processor.enable()
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_span_id_in_profile_after_fork"
+    pprof_prefix = str(tmp_path / test_name)
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload(tracer=tracer)
+
+    collector = stack.StackCollector(tracer=tracer)
+    collector.start()
+
+    # Open a span before forking so the child inherits the active context.
+    with tracer.trace("job", resource="delancie-job") as root_span:
+        span_id = root_span.span_id
+        local_root_span_id = root_span._local_root.span_id
+
+        pid = os.fork()
+        if pid == 0:
+            # child process
+            # Reconfigure ddup so the child writes to its own file.
+            child_pprof_prefix = str(tmp_path / (test_name + "_child"))
+            child_output = child_pprof_prefix + "." + str(os.getpid())
+
+            ddup.config(
+                env="test",
+                service=test_name,
+                version="my_version",
+                output_filename=child_pprof_prefix,
+            )
+            ddup.start()
+            ddup.upload(tracer=tracer)
+
+            # Let the sampler collect samples while the inherited span is active.
+            end = time.monotonic() + 2
+            while time.monotonic() < end:
+                time.sleep(0.05)
+
+            ddup.upload(tracer=tracer)
+
+            profile = pprof_utils.parse_newest_profile(child_output)
+            samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
+
+            try:
+                pprof_utils.assert_profile_has_sample(
+                    profile,
+                    samples=samples_with_span_id,
+                    expected_sample=pprof_utils.StackEvent(
+                        span_id=span_id,
+                        local_root_span_id=local_root_span_id,
+                    ),
+                    print_samples_on_failure=True,
+                )
+            except AssertionError as e:
+                print(
+                    f"FAIL: no profile sample in child carries span_id={span_id} / "
+                    f"local_root_span_id={local_root_span_id}.\n"
+                    "ThreadSpanLinks was not repopulated after fork.\n"
+                    f"AssertionError: {e}"
+                )
+                os._exit(1)
+            os._exit(0)
+        else:
+            # parent process
+            _, status = os.waitpid(pid, 0)
+            exit_code = os.waitstatus_to_exitcode(status)
+            assert exit_code == 0, (
+                "Child process failed: profile samples after fork did not contain the expected span_id. "
+                "The Trace to Profile link is broken for forked processes."
+            )
+
+    collector.stop()
