@@ -70,10 +70,7 @@ def shared_stream(
     on_span_started(span)
 
     try:
-        # AIDEV-NOTE: dispatch the AI Guard before-hook *after* the span is
-        # created so a blocked request still emits an LLMObs span finished
-        # with ``set_exc_info`` via the ``except Exception`` arm below —
-        # matching ``traced_chat_model_generate`` for non-streaming chat.
+        # dispatch AI Guard hook after span is created so blocked requests still emit LLMObs span
         if aiguard_before_event:
             core.dispatch(aiguard_before_event, (instance, args, kwargs), allow_raise=True)
         resp = func(*args, **kwargs)
