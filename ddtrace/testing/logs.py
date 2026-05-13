@@ -39,6 +39,21 @@ Example usage::
         run_test(job.item)
 
     handler.close()
+
+Configuration
+-------------
+The handler reads the following standard environment variables:
+
+Agentless mode (set ``DD_CIVISIBILITY_AGENTLESS_ENABLED=true``):
+    - ``DD_API_KEY``  — Datadog API key (required)
+    - ``DD_SITE``     — Datadog site (default: ``datadoghq.com``)
+
+Agent/EVP proxy mode (default):
+    - ``DD_TRACE_AGENT_URL``       — full agent URL (e.g. ``http://localhost:8126``)
+    - ``DD_TRACE_AGENT_HOSTNAME``  — agent hostname (default: ``localhost``)
+    - ``DD_AGENT_HOST``            — alias for ``DD_TRACE_AGENT_HOSTNAME``
+    - ``DD_TRACE_AGENT_PORT``      — agent port (default: ``8126``)
+    - ``DD_AGENT_PORT``            — alias for ``DD_TRACE_AGENT_PORT``
 """
 
 from __future__ import annotations
@@ -51,18 +66,27 @@ from ddtrace.testing.internal.logs import LogsWriter
 class DDTestLogsHandler(LogsHandler):
     """Logging handler that ships records to the Datadog logs intake.
 
-    Auto-detects the backend (agentless or EVP proxy) and manages the
-    background writer lifecycle.  Call :meth:`close` explicitly or let
-    Python's ``logging.shutdown()`` handle it at interpreter exit.
+    Raises :exc:`~ddtrace.testing.internal.errors.SetupError` at construction
+    if the required environment variables are missing or the agent is unreachable.
+
+    Call :meth:`close` explicitly or use as a context manager to flush
+    buffered records before the process exits.
     """
 
-    def __init__(self, service: str) -> None:
-        connector_setup = BackendConnectorSetup.detect_setup()
+    def __init__(self, service: str, *, shutdown_timeout: float = 5.0) -> None:
+        connector_setup = BackendConnectorSetup.detect_standard_setup()
         writer = LogsWriter(connector_setup, service=service)
         writer.start()
         super().__init__(writer)
+        self._shutdown_timeout = shutdown_timeout
 
     def close(self) -> None:
         self._writer.signal_finish()
-        self._writer.wait_finish(timeout=30.0)
+        self._writer.wait_finish(timeout=self._shutdown_timeout)
         super().close()
+
+    def __enter__(self) -> "DDTestLogsHandler":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()
