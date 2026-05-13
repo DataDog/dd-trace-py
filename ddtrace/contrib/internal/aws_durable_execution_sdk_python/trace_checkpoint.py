@@ -21,7 +21,6 @@ unusual enough not to collide.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import hashlib
 import json
 import re
@@ -148,21 +147,12 @@ def mark_trace_context_checkpoints_visited(state: ExecutionState) -> None:
     start.  ``track_replay`` itself acquires ``_replay_status_lock`` and
     runs the subset check, so we don't need to touch SDK internals.
     """
-    operations = getattr(state, "operations", None)
-    track_replay = getattr(state, "track_replay", None)
-    # SDK declares ``operations: MutableMapping[str, Operation]`` and
-    # ``track_replay`` as a method.  If either has been swapped out for
-    # something else (mock, future-SDK refactor) bail rather than blow up
-    # in the middle of a workflow.
-    if not isinstance(operations, Mapping) or not callable(track_replay):
-        return
-    for op_id, op in list(operations.items()):
-        name = getattr(op, "name", None)
-        if isinstance(name, str) and name.startswith(_CHECKPOINT_NAME_PREFIX):
-            try:
-                track_replay(op_id)
-            except Exception:
-                log.debug("track_replay failed for %s", op_id, exc_info=True)
+    try:
+        for op_id, op in list(state.operations.items()):
+            if op.name and op.name.startswith(_CHECKPOINT_NAME_PREFIX):
+                state.track_replay(op_id)
+    except Exception:
+        log.debug("mark_trace_context_checkpoints_visited failed", exc_info=True)
 
 
 def _allocate_checkpoint_n(state) -> int:
