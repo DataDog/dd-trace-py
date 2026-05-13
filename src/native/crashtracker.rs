@@ -67,19 +67,21 @@ pub struct CrashtrackerConfigurationPy {
     config: Option<CrashtrackerConfiguration>,
 }
 
-// additional_files: Vec<String>,
-// create_alt_stack: bool,
-// use_alt_stack: bool,
-// endpoint: Option<Endpoint>,
-// resolve_frames: StacktraceCollection,
-// mut signals: Vec<i32>,
-// timeout_ms: u32,
-// unix_socket_path: Option<String>,
-
 #[pymethods]
 impl CrashtrackerConfigurationPy {
     #[new]
-    #[pyo3(signature = (additional_files, create_alt_stack, use_alt_stack, timeout_ms, resolve_frames, endpoint=None, unix_socket_path=None, test_token=None))]
+    #[pyo3(signature = (
+        additional_files,
+        create_alt_stack,
+        use_alt_stack,
+        timeout_ms,
+        resolve_frames,
+        collect_all_threads,
+        max_threads,
+        endpoint=None,
+        unix_socket_path=None,
+        test_token=None,
+    ))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         additional_files: Vec<String>,
@@ -87,6 +89,8 @@ impl CrashtrackerConfigurationPy {
         use_alt_stack: bool,
         timeout_ms: u64,
         resolve_frames: StacktraceCollectionPy,
+        collect_all_threads: bool,
+        max_threads: usize,
         endpoint: Option<&str>,
         unix_socket_path: Option<String>,
         test_token: Option<String>,
@@ -94,6 +98,8 @@ impl CrashtrackerConfigurationPy {
         let resolve_frames: StacktraceCollection = resolve_frames.into();
         let mut builder = CrashtrackerConfiguration::builder()
             .additional_files(additional_files)
+            .collect_all_threads(collect_all_threads)
+            .max_threads(max_threads)
             .create_alt_stack(create_alt_stack)
             .use_alt_stack(use_alt_stack)
             .timeout(Duration::from_millis(timeout_ms))
