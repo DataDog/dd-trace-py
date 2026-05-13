@@ -1,3 +1,13 @@
+.PYTHON_TAGS: &PYTHON_TAGS
+  - "cp39-cp39"
+  - "cp310-cp310"
+  - "cp311-cp311"
+  - "cp312-cp312"
+  - "cp313-cp313"
+  - "cp314-cp314"
+.X86_64_IMAGES: &X86_64_IMAGES
+  - "v85383392-751efc0-manylinux2014_x86_64"
+  - "v85383325-751efc0-musllinux_1_2_x86_64"
 "ddtrace-internal:build sdist":
   extends: .build_base
   needs:
@@ -24,14 +34,12 @@
     - key: v1-ddtrace-internal-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
       paths:
         - .download_cache
-
-
-"build linux":
+"ddtrace-internal:build linux":
   extends: .build_base
-  needs: 
+  needs:
   stage: "ddtrace-internal:package"
   image: ${IMAGE_BASE_URL}:${IMAGE_TAG}
-  tags: [ "arch:$ARCH_TAG" ]
+  tags: ["arch:$ARCH_TAG"]
   variables:
     # S3-backed sccache for Linux builds
     SCCACHE_BUCKET: "ddtrace-internal-py-builds"
