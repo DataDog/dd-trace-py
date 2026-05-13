@@ -51,7 +51,7 @@ ddtrace-internal = [
 
 [[tool.uv.index]]
 name = "ddtrace-internal"
-url = "file:///${CI_PROJECT_DIR}/ddtrace-internal/pywheels"
+url = "/go/src/github.com/DataDog/apm-reliability/dd-trace-py/ddtrace-internal/pywheels"
 format = "flat"
 explicit = true
 
