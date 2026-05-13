@@ -179,8 +179,6 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
             core.dispatch("grpc.client.response.message", (n,))
         return n
 
-    next = __next__
-
 
 class _ClientInterceptor(
     grpc.UnaryUnaryClientInterceptor,
