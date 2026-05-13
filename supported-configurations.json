@@ -3909,16 +3909,6 @@
         "default": null
       }
     ],
-    "DD_TRACE_COMPUTE_STATS": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true",
-        "aliases": [
-          "DD_TRACE_STATS_COMPUTATION_ENABLED"
-        ]
-      }
-    ],
     "DD_TRACE_CONSUL_ENABLED": [
       {
         "implementation": "A",
@@ -4804,6 +4794,16 @@
         "implementation": "D",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_TRACE_STATS_COMPUTATION_ENABLED": [
+      {
+        "implementation": "C",
+        "type": "boolean",
+        "default": "true",
+        "aliases": [
+          "DD_TRACE_COMPUTE_STATS"
+        ]
       }
     ],
     "DD_TRACE_STRUCTLOG_ENABLED": [
