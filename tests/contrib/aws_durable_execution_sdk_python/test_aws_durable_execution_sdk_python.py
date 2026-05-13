@@ -227,8 +227,7 @@ def test_persists_trace_context_checkpoint_across_suspend_resume():
     tp_parent = headers["traceparent"].split("-")[2]
     expected = format(int(headers["x-datadog-parent-id"]), "016x")
     assert tp_parent == expected, (
-        f"traceparent parent segment {tp_parent!r} != hex(x-datadog-parent-id) "
-        f"{expected!r} in {headers!r}"
+        f"traceparent parent segment {tp_parent!r} != hex(x-datadog-parent-id) {expected!r} in {headers!r}"
     )
 
 
