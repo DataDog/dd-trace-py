@@ -119,7 +119,6 @@ def _on_django_auth(
             user_id = user_id_found or user_id
             user_login = user_extra.get("login")
 
-            track_user_login_failure_event(None, user_id=user_id, login_events_mode=mode, exists=exists, **user_extra)
             _metrics.report_user_auth_missing(
                 TELEMETRY_FRAMEWORK_NAME,
                 "login_failure",
@@ -127,6 +126,7 @@ def _on_django_auth(
                 user_login,
                 django_config.include_user_login,
             )
+            track_user_login_failure_event(None, user_id=user_id, login_events_mode=mode, exists=exists, **user_extra)
 
     return False, None
 
