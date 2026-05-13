@@ -9,6 +9,10 @@ __version__: str
 
 try:
     distributions = importlib.metadata.packages_distributions().get(__package__ or __name__)
+except AttributeError:
+    distributions = None
+
+try:
     __version__ = importlib.metadata.version(distributions[0] if distributions else "ddtrace")
 except Exception:
     __version__ = "0.0.0"
