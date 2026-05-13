@@ -1075,6 +1075,123 @@ def test_debugger_capture_expressions_function_probe(stuff):
             assert snapshot.return_capture["captureExpressions"]["retval"] == {"isNull": True, "type": "NoneType"}
 
 
+def test_debugger_capture_expressions_max_level(stuff):
+    from ddtrace.debugging._probe.model import CaptureLimits
+
+    with debugger(upload_flush_interval=float("inf")) as d:
+        d.add_probes(
+            create_capture_expressions_line_probe(
+                probe_id="foo",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=float("inf"),
+                **compile_capture_expressions(
+                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}],
+                    capture=CaptureLimits(max_level=1),
+                ),
+            ),
+        )
+
+        nested = {"a": {"b": {"c": 42}}}
+        stuff.Stuff().instancestuff(nested)
+
+        (msg,) = d.uploader.wait_for_payloads(1)
+        captured_val = msg["debugger"]["snapshot"]["captures"]["lines"]["36"]["captureExpressions"]["val"]
+
+        # At max_level=1 the top-level dict entries are expanded one level but their
+        # nested values are not — the deepest dict should be truncated with "depth"
+        inner = captured_val["entries"][0][1]
+        assert inner["type"] == "dict"
+        inner2 = inner["entries"][0][1]
+        assert inner2.get("notCapturedReason") == "depth", inner2
+
+
+def test_debugger_capture_expressions_max_len(stuff):
+    from ddtrace.debugging._probe.model import CaptureLimits
+
+    with debugger(upload_flush_interval=float("inf")) as d:
+        d.add_probes(
+            create_capture_expressions_line_probe(
+                probe_id="foo",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=float("inf"),
+                **compile_capture_expressions(
+                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}],
+                    capture=CaptureLimits(max_len=5),
+                ),
+            ),
+        )
+
+        stuff.Stuff().instancestuff("hello world")
+
+        (msg,) = d.uploader.wait_for_payloads(1)
+        captured_val = msg["debugger"]["snapshot"]["captures"]["lines"]["36"]["captureExpressions"]["val"]
+
+        # String is truncated at max_len=5
+        assert captured_val.get("notCapturedReason") == "truncated" or len(captured_val["value"].strip("'")) <= 5
+
+
+def test_debugger_capture_expressions_max_size(stuff):
+    from ddtrace.debugging._probe.model import CaptureLimits
+
+    with debugger(upload_flush_interval=float("inf")) as d:
+        d.add_probes(
+            create_capture_expressions_line_probe(
+                probe_id="foo",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=float("inf"),
+                **compile_capture_expressions(
+                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}],
+                    capture=CaptureLimits(max_size=2),
+                ),
+            ),
+        )
+
+        stuff.Stuff().instancestuff({i: i for i in range(10)})
+
+        (msg,) = d.uploader.wait_for_payloads(1)
+        captured_val = msg["debugger"]["snapshot"]["captures"]["lines"]["36"]["captureExpressions"]["val"]
+
+        # Collection truncated at max_size=2
+        assert len(captured_val["entries"]) == 2
+        assert captured_val.get("notCapturedReason") == "collectionSize"
+
+
+def test_debugger_capture_expressions_max_fields(stuff):
+    from ddtrace.debugging._probe.model import CaptureLimits
+
+    class MyObj:
+        def __init__(self):
+            self.a = 1
+            self.b = 2
+            self.c = 3
+
+    with debugger(upload_flush_interval=float("inf")) as d:
+        d.add_probes(
+            create_capture_expressions_line_probe(
+                probe_id="foo",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=float("inf"),
+                **compile_capture_expressions(
+                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}],
+                    capture=CaptureLimits(max_fields=2),
+                ),
+            ),
+        )
+
+        stuff.Stuff().instancestuff(MyObj())
+
+        (msg,) = d.uploader.wait_for_payloads(1)
+        captured_val = msg["debugger"]["snapshot"]["captures"]["lines"]["36"]["captureExpressions"]["val"]
+
+        # Object fields truncated at max_fields=2
+        assert len(captured_val["fields"]) == 2
+        assert captured_val.get("notCapturedReason") == "fieldCount"
+
+
 class SpanProbeTestCase(TracerTestCase):
     def setUp(self):
         super(SpanProbeTestCase, self).setUp()

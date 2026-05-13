@@ -38,11 +38,13 @@ def compile_template(*args):
     return {"template": template, "segments": segments}
 
 
-def compile_capture_expressions(exprs):
+def compile_capture_expressions(exprs, capture=None):
     return {
         "capture_expressions": [
             CaptureExpression(
-                name=expr["name"], expr=DDRedactedExpression.compile(expr["expr"]), limits=DEFAULT_CAPTURE_LIMITS
+                name=expr["name"],
+                expr=DDRedactedExpression.compile(expr["expr"]),
+                capture=capture if capture is not None else DEFAULT_CAPTURE_LIMITS,
             )
             for expr in exprs
         ],
