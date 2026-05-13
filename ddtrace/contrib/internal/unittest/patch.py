@@ -183,7 +183,7 @@ def _store_suite_identifier(module):
 
 def _is_test(item) -> bool:
     if (
-        type(item) == unittest.TestSuite
+        type(item) is unittest.TestSuite
         or not hasattr(item, "_testMethodName")
         or (ddtrace.config.unittest.strict_naming and not item._testMethodName.startswith("test"))
     ):
@@ -761,6 +761,10 @@ def _start_test_suite_span(instance) -> ddtrace.trace.Span:
     test_suite_span._set_attribute(test.SUITE, test_suite_name)
     test_suite_span._set_attribute(test.MODULE, test_module_span.get_tag(test.MODULE))
     test_suite_span._set_attribute(test.MODULE_PATH, test_module_path)
+    if _CIVisibility.test_skipping_enabled():
+        test_suite_span._set_attribute(test.ITR_TEST_SKIPPING_ENABLED, "true")
+    else:
+        test_suite_span._set_attribute(test.ITR_TEST_SKIPPING_ENABLED, "false")
     return test_suite_span
 
 
@@ -806,6 +810,10 @@ def _start_test_span(instance, test_suite_span: ddtrace.trace.Span) -> ddtrace.t
     _add_start_end_source_file_path_data_to_span(span, test_method_object, test_name, os.getcwd())
 
     _store_test_span(instance, span)
+    if _CIVisibility.test_skipping_enabled():
+        span._set_attribute(test.ITR_TEST_SKIPPING_ENABLED, "true")
+    else:
+        span._set_attribute(test.ITR_TEST_SKIPPING_ENABLED, "false")
     return span
 
 
