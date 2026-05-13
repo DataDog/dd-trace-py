@@ -9,6 +9,7 @@ from ddtrace.contrib.internal.langchain.utils import shared_stream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
@@ -33,20 +34,34 @@ config._add("langchain", {})
 
 
 def _extract_model_name(instance: Any) -> Optional[str]:
-    """Extract model name or ID from llm instance."""
+    """Extract model name or ID from llm instance.
+
+    Strips path prefixes (e.g. "models/gemini-2.5-flash" → "gemini-2.5-flash")
+    since some providers use resource paths rather than bare model names.
+    """
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
         if hasattr(instance, attr):
-            return getattr(instance, attr)
+            model_name = getattr(instance, attr)
+            if model_name and isinstance(model_name, str) and "/" in model_name:
+                model_name = model_name.split("/")[-1]
+            return model_name
     return None
 
 
-def _raising_dispatch(event_id: str, args: tuple[Any, ...] = ()):
-    result = core.dispatch_with_results(event_id, args)  # ast-grep-ignore: core-dispatch-with-results
-    if len(result) > 0:
-        for event in result.values():
-            # we explicitly set the exception as a value to prevent caught exceptions from leaking
-            if isinstance(event.value, Exception):
-                raise event.value
+_GENERIC_LLM_TYPE_PARTS = {"chat", "llm"}
+
+
+def _extract_model_provider(instance: Any) -> str:
+    """Extract the model provider from a LangChain model instance.
+
+    LangChain's _llm_type mixes interface type with provider name inconsistently:
+      - "openai-chat" (provider first)
+      - "chat-google-generativeai" (interface first)
+    Filter out generic interface terms to isolate the actual provider.
+    """
+    parts = instance._llm_type.split("-")
+    provider_parts = [p for p in parts if p not in _GENERIC_LLM_TYPE_PARTS]
+    return "-".join(provider_parts) if provider_parts else instance._llm_type
 
 
 def traced_llm_generate(func, instance, args, kwargs):
@@ -68,13 +83,14 @@ def traced_llm_generate(func, instance, args, kwargs):
     integration.llmobs_set_prompt_tag(instance, span)
 
     try:
-        _raising_dispatch("langchain.llm.generate.before", (prompts,))
+        core.dispatch("langchain.llm.generate.before", (prompts,), allow_raise=True)
         completions = func(*args, **kwargs)
         core.dispatch("langchain.llm.generate.after", (prompts, completions))
-    except Exception:
+    except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        core.dispatch("langchain.llm.generate.finally", ())
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
@@ -100,13 +116,14 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
 
     completions = None
     try:
-        _raising_dispatch("langchain.llm.agenerate.before", (prompts,))
+        core.dispatch("langchain.llm.agenerate.before", (prompts,), allow_raise=True)
         completions = await func(*args, **kwargs)
         core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
-    except Exception:
+    except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        core.dispatch("langchain.llm.agenerate.finally", ())
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
@@ -114,7 +131,7 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
 
 
 def traced_chat_model_generate(func, instance, args, kwargs):
-    llm_provider = instance._llm_type.split("-")[0]
+    llm_provider = _extract_model_provider(instance)
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
@@ -131,13 +148,14 @@ def traced_chat_model_generate(func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        _raising_dispatch("langchain.chatmodel.generate.before", (chat_messages,))
+        core.dispatch("langchain.chatmodel.generate.before", (chat_messages,), allow_raise=True)
         chat_completions = func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
-    except Exception:
+    except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        core.dispatch("langchain.chatmodel.generate.finally", ())
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()
@@ -145,7 +163,7 @@ def traced_chat_model_generate(func, instance, args, kwargs):
 
 
 async def traced_chat_model_agenerate(func, instance, args, kwargs):
-    llm_provider = instance._llm_type.split("-")[0]
+    llm_provider = _extract_model_provider(instance)
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration: LangChainIntegration = langchain_core._datadog_integration
     span = integration.trace(
@@ -162,13 +180,14 @@ async def traced_chat_model_agenerate(func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        _raising_dispatch("langchain.chatmodel.agenerate.before", (chat_messages,))
+        core.dispatch("langchain.chatmodel.agenerate.before", (chat_messages,), allow_raise=True)
         chat_completions = await func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
-    except Exception:
+    except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        core.dispatch("langchain.chatmodel.agenerate.finally", ())
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()
@@ -295,7 +314,7 @@ def traced_chat_stream(func, instance, args, kwargs):
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
-    _raising_dispatch("langchain.chatmodel.stream.before", (instance, args, kwargs))
+    core.dispatch("langchain.chatmodel.stream.before", (instance, args, kwargs), allow_raise=True)
 
     def _on_span_started(span: Span):
         integration.record_instance(instance, span)
@@ -329,13 +348,14 @@ def traced_llm_stream(func, instance, args, kwargs):
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
-    _raising_dispatch(
+    core.dispatch(
         "langchain.llm.stream.before",
         (
             instance,
             args,
             kwargs,
         ),
+        allow_raise=True,
     )
 
     def _on_span_start(span: Span):

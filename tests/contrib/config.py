@@ -9,6 +9,11 @@ import os
 # NOTE: defaults may be duplicated in the .env file; update both or
 # simply write down a function that parses the .env file
 
+AZURE_COSMOS_EMULATOR_CONFIG = {
+    "host": "127.0.0.1",
+    "port": 8080,
+}
+
 AZURE_EVENT_HUBS_EMULATOR_CONFIG = {
     "host": "127.0.0.1",
     "port": 5300,
@@ -87,7 +92,7 @@ MARIADB_CONFIG = {
 }
 
 REDIS_CONFIG = {
-    "host": os.getenv("TEST_REDIS_HOST", "localhost"),
+    "host": os.getenv("TEST_REDIS_HOST", "127.0.0.1"),
     "port": int(os.getenv("TEST_REDIS_PORT", 6379)),
 }
 
@@ -148,4 +153,9 @@ VALKEY_CONFIG = {
 VALKEY_CLUSTER_CONFIG = {
     "host": "127.0.0.1",
     "ports": os.getenv("TEST_VALKEYCLUSTER_PORTS", "7000,7001,7002,7003,7004,7005"),
+}
+
+SELENIUM_CONFIG = {
+    "host": os.getenv("TEST_SELENIUM_HOST", "127.0.0.1"),
+    "port": int(os.getenv("TEST_SELENIUM_PORT", 4444)),
 }

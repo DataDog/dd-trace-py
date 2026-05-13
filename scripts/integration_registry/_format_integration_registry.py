@@ -7,9 +7,9 @@ import sys
 from typing import Optional
 
 
-SCRIPT_DIR = pathlib.Path(__file__).parent.parent.resolve()
-ROOT_DIR = SCRIPT_DIR.parent
-REGISTRY_YAML_PATH = ROOT_DIR / "ddtrace" / "contrib" / "integration_registry" / "registry.yaml"
+SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
+ROOT_DIR = SCRIPT_DIR.parent.parent
+REGISTRY_YAML_PATH = SCRIPT_DIR / "registry.yaml"
 
 
 # This is the key that marks the start of a top-level integration list item

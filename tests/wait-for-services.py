@@ -9,6 +9,7 @@ from azure.storage.blob import BlobServiceClient
 from azure.storage.queue import QueueServiceClient
 from cassandra.cluster import Cluster
 from cassandra.cluster import NoHostAvailable
+from contrib.config import AZURE_COSMOS_EMULATOR_CONFIG
 from contrib.config import AZURE_EVENT_HUBS_EMULATOR_CONFIG
 from contrib.config import AZURE_SERVICE_BUS_EMULATOR_CONFIG
 from contrib.config import AZURE_SQL_EDGE_CONFIG
@@ -23,6 +24,7 @@ from contrib.config import POSTGRES_CONFIG
 from contrib.config import PUBSUB_CONFIG
 from contrib.config import RABBITMQ_CONFIG
 from contrib.config import REDIS_CONFIG
+from contrib.config import SELENIUM_CONFIG
 from contrib.config import VERTICA_CONFIG
 import kombu
 import mysql.connector
@@ -133,6 +135,14 @@ def check_agent(url):
         raise Exception("Agent not ready")
 
 
+@try_until_timeout(Exception, args={"url": "http://{host}:{port}/status".format(**SELENIUM_CONFIG)})
+def check_selenium(url):
+    resp = requests.get(url)
+    resp.raise_for_status()
+    if not resp.json().get("value", {}).get("ready"):
+        raise Exception("Selenium not ready")
+
+
 @try_until_timeout(Exception, args={"url": "http://{host}:{port}/".format(**ELASTICSEARCH_CONFIG)})
 def check_elasticsearch(url):
     requests.get(url).raise_for_status()
@@ -152,6 +162,16 @@ def check_httpbin(url):
 
 @try_until_timeout(Exception, tries=120, timeout=1, args={"url": "http://{host}:{port}/".format(**MOTO_CONFIG)})
 def check_moto(url):
+    requests.get(url).raise_for_status()
+
+
+@try_until_timeout(
+    Exception,
+    tries=120,
+    timeout=1,
+    args={"url": "http://{host}:{port}/alive".format(**AZURE_COSMOS_EMULATOR_CONFIG)},
+)
+def check_azurecosmosemulator(url):
     requests.get(url).raise_for_status()
 
 
@@ -225,8 +245,10 @@ if __name__ == "__main__":
         "pubsub": check_pubsub,
         "rabbitmq": check_rabbitmq,
         "redis": check_redis,
+        "selenium-chrome": check_selenium,
         "testagent": check_agent,
         "vertica": check_vertica,
+        "azurecosmosemulator": check_azurecosmosemulator,
         "azureeventhubsemulator": check_azureeventhubsemulator,
         "azureservicebusemulator": check_azureservicebusemulator,
         "azuresqledge": check_azuresqledge,

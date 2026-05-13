@@ -4,7 +4,6 @@
 #include "profiler_stats.hpp"
 #include "types.hpp"
 
-#include <atomic>
 #include <mutex>
 #include <vector>
 
@@ -26,7 +25,7 @@ class Profile
     // Serialization for static state
     // - string table
     // - ddog_profile
-    std::atomic<bool> first_time{ true };
+    std::once_flag init_once{};
     std::mutex profile_mtx{};
 
     // Configuration
@@ -52,11 +51,15 @@ class Profile
     ddog_prof_Profile& profile_borrow_internal();
     void profile_release();
 
+    void one_time_init_impl(SampleType type, unsigned int _max_nframes);
+
   public:
     // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);
     bool reset_profile();
     void cleanup();
+    void prefork();
+    void postfork_parent();
     void postfork_child();
 
     // Getters

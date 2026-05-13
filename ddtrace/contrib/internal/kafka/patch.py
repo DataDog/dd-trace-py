@@ -1,4 +1,3 @@
-import os
 import sys
 from time import time
 from time import time_ns
@@ -10,7 +9,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
@@ -22,6 +21,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -38,16 +38,14 @@ _DeserializingConsumer = (
     confluent_kafka.DeserializingConsumer if hasattr(confluent_kafka, "DeserializingConsumer") else None
 )
 
-
 log = get_logger(__name__)
-
 
 config._add(
     "kafka",
     dict(
         _default_service=schematize_service_name("kafka"),
-        distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
-        trace_empty_poll_enabled=asbool(os.getenv("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
+        distributed_tracing_enabled=asbool(env.get("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
+        trace_empty_poll_enabled=asbool(env.get("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
     ),
 )
 
@@ -61,7 +59,6 @@ def _supported_versions() -> dict[str, str]:
 
 
 KAFKA_VERSION_TUPLE = parse_version(get_version())
-
 
 _SerializationContext = confluent_kafka.serialization.SerializationContext if KAFKA_VERSION_TUPLE >= (1, 4, 0) else None
 _MessageField = confluent_kafka.serialization.MessageField if KAFKA_VERSION_TUPLE >= (1, 4, 0) else None
@@ -178,10 +175,9 @@ def traced_produce(func, instance, args, kwargs):
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
     with tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
-        service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
-        maybe_set_service_source_tag(span, config.kafka)
+        set_service_and_source(span, trace_utils.ext_service(pin, config.kafka), config.kafka)
         cluster_id = _get_cluster_id(instance, topic)
         core.set_item("kafka_cluster_id", cluster_id)
         if cluster_id:
@@ -256,12 +252,11 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         ctx = Propagator.extract(dict(first_message.headers()))
     with tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
-        service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
         child_of=ctx if ctx is not None and ctx.trace_id is not None else tracer.context_provider.active(),
         activate=True,
     ) as span:
-        maybe_set_service_source_tag(span, config.kafka)
+        set_service_and_source(span, trace_utils.ext_service(pin, config.kafka), config.kafka)
         # reset span start time to before function call
         span.start_ns = start_ns
         cluster_id = None

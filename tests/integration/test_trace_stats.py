@@ -1,14 +1,10 @@
 import functools
-import os
 
-import mock
 import pytest
 
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
-from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from tests.integration.utils import AGENT_VERSION
-from tests.integration.utils import skip_if_native_writer
 from tests.utils import override_global_config
 
 
@@ -17,12 +13,11 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 @pytest.fixture
 def stats_tracer(tracer):
-    # _recreate() checks config._trace_compute_stats AND config._trace_writer_native
-    # to decide whether to add stats processor. Stats processor is only added if
-    # _trace_writer_native is False and _trace_compute_stats is True.
-    with override_global_config(dict(_trace_compute_stats=True, _trace_writer_native=False)):
+    # Recreate tracer with stats enabled
+    with override_global_config(dict(_trace_compute_stats=True)):
         tracer._recreate()
         yield tracer
+        tracer.shutdown()
 
 
 class consistent_end_trace(object):
@@ -57,91 +52,6 @@ def send_once_stats_tracer(stats_tracer):
 
     # Restore the original trace method
     stats_tracer.trace = original_trace
-
-
-@skip_if_native_writer
-@pytest.mark.parametrize("envvar", ["DD_TRACE_STATS_COMPUTATION_ENABLED", "DD_TRACE_COMPUTE_STATS"])
-def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envvar):
-    """Ensure stats computation can be enabled."""
-    env = os.environ.copy()
-    env.update({envvar: "true"})
-    out, err, status, _ = run_python_code_in_subprocess(
-        """
-from ddtrace.trace import tracer
-from ddtrace import config
-from ddtrace.internal.processor.stats import SpanStatsProcessorV06
-assert config._trace_compute_stats is True
-stats_processor = None
-for p in tracer._span_processors:
-    if isinstance(p, SpanStatsProcessorV06):
-        stats_processor = p
-        break
-
-assert stats_processor is not None
-assert stats_processor._hostname == "" # report_hostname is disabled by default
-""",
-        env=env,
-    )
-    assert status == 0, out + err
-
-
-@skip_if_native_writer
-def test_apm_opt_out_compute_stats_and_configure_env(run_python_code_in_subprocess):
-    # Test via environment variable
-    env = os.environ.copy()
-    env.update({"DD_APM_TRACING_ENABLED": "false", "DD_APPSEC_ENABLED": "true"})
-    out, err, status, _ = run_python_code_in_subprocess(
-        """
-from ddtrace.trace import tracer
-from ddtrace import config
-from ddtrace.internal.processor.stats import SpanStatsProcessorV06
-# the stats computation is disabled (completely, for both agent and tracer)
-assert config._trace_compute_stats is False
-
-# but it's reported as enabled
-# to avoid the agent from doing it either.
-assert tracer._span_aggregator.writer._headers.get("Datadog-Client-Computed-Stats") == "yes"
-""",
-        env=env,
-    )
-    assert status == 0, out + err
-
-
-@mock.patch("ddtrace.internal.processor.stats.get_hostname")
-def test_stats_report_hostname(get_hostname):
-    get_hostname.return_value = "test-hostname"
-
-    # Enable report_hostname
-    with override_global_config(dict(_report_hostname=True)):
-        p = SpanStatsProcessorV06("http://localhost:8126")
-        assert p._hostname == "test-hostname"
-
-    # Disable report_hostname
-    with override_global_config(dict(_report_hostname=False)):
-        p = SpanStatsProcessorV06("http://localhost:8126")
-        assert p._hostname == ""
-
-
-def test_periodic_payload_includes_process_tags():
-    from unittest import mock
-
-    from ddtrace.internal import process_tags
-    from ddtrace.internal.processor import stats
-    from ddtrace.internal.processor.stats import SpanStatsProcessorV06
-
-    assert process_tags.process_tags
-
-    with mock.patch.object(SpanStatsProcessorV06, "start"):
-        p = SpanStatsProcessorV06("http://localhost:8126")
-
-    p._serialize_buckets = mock.Mock(return_value=[{"Start": 1, "Duration": 1, "Stats": [{}]}])
-    p._flush_stats_with_backoff = mock.Mock()
-
-    with mock.patch.object(stats, "packb", side_effect=lambda payload: payload) as packb:
-        p.periodic()
-
-    raw_payload = packb.call_args[0][0]
-    assert raw_payload["ProcessTags"] == process_tags.process_tags
 
 
 # Can't use a value between 0 and 1 since sampling is not deterministic.
@@ -184,7 +94,7 @@ def test_stats_aggrs(send_once_stats_tracer):
 
     # HTTP status code
     with send_once_stats_tracer.trace(name="op", service="my-svc", span_type="web", resource="/users/list") as span:
-        span.set_tag(http.STATUS_CODE, 200)
+        span._set_attribute(http.STATUS_CODE, 200)
 
     # Resource
     with send_once_stats_tracer.trace(name="op", service="my-svc", span_type="web", resource="/users/view"):

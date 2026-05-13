@@ -6,12 +6,28 @@ from ddtrace import config
 from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.llmobs._constants import INTEGRATION
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY
+from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._llmobs import LLMObs
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
@@ -42,6 +58,11 @@ class BaseLLMIntegration:
         """Set default LLM span attributes when possible."""
         pass
 
+    def _annotate_integration_tag(self, span: Span) -> None:
+        if not self.llmobs_enabled:
+            return
+        _annotate_llmobs_span_data(span, tags={LLMOBS_STRUCT.INTEGRATION: self._integration_name})
+
     def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
         """
         Start a LLM request span.
@@ -55,11 +76,12 @@ class BaseLLMIntegration:
         span = tracer.start_span(
             span_name,
             child_of=parent_context,
-            service=int_service(None, self.integration_config),
             resource=operation_id,
             span_type=span_type,
             activate=True,
         )
+        service = int_service(None, self.integration_config) or ""
+        set_service_and_source(span, service, self.integration_config)
 
         log.debug("Creating LLM span with type %s", span.span_type)
         # determine if the span represents a proxy request
@@ -69,8 +91,7 @@ class BaseLLMIntegration:
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
         self._set_base_span_tags(span, **kwargs)
-        if self.llmobs_enabled:
-            span._set_ctx_item(INTEGRATION, self._integration_name)
+        self._annotate_integration_tag(span)
         return span
 
     def llmobs_set_tags(
@@ -82,6 +103,10 @@ class BaseLLMIntegration:
         operation: str = "",
     ) -> None:
         """Extract input/output information from the request and response to be submitted to LLMObs."""
+        try:
+            self._set_apm_shadow_tags(span, args, kwargs, response, operation)
+        except Exception:
+            log.debug("Error setting APM shadow tags for span %s", span, exc_info=True)
         if not self.llmobs_enabled or not self.is_pc_sampled_llmobs(span):
             return
         try:
@@ -99,6 +124,48 @@ class BaseLLMIntegration:
         operation: str = "",
     ) -> None:
         raise NotImplementedError()
+
+    def _set_apm_shadow_tags(
+        self,
+        span: Span,
+        args: list[Any],
+        kwargs: dict[str, Any],
+        response: Optional[Any] = None,
+        operation: str = "",
+    ) -> None:
+        """Extract token metrics from the response and set shadow tags on the APM span.
+
+        Override in subclasses that have token metric extraction.
+        Runs regardless of whether LLMObs is enabled.
+        """
+        pass
+
+    def _apply_shadow_metrics(
+        self,
+        span: Span,
+        metrics: Optional[dict],
+        span_kind: str,
+        model_name: Optional[str] = None,
+        model_provider: Optional[str] = None,
+    ) -> None:
+        """Set shadow metric/tag values on the APM span from extracted metrics."""
+        span.set_tag(LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY, span_kind)
+        span._set_attribute(LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY, 1 if self.llmobs_enabled else 0)
+        if model_name:
+            span.set_tag(LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY, model_name)
+        if model_provider:
+            span.set_tag(LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY, model_provider)
+        if span_kind in ("llm", "embedding") and metrics:
+            for llmobs_key, shadow_key in (
+                (INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY),
+                (OUTPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY),
+                (TOTAL_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY),
+                (CACHE_READ_INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY),
+                (CACHE_WRITE_INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY),
+            ):
+                value = metrics.get(llmobs_key)
+                if value is not None:
+                    span._set_attribute(shadow_key, value)
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         return None

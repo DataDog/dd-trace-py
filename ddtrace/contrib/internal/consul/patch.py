@@ -5,6 +5,7 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import consul as consulx
@@ -65,10 +66,10 @@ def wrap_function(name):
 
         with tracer.trace(
             schematize_url_operation(consulx.CMD, protocol="http", direction=SpanDirection.OUTBOUND),
-            service=pin.service,
             resource=resource,
             span_type=SpanTypes.HTTP,
         ) as span:
+            set_service_and_source(span, pin.service, config.consul)
             span._set_attribute(COMPONENT, config.consul.integration_name)
 
             span._set_attribute(net.TARGET_HOST, instance.agent.http.host)

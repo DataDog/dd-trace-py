@@ -20,7 +20,7 @@
       SNAPSHOT_CI: 1
       VCR_CI_MODE: true
       OTLP_GRPC_PORT: 4136
-      VCR_CASSETTES_DIRECTORY: ${CI_PROJECT_DIR}/tests/llmobs/llmobs_cassettes
+      VCR_CASSETTES_DIRECTORY: ${CI_PROJECT_DIR}/tests/cassettes
       PORT: 9126
       DD_POOL_TRACE_CHECK_FAILURES: true
       DD_DISABLE_ERROR_RESPONSES: true
@@ -31,8 +31,10 @@
     name: registry.ddbuild.io/images/mirror/mongo:6.0.5
     alias: mongo
   redis:
-    name: registry.ddbuild.io/redis:7.0.7
+    name: registry.ddbuild.io/redis:7.4.6-gbi-jammy
     alias: redis
+    # Disable RDB persistence (no writable volume in CI)
+    command: ["--save", "", "--bind", "0.0.0.0"]
   valkey:
     name: registry.ddbuild.io/images/mirror/valkey:8.0-alpine
     alias: valkey
@@ -124,6 +126,13 @@
     alias: moto
     variables:
       MOTO_PORT: 3000
+  azurecosmosemulator:
+    name: registry.ddbuild.io/images/mirror/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
+    alias: azurecosmosemulator
+    variables:
+      ACCEPT_EULA: "Y"
+      BLOB_SERVER: azurite
+      METADATA_SERVER: azurite
   azureeventhubsemulator:
     name: registry.ddbuild.io/images/mirror/azure-messaging/eventhubs-emulator:2.1.0
     alias: azureeventhubsemulator
@@ -151,3 +160,6 @@
   azurite:
     name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
     alias: azurite
+  selenium-chrome:
+    name: registry.ddbuild.io/images/mirror/selenium/standalone-chrome:latest
+    alias: selenium-chrome

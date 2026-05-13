@@ -41,6 +41,12 @@ class EchionSampler
     std::optional<Frame::Key> uvloop_frame_cache_key_;
     std::unordered_set<PyObject*> previous_task_objects_;
 
+    // Accumulated asyncio task count across sampled threads in the current sampling cycle.
+    // When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), this only
+    // reflects tasks from the sampled subset, not all threads in the process.
+    // Only accessed from the sampling thread, so no lock/atomic is needed.
+    size_t asyncio_task_count_ = 0;
+
     // Caches
     StringTable string_table_;
     LRUCache<uintptr_t, Frame> frame_cache_;
@@ -82,6 +88,10 @@ class EchionSampler
     std::optional<Frame::Key>& uvloop_frame_cache_key() { return uvloop_frame_cache_key_; }
     std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
+    void reset_asyncio_task_count() { asyncio_task_count_ = 0; }
+    void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
+    size_t asyncio_task_count() const { return asyncio_task_count_; }
+
     // Accessor for StringTable operations
     StringTable& string_table() { return string_table_; }
     const StringTable& string_table() const { return string_table_; }
@@ -99,8 +109,10 @@ class EchionSampler
         // Reset string_table mutex
         string_table_.postfork_child();
 
-        // Clear frame cache after fork (prevent stale pointers)
-        frame_cache_.clear();
+        // Reset frame cache. Use postfork_child (placement new) instead of std::list::clear
+        // because the Sampling Thread may have been modifying the cache when fork
+        // took its snapshot. Traversing a corrupted list to free nodes would crash.
+        frame_cache_.postfork_child();
 
         // Clear stale entries from parent process.
         // No lock needed: only one thread exists in child immediately after fork.

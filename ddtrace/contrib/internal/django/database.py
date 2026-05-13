@@ -59,25 +59,24 @@ def get_traced_cursor_cls(cursor_type: type[Any]) -> type[dbapi.TracedCursor]:
 
 def cursor(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
     cursor = func(*args, **kwargs)
+    instance = args[0]
+    vendor = getattr(instance, "vendor", "db")
+    alias = getattr(instance, "alias", "default")
 
     # Don't double wrap Django database cursors:
     #   If the underlying cursor is already wrapped (e.g. by another library),
     #   we just add the Django tags to the existing Pin (if any) and return
     if is_wrapted(cursor.cursor):
-        instance = args[0]
         tags = {
-            "django.db.vendor": getattr(instance, "vendor", "db"),
-            "django.db.alias": getattr(instance, "alias", "default"),
+            "django.db.vendor": vendor,
+            "django.db.alias": alias,
         }
 
-        # Add Django tags onto any existing Pin, or create a new Pin if none exists.
-        # TODO: Can we get this without the use of Pin?
-        pin = Pin.get_from(cursor.cursor)
-        if pin:
-            pin.tags.update(tags)
+        cursor_tags = getattr(cursor.cursor, "_self_db_tags", None)
+        if cursor_tags:
+            cursor_tags.update(tags)
         else:
-            pin = Pin(tags=tags)
-            pin.onto(cursor.cursor)
+            setattr(cursor.cursor, "_self_db_tags", tags)
         return cursor
 
     # Always wrap Django database cursors:
@@ -87,14 +86,43 @@ def cursor(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
     #   This allows us to get Database spans for any query executed where we don't
     #   have an integration for the database library in use, or in the case that
     #   the user has disabled the integration for the database library in use.
-    instance = args[0]
     pin = Pin.get_from(instance)
     if not pin:
         pin = get_conn_pin(instance)
         pin.onto(instance)
-    cfg = get_conn_config(getattr(instance, "vendor", "db"))
+
+    service = pin.service or get_conn_service_name(alias)
+    cfg = get_conn_config(vendor, service)
+
     traced_cursor_cls = get_traced_cursor_cls(type(cursor.cursor))
-    return traced_cursor_cls(cursor, pin, cfg)
+    traced_cursor = traced_cursor_cls(
+        cursor,
+        cfg=cfg,
+        db_tags={
+            **pin.tags,
+            "django.db.vendor": vendor,
+            "django.db.alias": alias,
+        },
+    )
+
+    return traced_cursor
+
+
+def get_new_connection(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
+    """Db tags now pass through _self_db_tags and not through pin so we have to instrument
+    the creation of the connection.
+    """
+    instance = args[0]
+    db_conn = func(*args, **kwargs)
+    conn_tags = getattr(db_conn, "_self_db_tags", None)
+    if conn_tags is not None:
+        conn_tags.update(
+            {
+                "django.db.vendor": getattr(instance, "vendor", "db"),
+                "django.db.alias": getattr(instance, "alias", "default"),
+            }
+        )
+    return db_conn
 
 
 @cached()
@@ -113,12 +141,12 @@ def get_conn_service_name(alias: str) -> Optional[str]:
 
 
 @cached()
-def get_conn_config(vendor: str) -> IntegrationConfig:
+def get_conn_config(vendor: str, service: Optional[str]) -> IntegrationConfig:
     prefix = sqlx.normalize_vendor(vendor)
     return IntegrationConfig(
         config_django.global_config,
         "django-database",
-        _default_service=config.django._default_service,
+        _default_service=service,
         _dbapi_span_name_prefix=prefix,
         trace_fetch_methods=config_django.trace_fetch_methods,
         _dbm_propagator=_DBM_Propagator(0, "query"),
@@ -159,6 +187,10 @@ def patch_conn(conn: Any) -> Any:
     #      we want to wrap the unbound method on the class once
     if not is_wrapped_with(conn.__class__.cursor, cursor):
         wrap(conn.__class__.cursor, cursor)
+    if hasattr(conn.__class__, "get_new_connection") and not is_wrapped_with(
+        conn.__class__.get_new_connection, get_new_connection
+    ):
+        wrap(conn.__class__.get_new_connection, get_new_connection)
 
 
 def get_connection(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:

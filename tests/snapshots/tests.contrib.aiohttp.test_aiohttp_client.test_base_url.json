@@ -1,0 +1,52 @@
+[[
+  {
+    "name": "aiohttp.request",
+    "service": "tests.contrib.aiohttp",
+    "resource": "aiohttp.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69faf94300000000",
+      "_dd.svc_src": "aiohttp_client",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aiohttp",
+      "component": "aiohttp_client",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.status_msg": "OK",
+      "http.url": "http://localhost:8001/status/200",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "b2faa730ca7d41f09373b83a43921e3c",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 634.0
+    },
+    "duration": 3565667,
+    "start": 1778055491894172760
+  },
+     {
+       "name": "TCPConnector.connect",
+       "service": "tests.contrib.aiohttp",
+       "resource": "TCPConnector.connect",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "69faf94300000000",
+         "_dd.svc_src": "aiohttp",
+         "component": "aiohttp",
+         "span.kind": "client"
+       },
+       "duration": 1482042,
+       "start": 1778055491894611385
+     }]]

@@ -18,6 +18,7 @@ from typing import Union  # noqa:F401
 
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.time import StopWatch
 
@@ -26,6 +27,18 @@ GitNotFoundError = FileNotFoundError
 
 # Git Branch
 BRANCH = "git.branch"
+
+# Git Pull Request Base Branch
+PULL_REQUEST_BASE_BRANCH = "git.pull_request.base_branch"
+
+# Git Pull Request Base Branch SHA
+PULL_REQUEST_BASE_BRANCH_SHA = "git.pull_request.base_branch_sha"
+
+# Git Pull Request Base Branch Head SHA
+PULL_REQUEST_BASE_BRANCH_HEAD_SHA = "git.pull_request.base_branch_head_sha"
+
+# Pull Request Number
+PULL_REQUEST_NUMBER = "pr.number"
 
 # Git Commit SHA
 COMMIT_SHA = "git.commit.sha"
@@ -431,30 +444,33 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
     return tags
 
 
-def extract_user_git_metadata(env: Optional[MutableMapping[str, str]] = None) -> dict[str, Optional[str]]:
+def extract_user_git_metadata(environ: Optional[MutableMapping[str, str]] = None) -> dict[str, Optional[str]]:
     """Extract git commit metadata from user-provided env vars."""
-    env = os.environ if env is None else env
+    environ = env if environ is None else environ
 
-    branch = normalize_ref(env.get("DD_GIT_BRANCH"))
-    tag = normalize_ref(env.get("DD_GIT_TAG"))
+    branch = normalize_ref(environ.get("DD_GIT_BRANCH"))
+    pull_request_base_branch = normalize_ref(environ.get("DD_GIT_PULL_REQUEST_BASE_BRANCH"))
+    tag = normalize_ref(environ.get("DD_GIT_TAG"))
 
     # if DD_GIT_BRANCH is a tag, we associate its value to TAG instead of BRANCH
-    if is_ref_a_tag(env.get("DD_GIT_BRANCH")):
+    if is_ref_a_tag(environ.get("DD_GIT_BRANCH")):
         tag = branch
         branch = None
 
     tags = {}
-    tags[REPOSITORY_URL] = env.get("DD_GIT_REPOSITORY_URL")
-    tags[COMMIT_SHA] = env.get("DD_GIT_COMMIT_SHA")
+    tags[REPOSITORY_URL] = environ.get("DD_GIT_REPOSITORY_URL")
+    tags[COMMIT_SHA] = environ.get("DD_GIT_COMMIT_SHA")
     tags[BRANCH] = branch
+    tags[PULL_REQUEST_BASE_BRANCH] = pull_request_base_branch
+    tags[PULL_REQUEST_BASE_BRANCH_SHA] = environ.get("DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA")
     tags[TAG] = tag
-    tags[COMMIT_MESSAGE] = env.get("DD_GIT_COMMIT_MESSAGE")
-    tags[COMMIT_AUTHOR_DATE] = env.get("DD_GIT_COMMIT_AUTHOR_DATE")
-    tags[COMMIT_AUTHOR_EMAIL] = env.get("DD_GIT_COMMIT_AUTHOR_EMAIL")
-    tags[COMMIT_AUTHOR_NAME] = env.get("DD_GIT_COMMIT_AUTHOR_NAME")
-    tags[COMMIT_COMMITTER_DATE] = env.get("DD_GIT_COMMIT_COMMITTER_DATE")
-    tags[COMMIT_COMMITTER_EMAIL] = env.get("DD_GIT_COMMIT_COMMITTER_EMAIL")
-    tags[COMMIT_COMMITTER_NAME] = env.get("DD_GIT_COMMIT_COMMITTER_NAME")
+    tags[COMMIT_MESSAGE] = environ.get("DD_GIT_COMMIT_MESSAGE")
+    tags[COMMIT_AUTHOR_DATE] = environ.get("DD_GIT_COMMIT_AUTHOR_DATE")
+    tags[COMMIT_AUTHOR_EMAIL] = environ.get("DD_GIT_COMMIT_AUTHOR_EMAIL")
+    tags[COMMIT_AUTHOR_NAME] = environ.get("DD_GIT_COMMIT_AUTHOR_NAME")
+    tags[COMMIT_COMMITTER_DATE] = environ.get("DD_GIT_COMMIT_COMMITTER_DATE")
+    tags[COMMIT_COMMITTER_EMAIL] = environ.get("DD_GIT_COMMIT_COMMITTER_EMAIL")
+    tags[COMMIT_COMMITTER_NAME] = environ.get("DD_GIT_COMMIT_COMMITTER_NAME")
 
     return tags
 

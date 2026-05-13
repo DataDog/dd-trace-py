@@ -1,0 +1,53 @@
+import os
+from unittest import mock
+
+import pytest
+
+from ddtrace.contrib.internal.llama_index.patch import patch
+from ddtrace.contrib.internal.llama_index.patch import unpatch
+from ddtrace.llmobs import LLMObs
+from tests.contrib.llama_index.utils import get_request_vcr
+from tests.utils import override_env
+from tests.utils import override_global_config
+
+
+@pytest.fixture
+def llama_index_llmobs(tracer, monkeypatch):
+    # Preserve meta_struct["_llmobs"] on spans so tests can assert against
+    # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it after
+    # enqueueing to LLMObsSpanWriter.
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+    LLMObs.disable()
+    with override_global_config(
+        {
+            "_llmobs_ml_app": "<ml-app-name>",
+            "_dd_api_key": "<not-a-real-key>",
+            "service": "tests.contrib.llama_index",
+        }
+    ):
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
+        # Replace the real LLMObsSpanWriter with a mock so we don't keep a
+        # background flush thread alive trying to ship spans during the test.
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        yield LLMObs
+    LLMObs.disable()
+
+
+@pytest.fixture
+def llama_index():
+    with override_env(
+        dict(
+            OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+        )
+    ):
+        patch()
+        import llama_index
+
+        yield llama_index
+        unpatch()
+
+
+@pytest.fixture(scope="session")
+def request_vcr():
+    yield get_request_vcr()

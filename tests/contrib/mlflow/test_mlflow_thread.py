@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
-from time import sleep
+from threading import Event
 
 import mlflow
 from mlflow.tracking import fluent as mlflow_fluent
@@ -18,6 +18,11 @@ def _has_thread_local_active_run_stack():
     return hasattr(active_run_stack, "get")
 
 
+def _wait_for_ordered_step(ordering_events, step_order):
+    assert ordering_events[step_order].wait(timeout=5), "timed out waiting for worker scheduling"
+    ordering_events[step_order + 1].set()
+
+
 @pytest.fixture(autouse=True)
 def patch_futures():
     # Required so tracing context propagates into worker threads.
@@ -33,12 +38,14 @@ def test_mlflow_multithreaded_steps_on_the_same_run(
     test_spans, assert_run_id_on_all_spans, assert_hostname_on_all_spans
 ):
     """Test multithreading when each thread creates new step on the same run"""
+    ordering_events = [Event() for _ in range(5)]
+    ordering_events[0].set()
 
     def _worker(worker_id, shared_run_id):
         for step in range(2):
-            # ensure steps are always in the same order in the snapshots
-            sleep((worker_id * 2 + step) * 0.8)
-            mlflow.log_metric("loss_%d" % worker_id, worker_id + step, step=worker_id * 2 + step, run_id=shared_run_id)
+            step_order = worker_id * 2 + step
+            _wait_for_ordered_step(ordering_events, step_order)
+            mlflow.log_metric("loss_%d" % worker_id, worker_id + step, step=step_order, run_id=shared_run_id)
 
     with mlflow.start_run() as run:
         with ThreadPoolExecutor(max_workers=2) as pool:
@@ -64,7 +71,7 @@ def test_mlflow_multithreaded_steps_without_explicit_run_id_thread_local():
     """
     from concurrent.futures import ThreadPoolExecutor
     from concurrent.futures import as_completed
-    from time import sleep
+    from threading import Event
 
     import mlflow
 
@@ -72,13 +79,20 @@ def test_mlflow_multithreaded_steps_without_explicit_run_id_thread_local():
 
     patch(mlflow=True, futures=True)
 
+    def _wait_for_ordered_step(ordering_events, step_order):
+        assert ordering_events[step_order].wait(timeout=5), "timed out waiting for worker scheduling"
+        ordering_events[step_order + 1].set()
+
+    ordering_events = [Event() for _ in range(5)]
+    ordering_events[0].set()
+
     def _worker(worker_id):
         # Log metrics without passing run_id so MLflow will create a thread-local run
         for step in range(2):
-            # ensure steps are always in the same order in the snapshots
-            sleep((worker_id * 2 + step) * 0.8)
+            step_order = worker_id * 2 + step
+            _wait_for_ordered_step(ordering_events, step_order)
             # mlflow will automatically create a new run
-            mlflow.log_metric("loss_%d" % worker_id, worker_id + step, step=worker_id * 2 + step)
+            mlflow.log_metric("loss_%d" % worker_id, worker_id + step, step=step_order)
 
     with mlflow.start_run():
         with ThreadPoolExecutor(max_workers=2) as pool:
@@ -97,7 +111,7 @@ def test_mlflow_multithreaded_steps_without_explicit_run_id_global_stack():
     """Tests worker threads keep logging on the active parent run on old MLflow."""
     from concurrent.futures import ThreadPoolExecutor
     from concurrent.futures import as_completed
-    from time import sleep
+    from threading import Event
 
     import mlflow
 
@@ -105,11 +119,18 @@ def test_mlflow_multithreaded_steps_without_explicit_run_id_global_stack():
 
     patch(mlflow=True, futures=True)
 
+    def _wait_for_ordered_step(ordering_events, step_order):
+        assert ordering_events[step_order].wait(timeout=5), "timed out waiting for worker scheduling"
+        ordering_events[step_order + 1].set()
+
+    ordering_events = [Event() for _ in range(5)]
+    ordering_events[0].set()
+
     def _worker(worker_id):
         for step in range(2):
-            # ensure steps are always in the same order in the snapshots
-            sleep((worker_id * 2 + step) * 0.8)
-            mlflow.log_metric("loss_%d" % worker_id, worker_id + step, step=worker_id * 2 + step)
+            step_order = worker_id * 2 + step
+            _wait_for_ordered_step(ordering_events, step_order)
+            mlflow.log_metric("loss_%d" % worker_id, worker_id + step, step=step_order)
 
     with mlflow.start_run():
         with ThreadPoolExecutor(max_workers=2) as pool:
@@ -123,18 +144,24 @@ def test_mlflow_multithreaded_steps_specifying_new_run(
     test_spans, assert_run_id_on_all_spans, assert_hostname_on_all_spans
 ):
     """Tests each worker creates and logs to its own explicitly opened run."""
+    ordering_events = [Event() for _ in range(5)]
+    ordering_events[0].set()
 
     def _worker(worker_id):
-        start_run_kwargs = {"run_name": "worker-%d" % worker_id}
         if not _has_thread_local_active_run_stack():
-            # Old MLflow tracks active runs globally across threads.
-            # Using nested=True lets workers open their own runs while an outer run is active.
-            start_run_kwargs["nested"] = True
-        with mlflow.start_run(**start_run_kwargs):
-            for step in range(2):
-                # ensure steps are always in the same order in the snapshots
-                sleep((worker_id * 2 + step) * 0.8)
-                mlflow.log_metric("loss_%d" % worker_id, worker_id + step, step=worker_id * 2 + step)
+            # when the run are not thread local, any run can be the active one
+            with mlflow.start_run(run_name=f"worker-{worker_id}", nested=True) as run:
+                for step in range(2):
+                    step_order = worker_id * 2 + step
+                    _wait_for_ordered_step(ordering_events, step_order)
+                    # We have to specify run_id here
+                    mlflow.log_metric("loss_%d" % worker_id, worker_id + step, run_id=run.info.run_id, step=step_order)
+        else:
+            with mlflow.start_run(run_name=f"worker-{worker_id}"):
+                for step in range(2):
+                    step_order = worker_id * 2 + step
+                    _wait_for_ordered_step(ordering_events, step_order)
+                    mlflow.log_metric("loss_%d" % worker_id, worker_id + step, step=step_order)
 
     with mlflow.start_run():
         with ThreadPoolExecutor(max_workers=2) as pool:
@@ -158,13 +185,15 @@ def test_mlflow_multithreaded_steps_specifying_same_run(
     We are not properly supporting this case for now but we ensure we are not breaking anything or
     leaking any data
     """
+    ordering_events = [Event() for _ in range(5)]
+    ordering_events[0].set()
 
     def _worker(worker_id, run_id):
         with mlflow.start_run(run_name="worker-%d" % worker_id, run_id=run_id):
             for step in range(2):
-                # ensure steps are always in the same order in the snapshots
-                sleep((worker_id * 2 + step) * 0.8)
-                mlflow.log_metric("loss_%d" % worker_id, worker_id + step, step=worker_id * 2 + step)
+                step_order = worker_id * 2 + step
+                _wait_for_ordered_step(ordering_events, step_order)
+                mlflow.log_metric("loss_%d" % worker_id, worker_id + step, step=step_order)
 
     with mlflow.start_run() as run:
         with ThreadPoolExecutor(max_workers=2) as pool:

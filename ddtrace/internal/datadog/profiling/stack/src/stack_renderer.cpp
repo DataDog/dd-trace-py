@@ -3,6 +3,7 @@
 #include "sampler.hpp"
 #include "thread_span_links.hpp"
 
+#include "dd_wrapper/include/clock.hpp"
 #include "dd_wrapper/include/sample_manager.hpp"
 
 #include "echion/echion_sampler.h"
@@ -31,16 +32,9 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
         return;
     }
 
-    // Get the current time in ns in a way compatible with python's time.monotonic_ns(), which is backed by
-    // clock_gettime(CLOCK_MONOTONIC) on linux and mach_absolute_time() on macOS.
-    // This is not the same as std::chrono::steady_clock, which is backed by clock_gettime(CLOCK_MONOTONIC_RAW)
-    // (although this is underspecified in the standard)
-    int64_t now_ns = 0;
-    timespec ts;
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
-        now_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + static_cast<int64_t>(ts.tv_nsec);
-        sample->push_monotonic_ns(now_ns);
-    }
+    // See clock.hpp for platform-specific details.
+    const int64_t now_ns = get_monotonic_ns();
+    sample->push_monotonic_ns(now_ns);
 
     // Save the thread information in case we observe a task on the thread
     thread_state.id = thread_id;

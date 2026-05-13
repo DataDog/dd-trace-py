@@ -32,6 +32,7 @@ from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
@@ -41,13 +42,6 @@ from .wrappers import simple_call_wrapper
 from .wrappers import with_tracing_enabled
 from .wrappers import wrap_function
 from .wrappers import wrap_view
-
-
-try:
-    from json import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
 
 
 log = get_logger(__name__)
@@ -477,11 +471,14 @@ def patched_render(wrapped, instance, args, kwargs):
     if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
-    def _wrap(template, context, app):
-        core.dispatch("flask.render", (template, config.flask))
-        return wrapped(*args, **kwargs)
+    template_position = 1 if flask_version >= (2, 2, 0) else 0
+    try:
+        template = get_argument_value(args, kwargs, template_position, "template")
+    except ArgumentError:
+        template = None
 
-    return _wrap(*args, **kwargs)
+    core.dispatch("flask.render", (template, config.flask))
+    return wrapped(*args, **kwargs)
 
 
 def patched__register_error_handler(wrapped, instance, args, kwargs):

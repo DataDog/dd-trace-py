@@ -3,7 +3,6 @@ import base64
 from collections import defaultdict
 from functools import partial
 import gzip
-import os
 import struct
 import threading
 import time
@@ -16,6 +15,7 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
@@ -49,7 +49,6 @@ The processor flushes stats periodically (every 10 sec) to the Datadog agent.
 This powers the data streams monitoring product. More details about the product can be found here:
 https://docs.datadoghq.com/data_streams/
 """
-
 
 log = get_logger(__name__)
 
@@ -103,7 +102,7 @@ class DataStreamsProcessor(PeriodicService):
         retry_attempts: int = 3,
     ):
         if interval is None:
-            interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(DataStreamsProcessor, self).__init__(interval=interval)
         self._enabled: bool = True
         self._agent_url = agent_url or agent_config.trace_agent_url
@@ -296,11 +295,14 @@ class DataStreamsProcessor(PeriodicService):
         compressed = gzip_compress(payload)
         try:
             self._flush_stats_with_backoff(compressed)
-        except Exception:
-            log.error(
-                "retry limit exceeded submitting pathway stats to the Datadog agent at %s",
+        except Exception as e:
+            log.warning(
+                "retry limit exceeded submitting pathway stats to %s (%s); "
+                "the last 10 seconds of DSM data is dropped, DSM continues "
+                "normally on the next flush. Frequent occurrences indicate "
+                "agent->backend round-trip latency above 1s.",
                 self._agent_endpoint,
-                exc_info=True,
+                e,
             )
 
     def shutdown(self, timeout: Optional[float]) -> None:

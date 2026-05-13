@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where a failure response from the ``/search_commits``
+    endpoint caused the git metadata upload to fall back to sending the full 30-day commit history
+    instead of aborting. This fallback could trigger cascading write load on the backend. The upload
+    now aborts when ``search_commits`` fails, matching the behavior when the ``/packfile`` upload itself fails.

@@ -6,11 +6,11 @@ from typing import Optional
 from envier import Env
 
 from ddtrace.internal.native import get_configuration_from_disk
-from ddtrace.internal.settings import env
+from ddtrace.internal.settings.env import dd_environ
 
 
 FLEET_CONFIG, LOCAL_CONFIG, FLEET_CONFIG_IDS = get_configuration_from_disk()
-ENV_CONFIG = env.dd_environ
+ENV_CONFIG = dd_environ
 
 
 class ValueSource(str, Enum):
@@ -94,10 +94,11 @@ class DDConfig(Env):
                 value_source = ValueSource.LOCAL_STABLE_CONFIG
             elif env_name in self.source:
                 value_source = ValueSource.CODE
-            elif env_val == e.default:
-                value_source = ValueSource.DEFAULT
             else:
-                value_source = ValueSource.UNKNOWN
+                # No external source provided this key.  If e.default were NoDefault,
+                # _retrieve() would have raised KeyError and __init__ would have failed.
+                # So reaching here means the config is using its declared default value.
+                value_source = ValueSource.DEFAULT
 
             self._value_source[env_name] = value_source
 

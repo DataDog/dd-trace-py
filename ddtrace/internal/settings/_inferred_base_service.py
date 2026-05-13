@@ -7,6 +7,7 @@ import sys
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 
 
 log = get_logger(__name__)
@@ -82,7 +83,7 @@ class PythonDetector:
                     return ServiceMetadata(self.find_nearest_top_level(stripped))
                 except Exception as ex:
                     # Catch any unexpected errors
-                    log.debug("Unexpected error while processing argument: ", arg, "Exception: ", ex)
+                    log.debug("Unexpected error while processing argument: %s Exception: %s", arg, ex)
 
             if has_flag_prefix and arg == "-m":
                 module_flag = True
@@ -144,6 +145,16 @@ def detect_service(args: list[str]) -> Optional[str]:
     Returns:
         Optional[str]: The name of the detected service, or None if no service was detected.
     """
+    # DEV: pytest-xdist workers run as "python -c ..." so sys.argv=['-c'], which
+    # would yield no inferred service. When xdist workers are active the pytest
+    # conftest propagates the controller's already-resolved service name via this
+    # env var; workers inherit it at spawn time and detect_service short-circuits
+    # here. The conftest pops the var right after `import ddtrace` so it never
+    # leaks into test code.
+    xdist_service = env.get("_DD_PYTEST_XDIST_INFERRED_SERVICE")
+    if xdist_service is not None:
+        return xdist_service or None
+
     detector_classes = [PythonDetector]
 
     if not args:
@@ -161,7 +172,7 @@ def detect_service(args: list[str]) -> Optional[str]:
         # list of detectors to try in order
         detectors = {}
         for detector_class in detector_classes:
-            detector_instance = detector_class(dict(os.environ))
+            detector_instance = detector_class(dict(env))
 
             for i, command in enumerate(possible_commands):
                 detector_name = detector_instance.name
@@ -196,7 +207,7 @@ def detect_service(args: list[str]) -> Optional[str]:
                 return metadata.name
     except Exception as ex:
         # Catch any unexpected errors to be extra safe
-        log.warning("Unexpected error during inferred base service detection: ", ex)
+        log.warning("Unexpected error during inferred base service detection: %s", ex)
 
     CACHE[cache_key] = None
     return None

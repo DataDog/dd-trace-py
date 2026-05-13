@@ -1,5 +1,5 @@
 variables:
-  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v81799905-0f9bd8b-testrunner@sha256:f29e49e817cb3fdcc188414b9e94bd9244df7db00b72205738a752ab23953cc5
+  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v104386366-bf1296a-testrunner@sha256:73ce466da7d8d004f0e302b6ecd25813c87f08272d40fe2ff4fcf8cdec93856a
 
 .testrunner:
   image:
@@ -12,11 +12,15 @@ variables:
   before_script:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
-    - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14
+    - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 3.15-dev
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   after_script:
     - bash .gitlab/scripts/generate-core-backtraces.sh
   retry: 2
+  variables:
+    # Default to 4 when `-n auto` is used
+    # DEV: auto/logical doesn't work well in k8s so we manually set it
+    PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
   artifacts:
     when: always
     paths:

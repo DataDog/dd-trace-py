@@ -40,7 +40,7 @@ cmake \
     -DPython3_ROOT_DIR=$(python3 -c "import sys; print(sys.prefix)") \
     -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))") \
     -DNATIVE_EXTENSION_LOCATION="${REPO_ROOT}/ddtrace/internal/native" \
-    -DLIB_INSTALL_DIR="${BUILD_DIR}/dd_wrapper" \
+    -DDD_WRAPPER_DIR="${BUILD_DIR}/dd_wrapper" \
     "${SCRIPT_DIR}/stack"
 popd
 

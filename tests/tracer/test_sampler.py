@@ -1,5 +1,3 @@
-from __future__ import division
-
 import mock
 import pytest
 
@@ -369,6 +367,7 @@ def test_sampling_rule_init_via_env():
             mock.call(
                 "No sample_rate provided for sampling rule: %s. Skipping.",
                 {"service": "xyz", "name": "abc"},
+                extra={"send_to_telemetry": False},
             )
         ]
     )
@@ -383,6 +382,7 @@ def test_sampling_rule_init_via_env():
                 '["sample_rate":1.0,"service":"xyz","name":"abc"]',
                 [],
                 exc_info=True,
+                extra={"send_to_telemetry": False},
             )
         ]
     )
@@ -400,6 +400,7 @@ def test_sampling_rule_init_via_env():
             mock.call(
                 "No sample_rate provided for sampling rule: %s. Skipping.",
                 {"service": "my-service", "name": "my-name"},
+                extra={"send_to_telemetry": False},
             )
         ]
     )
@@ -917,4 +918,4 @@ def test_ksr_formatting(span, sample_rate, expected_ksr):
     from ddtrace.internal.sampling import _set_sampling_tags
 
     _set_sampling_tags(span, True, sample_rate, SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE)
-    assert span._meta.get(KNUTH_SAMPLE_RATE_KEY) == expected_ksr
+    assert span._get_str_attribute(KNUTH_SAMPLE_RATE_KEY) == expected_ksr

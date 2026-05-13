@@ -8,10 +8,13 @@ import pytest
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
 from ddtrace.appsec._iast._taint_tracking import initialize_native_state
+from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast._taint_tracking._native import reset_source_truncation_cache
@@ -69,6 +72,11 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         assert debug_context_array_size() == 2
         assert debug_context_array_free_slots_number() > 0
         span = MockSpan()
+        # Clear any stale IAST context leaked from a previous test. If IAST_CONTEXT holds a
+        # non-None slot ID from a prior test, _iast_start_request() sees is_iast_request_enabled()
+        # as True and skips slot allocation. The stale slot ID then points to a freed C++ taint
+        # map, causing api_taint_pyobject to silently return untainted objects.
+        _iast_finish_request()
         _start_iast_context_and_oce(span)
         weak_hash_patch()
         weak_cipher_patch()
@@ -86,6 +94,12 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
             _end_iast_context_and_oce(span)
             reset_taint_range_limit_cache()
             reset_source_truncation_cache()
+            clear_all_request_context_slots()
+            # Keep ContextVar in sync with the freed C++ slots. clear_all_request_context_slots()
+            # frees all taint maps but does NOT update IAST_CONTEXT. If a subsequent test's
+            # _start_iast_context_and_oce still sees is_iast_request_enabled()=True (stale),
+            # it would skip slot allocation, leaving the test with a dangling slot reference.
+            IAST_CONTEXT.set(None)
 
 
 @pytest.fixture

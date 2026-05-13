@@ -22,6 +22,7 @@ import pytest
 from ddtrace.appsec._ai_guard._langchain import _convert_messages
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from tests.appsec.ai_guard.utils import mock_evaluate_response
+from tests.appsec.ai_guard.utils import override_ai_guard_config
 
 
 class ToolTrackingHandler(BaseCallbackHandler):
@@ -93,6 +94,36 @@ async def test_openai_chat_async_block(mock_execute_request, langchain_openai, o
     mock_execute_request.assert_called_once()
 
 
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_openai_chat_sync_block_config_disabled(mock_execute_request, langchain_openai, openai_url, decision):
+    """When _ai_guard_block=False (DD_AI_GUARD_BLOCK=false), DENY/ABORT should NOT raise AIGuardAbortError
+    even when the server response has is_blocking_enabled=True.
+    """
+    mock_execute_request.return_value = mock_evaluate_response(decision, block=True)
+
+    with override_ai_guard_config(dict(_ai_guard_block=False)):
+        chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+        # Should NOT raise because local config passes Options(block=False) which overrides server response
+        chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+        mock_execute_request.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_openai_chat_async_block_config_disabled(mock_execute_request, langchain_openai, openai_url, decision):
+    """When _ai_guard_block=False (DD_AI_GUARD_BLOCK=false), DENY/ABORT should NOT raise AIGuardAbortError
+    even when the server response has is_blocking_enabled=True.
+    """
+    mock_execute_request.return_value = mock_evaluate_response(decision, block=True)
+
+    with override_ai_guard_config(dict(_ai_guard_block=False)):
+        chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+        await chat.ainvoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+        mock_execute_request.assert_called_once()
+
+
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_openai_llm_sync_allow(mock_execute_request, langchain_openai, openai_url):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
@@ -141,16 +172,13 @@ async def test_openai_llm_async_block(mock_execute_request, langchain_openai, op
     mock_execute_request.assert_called_once()
 
 
-# TODO use testagent cassettes instead of mocking OpenAI
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
-@patch("langchain_openai.chat_models.ChatOpenAI._generate")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_agent_action_sync_block(mock_execute_request, mock_openai_request, langchain_openai, openai_url, decision):
+def test_agent_action_sync_block(mock_execute_request, langchain_openai, openai_url, decision):
     mock_execute_request.side_effect = [
         mock_evaluate_response("ALLOW"),  # Allow the initial prompt
         mock_evaluate_response(decision),  # Deny/abort the tool call
     ]
-    mock_openai_request.return_value = _mock_openai_tool_response("add", {"a": 1, "b": 1})
 
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
@@ -164,7 +192,7 @@ def test_agent_action_sync_block(mock_execute_request, mock_openai_request, lang
 
     tools = [add]
     agent_prompt = ChatPromptTemplate.from_messages([("human", "{input}"), MessagesPlaceholder("agent_scratchpad")])
-    llm = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
     agent = create_openai_functions_agent(llm, tools, agent_prompt)
 
     agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False, return_intermediate_steps=False)
@@ -174,22 +202,16 @@ def test_agent_action_sync_block(mock_execute_request, mock_openai_request, lang
         agent_executor.invoke({"input": "1 + 1"})
 
     assert mock_execute_request.call_count == 2  # One for prompt, one for tool
-    assert mock_openai_request.call_count == 1  # Initial prompt that returns a function call result
 
 
-# TODO use testagent cassettes instead of mocking OpenAI
 @pytest.mark.asyncio
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
-@patch("langchain_openai.chat_models.ChatOpenAI._agenerate", autospec=True)
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-async def test_agent_action_async_block(
-    mock_execute_request, mock_openai_request, langchain_openai, openai_url, decision
-):
+async def test_agent_action_async_block(mock_execute_request, langchain_openai, openai_url, decision):
     mock_execute_request.side_effect = [
         mock_evaluate_response("ALLOW"),  # Allow the initial prompt
         mock_evaluate_response(decision),  # Deny/abort the tool call
     ]
-    mock_openai_request.return_value = _mock_openai_tool_response("add", {"a": 1, "b": 1})
 
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
@@ -203,7 +225,7 @@ async def test_agent_action_async_block(
 
     tools = [add]
     agent_prompt = ChatPromptTemplate.from_messages([("human", "{input}"), MessagesPlaceholder("agent_scratchpad")])
-    llm = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
     agent = create_openai_functions_agent(llm, tools, agent_prompt)
 
     agent_executor = AgentExecutor(agent=agent, tools=tools)
@@ -213,7 +235,6 @@ async def test_agent_action_async_block(
         await agent_executor.ainvoke({"input": "1 + 1"})
 
     assert mock_execute_request.call_count == 2  # One for prompt, one for tool
-    assert mock_openai_request.call_count == 1  # Initial prompt that returns a function call result
 
 
 @pytest.mark.asyncio
@@ -450,3 +471,61 @@ async def test_streamed_llm_async_block(mock_execute_request, langchain_openai, 
             pass
 
     mock_execute_request.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Span observability on AI Guard block (non-streaming)
+#
+# The four non-stream LangChain wrappers (``traced_llm_generate`` /
+# ``traced_chat_model_generate`` and async variants) catch ``DDBlockException``
+# explicitly and call ``span.set_exc_info`` before re-raising. Without that
+# explicit arm, ``AIGuardAbortError`` (a ``BaseException`` subclass via
+# ``DDBlockException``) would slip past ``except Exception:`` and the LLM span
+# would finish with no error info — leaving a hole between the AI Guard span
+# (block decision) and the LLM span (no link back to the abort).
+# ---------------------------------------------------------------------------
+
+
+def _find_llm_span_with_error(test_spans):
+    """Return the non-AI-Guard span (the LLM span) and its error tags."""
+    from ddtrace.appsec._constants import AI_GUARD
+
+    spans = test_spans.spans
+    llm_span = next((s for s in spans if s.name != AI_GUARD.RESOURCE_TYPE), None)
+    assert llm_span is not None, f"No LLM span found among: {[s.name for s in spans]}"
+    return llm_span
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_block_tags_llm_span_with_set_exc_info(
+    mock_execute_request, langchain_openai, openai_url, tracer, test_spans
+):
+    """On AI Guard block, the LLM span must carry ``error == 1`` and an
+    ``error.type`` containing ``AIGuardAbortError``.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+    with pytest.raises(AIGuardAbortError):
+        chat.invoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+
+    llm_span = _find_llm_span_with_error(test_spans)
+    assert llm_span.error == 1
+    assert "AIGuardAbortError" in (llm_span.get_tag("error.type") or "")
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_chat_async_block_tags_llm_span_with_set_exc_info(
+    mock_execute_request, langchain_openai, openai_url, tracer, test_spans
+):
+    """Async variant of ``test_chat_block_tags_llm_span_with_set_exc_info``."""
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
+    with pytest.raises(AIGuardAbortError):
+        await chat.ainvoke(input=[HumanMessage(content="When do you use 'whom' instead of 'who'?")])
+
+    llm_span = _find_llm_span_with_error(test_spans)
+    assert llm_span.error == 1
+    assert "AIGuardAbortError" in (llm_span.get_tag("error.type") or "")

@@ -1,7 +1,7 @@
 variables:
   IMAGE_BASE_URL: "registry.ddbuild.io/dd-trace-py"
   MANYLINUX_AMD64_IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
-  ALPINE_BUILD_IMAGE_TAG: "v99952233-e6a3deb-alpine_build"
+  ALPINE_BUILD_IMAGE_TAG: "v103339769-be1888c-alpine_build"
 
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
   - "3.9"
@@ -197,19 +197,31 @@ variables:
 "upload serverless":
   extends: .upload_wheels_base
   needs:
-    - job: "build linux"
+    - job: "build linux serverless"
       artifacts: true
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp311-cp311"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: *X86_64_IMAGES
+            DD_SERVERLESS_BUILD: "1"
           - ARCH_TAG: "arm64"
-            PYTHON_TAG: "cp311-cp311"
-            IMAGE_TAG: "v85383414-751efc0-manylinux2014_aarch64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: *AARCH64_IMAGES
+            DD_SERVERLESS_BUILD: "1"
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "serverless"
+  script:
+    - !reference [.upload_wheels_base, script]
+    - |
+      set -euo pipefail
+
+      # Upload to branch path (only for main/release branches)
+      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+        .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}" ${UPLOAD_SUFFIX:-}
+      fi
+
 
 "test sdist":
   image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
@@ -240,8 +252,7 @@ variables:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
         WINDOWS_ARCH: ["amd64", "x86"]
   variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: "6"
-    CARGO_BUILD_JOBS: "6"
+    WINDOWS_BUILD_IMAGE: "registry.ddbuild.io/images/mirror/dd-trace-py/windows-build:d4d18a67d43d400d3ecc6bda777a5e233a24f434@sha256:58c3e28646ddf8a1021a079a380c8840e51f0b88c1489a522beee6ec99413019"
   script:
     - bash .gitlab/scripts/build-wheel-windows.sh
   artifacts:
@@ -378,10 +389,19 @@ download_dependency_wheels:
       - "pywheels/*.whl"
 
 # Aggregate and validate all built wheels
-"ddtrace package":
+.package_base:
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: [ "arch:amd64" ]
   stage: package
+  before_script:
+    - pip install 'packaging>=24.0,<26'  # ci-deps: allow
+  artifacts:
+    paths:
+      - "pywheels/*.whl"
+      - "pywheels/*.tar.gz"
+
+"ddtrace package":
+  extends: .package_base
   needs:
     - "build linux"
     - "build macos"
@@ -389,9 +409,12 @@ download_dependency_wheels:
     - "collect windows wheels"
     - "package version"
   script:
-    - pip install 'packaging>=24.0,<26'  # ci-deps: allow
     - .gitlab/validate-ddtrace-package.py pywheels
-  artifacts:
-    paths:
-      - "pywheels/*.whl"
-      - "pywheels/*.tar.gz"
+
+"ddtrace package serverless":
+  extends: .package_base
+  needs:
+    - "build linux serverless"
+    - "package version"
+  script:
+    - .gitlab/validate-ddtrace-package.py pywheels --mode=serverless

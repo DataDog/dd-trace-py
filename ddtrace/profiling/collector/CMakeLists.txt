@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.19)
-include(FetchContent)
+include(CheckIPOSupported)
 
 project(_memalloc)
 
@@ -17,34 +17,8 @@ endif()
 
 add_compile_definitions(_POSIX_C_SOURCE=200809L)
 
-# Check the DD_COMPILE_ABSEIL environment variable and build type
-if(DEFINED ENV{DD_COMPILE_ABSEIL} AND ("$ENV{DD_COMPILE_ABSEIL}" STREQUAL "0" OR "$ENV{DD_COMPILE_ABSEIL}" STREQUAL
-                                                                                 "false"))
-    message("==============================================================")
-    message("WARNING: DD_COMPILE_ABSEIL set to 0 or false: not using abseil")
-    message("==============================================================")
-    add_definitions(-DDONT_COMPILE_ABSEIL)
-elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message("=====================================")
-    message("WARNING: Debug mode: not using abseil")
-    message("=====================================")
-    add_definitions(-DDONT_COMPILE_ABSEIL)
-else()
-    message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
-    # Use a git-based fetch rather than a ZIP download: git shallow clones are more resilient to GitHub transient
-    # failures than release archive downloads. FETCHCONTENT_UPDATES_DISCONNECTED prevents re-fetching on every configure
-    # once the initial clone is in the cache (set by FETCHCONTENT_BASE_DIR in setup.py).
-    set(FETCHCONTENT_UPDATES_DISCONNECTED
-        ON
-        CACHE BOOL "" FORCE)
-    FetchContent_Declare(
-        absl
-        GIT_REPOSITORY https://github.com/abseil/abseil-cpp.git
-        GIT_TAG 20250127.1
-        GIT_SHALLOW TRUE
-        GIT_PROGRESS TRUE)
-    FetchContent_MakeAvailable(absl)
-endif()
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../cmake")
+include(AbseilDep)
 
 # Find Python (be flexible about what's available in build environments)
 find_package(Python3 COMPONENTS Interpreter Development)
@@ -79,6 +53,12 @@ endif()
 # Create the shared library with the full name
 add_library(${FULL_EXTENSION_NAME} SHARED ${SOURCE_FILES})
 
+# Enable LTO (Link Time Optimization) if the compiler supports it
+check_ipo_supported(RESULT ipo_supported)
+if(ipo_supported)
+    set_property(TARGET ${FULL_EXTENSION_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif()
+
 # Set properties to prevent CMake from adding any prefix or suffix
 set_target_properties(${FULL_EXTENSION_NAME} PROPERTIES PREFIX "" SUFFIX "")
 
@@ -90,7 +70,9 @@ endif()
 # Include directories
 target_include_directories(
     ${FULL_EXTENSION_NAME}
-    PRIVATE ${Python3_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}
+    PRIVATE ${Python3_INCLUDE_DIRS}
+            ${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling
             ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling/dd_wrapper/include
             ${RUST_GENERATED_HEADERS_DIR})
 
@@ -121,23 +103,23 @@ elseif(UNIX)
                                                             INSTALL_RPATH "$ORIGIN/../../internal/datadog/profiling")
 endif()
 
-# Link with libdd_wrapper if NATIVE_EXTENSION_LOCATION is defined
-if(DEFINED NATIVE_EXTENSION_LOCATION)
-    # Find the libdd_wrapper shared library NATIVE_EXTENSION_LOCATION is ddtrace/internal/native, so
-    # ../datadog/profiling gets us to ddtrace/internal/datadog/profiling where libdd_wrapper is located
+# Link with libdd_wrapper
+if(DEFINED DD_WRAPPER_DIR)
+    set(_dd_wrapper_search_paths ${DD_WRAPPER_DIR})
     find_library(
         DD_WRAPPER_LIB
         NAMES libdd_wrapper${EXTENSION_SUFFIX}
-        PATHS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal/datadog/profiling
-              ${NATIVE_EXTENSION_LOCATION}/../datadog/profiling
+        PATHS ${_dd_wrapper_search_paths}
         NO_DEFAULT_PATH)
 
     if(DD_WRAPPER_LIB)
         message(STATUS "Found libdd_wrapper: ${DD_WRAPPER_LIB}")
         target_link_libraries(${FULL_EXTENSION_NAME} PRIVATE ${DD_WRAPPER_LIB})
     else()
-        message(WARNING "libdd_wrapper not found, extension may not link correctly")
+        message(FATAL_ERROR "libdd_wrapper not found in ${_dd_wrapper_search_paths}")
     endif()
+else()
+    message(FATAL_ERROR "DD_WRAPPER_DIR is not set")
 endif()
 
 # Enable allocator-hook reentry assertions in test builds. setup.py turns this on when

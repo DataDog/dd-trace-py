@@ -10,6 +10,8 @@ components:
     - ddtrace/contrib/internal/google_genai/*
   vertexai:
     - ddtrace/contrib/internal/vertexai/*
+  llama_index:
+    - ddtrace/contrib/internal/llama_index/*
   langchain:
     - ddtrace/contrib/internal/langchain/*
   litellm:
@@ -57,7 +59,7 @@ suites:
       - tests/snapshots/tests.contrib.claude_agent_sdk.*
     snapshot: true
   google_adk:
-    parallelism: 3
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -91,6 +93,17 @@ suites:
       - tests/contrib/vertexai/*
       - tests/snapshots/tests.contrib.vertexai.*
     snapshot: true
+  llama_index:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@llama_index'
+      - '@llmobs'
+      - tests/contrib/llama_index/*
+      - tests/snapshots/tests.contrib.llama_index.*
+    snapshot: true
   langchain:
     parallelism: 6
     paths:
@@ -123,6 +136,14 @@ suites:
       - '@tracing'
       - '@llmobs'
       - tests/llmobs/*
+      - tests/cassettes/anthropic/*
+      - tests/cassettes/azure_openai/*
+      - tests/cassettes/bedrock/*
+      - tests/cassettes/datadog/*
+      - tests/cassettes/genai/*
+      - tests/cassettes/openai/*
+      - tests/cassettes/vertexai/*
+      - tests/cassettes/tests.llmobs.*
     snapshot: true
     venvs_per_job: 1
   mcp:
@@ -213,4 +234,4 @@ suites:
       - tests/snapshots/tests.contrib.vllm.*
     gpu: true
     snapshot: true
-    skip: true  # Temporarily disabled
+    skip: true # Temporarily disabled

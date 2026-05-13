@@ -341,3 +341,24 @@ def test_otel_resource_attributes_version_tag():
     from ddtrace import config
 
     assert config.version == "1.0"
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("", []),
+        ("key=value", [("key", "value")]),
+        ("k1=v1,k2=v2,k3=v3", [("k1", "v1"), ("k2", "v2"), ("k3", "v3")]),
+        ("  k1 = v1 ,  k2 = v2 ", [("k1", "v1"), ("k2", "v2")]),
+        ("invalid,key=value", [("key", "value")]),
+        ("key=val=extra", [("key", "val=extra")]),
+    ],
+)
+def test_parse_otlp_headers(raw, expected):
+    from unittest import mock
+
+    from ddtrace.internal.writer.writer import NativeWriter
+
+    with mock.patch("ddtrace.internal.writer.writer.otel_config") as mock_cfg:
+        mock_cfg.exporter.TRACES_HEADERS = raw
+        assert NativeWriter._parse_otlp_headers() == expected

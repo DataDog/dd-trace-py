@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Fixes a missing ``return`` in the IAST taint tracking ``add_aspect`` native function
+    that caused redundant work when only the right operand of a string concatenation was tainted.

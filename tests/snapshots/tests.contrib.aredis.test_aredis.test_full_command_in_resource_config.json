@@ -11,18 +11,20 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aredis",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a5eb2300000000",
+      "_dd.p.tid": "69de94d200000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aredis",
       "language": "python",
-      "runtime-id": "44c636383e7240d59d17575bf5f491a4"
+      "runtime-id": "e2fcbf10e6ee43cd9a879a5b7143db60"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 28047.0
+      "process_id": 61089.0
     },
-    "duration": 1570875,
-    "start": 1772481315862145584
+    "duration": 1342959,
+    "start": 1776194770184206344
   },
      {
        "name": "redis.command",
@@ -51,8 +53,8 @@
          "out.redis_db": 0.0,
          "redis.args_length": 2.0
        },
-       "duration": 545708,
-       "start": 1772481315862506334
+       "duration": 368166,
+       "start": 1776194770184745928
      },
      {
        "name": "redis.command",
@@ -80,6 +82,6 @@
          "out.redis_db": 0.0,
          "redis.pipeline_length": 2.0
        },
-       "duration": 348833,
-       "start": 1772481315863332584
+       "duration": 256875,
+       "start": 1776194770185267761
      }]]

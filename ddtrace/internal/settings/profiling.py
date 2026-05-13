@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import itertools
 import math
-import os
 import typing as t
 
 from envier import Env
@@ -14,6 +13,7 @@ from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.settings._core import ValueSource
 from ddtrace.internal.telemetry import report_configuration
@@ -74,7 +74,7 @@ def _check_for_stack_available():
 
 def _injection_enabled_has_profiler() -> bool:
     """Return True if DD_INJECTION_ENABLED contains the 'profiler' token."""
-    injection_enabled = os.environ.get("DD_INJECTION_ENABLED")
+    injection_enabled = env.get("DD_INJECTION_ENABLED")
     if injection_enabled is None:
         return False
 
@@ -110,7 +110,7 @@ def _enrich_tags(tags) -> dict[str, str]:
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
-            _update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
+            _update_git_metadata_tags(parse_tags_str(env.get("DD_TAGS"))).items(),
             tags.items(),
         )
     }
@@ -313,6 +313,16 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    max_threads = DDConfig.v(
+        int,
+        "max_threads",
+        default=25,
+        validator=validators.range(0, 1000),
+        help_type="Integer",
+        help="Maximum number of threads to sample per cycle. Uses reservoir sampling when exceeded. 0 = unlimited.",
+        private=True,
+    )
+
     uvloop = DDConfig.v(
         bool,
         "uvloop",
@@ -327,6 +337,15 @@ class ProfilingConfigStack(DDConfig):
         default=True,
         help_type="Boolean",
         help="Whether to enable native function call tracking in stack profiling (Python 3.12+)",
+    )
+
+    fast_copy = DDConfig.v(
+        bool,
+        "fast_copy",
+        default=False,
+        help_type="Boolean",
+        help="Whether to use fast memory copying (safe_memcpy) instead of process_vm_readv for stack sampling.",
+        private=True,
     )
 
 
@@ -349,6 +368,43 @@ class ProfilingConfigLock(DDConfig):
         help=(
             "Whether to inspect the ``dir()`` of local and global variables to find the name of the lock. "
             "With this enabled, the profiler finds the name of locks that are attributes of an object."
+        ),
+    )
+
+    exclude_modules = DDConfig.v(
+        frozenset,
+        "exclude_modules",
+        parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
+        default=frozenset(
+            {
+                # Datadog internals (profiling our own profileris noise)
+                "ddtrace",
+                "ddsketch",
+                "datadog",
+                "envier",
+                "bytecode",
+                "wrapt",
+                # ── Server / ASGI plumbing
+                "uvicorn",
+                "gunicorn",
+                "werkzeug",
+                "h11",  # HTTP/1.1 protocol parser; no real contention
+                "anyio",  # async abstraction; locks are bookkeeping
+                # Stdlib internal lock allocations
+                "asyncio",
+                "threading",
+                "concurrent",  # also covers concurrent.futures.ThreadPoolExecutor's work queue
+                "logging",  # per-handler Handler.lock; almost never user-actionable
+                "http",  # http.client connection-handling internals
+            }
+        ),
+        help_type="String",
+        help=(
+            "Comma-separated list of module or package names to exclude from lock profiling. "
+            "Locks created from these modules are not profiled. Setting this environment variable "
+            "REPLACES the in-tree default rather than appending to it; users who only need to add "
+            "an entry should reproduce the full default list and append to it. "
+            "Examples: ``ddtrace`` (excludes profiler overhead), ``django.db,sqlalchemy.pool,urllib3``"
         ),
     )
 
@@ -475,7 +531,8 @@ ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 # We need to check if ddup is available, and turn off profiling if it is not.
 if not ddup_is_available:
     msg = ddup_failure_msg or "libdd not available"
-    logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
+    if config.enabled:
+        logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
     telemetry_writer.add_log(
         TELEMETRY_LOG_LEVEL.ERROR,
         f"Failed to load ddup module ({ddup_failure_msg}), disabling profiling",
@@ -485,13 +542,15 @@ if not ddup_is_available:
 # We also need to check if stack module is available, and turn if off
 # if it s not.
 stack_failure_msg, stack_is_available = _check_for_stack_available()
-if config.stack.enabled and not stack_is_available:  # pyright: ignore[reportAttributeAccessIssue]
+if not stack_is_available:
     msg = stack_failure_msg or "stack not available"
-    logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
-    telemetry_writer.add_log(
-        TELEMETRY_LOG_LEVEL.ERROR,
-        "Failed to load stack module (%s), disabling stack profiling" % msg,
-    )
+    if config.stack.enabled:
+        if config.enabled:
+            logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
+        telemetry_writer.add_log(
+            TELEMETRY_LOG_LEVEL.ERROR,
+            "Failed to load stack module (%s), disabling stack profiling" % msg,
+        )
     config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # Enrich tags with git metadata and DD_TAGS

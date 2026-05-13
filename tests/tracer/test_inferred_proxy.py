@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace._trace._inferred_proxy import SUPPORTED_PROXY_SPAN_NAMES
+from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace.span import Span
 from ddtrace.internal.core import ExecutionContext
@@ -38,7 +38,7 @@ def test_create_inferred_proxy_span_for_apigateway(
     span: Span = ctx.get_item("inferred_proxy_span")
     assert span is not None
     assert span.name == span_name
-    assert span.name in SUPPORTED_PROXY_SPAN_NAMES
+    assert span.name in INFERRED_SPAN_NAMES
     assert span.span_type == "web"
     assert span.get_tag("span.kind") == "server"
     if not missing_resource_path:
@@ -82,7 +82,7 @@ def test_create_inferred_proxy_span_for_azure_apim(tracer) -> None:
     span: Span = ctx.get_item("inferred_proxy_span")
     assert span is not None
     assert span.name == "azure.apim"
-    assert span.name in SUPPORTED_PROXY_SPAN_NAMES
+    assert span.name in INFERRED_SPAN_NAMES
     assert span.span_type == "web"
     assert span.get_tag("span.kind") == "server"
     assert span.resource == "GET /api/{resource}"

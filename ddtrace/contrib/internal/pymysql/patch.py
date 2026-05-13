@@ -1,10 +1,7 @@
-import os
-
 import pymysql
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.ext import db
@@ -12,6 +9,7 @@ from ddtrace.ext import net
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 
@@ -22,7 +20,7 @@ config._add(
         _default_service=schematize_service_name("pymysql"),
         _dbapi_span_name_prefix="pymysql",
         _dbapi_span_operation_name=schematize_database_operation("pymysql.query", database_provider="mysql"),
-        trace_fetch_methods=asbool(os.getenv("DD_PYMYSQL_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(env.get("DD_PYMYSQL_TRACE_FETCH_METHODS", default=False)),
         _dbm_propagator=_DBM_Propagator(0, "query"),
     ),
 )
@@ -64,9 +62,4 @@ def _connect(func, instance, args, kwargs):
 def patch_conn(conn):
     tags = {t: _convert_to_string(getattr(conn, a)) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""}
     tags[db.SYSTEM] = "mysql"
-    pin = Pin(tags=tags)
-
-    # grab the metadata from the conn
-    wrapped = TracedConnection(conn, pin=pin, cfg=config.pymysql)
-    pin.onto(wrapped)
-    return wrapped
+    return TracedConnection(conn, cfg=config.pymysql, db_tags=tags)

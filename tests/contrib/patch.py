@@ -814,7 +814,7 @@ class PatchTestCase(object):
 
                 if module_name in _MODULES_FOR_CONTRIB:
                     module_name = _MODULES_FOR_CONTRIB[module_name][0]
-                elif module_name in {"azure.eventhub.aio", "azure.servicebus.aio"}:
+                elif module_name in {"azure.cosmos.aio", "azure.eventhub.aio", "azure.servicebus.aio"}:
                     # handle specific submodules where the top level module name includes a dot
                     module_name = module_name.rpartition(".")[0]
                 else:

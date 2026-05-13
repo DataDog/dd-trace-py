@@ -16,9 +16,14 @@ from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.runtime import get_runtime_propagation_envs
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
 from ddtrace.trace import tracer
 
 
@@ -26,7 +31,7 @@ log = get_logger(__name__)
 
 config._add(
     "subprocess",
-    dict(sensitive_wildcards=os.getenv("DD_SUBPROCESS_SENSITIVE_WILDCARDS", default="").split(",")),
+    dict(sensitive_wildcards=env.get("DD_SUBPROCESS_SENSITIVE_WILDCARDS", default="").split(",")),
 )
 
 
@@ -86,22 +91,39 @@ def should_trace_subprocess():
 
 
 def patch() -> list[str]:
-    """Patch subprocess and os functions to enable security monitoring.
+    """Patch subprocess and os functions to enable security monitoring and process lineage.
 
-    This function instruments various subprocess and os functions to provide
-    security monitoring capabilities for AAP (Application Attack Protection).
+    Popen.__init__ is always patched for session lineage injection so that exec-based
+    child processes receive lineage env vars whenever ddtrace is active, independent of
+    whether ASM is enabled. Opt out via DD_TRACE_SUBPROCESS_ENABLED=false.
 
-    Note:
-        Patching always occurs because AAP can be enabled dynamically via remote config.
-        Already patched functions are skipped.
+    Popen.wait is also always patched alongside Popen.__init__ to complete span
+    lifecycle tracking, though _traced_subprocess_wait is a no-op without ASM.
+
+    os.system, os.fork, and os._spawnvef are ASM-specific and only patched when ASM
+    modules are loaded. AAP can be enabled dynamically via remote config, so
+    already-patched functions are skipped.
     """
+    import subprocess  # nosec
+
     patched: list[str] = []
+
+    should_patch_Popen_init = not trace_utils.iswrapped(subprocess.Popen.__init__)
+    should_patch_Popen_wait = not trace_utils.iswrapped(subprocess.Popen.wait)
+    if should_patch_Popen_init or should_patch_Popen_wait:
+        Pin().onto(subprocess)
+        # We store the parameters on __init__ in the context and set the tags on wait
+        # (where all the Popen objects eventually arrive, unless killed before it)
+        if should_patch_Popen_init:
+            trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
+        if should_patch_Popen_wait:
+            trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
+        patched.append("subprocess")
 
     if not asm_config._load_modules:
         return patched
 
     import os  # nosec
-    import subprocess  # nosec
 
     should_patch_system = not trace_utils.iswrapped(os.system)
     should_patch_fork = (not trace_utils.iswrapped(os.fork)) if hasattr(os, "fork") else False
@@ -118,18 +140,6 @@ def patch() -> list[str]:
             # all os.spawn* variants eventually use this one:
             trace_utils.wrap(os, "_spawnvef", _traced_osspawn(os))
         patched.append("os")
-
-    should_patch_Popen_init = not trace_utils.iswrapped(subprocess.Popen.__init__)
-    should_patch_Popen_wait = not trace_utils.iswrapped(subprocess.Popen.wait)
-    if should_patch_Popen_init or should_patch_Popen_wait:
-        Pin().onto(subprocess)
-        # We store the parameters on __init__ in the context and set the tags on wait
-        # (where all the Popen objects eventually arrive, unless killed before it)
-        if should_patch_Popen_init:
-            trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
-        if should_patch_Popen_wait:
-            trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
-        patched.append("subprocess")
 
     return patched
 
@@ -556,13 +566,32 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
-    """Traced wrapper for subprocess.Popen.__init__ method.
+    """Wrapper for ``subprocess.Popen.__init__``.
 
-    Note:
-        Only instruments when AAP is enabled and WAF bypass is not active.
-        Stores command details in context for later use by _traced_subprocess_wait.
-        Creates a span that will be completed by the wait() method.
+    When instrumentation telemetry is on, merges runtime propagation env vars into the
+    child ``env`` (copying from ``os.environ`` if unset) so exec-based children keep
+    lineage context.
+
+    When ASM subprocess tracing is active, records the command for ``Popen.wait`` and
+    emits a subprocess span around the real ``__init__``.
     """
+    if telemetry_config.TELEMETRY_ENABLED:
+        # Process tracking is only used in instrumentation telemetry. Skip if telemetry is disabled.
+        # ``subprocess.Popen.__init__`` exposes ``env`` as the 11th argument (index 10) for
+        # the Python versions we support.
+        #
+        # We build the child ``env`` from the parent (``os.environ``) merged with any
+        # caller-supplied mapping. That is usually equivalent to ``env=None``, but it can
+        # differ in edge cases and _may_ interact oddly with ``preexec_fn`` or other
+        # POSIX-specific process setup.
+        current_env = get_argument_value(args, kwargs, 10, "env", optional=True)
+        if current_env is None:
+            child_env = os.environ.copy()  # ast-grep-ignore: os-environ-fix-access
+        else:
+            child_env = current_env
+        child_env.update(get_runtime_propagation_envs())
+        args, kwargs = set_argument_value(args, kwargs, 10, "env", child_env, override_unset=True)
+
     if should_trace_subprocess():
         try:
             cmd_args = args[0] if len(args) else kwargs["args"]

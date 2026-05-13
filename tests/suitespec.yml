@@ -28,6 +28,13 @@ components:
     - ddtrace/bootstrap/*
     - ddtrace/commands/*
     - ddtrace/auto.py
+  crashtracker:
+    - ddtrace/internal/core/crashtracking.py
+    - ddtrace/internal/settings/crashtracker.py
+    - ddtrace/internal/native/_native.pyi
+    - src/native/crashtracker.rs
+    - src/native/crashtracker/*
+    - tests/crashtracker/*
   ci:
     - ddtrace/ext/ci/*
   codeowners:
@@ -131,7 +138,6 @@ components:
     - ddtrace/internal/peer_service/*
     - ddtrace/internal/settings/peer_service.py
     - ddtrace/internal/processor/__init__.py
-    - ddtrace/internal/processor/stats.py
     - ddtrace/internal/runtime/*
     - ddtrace/internal/sampling.py
     - ddtrace/internal/schema/*
@@ -142,6 +148,12 @@ components:
   vendor:
     - ddtrace/vendor/*
 suites:
+  crashtracker:
+    venvs_per_job: 6
+    paths:
+      - '@crashtracker'
+      - '@core'
+    snapshot: true
   conftest:
     parallelism: 1
     paths:

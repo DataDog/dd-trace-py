@@ -4,11 +4,15 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <random>
+#include <vector>
 
 #include "constants.hpp"
 
 #include "echion/strings.h"
 #include "echion/timing.h"
+
+#include <Python.h>
 
 class EchionSampler;
 
@@ -49,9 +53,18 @@ class Sampler
     bool do_adaptive_sampling = true;
     double target_overhead = g_target_overhead;
     microsecond_t max_sampling_period_us = g_max_sampling_period_us;
+    unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
+    std::minstd_rand rng{ std::random_device{}() };
+    std::vector<PyThreadState> thread_candidates;
     void adapt_sampling_interval();
 
+    // Tracks whether the sampler was running when prefork was called,
+    // so that postfork_parent/restart_after_fork can restore it.
+    bool was_running_at_fork_{ false };
+
     void atfork_child();
+    friend void stack_atfork_prepare();
+    friend void stack_atfork_parent();
     friend void stack_atfork_child();
 
   public:
@@ -81,15 +94,23 @@ class Sampler
     // update the next rate with the latest interval. This is not perfect because the adjustment is based on
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
+    bool is_running() const { return thread_running.load(); }
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
     void set_target_overhead(double value) { target_overhead = value; }
     void set_max_sampling_period(microsecond_t max_interval_us)
     {
         max_sampling_period_us = std::max(max_interval_us, static_cast<microsecond_t>(g_min_sampling_period_us));
     }
+    void set_max_threads_per_sample(unsigned int value) { max_threads_per_sample = value; }
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();
+
+    // Record whether the Sampler was running before fork
+    void prefork();
+
+    // Restart the sampling thread in the parent after fork
+    void postfork_parent();
 
     // Restart the sampler after fork if it was running
     void restart_after_fork();

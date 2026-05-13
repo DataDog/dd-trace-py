@@ -64,6 +64,25 @@ else:
     assert app_started[0]["runtime_id"] == runtime_id
 
 
+def test_enable_subprocess_exec_suppresses_app_events(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """A child process spawned via subprocess.run should not emit app-started or app-closing events."""
+    code = """
+import subprocess
+import sys
+
+subprocess.run([sys.executable, "-c", "import ddtrace.auto"], check=True)
+"""
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    # Only the parent should emit app-started and app-closing
+    assert len(test_agent_session.get_events("app-started")) == 1
+    assert len(test_agent_session.get_events("app-closing")) == 1
+
+
 def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):
     """
     assert app-heartbeat events are also sent in forked processes since otherwise the dependency collection
@@ -387,6 +406,7 @@ def test_session_id_headers_across_forks(test_agent_session, ddtrace_run_python_
     """Verify session ID headers are correct across a parent -> child -> grandchild fork tree."""
     code = """
 import os
+import sys
 
 pid1 = os.fork()
 if pid1 == 0:
@@ -456,9 +476,9 @@ def test_extended_heartbeat_sent(collect_dependencies, ddtrace_run_python_code_i
     extended_events = test_agent_session.get_events("app-extended-heartbeat")
     assert len(extended_events) >= 1
 
-    assert extended_events[0]["payload"]["configurations"] is not None
+    assert extended_events[0]["payload"]["configuration"] is not None
     configurations = test_agent_session.get_configurations()
-    assert configurations == extended_events[0]["payload"]["configurations"]
+    assert configurations == extended_events[0]["payload"]["configuration"]
 
     if collect_dependencies:
         assert "dependencies" in extended_events[0]["payload"]

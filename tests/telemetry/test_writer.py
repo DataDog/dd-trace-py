@@ -2,11 +2,11 @@ import os
 import sys
 import sysconfig
 import time
-from typing import Any  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Any
+from typing import Optional
+from unittest import mock
 
 import httpretty
-import mock
 import pytest
 
 from ddtrace import config
@@ -189,11 +189,14 @@ import opentelemetry
             "origin": "default",
             "value": r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|"
             r"secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
-            r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
+            r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|"
+            r"consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
             r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
-            r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|token\s*:\s*([a-z0-9]{13})|gh[opsu]_([0-9a-zA-Z]{36})'
+            r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|'
+            r"token\s*:\s*([a-z0-9]{13})|gh[opsu]_([0-9a-zA-Z]{36})"
             r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
-            r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})",
+            r"{5}END[a-z\s]+PRIVATE\sKEY|"
+            r"ssh-rsa\s*([a-z0-9\/\.+]{100,})",
         },
         {"name": "DD_APPSEC_RASP_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_APPSEC_RULES", "origin": "default", "value": None},
@@ -209,10 +212,12 @@ import opentelemetry
         {"name": "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_ITR_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CIVISIBILITY_LOG_LEVEL", "origin": "default", "value": "info"},
-        {"name": "DD_CODE_ORIGIN_FOR_SPANS_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_CODE_ORIGIN_FOR_SPANS_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_CRASHTRACKING_COLLECT_ALL_THREADS", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_CREATE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_DEBUG_URL", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_CRASHTRACKING_MAX_THREADS", "origin": "default", "value": 128},
         {
             "name": "DD_CRASHTRACKING_STACKTRACE_RESOLVER",
             "origin": "default",
@@ -236,9 +241,9 @@ import opentelemetry
         {"name": "DD_DYNAMIC_INSTRUMENTATION_MAX_PAYLOAD_SIZE", "origin": "default", "value": 1048576},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_METRICS_ENABLED", "origin": "default", "value": True},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_PROBE_FILE", "origin": "default", "value": None},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_IDENTIFIERS", "origin": "default", "value": "set()"},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES", "origin": "default", "value": "set()"},
-        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS", "origin": "default", "value": "set()"},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_IDENTIFIERS", "origin": "default", "value": ""},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES", "origin": "default", "value": ""},
+        {"name": "DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS", "origin": "default", "value": ""},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_INTERVAL_SECONDS", "origin": "default", "value": 1.0},
         {"name": "DD_DYNAMIC_INSTRUMENTATION_UPLOAD_TIMEOUT", "origin": "default", "value": 30},
         {"name": "DD_ENV", "origin": "default", "value": None},
@@ -284,6 +289,7 @@ import opentelemetry
         {"name": "DD_LIVE_DEBUGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_LLMOBS_AGENTLESS_ENABLED", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_LLMOBS_EVALUATOR_SAMPLING_RULES", "origin": "env_var", "value": None},
         {"name": "DD_LLMOBS_EVENT_SIZE_BYTES", "origin": "default", "value": 5000000},
         {"name": "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
@@ -307,6 +313,32 @@ import opentelemetry
         {"name": "DD_PROFILING_HEAP_SAMPLE_SIZE", "origin": "default", "value": None},
         {"name": "DD_PROFILING_IGNORE_PROFILER", "origin": "default", "value": False},
         {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "env_var", "value": False},
+        {
+            "name": "DD_PROFILING_LOCK_EXCLUDE_MODULES",
+            "origin": "default",
+            "value": ",".join(
+                sorted(
+                    [
+                        "anyio",
+                        "asyncio",
+                        "bytecode",
+                        "concurrent",
+                        "datadog",
+                        "ddsketch",
+                        "ddtrace",
+                        "envier",
+                        "gunicorn",
+                        "h11",
+                        "http",
+                        "logging",
+                        "threading",
+                        "uvicorn",
+                        "werkzeug",
+                        "wrapt",
+                    ]
+                )
+            ),
+        },
         {"name": "DD_PROFILING_LOCK_NAME_INSPECT_DIR", "origin": "default", "value": True},
         {"name": "DD_PROFILING_MAX_FRAMES", "origin": "env_var", "value": 512},
         {"name": "DD_PROFILING_MAX_TIME_USAGE_PCT", "origin": "default", "value": 1.0},
@@ -334,7 +366,7 @@ import opentelemetry
             "origin": "env_var",
             "value": str(file),
         },
-        {"name": "DD_SYMBOL_DATABASE_INCLUDES", "origin": "default", "value": "set()"},
+        {"name": "DD_SYMBOL_DATABASE_INCLUDES", "origin": "default", "value": ""},
         {"name": "DD_SYMBOL_DATABASE_UPLOAD_ENABLED", "origin": "default", "value": True},
         {"name": "DD_TAGS", "origin": "env_var", "value": "team:apm,component:web"},
         {"name": "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED", "origin": "default", "value": True},
@@ -352,7 +384,7 @@ import opentelemetry
         {"name": "DD_TRACE_COMPUTE_STATS", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_ENABLED", "origin": "env_var", "value": False},
-        {"name": "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", "origin": "default", "value": "set()"},
+        {"name": "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", "origin": "default", "value": ""},
         {"name": "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_FLUSH_INTERVAL", "origin": "default", "value": 120.0},
         {"name": "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", "origin": "default", "value": 10.0},
         {"name": "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "origin": "default", "value": False},
@@ -399,6 +431,7 @@ import opentelemetry
         },
         {"name": "DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", "origin": "default", "value": 30},
         {"name": "DD_TRACE_STARTUP_LOGS", "origin": "env_var", "value": True},
+        {"name": "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS", "origin": "default", "value": False},
         {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "env_var", "value": 1000},
         {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "env_var", "value": 30.0},
         {"name": "DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", "origin": "env_var", "value": 9999},
@@ -474,6 +507,21 @@ import opentelemetry
             "value": 10000,
         },
         {
+            "name": "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+            "origin": "default",
+            "value": "",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+            "origin": "default",
+            "value": "grpc",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT",
+            "origin": "default",
+            "value": 10000,
+        },
+        {
             "name": "OTEL_METRIC_EXPORT_INTERVAL",
             "origin": "default",
             "value": 10000,
@@ -493,8 +541,8 @@ import opentelemetry
         {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
         {"name": "_DD_NATIVE_LOGGING_BACKEND", "origin": "default", "value": None},
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
-        {"name": "_DD_TRACE_WRITER_NATIVE", "origin": "default", "value": True},
         {"name": "instrumentation_source", "origin": "code", "value": "manual"},
+        {"name": "llmobs_oneclick_supported", "origin": "code", "value": False},
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},
         {"name": "python_host_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("HOST_GNU_TYPE")},
         {"name": "python_soabi", "origin": "unknown", "value": sysconfig.get_config_var("SOABI")},
@@ -834,6 +882,7 @@ def validate_request_body(received_body: dict, payload: dict, payload_type: str,
     if payload is not None:
         assert received_body["payload"] == payload
     assert received_body["request_type"] == payload_type
+    return received_body
 
 
 def test_telemetry_writer_agent_setup():

@@ -48,6 +48,9 @@ Datadog::ProfilerStats::reset_state()
     string_table_ephemeral_count = std::nullopt;
     copy_memory_error_count = 0;
     heap_tracker_size = std::nullopt;
+    asyncio_task_count = std::nullopt;
+    greenlet_count = std::nullopt;
+    sample_capture_cpu_time_us = 0;
     // fast_copy_memory_enabled is intentionally not reset: it reflects a static configuration
 }
 
@@ -123,6 +126,42 @@ Datadog::ProfilerStats::get_heap_tracker_size() const
     return heap_tracker_size;
 }
 
+void
+Datadog::ProfilerStats::set_asyncio_task_count(size_t count)
+{
+    asyncio_task_count = count;
+}
+
+std::optional<size_t>
+Datadog::ProfilerStats::get_asyncio_task_count() const
+{
+    return asyncio_task_count;
+}
+
+void
+Datadog::ProfilerStats::set_greenlet_count(size_t count)
+{
+    greenlet_count = count;
+}
+
+std::optional<size_t>
+Datadog::ProfilerStats::get_greenlet_count() const
+{
+    return greenlet_count;
+}
+
+void
+Datadog::ProfilerStats::add_sample_capture_cpu_time_us(size_t cpu_time_us)
+{
+    sample_capture_cpu_time_us += cpu_time_us;
+}
+
+size_t
+Datadog::ProfilerStats::get_sample_capture_cpu_time_us() const
+{
+    return sample_capture_cpu_time_us;
+}
+
 std::string
 Datadog::ProfilerStats::get_internal_metadata_json()
 {
@@ -174,8 +213,26 @@ Datadog::ProfilerStats::get_internal_metadata_json()
         internal_metadata_json += ",";
     }
 
+    auto maybe_asyncio_task_count = get_asyncio_task_count();
+    if (maybe_asyncio_task_count) {
+        internal_metadata_json += R"("asyncio_task_count": )";
+        append_to_string(internal_metadata_json, *maybe_asyncio_task_count);
+        internal_metadata_json += ",";
+    }
+
+    auto maybe_greenlet_count = get_greenlet_count();
+    if (maybe_greenlet_count) {
+        internal_metadata_json += R"("greenlet_count": )";
+        append_to_string(internal_metadata_json, *maybe_greenlet_count);
+        internal_metadata_json += ",";
+    }
+
     internal_metadata_json += R"("copy_memory_error_count": )";
     append_to_string(internal_metadata_json, copy_memory_error_count);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("sample_capture_cpu_time_us": )";
+    append_to_string(internal_metadata_json, sample_capture_cpu_time_us);
 
     internal_metadata_json += "}";
 

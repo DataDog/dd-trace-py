@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 import sys
 
@@ -8,6 +9,8 @@ from ddtrace import config
 from ddtrace.contrib.internal.openai import _endpoint_hooks
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
@@ -76,6 +79,11 @@ _RESOURCES = {
 }
 
 OPENAI_WITH_RAW_RESPONSE_ARG = "_dd.with_raw_response"
+
+_CHAT_COMPLETION_HOOKS = (
+    _endpoint_hooks._ChatCompletionHook,
+    _endpoint_hooks._ChatCompletionParseHook,
+)
 
 
 def patch():
@@ -236,6 +244,10 @@ def _patched_endpoint(patch_hook):
             return func(*args, **kwargs)
 
         integration = openai._datadog_integration
+        is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
+        if is_chat:
+            core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
+
         g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
         g.send(None)
         resp, err = None, None
@@ -253,10 +265,52 @@ def _patched_endpoint(patch_hook):
                     # This return takes priority over the implicit None return
                     override_return = e.value
 
+        if is_chat and not kwargs.get("stream") and resp is not None and err is None:
+            core.dispatch("openai.chat.completions.create.after", (kwargs, resp), allow_raise=True)
+
         if override_return is not None:
             return override_return
 
     return patched_endpoint
+
+
+def _inject_into_parse_cache(api_response, traced_value):
+    """Replace the cached parse result on an AsyncAPIResponse so callers
+    who call ``await api_response.parse()`` receive the traced stream wrapper
+    instead of the original unwrapped stream.
+
+    This accesses private SDK internals that may change across versions:
+      - OpenAI SDK >=2.0 (``openai>=2.0.0``): ``_parsed_by_type`` dict keyed by ``_cast_to``
+      - OpenAI SDK 1.x (``openai>=1.0,<2``): single ``_parsed`` attribute
+    """
+    try:
+        if hasattr(api_response, "_parsed_by_type"):
+            api_response._parsed_by_type[api_response._cast_to] = traced_value
+        elif hasattr(api_response, "_parsed"):
+            api_response._parsed = traced_value
+    except Exception:  # nosec B110
+        pass
+
+
+async def _maybe_preparse_async_response(resp, err):
+    """If *resp* is an async API response (has an async ``parse()``), eagerly
+    await it so the sync ``_traced_endpoint`` generator receives the real
+    stream object instead of an unawaited coroutine.
+
+    Returns the parsed object on success, or the original *resp* on any
+    failure (so tracing never changes application-visible behaviour).
+    """
+    if resp is not None and err is None and hasattr(resp, "parse"):
+        try:
+            parsed = resp.parse()
+            if asyncio.iscoroutine(parsed):
+                return await parsed
+            # Sync parse() — return the parsed value directly.
+            return parsed
+        # CancelledError is a BaseException in Python 3.9+
+        except (Exception, asyncio.CancelledError):  # nosec B110
+            pass
+    return resp
 
 
 class _TracedAsyncPaginator:
@@ -314,11 +368,18 @@ class _TracedAsyncPaginator:
                 err = e
                 raise
             finally:
+                send_resp = await _maybe_preparse_async_response(resp, err)
                 try:
-                    g.send((resp, err))
+                    g.send((send_resp, err))
                 except StopIteration as e:
                     if err is None:
-                        resp = e.value
+                        hook_val = e.value
+                        if resp is not send_resp and hook_val is not None:
+                            _inject_into_parse_cache(resp, hook_val)
+                            # resp stays as the original API response; the
+                            # traced stream is now in its parse cache.
+                        else:
+                            resp = hook_val
             return resp
 
         return _trace_and_await().__await__()
@@ -335,6 +396,7 @@ def _patched_endpoint_async(patch_hook):
         if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
             return func(*args, **kwargs)
 
+        is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
         result = func(*args, **kwargs)
         # Detect AsyncPaginator objects (have both __aiter__ and __await__).
         # These must be returned directly (not awaited) to preserve iteration behavior.
@@ -342,6 +404,24 @@ def _patched_endpoint_async(patch_hook):
             return _TracedAsyncPaginator(result, openai._datadog_integration, patch_hook, instance, args, kwargs)
 
         async def async_wrapper():
+            # AIDEV-NOTE: Dispatch the AI Guard before-hook at await time, not
+            # at call time. Running it earlier would (a) surface
+            # ``AIGuardAbortError`` at coroutine construction, breaking
+            # ``async def`` semantics callers rely on (``asyncio.wait_for`` /
+            # ``gather`` / ``create_task`` assume cheap construction with work
+            # starting at await/scheduling), and (b) evaluate (and bill) AI
+            # Guard even when the caller never awaits the returned coroutine.
+            if is_chat:
+                try:
+                    core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
+                except DDBlockException:
+                    # AI Guard blocked the request — discard the unstarted SDK
+                    # coroutine so Python doesn't emit a "coroutine was never
+                    # awaited" warning for it.
+                    if hasattr(result, "close"):
+                        result.close()
+                    raise
+
             integration = openai._datadog_integration
             g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
             g.send(None)
@@ -353,13 +433,20 @@ def _patched_endpoint_async(patch_hook):
                 err = e
                 raise
             finally:
+                send_resp = await _maybe_preparse_async_response(resp, err)
                 try:
-                    g.send((resp, err))
+                    g.send((send_resp, err))
                 except StopIteration as e:
                     if err is None:
                         override_return = e.value
 
+            if is_chat and not kwargs.get("stream") and resp is not None and err is None:
+                core.dispatch("openai.chat.completions.create.after", (kwargs, resp), allow_raise=True)
+
             if override_return is not None:
+                if resp is not send_resp and override_return is not None:
+                    _inject_into_parse_cache(resp, override_return)
+                    return resp
                 return override_return
             return resp
 

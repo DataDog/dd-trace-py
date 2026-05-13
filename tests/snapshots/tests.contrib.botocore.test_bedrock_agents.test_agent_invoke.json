@@ -10,18 +10,23 @@
     "error": 0,
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
+      "_dd.llmobs.model_provider": "bedrock",
+      "_dd.llmobs.span_kind": "agent",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "687f8f1800000000",
+      "_dd.p.tid": "69e91df300000000",
+      "_dd.svc_src": "botocore",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "language": "python",
-      "runtime-id": "f9bd434e80c74a2e87a2796368dac486"
+      "runtime-id": "258d79d4096c43eca60616f9f4a1cf3e"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.llmobs.enabled": 0.0,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 25551
+      "_sampling_priority_v1": 1.0,
+      "process_id": 621.0
     },
-    "duration": 3801000,
-    "start": 1753190168427516000
+    "duration": 4074875,
+    "start": 1776885235323015044
   }]]

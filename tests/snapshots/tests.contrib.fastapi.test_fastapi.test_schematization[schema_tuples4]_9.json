@@ -10,7 +10,9 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65e2cda400000000",
+      "_dd.p.tid": "69de533d00000000",
+      "_dd.svc_src": "httpx",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "httpx",
       "http.method": "GET",
       "http.status_code": "200",
@@ -18,18 +20,18 @@
       "http.useragent": "testclient",
       "language": "python",
       "out.host": "testserver",
-      "runtime-id": "103bb176ab3d4d838920e605f1de088a",
+      "runtime-id": "aac45c6da04845b686aaf611781f5c85",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 73420
+      "_sampling_priority_v1": 1.0,
+      "process_id": 85775.0
     },
-    "duration": 3182000,
-    "start": 1709362596649036000
+    "duration": 2043250,
+    "start": 1776177981417115422
   },
      {
        "name": "fastapi.request",
@@ -41,7 +43,8 @@
        "type": "web",
        "error": 0,
        "meta": {
-         "_dd.p.tid": "65e2cda400000000",
+         "_dd.p.tid": "69de533d00000000",
+         "_dd.svc_src": "m",
          "component": "fastapi",
          "http.method": "GET",
          "http.route": "/sub-app/hello/{name}",
@@ -51,8 +54,8 @@
          "http.version": "1.1",
          "span.kind": "server"
        },
-       "duration": 1565000,
-       "start": 1709362596649814000
+       "duration": 1188208,
+       "start": 1776177981417683339
      },
         {
           "name": "fastapi.request",
@@ -64,7 +67,8 @@
           "type": "web",
           "error": 0,
           "meta": {
-            "_dd.p.tid": "65e2cda400000000",
+            "_dd.p.tid": "69de533d00000000",
+            "_dd.svc_src": "m",
             "component": "fastapi",
             "http.method": "GET",
             "http.status_code": "200",
@@ -73,8 +77,8 @@
             "http.version": "1.1",
             "span.kind": "server"
           },
-          "duration": 1398000,
-          "start": 1709362596649987000
+          "duration": 978333,
+          "start": 1776177981417901381
         },
            {
              "name": "fastapi.serialize_response",
@@ -86,8 +90,9 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.p.tid": "65e2cda400000000"
+               "_dd.p.tid": "69de533d00000000",
+               "_dd.svc_src": "m"
              },
-             "duration": 39000,
-             "start": 1709362596651234000
+             "duration": 28000,
+             "start": 1776177981418758464
            }]]

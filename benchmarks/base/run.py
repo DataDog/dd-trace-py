@@ -61,6 +61,7 @@ def run(scenario_py: str, cname: str, cvars: dict[str, Any], output_dir: str, cp
             "200",
             "--output_file",
             os.path.join(output_dir, "viztracer", "{}.json".format(cname)),
+            "--",
         ]
     else:
         cmd += ["python"]

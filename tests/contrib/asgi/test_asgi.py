@@ -182,6 +182,27 @@ async def test_basic_asgi(scope, test_spans):
     _check_span_tags(scope, request_span)
 
 
+@pytest.mark.asyncio
+async def test_basic_asgi_sets_ip_tags_from_peer_ip(scope, test_spans):
+    """Regression test checking that, in the absence of proxy headers, IP tags are set from peer IP."""
+    with override_global_config(dict(_asm_enabled=False, _retrieve_client_ip=True)):
+        app = TraceMiddleware(basic_app)
+        instance = ApplicationCommunicator(app, scope)
+        await instance.send_input({"type": "http.request", "body": b""})
+        response_start = await instance.receive_output(1)
+        assert response_start
+        response_body = await instance.receive_output(1)
+        assert response_body
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    # Before the fix in PR dd-trace-py#17411, these tags would be missing in this test.
+    assert request_span.get_tag("network.client.ip") == "127.0.0.1"
+    assert request_span.get_tag("http.client_ip") == "127.0.0.1"
+
+
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 def test_span_attribute_schema_operation_name(ddtrace_run_python_code_in_subprocess, schema_version):
     expected_span_name = {None: "asgi.request", "v0": "asgi.request", "v1": "http.server.request"}[schema_version]
@@ -397,7 +418,7 @@ async def test_asgi_500(scope, test_spans):
 @pytest.mark.asyncio
 async def test_asgi_error_custom(scope, test_spans):
     def custom_handle_exception_span(exc, span):
-        span.set_tag("http.status_code", 501)
+        span._set_attribute("http.status_code", 501)
 
     app = TraceMiddleware(error_app, handle_exception_span=custom_handle_exception_span)
     instance = ApplicationCommunicator(app, scope)

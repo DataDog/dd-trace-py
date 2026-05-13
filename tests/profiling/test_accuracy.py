@@ -48,11 +48,27 @@ def spend_cpu_3():
 TOLERANCE = 0.1
 
 
-def assert_almost_equal(value, target, tolerance=TOLERANCE):
+def assert_almost_equal(value: float, target: float, tolerance: float = TOLERANCE) -> None:
     if abs(value - target) / target > tolerance:
         raise AssertionError(
             f"Assertion failed: {value} is not approximately equal to {target} "
             f"within tolerance={tolerance}, actual error={abs(value - target) / target}"
+        )
+
+
+def assert_within_tolerance(
+    value: float, target: float, upper_tolerance: float = TOLERANCE, lower_tolerance: float = 0.0
+) -> None:
+    """Assert value >= target * (1 - lower_tolerance) and value <= target * (1 + upper_tolerance)."""
+    if value < target * (1 - lower_tolerance):
+        raise AssertionError(
+            f"Assertion failed: {value} is less than expected minimum {target} (lower_tolerance={lower_tolerance})"
+        )
+
+    if (value - target) / target > upper_tolerance:
+        raise AssertionError(
+            f"Assertion failed: {value} exceeds {target} by more than {upper_tolerance * 100}%, "
+            f"actual excess={((value - target) / target)}"
         )
 
 
@@ -69,6 +85,7 @@ def test_accuracy_stack():
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.test_accuracy import assert_almost_equal
+    from tests.profiling.test_accuracy import assert_within_tolerance
     from tests.profiling.test_accuracy import spend_16
 
     # Set this to 100 so we don't sleep too often and mess with the precision.
@@ -101,7 +118,10 @@ def test_accuracy_stack():
     assert_almost_equal(wall_times["spend_16"], 16e9)
     assert_almost_equal(wall_times["spend_7"], 7e9)
 
-    assert_almost_equal(wall_times["spend_cpu_2"], 2e9)
-    assert_almost_equal(wall_times["spend_cpu_3"], 3e9)
+    # CPU-bound functions guarantee exact CPU time via busy-loop, but wall time
+    # can exceed CPU time due to OS preemption, especially in CI environments.
+    # Wall time should never be less than the target CPU time.
+    assert_within_tolerance(wall_times["spend_cpu_2"], 2e9, upper_tolerance=0.3, lower_tolerance=0.01)
+    assert_within_tolerance(wall_times["spend_cpu_3"], 3e9, upper_tolerance=0.3, lower_tolerance=0.01)
     assert_almost_equal(cpu_times["spend_cpu_2"], 2e9)
     assert_almost_equal(cpu_times["spend_cpu_3"], 3e9)

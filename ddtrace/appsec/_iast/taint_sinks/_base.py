@@ -1,5 +1,3 @@
-import os
-import sysconfig
 from typing import Optional
 from typing import Union
 
@@ -8,6 +6,7 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast.sampling.vulnerability_detection import rollback_quota
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
+from ddtrace.appsec._patch_utils import get_caller_frame_info
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -19,7 +18,6 @@ from .._iast_env import _get_iast_env
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter
 from .._span_metrics import increment_iast_span_metric
-from .._stacktrace import get_info_frame
 from ..reporter import Evidence
 from ..reporter import IastSpanReporter
 from ..reporter import Location
@@ -28,12 +26,7 @@ from ..reporter import Vulnerability
 
 log = get_logger(__name__)
 
-CWD = os.path.abspath(os.getcwd())
-
 TEXT_TYPES = Union[str, bytes, bytearray]
-
-PURELIB_PATH = sysconfig.get_path("purelib")
-STDLIB_PATH = sysconfig.get_path("stdlib")
 
 
 class taint_sink_deduplication(deduplication):
@@ -112,40 +105,6 @@ class VulnerabilityBase:
         return True
 
     @classmethod
-    def _compute_file_line(cls) -> tuple[Optional[str], Optional[int], Optional[str], Optional[str]]:
-        file_name = line_number = function_name = class_name = None
-        frame_info = get_info_frame()
-        if not frame_info or frame_info[0] in ("", -1):
-            return file_name, line_number, function_name, class_name
-
-        file_name, line_number, function_name, class_name = frame_info
-        if not file_name:
-            return None, None, None, None
-
-        file_name = cls._rel_path(file_name)
-        if not file_name:
-            log.debug("Could not relativize vulnerability location path: %s", frame_info[0])
-            return None, None, None, None
-
-        return file_name, line_number, function_name, class_name
-
-    @staticmethod
-    def _rel_path(file_name: str) -> str:
-        file_name_norm = file_name.replace("\\", "/")
-        if file_name_norm.startswith(PURELIB_PATH):
-            return os.path.relpath(file_name_norm, start=PURELIB_PATH)
-
-        if file_name_norm.startswith(STDLIB_PATH):
-            return os.path.relpath(file_name_norm, start=STDLIB_PATH)
-        if file_name_norm.startswith(CWD):
-            return os.path.relpath(file_name_norm, start=CWD)
-        # If the path contains site-packages anywhere, return 'site-packages/<rest>'
-        # Normalize separators to forward slashes for consistency
-        if (idx := file_name_norm.find("/site-packages/")) != -1:
-            return file_name_norm[idx:]
-        return ""
-
-    @classmethod
     def _create_evidence_and_report(
         cls,
         vulnerability_type: str,
@@ -177,7 +136,7 @@ class VulnerabilityBase:
             file_name = line_number = function_name = class_name = None
 
             if not getattr(cls, "skip_location", False):
-                file_name, line_number, function_name, class_name = cls._compute_file_line()
+                file_name, line_number, function_name, class_name = get_caller_frame_info()
                 if file_name is None:
                     rollback_quota(cls.vulnerability_type)
                     return result

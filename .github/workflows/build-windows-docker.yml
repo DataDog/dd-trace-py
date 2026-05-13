@@ -1,0 +1,54 @@
+name: Build Windows Docker Image
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - docker/Dockerfile.windows
+  pull_request:
+    paths:
+      - docker/Dockerfile.windows
+
+jobs:
+  build-and-publish:
+    runs-on: windows-2022
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Start Windows container daemon
+        shell: powershell
+        run: |
+          Start-Service docker
+          $timeout = 30
+          while (-not (docker info 2>$null)) {
+            Start-Sleep -Seconds 1
+            $timeout--
+            if ($timeout -le 0) { throw "Docker daemon did not start in time" }
+          }
+
+      - name: Log in to GHCR
+        run: docker login ghcr.io -u publisher -p ${{ secrets.GITHUB_TOKEN }}
+        shell: powershell
+
+      - name: Build Windows Docker image
+        run: |
+          docker build `
+            -t ghcr.io/datadog/dd-trace-py/windows-build:${{ github.sha }} `
+            -t ghcr.io/datadog/dd-trace-py/windows-build:latest `
+            -f docker/Dockerfile.windows `
+            .
+        shell: powershell
+
+      - name: Push Windows Docker image
+        if: github.event_name != 'pull_request'
+        run: |
+          docker push ghcr.io/datadog/dd-trace-py/windows-build:${{ github.sha }}
+          docker push ghcr.io/datadog/dd-trace-py/windows-build:latest
+        shell: powershell

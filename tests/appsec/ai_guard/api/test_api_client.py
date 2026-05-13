@@ -443,6 +443,40 @@ def test_evaluate_sds_findings_in_abort_error(mock_execute_request, telemetry_mo
 
 
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_tag_probabilities_in_result_and_meta_struct(mock_execute_request, ai_guard_client, test_spans):
+    """Test that tag probabilities are added to the SDK response and span meta_struct."""
+    tag_probs = {"jailbreak": 0.91, "prompt_injection": 0.42}
+    mock_execute_request.return_value = mock_evaluate_response(
+        "DENY", reason="Nope", tags=["jailbreak"], block=False, tag_probs=tag_probs
+    )
+
+    result = ai_guard_client.evaluate(PROMPT, Options(block=False))
+
+    assert result["tag_probs"] == tag_probs
+
+    expected_meta_struct = {"messages": PROMPT, "attack_categories": ["jailbreak"], "tag_probs": tag_probs}
+    assert_ai_guard_span(
+        test_spans,
+        {"ai_guard.target": "prompt", "ai_guard.action": "DENY", "ai_guard.reason": "Nope"},
+        expected_meta_struct,
+    )
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_tag_probabilities_in_abort_error(mock_execute_request, ai_guard_client):
+    """Test that tag probabilities are included in AIGuardAbortError."""
+    tag_probs = {"jailbreak": 0.91}
+    mock_execute_request.return_value = mock_evaluate_response(
+        "ABORT", reason="blocked", tags=["jailbreak"], tag_probs=tag_probs
+    )
+
+    with pytest.raises(AIGuardAbortError) as exc_info:
+        ai_guard_client.evaluate(PROMPT, Options(block=True))
+
+    assert exc_info.value.tag_probs == tag_probs
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_meta_attribute(mock_execute_request):
     messages = [Message(role="user", content="What is your name?")]
     with override_global_config(
@@ -511,3 +545,14 @@ def test_endpoint_discovery(site, config, param, expected):
         with override_ai_guard_config(dict(_ai_guard_endpoint=config)):
             client = new_ai_guard_client(endpoint=param)
             assert client._endpoint == expected
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_event_tag_in_root_span(mock_execute_request, ai_guard_client, tracer):
+    """Test that AI Guard event tag is set on the root span of the trace."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW", reason="It's fine")
+
+    with tracer.trace("root_span") as root_span:
+        ai_guard_client.evaluate(PROMPT, Options(block=False))
+
+    assert root_span.get_tag(AI_GUARD.EVENT_TAG) == "true"

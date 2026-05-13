@@ -15,6 +15,8 @@
 #include <datadog/profiling.h>
 #include <string_view>
 
+#include "clock.hpp"
+
 std::optional<Datadog::string_id>
 Datadog::intern_string(std::string_view s)
 {
@@ -786,6 +788,10 @@ Datadog::Sample::push_absolute_ns(int64_t _timestamp_ns)
 bool
 Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
 {
+    if (_monotonic_ns == 0) {
+        return false;
+    }
+
     // Monotonic times have their epoch at the system start, so they need an
     // adjustment to the standard epoch
     // Just set a static for now and use a lambda to compute the offset once
@@ -794,14 +800,9 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
         using namespace std::chrono;
         auto epoch_ns = duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
 
-        // Get the current monotonic time.  Use clock_gettime directly because the standard underspecifies
-        // which clock is actually used in std::chrono
-        timespec ts{ 0, 0 };
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        auto monotonic_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + ts.tv_nsec;
-
+        // See clock.hpp for platform-specific details.
         // Compute the difference.  We're after 1970, so epoch_ns will be larger
-        return epoch_ns - monotonic_ns;
+        return epoch_ns - Datadog::get_monotonic_ns();
     }();
 
     // If timeline is not enabled, then this is a no-op

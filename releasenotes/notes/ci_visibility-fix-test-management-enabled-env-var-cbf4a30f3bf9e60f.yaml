@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes a regression where setting ``DD_TEST_MANAGEMENT_ENABLED=0`` was not honored by the new pytest plugin, causing Test Management features such as quarantining, disabling tests, and Attempt to Fix to remain enabled.

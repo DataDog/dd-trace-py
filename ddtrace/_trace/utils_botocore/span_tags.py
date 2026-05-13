@@ -114,7 +114,7 @@ def set_botocore_response_metadata_tags(
 
     if "HTTPStatusCode" in response_meta:
         status_code = response_meta["HTTPStatusCode"]
-        span.set_tag(http.STATUS_CODE, status_code)
+        span._set_attribute(http.STATUS_CODE, status_code)
 
         # Mark this span as an error if requested
         if is_error_code_fn is not None and is_error_code_fn(int(status_code)):

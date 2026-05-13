@@ -2,17 +2,19 @@
 set -eo pipefail
 
 FUZZ_TARGETS=(
+    fuzz_echion_frame_create
     fuzz_echion_frame_read
     fuzz_echion_greenlet
     fuzz_echion_interp
     fuzz_echion_long
     fuzz_echion_mirrors
     fuzz_echion_pyunicode
-    fuzz_echion_remote_read
     fuzz_echion_stacks
     fuzz_echion_strings
     fuzz_echion_task_unwind
     fuzz_echion_tasks
+    fuzz_echion_thread_unwind
+    fuzz_echion_thread_unwind_tasks
 )
 BUILD_DIR=/tmp/fuzz/build
 MANIFEST_FILE="/fuzz_binaries.txt"
@@ -48,6 +50,7 @@ pip3 install setuptools_rust cython cmake --break-system-packages 2>/dev/null ||
 
 # Derive key paths (same variables as build_standalone.sh)
 EXTENSION_SUFFIX="$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")"
+PYTHON_LIBDIR="$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")"
 NATIVE_EXTENSION_LOCATION="$(cd "${PROFILING_DIR}/../../native" && pwd)"
 LIB_INSTALL_DIR="${BUILD_DIR}/lib"
 
@@ -78,6 +81,7 @@ cmake --build "${DD_WRAPPER_BUILD}" --target install
 echo "=== Building fuzz target ==="
 cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}" \
       -DBUILD_FUZZING=ON -DBUILD_TESTING=OFF -DSTACK_USE_LIBFUZZER=ON \
+      -DDD_WRAPPER_DIR="${LIB_INSTALL_DIR}" \
       -DLIB_INSTALL_DIR="${LIB_INSTALL_DIR}" \
       -DEXTENSION_SUFFIX="${EXTENSION_SUFFIX}" \
       -DNATIVE_EXTENSION_LOCATION="${NATIVE_EXTENSION_LOCATION}" \
@@ -85,7 +89,7 @@ cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}" \
       -DCMAKE_BUILD_TYPE=RelWithDebInfo \
       -DCMAKE_C_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined" \
       -DCMAKE_CXX_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined" \
-      -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
+      -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined -Wl,-rpath,${PYTHON_LIBDIR}" \
   && cmake --build "${BUILD_DIR}" -j
 
 # Copy LSan suppression file next to the binaries so it can be referenced at runtime

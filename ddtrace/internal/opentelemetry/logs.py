@@ -1,4 +1,3 @@
-import os
 from typing import Any
 from typing import Optional
 
@@ -7,13 +6,13 @@ import opentelemetry.version
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)
-
 
 MINIMUM_SUPPORTED_VERSION = (1, 15, 0)
 API_VERSION = tuple(int(x) for x in opentelemetry.version.__version__.split(".")[:3])
@@ -175,8 +174,8 @@ def _initialize_logging(exporter_class, protocol, resource):
         from opentelemetry.sdk._configuration import _init_logging
 
         # Ensure logs exporter is configured to send payloads to a Datadog Agent.
-        if "OTEL_EXPORTER_OTLP_ENDPOINT" not in os.environ and "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT" not in os.environ:
-            os.environ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = otel_config.exporter.LOGS_ENDPOINT
+        if "OTEL_EXPORTER_OTLP_ENDPOINT" not in env and "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT" not in env:
+            env["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = otel_config.exporter.LOGS_ENDPOINT
         _init_logging({protocol: exporter_class}, resource=resource)
         return True
     except ImportError as e:

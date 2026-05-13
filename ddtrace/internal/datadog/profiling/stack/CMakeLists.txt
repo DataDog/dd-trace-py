@@ -21,12 +21,11 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 # Custom cmake modules are in the parent directory
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
-# Link against the pre-built libdd_wrapper shared library The library is built by setup.py and its location is passed
-# via NATIVE_EXTENSION_LOCATION. For standalone builds, check LIB_INSTALL_DIR first.
-if(LIB_INSTALL_DIR AND EXISTS "${LIB_INSTALL_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
-    set(DD_WRAPPER_LIB "${LIB_INSTALL_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
+# Link against the pre-built libdd_wrapper shared library.
+if(DEFINED DD_WRAPPER_DIR)
+    set(DD_WRAPPER_LIB "${DD_WRAPPER_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
 else()
-    set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
+    message(FATAL_ERROR "DD_WRAPPER_DIR is not set")
 endif()
 
 # Import the pre-built library as an imported target

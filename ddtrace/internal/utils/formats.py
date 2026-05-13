@@ -6,6 +6,8 @@ from typing import TypeVar  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal.constants import MAX_UINT_64BITS  # noqa:F401
+from ddtrace.internal.native._native import flatten_key_value  # noqa: F401
+from ddtrace.internal.native._native import is_sequence  # noqa: F401
 
 from ..compat import ensure_text
 
@@ -124,29 +126,6 @@ def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cm
             break
 
     return " ".join(out)
-
-
-def is_sequence(obj: Any) -> bool:
-    try:
-        return isinstance(obj, (list, tuple, set, frozenset))
-    except TypeError:
-        # Checking the type of Generic Subclasses raises a TypeError
-        return False
-
-
-def flatten_key_value(root_key: str, value: Any) -> dict[str, Any]:
-    """Flattens attributes"""
-    if not is_sequence(value):
-        return {root_key: value}
-
-    flattened = dict()
-    for i, item in enumerate(value):
-        key = f"{root_key}.{i}"
-        if is_sequence(item):
-            flattened.update(flatten_key_value(key, item))
-        else:
-            flattened[key] = item
-    return flattened
 
 
 def format_trace_id(trace_id: int) -> str:

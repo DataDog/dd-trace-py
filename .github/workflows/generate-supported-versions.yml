@@ -60,9 +60,9 @@ jobs:
 
       - uses: ./.github/actions/setup-ci-deps
 
-      - name: Install ddtrace
+      - name: Install ddtrace from pre-built wheel
         run: |
-          pip install -e .
+          curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
       - run: python scripts/freshvenvs.py generate
 
