@@ -240,6 +240,9 @@ suites:
       - tests/runtime/*
     skip: true
   openfeature:
+    env:
+      GIT_SUBMODULE_STRATEGY: recursive
+      GIT_SUBMODULE_PATHS: tests/openfeature/ffe-system-test-data
     parallelism: 1
     paths:
       - '@openfeature'
