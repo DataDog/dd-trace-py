@@ -55,7 +55,10 @@ workflow:
 
 include:
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
-  - local: ".gitlab/one-pipeline.locked.yml"
+  # - local: ".gitlab/one-pipeline.locked.yml"
+  - project: "DataDog/libdatadog-build"
+    ref: "prevent_weird_packages"
+    file: "templates/one-pipeline.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
   - local: ".gitlab/release.yml"
