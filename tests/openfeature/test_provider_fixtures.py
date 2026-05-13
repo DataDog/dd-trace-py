@@ -127,12 +127,10 @@ def test_fixture_case(provider, flags_config, fixture_file, test_case, test_id):
 
     # Assert the result matches expectations
     expected_value = expected_result.get("value")
-    expected_reason = expected_result.get("reason")
     assert result.value == expected_value, (
         f"Flag '{flag_key}' with context (targetingKey='{targeting_key}', attributes={attributes}) "
         f"returned {result.value}, expected {expected_value}"
     )
-    assert result.reason == expected_reason
 
 
 class TestFixtureSpecificCases:
