@@ -816,22 +816,25 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             celery_proc = subprocess.Popen(
                 ["ddtrace-run", "celery", "--app=tests.contrib.celery.tasks", "worker", "--beat", "--loglevel=info"],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.PIPE,
             )
             sleep(5)
             celery_proc.terminate()
             try:
-                output, _ = celery_proc.communicate(timeout=60)
-            except subprocess.TimeoutExpired as e:
+                output, stderr = celery_proc.communicate(timeout=60)
+            except subprocess.TimeoutExpired:
+                celery_proc.kill()
+                output, stderr = celery_proc.communicate()
                 print(
-                    "WARNING: celery beat process did not terminate within 60s. "
-                    f"Partial output: {e.output!r}",
+                    "WARNING: celery beat process did not terminate within 60s.\n"
+                    f"stdout: {output!r}\nstderr: {stderr!r}",
                     file=sys.stderr,
                 )
-                celery_proc.kill()
-                output, _ = celery_proc.communicate()
             # Check for panics in the output
-            assert b"panic" not in output.lower(), f"Found panic in celery beat output:\n{output}"
+            full_output = output + stderr
+            assert b"panic" not in full_output.lower(), (
+                f"Found panic in celery beat output:\nstdout:\n{output}\nstderr:\n{stderr}"
+            )
 
 
 @pytest.mark.parametrize("distributed_tracing_enabled", [True, False])
