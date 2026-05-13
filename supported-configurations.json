@@ -463,6 +463,16 @@
         ]
       }
     ],
+    "DD_AWS_DURABLE_EXECUTION_SDK_PYTHON_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_AWS_DURABLE_EXECUTION_SDK_PYTHON_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_AWS_LAMBDA_SERVICE": [
       {
         "implementation": "A",
@@ -3725,6 +3735,13 @@
       }
     ],
     "DD_TRACE_AVRO_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_DURABLE_EXECUTION_SDK_PYTHON_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
