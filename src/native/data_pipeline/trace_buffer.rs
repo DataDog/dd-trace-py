@@ -102,6 +102,13 @@ impl AgentResponsePy {
     fn new(rate_by_service: Py<PyDict>) -> Self {
         Self { rate_by_service }
     }
+
+    fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        visit.call(&self.rate_by_service)?;
+        Ok(())
+    }
+
+    fn __clear__(&mut self) {}
 }
 
 /// Python-facing wrapper around a [TraceBuffer]<[Span]<[PyTraceData]>>.
@@ -277,7 +284,12 @@ fn invoke_response_callback(cb: &Py<PyAny>, body: &str) {
             for (k, v) in &rates {
                 py_rates.set_item(k, v)?;
             }
-            let resp = Py::new(py, AgentResponsePy { rate_by_service: py_rates.unbind() })?;
+            let resp = Py::new(
+                py,
+                AgentResponsePy {
+                    rate_by_service: py_rates.unbind(),
+                },
+            )?;
             cb.call1(py, (resp,))?;
             Ok(())
         };

@@ -1,4 +1,5 @@
 from ddtrace.internal.native import AgentResponse
+
 from .writer import DEFAULT_SMA_WINDOW
 from .writer import AgentlessTraceWriter
 from .writer import AgentWriterInterface
