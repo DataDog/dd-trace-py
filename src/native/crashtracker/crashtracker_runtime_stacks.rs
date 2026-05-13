@@ -47,13 +47,11 @@ pub unsafe fn init_dump_traceback_fn() {
 
             const RTLD_DEFAULT: *mut std::ffi::c_void = ptr::null_mut();
 
-            let symbol_ptr = dlsym(
-                RTLD_DEFAULT,
-                b"_Py_DumpTracebackThreads\0".as_ptr() as *const std::ffi::c_char,
-            );
+            let symbol_ptr = dlsym(RTLD_DEFAULT, c"_Py_DumpTracebackThreads".as_ptr());
 
             if !symbol_ptr.is_null() {
-                DUMP_TRACEBACK_FN = Some(std::mem::transmute(symbol_ptr));
+                DUMP_TRACEBACK_FN =
+                    Some(std::mem::transmute::<*mut c_void, PyDumpTracebackThreadsFn>(symbol_ptr));
             }
         }
 
@@ -76,9 +74,7 @@ unsafe fn dump_python_traceback_as_string(
     let dump_fn = match get_cached_dump_traceback_fn() {
         Some(func) => func,
         None => {
-            emit_stacktrace_string(
-                "<python_runtime_stacktrace_unavailable>\0".as_ptr() as *const c_char
-            );
+            emit_stacktrace_string(c"<python_runtime_stacktrace_unavailable>".as_ptr());
             return;
         }
     };
@@ -88,7 +84,7 @@ unsafe fn dump_python_traceback_as_string(
     // and use it to read the output
     let mut pipefd: [c_int; 2] = [0, 0];
     if pipe(&mut pipefd as *mut [c_int; 2]) != 0 {
-        emit_stacktrace_string("<pipe_creation_failed>\0".as_ptr() as *const c_char);
+        emit_stacktrace_string(c"<pipe_creation_failed>".as_ptr());
         return;
     }
 
@@ -144,7 +140,7 @@ unsafe fn dump_python_traceback_as_string(
         return;
     }
 
-    emit_stacktrace_string("<traceback_read_failed>\0".as_ptr() as *const c_char);
+    emit_stacktrace_string(c"<traceback_read_failed>".as_ptr());
 }
 
 pub unsafe extern "C" fn native_runtime_stack_string_callback(

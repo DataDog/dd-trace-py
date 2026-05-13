@@ -99,8 +99,6 @@ class ContainerIterator(Iterator, FullyNamedFunction):
     def __next__(self) -> tuple[ContainerKey, Any]:
         return next(self._iter)
 
-    next = __next__
-
 
 def _local_name(name: str, f: FunctionType) -> str:
     func_name = f.__name__
