@@ -45,7 +45,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-ddtrace-internal = {path = "/go/src/github.com/DataDog/apm-reliability/dd-trace-py/ddtrace-internal/pywheels/ddtrace_internal-0.0.0.tar.gz"}
+ddtrace-internal = {path = "/go/src/github.com/DataDog/apm-reliability/dd-trace-py/ddtrace-internal/pywheels"}
 
 [project.optional-dependencies]
 opentracing = [
