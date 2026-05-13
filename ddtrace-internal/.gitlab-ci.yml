@@ -1,10 +1,5 @@
 .PYTHON_TAGS: &PYTHON_TAGS
-  - "cp39-cp39"
-  - "cp310-cp310"
-  - "cp311-cp311"
-  - "cp312-cp312"
-  - "cp313-cp313"
-  - "cp314-cp314"
+  - "py3"
 .X86_64_IMAGES: &X86_64_IMAGES
   - "v85383392-751efc0-manylinux2014_x86_64"
 "ddtrace-internal:build sdist":
