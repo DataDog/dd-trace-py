@@ -21,24 +21,21 @@ unusual enough not to collide.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import hashlib
 import json
 import re
 import threading
-from typing import TYPE_CHECKING
 from typing import Optional
 
+from aws_durable_execution_sdk_python.context import DurableContext
 from aws_durable_execution_sdk_python.identifier import OperationIdentifier
 from aws_durable_execution_sdk_python.lambda_service import OperationUpdate
+from aws_durable_execution_sdk_python.state import ExecutionState
 
+from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
-
-
-if TYPE_CHECKING:
-    from aws_durable_execution_sdk_python.context import DurableContext
-
-    from ddtrace._trace.span import Span
 
 
 log = get_logger(__name__)
@@ -135,7 +132,7 @@ def _max_existing_checkpoint_n(state) -> int:
     return highest
 
 
-def mark_trace_context_checkpoints_visited(state) -> None:
+def mark_trace_context_checkpoints_visited(state: ExecutionState) -> None:
     """Tell the SDK our ``_datadog_*`` ops are already visited.
 
     The SDK's ``track_replay`` transitions REPLAY → NEW only when every
@@ -151,9 +148,13 @@ def mark_trace_context_checkpoints_visited(state) -> None:
     start.  ``track_replay`` itself acquires ``_replay_status_lock`` and
     runs the subset check, so we don't need to touch SDK internals.
     """
-    operations = getattr(state, "operations", None) or {}
+    operations = getattr(state, "operations", None)
     track_replay = getattr(state, "track_replay", None)
-    if track_replay is None:
+    # SDK declares ``operations: MutableMapping[str, Operation]`` and
+    # ``track_replay`` as a method.  If either has been swapped out for
+    # something else (mock, future-SDK refactor) bail rather than blow up
+    # in the middle of a workflow.
+    if not isinstance(operations, Mapping) or not callable(track_replay):
         return
     for op_id, op in list(operations.items()):
         name = getattr(op, "name", None)
@@ -274,7 +275,7 @@ def _override_parent_id(headers: dict, parent_id: str) -> None:
             headers["traceparent"] = f"{m.group(1)}-{m.group(2)}-{new_span}-{m.group(4)}"
 
 
-def maybe_save_trace_context_checkpoint(durable_context: "DurableContext", span: "Span") -> None:
+def maybe_save_trace_context_checkpoint(durable_context: DurableContext, span: Span) -> None:
     """Append a ``_datadog_{N}`` STEP if propagation headers changed.
 
     Called once per invocation, on the ``SuspendExecution`` path of the
