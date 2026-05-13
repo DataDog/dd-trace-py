@@ -224,8 +224,8 @@ def _langchain_generate_finally(*args, **kwargs):
 
     Releases the AI Guard active counter that the matching ``.before``
     listener bumped. Dispatched from the contrib's ``finally`` block so it
-    fires on every exit path — success, block (``_raising_dispatch`` raises
-    out of ``.before``), or exception inside the underlying LLM call. The
+    fires on every exit path — success, block (``core.dispatch(..., allow_raise=True)``
+    raises out of ``.before``), or exception inside the underlying LLM call. The
     counter reset is a no-op when the counter is already zero, so listener
     invocations that don't pair with a ``.before`` set are safe.
     """
@@ -247,12 +247,12 @@ def _langchain_llm_stream_before(client: AIGuardClient, instance, args, kwargs):
 
 
 def _evaluate_langchain_messages(client: AIGuardClient, messages):
-    """Evaluate the prompt and surface a block as a returned ``AIGuardAbortError``.
+    """Evaluate the prompt and re-raise ``AIGuardAbortError`` on a block.
 
-    Returns the abort error so the contrib's dispatcher can re-raise it; the
-    ``AIGuardClient`` already gates on ``ai_guard_config._ai_guard_block``,
-    so a returned error always represents a blocking decision.
-    Allow / skip paths return ``None``.
+    Re-raises so the contrib's ``core.dispatch(..., allow_raise=True)``
+    propagates the abort. The ``AIGuardClient`` already gates on
+    ``ai_guard_config._ai_guard_block``, so a raised error always represents
+    a blocking decision. Allow / skip paths return ``None``.
     """
     from langchain_core.messages import HumanMessage
 
@@ -260,8 +260,8 @@ def _evaluate_langchain_messages(client: AIGuardClient, messages):
     if len(messages) > 0 and isinstance(messages[-1], HumanMessage):
         try:
             client.evaluate(_convert_messages(messages), Options(block=ai_guard_config._ai_guard_block))
-        except AIGuardAbortError as e:
-            return e
+        except AIGuardAbortError:
+            raise
         except Exception:
             logger.debug("Failed to evaluate chat model prompt", exc_info=True)
     return None

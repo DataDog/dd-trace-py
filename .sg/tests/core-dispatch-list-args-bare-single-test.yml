@@ -1,0 +1,27 @@
+id: core-dispatch-list-args-bare-single
+valid:
+  # Tuple (correct)
+  - |
+    from ddtrace.internal.core import dispatch
+    dispatch("my.event", (arg,))
+  # Multi-element tuple — handled by the -multi rule
+  - |
+    from ddtrace.internal.core import dispatch
+    dispatch("my.event", (arg1, arg2))
+  # Variable (not a list literal)
+  - |
+    from ddtrace.internal.core import dispatch
+    dispatch("my.event", args)
+  # Qualified form — handled by the non-bare rules
+  - core.dispatch("my.event", [arg])
+
+invalid:
+  - |
+    from ddtrace.internal.core import dispatch
+    dispatch("my.event", [arg])
+  - |
+    from ddtrace.internal.core import dispatch
+    dispatch(
+        "my.event",
+        [ctx],
+    )
