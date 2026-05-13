@@ -111,7 +111,7 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None, is_decor
         "service:{}".format(tags.get("service", "tests.llmobs")),
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
-        "ddtrace.version:{}".format(ddtrace.__version__),
+        "ddtrace_version:{}".format(ddtrace.__version__),
         "language:python",
     ]
     if error:
@@ -393,7 +393,7 @@ def _expected_llmobs_eval_metric_event(
         "metric_type": metric_type,
         "label": label,
         "tags": [
-            "ddtrace.version:{}".format(ddtrace.__version__),
+            "ddtrace_version:{}".format(ddtrace.__version__),
             "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
         ],
         "eval_scope": eval_scope,
@@ -674,7 +674,7 @@ def expected_ragas_trace_tags():
         "service:tests.llmobs",
         "source:integration",
         "ml_app:unnamed-ml-app",
-        "ddtrace.version:{}".format(ddtrace.__version__),
+        "ddtrace_version:{}".format(ddtrace.__version__),
         "language:python",
         "error:0",
         "runner.integration:ragas",
@@ -737,7 +737,7 @@ def _dummy_evaluator_eval_metric_event(span_id, trace_id, label=None):
         timestamp_ms=mock.ANY,
         metric_type="score",
         label=label or "dummy",
-        tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
+        tags=["ddtrace_version:{}".format(ddtrace.__version__), "ml_app:unnamed-ml-app"],
         eval_scope="span",
     )
 

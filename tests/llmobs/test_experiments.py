@@ -1950,7 +1950,7 @@ def test_experiment_merge_results(llmobs, test_dataset_one_record):
         "dataset_name": "test-dataset-123",
         "tags": mock.ANY,
     }
-    assert exp_result["metadata"]["tags"][0].startswith("ddtrace.version:")
+    assert exp_result["metadata"]["tags"][0].startswith("ddtrace_version:")
     assert exp_result["error"] == {"message": None, "type": None, "stack": None}
 
 
@@ -1984,7 +1984,7 @@ def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
         "dataset_name": "test-dataset-123",
         "tags": mock.ANY,
     }
-    assert exp_result["metadata"]["tags"][0].startswith("ddtrace.version:")
+    assert exp_result["metadata"]["tags"][0].startswith("ddtrace_version:")
     assert exp_result["error"] == {"message": None, "type": None, "stack": None}
 
 
@@ -2014,7 +2014,7 @@ def test_experiment_run(llmobs, test_dataset_one_record):
                 [dummy_evaluator],
             )
             exp._experiment._tags = {
-                "ddtrace.version": "1.2.3"
+                "ddtrace_version": "1.2.3"
             }  # FIXME: this is a hack to set the tags for the experiment
             exp_results = exp.run()
 
@@ -2064,7 +2064,7 @@ def test_experiment_run_w_different_project(llmobs, test_dataset_one_record):
                 project_name="new-different-project",
             )
             exp._experiment._tags = {
-                "ddtrace.version": "1.2.3"
+                "ddtrace_version": "1.2.3"
             }  # FIXME: this is a hack to set the tags for the experiment
             exp_results = exp.run()
 
@@ -2111,7 +2111,7 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
                 summary_evaluators=[dummy_summary_evaluator],
             )
             exp._experiment._tags = {
-                "ddtrace.version": "1.2.3"
+                "ddtrace_version": "1.2.3"
             }  # FIXME: this is a hack to set the tags for the experiment
             exp_results = exp.run()
 
@@ -2185,7 +2185,7 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     assert "experiment_id:1234567890" in event["tags"]
     assert f"run_id:{DUMMY_EXPERIMENT_FIRST_RUN_ID}" in event["tags"]
     assert "run_iteration:1" in event["tags"]
-    assert f"ddtrace.version:{ddtrace.__version__}" in event["tags"]
+    assert f"ddtrace_version:{ddtrace.__version__}" in event["tags"]
     assert event["_dd"]["scope"] == "experiments"
     assert event["config"] == {"temperature": 0.7}
 
@@ -2228,7 +2228,7 @@ def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_
         assert "experiment_id:1234567890" in event["tags"]
         assert f"run_id:{DUMMY_EXPERIMENT_FIRST_RUN_ID}" in event["tags"]
         assert f"run_iteration:{i + 1}" in event["tags"]
-        assert f"ddtrace.version:{ddtrace.__version__}" in event["tags"]
+        assert f"ddtrace_version:{ddtrace.__version__}" in event["tags"]
         assert event["_dd"]["scope"] == "experiments"
         assert event["config"] == {"temperature": 0.7}
 
@@ -3240,7 +3240,7 @@ async def test_async_experiment_run(llmobs, test_dataset_one_record):
             test_dataset_one_record,
             [async_dummy_evaluator],
         )
-        exp._tags = {"ddtrace.version": "1.2.3"}
+        exp._tags = {"ddtrace_version": "1.2.3"}
         exp_results = await exp.run()
 
     assert len(exp_results.get("summary_evaluations")) == 0
@@ -3267,7 +3267,7 @@ async def test_async_experiment_run_with_summary(llmobs, test_dataset_one_record
             [async_dummy_evaluator],
             summary_evaluators=[async_dummy_summary_evaluator],
         )
-        exp._tags = {"ddtrace.version": "1.2.3"}
+        exp._tags = {"ddtrace_version": "1.2.3"}
         exp_results = await exp.run()
 
     assert len(exp_results["summary_evaluations"]) == 1
@@ -3296,7 +3296,7 @@ async def test_async_experiment_run_with_mixed_evaluators(llmobs, test_dataset_o
                 async_dummy_summary_evaluator,
             ],  # mixed
         )
-        exp._tags = {"ddtrace.version": "1.2.3"}
+        exp._tags = {"ddtrace_version": "1.2.3"}
         exp_results = await exp.run()
 
     assert len(exp_results["rows"]) == 1

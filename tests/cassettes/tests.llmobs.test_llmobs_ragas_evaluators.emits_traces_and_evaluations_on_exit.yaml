@@ -281,7 +281,7 @@ interactions:
     body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"join_on":
       {"span": {"span_id": "7678809694384023494", "trace_id": "6744ea2b00000000995e7b2ceabfce01"}},
       "label": "ragas_faithfulness", "metric_type": "score", "timestamp_ms": 1732569645205,
-      "score_value": 1.0, "ml_app": "unnamed-ml-app", "tags": ["ddtrace.version:2.15.0.dev351+g152f3e3b6.d20241122",
+      "score_value": 1.0, "ml_app": "unnamed-ml-app", "tags": ["ddtrace_version:2.15.0.dev351+g152f3e3b6.d20241122",
       "ml_app:unnamed-ml-app"], "metadata": {"_dd.evaluation_kind": "faithfulness",
       "_dd.evaluation_span": {"span_id": "5771061714047746387", "trace_id": "6744ea2b000000007099aeb477077763"},
       "_dd.faithfulness_disagreements": []}}]}}}'
