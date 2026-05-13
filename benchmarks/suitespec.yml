@@ -1,4 +1,3 @@
----
 components:
   bootstrap:
     - ddtrace/bootstrap/*
@@ -129,15 +128,6 @@ suites:
   #     - '@vendor'
   #   cpus_per_run: 1
   #   type: 'microbenchmark'
-  set_http_meta:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@vendor'
-      - benchmarks/set_http_meta/*
-    cpus_per_run: 1
-    type: 'microbenchmark'
   telemetry_add_metric:
     paths:
       - '@bootstrap'
