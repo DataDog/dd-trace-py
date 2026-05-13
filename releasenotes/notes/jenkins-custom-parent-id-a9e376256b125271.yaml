@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    CI visibility: This introduces Jenkins custom parent ID propagation, which enables Datadog to correlate tests run from Jenkins with their Jenkins jobs and pipelines.
+    CI Visibility: This introduces Jenkins custom parent ID propagation, which enables Datadog to correlate tests run from Jenkins with their Jenkins jobs and pipelines.
