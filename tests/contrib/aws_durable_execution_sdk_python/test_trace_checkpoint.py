@@ -297,6 +297,10 @@ def test_save_skips_when_matches_prior_checkpoint_in_state_operations():
             "x-datadog-parent-id": "ROOT",
             "x-datadog-sampling-priority": "1",
             "tracestate": "dd=s:1;t.dm:-0;p:OLDPARENT,vendor=keep",
+            # Per-span parent-id segment of traceparent must also be normalized
+            # by the diff; otherwise the default tracecontext inject style
+            # would defeat suppression and write on every invocation.
+            "traceparent": "00-0000000000000000000000000000007b-1111111111111111-01",
         }
     )
     state = _make_state(
@@ -314,11 +318,12 @@ def test_save_skips_when_matches_prior_checkpoint_in_state_operations():
 
     def _inject(_span, headers):
         # Same logical context as the prior checkpoint, but with the per-span
-        # parent id and dd=p: rotated to a new value.
+        # parent id, dd=p:, and traceparent parent segment rotated.
         headers["x-datadog-trace-id"] = "111"
         headers["x-datadog-parent-id"] = "current-span"
         headers["x-datadog-sampling-priority"] = "1"
         headers["tracestate"] = "dd=s:1;t.dm:-0;p:NEWPARENT,vendor=keep"
+        headers["traceparent"] = "00-0000000000000000000000000000007b-2222222222222222-01"
 
     with mock.patch.object(trace_checkpoint.HTTPPropagator, "inject", side_effect=_inject):
         trace_checkpoint.maybe_save_trace_context_checkpoint(durable, span)

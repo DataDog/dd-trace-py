@@ -53,6 +53,24 @@ _STATE_NEXT_N_ATTR = "_dd_next_checkpoint_n"
 # than per-state locks and not a measurable bottleneck.
 _COUNTER_LOCK = threading.Lock()
 
+# `traceparent` format: <version>-<trace_id>-<parent_id>-<flags>
+_TRACEPARENT_RE = re.compile(r"^([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$")
+
+
+def _strip_parent_from_traceparent(value: str) -> str:
+    """Zero out the ``parent_id`` segment of a W3C ``traceparent``.
+
+    ``traceparent`` is ``<version>-<trace_id>-<parent_id>-<flags>``; the
+    parent-id rotates per span and would otherwise dominate the diff.  We
+    replace it with all-zeros so the comparison only catches *real* trace
+    context changes (trace_id, flags). The normalized form is used only as a
+    diff key and is never persisted.
+    """
+    m = _TRACEPARENT_RE.match(value)
+    if m is None:
+        return value
+    return f"{m.group(1)}-{m.group(2)}-{'0' * 16}-{m.group(4)}"
+
 
 def _strip_dd_parent_from_tracestate(value: str) -> str:
     """Drop the ``p:`` entry from the ``dd=`` vendor section to avoid creating spurious diffs.
@@ -75,7 +93,13 @@ def _strip_dd_parent_from_tracestate(value: str) -> str:
 
 
 def _stable_headers(headers: dict) -> dict:
-    """Strip per-span volatile fields so the diff is meaningful."""
+    """Strip per-span volatile fields so the diff is meaningful.
+
+    Three values rotate per span and must be normalized away or every
+    invocation would look like a real context change:
+    ``x-datadog-parent-id``, the ``dd=p:`` segment of ``tracestate``, and the
+    ``parent_id`` segment of W3C ``traceparent``.
+    """
     out = {}
     for k, v in headers.items():
         kl = k.lower()
@@ -85,6 +109,9 @@ def _stable_headers(headers: dict) -> dict:
             normalized = _strip_dd_parent_from_tracestate(v)
             if normalized:
                 out[k] = normalized
+            continue
+        if kl == "traceparent" and isinstance(v, str):
+            out[k] = _strip_parent_from_traceparent(v)
             continue
         out[k] = v
     return out
@@ -134,10 +161,6 @@ def _step_id(name: str, execution_arn: str) -> str:
     """Deterministic blake2b-based step id so re-runs don't duplicate."""
     digest = hashlib.blake2b(f"{name}:{execution_arn}".encode("utf-8"), digest_size=16).hexdigest()
     return digest
-
-
-# `traceparent` format: <version>-<trace_id>-<parent_id>-<flags>
-_TRACEPARENT_RE = re.compile(r"^([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$")
 
 
 def _read_prior_checkpoint_payload(state) -> Optional[dict]:
