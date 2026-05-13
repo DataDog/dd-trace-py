@@ -189,7 +189,7 @@ impl NativeTraceBufferPy {
         let mut chunk: Vec<Span<PyTraceData>> = Vec::with_capacity(spans.len());
         for span in &spans {
             let mut span_ref = span.bind(py).borrow_mut();
-            chunk.push(span_ref.take_data(py, packb.as_ref().map(|f| f.as_ref())));
+            chunk.push(span_ref.take_data(py, packb.as_ref()));
         }
         // Set has_pending BEFORE handing the chunk to the buffer. If we set it after,
         // the tokio worker can pick up the chunk, export it, and fire on_export_complete
