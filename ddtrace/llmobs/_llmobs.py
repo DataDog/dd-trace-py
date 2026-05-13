@@ -502,6 +502,8 @@ class LLMObs(Service):
         self._link_tracker = LinkTracker()
         self._annotations: list[tuple[str, str, dict[str, Any]]] = []
         self._annotation_context_lock = RLock()
+        # True if enable() switched the APM writer to agentless; disable() reverts it.
+        self._apm_writer_switched_to_agentless = False
 
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
@@ -611,6 +613,12 @@ class LLMObs(Service):
             output_type,
             self._export_directly_to_llmobs,
         )
+        if not self._export_directly_to_llmobs and LLMOBS_STRUCT.TAGS in llmobs_data:
+            # APM agentless path: APM agentless ingestion interprets dots in tag keys as
+            # nested-path separators, so replace them with underscores before encoding.
+            llmobs_data[LLMOBS_STRUCT.TAGS] = {
+                k.replace(".", "_"): v for k, v in llmobs_data[LLMOBS_STRUCT.TAGS].items()
+            }
         span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
         return True
 
@@ -858,7 +866,9 @@ class LLMObs(Service):
             # must run after config._llmobs_enabled is set so the reconciliation
             # helper sees the correct state.
             if llmobs_apm_trace_agentless_enabled():
-                ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=True)
+                cls._instance._apm_writer_switched_to_agentless = (
+                    ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=True)
+                )
             cls._instance.start()
 
             # Register hooks for span events
@@ -1579,6 +1589,8 @@ class LLMObs(Service):
         atexit.unregister(cls.disable)
 
         cls._instance.stop()
+        if cls._instance._apm_writer_switched_to_agentless:
+            ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=False)
         cls.enabled = False
         # Align config._llmobs_enabled with effective state for user-initiated calls.
         # When _auto=True, the caller (RC handler) has already written _rc_value;

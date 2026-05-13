@@ -241,14 +241,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
 
         span_dict = JSONEncoderV2._convert_span(item)
 
-        meta_structs = item._get_meta_structs()
-        if "_llmobs" in meta_structs:
-            llmobs = meta_structs["_llmobs"]
-            # Tag keys with dots are rejected by the intake — replace with underscores.
-            if "tags" in llmobs:
-                llmobs["tags"] = {k.replace(".", "_"): v for k, v in llmobs["tags"].items()}
-
-        span_dict["meta_struct"] = meta_structs
+        span_dict["meta_struct"] = item._get_meta_structs()
         # Intake Requires ids to be in lowercase
         span_dict["trace_id"] = span_dict["trace_id"].lower()
         span_dict["parent_id"] = span_dict["parent_id"].lower()

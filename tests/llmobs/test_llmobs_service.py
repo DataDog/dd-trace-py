@@ -280,6 +280,50 @@ def test_service_disable(tracer):
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+    }
+)
+def test_disable_reverts_agentless_writer_when_llmobs_enabled_it():
+    """disable() reverts the APM writer when enable() was the one that switched it to agentless."""
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.enable()
+    assert llmobs_service._instance._apm_writer_switched_to_agentless is True
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.disable()
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+    }
+)
+def test_disable_does_not_revert_agentless_writer_when_already_agentless():
+    """disable() leaves the APM writer alone when the writer was already agentless before enable()."""
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.enable()
+    assert llmobs_service._instance._apm_writer_switched_to_agentless is False
+    llmobs_service.disable()
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+
+
 def test_enable_disable_keeps_global_config_llmobs_enabled_in_sync(tracer):
     """LLMObs.enable()/disable() must mirror their effect into ddtrace.config._llmobs_enabled
     so the _ConfigItem reflects effective state. Consumers like the APM_TRACING RC handler
@@ -1123,6 +1167,78 @@ def test_tags(ddtrace_global_config, llmobs, monkeypatch):
         span_kind="task",
         tags={"version": "1.2.3", "env": "test_env", "service": "test_service", "ml_app": "test_app_name"},
     )
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+    },
+    err=None,
+)
+def test_tag_dot_keys_sanitized_on_agentless_apm_path():
+    """APM agentless path: dots in tag keys are replaced with underscores before encoding."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMOBS_STRUCT
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    llmobs_service.enable()
+    with llmobs_service.task(name="test_task") as span:
+        pass
+    tags = _get_llmobs_data_metastruct(span)[LLMOBS_STRUCT.TAGS]
+    assert all("." not in k for k in tags), f"Dot in tag key on agentless path: {tags}"
+    assert "ddtrace_version" in tags
+    llmobs_service.disable()
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+    },
+    err=None,
+)
+def test_tag_dot_keys_preserved_on_direct_llmobs_path():
+    """Direct LLMObs path: dots in tag keys are not modified."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMOBS_STRUCT
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    llmobs_service.enable(agentless_enabled=False)
+    with llmobs_service.task(name="test_task") as span:
+        pass
+    tags = _get_llmobs_data_metastruct(span)[LLMOBS_STRUCT.TAGS]
+    assert "ddtrace.version" in tags
+    llmobs_service.disable()
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+    },
+    err=None,
+)
+def test_tag_dot_keys_preserved_on_agent_path():
+    """Agent path (_export_directly_to_llmobs=True): dots in tag keys are not modified."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMOBS_STRUCT
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    llmobs_service.enable(agentless_enabled=False)
+    with llmobs_service.task(name="test_task") as span:
+        pass
+    tags = _get_llmobs_data_metastruct(span)[LLMOBS_STRUCT.TAGS]
+    assert "ddtrace.version" in tags
+    llmobs_service.disable()
 
 
 def test_ml_app_override(llmobs):
