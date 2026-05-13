@@ -822,7 +822,12 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             celery_proc.terminate()
             try:
                 output, _ = celery_proc.communicate(timeout=60)
-            except subprocess.TimeoutExpired:
+            except subprocess.TimeoutExpired as e:
+                print(
+                    "WARNING: celery beat process did not terminate within 60s. "
+                    f"Partial output: {e.output!r}",
+                    file=sys.stderr,
+                )
                 celery_proc.kill()
                 output, _ = celery_proc.communicate()
             # Check for panics in the output
