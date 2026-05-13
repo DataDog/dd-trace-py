@@ -110,11 +110,6 @@ repair_wheel() {
     uv run --no-project scripts/zip_filter.py "${BUILT_WHEEL_FILE}" \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md
     section_end "strip_wheel"
 
-    # List .so files
-    section_start "list_so_files" "Listing .so files"
-    unzip -l "${BUILT_WHEEL_FILE}" | grep '\.so$'
-    section_end "list_so_files"
-
     # Repair wheel (ONLY PLATFORM-SPECIFIC CODE)
     section_start "repair_wheel" "Repairing wheel"
     if [[ "$(uname -s)" == "Linux" ]]; then
