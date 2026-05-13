@@ -9,6 +9,8 @@ from ddtrace import config
 from ddtrace.contrib.internal.openai import _endpoint_hooks
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
@@ -77,6 +79,11 @@ _RESOURCES = {
 }
 
 OPENAI_WITH_RAW_RESPONSE_ARG = "_dd.with_raw_response"
+
+_CHAT_COMPLETION_HOOKS = (
+    _endpoint_hooks._ChatCompletionHook,
+    _endpoint_hooks._ChatCompletionParseHook,
+)
 
 
 def patch():
@@ -237,6 +244,10 @@ def _patched_endpoint(patch_hook):
             return func(*args, **kwargs)
 
         integration = openai._datadog_integration
+        is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
+        if is_chat:
+            core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
+
         g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
         g.send(None)
         resp, err = None, None
@@ -253,6 +264,9 @@ def _patched_endpoint(patch_hook):
                 if err is None:
                     # This return takes priority over the implicit None return
                     override_return = e.value
+
+        if is_chat and not kwargs.get("stream") and resp is not None and err is None:
+            core.dispatch("openai.chat.completions.create.after", (kwargs, resp), allow_raise=True)
 
         if override_return is not None:
             return override_return
@@ -382,6 +396,7 @@ def _patched_endpoint_async(patch_hook):
         if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
             return func(*args, **kwargs)
 
+        is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
         result = func(*args, **kwargs)
         # Detect AsyncPaginator objects (have both __aiter__ and __await__).
         # These must be returned directly (not awaited) to preserve iteration behavior.
@@ -389,6 +404,24 @@ def _patched_endpoint_async(patch_hook):
             return _TracedAsyncPaginator(result, openai._datadog_integration, patch_hook, instance, args, kwargs)
 
         async def async_wrapper():
+            # AIDEV-NOTE: Dispatch the AI Guard before-hook at await time, not
+            # at call time. Running it earlier would (a) surface
+            # ``AIGuardAbortError`` at coroutine construction, breaking
+            # ``async def`` semantics callers rely on (``asyncio.wait_for`` /
+            # ``gather`` / ``create_task`` assume cheap construction with work
+            # starting at await/scheduling), and (b) evaluate (and bill) AI
+            # Guard even when the caller never awaits the returned coroutine.
+            if is_chat:
+                try:
+                    core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
+                except DDBlockException:
+                    # AI Guard blocked the request — discard the unstarted SDK
+                    # coroutine so Python doesn't emit a "coroutine was never
+                    # awaited" warning for it.
+                    if hasattr(result, "close"):
+                        result.close()
+                    raise
+
             integration = openai._datadog_integration
             g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
             g.send(None)
@@ -406,6 +439,9 @@ def _patched_endpoint_async(patch_hook):
                 except StopIteration as e:
                     if err is None:
                         override_return = e.value
+
+            if is_chat and not kwargs.get("stream") and resp is not None and err is None:
+                core.dispatch("openai.chat.completions.create.after", (kwargs, resp), allow_raise=True)
 
             if override_return is not None:
                 if resp is not send_resp and override_return is not None:
