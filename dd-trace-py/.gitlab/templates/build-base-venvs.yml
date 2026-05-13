@@ -4,7 +4,7 @@ build_base_venvs:
   needs: []
   parallel:
     matrix:
-      - PYTHON_VERSION: [{python_versions}]
+      - PYTHON_VERSION: [{python_versions: ''}]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
     PIP_VERBOSE: '0'
@@ -24,7 +24,7 @@ build_base_venvs:
       python scripts/allow_prerelease_dependencies.py
       export PIP_PRE=true
     fi
-    riot -P -v generate --python=$PYTHON_VERSION
+    riot -P -v generate --wheel-path "${CI_PROJECT_DIR}/ddtrace-internal/pywheels" --python=$PYTHON_VERSION
     .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test

@@ -38,7 +38,7 @@ dependencies = [
     "bytecode>=0.15.1,<1; python_version~='3.12.0'",
     "bytecode>=0.14.0,<1; python_version~='3.11.0'",
     "bytecode>=0.13.0,<1; python_version<'3.11'",
-    "ddtrace-internal @ file:///${CI_PROJECT_DIR}/ddtrace-internal/pywheels/ddtrace_internal-0.0.0.tar.gz",
+    "ddtrace-internal",
     "envier~=0.6.1",
     "opentelemetry-api>=1,<2",
     "wrapt>=1,<3",
