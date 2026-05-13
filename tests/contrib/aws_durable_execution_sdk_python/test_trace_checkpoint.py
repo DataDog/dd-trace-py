@@ -139,7 +139,7 @@ def test_save_uses_execute_span_id_on_first_invocation():
         trace_checkpoint.maybe_save_trace_context_checkpoint(durable, span)
 
     update, is_sync = state._captured[0]
-    assert is_sync is False
+    assert is_sync is True
     assert update.name == "_datadog_0"
     assert update.parent_id is None  # AWS-side parent stays None at top level
     payload = json.loads(update.payload)

@@ -103,6 +103,63 @@ def test_parallel_propagates_trace_context():
         runner.run()
 
 
+def test_replay_transitions_to_new_with_datadog_checkpoint():
+    """Synthetic ``_datadog_*`` checkpoints must not pin the SDK into REPLAY.
+
+    Regression for an integration bug: in invocation 1 the integration
+    persists a ``_datadog_N`` STEP checkpoint via ``state.create_checkpoint``.
+    On the resume invocation the SDK loads it as an initial operation and
+    counts it toward ``completed_ops`` inside ``track_replay``.  But
+    nothing in user code visits this op, so without our pre-marking the
+    subset check ``completed_ops.issubset(_visited_operations)`` never
+    holds and ``ExecutionState`` stays in REPLAY forever — which silently
+    suppresses ``context.logger`` output on the resume invocation.
+
+    This test drives a real ``DurableFunctionTestRunner`` end-to-end:
+    a wait forces a suspend/resume, the integration writes a trace-context
+    checkpoint in invocation 1, and on the resume invocation we record
+    ``state.is_replaying()`` after user code catches up.  The SDK must
+    have transitioned out of REPLAY.
+    """
+    snapshots: list[dict] = []
+    invocation_index = {"n": 0}
+
+    @ades.durable_execution
+    def workflow(event, context):
+        invocation_index["n"] += 1
+        # context.wait suspends invocation 1; invocation 2 replays it.
+        context.wait(Duration.from_seconds(1), name="pause")
+        # A real step so the SDK's track_replay can drive REPLAY → NEW
+        # once it sees user code has visited every completed op.
+        context.step(lambda _ctx: "ok", name="finish")
+        snapshots.append(
+            {
+                "invocation": invocation_index["n"],
+                "is_replaying": context.state.is_replaying(),
+                "op_names": sorted((getattr(op, "name", None) or "") for op in context.state.operations.values()),
+            }
+        )
+
+    with DurableFunctionTestRunner(workflow) as runner:
+        runner.run()
+
+    # Invocation 1 raises SuspendExecution at context.wait, so it never
+    # reaches the snapshot below — snapshots only contain successful runs.
+    assert snapshots, "workflow never completed an invocation cleanly"
+
+    final = snapshots[-1]
+    # Guard: if no _datadog_* was ever written in the prior invocation, the
+    # bug isn't being exercised at all and a green test would be vacuous.
+    assert any(name.startswith("_datadog_") for name in final["op_names"]), (
+        f"test setup error: no _datadog_* checkpoint present on resume, "
+        f"so this test isn't exercising the bug. ops={final['op_names']!r}"
+    )
+    assert final["is_replaying"] is False, (
+        f"After replay catches up, SDK must transition REPLAY → NEW even "
+        f"with our _datadog_* in state.operations. snapshots={snapshots!r}"
+    )
+
+
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_workflow_failed_status():
     """Step that exhausts retries: terminal aws.durable.execute span has invocation_status=failed."""

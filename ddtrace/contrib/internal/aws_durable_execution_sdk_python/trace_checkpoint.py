@@ -337,10 +337,11 @@ def maybe_save_trace_context_checkpoint(durable_context: "DurableContext", span:
         payload = json.dumps(headers, separators=(",", ":"))
         update = OperationUpdate.create_step_succeed(identifier, payload)
 
-        # Async checkpoint — observability only, must not block the workflow.
+        # Use Sync to avoid being abandoned: the SDK drops unflushed async
+        # checkpoints on suspend.  Cost is negligible — it's suspending anyway.
         try:
-            state.create_checkpoint(update, is_sync=False)
+            state.create_checkpoint(update, is_sync=True)
         except Exception:
-            log.debug("Failed to enqueue trace-context checkpoint", exc_info=True)
+            log.debug("Failed to write trace-context checkpoint", exc_info=True)
     except Exception:
         log.debug("maybe_save_trace_context_checkpoint failed", exc_info=True)
