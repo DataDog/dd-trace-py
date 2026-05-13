@@ -1,3 +1,5 @@
+import json
+
 import aws_durable_execution_sdk_python as ades
 from aws_durable_execution_sdk_python.config import Duration
 from aws_durable_execution_sdk_python.config import StepConfig
@@ -157,6 +159,76 @@ def test_replay_transitions_to_new_with_datadog_checkpoint():
     assert final["is_replaying"] is False, (
         f"After replay catches up, SDK must transition REPLAY → NEW even "
         f"with our _datadog_* in state.operations. snapshots={snapshots!r}"
+    )
+
+
+def test_persists_trace_context_checkpoint_across_suspend_resume():
+    """A real suspend/resume must persist a well-formed ``_datadog_*``
+    trace-context checkpoint that the resume invocation can read.
+
+    Not a snapshot test on purpose:
+      - The checkpoint payload lives in ``state.operations`` as a JSON
+        string, not on a span, so it can't appear in span-snapshot JSON.
+      - Cross-invocation trace continuity needs the extraction layer in
+        datadog-lambda-python, which isn't loaded here — without it the
+        two invocations emit two disconnected span trees, so a snapshot
+        diff would have nothing meaningful to compare.
+      - Header diff/anchor/counter logic is already covered by the focused
+        unit tests in ``test_trace_checkpoint.py``. This test only proves
+        that, inside a real SDK lifecycle, the integration writes a
+        well-formed checkpoint that survives suspend/resume — i.e. the
+        production plumbing is actually wired up end-to-end.
+    """
+    captured: list[dict] = []
+    invocation_index = {"n": 0}
+
+    @ades.durable_execution
+    def workflow(event, context):
+        invocation_index["n"] += 1
+        # Forces invocation 1 to suspend; invocation 2 replays from the
+        # persisted state — which is where the _datadog_* checkpoint
+        # written in invocation 1 has to show up.
+        context.wait(Duration.from_seconds(1), name="pause")
+        # A real step keeps the SDK driving forward after replay so we
+        # observe state.operations with all completed ops loaded.
+        context.step(lambda _ctx: "ok", name="finish")
+        datadog_ops = {
+            (op.name or ""): getattr(getattr(op, "step_details", None), "result", None)
+            for op in context.state.operations.values()
+            if (getattr(op, "name", None) or "").startswith("_datadog_")
+        }
+        captured.append({"invocation": invocation_index["n"], "datadog_ops": datadog_ops})
+
+    with DurableFunctionTestRunner(workflow) as runner:
+        runner.run()
+
+    # Invocation 1 raises SuspendExecution at context.wait and never reaches
+    # the append below — captured only ever contains successful runs.
+    assert captured, "workflow never completed an invocation cleanly"
+
+    final = captured[-1]
+    assert final["datadog_ops"], (
+        f"resume invocation saw no _datadog_* checkpoint — integration did "
+        f"not persist trace context across suspend/resume. captured={captured!r}"
+    )
+
+    # _datadog_0 is written in invocation 1 (before the suspend) and is the
+    # one whose payload anchors to invocation 1's aws.durable.execute span.
+    raw = final["datadog_ops"].get("_datadog_0")
+    assert raw, f"_datadog_0 missing or has no persisted payload: {final['datadog_ops']!r}"
+    headers = json.loads(raw)
+
+    for key in ("x-datadog-trace-id", "x-datadog-parent-id", "traceparent"):
+        assert headers.get(key), f"missing or empty header {key!r} in {headers!r}"
+
+    # The integration rewrites traceparent's parent-id segment to match the
+    # Datadog anchor, so the W3C view agrees with the Datadog view. If these
+    # ever diverge a downstream extractor would build two different parents.
+    tp_parent = headers["traceparent"].split("-")[2]
+    expected = format(int(headers["x-datadog-parent-id"]), "016x")
+    assert tp_parent == expected, (
+        f"traceparent parent segment {tp_parent!r} != hex(x-datadog-parent-id) "
+        f"{expected!r} in {headers!r}"
     )
 
 
