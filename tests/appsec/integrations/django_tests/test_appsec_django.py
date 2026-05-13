@@ -14,6 +14,8 @@ from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import constants
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from tests.appsec.integrations.django_tests.utils import _aux_appsec_get_root_span
 import tests.appsec.rules as rules
 from tests.utils import override_global_config
@@ -131,6 +133,81 @@ def test_request_userblock_403(client, test_spans, tracer):
         assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
         if hasattr(result, "headers"):
             assert result.headers["content-type"] == "application/json"
+
+
+def _flush_user_auth_metrics(telemetry_writer):
+    metrics = (
+        telemetry_writer._namespace.flush()
+        .get(TELEMETRY_EVENT_TYPE.METRICS, {})
+        .get(TELEMETRY_NAMESPACE.APPSEC.value, [])
+    )
+    return [m for m in metrics if m["metric"].startswith("instrum.user_auth.")]
+
+
+def _assert_user_auth_metrics(telemetry_writer, event_type, expected_metric_names):
+    metrics = _flush_user_auth_metrics(telemetry_writer)
+    assert {m["metric"] for m in metrics} == expected_metric_names
+    assert len(metrics) == len(expected_metric_names), metrics
+    for metric in metrics:
+        assert "framework:django" in metric["tags"]
+        assert f"event_type:{event_type}" in metric["tags"]
+        assert len(metric["tags"]) == 2
+
+
+@pytest.mark.django_db
+def test_django_user_auth_missing_telemetry_real_flows(client, telemetry_writer):
+    from django.contrib.auth import get_user
+    from django.contrib.auth.models import User
+
+    User.objects.create_user(username="fred", password="secret")
+
+    telemetry_writer._namespace.flush()
+    with (
+        override_global_config(
+            dict(
+                _asm_enabled=True,
+                _auto_user_instrumentation_local_mode=LOGIN_EVENTS_MODE.IDENT,
+                # Default Django User exposes `pk`/`id` and `get_username()`,
+                # so absent field names would fall back to real identity data. To exercise
+                # missing data without mocks or a custom user model, point ddtrace at
+                # real fields that are blank by default. Empty strings short-circuit those
+                # fallbacks and are treated as missing identity values.
+                _user_model_login_field="first_name",
+                _user_model_name_field="last_name",
+            )
+        ),
+        update_django_config(),
+    ):
+        assert not client.login(username="fred", password="wrong")
+        _assert_user_auth_metrics(
+            telemetry_writer,
+            "login_failure",
+            {"instrum.user_auth.missing_user_login"},
+        )
+
+        response = client.get("/appsec/signup/?login=john&pwd=secret")
+        assert response.status_code == 200
+        _assert_user_auth_metrics(
+            telemetry_writer,
+            "signup",
+            {"instrum.user_auth.missing_user_login", "instrum.user_auth.missing_user_id"},
+        )
+
+        assert client.login(username="fred", password="secret")
+        assert get_user(client).is_authenticated
+        _assert_user_auth_metrics(
+            telemetry_writer,
+            "login_success",
+            {"instrum.user_auth.missing_user_login", "instrum.user_auth.missing_user_id"},
+        )
+
+        response = client.get("/")
+        assert response.status_code == 200
+        _assert_user_auth_metrics(
+            telemetry_writer,
+            "authenticated_request",
+            {"instrum.user_auth.missing_user_id"},
+        )
 
 
 @pytest.mark.django_db
