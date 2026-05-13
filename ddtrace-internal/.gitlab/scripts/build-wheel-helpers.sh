@@ -100,26 +100,10 @@ build_wheel() {
 }
 
 repair_wheel() {
-    # Extract debug symbols
-    section_start "extract_debug_symbols" "Extracting debug symbols"
-    uv run --no-project scripts/extract_debug_symbols.py "${BUILT_WHEEL_FILE}" --output-dir "${DEBUG_WHEEL_DIR}"
-    section_end "extract_debug_symbols"
-
     # Strip wheel
     section_start "strip_wheel" "Stripping unneeded files"
     uv run --no-project scripts/zip_filter.py "${BUILT_WHEEL_FILE}" \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md
     section_end "strip_wheel"
-
-    # Repair wheel (ONLY PLATFORM-SPECIFIC CODE)
-    section_start "repair_wheel" "Repairing wheel"
-    if [[ "$(uname -s)" == "Linux" ]]; then
-        auditwheel repair -w "${TMP_WHEEL_DIR}" "${BUILT_WHEEL_FILE}"
-    else
-        # macOS
-        MACOSX_DEPLOYMENT_TARGET=14.7 uvx --from="delocate" delocate-wheel \
-            --require-archs "${ARCH_TAG}" -w "${TMP_WHEEL_DIR}" -v "${BUILT_WHEEL_FILE}"
-    fi
-    section_end "repair_wheel"
 }
 
 setup() {
