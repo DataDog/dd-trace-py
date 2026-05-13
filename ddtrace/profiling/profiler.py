@@ -202,10 +202,9 @@ class _ProfilerInstance(service.Service):
         ddup.start()
 
         # Surface the effective profiler configuration on each uploaded profile
-        # under the event's `info.profiler.settings` header, matching
-        # dd-trace-go and dd-trace-php. This is a one-shot snapshot at startup;
-        # runtime-mutable values (e.g. the adaptive sampling interval) are
-        # already exposed via ProfilerStats fields.
+        # under the event's `info.profiler.settings` header. This is a one-shot
+        # snapshot at startup; runtime-mutable values (e.g. the adaptive
+        # sampling interval) are already exposed via ProfilerStats fields.
         try:
             settings = profiling_config.dump_settings()
             # Drop `tags`: user/process tags already ride on the upload event's

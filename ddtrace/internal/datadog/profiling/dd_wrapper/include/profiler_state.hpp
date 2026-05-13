@@ -83,7 +83,7 @@ class ProfilerState
     // backend auto-indexes for filtering profiles by configuration. Lives on
     // ProfilerState (not on the per-profile ProfilerStats) because it is
     // process-global static configuration; ProfilerStats is std::swap-ped on
-    // every upload in UploaderBuilder::build(), which would drop the value.
+    // every upload in UploaderBuilder::build, which would drop the value.
     std::string profiler_settings_info_json;
 
     // ========================================================================
