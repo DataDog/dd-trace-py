@@ -4,6 +4,7 @@ from typing import Optional
 
 from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec import _metrics
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import _get_headers_if_appsec
@@ -34,6 +35,8 @@ from ddtrace.trace import tracer
 
 log = get_logger(__name__)
 
+TELEMETRY_FRAMEWORK_NAME = "django"
+
 
 def _on_django_login(
     _pin: Pin,
@@ -51,7 +54,15 @@ def _on_django_login(
             email=django_config.include_user_email,
             name=django_config.include_user_realname,
         )
+        user_login = user_extra.get("login")
         if user_is_authenticated(user_obj):
+            _metrics.report_user_auth_missing(
+                TELEMETRY_FRAMEWORK_NAME,
+                "login_success",
+                user_id,
+                user_login,
+                django_config.include_user_login,
+            )
             with tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
                 session_key = getattr(getattr(request, "session", None), "session_key", None)
                 track_user_login_success_event(
@@ -65,9 +76,14 @@ def _on_django_login(
         else:
             # Login failed and the user is unknown (may exist or not)
             # DEV: DEAD CODE?
-            track_user_login_failure_event(
-                None, user_id=user_id, login_events_mode=mode, login=user_extra.get("login", None)
+            _metrics.report_user_auth_missing(
+                TELEMETRY_FRAMEWORK_NAME,
+                "login_failure",
+                user_id,
+                user_login,
+                django_config.include_user_login,
             )
+            track_user_login_failure_event(None, user_id=user_id, login_events_mode=mode, login=user_login)
 
 
 def _on_django_auth(
@@ -101,8 +117,16 @@ def _on_django_auth(
             if user_extra.get("login") is None:
                 user_extra["login"] = user_id
             user_id = user_id_found or user_id
+            user_login = user_extra.get("login")
 
             track_user_login_failure_event(None, user_id=user_id, login_events_mode=mode, exists=exists, **user_extra)
+            _metrics.report_user_auth_missing(
+                TELEMETRY_FRAMEWORK_NAME,
+                "login_failure",
+                user_id,
+                user_login,
+                django_config.include_user_login,
+            )
 
     return False, None
 
@@ -147,6 +171,8 @@ def _on_django_process(
     user_login = user_extra.get("login")
     res = None
     if result_user and result_user.is_authenticated:
+        if _metrics._is_user_auth_value_missing(user_id):
+            _metrics.report_user_auth_missing_user_id(TELEMETRY_FRAMEWORK_NAME, "authenticated_request")
         span = _asm_request_context.get_entry_span()
         if span is None:
             return
@@ -206,6 +232,14 @@ def _on_django_signup_user(
         return
     user_id, user_extra = get_user_info(info_retriever, django_config)
     if user_obj:
+        user_login = user_extra.get("login")
+        _metrics.report_user_auth_missing(
+            TELEMETRY_FRAMEWORK_NAME,
+            "signup",
+            user_id,
+            user_login,
+            django_config.include_user_login,
+        )
         span = _asm_request_context.get_entry_span()
         if span is None:
             return
