@@ -34,8 +34,8 @@ def cleanup_loaded_modules() -> None:
     if not enabled:
         return
 
-    stale_reprlib_module = sys.modules.get("reprlib")
-    stale_thread_module = sys.modules.get("_thread")
+    original_reprlib_module = sys.modules.get("reprlib")
+    original_thread_module = sys.modules.get("_thread")
 
     def drop(module_name: str) -> None:
         module = sys.modules.get(module_name)
@@ -104,11 +104,6 @@ def cleanup_loaded_modules() -> None:
             # CPython on boot.
             "threading",
             "_thread",
-            # reprlib binds _thread.get_ident at import time. If _thread gets
-            # re-imported but reprlib does not, pickle/cloudpickle can see two
-            # different builtin function objects and fail serializing classes
-            # that close over reprlib state.
-            "reprlib",
         ]
     )
     for u in UNLOAD_MODULES:
@@ -116,7 +111,7 @@ def cleanup_loaded_modules() -> None:
             if m == u or m.startswith(u + "."):
                 drop(m)
 
-    if stale_reprlib_module is not None or stale_thread_module is not None or "reprlib" in sys.modules:
+    if original_reprlib_module is not None or original_thread_module is not None or "reprlib" in sys.modules:
         # Modules imported before cleanup can keep direct references to the old
         # reprlib or _thread objects. If _thread is re-imported, stale reprlib
         # references can retain the old get_ident builtin and become
@@ -124,10 +119,10 @@ def cleanup_loaded_modules() -> None:
         import _thread
 
         current_get_ident = _thread.get_ident
-        if stale_thread_module is not None:
-            stale_thread_module.get_ident = current_get_ident  # type: ignore[attr-defined]
-        if stale_reprlib_module is not None:
-            stale_reprlib_module.get_ident = current_get_ident  # type: ignore[attr-defined]
+        if original_thread_module is not None:
+            original_thread_module.get_ident = current_get_ident  # type: ignore[attr-defined]
+        if original_reprlib_module is not None:
+            original_reprlib_module.get_ident = current_get_ident  # type: ignore[attr-defined]
         if "reprlib" in sys.modules:
             sys.modules["reprlib"].get_ident = current_get_ident  # type: ignore[attr-defined]
 
