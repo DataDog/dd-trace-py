@@ -3906,7 +3906,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "aliases": [
           "DD_TRACE_STATS_COMPUTATION_ENABLED"
         ]
