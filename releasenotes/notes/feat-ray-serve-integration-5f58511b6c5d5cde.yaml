@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    ray_serve: Adds instrumentation support for ``ray[serve]>=2.47.1``. When Ray is instrumented, ddtrace now traces Serve HTTP and gRPC requests, deployment
+    routing, deployment method execution, and calls made with ``DeploymentHandle.remote()``, with distributed trace context propagated
+    across Serve deployments. See the `Ray <https://ddtrace.readthedocs.io/en/stable/integrations.html#ray>`_
+    documentation for more information.
