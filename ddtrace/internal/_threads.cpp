@@ -391,6 +391,9 @@ typedef struct periodic_thread
     std::unique_ptr<Event> _served;
 
     std::unique_ptr<std::mutex> _awake_mutex;
+    std::unique_ptr<std::condition_variable> _awake_cond;
+    unsigned long long _awake_requested;
+    unsigned long long _awake_served;
 
     std::unique_ptr<std::thread> _thread;
 } PeriodicThread;
@@ -464,6 +467,9 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
     self->_served = std::make_unique<Event>();
 
     self->_awake_mutex = std::make_unique<std::mutex>();
+    self->_awake_cond = std::make_unique<std::condition_variable>();
+    self->_awake_requested = 0;
+    self->_awake_served = 0;
 
     return 0;
 }
@@ -580,7 +586,9 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                 if (self->_no_wait_at_start)
                     self->_request->set(REQUEST_REASON_AWAKE);
 
+                bool fork_stopped = false;
                 while (!self->_stopping) {
+                    bool served_awake_request = false;
                     {
                         AllowThreads _(state);
 
@@ -593,6 +601,7 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                                 const unsigned char stop_reasons =
                                   self->_request->consume(REQUEST_REASON_FORK_STOP | REQUEST_REASON_STOP);
                                 const bool has_fork_stop = (stop_reasons & REQUEST_REASON_FORK_STOP) != 0;
+                                fork_stopped = has_fork_stop;
                                 if (!has_fork_stop)
                                     self->_request->consume_all();
                                 break;
@@ -600,7 +609,8 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
 
                             // Request wakeup while running (awake/no_wait_at_start).
                             // Timer wakeups are the wait(...) == false branch.
-                            self->_request->consume_all();
+                            const unsigned char reasons = self->_request->consume_all();
+                            served_awake_request = (reasons & REQUEST_REASON_AWAKE) != 0;
                         }
                     }
 
@@ -616,12 +626,31 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                     self->_next_call_time =
                       std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
 
-                    // If this came from a request mark it as served
+                    if (served_awake_request) {
+                        bool has_pending_awake = false;
+                        {
+                            std::lock_guard<std::mutex> lock(*self->_awake_mutex);
+                            if (self->_awake_served < self->_awake_requested)
+                                self->_awake_served++;
+                            has_pending_awake = self->_awake_served < self->_awake_requested && !self->_stopping;
+                        }
+
+                        self->_awake_cond->notify_all();
+                        if (has_pending_awake)
+                            self->_request->set(REQUEST_REASON_AWAKE);
+                    }
+
                     self->_served->set();
                 }
 
-                // Set request served in case any threads are waiting while a thread is
-                // stopping.
+                if (!fork_stopped) {
+                    {
+                        std::lock_guard<std::mutex> lock(*self->_awake_mutex);
+                        self->_awake_served = self->_awake_requested;
+                    }
+                    self->_awake_cond->notify_all();
+                }
+
                 self->_served->set();
 
                 if (!state->is_finalizing()) {
@@ -709,26 +738,19 @@ PeriodicThread_awake(PeriodicThread* self, PyObject* Py_UNUSED(args))
     {
         AllowThreads _(self->_state);
 
-        // Set up the wait under _awake_mutex. stop() also takes this mutex,
-        // so either we observe its _stopping write here, or our set(AWAKE)
-        // is ordered before its set(STOP) and the worker's cleanup
-        // _served->set() (loop exit) wakes us.
-        {
-            std::lock_guard<std::mutex> lock(*self->_awake_mutex);
+        std::unique_lock<std::mutex> lock(*self->_awake_mutex);
 
-            if (self->_stopping && !self->_skip_shutdown) {
-                stopped = true;
-            } else {
-                self->_served->clear();
-                self->_request->set(REQUEST_REASON_AWAKE);
-            }
+        if (self->_stopping && !self->_skip_shutdown) {
+            stopped = true;
+        } else {
+            const unsigned long long target = ++self->_awake_requested;
+            self->_request->set(REQUEST_REASON_AWAKE);
+            self->_awake_cond->wait(lock, [self, target]() { return self->_awake_served >= target; });
         }
-
-        // Wait *outside* the mutex so a periodic callback that calls
-        // stop() on itself (Timer._periodic) does not deadlock against us.
-        if (!stopped)
-            self->_served->wait();
     }
+
+    if (stopped)
+        Py_RETURN_NONE;
 
     Py_RETURN_NONE;
 }
@@ -742,9 +764,9 @@ PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
         return NULL;
     }
 
-    // Order _stopping + set(STOP) against awake()'s setup of (clear _served,
-    // set AWAKE). Without this, awake() could clear _served after the worker
-    // has already exited and set it on cleanup, then wait forever.
+    // Order _stopping + set(STOP) against awake()'s request registration.
+    // Without this, awake() could register after the worker has already exited
+    // and wait forever for a completion signal that will never arrive.
     {
         AllowThreads _(self->_state);
         std::lock_guard<std::mutex> lock(*self->_awake_mutex);
@@ -967,6 +989,7 @@ PeriodicThread_dealloc(PeriodicThread* self)
     self->_served = nullptr;
 
     self->_awake_mutex = nullptr;
+    self->_awake_cond = nullptr;
 
     Py_TYPE(self)->tp_free((PyObject*)self);
 }

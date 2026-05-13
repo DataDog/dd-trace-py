@@ -204,6 +204,56 @@ def test_awakeable_periodic_service():
     assert queue == list(range(n + 1))
 
 
+def test_awakeable_periodic_service_concurrent_awake_runs_once_per_call():
+    n = 8
+    queue = []
+    callback_entered = Event()
+    release_callback = Event()
+    ready = [Event() for _ in range(n)]
+    done = [Event() for _ in range(n)]
+
+    class AwakeMe(periodic.AwakeablePeriodicService):
+        def periodic(self):
+            queue.append(len(queue))
+            callback_entered.set()
+            if len(queue) == 1:
+                release_callback.wait(timeout=5)
+
+    awake_me = AwakeMe(60)
+    threads = []
+
+    def _awake(idx):
+        ready[idx].set()
+        try:
+            awake_me.awake()
+        finally:
+            done[idx].set()
+
+    try:
+        awake_me.start()
+
+        threads = [Thread(target=_awake, args=(i,)) for i in range(n)]
+        for t in threads:
+            t.start()
+
+        for event in ready:
+            assert event.wait(timeout=1)
+
+        assert callback_entered.wait(timeout=5)
+        release_callback.set()
+
+        for event in done:
+            assert event.wait(timeout=5)
+
+        assert queue == list(range(n))
+    finally:
+        release_callback.set()
+        awake_me.stop()
+        awake_me.join()
+        for t in threads:
+            t.join(timeout=1)
+
+
 @pytest.mark.subprocess()
 def test_forksafe_awakeable_periodic_service():
     import os
