@@ -135,6 +135,7 @@ SUPPORTED_CONFIGURATIONS: frozenset[str] = frozenset(
         "DD_CRASHTRACKING_USE_ALT_STACK",
         "DD_CRASHTRACKING_WAIT_FOR_RECEIVER",
         "DD_CREWAI_SERVICE",
+        "DD_CUSTOM_PARENT_ID",
         "DD_CUSTOM_TRACE_ID",
         "DD_CXX_OLD",
         "DD_CYTHONIZE",
