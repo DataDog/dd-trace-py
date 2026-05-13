@@ -134,6 +134,22 @@ class CrashtrackingConfig(DDConfig):
         help="Whether to wait for the crashtracking receiver",
     )
 
+    collect_all_threads = DDConfig.v(
+        bool,
+        "collect_all_threads",
+        default=True,
+        help_type="Boolean",
+        help="Whether to collect stack traces from all threads when a crash is handled.",
+    )
+
+    max_threads = DDConfig.v(
+        int,
+        "max_threads",
+        default=128,
+        help_type="Integer",
+        help="Maximum number of threads to collect stack traces for when collect_all_threads is enabled.",
+    )
+
 
 config = CrashtrackingConfig()
 report_configuration(config)
