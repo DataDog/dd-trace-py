@@ -1068,64 +1068,44 @@ def test_stress_trace_collection(tracer_and_collector: tuple[Tracer, stack.Stack
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="fork test only on linux")
-@pytest.mark.subprocess(err=None)
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        DD_PROFILING_ENABLED="true",
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_span_id_in_profile_after_fork_ddtrace_run",
+    ),
+    err=None,
+)
 def test_span_id_in_profile_after_fork() -> None:
-    """
-    Verify that profile samples from a forked child carry span_id labels.
+    """Same as test_span_id_in_profile_after_fork but exercising the real user path:
+    ddtrace-run with DD_PROFILING_ENABLED=true.  The profiler and tracer are both
+    bootstrapped automatically; no manual ddup/StackCollector setup is needed.
     """
     import os
-    import pathlib
-    import tempfile
     import time
 
     import ddtrace
-    from ddtrace.internal.datadog.profiling import ddup
-    from ddtrace.profiling.collector import stack
+    import ddtrace.profiling.bootstrap as bootstrap
     from tests.profiling.collector import pprof_utils
 
     tracer = ddtrace.tracer
-    tracer._endpoint_call_counter_span_processor.enable()
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
 
-    tmp_path = pathlib.Path(tempfile.mkdtemp())
-    test_name = "test_span_id_in_profile_after_fork"
-    pprof_prefix = str(tmp_path / test_name)
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload(tracer=tracer)
-
-    collector = stack.StackCollector(tracer=tracer)
-    collector.start()
-
-    # Open a span before forking so the child inherits the active context.
     with tracer.trace("job", resource="delancie-job") as root_span:
         span_id = root_span.span_id
         local_root_span_id = root_span._local_root.span_id
 
         pid = os.fork()
         if pid == 0:
-            # child process
-            # Reconfigure ddup so the child writes to its own file.
-            child_pprof_prefix = str(tmp_path / (test_name + "_child"))
-            child_output = child_pprof_prefix + "." + str(os.getpid())
-
-            ddup.config(
-                env="test",
-                service=test_name,
-                version="my_version",
-                output_filename=child_pprof_prefix,
-            )
-            ddup.start()
-            ddup.upload(tracer=tracer)
-
-            # Let the sampler collect samples while the inherited span is active.
+            # child
+            # Give some time for the sampler to capture samples
             end = time.monotonic() + 2
             while time.monotonic() < end:
                 time.sleep(0.05)
 
-            ddup.upload(tracer=tracer)
+            bootstrap.profiler._profiler._scheduler.flush()
 
+            child_output = pprof_prefix + "." + str(os.getpid())
             profile = pprof_utils.parse_newest_profile(child_output)
             samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
 
@@ -1156,5 +1136,3 @@ def test_span_id_in_profile_after_fork() -> None:
                 "Child process failed: profile samples after fork did not contain the expected span_id. "
                 "The Trace to Profile link is broken for forked processes."
             )
-
-    collector.stop()
