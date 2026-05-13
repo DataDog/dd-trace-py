@@ -13,12 +13,10 @@
 using namespace Datadog;
 
 Datadog::Uploader::Uploader(std::string_view _output_filename,
-                            ddog_prof_ProfileExporter _ddog_exporter,
                             ddog_prof_EncodedProfile _encoded_profile,
                             Datadog::ProfilerStats _stats,
                             std::string_view _process_tags)
   : output_filename{ _output_filename }
-  , ddog_exporter{ _ddog_exporter }
   , encoded_profile{ _encoded_profile }
   , profiler_stats{ _stats }
   , process_tags{ _process_tags }
@@ -30,10 +28,8 @@ Datadog::Uploader::Uploader(std::string_view _output_filename,
 
 Datadog::Uploader::~Uploader()
 {
-    // We need to call _drop() on the exporter and the cancellation token,
-    // as their inner pointers are allocated on the Rust side. And since
-    // there could be a request in flight, we first need to cancel it. Then,
-    // we drop the exporter and the cancellation token.
+    // Cancel any request still in flight before dropping the encoded profile.
+    // The exporter itself is owned by ProfilerState and outlives the Uploader.
     auto current_cancel = ProfilerState::get().upload_cancel.exchange({ .inner = nullptr });
 
     if (current_cancel.inner != nullptr) {
@@ -41,7 +37,6 @@ Datadog::Uploader::~Uploader()
         ddog_CancellationToken_drop(&current_cancel);
     }
 
-    ddog_prof_Exporter_drop(&ddog_exporter);
     ddog_prof_EncodedProfile_drop(&encoded_profile);
 }
 
@@ -141,8 +136,13 @@ Datadog::Uploader::upload_unlocked()
         .len = static_cast<uintptr_t>(to_compress_files.size()),
     };
 
+    // The exporter is owned by ProfilerState and reused across uploads.
+    // Caller holds upload_lock, so this access is serialized with prefork/cleanup
+    // (the only places that drop the exporter).
+    auto& cached_exporter = ProfilerState::get().cached_exporter;
+
     // Build and send the request in one call
-    auto init_runtime_res = ddog_prof_Exporter_init_runtime(&ddog_exporter);
+    auto init_runtime_res = ddog_prof_Exporter_init_runtime(&cached_exporter);
     if (init_runtime_res.tag != DDOG_VOID_RESULT_OK) {
         std::cerr << "Error initializing runtime: " << err_to_msg(&init_runtime_res.err, "Error initializing runtime")
                   << std::endl;
@@ -165,7 +165,7 @@ Datadog::Uploader::upload_unlocked()
         ddog_CancellationToken_drop(&current_cancel);
     }
 
-    auto res = ddog_prof_Exporter_send_blocking(&ddog_exporter,
+    auto res = ddog_prof_Exporter_send_blocking(&cached_exporter,
                                                 &encoded_profile,
                                                 files_to_compress,
                                                 nullptr, // optional_additional_tags
@@ -183,7 +183,7 @@ Datadog::Uploader::upload_unlocked()
         ret = false;
     }
     ddog_CancellationToken_drop(&new_cancel_clone_for_request);
-    ddog_prof_Exporter_drop(&ddog_exporter);
+    // cached_exporter intentionally NOT dropped: it is reused across uploads.
 
     return ret;
 }
