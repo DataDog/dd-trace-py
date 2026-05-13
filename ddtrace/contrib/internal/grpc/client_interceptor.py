@@ -179,6 +179,11 @@ class _WrappedResponseCallFuture(wrapt.ObjectProxy):
             core.dispatch("grpc.client.response.message", (n,))
         return n
 
+    # gRPC's _Rendezvous exposes a next method; without this
+    # alias, wrapt.ObjectProxy falls through to the underlying object's next,
+    # bypassing __next__ and skipping span dispatch and error handling.
+    next = __next__
+
 
 class _ClientInterceptor(
     grpc.UnaryUnaryClientInterceptor,
