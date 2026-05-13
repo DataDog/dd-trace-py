@@ -45,9 +45,14 @@ def generate_module(data: dict) -> str:
     deprecated = sorted(name for name, e in entries.items() if e.get("deprecated"))
 
     supported = "\n".join(f'        "{n}",' for n in all_names)
-    alias_lines = "\n".join(
-        '    "{}": [{}],'.format(n, ", ".join('"{}"'.format(a) for a in v)) for n, v in aliases.items()
-    )
+
+    def _format_alias_entry(name: str, vals: list[str], max_len: int = 120) -> str:
+        single = '    "{}": [{}],'.format(name, ", ".join('"{}"'.format(a) for a in vals))
+        if len(single) <= max_len:
+            return single
+        return '    "{}": [\n{}\n    ],'.format(name, "\n".join(f'        "{a}",' for a in vals))
+
+    alias_lines = "\n".join(_format_alias_entry(n, v) for n, v in aliases.items())
 
     aliases_block = (
         f"CONFIGURATION_ALIASES: dict[str, list[str]] = {{\n{alias_lines}\n}}"
