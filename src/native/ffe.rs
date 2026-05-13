@@ -22,7 +22,7 @@ pub mod ffe {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[pyclass(eq, eq_int)]
+    #[pyclass(eq, eq_int, from_py_object)]
     enum FlagType {
         String,
         Integer,
@@ -52,7 +52,7 @@ pub mod ffe {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[pyclass(eq, eq_int)]
+    #[pyclass(eq, eq_int, skip_from_py_object)]
     enum Reason {
         Static,
         Default,
@@ -66,7 +66,7 @@ pub mod ffe {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[pyclass(eq, eq_int)]
+    #[pyclass(eq, eq_int, skip_from_py_object)]
     enum ErrorCode {
         /// The type of the flag value does not match the expected type.
         TypeMismatch,
