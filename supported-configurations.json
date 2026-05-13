@@ -4171,13 +4171,13 @@
         "default": "500-599"
       }
     ],
-    "DD_TRACE_INFERRED_SPANS_ENABLED": [
+    "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
         "default": "false",
         "aliases": [
-          "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED"
+          "DD_TRACE_INFERRED_SPANS_ENABLED"
         ]
       }
     ],
