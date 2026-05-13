@@ -94,6 +94,8 @@ class Span(OtelSpan):
         start_time=None,  # type: Optional[int]
         record_exception=None,  # type: Optional[bool]
         set_status_on_exception=None,  # type: Optional[bool]
+        span_processor=None,
+        parent_context=None,
     ):
         # type: (...) -> None
         if start_time is not None:
@@ -101,6 +103,7 @@ class Span(OtelSpan):
             datadog_span.start_ns = start_time
 
         self._ddspan = datadog_span
+        self._span_processor = span_processor
         if record_exception is not None:
             self._record_exception = record_exception
         if set_status_on_exception is not None:
@@ -112,6 +115,9 @@ class Span(OtelSpan):
 
         if attributes:
             self.set_attributes(attributes)
+
+        if span_processor is not None:
+            span_processor.on_start(self, parent_context=parent_context)
 
     @property
     def _record_exception(self):
@@ -148,6 +154,8 @@ class Span(OtelSpan):
         if override_name:
             self._ddspan.name = override_name
         self._ddspan._finish_ns(end_time)
+        if self._span_processor is not None:
+            self._span_processor.on_end(self)
 
     @property
     def kind(self):

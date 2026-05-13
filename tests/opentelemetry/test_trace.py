@@ -5,6 +5,9 @@ from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapProp
 import pytest
 
 from ddtrace.internal.opentelemetry.trace import OTEL_VERSION
+from ddtrace.opentelemetry import SpanProcessor
+from ddtrace.opentelemetry import SynchronousMultiSpanProcessor
+from ddtrace.opentelemetry import TracerProvider
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_default_env  # noqa:F401
 
@@ -269,3 +272,192 @@ def test_otel_start_as_current_span_decorator(oteltracer):
         tracer_wrap_dd_keep_sampling()
 
     tracer_wrap_outer_no_args()
+
+
+# ---------------------------------------------------------------------------
+# SpanProcessor tests
+# ---------------------------------------------------------------------------
+
+
+class _RecordingProcessor(SpanProcessor):
+    """Test processor that records every call made to it."""
+
+    def __init__(self):
+        self.started = []
+        self.ended = []
+        self.shutdown_called = False
+        self.force_flush_called_with = []
+        self._force_flush_return = True
+
+    def on_start(self, span, parent_context=None):
+        self.started.append((span, parent_context))
+
+    def on_end(self, span):
+        self.ended.append(span)
+
+    def shutdown(self):
+        self.shutdown_called = True
+
+    def force_flush(self, timeout_millis=30000):
+        self.force_flush_called_with.append(timeout_millis)
+        return self._force_flush_return
+
+
+def _make_provider_with_processor(processor):
+    """Return a fresh TracerProvider with *processor* registered."""
+    provider = TracerProvider()
+    provider.add_span_processor(processor)
+    return provider
+
+
+def test_add_span_processor_on_start_called():
+    processor = _RecordingProcessor()
+    provider = _make_provider_with_processor(processor)
+    tracer = provider.get_tracer(__name__)
+
+    span = tracer.start_span("test-on-start")
+    assert len(processor.started) == 1
+    assert processor.started[0][0] is span
+    span.end()
+
+
+def test_add_span_processor_on_end_called():
+    processor = _RecordingProcessor()
+    provider = _make_provider_with_processor(processor)
+    tracer = provider.get_tracer(__name__)
+
+    with tracer.start_as_current_span("test-on-end") as span:
+        assert len(processor.ended) == 0
+
+    assert len(processor.ended) == 1
+    assert processor.ended[0] is span
+
+
+def test_add_span_processor_on_start_not_recording_after_end():
+    """Span passed to on_end should no longer be recording."""
+    processor = _RecordingProcessor()
+    provider = _make_provider_with_processor(processor)
+    tracer = provider.get_tracer(__name__)
+
+    with tracer.start_as_current_span("test-ended-span"):
+        pass
+
+    ended_span = processor.ended[0]
+    assert not ended_span.is_recording()
+
+
+def test_add_span_processor_on_start_receives_parent_context():
+    processor = _RecordingProcessor()
+    provider = _make_provider_with_processor(processor)
+    tracer = provider.get_tracer(__name__)
+
+    from opentelemetry.trace import set_span_in_context
+
+    with tracer.start_as_current_span("parent") as parent:
+        parent_ctx = set_span_in_context(parent)
+        child = tracer.start_span("child", context=parent_ctx)
+        child.end()
+
+    assert len(processor.started) == 2
+    _parent_span, _parent_ctx = processor.started[0]
+    _child_span, child_ctx = processor.started[1]
+    assert child_ctx is parent_ctx
+
+
+def test_add_span_processor_multiple_processors_called_in_order():
+    p1 = _RecordingProcessor()
+    p2 = _RecordingProcessor()
+    provider = TracerProvider()
+    provider.add_span_processor(p1)
+    provider.add_span_processor(p2)
+    tracer = provider.get_tracer(__name__)
+
+    with tracer.start_as_current_span("multi-processor"):
+        pass
+
+    assert len(p1.started) == 1
+    assert len(p2.started) == 1
+    assert len(p1.ended) == 1
+    assert len(p2.ended) == 1
+    # Both processors see the same span object
+    assert p1.started[0][0] is p2.started[0][0]
+    assert p1.ended[0] is p2.ended[0]
+
+
+def test_add_span_processor_no_processor_no_error():
+    """TracerProvider with no processors should work without errors."""
+    provider = TracerProvider()
+    tracer = provider.get_tracer(__name__)
+    with tracer.start_as_current_span("no-processor"):
+        pass
+
+
+def test_force_flush_calls_all_processors():
+    p1 = _RecordingProcessor()
+    p2 = _RecordingProcessor()
+    provider = TracerProvider()
+    provider.add_span_processor(p1)
+    provider.add_span_processor(p2)
+
+    result = provider.force_flush(timeout_millis=5000)
+
+    assert result is True
+    assert len(p1.force_flush_called_with) == 1
+    assert len(p2.force_flush_called_with) == 1
+    # Each processor receives a non-negative timeout
+    assert p1.force_flush_called_with[0] >= 0
+    assert p2.force_flush_called_with[0] >= 0
+
+
+def test_force_flush_returns_false_when_processor_fails():
+    p1 = _RecordingProcessor()
+    p1._force_flush_return = False
+    p2 = _RecordingProcessor()
+    provider = TracerProvider()
+    provider.add_span_processor(p1)
+    provider.add_span_processor(p2)
+
+    result = provider.force_flush(timeout_millis=5000)
+
+    assert result is False
+    # p2 is not called after p1 returns False
+    assert len(p2.force_flush_called_with) == 0
+
+
+def test_force_flush_no_processors_returns_true():
+    provider = TracerProvider()
+    assert provider.force_flush(timeout_millis=5000) is True
+
+
+def test_synchronous_multi_span_processor_add_and_call():
+    multi = SynchronousMultiSpanProcessor()
+    p1 = _RecordingProcessor()
+    p2 = _RecordingProcessor()
+    multi.add_span_processor(p1)
+    multi.add_span_processor(p2)
+
+    provider = TracerProvider()
+    provider._active_span_processor = multi
+    tracer = provider.get_tracer(__name__)
+
+    with tracer.start_as_current_span("multi-direct"):
+        pass
+
+    assert len(p1.started) == 1
+    assert len(p2.started) == 1
+    assert len(p1.ended) == 1
+    assert len(p2.ended) == 1
+
+
+def test_span_processor_base_class_defaults():
+    """SpanProcessor base class methods should all be no-ops / return True."""
+
+    class _MinimalProcessor(SpanProcessor):
+        pass
+
+    proc = _MinimalProcessor()
+    proc.on_start(None)
+    proc.on_end(None)
+    proc.shutdown()
+    assert proc.force_flush() is True
+    assert proc.force_flush(timeout_millis=100) is True

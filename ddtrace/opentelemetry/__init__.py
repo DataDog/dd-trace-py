@@ -196,9 +196,13 @@ OpenTelemetry spans are mapped to Datadog spans. This mapping is described by th
 
 """  # noqa: E501
 
+from ddtrace.internal.opentelemetry.trace import SpanProcessor
+from ddtrace.internal.opentelemetry.trace import SynchronousMultiSpanProcessor
 from ddtrace.internal.opentelemetry.trace import TracerProvider
 
 
 __all__ = [
+    "SpanProcessor",
+    "SynchronousMultiSpanProcessor",
     "TracerProvider",
 ]
