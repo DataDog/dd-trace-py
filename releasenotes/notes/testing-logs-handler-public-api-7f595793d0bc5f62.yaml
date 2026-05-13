@@ -1,0 +1,25 @@
+---
+features:
+  - |
+    CI Visibility: Adds ``ddtrace.testing.logs.DDTestLogsHandler``, a public
+    ``logging.Handler`` that ships Python log records to the Datadog logs intake
+    correlated with CI Visibility test traces.
+
+    This is intended for test setups where subprocesses execute tests outside of the
+    main pytest process. Because ddtrace's active span context is not inherited across
+    process boundaries, a ``logging.Filter`` can be attached to inject ``dd.trace_id``
+    and ``dd.span_id`` received from the parent process, and the handler forwards those
+    records to Datadog correlated with the test trace.
+
+    The handler auto-detects the backend (agentless or EVP proxy) from standard
+    environment variables (``DD_API_KEY``, ``DD_SITE``, ``DD_TRACE_AGENT_URL``, etc.)
+    at construction time and supports a configurable ``shutdown_timeout``:
+
+    .. code-block:: python
+
+        from ddtrace.testing.logs import DDTestLogsHandler
+
+        with DDTestLogsHandler(service="my-service", shutdown_timeout=5.0) as handler:
+            handler.addFilter(my_correlation_filter)
+            logging.getLogger().addHandler(handler)
+            run_tests()
