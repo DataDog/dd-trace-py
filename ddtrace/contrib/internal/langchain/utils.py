@@ -109,9 +109,9 @@ def shared_stream(
         # and the LLM span would never get ``set_exc_info`` / ``finish``,
         # leaving a hole between the AI Guard span (block decision) and the
         # LLM span (no link back to the abort). No counter cleanup is needed
-        # here: the ``.stream.started`` event is dispatched lazily from the
-        # iteration-scoped generator wrappers below, which never run when
-        # ``func(...)`` raises before we return a wrapper.
+        # here: ``.stream.started`` is dispatched lazily by ``start_stream``
+        # on iteration entry, which never runs when ``func(...)`` raises
+        # before we return a stream wrapper.
         span.set_exc_info(*sys.exc_info())
         span.finish()
         raise

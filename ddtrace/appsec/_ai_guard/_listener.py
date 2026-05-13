@@ -43,15 +43,12 @@ def _langchain_listen(client: AIGuardClient):
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
 
-    # AIDEV-NOTE: ``.stream.started`` is dispatched lazily from the contrib's
-    # iteration-scoped generator wrapper (``_aiguard_scope_{sync,async}`` in
-    # ``ddtrace/contrib/internal/langchain/utils.py``), which only runs when
-    # the caller actually starts iterating. Bumping the depth counter here
-    # — instead of in the ``.before`` listener — means a stream that is
-    # created but never consumed cannot leak the counter into the next call
-    # in the same task. The matching reset happens via ``.stream.finally``
-    # below (dispatched from ``finalize_stream`` in
-    # ``TracedStream.__iter__`` / ``__aiter__``'s ``finally`` block).
+    # AIDEV-NOTE: ``.stream.started`` is dispatched lazily from
+    # ``BaseLangchainStreamHandler.start_stream`` (called by
+    # ``TracedStream.__iter__`` / ``__aiter__`` on iteration entry), so a
+    # stream created but never consumed cannot leak the counter into the
+    # next call in the same task. The matching reset happens via
+    # ``.stream.finally`` below (dispatched from ``finalize_stream``).
     core.on("langchain.chatmodel.stream.started", _langchain_stream_started)
     core.on("langchain.llm.stream.started", _langchain_stream_started)
 

@@ -51,18 +51,11 @@ class BaseStreamHandler(ABC):
             self.primary_span.set_exc_info(*sys.exc_info())
 
     def start_stream(self):
-        """
-        Hook called once at iteration entry, before any chunk is pulled.
+        """Hook called once on iteration entry, before any chunk is pulled.
 
-        Default is a no-op. Integrations override this to attach setup that
-        must run lazily — i.e. only when the caller actually starts iterating
-        the stream, not when the wrapper is constructed. The canonical use
-        case is scoping a contextual flag (e.g. AI Guard's active-context
-        counter) to the actual iteration so an unconsumed stream cannot leak
-        the flag beyond its lifetime.
-
-        Pairs with ``finalize_stream`` which runs in ``TracedStream.__iter__``
-        / ``TracedAsyncStream.__aiter__``'s ``finally`` block.
+        Default is a no-op. Override to attach setup that must run lazily
+        (only when the caller starts iterating, not at wrapper construction).
+        Pairs with :meth:`finalize_stream`.
         """
         pass
 
