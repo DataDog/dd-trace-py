@@ -47,6 +47,16 @@ def get_stream(params):
     return stream
 
 
+def get_eventbridge_bus_name(message):
+    # type: (dict) -> str
+    """
+    :message: contains the EventBridge message entry for the current botocore action
+
+    Return the event bus name for a PutEvents entry.
+    """
+    return message.get("EventBusName", "default")
+
+
 def inject_context(trace_data, endpoint_service, dsm_identifier, message):
     # type: (dict, str, str, Any) -> None
     """
@@ -66,6 +76,8 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, message):
         payload_size = calculate_sns_payload_size(message, trace_data)
     elif endpoint_service == "kinesis":
         payload_size = calculate_kinesis_payload_size(message, trace_data)
+    elif endpoint_service == "eventbridge":
+        payload_size = calculate_eventbridge_payload_size(message, trace_data)
 
     if not dsm_identifier:
         log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
@@ -107,12 +119,27 @@ def calculate_kinesis_payload_size(message, trace_data=None):
     return payload_size
 
 
+def calculate_eventbridge_payload_size(message, trace_data=None):
+    payload_size = _calculate_byte_size(message)
+    if trace_data:
+        # we should count datadog detail fields which aren't yet added to the serialized Detail payload
+        payload_size += _calculate_byte_size({"_datadog": trace_data})
+    return payload_size
+
+
 def handle_kinesis_produce(ctx, stream, dd_ctx_json, record, *args):
     if config._data_streams_enabled:
         if "_datadog" not in dd_ctx_json:
             dd_ctx_json["_datadog"] = {}
         if stream:  # If stream ARN / stream name isn't specified, we give up (it is not a required param)
             inject_context(dd_ctx_json["_datadog"], "kinesis", stream, record)
+
+
+def handle_eventbridge_produce(ctx, span, endpoint_service, trace_data, params, message=None):
+    if not message:
+        message = params
+    event_bus_name = get_eventbridge_bus_name(message)
+    inject_context(trace_data, "eventbridge", event_bus_name, message)
 
 
 def handle_sqs_sns_produce(ctx, span, endpoint_service, trace_data, params, message=None):
@@ -228,6 +255,7 @@ def handle_kinesis_receive(_, params, time_estimate, context_json, record, *args
 
 if config._data_streams_enabled:
     core.on("botocore.kinesis.update_record", handle_kinesis_produce)
+    core.on("botocore.eventbridge.update_messages", handle_eventbridge_produce)
     core.on("botocore.sqs_sns.update_messages", handle_sqs_sns_produce)
     core.on("botocore.sqs.ReceiveMessage.pre", handle_sqs_prepare)
     core.on("botocore.sqs.ReceiveMessage.post", handle_sqs_receive)

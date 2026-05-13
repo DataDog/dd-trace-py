@@ -6,6 +6,7 @@ import unittest
 import botocore
 import botocore.session
 import mock
+from moto import mock_events
 from moto import mock_kinesis
 from moto import mock_sns
 from moto import mock_sqs
@@ -264,6 +265,54 @@ class BotocoreDSMTest(TracerTestCase):
             _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
             assert in_parent_hash == out_hash
             self._assert_dsm_counts(in_stats, min_latency_count=3, payload_count=3)
+
+    @mock_events
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    def test_data_streams_eventbridge(self):
+        with mock.patch("time.time") as mt:
+            mt.return_value = 1642544540
+
+            bridge = self.session.create_client("events", region_name="us-east-1", endpoint_url="http://localhost:4566")
+            bridge.create_event_bus(Name="a-test-bus")
+
+            entries = [
+                {
+                    "Source": "some-event-source",
+                    "DetailType": "some-event-detail-type",
+                    "Detail": json.dumps({"foo": "bar"}),
+                    "EventBusName": "a-test-bus",
+                }
+            ]
+            bridge.put_rule(
+                Name="a-test-bus-rule",
+                EventBusName="a-test-bus",
+                EventPattern="""{"source": [{"prefix": ""}]}""",
+                State="ENABLED",
+            )
+
+            queue_url = self.sqs_test_queue["QueueUrl"]
+            bridge.put_targets(
+                Rule="a-test-bus-rule",
+                Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
+            )
+
+            bridge.put_events(Entries=entries)
+
+            messages = self.sqs_client.receive_message(QueueUrl=queue_url, WaitTimeSeconds=2)
+            body = messages["Messages"][0]["Body"]
+            body_obj = json.loads(body)
+            headers = body_obj["detail"]["_datadog"]
+
+            assert PROPAGATION_KEY_BASE_64 in headers
+
+            processor = data_streams_processor()
+            assert processor is not None, "Datastream Monitoring is not enabled"
+            stats = pathway_stats_merged(processor)
+            out_tags = "direction:out,topic:a-test-bus,type:eventbridge"
+
+            out_hash, out_parent_hash, out_stats = self._entry_for_tags(stats, out_tags, expected_parent_hash=0)
+            assert out_parent_hash == 0
+            self._assert_dsm_counts(out_stats, min_latency_count=1, payload_count=1)
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))

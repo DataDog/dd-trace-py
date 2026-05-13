@@ -77,7 +77,10 @@ def update_eventbridge_detail(ctx: ExecutionContext) -> None:
                 continue
 
         detail["_datadog"] = {}
-        core.dispatch("botocore.eventbridge.update_messages", (ctx, None, None, detail["_datadog"], None))
+        if config._data_streams_enabled:
+            core.dispatch("botocore.eventbridge.update_messages", (ctx, None, None, detail["_datadog"], params, entry))
+        else:
+            core.dispatch("botocore.eventbridge.update_messages", (ctx, None, None, detail["_datadog"], None))
         detail_json = json.dumps(detail)
 
         # check if detail size will exceed max size with headers

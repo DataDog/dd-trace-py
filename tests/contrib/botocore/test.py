@@ -1670,6 +1670,7 @@ class BotocoreTest(TracerTestCase):
         assert headers is not None
         assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        assert PROPAGATION_KEY_BASE_64 not in headers
 
     @mock_events
     def test_eventbridge_multiple_entries_trace_injection(self):
@@ -1730,6 +1731,7 @@ class BotocoreTest(TracerTestCase):
         assert headers is not None
         assert get_128_bit_trace_id_from_headers(headers) == span.trace_id
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        assert PROPAGATION_KEY_BASE_64 not in headers
 
         # the following doesn't work due to an issue in moto/localstack where
         # an SQS message is generated per put_events rather than per event sent
