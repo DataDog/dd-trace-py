@@ -323,7 +323,9 @@ class TestHeaders(object):
         assert span.get_tag("http.request.headers.x-datadog-endpoint-scan") == "scan-uuid-3"
         assert span.get_tag("http.request.headers.x-datadog-security-test") == "test-uuid-4"
 
-    def test_security_testing_headers_empty_value_not_tagged(self, span, integration_config):
+    def test_security_testing_headers_empty_value_still_tagged(self, span, integration_config):
+        # RFC: collect unconditionally — presence of the header with an empty
+        # value is still a valid signal.
         trace_utils.set_http_meta(
             span,
             integration_config,
@@ -332,7 +334,7 @@ class TestHeaders(object):
                 "x-datadog-security-test": "ok",
             },
         )
-        assert span.get_tag("http.request.headers.x-datadog-endpoint-scan") is None
+        assert span.get_tag("http.request.headers.x-datadog-endpoint-scan") == ""
         assert span.get_tag("http.request.headers.x-datadog-security-test") == "ok"
 
     def test_security_testing_headers_not_propagated_downstream(self, span, integration_config):

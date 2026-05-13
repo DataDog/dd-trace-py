@@ -101,7 +101,7 @@ def _store_security_testing_headers(
             value = headers.get(header_name)
         else:
             value = _get_header_value_case_insensitive(headers, header_name)
-        if value:
+        if value is not None:
             span._set_attribute(_normalize_tag_name("request", header_name), value)
 
 
