@@ -9,7 +9,7 @@ __version__: str
 
 try:
     distributions = importlib.metadata.packages_distributions().get(__package__ or __name__)
-except AttributeError:
+except Exception:
     distributions = None
 
 try:
