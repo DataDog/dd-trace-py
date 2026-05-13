@@ -1135,6 +1135,72 @@ class SpanProbeTestCase(TracerTestCase):
             assert span.resource == "mutator"
             assert span.get_tags()["debugger.probeid"] == "span-probe"
 
+    def test_debugger_span_probe_code_origin_as_root(self):
+        from tests.submod import stuff
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(probe_id="span-probe", module="tests.submod.stuff", func_qname="mutator")
+            )
+
+            stuff.mutator(arg=[])
+
+            self.assert_span_count(1)
+            (span,) = self.get_spans()
+
+            # When the dynamic span is the root, it should be tagged as "entry"
+            assert span.get_tag("_dd.code_origin.type") == "entry"
+            assert span.get_tag("_dd.code_origin.frames.0.file") == str(Path(stuff.__file__).resolve())
+            assert span.get_tag("_dd.code_origin.frames.0.line") == str(stuff.mutator.__code__.co_firstlineno)
+            assert span.get_tag("_dd.code_origin.frames.0.type") == "tests.submod.stuff"
+            assert span.get_tag("_dd.code_origin.frames.0.method") == "mutator"
+
+    def test_debugger_span_probe_code_origin_with_parent(self):
+        from tests.submod import stuff
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(probe_id="span-probe", module="tests.submod.stuff", func_qname="mutator")
+            )
+
+            with self.tracer.trace("parent_span"):
+                stuff.mutator(arg=[])
+
+            self.assert_span_count(2)
+            root, span = self.get_spans()
+
+            assert root.name == "parent_span"
+            # Root should be tagged "entry" by the dynamic span
+            assert root.get_tag("_dd.code_origin.type") == "entry"
+            assert root.get_tag("_dd.code_origin.frames.0.file") == str(Path(stuff.__file__).resolve())
+            assert root.get_tag("_dd.code_origin.frames.0.method") == "mutator"
+
+            # The dynamic span itself should be "entry" (root had no prior type)
+            assert span.get_tag("_dd.code_origin.type") == "entry"
+            assert span.get_tag("_dd.code_origin.frames.0.file") == str(Path(stuff.__file__).resolve())
+            assert span.get_tag("_dd.code_origin.frames.0.method") == "mutator"
+
+    def test_debugger_span_probe_code_origin_intermediate(self):
+        from tests.submod import stuff
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(probe_id="span-probe", module="tests.submod.stuff", func_qname="mutator")
+            )
+
+            with self.tracer.trace("parent_span") as root:
+                root._set_attribute("_dd.code_origin.type", "entry")
+                stuff.mutator(arg=[])
+
+            self.assert_span_count(2)
+            root, span = self.get_spans()
+
+            # Root already had "entry" — dynamic span should be "intermediate"
+            assert root.get_tag("_dd.code_origin.type") == "entry"
+            assert span.get_tag("_dd.code_origin.type") == "intermediate"
+            # Only the dynamic span itself gets frames when root already has an entry
+            assert span.get_tag("_dd.code_origin.frames.0.method") == "mutator"
+
     def test_debugger_snap_probe_linked_to_parent_span(self):
         from tests.submod.stuff import mutator
 
