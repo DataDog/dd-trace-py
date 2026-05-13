@@ -5,8 +5,6 @@
 #include "profiler_state.hpp"
 #include "profiler_stats.hpp"
 
-#include <cerrno>   // errno
-#include <cstring>  // strerror
 #include <fstream>  // ofstream
 #include <sstream>  // ostringstream
 #include <unistd.h> // getpid
@@ -59,7 +57,7 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded, std::string
 
     std::ofstream out(pprof_filename, std::ios::binary);
     if (!out.is_open()) {
-        std::cerr << "Error opening output file " << pprof_filename << ": " << strerror(errno) << std::endl;
+        std::cerr << "Error opening output file " << pprof_filename << std::endl;
         return false;
     }
 
@@ -72,7 +70,7 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded, std::string
     }
     out.write(reinterpret_cast<const char*>(bytes_res.ok.ptr), static_cast<std::streamsize>(bytes_res.ok.len));
     if (out.fail()) {
-        std::cerr << "Error writing to output file " << pprof_filename << ": " << strerror(errno) << std::endl;
+        std::cerr << "Error writing to output file " << pprof_filename << std::endl;
         return false;
     }
 
@@ -80,8 +78,7 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded, std::string
     std::ofstream out_internal_metadata(internal_metadata_filename);
     out_internal_metadata << internal_metadata_json;
     if (out_internal_metadata.fail()) {
-        std::cerr << "Error writing to internal metadata file " << internal_metadata_filename << ": " << strerror(errno)
-                  << std::endl;
+        std::cerr << "Error writing to internal metadata file " << internal_metadata_filename << std::endl;
         return false;
     }
 
