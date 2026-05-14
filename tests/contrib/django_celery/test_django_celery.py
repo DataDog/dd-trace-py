@@ -31,9 +31,11 @@ def test_django_celery_gevent_startup():
     except subprocess.TimeoutExpired as celery:
         out = celery.stdout.decode("utf-8")
         err = celery.stderr.decode("utf-8")
-        assert "celery@" in out, "Celery started correctly"
-        assert "DJANGO_SETTINGS_MODULE" not in err, "No Django lazy objects"
     else:
-        err_text = err.decode("utf-8")
-        if "not recommended" not in err_text:
-            assert retcode == 0, "Celery was finished with errors: %s" % err_text
+        out = out.decode("utf-8")
+        err = err.decode("utf-8")
+        if retcode not in (0, -15) and "not recommended" not in err:
+            assert False, "Celery was finished with errors: %s" % err
+
+    assert "celery@" in out, "Celery started correctly"
+    assert "DJANGO_SETTINGS_MODULE" not in err, "No Django lazy objects"
