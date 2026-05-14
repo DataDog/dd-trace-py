@@ -594,33 +594,33 @@ def gen_pre_checks() -> None:
 
     check(
         name="Style",
-        command="hatch run lint:style",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h"},
+        command="scripts/lint style",
+        paths={"docker*", "*.py", "*.pyi", "pyproject.toml", "*.cpp", "*.h"},
     )
     check(
         name="Typing",
-        command="hatch run lint:typing",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
+        command="scripts/lint typing",
+        paths={"docker*", "*.py", "*.pyi", "pyproject.toml", "mypy.ini"},
     )
     check(
         name="Spelling",
-        command="hatch run lint:spelling",
+        command="scripts/lint spelling",
         paths={"*"},
     )
     check(
         name="Security",
-        command="hatch run lint:security",
-        paths={"docker*", "ddtrace/*", "hatch.toml"},
+        command="scripts/lint security",
+        paths={"docker*", "ddtrace/*", "pyproject.toml"},
     )
     check(
         name="Run riotfile.py tests",
-        command="hatch run lint:riot",
-        paths={"docker*", "riotfile.py", "hatch.toml"},
+        command="scripts/lint riot",
+        paths={"docker*", "riotfile.py", "pyproject.toml"},
     )
     check(
         name="Style: Test snapshots",
-        command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
-        paths={"docker*", "tests/snapshots/*", "hatch.toml"},
+        command="scripts/lint fmt-snapshots && git diff --exit-code tests/snapshots",
+        paths={"docker*", "tests/snapshots/*"},
     )
     check(
         name="Run scripts/*.py tests",
@@ -629,12 +629,12 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Check suitespec coverage",
-        command="hatch run lint:suitespec-check",
+        command="scripts/lint suitespec-check",
         paths={"*"},
     )
     check(
         name="Check ddtrace error logs",
-        command="hatch run lint:error-log-check",
+        command="scripts/lint error-log-check",
         paths={"ddtrace/*", "scripts/check_constant_log_message.py"},
     )
     check(
@@ -654,8 +654,8 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Hook tests",
-        command="scripts/run-hook-tests",
-        paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*"},
+        command="scripts/lint hook-tests",
+        paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*", "scripts/lint"},
     )
     if not checks:
         return

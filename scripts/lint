@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# shellcheck source=_uv-bootstrap.sh
+source "$(dirname "${BASH_SOURCE[0]}")/_uv-bootstrap.sh"
+
+# Run a tool from the lint dependency-group without installing the project.
+uv_lint() {
+  uv run --only-group lint --python 3.10 "$@"
+}
+
+if ! ensure_uv; then
+  exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+  # --- formatting ---
+  fmt)
+    uv_lint ruff format --no-cache "${@:-.}"
+    uv_lint ruff check --fix --no-cache "${@:-.}"
+    uv_lint cython-lint "${@:-.}"
+    "$SCRIPT_DIR/lint" cformat
+    "$SCRIPT_DIR/lint" cmakeformat
+    ;;
+  format_check)
+    uv_lint ruff format --check --no-cache "${@:-.}"
+    ;;
+  ruff-fix)
+    uv_lint ruff check --fix --show-fixes --no-cache "${@:-.}"
+    ;;
+  pre-commit-python)
+    uv_lint ruff format --no-cache "${@:-.}"
+    uv_lint ruff check --fix --show-fixes --no-cache "${@:-.}"
+    uv_lint cython-lint "${@:-.}"
+    ;;
+
+  # --- style checks ---
+  style)
+    "$SCRIPT_DIR/lint" format_check "$@"
+    uv_lint ruff check --no-cache "${@:-.}"
+    uv_lint cython-lint "${@:-.}"
+    "$SCRIPT_DIR/lint" cformat
+    "$SCRIPT_DIR/lint" cmakeformat
+    ;;
+
+  # --- all checks ---
+  checks)
+    "$SCRIPT_DIR/lint" style
+    "$SCRIPT_DIR/lint" typing
+    "$SCRIPT_DIR/lint" spelling
+    "$SCRIPT_DIR/lint" riot
+    "$SCRIPT_DIR/lint" security
+    "$SCRIPT_DIR/lint" suitespec-check
+    "$SCRIPT_DIR/lint" profiling-native-check
+    "$SCRIPT_DIR/lint" error-log-check
+    "$SCRIPT_DIR/lint" sg
+    "$SCRIPT_DIR/lint" sg-test
+    ;;
+
+  # --- individual checks ---
+  typing)
+    uv_lint mypy "$@"
+    ;;
+  spelling)
+    if [[ $# -gt 0 ]]; then
+      uv_lint codespell -I docs/spelling_wordlist.txt \
+        --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' \
+        "$@"
+    else
+      uv_lint codespell -I docs/spelling_wordlist.txt \
+        --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' \
+        ddtrace/ tests/ releasenotes/ docs/
+    fi
+    ;;
+  security)
+    if [[ $# -gt 0 ]]; then
+      uv_lint bandit -c pyproject.toml "$@"
+    else
+      uv_lint bandit -c pyproject.toml -r ddtrace/
+    fi
+    ;;
+  riot)
+    uv_lint python -m doctest "${@:-riotfile.py}"
+    ;;
+  fmt-snapshots)
+    uv_lint ddapm-test-agent-fmt "${@:-tests/snapshots/}"
+    ;;
+  suitespec-check)
+    uv_lint python scripts/check_suitespec_coverage.py "$@"
+    ;;
+  profiling-native-check)
+    uv_lint python scripts/check_profiling_native_coverage.py "$@"
+    ;;
+  error-log-check)
+    uv_lint python scripts/check_constant_log_message.py "$@"
+    ;;
+  ci-deps-check)
+    bash scripts/check-ci-dependencies "$@"
+    ;;
+
+  # --- ast-grep ---
+  sg)
+    uv_lint ast-grep scan "${@:-.}"
+    ;;
+  sg-test)
+    uv_lint ast-grep test "$@"
+    ;;
+
+  # --- C/CMake formatting ---
+  cformat)
+    uv_lint bash scripts/cformat.sh "$@"
+    ;;
+  cmakeformat)
+    uv_lint bash scripts/cmake-format.sh "$@"
+    ;;
+
+  # --- hook tests ---
+  hook-tests)
+    bash scripts/run-hook-tests "$@"
+    ;;
+
+  # --- thin passthroughs so hooks can invoke individual tools with args ---
+  ruff)
+    uv_lint ruff "$@"
+    ;;
+  cython-lint)
+    uv_lint cython-lint "$@"
+    ;;
+  mypy)
+    uv_lint mypy "$@"
+    ;;
+  bandit)
+    uv_lint bandit "$@"
+    ;;
+  codespell)
+    uv_lint codespell "$@"
+    ;;
+  ast-grep)
+    uv_lint ast-grep "$@"
+    ;;
+
+  # --- no args: run everything ---
+  "")
+    "$SCRIPT_DIR/lint" checks
+    ;;
+
+  # --- help ---
+  --help|-h)
+    cat <<'EOF'
+Usage: scripts/lint [<subcommand> [args...]]
+
+With no arguments, runs all checks (equivalent to scripts/lint checks).
+
+Subcommands:
+  fmt [paths]               Format + fix (ruff format, ruff check --fix, cython-lint, cformat, cmakeformat)
+  format_check [paths]      ruff format --check only
+  ruff-fix [paths]          ruff check --fix --show-fixes
+  pre-commit-python [paths] ruff format + ruff check --fix + cython-lint (for pre-commit hook)
+
+  style [paths]             format_check + ruff check + cython-lint + cformat + cmakeformat
+  checks                    Run all lint/type/spell/security/etc checks
+
+  typing [args]             mypy
+  spelling [paths]          codespell
+  security [args]           bandit -c pyproject.toml
+  riot [args]               python -m doctest riotfile.py
+  fmt-snapshots [path]      ddapm-test-agent-fmt
+  suitespec-check           Check suitespec coverage
+  profiling-native-check    Check profiling native coverage
+  error-log-check           Check constant log messages
+  ci-deps-check             scripts/check-ci-dependencies
+
+  sg [paths]                ast-grep scan
+  sg-test [args]            ast-grep test
+
+  cformat                   scripts/cformat.sh (clang-format)
+  cmakeformat               scripts/cmake-format.sh
+  hook-tests                Run hooks/tests/test-run-fmt*.sh
+
+  ruff [args]               Direct ruff passthrough
+  cython-lint [args]        Direct cython-lint passthrough
+  mypy [args]               Direct mypy passthrough
+  bandit [args]             Direct bandit passthrough
+  codespell [args]          Direct codespell passthrough
+  ast-grep [args]           Direct ast-grep passthrough
+EOF
+    ;;
+
+  *)
+    echo "scripts/lint: unknown subcommand '$cmd'" >&2
+    echo "Run 'scripts/lint --help' for usage." >&2
+    exit 1
+    ;;
+esac
