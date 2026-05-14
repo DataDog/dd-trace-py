@@ -221,6 +221,93 @@ CI, Riot, and dependencies
 
 * Grep tests: ``3.14``, ``3, 14``, ``max_version``, profiling-related ``skip``.
 
+Wheel build images (manylinux / musllinux)
+------------------------------------------
+
+Linux wheels are built inside PyPA manylinux / musllinux images mirrored into
+``registry.ddbuild.io`` via ``DataDog/images``. The mirrored image must contain a
+``cp3XX-cp3XX`` interpreter for every Python version in the wheel matrix. When a new CPython
+minor is added you have to bump the pinned image tag once upstream PyPA ships it.
+
+Where the image tags are referenced in this repo:
+
+* ``.gitlab/package.yml`` — ``MANYLINUX_AMD64_IMAGE_TAG``, ``.AARCH64_IMAGES``,
+  ``.X86_64_IMAGES``, plus the hard-coded ``IMAGE_TAG`` entries inside the upload-job
+  ``needs:`` blocks.
+* ``.gitlab/benchmarks/microbenchmarks.yml`` — ``PACKAGE_IMAGE`` plus the literal
+  ``needs:`` job-name string that embeds the image tag.
+* ``.gitlab/benchmarks/macrobenchmarks.yml`` — same ``needs:`` job-name string.
+* ``.gitlab-ci.yml``, ``.gitlab/multi-os-tests.yml``, ``.gitlab/system-tests.yml``,
+  ``.gitlab/debugging-exploration.yml`` — additional ``IMAGE_TAG`` references for non-wheel
+  jobs that run inside the manylinux image. Bump these in lockstep.
+
+Find the right PyPA base tag
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Step 1 — list candidate Quay tags newest-first:
+
+.. code-block:: bash
+
+   curl -s 'https://quay.io/api/v1/repository/pypa/manylinux2014_x86_64/tag/?limit=20&onlyActiveTags=true' \
+     | python3 -c "import json,sys; [print(t['name'], t['last_modified']) for t in json.load(sys.stdin).get('tags',[])]"
+
+The tags follow ``YYYY.MM.DD-N``. ``latest`` always points at the newest.
+
+Step 2 — confirm the target ``cp3XX`` interpreter is built into the image. The authoritative
+source is ``pypa/manylinux``'s ``docker/Dockerfile`` on the commit corresponding to the Quay
+tag. Either ``docker run --rm quay.io/pypa/manylinux2014_x86_64:<TAG> ls /opt/python`` and grep
+for ``cp3XX``, or — if Docker is unavailable — read the Dockerfile directly:
+
+.. code-block:: bash
+
+   # Find the commit that added the cpython version you need
+   gh api 'repos/pypa/manylinux/commits?path=docker/Dockerfile&per_page=30' \
+     --jq '.[] | "\(.sha[0:8])\t\(.commit.author.date)\t\(.commit.message | split("\n")[0])"' \
+     | grep -i "cpython 3.15"
+
+   # Inspect the current Dockerfile to see exactly which cpython versions it builds
+   gh api 'repos/pypa/manylinux/contents/docker/Dockerfile' --jq '.download_url' \
+     | xargs curl -sL | grep -E 'build-cpython.sh .* 3\.[0-9]+'
+
+Any Quay tag dated after the "add CPython 3.X" commit will carry the new interpreter. Pick the
+newest one.
+
+Step 3 — confirm the same Quay tag exists across all four image variants we mirror:
+
+.. code-block:: bash
+
+   for img in manylinux2014_x86_64 manylinux2014_aarch64 musllinux_1_2_x86_64 musllinux_1_2_aarch64; do
+     curl -s "https://quay.io/api/v1/repository/pypa/$img/tag/?specificTag=<TAG>&onlyActiveTags=true" \
+       | python3 -c "import json,sys; print('$img', 'OK' if json.load(sys.stdin).get('tags') else 'MISSING')"
+   done
+
+PyPA usually publishes all four together, but verify before relying on it.
+
+Mirror the tag, then bump dd-trace-py
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. **DataDog/images PR.** Edit ``mirror.yaml`` (search for the existing
+   ``quay.io/pypa/manylinux2014_x86_64`` entries) and add six new entries — one per arch for
+   manylinux2014 and musllinux_1_2 (x86_64, i686, aarch64) — copying the existing block's
+   shape and bumping the tag. Then from the repo root::
+
+      bzl run //image-mirroring-tooling -- update-digest quay.io/pypa/manylinux2014_x86_64:<TAG>
+      # ...repeat for the other five sources
+
+   Commit ``mirror.yaml`` and ``mirror.lock.yaml`` together. After merge, **wait for the
+   master-branch mirror job** to actually push the images to ``registry.ddbuild.io/images/mirror/pypa/…``.
+
+2. **Trigger the dd-trace-py internal image builds.** Mirroring alone doesn't produce the
+   ``v<pipeline>-<sha>-<base>`` tags consumed by ``.gitlab/package.yml`` (e.g.
+   ``v85383392-751efc0-manylinux2014_x86_64``). Manually re-run CI on ``DataDog/images``
+   master for each of the four images (manylinux2014 x86_64/aarch64,
+   musllinux_1_2 x86_64/aarch64). Record the four new ``v...`` tags.
+
+3. **dd-trace-py PR.** Bump every reference listed at the top of this section to the new
+   tags. The ``needs:`` strings in ``microbenchmarks.yml`` / ``macrobenchmarks.yml`` embed
+   the literal image tag in the cross-job name; they must move in lockstep with
+   ``.X86_64_IMAGES`` or ``needs:`` resolution fails.
+
 Validate all profiling features (minor-version migration)
 ---------------------------------------------------------
 
