@@ -1568,6 +1568,7 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
         "PYTHONWARNINGS": "ignore::DeprecationWarning",
     }
 )
+@pytest.mark.subprocess(env={"_DD_LLMOBS_WRITER_INTERVAL": "5.0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
