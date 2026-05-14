@@ -227,7 +227,7 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
     Extracts out a list of messages from a converse `content` field.
 
     `content` is a list of `ContentBlock` objects. Each `ContentBlock` object is a union type
-    of `text`, `toolUse`, amd more content types. We only support extracting out `text` and `toolUse`.
+    of `text`, `toolUse`, and more content types. We only support extracting out `text`,`toolUse`, and `toolResult`.
 
     For more info, see `ContentBlock` spec
     https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ContentBlock.html
@@ -273,6 +273,13 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
                         role="user",
                     )
                 )
+        elif (
+            content_block.get("guardContent")
+            and isinstance(content_block["guardContent"], dict)
+            and isinstance(content_block["guardContent"].get("text"), dict)
+            and isinstance(content_block["guardContent"]["text"].get("text"), str)
+        ):
+            content_blocks.append(content_block["guardContent"]["text"]["text"])
         else:
             content_type = ",".join(content_block.keys())
             unsupported_content_messages.append(
