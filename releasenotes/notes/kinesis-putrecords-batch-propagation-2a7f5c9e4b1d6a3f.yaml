@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    botocore: Kinesis ``PutRecords`` now propagates trace context to each record in the batch.
