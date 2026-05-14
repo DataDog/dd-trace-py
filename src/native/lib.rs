@@ -6,8 +6,8 @@ mod config;
 mod data_pipeline;
 #[cfg(feature = "stats")]
 mod ddsketch;
-mod event_hub;
 mod ddtrace_utils;
+mod event_hub;
 #[cfg(feature = "ffe")]
 mod ffe;
 mod library_config;
