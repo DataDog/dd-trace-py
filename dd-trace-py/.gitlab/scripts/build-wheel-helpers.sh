@@ -153,10 +153,6 @@ test_wheel() {
   export PATH="${VENV_PATH}/bin:${PATH}"
   cd "${TEST_WHEEL_DIR}"
   ls -al "${FINAL_WHEEL_FILE}"
-  ls -al "/go/src/github.com/DataDog/apm-reliability/dd-trace-py"
-  ls -al "/go/src/github.com/DataDog/apm-reliability/dd-trace-py/pywheels"
-  ls -al "/go/src/github.com/DataDog/apm-reliability/dd-trace-py/ddtrace-internal"
-  ls -al "/go/src/github.com/DataDog/apm-reliability/dd-trace-py/ddtrace-internal/pywheels"
   # Activate venv and install wheel in a subshell
   # Unset UV_PYTHON so uv respects the venv instead of the global setting
   (
