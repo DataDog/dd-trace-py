@@ -245,7 +245,11 @@ def _get_perform_request(transport):
 
     def _perform_request(func, instance, args, kwargs):
         coro = _perform_request_coro(func, instance, args, kwargs)
-        result = next(coro)
+        try:
+            result = next(coro)
+        except Exception:
+            coro.close()
+            raise
         try:
             coro.send(result)
         except StopIteration:
@@ -260,7 +264,11 @@ def _get_perform_request_async(transport):
 
     async def _perform_request(func, instance, args, kwargs):
         coro = _perform_request_coro(func, instance, args, kwargs)
-        result = await next(coro)
+        try:
+            result = await next(coro)
+        except Exception:
+            coro.close()
+            raise
         try:
             coro.send(result)
         except StopIteration:
