@@ -930,6 +930,8 @@ CONFIGURATION_ALIASES: dict[str, list[str]] = {
 
 DEPRECATED_CONFIGURATIONS: frozenset[str] = frozenset(
     {
+        "DATADOG_TAGS",
+        "DATADOG_TRACE_AGENT_HOSTNAME",
         "DD_COMPILE_DEBUG",
     }
 )
