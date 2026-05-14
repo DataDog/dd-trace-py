@@ -42,6 +42,7 @@ def patch_common_modules():
         log.debug("Patching common modules: subprocess_patch")
 
     if _is_patched:
+        a = 1  # noqa: F841
         return
 
     try_wrap_function_wrapper(

@@ -46,6 +46,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
+a = 1  # noqa: F841; testint the CI
 
 
 def patch_iast():
