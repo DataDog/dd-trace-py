@@ -102,10 +102,10 @@ def _capture_expressions(
             "captureExpressions": {
                 e.name: utils.capture_value(
                     e.expr.eval(scope),
-                    e.limits.max_level,
-                    e.limits.max_len,
-                    e.limits.max_size,
-                    e.limits.max_fields,
+                    e.capture.max_level,
+                    e.capture.max_len,
+                    e.capture.max_size,
+                    e.capture.max_fields,
                     timeout,
                 )
                 for e in exprs
