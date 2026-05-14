@@ -399,13 +399,7 @@ class Tracer(object):
         self._pid = getpid()
         self._recreate(reset_buffer=True)
         self._new_process = True
-        # Re-dispatch the span activation event for the currently active span.
-        # The native pthread_atfork child handler (ThreadSpanLinks::postfork_child)
-        # clears all thread to span_id mappings so the profiler starts fresh.
-        # However, the context provider still holds the inherited active span and
-        # context_provider.activate() is never called again for it. Without this
-        # dispatch, profile samples collected in the child carry no span_id /
-        # local_root_span_id labels, breaking the Trace to Profile link in the UI.
+        # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
         active = self.context_provider.active()
         if active is not None:
             core.dispatch("ddtrace.context_provider.activate", (active,))
