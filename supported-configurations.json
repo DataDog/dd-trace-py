@@ -33,119 +33,91 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AIOBOTOCORE_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_AIOBOTOCORE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AIOHTTP_CLIENT_DISABLE_STREAM_TIMING_FOR_MEM_LEAK": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_AIOHTTP_CLIENT_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AIOHTTP_CLIENT_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_AIOHTTP_CLIENT_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AIOHTTP_CLIENT_SPLIT_BY_DOMAIN": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_AIOHTTP_JINJA2_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AIOHTTP_JINJA2_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_AIOHTTP_JINJA2_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AIOHTTP_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AIOHTTP_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_AIOHTTP_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AIOKAFKA_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AIOKAFKA_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "kafka",
+        "aliases": [
+          "DD_AIOKAFKA_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AIOMYSQL_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AIOMYSQL_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "mysql",
+        "aliases": [
+          "DD_AIOMYSQL_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AIOPG_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AIOPG_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "postgres",
+        "aliases": [
+          "DD_AIOPG_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AI_GUARD_BLOCK": [
@@ -194,28 +166,20 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_ALGOLIASEARCH_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_ALGOLIASEARCH_SERVICE_NAME"
+        ]
       }
     ],
     "DD_ANTHROPIC_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_ANTHROPIC_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_ANTHROPIC_SERVICE_NAME"
+        ]
       }
     ],
     "DD_API_KEY": [
@@ -431,49 +395,41 @@
     "DD_AREDIS_CMD_MAX_LENGTH": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "int",
+        "default": "1000"
       }
     ],
     "DD_AREDIS_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AREDIS_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "redis",
+        "aliases": [
+          "DD_AREDIS_SERVICE_NAME"
+        ]
       }
     ],
     "DD_ASGI_OBFUSCATE_404_RESOURCE": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_ASGI_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_ASGI_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "asgi",
+        "aliases": [
+          "DD_ASGI_SERVICE_NAME"
+        ]
       }
     ],
     "DD_ASGI_TRACE_WEBSOCKET": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "boolean",
         "default": "true"
       }
     ],
@@ -481,175 +437,149 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_ASYNCIO_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_ASYNCIO_SERVICE_NAME"
+        ]
       }
     ],
     "DD_ASYNCPG_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_ASYNCPG_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "postgres",
+        "aliases": [
+          "DD_ASYNCPG_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AVRO_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_AVRO_SERVICE_NAME"
+        ]
       }
     ],
-    "DD_AVRO_SERVICE_NAME": [
+    "DD_AWS_DURABLE_EXECUTION_SDK_PYTHON_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_AWS_DURABLE_EXECUTION_SDK_PYTHON_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AWS_LAMBDA_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AWS_LAMBDA_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_AWS_LAMBDA_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AWS_TAG_NO_PARAMS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_AZURE_COSMOS_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AZURE_COSMOS_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_AZURE_COSMOS_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AZURE_DURABLE_FUNCTIONS_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AZURE_DURABLE_FUNCTIONS_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_AZURE_DURABLE_FUNCTIONS_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AZURE_EVENTHUBS_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_AZURE_EVENTHUBS_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AZURE_EVENTHUBS_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "azure_eventhubs",
+        "aliases": [
+          "DD_AZURE_EVENTHUBS_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_AZURE_FUNCTIONS_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AZURE_FUNCTIONS_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "azure_functions",
+        "aliases": [
+          "DD_AZURE_FUNCTIONS_SERVICE_NAME"
+        ]
       }
     ],
     "DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_AZURE_SERVICEBUS_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_AZURE_SERVICEBUS_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "azure_servicebus",
+        "aliases": [
+          "DD_AZURE_SERVICEBUS_SERVICE_NAME"
+        ]
       }
     ],
     "DD_BOTOCORE_ADD_SPAN_POINTERS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_BOTOCORE_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "{}"
       }
     ],
     "DD_BOTOCORE_EMPTY_POLL_ENABLED": [
@@ -662,15 +592,15 @@
     "DD_BOTOCORE_INSTRUMENT_INTERNALS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_BOTOCORE_PROPAGATION_ENABLED": [
@@ -684,49 +614,37 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_BOTOCORE_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "aws",
+        "aliases": [
+          "DD_BOTOCORE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_BOTO_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_BOTO_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_BOTO_SERVICE_NAME"
+        ]
       }
     ],
     "DD_BOTTLE_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_BOTTLE_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_BOTTLE_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "bottle",
+        "aliases": [
+          "DD_BOTTLE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_BYTECODE_INJECTION_ELUSIVE": [
@@ -774,57 +692,55 @@
     "DD_CELERY_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
-    "DD_CELERY_PRODUCER_SERVICE_NAME": [
+    "DD_CELERY_PRODUCER_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "celery-producer",
+        "aliases": [
+          "DD_CELERY_PRODUCER_SERVICE_NAME"
+        ]
       }
     ],
     "DD_CELERY_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_CELERY_SERVICE_NAME"
+        ]
       }
     ],
-    "DD_CELERY_SERVICE_NAME": [
+    "DD_CELERY_WORKER_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_CELERY_WORKER_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "celery-worker",
+        "aliases": [
+          "DD_CELERY_WORKER_SERVICE_NAME"
+        ]
       }
     ],
     "DD_CHERRYPY_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_CHERRYPY_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_CHERRYPY_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "cherrypy",
+        "aliases": [
+          "DD_CHERRYPY_SERVICE_NAME"
+        ]
       }
     ],
     "DD_CIVISIBILITY_AGENTLESS_ENABLED": [
@@ -914,8 +830,8 @@
     "DD_CIVISIBILITY_UNITTEST_STRICT_NAMING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_CIVISIBILITY_USE_BETA_WRITER": [
@@ -929,14 +845,10 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_CLAUDE_AGENT_SDK_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_CLAUDE_AGENT_SDK_SERVICE_NAME"
+        ]
       }
     ],
     "DD_CLOUDPROVIDER": [
@@ -950,7 +862,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_CODE_ORIGIN_ENABLED": [
@@ -978,14 +890,14 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_COMPILE_DEBUG": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null,
+        "default": "false",
         "deprecated": true
       }
     ],
@@ -993,35 +905,27 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "RelWithDebInfo"
       }
     ],
     "DD_CONSUL_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_CONSUL_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_CONSUL_SERVICE_NAME"
+        ]
       }
     ],
     "DD_COVERAGE_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_COVERAGE_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_COVERAGE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_CRASHTRACKING_CREATE_ALT_STACK": [
@@ -1056,7 +960,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "full"
       }
     ],
     "DD_CRASHTRACKING_STDERR_FILENAME": [
@@ -1098,10 +1002,13 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_CREWAI_SERVICE_NAME"
+        ]
       }
     ],
-    "DD_CREWAI_SERVICE_NAME": [
+    "DD_CUSTOM_PARENT_ID": [
       {
         "implementation": "A",
         "type": "string",
@@ -1126,7 +1033,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_DATACENTER": [
@@ -1147,14 +1054,10 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_DBAPI2_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_DBAPI2_SERVICE_NAME"
+        ]
       }
     ],
     "DD_DBM_INJECT_SQL_BASEHASH": [
@@ -1175,14 +1078,10 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_DDTRACE_API_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_DDTRACE_API_SERVICE_NAME"
+        ]
       }
     ],
     "DD_DEBUGGER_EXPL_CAPTURE": [
@@ -1287,32 +1186,27 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
-    "DD_DJANGO_CACHE_SERVICE_NAME": [
+    "DD_DJANGO_CACHE_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "django",
+        "aliases": [
+          "DD_DJANGO_CACHE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_DJANGO_DATABASE_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null,
+        "default": "",
         "aliases": [
-          "DD_DJANGO-DATABASE_SERVICE"
-        ]
-      }
-    ],
-    "DD_DJANGO_DATABASE_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null,
-        "aliases": [
+          "DD_DJANGO-DATABASE_SERVICE",
+          "DD_DJANGO_DATABASE_SERVICE_NAME",
           "DD_DJANGO-DATABASE_SERVICE_NAME"
         ]
       }
@@ -1321,7 +1215,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": ""
       }
     ],
     "DD_DJANGO_INCLUDE_USER_EMAIL": [
@@ -1355,98 +1249,90 @@
     "DD_DJANGO_INSTRUMENT_CACHES": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_DJANGO_INSTRUMENT_DATABASES": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_DJANGO_INSTRUMENT_MIDDLEWARE": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_DJANGO_INSTRUMENT_TEMPLATES": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_DJANGO_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_DJANGO_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "django",
+        "aliases": [
+          "DD_DJANGO_SERVICE_NAME"
+        ]
       }
     ],
     "DD_DJANGO_TRACE_FETCH_METHODS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_DJANGO_TRACING_MINIMAL": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_DJANGO_USE_HANDLER_WITH_URL_NAME_RESOURCE_FORMAT": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_DOGPILE_CACHE_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_DOGPILE_CACHE_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_DOGPILE_CACHE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_DOGSTATSD_DISABLE": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "boolean",
         "default": null
       }
     ],
@@ -1475,35 +1361,31 @@
       {
         "implementation": "A",
         "type": "decimal",
-        "default": null
+        "default": "1.0"
       }
     ],
     "DD_DOWNLOAD_MAX_DELAY": [
       {
         "implementation": "A",
         "type": "decimal",
-        "default": null
+        "default": "120"
       }
     ],
     "DD_DOWNLOAD_MAX_RETRIES": [
       {
         "implementation": "A",
         "type": "int",
-        "default": null
+        "default": "10"
       }
     ],
     "DD_DRAMATIQ_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_DRAMATIQ_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_DRAMATIQ_SERVICE_NAME"
+        ]
       }
     ],
     "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_INTERVAL": [
@@ -1580,14 +1462,10 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_ELASTICSEARCH_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "elasticsearch",
+        "aliases": [
+          "DD_ELASTICSEARCH_SERVICE_NAME"
+        ]
       }
     ],
     "DD_ENTITY_ID": [
@@ -1656,28 +1534,24 @@
     "DD_FALCON_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_FALCON_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_FALCON_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_FALCON_SERVICE_NAME"
+        ]
       }
     ],
     "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS": [
       {
         "implementation": "A",
-        "type": "boolean",
+        "type": "decimal",
         "default": "0.1"
       }
     ],
@@ -1685,21 +1559,17 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_FASTAPI_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "fastapi",
+        "aliases": [
+          "DD_FASTAPI_SERVICE_NAME"
+        ]
       }
     ],
     "DD_FAST_BUILD": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_FFE_INTAKE_ENABLED": [
@@ -1712,7 +1582,7 @@
     "DD_FFE_INTAKE_HEARTBEAT_INTERVAL": [
       {
         "implementation": "A",
-        "type": "boolean",
+        "type": "decimal",
         "default": "1.0"
       }
     ],
@@ -1720,70 +1590,62 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_FLASK_CACHE_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_FLASK_CACHE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_FLASK_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "flask",
+        "aliases": [
+          "DD_FLASK_SERVICE_NAME"
+        ]
       }
     ],
-    "DD_FLASK_SERVICE_NAME": [
+    "DD_FOO_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true,
+        "experimental": true,
+        "aliases": [
+          "DD_FOO_SERVICE_NAME"
+        ]
       }
     ],
     "DD_FUTURES_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_FUTURES_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_FUTURES_SERVICE_NAME"
+        ]
       }
     ],
     "DD_GENAI_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_GENAI_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_GENAI_SERVICE_NAME"
+        ]
       }
     ],
     "DD_GEVENT_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_GEVENT_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_GEVENT_SERVICE_NAME"
+        ]
       }
     ],
     "DD_GIT_BRANCH": [
@@ -1881,14 +1743,10 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_GOOGLE_ADK_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_GOOGLE_ADK_SERVICE_NAME"
+        ]
       }
     ],
     "DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS": [
@@ -1902,119 +1760,87 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_GOOGLE_CLOUD_PUBSUB_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_GOOGLE_CLOUD_PUBSUB_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_GOOGLE_CLOUD_PUBSUB_SERVICE_NAME"
+        ]
       }
     ],
     "DD_GOOGLE_GENAI_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_GOOGLE_GENAI_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_GOOGLE_GENAI_SERVICE_NAME"
+        ]
       }
     ],
     "DD_GRAPHQL_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_GRAPHQL_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "graphql",
+        "aliases": [
+          "DD_GRAPHQL_SERVICE_NAME"
+        ]
       }
     ],
     "DD_GRPC_AIO_CLIENT_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_GRPC_AIO_CLIENT_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_GRPC_AIO_CLIENT_SERVICE_NAME"
+        ]
       }
     ],
     "DD_GRPC_AIO_SERVER_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_GRPC_AIO_SERVER_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_GRPC_AIO_SERVER_SERVICE_NAME"
+        ]
       }
     ],
     "DD_GRPC_CLIENT_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_GRPC_CLIENT_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_GRPC_CLIENT_SERVICE_NAME"
+        ]
       }
     ],
     "DD_GRPC_SERVER_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_GRPC_SERVER_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_GRPC_SERVER_SERVICE_NAME"
+        ]
       }
     ],
     "DD_GRPC_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_GRPC_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "grpc-client",
+        "aliases": [
+          "DD_GRPC_SERVICE_NAME"
+        ]
       }
     ],
     "DD_HOSTNAME": [
@@ -2027,50 +1853,42 @@
     "DD_HTTPLIB_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_HTTPLIB_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_HTTPLIB_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_HTTPLIB_SERVICE_NAME"
+        ]
       }
     ],
     "DD_HTTPX_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_HTTPX_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_HTTPX_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_HTTPX_SERVICE_NAME"
+        ]
       }
     ],
     "DD_HTTPX_SPLIT_BY_DOMAIN": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_HTTP_SERVER_TAG_QUERY_STRING": [
@@ -2161,7 +1979,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "^[+-]?((0b[01]+)|(0x[0-9A-Fa-f]+)|(\\d+\\.?\\d*(?:[Ee][+-]?\\d+)?|\\.\\d+(?:[Ee][+-]?\\d+)?)|(X\\'[0-9A-Fa-f]+\\')|(B\\'[01]+\\'))$"
       }
     ],
     "DD_IAST_REDACTION_VALUE_PATTERN": [
@@ -2286,7 +2104,7 @@
     "DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "boolean",
         "default": "false"
       }
     ],
@@ -2301,21 +2119,17 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_JINJA2_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_JINJA2_SERVICE_NAME"
+        ]
       }
     ],
     "DD_KAFKA_EMPTY_POLL_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_KAFKA_PROPAGATION_ENABLED": [
@@ -2329,35 +2143,27 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_KAFKA_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "kafka",
+        "aliases": [
+          "DD_KAFKA_SERVICE_NAME"
+        ]
       }
     ],
     "DD_KOMBU_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_KOMBU_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_KOMBU_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "kombu",
+        "aliases": [
+          "DD_KOMBU_SERVICE_NAME"
+        ]
       }
     ],
     "DD_LAMBDA_HANDLER": [
@@ -2371,42 +2177,30 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_LANGCHAIN_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_LANGCHAIN_SERVICE_NAME"
+        ]
       }
     ],
     "DD_LANGGRAPH_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_LANGGRAPH_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_LANGGRAPH_SERVICE_NAME"
+        ]
       }
     ],
     "DD_LITELLM_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_LITELLM_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_LITELLM_SERVICE_NAME"
+        ]
       }
     ],
     "DD_LIVE_DEBUGGING_ENABLED": [
@@ -2420,14 +2214,10 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_LLAMA_INDEX_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_LLAMA_INDEX_SERVICE_NAME"
+        ]
       }
     ],
     "DD_LLMOBS_AGENTLESS_ENABLED": [
@@ -2517,22 +2307,22 @@
     "DD_LLMOBS_PROMPTS_CACHE_TTL": [
       {
         "implementation": "A",
-        "type": "int",
-        "default": null
+        "type": "decimal",
+        "default": "60"
       }
     ],
     "DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_LLMOBS_PROMPTS_TIMEOUT": [
       {
         "implementation": "A",
-        "type": "int",
-        "default": null
+        "type": "decimal",
+        "default": "5.0"
       }
     ],
     "DD_LLMOBS_SAMPLE_RATE": [
@@ -2546,28 +2336,20 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_LOGBOOK_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_LOGBOOK_SERVICE_NAME"
+        ]
       }
     ],
     "DD_LOGGING_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_LOGGING_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_LOGGING_SERVICE_NAME"
+        ]
       }
     ],
     "DD_LOGS_INJECTION": [
@@ -2588,14 +2370,10 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_LOGURU_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_LOGURU_SERVICE_NAME"
+        ]
       }
     ],
     "DD_MAIN_PACKAGE": [
@@ -2609,63 +2387,51 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_MAKO_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_MAKO_SERVICE_NAME"
+        ]
       }
     ],
     "DD_MARIADB_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_MARIADB_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "mariadb",
+        "aliases": [
+          "DD_MARIADB_SERVICE_NAME"
+        ]
       }
     ],
     "DD_MARIADB_TRACE_FETCH_METHODS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_MCP_CAPTURE_INTENT": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_MCP_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_MCP_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_MCP_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_MCP_SERVICE_NAME"
+        ]
       }
     ],
     "DD_METRICS_OTEL_ENABLED": [
@@ -2679,21 +2445,17 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_MLFLOW_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_MLFLOW_SERVICE_NAME"
+        ]
       }
     ],
     "DD_MODEL_LAB": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_MODEL_LAB_ENABLED": [
@@ -2706,120 +2468,96 @@
     "DD_MOLTEN_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_MOLTEN_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_MOLTEN_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "molten",
+        "aliases": [
+          "DD_MOLTEN_SERVICE_NAME"
+        ]
       }
     ],
     "DD_MYINT_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_MYINT_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_MYINT_SERVICE_NAME"
+        ]
       }
     ],
     "DD_MYSQLDB_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_MYSQLDB_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "mysql",
+        "aliases": [
+          "DD_MYSQLDB_SERVICE_NAME"
+        ]
       }
     ],
     "DD_MYSQLDB_TRACE_CONNECT": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_MYSQLDB_TRACE_FETCH_METHODS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_MYSQL_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_MYSQL_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "mysql",
+        "aliases": [
+          "DD_MYSQL_SERVICE_NAME"
+        ]
       }
     ],
     "DD_MYSQL_TRACE_FETCH_METHODS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_OPENAI_AGENTS_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_OPENAI_AGENTS_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_OPENAI_AGENTS_SERVICE_NAME"
+        ]
       }
     ],
     "DD_OPENAI_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": ""
-      }
-    ],
-    "DD_OPENAI_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "",
+        "aliases": [
+          "DD_OPENAI_SERVICE_NAME"
+        ]
       }
     ],
     "DD_ORIGIN_DETECTION_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_PARTITION": [
@@ -3029,7 +2767,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_PROFILING_MEMORY_ENABLED": [
@@ -3064,7 +2802,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_PROFILING_OUTPUT_PPROF": [
@@ -3147,7 +2885,7 @@
     "DD_PROFILING_UPLOAD_INTERVAL": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "decimal",
         "default": "60.0"
       }
     ],
@@ -3162,224 +2900,168 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PROTOBUF_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PSYCOPG2_TRACE_CONNECT": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PSYCOPG2_TRACE_FETCH_METHODS": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_PROTOBUF_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PSYCOPG_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PSYCOPG_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "postgres",
+        "aliases": [
+          "DD_PSYCOPG_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PSYCOPG_TRACE_CONNECT": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false",
+        "aliases": [
+          "DD_PSYCOPG2_TRACE_CONNECT"
+        ]
       }
     ],
     "DD_PSYCOPG_TRACE_FETCH_METHODS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false",
+        "aliases": [
+          "DD_PSYCOPG2_TRACE_FETCH_METHODS"
+        ]
       }
     ],
     "DD_PYDANTIC_AI_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PYDANTIC_AI_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_PYDANTIC_AI_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PYLIBMC_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PYLIBMC_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_PYLIBMC_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PYMEMCACHE_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PYMEMCACHE_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_PYMEMCACHE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PYMONGO_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PYMONGO_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "pymongo",
+        "aliases": [
+          "DD_PYMONGO_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PYMYSQL_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PYMYSQL_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "pymysql",
+        "aliases": [
+          "DD_PYMYSQL_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PYMYSQL_TRACE_FETCH_METHODS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_PYNAMODB_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PYNAMODB_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "pynamodb",
+        "aliases": [
+          "DD_PYNAMODB_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PYODBC_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PYODBC_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "pyodbc",
+        "aliases": [
+          "DD_PYODBC_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PYODBC_TRACE_FETCH_METHODS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_PYRAMID_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_PYRAMID_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PYRAMID_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "pyramid",
+        "aliases": [
+          "DD_PYRAMID_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PYTEST_BDD_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PYTEST_BDD_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "pytest_bdd",
+        "aliases": [
+          "DD_PYTEST_BDD_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PYTEST_OPERATION_NAME": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "pytest.test"
       }
     ],
     "DD_PYTEST_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_PYTEST_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "pytest",
+        "aliases": [
+          "DD_PYTEST_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PYTEST_USE_NEW_PLUGIN": [
@@ -3400,63 +3082,51 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_RAY_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_RAY_SERVICE_NAME"
+        ]
       }
     ],
     "DD_REDISCLUSTER_CMD_MAX_LENGTH": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "int",
+        "default": "1000"
       }
     ],
     "DD_REDISCLUSTER_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_REDISCLUSTER_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "rediscluster",
+        "aliases": [
+          "DD_REDISCLUSTER_SERVICE_NAME"
+        ]
       }
     ],
     "DD_REDIS_CMD_MAX_LENGTH": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "int",
+        "default": "1000"
       }
     ],
     "DD_REDIS_RESOURCE_ONLY_COMMAND": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_REDIS_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_REDIS_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "redis",
+        "aliases": [
+          "DD_REDIS_SERVICE_NAME"
+        ]
       }
     ],
     "DD_REMOTE_CONFIGURATION_ENABLED": [
@@ -3479,64 +3149,52 @@
     "DD_REQUESTS_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_REQUESTS_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_REQUESTS_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "requests",
+        "aliases": [
+          "DD_REQUESTS_SERVICE_NAME"
+        ]
       }
     ],
     "DD_REQUESTS_SPLIT_BY_DOMAIN": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_RQ_DISTRIBUTED_TRACING_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_RQ_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_RQ_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "rq",
+        "aliases": [
+          "DD_RQ_SERVICE_NAME"
+        ]
       }
     ],
     "DD_RQ_WORKER_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_RQ_WORKER_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "rq-worker",
+        "aliases": [
+          "DD_RQ_WORKER_SERVICE_NAME"
+        ]
       }
     ],
     "DD_RUNTIME_METRICS_ENABLED": [
@@ -3557,14 +3215,10 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_SANIC_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "sanic",
+        "aliases": [
+          "DD_SANIC_SERVICE_NAME"
+        ]
       }
     ],
     "DD_SCCACHE_PATH": [
@@ -3578,14 +3232,10 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_SELENIUM_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_SELENIUM_SERVICE_NAME"
+        ]
       }
     ],
     "DD_SERVERLESS_BUILD": [
@@ -3609,13 +3259,6 @@
         "default": ""
       }
     ],
-    "DD_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
-      }
-    ],
     "DD_SETUP_CACHE_DIR": [
       {
         "implementation": "A",
@@ -3627,14 +3270,14 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "true"
       }
     ],
     "DD_SETUP_FORCE_CYTHONIZE": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": "false"
       }
     ],
     "DD_SITE": [
@@ -3655,21 +3298,17 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_SNOWFLAKE_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "snowflake",
+        "aliases": [
+          "DD_SNOWFLAKE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_SNOWFLAKE_TRACE_FETCH_METHODS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_SPAN_SAMPLING_RULES": [
@@ -3690,105 +3329,81 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_SQLALCHEMY_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_SQLALCHEMY_SERVICE_NAME"
+        ]
       }
     ],
     "DD_SQLITE3_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_SQLITE3_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_SQLITE3_SERVICE_NAME"
+        ]
       }
     ],
     "DD_SQLITE_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_SQLITE_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "sqlite",
+        "aliases": [
+          "DD_SQLITE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_SQLITE_TRACE_FETCH_METHODS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_STARLETTE_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_STARLETTE_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "starlette",
+        "aliases": [
+          "DD_STARLETTE_SERVICE_NAME"
+        ]
       }
     ],
     "DD_STRUCTLOG_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_STRUCTLOG_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_STRUCTLOG_SERVICE_NAME"
+        ]
       }
     ],
     "DD_SUBDOMAIN": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": ""
       }
     ],
     "DD_SUBPROCESS_SENSITIVE_WILDCARDS": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": ""
       }
     ],
     "DD_SUBPROCESS_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_SUBPROCESS_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_SUBPROCESS_SERVICE_NAME"
+        ]
       }
     ],
     "DD_SYMBOL_DATABASE_FORCE_UPLOAD": [
@@ -3802,7 +3417,7 @@
       {
         "implementation": "A",
         "type": "array",
-        "default": null
+        "default": ""
       }
     ],
     "DD_SYMBOL_DATABASE_UPLOAD_ENABLED": [
@@ -3935,14 +3550,10 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_TEST_VISIBILITY_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_TEST_VISIBILITY_SERVICE_NAME"
+        ]
       }
     ],
     "DD_THIRD_PARTY_DETECTION_EXCLUDES": [
@@ -3962,22 +3573,18 @@
     "DD_TORNADO_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TORNADO_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_TORNADO_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_TORNADO_SERVICE_NAME"
+        ]
       }
     ],
     "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": [
@@ -4135,6 +3742,13 @@
       }
     ],
     "DD_TRACE_AVRO_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_AWS_DURABLE_EXECUTION_SDK_PYTHON_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -4299,7 +3913,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null,
+        "default": "true",
         "aliases": [
           "DD_TRACE_STATS_COMPUTATION_ENABLED"
         ]
@@ -4585,14 +4199,10 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "false"
-      }
-    ],
-    "DD_TRACE_INFERRED_SPANS_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
+        "default": "false",
+        "aliases": [
+          "DD_TRACE_INFERRED_SPANS_ENABLED"
+        ]
       }
     ],
     "DD_TRACE_JINJA2_ENABLED": [
@@ -4690,7 +4300,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "DEBUG"
       }
     ],
     "DD_TRACE_LOG_FILE_SIZE_BYTES": [
@@ -4710,8 +4320,8 @@
     "DD_TRACE_LOG_STREAM_HANDLER": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_MAKO_ENABLED": [
@@ -4766,8 +4376,8 @@
     "DD_TRACE_MLFLOW_RUN_TAGS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_TRACE_MOLTEN_ENABLED": [
@@ -5024,8 +4634,8 @@
     "DD_TRACE_RAY_REDACT_ENTRYPOINT_PATHS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_RAY_SUBMISSION_SPANS_ENABLED": [
@@ -5038,8 +4648,8 @@
     "DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_TRACE_REDISCLUSTER_ENABLED": [
@@ -5347,77 +4957,69 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "unittest.test"
       }
     ],
     "DD_UNITTEST_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_UNITTEST_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "unittest",
+        "aliases": [
+          "DD_UNITTEST_SERVICE_NAME"
+        ]
       }
     ],
     "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": "auto"
       }
     ],
     "DD_URLLIB3_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_URLLIB3_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_URLLIB3_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "urllib3",
+        "aliases": [
+          "DD_URLLIB3_SERVICE_NAME"
+        ]
       }
     ],
     "DD_URLLIB3_SPLIT_BY_DOMAIN": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_USER_MODEL_EMAIL_FIELD": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": ""
       }
     ],
     "DD_USER_MODEL_LOGIN_FIELD": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": ""
       }
     ],
     "DD_USER_MODEL_NAME_FIELD": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": ""
       }
     ],
     "DD_USE_SCCACHE": [
@@ -5430,29 +5032,25 @@
     "DD_VALKEY_CMD_MAX_LENGTH": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "int",
+        "default": "1000"
       }
     ],
     "DD_VALKEY_RESOURCE_ONLY_COMMAND": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_VALKEY_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_VALKEY_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "valkey",
+        "aliases": [
+          "DD_VALKEY_SERVICE_NAME"
+        ]
       }
     ],
     "DD_VERSION": [
@@ -5466,42 +5064,30 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_VERTEXAI_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_VERTEXAI_SERVICE_NAME"
+        ]
       }
     ],
     "DD_VERTICA_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_VERTICA_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "vertica",
+        "aliases": [
+          "DD_VERTICA_SERVICE_NAME"
+        ]
       }
     ],
     "DD_VLLM_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_VLLM_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_VLLM_SERVICE_NAME"
+        ]
       }
     ],
     "DD_VPA_TEMPLATE": [
@@ -5515,35 +5101,27 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_WSGI_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "wsgi",
+        "aliases": [
+          "DD_WSGI_SERVICE_NAME"
+        ]
       }
     ],
     "DD_YAAREDIS_CMD_MAX_LENGTH": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null
+        "type": "int",
+        "default": "1000"
       }
     ],
     "DD_YAAREDIS_SERVICE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
-      }
-    ],
-    "DD_YAAREDIS_SERVICE_NAME": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null
+        "default": "redis",
+        "aliases": [
+          "DD_YAAREDIS_SERVICE_NAME"
+        ]
       }
     ],
     "OTEL_EXPORTER_OTLP_CERTIFICATE": [
