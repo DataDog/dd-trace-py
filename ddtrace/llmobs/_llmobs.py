@@ -18,7 +18,7 @@ import urllib.parse
 import ddtrace
 from ddtrace import config
 from ddtrace import patch
-from ddtrace._trace.apm_filter import APMTracingEnabledFilter
+from ddtrace._trace.apm_filter import APMTracingDisabledFilter
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
@@ -820,9 +820,11 @@ class LLMObs(Service):
             # override the default _instance with a new tracer
             cls._instance = cls(tracer=_tracer, span_processor=span_processor)
 
-            # Add APM trace filter to drop all APM traces when DD_APM_TRACING_ENABLED is falsy
-            apm_filter = APMTracingEnabledFilter()
-            cls._instance.tracer._span_aggregator.dd_processors.append(apm_filter)
+            # Drop APM traces when DD_APM_TRACING_ENABLED is falsy, or when LLMObs is running
+            # agentless — without a reachable Agent the APM writer would otherwise repeatedly
+            # log "failed to send, dropping N traces to intake at ..." warnings.
+            if config._llmobs_agentless_enabled or not asbool(_env.get("DD_APM_TRACING_ENABLED", "true")):
+                cls._instance.tracer._span_aggregator.dd_processors.append(APMTracingDisabledFilter())
 
             cls.enabled = True
             # Align config._llmobs_enabled with effective state for user-initiated calls.

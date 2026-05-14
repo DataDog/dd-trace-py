@@ -722,3 +722,36 @@ def test_apm_traces_dropped_when_disabled(llmobs, llmobs_events, tracer, llmobs_
     llm_event = llmobs_events[0]
     assert llm_event["meta"]["span"]["kind"] == "llm"
     assert llm_event["meta"]["model_name"] == "test-model"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_SITE": "datadoghq.com",
+        "DD_LLMOBS_ML_APP": "test-app",
+    }
+)
+def test_apm_traces_dropped_when_llmobs_agentless():
+    """When LLMObs is running agentless, the APM writer has no reachable destination,
+    so APM traces are dropped at the filter stage instead of generating
+    "failed to send, dropping N traces" warnings.
+
+    Runs in a subprocess so DD_LLMOBS_AGENTLESS_ENABLED is in the environment
+    before ddtrace is imported — config snapshots the value at import time.
+    """
+    import ddtrace
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from tests.utils import DummyWriter
+
+    dummy_writer = DummyWriter()
+    ddtrace.tracer._span_aggregator.writer = dummy_writer
+
+    llmobs_service.enable(_tracer=ddtrace.tracer)
+
+    with ddtrace.tracer.trace("apm_span") as apm_span:
+        apm_span.set_tag("operation", "test")
+
+    assert len(dummy_writer.traces) == 0, "APM traces should be dropped when LLMObs is agentless"
+
+    llmobs_service.disable()

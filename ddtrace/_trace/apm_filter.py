@@ -2,20 +2,14 @@ from typing import Optional
 
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.span import Span
-from ddtrace.internal.settings import env
-from ddtrace.internal.utils.formats import asbool
 
 
-class APMTracingEnabledFilter(TraceProcessor):
+class APMTracingDisabledFilter(TraceProcessor):
+    """Trace processor that drops every APM trace it sees.
+
+    The decision to install this filter lives with the caller (e.g. LLMObs.enable()
+    when ``DD_APM_TRACING_ENABLED`` is falsy or LLMObs is running agentless).
     """
-    Trace processor that drops all APM traces when DD_APM_TRACING_ENABLED is set to a falsy value.
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._apm_tracing_enabled = asbool(env.get("DD_APM_TRACING_ENABLED", "true"))
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
-        if not self._apm_tracing_enabled:
-            return None
-        return trace
+        return None

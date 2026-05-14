@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: drops APM traces when LLM Observability runs in agentless mode, suppressing
+    the ``failed to send, dropping N traces to intake at ...`` warnings that occur with no reachable Agent.
