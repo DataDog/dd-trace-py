@@ -543,7 +543,10 @@ class LLMObs(Service):
         if self._evaluator_runner and span_kind == "llm":
             self._evaluator_runner.enqueue(span_event, span)
 
-        if self._export_mode == LLMObsExportMode.LLMOBS_DIRECT:
+        if self._export_mode != LLMObsExportMode.APM_AGENTLESS:
+            # LLMOBS_DIRECT and APM_AGENT both route through the LLMObs span writer
+            # (direct intake or agent EVP proxy respectively), preserving origin/main behavior.
+            # APM_AGENTLESS is the only mode where data rides the APM trace instead.
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
             if not self._test_mode_keep_meta_struct:

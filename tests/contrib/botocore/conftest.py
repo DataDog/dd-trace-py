@@ -9,7 +9,6 @@ from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
 from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import LLMObsExportMode
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.utils import override_global_config
 
@@ -113,14 +112,6 @@ def bedrock_agents_llmobs(tracer, monkeypatch):
         }
     ):
         LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
-        # AIDEV-NOTE: This is a testing bug. The old code set _export_directly_to_llmobs=True
-        # unconditionally (ignoring agentless_enabled), so _dd.llmobs.submitted was always stamped
-        # on spans. The new export-mode logic correctly makes this mode-dependent, but snapshots
-        # were recorded under the old implicit LLMOBS_DIRECT behavior. The proper long-term fix is
-        # to re-record snapshots with the APM_AGENT path and remove this override — but that
-        # requires deciding whether these bedrock snapshot spans should carry _dd.llmobs.submitted
-        # at all when a live agent is present.
-        LLMObs._instance._export_mode = LLMObsExportMode.LLMOBS_DIRECT
         LLMObs._instance._llmobs_span_writer.stop()
         LLMObs._instance._llmobs_span_writer = mock.MagicMock()
         yield LLMObs
