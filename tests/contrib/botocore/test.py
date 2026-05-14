@@ -2732,6 +2732,37 @@ class BotocoreTest(TracerTestCase):
 
         self._test_kinesis_put_records_trace_injection("json_string_bytes", records)
 
+    def test_kinesis_put_records_trace_injection_skips_oversized_record(self):
+        from ddtrace.contrib.internal.botocore.services import kinesis as kinesis_service
+
+        injected_headers = {"x-datadog-trace-id": "1" * 32, "x-datadog-parent-id": "2" * 16}
+        empty_record_json = json.dumps({"json-string": ""})
+        empty_record_with_headers_json = json.dumps({"json-string": "", "_datadog": injected_headers})
+        header_size = len(empty_record_with_headers_json) - len(empty_record_json)
+        oversized_record_value = "x" * (
+            kinesis_service.MAX_KINESIS_DATA_SIZE - len(empty_record_json) - header_size + 1
+        )
+
+        records = [
+            {"Data": json.dumps({"json-string": "small"}), "PartitionKey": "1234"},
+            {"Data": json.dumps({"json-string": oversized_record_value}), "PartitionKey": "1234"},
+        ]
+        original_oversized_record = records[1]["Data"]
+
+        def inject_headers(_, payload):
+            payload[2]["_datadog"] = dict(injected_headers)
+
+        with mock.patch.object(kinesis_service.core, "dispatch", side_effect=inject_headers):
+            for record, should_inject_trace_context in kinesis_service.select_records_for_injection(
+                {"Records": records}, True
+            ):
+                kinesis_service.update_record(
+                    mock.Mock(), record, "stream", inject_trace_context=should_inject_trace_context
+                )
+
+        assert json.loads(records[0]["Data"])["_datadog"] == injected_headers
+        assert records[1]["Data"] == original_oversized_record
+
     @mock_kinesis
     def test_kinesis_put_records_base64_trace_injection(self):
         # dict -> json string -> bytes

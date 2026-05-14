@@ -47,6 +47,7 @@ def update_record(ctx, record: dict[str, Any], stream: str, inject_trace_context
         data_size = len(data_json)
         if data_size >= MAX_KINESIS_DATA_SIZE:
             log.warning("Data including trace injection (%d) exceeds (%d)", data_size, MAX_KINESIS_DATA_SIZE)
+            return
 
         record["Data"] = data_json
 
