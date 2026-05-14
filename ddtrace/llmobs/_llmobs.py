@@ -463,8 +463,7 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
-        apm_tracing_enabled = asbool(_env.get("DD_APM_TRACING_ENABLED", "true"))
-        if not apm_tracing_enabled:
+        if not asbool(_env.get("DD_APM_TRACING_ENABLED", "true")):
             # APMTracingEnabledFilter drops every trace, so the APM path can't carry data.
             self._export_mode = LLMObsExportMode.LLMOBS_DIRECT
         elif llmobs_apm_trace_agentless_enabled():
