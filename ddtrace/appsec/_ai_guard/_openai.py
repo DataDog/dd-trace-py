@@ -267,34 +267,34 @@ def _convert_openai_response(resp):
 def _openai_chat_completion_before(client, kwargs):
     """Listener for ``openai.chat.completions.create.before``."""
     if is_aiguard_context_active():
-        return None
-
-    # AIDEV-NOTE: streaming is intentionally bypassed here. Pairing this with
-    # the existing ``not kwargs.get("stream")`` gate on the after-hook keeps
-    # the integration's scope coherent ("non-streaming chat completions only")
-    # and removes the need for collision-avoidance machinery on framework
-    # streaming paths (e.g. langchain ``stream`` / ``astream``), since no
-    # provider-level evaluation runs for ``stream=True`` to collide with.
-    if kwargs.get("stream"):
+        logger.debug("AI Guard openai before-hook skipped: framework context active (e.g. Strands plugin)")
         return None
 
     messages = kwargs.get("messages")
     if messages is None:
+        logger.debug("AI Guard openai before-hook skipped: kwargs has no 'messages' key")
         return None
 
     if not isinstance(messages, (list, tuple)):
         messages = list(messages)
         kwargs["messages"] = messages
     if not messages:
+        logger.debug("AI Guard openai before-hook skipped: messages is empty")
         return None
 
     ai_guard_messages = _convert_openai_messages(messages)
     if not ai_guard_messages:
+        logger.debug("AI Guard openai before-hook skipped: no convertible messages")
         return None
 
     if ai_guard_messages[-1].get("role") not in ("user", "tool"):
+        logger.debug(
+            "AI Guard openai before-hook skipped: last message role is %r, expected 'user' or 'tool'",
+            ai_guard_messages[-1].get("role"),
+        )
         return None
 
+    logger.debug("AI Guard openai before-hook evaluating %d message(s)", len(ai_guard_messages))
     try:
         client.evaluate(ai_guard_messages, Options(block=ai_guard_config._ai_guard_block))
     except AIGuardAbortError as e:
@@ -316,12 +316,14 @@ def _openai_chat_completion_after(client, kwargs, resp):
     skip paths return ``None``.
     """
     if is_aiguard_context_active():
+        logger.debug("AI Guard openai after-hook skipped: framework context active (e.g. Strands plugin)")
         return None
 
     request_messages = _convert_openai_messages(kwargs.get("messages", []))
     response_messages = _convert_openai_response(resp)
 
     if not response_messages:
+        logger.debug("AI Guard openai after-hook skipped: no convertible response messages")
         return None
 
     all_messages = request_messages + response_messages

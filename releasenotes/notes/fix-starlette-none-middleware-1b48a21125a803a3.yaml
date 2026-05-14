@@ -1,0 +1,3 @@
+fixes:
+  - |
+    starlette: This fix resolves an issue where passing ``middleware=None`` caused application startup to fail when Starlette tracing was enabled.
