@@ -240,7 +240,6 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             item._set_attribute("_top_level", 1)
 
         span_dict = JSONEncoderV2._convert_span(item)
-
         span_dict["meta_struct"] = item._get_meta_structs()
         # Intake Requires ids to be in lowercase
         span_dict["trace_id"] = span_dict["trace_id"].lower()

@@ -133,9 +133,7 @@ def test_enable_agentless_when_agent_does_not_have_proxy(tracer, agent_missing_p
         llmobs_service.disable()
 
 
-@pytest.mark.subprocess(
-    env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
-)
+@pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1"})
 def test_llmobs_apm_trace_agentless_enabled_no_api_key():
     from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
 
@@ -146,7 +144,6 @@ def test_llmobs_apm_trace_agentless_enabled_no_api_key():
     env={
         "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
-        "PYTHONWARNINGS": "ignore::DeprecationWarning",
     }
 )
 def test_llmobs_apm_trace_agentless_enabled_explicitly_disabled():
@@ -159,7 +156,6 @@ def test_llmobs_apm_trace_agentless_enabled_explicitly_disabled():
     env={
         "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
-        "PYTHONWARNINGS": "ignore::DeprecationWarning",
     }
 )
 def test_llmobs_apm_trace_agentless_enabled_via_llmobs_flag():
@@ -172,7 +168,6 @@ def test_llmobs_apm_trace_agentless_enabled_via_llmobs_flag():
     env={
         "DD_API_KEY": "<not-a-real-key>",
         "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
-        "PYTHONWARNINGS": "ignore::DeprecationWarning",
     }
 )
 def test_llmobs_apm_trace_agentless_enabled_via_trace_flag():
@@ -181,7 +176,7 @@ def test_llmobs_apm_trace_agentless_enabled_via_trace_flag():
     assert llmobs_apm_trace_agentless_enabled() is True
 
 
-@pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
+@pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>"})
 def test_configure_agentless_writer_swaps_writer():
     import ddtrace
     from ddtrace.internal.writer import AgentlessTraceWriter
@@ -189,13 +184,11 @@ def test_configure_agentless_writer_swaps_writer():
 
     llmobs_service.enable(agentless_enabled=False)
     assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
-    swapped = ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=True)
-    assert swapped is True
+    llmobs_service.enable(agentless_enabled=True)
     assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
-    llmobs_service.disable()
 
 
-@pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
+@pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>"})
 def test_configure_agentless_writer_noop_when_already_agentless():
     import ddtrace
     from ddtrace.internal.writer import AgentlessTraceWriter
@@ -205,14 +198,12 @@ def test_configure_agentless_writer_noop_when_already_agentless():
     assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
     swapped = ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=True)
     assert swapped is False
-    llmobs_service.disable()
 
 
 @pytest.mark.subprocess(
     env={
         "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
-        "PYTHONWARNINGS": "ignore::DeprecationWarning",
     }
 )
 def test_enable_with_agentless_config_swaps_apm_writer():
@@ -222,12 +213,9 @@ def test_enable_with_agentless_config_swaps_apm_writer():
 
     llmobs_service.enable()
     assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
-    llmobs_service.disable()
 
 
-@pytest.mark.subprocess(
-    env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
-)
+@pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1"})
 def test_enable_without_api_key_does_not_swap_apm_writer():
     import ddtrace
     from ddtrace.internal.writer import AgentlessTraceWriter
@@ -244,7 +232,6 @@ def test_enable_without_api_key_does_not_swap_apm_writer():
     env={
         "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
-        "PYTHONWARNINGS": "ignore::DeprecationWarning",
     }
 )
 def test_export_directly_to_llmobs_false_when_agentless():
@@ -252,14 +239,12 @@ def test_export_directly_to_llmobs_false_when_agentless():
 
     llmobs_service.enable()
     assert llmobs_service._instance._export_directly_to_llmobs is False
-    llmobs_service.disable()
 
 
 @pytest.mark.subprocess(
     env={
         "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
-        "PYTHONWARNINGS": "ignore::DeprecationWarning",
     }
 )
 def test_export_directly_to_llmobs_true_when_not_agentless():
@@ -267,7 +252,6 @@ def test_export_directly_to_llmobs_true_when_not_agentless():
 
     llmobs_service.enable(agentless_enabled=False)
     assert llmobs_service._instance._export_directly_to_llmobs is True
-    llmobs_service.disable()
 
 
 def test_service_disable(tracer):
@@ -285,7 +269,6 @@ def test_service_disable(tracer):
         "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
         "DD_LLMOBS_ML_APP": "test-ml-app",
-        "PYTHONWARNINGS": "ignore::DeprecationWarning",
     }
 )
 def test_disable_reverts_agentless_writer_when_llmobs_enabled_it():
@@ -308,7 +291,6 @@ def test_disable_reverts_agentless_writer_when_llmobs_enabled_it():
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
         "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
         "DD_LLMOBS_ML_APP": "test-ml-app",
-        "PYTHONWARNINGS": "ignore::DeprecationWarning",
     }
 )
 def test_disable_does_not_revert_agentless_writer_when_already_agentless():
@@ -1174,9 +1156,7 @@ def test_tags(ddtrace_global_config, llmobs, monkeypatch):
         "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
         "DD_LLMOBS_ML_APP": "test-ml-app",
-        "PYTHONWARNINGS": "ignore::DeprecationWarning",
-    },
-    err=None,
+    }
 )
 def test_tag_dot_keys_sanitized_on_agentless_apm_path():
     """APM agentless path: dots in tag keys are replaced with underscores before encoding."""
@@ -1199,7 +1179,6 @@ def test_tag_dot_keys_sanitized_on_agentless_apm_path():
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
         "DD_LLMOBS_ML_APP": "test-ml-app",
         "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
-        "PYTHONWARNINGS": "ignore::DeprecationWarning",
     },
     err=None,
 )
@@ -1223,7 +1202,6 @@ def test_tag_dot_keys_preserved_on_direct_llmobs_path():
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
         "DD_LLMOBS_ML_APP": "test-ml-app",
         "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
-        "PYTHONWARNINGS": "ignore::DeprecationWarning",
     },
     err=None,
 )
@@ -1561,7 +1539,7 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
         llmobs_service.disable()
 
 
-@pytest.mark.subprocess(env={"_DD_LLMOBS_WRITER_INTERVAL": "5.0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
+@pytest.mark.subprocess(env={"_DD_LLMOBS_WRITER_INTERVAL": "5.0"})
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
@@ -1629,7 +1607,7 @@ def test_llmobs_fork_evaluator_runner_run():
         llmobs_service.disable()
 
 
-@pytest.mark.subprocess(env={"DD_LLMOBS_ENABLED": "0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
+@pytest.mark.subprocess(env={"DD_LLMOBS_ENABLED": "0"})
 def test_llmobs_fork_disabled():
     """Test that after being disabled the service remains disabled when forking"""
     import os
@@ -1653,7 +1631,7 @@ def test_llmobs_fork_disabled():
     svc.disable()
 
 
-@pytest.mark.subprocess(env={"DD_LLMOBS_ENABLED": "0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
+@pytest.mark.subprocess(env={"DD_LLMOBS_ENABLED": "0"})
 def test_llmobs_fork_disabled_then_enabled():
     """Test that after being initially disabled, the service can be enabled in a fork"""
     import os

@@ -283,7 +283,7 @@ def _resolve_apm_trace_agentless() -> bool:
     if not config._trace_agentless_enabled:
         return False
     if not config._dd_api_key:
-        log.warning("APM Agentless requested but DD_API_KEY is not set. Agentless mode will be disabled.")
+        log.warning("APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.")
         return False
     return True
 

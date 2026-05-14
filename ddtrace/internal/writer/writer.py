@@ -1059,12 +1059,6 @@ def create_trace_writer(
     response_callback: Optional[Callable[[AgentResponse], None]] = None,
     agentless: bool = False,
 ) -> TraceWriter:
-    """Build the APM trace writer.
-
-    ``agentless=True`` always returns an :class:`AgentlessTraceWriter`; the caller owns the
-    precondition (``DD_API_KEY`` etc.) — see
-    :func:`ddtrace._trace.processor._resolve_apm_trace_agentless`.
-    """
     if _use_log_writer():
         return LogWriter()
 
