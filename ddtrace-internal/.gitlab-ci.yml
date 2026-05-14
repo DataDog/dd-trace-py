@@ -23,7 +23,7 @@
     - .gitlab/scripts/build-sdist.sh
   artifacts:
     paths:
-      - "ddtrace-internal/pywheels/*.tar.gz"
+      - "pywheels/*.tar.gz"
   cache:
     - key: v1-ddtrace-internal-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
       paths:
@@ -55,4 +55,4 @@
     - .gitlab/scripts/build-wheel.sh
   artifacts:
     paths:
-      - "ddtrace-internal/pywheels/*.whl"
+      - "pywheels/*.whl"
