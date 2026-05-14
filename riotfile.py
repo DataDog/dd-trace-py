@@ -2000,6 +2000,7 @@ venv = Venv(
                 "pytest-xdist": latest,
                 "pytest-benchmark": latest,
                 "pytest-bdd": latest,
+                "pytest-timeout": latest,
             },
             env={
                 "DD_AGENT_PORT": "9126",
@@ -3306,6 +3307,15 @@ venv = Venv(
                 "datadog-lambda": [">=6.105.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
+            },
+        ),
+        Venv(
+            name="aws_durable_execution_sdk_python",
+            command="pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python",
+            pys=select_pys(min_version="3.11"),
+            pkgs={
+                "aws-durable-execution-sdk-python": ["~=1.4.0", latest],
+                "aws-durable-execution-sdk-python-testing": [latest],
             },
         ),
         Venv(
