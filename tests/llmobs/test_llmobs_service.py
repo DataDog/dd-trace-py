@@ -74,19 +74,19 @@ def test_service_enable_proxy(tracer, test_spans):
         llmobs_service.disable()
 
 
-def test_enable_agentless(tracer, test_spans):
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="<ml-app-name>")):
-        # Prevent the APM writer swap so test_spans (backed by DummyWriter) stays usable.
-        with mock.patch.object(tracer._span_aggregator, "configure_agentless_writer", return_value=True):
-            llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
-            llmobs_instance = llmobs_service._instance
-            assert llmobs_instance is not None
-            assert llmobs_service.enabled
-            assert llmobs_instance.tracer == tracer
-            assert llmobs_instance._llmobs_span_writer._agentless is True
-            assert run_llmobs_trace_filter(tracer, test_spans) is not None
+@pytest.mark.subprocess(
+    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_ML_APP": "<ml-app-name>"},
+)
+def test_enable_agentless():
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
 
-            llmobs_service.disable()
+    llmobs_service.enable(agentless_enabled=True)
+    assert llmobs_service.enabled
+    assert llmobs_service._instance._llmobs_span_writer._agentless is True
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.disable()
 
 
 def test_enable_agent_proxy_when_agent_is_available(tracer, agent):
