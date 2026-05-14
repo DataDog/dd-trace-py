@@ -128,11 +128,7 @@ def _find_includes(module: ast.Module) -> dict[str, tuple[str, str]]:
         ):
             continue
         for kw in call.keywords:
-            if (
-                kw.arg == "namespace"
-                and isinstance(kw.value, ast.Constant)
-                and isinstance(kw.value.value, str)
-            ):
+            if kw.arg == "namespace" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
                 found[call.args[0].id] = (call.func.value.id, kw.value.value)
                 break
     return found
@@ -141,8 +137,7 @@ def _find_includes(module: ast.Module) -> dict[str, tuple[str, str]]:
 def _is_private_call(call: ast.Call) -> bool:
     """True if a DDConfig.v/var call has ``private=True``, which makes envier prefix ``_``."""
     return any(
-        kw.arg == "private" and isinstance(kw.value, ast.Constant) and kw.value.value is True
-        for kw in call.keywords
+        kw.arg == "private" and isinstance(kw.value, ast.Constant) and kw.value.value is True for kw in call.keywords
     )
 
 
