@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.utils import _est_tokens
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.openai.utils import assert_prompt_tracking
 from tests.contrib.openai.utils import chat_completion_custom_functions
@@ -22,6 +23,7 @@ from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import DEEP_TOOL_SCHEMA
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import assert_llmobs_span_data
 
 
 EXPECTED_TOOL_DEFINITIONS = [
