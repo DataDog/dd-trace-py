@@ -135,6 +135,14 @@ def _find_includes(module: ast.Module) -> dict[str, tuple[str, str]]:
     return found
 
 
+def _is_private_call(call: ast.Call) -> bool:
+    """True if a DDConfig.v/var call has ``private=True``, which makes envier prefix ``_``."""
+    return any(
+        kw.arg == "private" and isinstance(kw.value, ast.Constant) and kw.value.value is True
+        for kw in call.keywords
+    )
+
+
 def _walk_envier_class(class_node: ast.ClassDef, chain: list[str], out: set[str]) -> None:
     """Emit envier env vars from this class's body, recursing into lexically nested classes.
 
@@ -146,8 +154,9 @@ def _walk_envier_class(class_node: ast.ClassDef, chain: list[str], out: set[str]
             args = stmt.value.args
             if len(args) >= 2 and isinstance(args[1], ast.Constant) and isinstance(args[1].value, str):
                 # envier builds env names by joining chain + key on ".", uppercasing,
-                # then replacing "." with "_".
-                out.add(".".join(chain + [args[1].value]).upper().replace(".", "_"))
+                # then replacing "." with "_". private=True adds a leading underscore.
+                name = ".".join(chain + [args[1].value]).upper().replace(".", "_")
+                out.add(f"_{name}" if _is_private_call(stmt.value) else name)
         elif isinstance(stmt, ast.ClassDef):
             # Lexical nesting: append the inner class's own __prefix__ (if any).
             inner = _class_prefix(stmt)
