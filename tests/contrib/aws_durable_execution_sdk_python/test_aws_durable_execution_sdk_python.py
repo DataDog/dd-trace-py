@@ -219,17 +219,13 @@ def test_persists_trace_context_checkpoint_across_suspend_resume():
     assert raw, f"_datadog_0 missing or has no persisted payload: {final['datadog_ops']!r}"
     headers = json.loads(raw)
 
-    for key in ("x-datadog-trace-id", "x-datadog-parent-id", "traceparent"):
+    for key in ("x-datadog-trace-id", "x-datadog-parent-id"):
         assert headers.get(key), f"missing or empty header {key!r} in {headers!r}"
 
-    # The integration rewrites traceparent's parent-id segment to match the
-    # Datadog anchor, so the W3C view agrees with the Datadog view. If these
-    # ever diverge a downstream extractor would build two different parents.
-    tp_parent = headers["traceparent"].split("-")[2]
-    expected = format(int(headers["x-datadog-parent-id"]), "016x")
-    assert tp_parent == expected, (
-        f"traceparent parent segment {tp_parent!r} != hex(x-datadog-parent-id) {expected!r} in {headers!r}"
-    )
+    # Datadog-only style: no W3C/B3 keys should ever appear in the payload,
+    # regardless of what the customer set DD_TRACE_PROPAGATION_STYLE_INJECT to.
+    for forbidden in ("traceparent", "tracestate", "b3", "X-B3-TraceId"):
+        assert forbidden not in headers, f"unexpected non-Datadog header {forbidden!r} in {headers!r}"
 
 
 def test_cross_invocation_tracing_disabled_skips_checkpoint():

@@ -43,9 +43,7 @@ config._add(
         # Persist a ``_datadog_*`` checkpoint on suspend so the next invocation
         # can resume the trace. Opt-out for customers who don't want synthetic
         # ops appearing in their durable state.
-        cross_invocation_tracing=asbool(
-            _get_config("DD_DURABLE_CROSS_INVOCATION_TRACING_ENABLED", default=True)
-        ),
+        cross_invocation_tracing=asbool(_get_config("DD_DURABLE_CROSS_INVOCATION_TRACING_ENABLED", default=True)),
     ),
 )
 

@@ -10,9 +10,15 @@ The save runs only on the suspend path: a workflow that returns or fails for
 good has no further invocations to read the checkpoint, so writing one would
 be wasted work and would be rejected by the SDK's terminating checkpointer.
 The save is also a no-op when the new headers match the most recent prior
-checkpoint (after stripping the per-span ``x-datadog-parent-id`` and the
-``dd=p:`` entry of ``tracestate``) — every replay would otherwise rewrite
-identical context and pile up redundant operations.
+checkpoint (after stripping the per-span ``x-datadog-parent-id``) — every
+replay would otherwise rewrite identical context and pile up redundant
+operations.
+
+AIDEV-NOTE: only Datadog-style headers are written.  Both ends of this
+checkpoint are Datadog code (this integration writes, ``datadog-lambda-python``
+reads), so we ignore ``DD_TRACE_PROPAGATION_STYLE_INJECT`` entirely.  A
+customer running ``b3`` or ``tracecontext`` upstream still gets a Datadog
+checkpoint here — they don't need W3C/B3 inside the durable log.
 
 AIDEV-NOTE: ``_datadog_*`` is a reserved step name. Users must not create
 steps with this prefix; the SDK does not enforce this — we rely on it being
@@ -23,7 +29,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import threading
 from typing import Optional
 
@@ -35,6 +40,7 @@ from aws_durable_execution_sdk_python.state import ExecutionState
 from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.http import _DatadogMultiHeader
 
 
 log = get_logger(__name__)
@@ -49,68 +55,28 @@ _STATE_NEXT_N_ATTR = "_dd_next_checkpoint_n"
 # than per-state locks and not a measurable bottleneck.
 _COUNTER_LOCK = threading.Lock()
 
-# `traceparent` format: <version>-<trace_id>-<parent_id>-<flags>
-_TRACEPARENT_RE = re.compile(r"^([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$")
 
+def _inject_datadog_headers(span: Span, headers: dict) -> None:
+    """Inject only Datadog-style propagation headers, ignoring the customer's
+    ``DD_TRACE_PROPAGATION_STYLE_INJECT`` setting.
 
-def _strip_parent_from_traceparent(value: str) -> str:
-    """Zero out the ``parent_id`` segment of a W3C ``traceparent``.
-
-    ``traceparent`` is ``<version>-<trace_id>-<parent_id>-<flags>``; the
-    parent-id rotates per span and would otherwise dominate the diff.  We
-    replace it with all-zeros so the comparison only catches *real* trace
-    context changes (trace_id, flags). The normalized form is used only as a
-    diff key and is never persisted.
+    Both ends of this checkpoint are Datadog code (this integration writes,
+    ``datadog-lambda-python`` reads), so emitting W3C/B3 alongside would just
+    bloat the payload and complicate the diff layer.  We still route through
+    ``_get_sampled_injection_context`` so a sampling decision is triggered
+    before the trace id / sampling priority are read out.
     """
-    m = _TRACEPARENT_RE.match(value)
-    if m is None:
-        return value
-    return f"{m.group(1)}-{m.group(2)}-{'0' * 16}-{m.group(4)}"
-
-
-def _strip_dd_parent_from_tracestate(value: str) -> str:
-    """Drop the ``p:`` entry from the ``dd=`` vendor section to avoid creating spurious diffs.
-    ``p:`` carries the per-span parent id and rotates every span. Other vendors' segments pass
-    through untouched.
-    """
-    out_segments = []
-    for seg in (s.strip() for s in value.split(",")):
-        if not seg:
-            continue
-        if not seg.startswith("dd="):
-            out_segments.append(seg)
-            continue
-        kvs = seg[len("dd=") :]
-        kept = [kv for kv in (k.strip() for k in kvs.split(";")) if kv and not kv.startswith("p:")]
-        if kept:
-            out_segments.append("dd=" + ";".join(kept))
-        # If only `p:` was present, drop the whole `dd=` segment.
-    return ",".join(out_segments)
+    span_context = HTTPPropagator._get_sampled_injection_context(span, None)
+    _DatadogMultiHeader._inject(span_context, headers)
 
 
 def _stable_headers(headers: dict) -> dict:
-    """Strip per-span volatile fields so the diff is meaningful.
+    """Drop the per-span ``x-datadog-parent-id`` so the diff is meaningful.
 
-    Three values rotate per span and must be normalized away or every
-    invocation would look like a real context change:
-    ``x-datadog-parent-id``, the ``dd=p:`` segment of ``tracestate``, and the
-    ``parent_id`` segment of W3C ``traceparent``.
+    That is the only field that rotates per span across replays; everything
+    else in the Datadog header set is stable for a given trace context.
     """
-    out = {}
-    for k, v in headers.items():
-        kl = k.lower()
-        if kl == "x-datadog-parent-id":
-            continue
-        if kl == "tracestate" and isinstance(v, str):
-            normalized = _strip_dd_parent_from_tracestate(v)
-            if normalized:
-                out[k] = normalized
-            continue
-        if kl == "traceparent" and isinstance(v, str):
-            out[k] = _strip_parent_from_traceparent(v)
-            continue
-        out[k] = v
-    return out
+    return {k: v for k, v in headers.items() if k.lower() != "x-datadog-parent-id"}
 
 
 def _max_existing_checkpoint_n(state) -> int:
@@ -243,26 +209,13 @@ def _resolve_override_parent_id(span, prior_payload: Optional[dict]) -> Optional
 
 
 def _override_parent_id(headers: dict, parent_id: str) -> None:
-    """Stamp ``parent_id`` into the Datadog and W3C parent-id fields.
+    """Stamp ``parent_id`` into ``x-datadog-parent-id``.
 
-    ``HTTPPropagator.inject`` writes the *current* span id; we replace it
-    with the resolved anchor id so all replays parent off the same span.
-    ``tracestate``'s ``dd=`` segment also carries a parent id, but rewriting
-    it would mean re-encoding the vendor section — the Datadog extractor on
-    the other end uses ``x-datadog-parent-id`` as the source of truth, so we
-    leave ``tracestate`` alone (and the diff layer drops it anyway).
+    The injector writes the *current* span id; we replace it with the resolved
+    anchor id so every checkpoint across replays parents off the same span.
     """
     if "x-datadog-parent-id" in headers:
         headers["x-datadog-parent-id"] = parent_id
-    tp = headers.get("traceparent")
-    if isinstance(tp, str):
-        m = _TRACEPARENT_RE.match(tp)
-        if m is not None:
-            try:
-                new_span = format(int(parent_id), "016x")
-            except ValueError:
-                return
-            headers["traceparent"] = f"{m.group(1)}-{m.group(2)}-{new_span}-{m.group(4)}"
 
 
 def maybe_save_trace_context_checkpoint(durable_context: DurableContext, span: Span) -> None:
@@ -286,9 +239,9 @@ def maybe_save_trace_context_checkpoint(durable_context: DurableContext, span: S
 
         headers: dict = {}
         try:
-            HTTPPropagator.inject(span, headers)
+            _inject_datadog_headers(span, headers)
         except Exception:
-            log.debug("HTTPPropagator.inject failed", exc_info=True)
+            log.debug("Datadog header injection failed", exc_info=True)
             return
         if not headers:
             return
