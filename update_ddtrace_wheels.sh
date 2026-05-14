@@ -4,8 +4,14 @@ set -euo pipefail
 REQUIREMENTS_IN="requirements.in"
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo)"
 REQUIREMENTS_PATH="${REPO_ROOT}/${REQUIREMENTS_IN}"
-RAPID_JSON_REL="domains/apm_sdk/apps/apis/rapid_python_http_smoke_test/rapid.json"
+RAPID_SERVICE_DIR="domains/apm_sdk/apps/apis/rapid_python_http_smoke_test"
+RAPID_SERVICE_NAME="rapid_python_http_smoke_test"
+RAPID_JSON_REL="${RAPID_SERVICE_DIR}/rapid.json"
 RAPID_JSON_PATH="${REPO_ROOT}/${RAPID_JSON_REL}"
+RAPID_BUILD_BAZEL_REL="${RAPID_SERVICE_DIR}/BUILD.bazel"
+RAPID_BUILD_BAZEL_PATH="${REPO_ROOT}/${RAPID_BUILD_BAZEL_REL}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PATCH_BAZEL_HELPER="${SCRIPT_DIR}/_patch_build_bazel_pyversion.py"
 
 # Minimum set of env-var defaults always applied to the smoke-test
 # rapid.json on each invocation.  Users may ADD additional vars or
@@ -22,7 +28,7 @@ declare -A DEFAULT_RAPID_ENV=(
 
 usage() {
   cat <<USAGE
-Usage: $0 <PIPELINE_ID_OR_COMMIT_SHA> [--env KEY=VALUE]...
+Usage: $0 <PIPELINE_ID_OR_COMMIT_SHA> [--env KEY=VALUE]... [--python-version 3.X]
 
 Arguments:
   PIPELINE_ID_OR_COMMIT_SHA: pipeline ID, full 40-char commit SHA, or
@@ -30,11 +36,26 @@ Arguments:
   e.g. 110616709, 2c9ea00a672e91cf812b59d123a3924ac06c0564, or 2c9ea00a67
 
 Options:
-  --env KEY=VALUE   Add or override an env-var in \`extensions.containerenv.values\`
-                    of the smoke-test rapid.json. Repeat for multiple env vars.
-                    KEY must be uppercase alphanumeric (env-var style).
-                    VALUE is taken verbatim. KEY removal is not supported.
-  -h, --help        Show this help.
+  --env KEY=VALUE         Add or override an env-var in \`extensions.containerenv.values\`
+                          of the smoke-test rapid.json. Repeat for multiple env vars.
+                          KEY must be uppercase alphanumeric (env-var style).
+                          VALUE is taken verbatim. KEY removal is not supported.
+  --python-version 3.X    Pin the smoke test to a single Python version (e.g.
+                          3.9, 3.10, 3.11, 3.13). When set:
+                            1. requirements.in lines are filtered to that
+                               version's wheels only (no cross-version fan-out).
+                            2. DD_SERVICE is added to rapid.json env vars as
+                               \`${RAPID_SERVICE_NAME}_py3X\` so the Datadog UI
+                               can distinguish per-version profiles.
+                            3. BUILD.bazel for the target is patched so the
+                               Bazel runtime actually picks Python X.Y (the
+                               version_set/python_version knob lives in Bazel,
+                               not rapid.json).
+                          Omit the flag and behavior is unchanged: script
+                          doesn't touch BUILD.bazel, doesn't inject DD_SERVICE,
+                          and writes the full multi-cpXY marker fan-out into
+                          requirements.in.
+  -h, --help              Show this help.
 
 Defaults (always applied to rapid.json on every run; users may override):
   DD_PROFILING_ENABLED=true
@@ -69,6 +90,7 @@ USAGE
 
 ENV_OVERRIDES=()
 POSITIONAL_ARGS=()
+PY_VERSION=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -79,6 +101,15 @@ while [[ $# -gt 0 ]]; do
       ;;
     --env=*)
       ENV_OVERRIDES+=("${1#--env=}")
+      shift
+      ;;
+    --python-version)
+      [[ $# -ge 2 ]] || { echo "ERROR: --python-version requires a version argument"; exit 1; }
+      PY_VERSION="$2"
+      shift 2
+      ;;
+    --python-version=*)
+      PY_VERSION="${1#--python-version=}"
       shift
       ;;
     -h|--help)
@@ -109,6 +140,18 @@ for kv in "${ENV_OVERRIDES[@]:-}"; do
   fi
 done
 
+# Validate --python-version format up-front. Accept only `3.X` or `3.XY` with X/Y
+# digits. The script doesn't try to validate that the version exists or that
+# wheels are published for it — those errors surface naturally downstream.
+PY_VERSION_NODOT=""
+if [[ -n "$PY_VERSION" ]]; then
+  if [[ ! "$PY_VERSION" =~ ^3\.[0-9]+$ ]]; then
+    echo "ERROR: --python-version '$PY_VERSION' must look like '3.12' or '3.9'" >&2
+    exit 1
+  fi
+  PY_VERSION_NODOT="${PY_VERSION//./}"   # e.g. 3.12 -> 312
+fi
+
 set -- "${POSITIONAL_ARGS[@]:-}"
 
 if [[ $# -lt 1 || -z "${1:-}" ]]; then
@@ -129,6 +172,18 @@ ERROR: must be invoked from within the dd-source repo.
        Found REPO_ROOT=${REPO_ROOT:-<not a git repo>}
 MSG
   exit 1
+fi
+
+# Extra preconditions only enforced when --python-version is in play.
+if [[ -n "$PY_VERSION" ]]; then
+  if [[ ! -f "$RAPID_BUILD_BAZEL_PATH" ]]; then
+    echo "ERROR: --python-version requires ${RAPID_BUILD_BAZEL_REL} to exist (not found)" >&2
+    exit 1
+  fi
+  if [[ ! -x "$PATCH_BAZEL_HELPER" ]]; then
+    echo "ERROR: BUILD.bazel patcher not found or not executable at ${PATCH_BAZEL_HELPER}" >&2
+    exit 1
+  fi
 fi
 
 INPUT_REF="${1%/}"
@@ -198,6 +253,12 @@ while IFS= read -r wheel; do
   # Convert cpXY to python version X.Y
   PYVER=$(echo "$CPVER" | sed -E 's/cp([0-9])([0-9]+)/\1.\2/')
 
+  # --python-version filter: drop wheels for other Pythons so requirements.in
+  # ends up with a single Python's wheel set only.
+  if [[ -n "$PY_VERSION" && "$PYVER" != "$PY_VERSION" ]]; then
+    continue
+  fi
+
   # Map platform tag to environment markers
   if [[ "$PLATFORM" == *manylinux*x86_64* ]]; then
     MARKERS="python_version == \"${PYVER}\" and platform_machine == \"x86_64\" and sys_platform == \"linux\""
@@ -223,6 +284,15 @@ while IFS= read -r wheel; do
     REPLACEMENT_LINES="${LINE}"
   fi
 done <<< "$WHEELS"
+
+if [[ -z "$REPLACEMENT_LINES" ]]; then
+  if [[ -n "$PY_VERSION" ]]; then
+    echo "ERROR: no wheels matched --python-version ${PY_VERSION} at ${INDEX_URL}" >&2
+  else
+    echo "ERROR: parsed no wheel lines from ${INDEX_URL}" >&2
+  fi
+  exit 1
+fi
 
 echo ""
 echo "Replacing ddtrace line in ${REQUIREMENTS_PATH} ..."
@@ -259,6 +329,12 @@ declare -A FINAL_RAPID_ENV
 for key in "${!DEFAULT_RAPID_ENV[@]}"; do
   FINAL_RAPID_ENV["$key"]="${DEFAULT_RAPID_ENV[$key]}"
 done
+# Inject DD_SERVICE suffixed by Python version so per-version deployments land
+# under distinct service tags in the Datadog UI. Done BEFORE the user --env
+# loop so the user can still override with --env DD_SERVICE=... if needed.
+if [[ -n "$PY_VERSION" ]]; then
+  FINAL_RAPID_ENV["DD_SERVICE"]="${RAPID_SERVICE_NAME}_py${PY_VERSION_NODOT}"
+fi
 for kv in "${ENV_OVERRIDES[@]:-}"; do
   [[ -z "$kv" ]] && continue
   key="${kv%%=*}"
@@ -276,18 +352,34 @@ for key in "${!FINAL_RAPID_ENV[@]}"; do
   mv "$TMP" "$RAPID_JSON_PATH"
 done
 
+# Pin BUILD.bazel's Python version when --python-version is set. Done before
+# the diff check so the rewrite participates in "nothing to commit" detection.
+if [[ -n "$PY_VERSION" ]]; then
+  echo "Patching ${RAPID_BUILD_BAZEL_REL} → python_version=${PY_VERSION} ..."
+  "$PATCH_BAZEL_HELPER" "$RAPID_BUILD_BAZEL_PATH" "$RAPID_SERVICE_NAME" "$PY_VERSION"
+fi
+
 # Abort early if nothing actually differs from the remote branch.
 DIFF_TARGETS=(requirements.in requirements.txt "$RAPID_JSON_REL")
+if [[ -n "$PY_VERSION" ]]; then
+  DIFF_TARGETS+=("$RAPID_BUILD_BAZEL_REL")
+fi
 if git diff --quiet origin/apm-sdk-py-smoke-tests-staging "${DIFF_TARGETS[@]}"; then
   echo "Nothing to commit — branch already matches requested state."
   exit 0
 fi
 
 git add requirements.in requirements.txt "$RAPID_JSON_PATH"
+if [[ -n "$PY_VERSION" ]]; then
+  git add "$RAPID_BUILD_BAZEL_PATH"
+fi
 
 COMMIT_MSG="[requirements] Use experimental ddtrace wheel"
 if [[ ${#ENV_OVERRIDES[@]} -gt 0 ]]; then
   COMMIT_MSG="${COMMIT_MSG} + rapid.json env overrides"
+fi
+if [[ -n "$PY_VERSION" ]]; then
+  COMMIT_MSG="${COMMIT_MSG} + pin Python ${PY_VERSION}"
 fi
 git commit -m "$COMMIT_MSG" > /dev/null 2>&1
 git push > /dev/null 2>&1
