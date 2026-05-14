@@ -2,7 +2,7 @@
 #      this drastically improves test execution time since python dependencies don't all
 #      have to be built from source all the time (grpcio takes forever to install)
 # Note: Using trixie for GLIBC 2.38+ support (required for Python 3.14 native extensions)
-FROM debian:trixie-slim@sha256:4ffb3a1511099754cddc70eb1b12e50ffdb67619aa0ab6c13fcd800a78ef7c7a
+FROM debian:trixie-slim@sha256:109e2c65005bf160609e4ba6acf7783752f8502ad218e298253428690b9eaa4b
 
 ARG TARGETARCH
 ARG HATCH_VERSION=1.14.2
@@ -121,7 +121,7 @@ COPY .python-version /home/bits/
 RUN npm install -g @datadog/datadog-ci
 
 # Install pyenv and necessary Python versions
-RUN git clone --depth 1 --branch "v2.6.17" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+RUN git clone --depth 1 --branch "v2.6.31" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 
