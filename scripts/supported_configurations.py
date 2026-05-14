@@ -93,11 +93,14 @@ def _is_envier_var_call(node: ast.AST) -> bool:
 
 
 def _class_prefix(class_node: ast.ClassDef) -> str | None:
-    """Return the literal value of ``__prefix__`` set on this class, if any."""
+    """Return the literal value of ``__prefix__`` set on this class, if any.
+
+    Handles both ``__prefix__ = "x"`` and the chained ``__item__ = __prefix__ = "x"`` form
+    that envier uses for nested sub-configs.
+    """
     for stmt in class_node.body:
         if not isinstance(stmt, ast.Assign):
             continue
-        # Handles both `__prefix__ = "x"` and `__item__ = __prefix__ = "x"`.
         if not (isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str)):
             continue
         for target in stmt.targets:
@@ -158,35 +161,26 @@ def _walk_envier_class(class_node: ast.ClassDef, chain: list[str], out: set[str]
                 name = ".".join(chain + [args[1].value]).upper().replace(".", "_")
                 out.add(f"_{name}" if _is_private_call(stmt.value) else name)
         elif isinstance(stmt, ast.ClassDef):
-            # Lexical nesting: append the inner class's own __prefix__ (if any).
             inner = _class_prefix(stmt)
             _walk_envier_class(stmt, chain + [inner] if inner else chain, out)
 
 
-def _scan_envier_vars() -> set[str]:
-    """Reconstruct every env var declared via envier's DDConfig.v/var across ddtrace/."""
-    found: set[str] = set()
-    for path in (REPO_ROOT / "ddtrace").rglob("*.py"):
-        try:
-            tree = ast.parse(path.read_text(errors="ignore"))
-        except SyntaxError:
-            continue
-        includes = _find_includes(tree)
-        top_classes = {n.name: n for n in tree.body if isinstance(n, ast.ClassDef)}
+def _chain_for(name: str, top_classes: dict[str, ast.ClassDef], includes: dict[str, tuple[str, str]]) -> list[str]:
+    """Compute a class's full prefix chain, following ``.include`` parents transitively."""
+    if name in includes:
+        parent, namespace = includes[name]
+        parent_chain = _chain_for(parent, top_classes, includes) if parent in top_classes else []
+        return parent_chain + [namespace]
+    prefix = _class_prefix(top_classes[name])
+    return [prefix] if prefix else []
 
-        def chain_for(name: str) -> list[str]:
-            # Included sub-configs use the parent's chain + the include namespace.
-            if name in includes:
-                parent, namespace = includes[name]
-                parent_chain = chain_for(parent) if parent in top_classes else []
-                return parent_chain + [namespace]
-            # Otherwise, fall back to the class's own __prefix__.
-            prefix = _class_prefix(top_classes[name])
-            return [prefix] if prefix else []
 
-        for name, node in top_classes.items():
-            _walk_envier_class(node, chain_for(name), found)
-    return found
+def _scan_envier_module(module: ast.Module, out: set[str]) -> None:
+    """Emit envier-declared env vars from a parsed module's top-level classes."""
+    includes = _find_includes(module)
+    top_classes = {n.name: n for n in module.body if isinstance(n, ast.ClassDef)}
+    for name, node in top_classes.items():
+        _walk_envier_class(node, _chain_for(name, top_classes, includes), out)
 
 
 def check_registry(data: dict) -> int:
@@ -197,19 +191,27 @@ def check_registry(data: dict) -> int:
     }
 
     missing: set[str] = set()
+    envier_vars: set[str] = set()
 
-    # Broad scan: any quoted string matching DD_*/_DD_*/OTEL_*/DATADOG_* in ddtrace/ Python files.
-    # The generated registry module is skipped to avoid self-referential matches.
+    # Single pass over ddtrace/ Python files: (1) regex-scan the source text for any quoted
+    # DD_*/_DD_*/OTEL_*/DATADOG_* literal, then (2) AST-scan for envier-declared vars whose
+    # full name is built from DDConfig.v/var calls. The generated registry module is skipped
+    # to avoid self-referential matches.
     pattern = re.compile(r'["\']((DD_|_DD_|OTEL_|DATADOG_)[A-Z][A-Z0-9_]*)["\']')
-    exclude = {OUTPUT_FILE.resolve()}
     for path in (REPO_ROOT / "ddtrace").rglob("*.py"):
-        if path.resolve() in exclude:
+        if path == OUTPUT_FILE:
             continue
-        for line in path.read_text(errors="ignore").splitlines():
-            for m in pattern.finditer(line):
-                var = m.group(1)
-                if var not in all_known:
-                    missing.add(var)
+        text = path.read_text(errors="ignore")
+        for m in pattern.finditer(text):
+            var = m.group(1)
+            if var not in all_known:
+                missing.add(var)
+        # ast.parse is expensive; skip files that can't define envier configs.
+        if "DDConfig" in text:
+            try:
+                _scan_envier_module(ast.parse(text), envier_vars)
+            except SyntaxError:
+                pass
 
     # Dynamic vars from PATCH_MODULES: DD_TRACE_{NAME}_ENABLED, DD_{NAME}_SERVICE[_NAME]
     assigns = {
@@ -236,9 +238,7 @@ def check_registry(data: dict) -> int:
             if var not in all_known:
                 missing.add(var)
 
-    # Envier-declared vars: DDConfig.v/var calls don't appear as literal env-var strings,
-    # so we reconstruct them from each class's __prefix__ chain and the key suffix.
-    for var in _scan_envier_vars():
+    for var in envier_vars:
         if var not in all_known:
             missing.add(var)
 
