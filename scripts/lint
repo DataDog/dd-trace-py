@@ -4,14 +4,16 @@ set -euo pipefail
 # shellcheck source=_uv-bootstrap.sh
 source "$(dirname "${BASH_SOURCE[0]}")/_uv-bootstrap.sh"
 
-# Run a tool from the lint dependency-group without installing the project.
-uv_lint() {
-  uv run --only-group lint --python 3.10 "$@"
-}
-
 if ! ensure_uv; then
   exit 1
 fi
+
+export UV_PROJECT_ENVIRONMENT=.venv-lint
+export UV_PYTHON=3.10
+
+uv_lint() {
+  uv run --only-group lint "$@"
+}
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
