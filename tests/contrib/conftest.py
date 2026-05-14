@@ -40,6 +40,15 @@ def export_registry_data_at_end(request):
     registry_manager.cleanup_post_session()
 
 
+@pytest.fixture(autouse=True)
+def reset_agentless_cache():
+    import ddtrace.llmobs._writer as _llmobs_writer
+
+    _llmobs_writer._SHOULD_USE_AGENTLESS = None
+    yield
+    _llmobs_writer._SHOULD_USE_AGENTLESS = None
+
+
 def pytest_sessionfinish(session):
     """Triggers the external registry update process and cleans up session data."""
     # integration registry data was stored in session.config._registry_session_data_file

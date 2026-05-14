@@ -19,6 +19,15 @@ from tests.utils import request_token
 
 
 @pytest.fixture(autouse=True)
+def reset_agentless_cache():
+    import ddtrace.llmobs._writer as _llmobs_writer
+
+    _llmobs_writer._SHOULD_USE_AGENTLESS = None
+    yield
+    _llmobs_writer._SHOULD_USE_AGENTLESS = None
+
+
+@pytest.fixture(autouse=True)
 def vcr_logs(request):
     marks = [m for m in request.node.iter_markers(name="vcr_logs")]
     assert len(marks) < 2
