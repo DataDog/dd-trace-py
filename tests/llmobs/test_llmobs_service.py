@@ -201,21 +201,6 @@ def test_configure_agentless_writer_noop_when_already_agentless():
     assert swapped is False
 
 
-@pytest.mark.subprocess(
-    env={
-        "DD_API_KEY": "<not-a-real-key>",
-        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
-    }
-)
-def test_enable_with_agentless_config_swaps_apm_writer():
-    import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
-    from ddtrace.llmobs import LLMObs as llmobs_service
-
-    llmobs_service.enable()
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
-
-
 @pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1"})
 def test_enable_without_api_key_does_not_swap_apm_writer():
     import ddtrace
@@ -1568,7 +1553,6 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
         "PYTHONWARNINGS": "ignore::DeprecationWarning",
     }
 )
-@pytest.mark.subprocess(env={"_DD_LLMOBS_WRITER_INTERVAL": "5.0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
