@@ -10,6 +10,7 @@ import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import LLMObsExportMode
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import override_env
@@ -270,6 +271,10 @@ def llmobs(
     # TODO: remove once rest of tests are moved off of global config tampering
     with override_global_config(global_config):
         llmobs_service.enable(_tracer=tracer, **llmobs_enable_opts)
+        # Force direct-writer mode: the fixture injects a test span writer and asserts
+        # against its events, so data must go through LLMObsSpanWriter rather than
+        # riding the APM trace.
+        llmobs_service._instance._export_mode = LLMObsExportMode.LLMOBS_DIRECT
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
         llmobs_service._instance._dne_client._intake = llmobs_api_proxy_url

@@ -71,6 +71,7 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ML_APP
@@ -462,11 +463,14 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
-        # Route LLMObs payloads through the agentless APM writer (via meta_struct) when it is
-        # active, unless DD_APM_TRACING_ENABLED=false — in that case APMTracingEnabledFilter drops
-        # every trace before the writer sees it, so the dedicated LLMObs writer must be used.
         apm_tracing_enabled = asbool(_env.get("DD_APM_TRACING_ENABLED", "true"))
-        self._export_directly_to_llmobs = not (apm_tracing_enabled and llmobs_apm_trace_agentless_enabled())
+        if not apm_tracing_enabled:
+            # APMTracingEnabledFilter drops every trace, so the APM path can't carry data.
+            self._export_mode = LLMObsExportMode.LLMOBS_DIRECT
+        elif llmobs_apm_trace_agentless_enabled():
+            self._export_mode = LLMObsExportMode.APM_AGENTLESS
+        else:
+            self._export_mode = LLMObsExportMode.APM_AGENT
         # Test-only: when set, _on_span_finish skips the meta_struct["_llmobs"] scrub
         # so spans captured by tests' DummyWriter retain LLMObsSpanData for assertion.
         # Set by integration test conftests via the _DD_LLMOBS_TEST_KEEP_META_STRUCT env
@@ -539,7 +543,7 @@ class LLMObs(Service):
         if self._evaluator_runner and span_kind == "llm":
             self._evaluator_runner.enqueue(span_event, span)
 
-        if self._export_directly_to_llmobs:
+        if self._export_mode == LLMObsExportMode.LLMOBS_DIRECT:
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
             if not self._test_mode_keep_meta_struct:
@@ -611,14 +615,21 @@ class LLMObs(Service):
             span_kind,
             input_type,
             output_type,
-            self._export_directly_to_llmobs,
+            export_to_llmobs=self._export_mode == LLMObsExportMode.LLMOBS_DIRECT,
         )
-        if not self._export_directly_to_llmobs and LLMOBS_STRUCT.TAGS in llmobs_data:
-            # APM agentless path: APM agentless ingestion interprets dots in tag keys as
-            # nested-path separators, so replace them with underscores before encoding.
-            llmobs_data[LLMOBS_STRUCT.TAGS] = {
-                k.replace(".", "_"): v for k, v in llmobs_data[LLMOBS_STRUCT.TAGS].items()
-            }
+        if self._export_mode != LLMObsExportMode.LLMOBS_DIRECT:
+            # APM path: write error tags into meta_struct.TAGS so the intake has them
+            # alongside meta.error.
+            tags = dict(llmobs_data.get(LLMOBS_STRUCT.TAGS) or {})
+            if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
+                # Agentless APM intake interprets dots in tag keys as nested-path
+                # separators, so replace them with underscores before encoding.
+                tags = {k.replace(".", "_"): v for k, v in tags.items()}
+            tags["error"] = str(span.error)
+            err_type = span.get_tag(ERROR_TYPE)
+            if err_type:
+                tags["error_type"] = err_type
+            llmobs_data[LLMOBS_STRUCT.TAGS] = tags
         span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
         return True
 
@@ -676,13 +687,10 @@ class LLMObs(Service):
 
     def _llmobs_tags(self, span: Span) -> list[str]:
         tags = dict(get_llmobs_tags(span) or {})
-
-        if self._export_directly_to_llmobs:
-            tags["error"] = str(span.error)
-            err_type = span.get_tag(ERROR_TYPE)
-            if err_type:
-                tags["error_type"] = err_type
-
+        tags["error"] = str(span.error)
+        err_type = span.get_tag(ERROR_TYPE)
+        if err_type:
+            tags["error_type"] = err_type
         return sorted("{}:{}".format(k, v) for k, v in tags.items())
 
     def _do_annotations(self, span: Span) -> None:
@@ -865,7 +873,7 @@ class LLMObs(Service):
                 config._llmobs_enabled = True
             # must run after config._llmobs_enabled is set so the reconciliation
             # helper sees the correct state.
-            if llmobs_apm_trace_agentless_enabled():
+            if cls._instance._export_mode == LLMObsExportMode.APM_AGENTLESS:
                 cls._instance._apm_writer_switched_to_agentless = (
                     ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=True)
                 )

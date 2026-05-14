@@ -184,7 +184,8 @@ def test_configure_agentless_writer_swaps_writer():
 
     llmobs_service.enable(agentless_enabled=False)
     assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
-    llmobs_service.enable(agentless_enabled=True)
+    swapped = ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=True)
+    assert swapped is True
     assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
 
 
@@ -232,26 +233,48 @@ def test_enable_without_api_key_does_not_swap_apm_writer():
     env={
         "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
-    }
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    },
+    err=None,
 )
-def test_export_directly_to_llmobs_false_when_agentless():
+def test_export_mode_apm_agentless_when_agentless_enabled():
     from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMObsExportMode
 
     llmobs_service.enable()
-    assert llmobs_service._instance._export_directly_to_llmobs is False
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENTLESS
 
 
 @pytest.mark.subprocess(
     env={
-        "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
-    }
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
+    },
+    err=None,
 )
-def test_export_directly_to_llmobs_true_when_not_agentless():
+def test_export_mode_apm_agent_when_agentless_disabled():
+    """When agentless is explicitly disabled and APM tracing is on, data rides the APM trace via agent."""
     from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMObsExportMode
 
     llmobs_service.enable(agentless_enabled=False)
-    assert llmobs_service._instance._export_directly_to_llmobs is True
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_APM_TRACING_ENABLED": "false",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    },
+    err=None,
+)
+def test_export_mode_llmobs_direct_when_apm_tracing_disabled():
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMObsExportMode
+
+    llmobs_service.enable()
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.LLMOBS_DIRECT
 
 
 def test_service_disable(tracer):
@@ -1137,6 +1160,7 @@ def test_span_error_sets_error(llmobs):
     )
 
 
+
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [dict(version="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
@@ -1156,7 +1180,8 @@ def test_tags(ddtrace_global_config, llmobs, monkeypatch):
         "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "1",
         "DD_LLMOBS_ML_APP": "test-ml-app",
-    }
+    },
+    err=None,
 )
 def test_tag_dot_keys_sanitized_on_agentless_apm_path():
     """APM agentless path: dots in tag keys are replaced with underscores before encoding."""
@@ -1175,20 +1200,19 @@ def test_tag_dot_keys_sanitized_on_agentless_apm_path():
 
 @pytest.mark.subprocess(
     env={
-        "DD_API_KEY": "<not-a-real-key>",
-        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_APM_TRACING_ENABLED": "false",
         "DD_LLMOBS_ML_APP": "test-ml-app",
         "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
     },
     err=None,
 )
 def test_tag_dot_keys_preserved_on_direct_llmobs_path():
-    """Direct LLMObs path: dots in tag keys are not modified."""
+    """LLMOBS_DIRECT path (DD_APM_TRACING_ENABLED=false): dots in tag keys are not modified."""
     from ddtrace.llmobs import LLMObs as llmobs_service
     from ddtrace.llmobs._constants import LLMOBS_STRUCT
     from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 
-    llmobs_service.enable(agentless_enabled=False)
+    llmobs_service.enable()
     with llmobs_service.task(name="test_task") as span:
         pass
     tags = _get_llmobs_data_metastruct(span)[LLMOBS_STRUCT.TAGS]
@@ -1198,15 +1222,14 @@ def test_tag_dot_keys_preserved_on_direct_llmobs_path():
 
 @pytest.mark.subprocess(
     env={
-        "DD_API_KEY": "<not-a-real-key>",
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
         "DD_LLMOBS_ML_APP": "test-ml-app",
         "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
     },
     err=None,
 )
-def test_tag_dot_keys_preserved_on_agent_path():
-    """Agent path (_export_directly_to_llmobs=True): dots in tag keys are not modified."""
+def test_tag_dot_keys_preserved_on_apm_agent_path():
+    """APM_AGENT path: dots in tag keys are not modified (agent handles encoding)."""
     from ddtrace.llmobs import LLMObs as llmobs_service
     from ddtrace.llmobs._constants import LLMOBS_STRUCT
     from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -1539,7 +1562,9 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
         llmobs_service.disable()
 
 
-@pytest.mark.subprocess(env={"_DD_LLMOBS_WRITER_INTERVAL": "5.0"})
+@pytest.mark.subprocess(
+    env={"_DD_LLMOBS_WRITER_INTERVAL": "5.0", "DD_APM_TRACING_ENABLED": "false", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+)
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
@@ -1607,7 +1632,7 @@ def test_llmobs_fork_evaluator_runner_run():
         llmobs_service.disable()
 
 
-@pytest.mark.subprocess(env={"DD_LLMOBS_ENABLED": "0"})
+@pytest.mark.subprocess(env={"DD_LLMOBS_ENABLED": "0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_llmobs_fork_disabled():
     """Test that after being disabled the service remains disabled when forking"""
     import os
@@ -1631,7 +1656,7 @@ def test_llmobs_fork_disabled():
     svc.disable()
 
 
-@pytest.mark.subprocess(env={"DD_LLMOBS_ENABLED": "0"})
+@pytest.mark.subprocess(env={"DD_LLMOBS_ENABLED": "0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_llmobs_fork_disabled_then_enabled():
     """Test that after being initially disabled, the service can be enabled in a fork"""
     import os
