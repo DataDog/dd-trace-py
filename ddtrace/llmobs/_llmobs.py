@@ -470,7 +470,7 @@ class LLMObs(Service):
         elif llmobs_apm_trace_agentless_enabled():
             self._export_mode = LLMObsExportMode.APM_AGENTLESS
         else:
-            self._export_mode = LLMObsExportMode.APM_AGENT
+            self._export_mode = LLMObsExportMode.APM_AGENT_PROXY
         # Test-only: when set, _on_span_finish skips the meta_struct["_llmobs"] scrub
         # so spans captured by tests' DummyWriter retain LLMObsSpanData for assertion.
         # Set by integration test conftests via the _DD_LLMOBS_TEST_KEEP_META_STRUCT env
@@ -544,7 +544,7 @@ class LLMObs(Service):
             self._evaluator_runner.enqueue(span_event, span)
 
         if self._export_mode != LLMObsExportMode.APM_AGENTLESS:
-            # LLMOBS_DIRECT and APM_AGENT both route through the LLMObs span writer
+            # LLMOBS_DIRECT and APM_AGENT_PROXY both route through the LLMObs span writer
             # (direct intake or agent EVP proxy respectively), preserving origin/main behavior.
             # APM_AGENTLESS is the only mode where data rides the APM trace instead.
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")

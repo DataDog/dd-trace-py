@@ -244,7 +244,7 @@ def test_export_mode_apm_agent_when_agentless_disabled():
     from ddtrace.llmobs._constants import LLMObsExportMode
 
     llmobs_service.enable(agentless_enabled=False)
-    assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT_PROXY
 
 
 @pytest.mark.subprocess(
@@ -1213,7 +1213,7 @@ def test_tag_dot_keys_preserved_on_direct_llmobs_path():
     err=None,
 )
 def test_tag_dot_keys_preserved_on_apm_agent_path():
-    """APM_AGENT path: dots in tag keys are not modified (agent handles encoding)."""
+    """APM_AGENT_PROXY path: dots in tag keys are not modified (agent handles encoding)."""
     from ddtrace.llmobs import LLMObs as llmobs_service
     from ddtrace.llmobs._constants import LLMOBS_STRUCT
     from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -1546,13 +1546,7 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
         llmobs_service.disable()
 
 
-@pytest.mark.subprocess(
-    env={
-        "_DD_LLMOBS_WRITER_INTERVAL": "5.0",
-        "DD_APM_TRACING_ENABLED": "false",
-        "PYTHONWARNINGS": "ignore::DeprecationWarning",
-    }
-)
+@pytest.mark.subprocess(env={"_DD_LLMOBS_WRITER_INTERVAL": "5.0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os

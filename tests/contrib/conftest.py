@@ -4,6 +4,8 @@ import sys
 
 import pytest
 
+from tests.llmobs.conftest import reset_agentless_cache  # noqa: F401
+
 
 # Add scripts/ to sys.path so integration_registry package is importable
 _scripts_dir = str(pathlib.Path(__file__).parent.parent.parent / "scripts" / "integration_registry")
@@ -38,9 +40,6 @@ def export_registry_data_at_end(request):
         IntegrationUpdateOrchestrator.export_registry_data(registry_manager.pending_updates, request)
     # Always cleanup after session
     registry_manager.cleanup_post_session()
-
-
-from tests.llmobs.conftest import reset_agentless_cache  # noqa: F401
 
 
 def pytest_sessionfinish(session):
