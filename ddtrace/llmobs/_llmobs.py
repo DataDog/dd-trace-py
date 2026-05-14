@@ -707,6 +707,10 @@ class LLMObs(Service):
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._evaluator_runner = self._evaluator_runner.recreate()
         LLMObs._prompt_manager = None
+        # The tracer's fork handler recreates the writer from existing state, so the child
+        # inherits whatever writer was active. We did not swap it here, so clear the flag to
+        # prevent disable() from incorrectly reverting it in the child process.
+        self._apm_writer_switched_to_agentless = False
         if self.enabled:
             self._start_service()
 
@@ -870,7 +874,7 @@ class LLMObs(Service):
             # helper sees the correct state.
             if cls._instance._export_mode == LLMObsExportMode.APM_AGENTLESS:
                 cls._instance._apm_writer_switched_to_agentless = (
-                    ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=True)
+                    cls._instance.tracer._span_aggregator.configure_agentless_writer(enable=True)
                 )
             cls._instance.start()
 
@@ -1593,7 +1597,7 @@ class LLMObs(Service):
 
         cls._instance.stop()
         if cls._instance._apm_writer_switched_to_agentless:
-            ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=False)
+            cls._instance.tracer._span_aggregator.configure_agentless_writer(enable=False)
         cls.enabled = False
         # Align config._llmobs_enabled with effective state for user-initiated calls.
         # When _auto=True, the caller (RC handler) has already written _rc_value;

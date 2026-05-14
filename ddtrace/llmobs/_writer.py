@@ -156,7 +156,7 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
     global _SHOULD_USE_AGENTLESS
 
     if _SHOULD_USE_AGENTLESS is False:
-        # perf: If a supported agent is found, we don't need to check again. Use the cached value.
+        # perf: Agent with EVP proxy confirmed present; skip the network call on repeat invocations.
         return _SHOULD_USE_AGENTLESS
 
     agent_info: Optional[dict[str, Any]]

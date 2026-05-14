@@ -30,6 +30,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import AgentResponse
+from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import create_trace_writer
 
 
@@ -496,21 +497,37 @@ class SpanAggregator(SpanProcessor):
         """Swap to an :class:`AgentlessTraceWriter` if config now requires agentless and the
         writer isn't already. Returns True when the writer was swapped.
         """
+        # LogWriter is chosen by create_trace_writer regardless of agentless; skip the swap.
+        if isinstance(self.writer, LogWriter):
+            return False
         if enable and isinstance(self.writer, AgentlessTraceWriter):
             return False
         elif not enable and not isinstance(self.writer, AgentlessTraceWriter):
             return False
 
         old_writer = self.writer
-        self.writer = create_trace_writer(response_callback=self._agent_response_callback, agentless=enable)
+        try:
+            self.writer = create_trace_writer(response_callback=self._agent_response_callback, agentless=enable)
+        except Exception:
+            log.error(
+                "Failed to create %s APM trace writer; writer swap aborted.",
+                "agentless" if enable else "agent-based",
+                exc_info=True,
+            )
+            return False
         try:
             old_writer.flush_queue()
         except Exception:
-            log.debug("Failed to flush previous APM trace writer during swap; continuing.", exc_info=True)
+            log.warning(
+                "Failed to flush APM trace writer buffer during agentless swap; buffered spans may be lost.",
+                exc_info=True,
+            )
         try:
             old_writer.stop()
+        except ServiceStatusError:
+            pass  # writer was never started; nothing to stop
         except Exception:
-            log.debug("Failed to stop previous APM trace writer during swap; continuing.", exc_info=True)
+            log.warning("Failed to stop previous APM trace writer during swap.", exc_info=True)
         return True
 
     def reset(
