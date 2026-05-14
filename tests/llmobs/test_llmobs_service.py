@@ -1160,7 +1160,6 @@ def test_span_error_sets_error(llmobs):
     )
 
 
-
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [dict(version="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
@@ -1563,7 +1562,11 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
 
 
 @pytest.mark.subprocess(
-    env={"_DD_LLMOBS_WRITER_INTERVAL": "5.0", "DD_APM_TRACING_ENABLED": "false", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+    env={
+        "_DD_LLMOBS_WRITER_INTERVAL": "5.0",
+        "DD_APM_TRACING_ENABLED": "false",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+    }
 )
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
