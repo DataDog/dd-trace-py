@@ -391,3 +391,4 @@ anyio
 ddsketch
 werkzeug
 wrapt
+uv
