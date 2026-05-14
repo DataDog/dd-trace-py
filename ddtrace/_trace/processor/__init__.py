@@ -494,15 +494,15 @@ class SpanAggregator(SpanProcessor):
             self._span_metrics[metric_name] = defaultdict(int)
 
     def configure_agentless_writer(self, enable: bool) -> bool:
-        """Swap to an :class:`AgentlessTraceWriter` if config now requires agentless and the
-        writer isn't already. Returns True when the writer was swapped.
         """
-        # LogWriter is chosen by create_trace_writer regardless of agentless; skip the swap.
+        Swap the writer to AgentlessTraceWriter if needed. Returns True if a swap occurred, otherwise False.
+        """
         if isinstance(self.writer, LogWriter):
+            # perf: LogWriter is chosen by create_trace_writer regardless of agentless configs; skip the swap early.
             return False
         if enable and isinstance(self.writer, AgentlessTraceWriter):
             return False
-        elif not enable and not isinstance(self.writer, AgentlessTraceWriter):
+        if not enable and not isinstance(self.writer, AgentlessTraceWriter):
             return False
 
         old_writer = self.writer
@@ -517,17 +517,13 @@ class SpanAggregator(SpanProcessor):
             return False
         try:
             old_writer.flush_queue()
-        except Exception:
-            log.warning(
-                "Failed to flush APM trace writer buffer during agentless swap; buffered spans may be lost.",
-                exc_info=True,
-            )
-        try:
             old_writer.stop()
         except ServiceStatusError:
             pass  # writer was never started; nothing to stop
         except Exception:
-            log.warning("Failed to stop previous APM trace writer during swap.", exc_info=True)
+            log.warning(
+                "Failed to flush and stop previous APM trace writer while configuring agentless writer", exc_info=True
+            )
         return True
 
     def reset(
