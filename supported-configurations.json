@@ -4,7 +4,7 @@
     "DATADOG_TAGS": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "array",
         "default": null,
         "internal": true,
         "deprecated": true
@@ -5509,8 +5509,8 @@
     "_DD_APM_TRACING_AGENTLESS_ENABLED": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],
@@ -5525,7 +5525,7 @@
     "_DD_CIVISIBILITY_DISABLE_EVP_PROXY": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "boolean",
         "default": null,
         "internal": true
       }
@@ -5533,47 +5533,47 @@
     "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],
     "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],
     "_DD_CIVISIBILITY_ITR_SUITE_MODE": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "boolean",
+        "default": "true",
         "internal": true
       }
     ],
     "_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "int",
+        "default": "10000",
         "internal": true
       }
     ],
     "_DD_CIVISIBILITY_RESPONSE_CACHE_ENABLED": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],
     "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "boolean",
         "default": null,
         "internal": true
       }
@@ -5597,24 +5597,24 @@
     "_DD_CONFIG_ENDPOINT_RETRIES": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "int",
+        "default": "1",
         "internal": true
       }
     ],
     "_DD_CONFIG_ENDPOINT_TIMEOUT": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "int",
+        "default": "2",
         "internal": true
       }
     ],
     "_DD_COVERAGE_FILE_LEVEL": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],
@@ -5629,15 +5629,15 @@
     "_DD_GLOBAL_TRACER_INIT": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "boolean",
+        "default": "true",
         "internal": true
       }
     ],
     "_DD_IAST_DENY_MODULES": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "array",
         "default": null,
         "internal": true
       }
@@ -5645,23 +5645,23 @@
     "_DD_IAST_LAZY_TAINT": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],
     "_DD_IAST_NO_DIR_PATCH": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],
     "_DD_IAST_PATCH_MODULES": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "array",
         "default": null,
         "internal": true
       }
@@ -5685,8 +5685,8 @@
     "_DD_LLMOBS_EVALUATOR_INTERVAL": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "decimal",
+        "default": "1.0",
         "internal": true
       }
     ],
@@ -5694,31 +5694,31 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null,
+        "default": "llmobs",
         "internal": true
       }
     ],
     "_DD_LLMOBS_TEST_KEEP_META_STRUCT": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],
     "_DD_LLMOBS_WRITER_INTERVAL": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "decimal",
+        "default": "1.0",
         "internal": true
       }
     ],
     "_DD_LLMOBS_WRITER_TIMEOUT": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "decimal",
+        "default": "5.0",
         "internal": true
       }
     ],
@@ -5734,23 +5734,23 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null,
+        "default": "native.log",
         "internal": true
       }
     ],
     "_DD_NATIVE_LOGGING_FILE_ROTATION_LEN": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "int",
+        "default": "1",
         "internal": true
       }
     ],
     "_DD_NATIVE_LOGGING_FILE_SIZE_BYTES": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "int",
+        "default": "4096",
         "internal": true
       }
     ],
@@ -5758,7 +5758,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null,
+        "default": "warning",
         "internal": true
       }
     ],
@@ -5821,15 +5821,15 @@
     "_DD_PY_SSI_INJECT": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],
     "_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "map",
         "default": null,
         "internal": true
       }
@@ -5862,7 +5862,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null,
+        "default": "",
         "internal": true
       }
     ],
@@ -5870,7 +5870,7 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null,
+        "default": "",
         "internal": true
       }
     ],
@@ -5893,7 +5893,7 @@
     "_DD_TEST_FORCE_ENABLE_ATR": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "boolean",
         "default": null,
         "internal": true
       }
@@ -5901,7 +5901,7 @@
     "_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "boolean",
         "default": null,
         "internal": true
       }
@@ -5909,7 +5909,7 @@
     "_DD_TEST_SKIP_QUARANTINED_TESTS": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "boolean",
         "default": null,
         "internal": true
       }
@@ -5917,15 +5917,15 @@
     "_DD_TRACE_STATS_WRITER_INTERVAL": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "decimal",
+        "default": "10.0",
         "internal": true
       }
     ],
     "_DD_TRACE_WRITER_ADDITIONAL_HEADERS": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "map",
         "default": null,
         "internal": true
       }
@@ -5933,16 +5933,16 @@
     "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],
     "_DD_USE_INTERNAL_COVERAGE": [
       {
         "implementation": "A",
-        "type": "string",
-        "default": null,
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ]
