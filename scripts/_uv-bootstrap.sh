@@ -32,9 +32,12 @@ ensure_uv() {
     curl -LsSf https://astral.sh/uv/install.sh | sh
   fi
 
-  if command -v uv >/dev/null 2>&1; then
-    return 0
-  fi
+  for path in "${CANDIDATE_PATHS[@]}"; do
+    if [[ -x "$path/uv" ]]; then
+      export PATH="$path:$PATH"
+      return 0
+    fi
+  done
 
   echo "[uv] ERROR: uv installation failed or not found in PATH."
   return 1
