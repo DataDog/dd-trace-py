@@ -20,6 +20,17 @@ try:
             local_root_span_id = span._local_root.span_id
             local_root_span_type = span._local_root.span_type
             _stack.link_span(span_id, local_root_span_id, local_root_span_type)  # type: ignore # noqa: F405
+        elif isinstance(span, context.Context) and span.span_id is not None:
+            # When the futures integration propagates a parent trace to a worker
+            # thread through tracer._activate_context(), context_provider.activate()
+            # fires with a Context, not a Span. Without this branch the worker
+            # thread would never be linked to any span in the profiler
+            #
+            # A Context carries trace_id + span_id but not local_root_span_id or
+            # span_type, so we use span_id as a best-effort local_root_span_id.
+            # If the worker later creates an explicit child span, that
+            # Span activation will overwrite this entry with the full information.
+            _stack.link_span(span.span_id, span.span_id, None)  # type: ignore # noqa: F405
 
 except Exception as e:
     failure_msg = str(e)
