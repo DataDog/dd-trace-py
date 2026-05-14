@@ -1,9 +1,0 @@
----
-features:
-  - |
-    ai_guard: extend AI Guard evaluation to the OpenAI SDK Responses API
-    (``responses.create`` / ``responses.parse``). Non-streaming requests and
-    responses are evaluated through the configured AI Guard client; streaming
-    requests are not yet evaluated and will be covered in a follow-up release.
-    Evaluation is automatically skipped when a framework integration (LangChain,
-    Strands Agents) is already evaluating the same call.
