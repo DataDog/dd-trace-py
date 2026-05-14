@@ -11,6 +11,7 @@ import pytest
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import patch
 from ddtrace.contrib.internal.aws_durable_execution_sdk_python.patch import unpatch
 from ddtrace.ext import aws_durable
+from tests.utils import override_config
 
 
 SNAPSHOT_IGNORES = [
@@ -229,6 +230,35 @@ def test_persists_trace_context_checkpoint_across_suspend_resume():
     assert tp_parent == expected, (
         f"traceparent parent segment {tp_parent!r} != hex(x-datadog-parent-id) {expected!r} in {headers!r}"
     )
+
+
+def test_cross_invocation_tracing_disabled_skips_checkpoint():
+    """Opt-out path: with ``cross_invocation_tracing=False`` the integration
+    must NOT persist a ``_datadog_*`` checkpoint on suspend.
+
+    Mark-visited is intentionally left always-on (see patch.py), so this
+    test only inspects the writer side.
+    """
+    captured: list[list[str]] = []
+
+    @ades.durable_execution
+    def workflow(event, context):
+        context.wait(Duration.from_seconds(1), name="pause")
+        context.step(lambda _ctx: "ok", name="finish")
+        captured.append(
+            [
+                (getattr(op, "name", None) or "")
+                for op in context.state.operations.values()
+                if (getattr(op, "name", None) or "").startswith("_datadog_")
+            ]
+        )
+
+    with override_config("aws_durable_execution_sdk_python", dict(cross_invocation_tracing=False)):
+        with DurableFunctionTestRunner(workflow) as runner:
+            runner.run()
+
+    assert captured, "workflow never completed an invocation cleanly"
+    assert captured[-1] == [], f"writer disabled but _datadog_* still persisted: {captured[-1]!r}"
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)

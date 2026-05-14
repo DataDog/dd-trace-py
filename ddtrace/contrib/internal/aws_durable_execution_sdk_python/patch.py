@@ -26,16 +26,28 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
 
 
-config._add("aws_durable_execution_sdk_python", {})
+config._add(
+    "aws_durable_execution_sdk_python",
+    dict(
+        # Persist a ``_datadog_*`` checkpoint on suspend so the next invocation
+        # can resume the trace. Opt-out for customers who don't want synthetic
+        # ops appearing in their durable state.
+        cross_invocation_tracing=asbool(
+            _get_config("DD_DURABLE_CROSS_INVOCATION_TRACING_ENABLED", default=True)
+        ),
+    ),
+)
 
 
 # Operations whose direct children should not set a resource.
@@ -113,6 +125,12 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
         # catches up.  Without this, our synthetic ops sit in
         # state.operations as completed-but-unvisited and the SDK never
         # un-suppresses context.logger.
+        #
+        # AIDEV-NOTE: kept always-on (independent of cross_invocation_tracing).
+        # If a customer flips the writer off AFTER previously persisting
+        # _datadog_* ops, those ops are still loaded on resume — skipping the
+        # mark here would pin the SDK into REPLAY forever. The mark is a
+        # no-op when no _datadog_* ops exist (see trace_checkpoint tests).
         state = getattr(durable_context, "state", None)
         if state is not None:
             mark_trace_context_checkpoints_visited(state)
@@ -134,7 +152,7 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
                 ctx.event.suspended = True
                 # Workflow is pausing; another invocation will resume it. This
                 # is the only branch where it's worth persisting trace context.
-                if ctx.span is not None:
+                if ctx.span is not None and config.aws_durable_execution_sdk_python.cross_invocation_tracing:
                     maybe_save_trace_context_checkpoint(durable_context, ctx.span)
                 ctx.dispatch_ended_event()
                 raise
