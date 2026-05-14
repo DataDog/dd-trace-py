@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: Ensures sessions report failed status when attempt-to-fix tests fail, even when the tests are also quarantined or disabled.
