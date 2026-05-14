@@ -87,20 +87,22 @@ class _EncoderBase(object):
         if span.duration_ns:
             d["duration"] = span.duration_ns
 
-        if span._meta:
-            d["meta"] = span._meta
+        _meta = span._get_str_attributes()
+        if _meta:
+            d["meta"] = _meta
 
-        if span._metrics:
-            d["metrics"] = span._metrics
+        _metrics = span._get_numeric_attributes()
+        if _metrics:
+            d["metrics"] = _metrics
 
         if span.span_type:
             d["type"] = span.span_type
 
-        if span._links:
-            d["span_links"] = [link.to_dict() for link in span._links]
+        if span._has_links():
+            d["span_links"] = [link.to_dict() for link in span._get_links()]
 
-        if span._events and agent_config.trace_native_span_events:
-            d["span_events"] = [dict(event) for event in span._events]
+        if span._has_events() and agent_config.trace_native_span_events:
+            d["span_events"] = [dict(event) for event in span._get_events()]
 
         return d
 
@@ -205,7 +207,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
         with self._lock:
             # First span in the list: set compute_stats in meta so intake can compute stats.
             # Root and top-level are normally set by the Agent; set them here for trace views.
-            item[0]._meta["_dd.compute_stats"] = "1"
+            item[0]._set_attribute("_dd.compute_stats", "1")
             encoded_trace = _json_dumps_bytes({"spans": [self._item_to_dict(span) for span in item]})
             item_size = len(encoded_trace)
             if item_size > self.max_item_size:
@@ -233,12 +235,12 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
 
     def _item_to_dict(self, item: "Span") -> dict[str, Any]:
         if not item.parent_id:
-            item._metrics["_trace_root"] = 1
+            item._set_attribute("_trace_root", 1)
         if item._is_top_level:
-            item._metrics["_top_level"] = 1
+            item._set_attribute("_top_level", 1)
 
         span_dict = JSONEncoderV2._convert_span(item)
-        span_dict["meta_struct"] = item._meta_struct
+        span_dict["meta_struct"] = item._get_meta_structs()
         # Intake Requires ids to be in lowercase
         span_dict["trace_id"] = span_dict["trace_id"].lower()
         span_dict["parent_id"] = span_dict["parent_id"].lower()

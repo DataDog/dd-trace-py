@@ -1,63 +1,32 @@
 import atexit
-from contextlib import contextmanager
 from itertools import chain
-import sys
 import threading
 import time
+from typing import TYPE_CHECKING
 from typing import Optional
-from typing import Union
 
-from ray.dashboard.modules.job.common import JobInfo
+
+if TYPE_CHECKING:
+    from ray.dashboard.modules.job.common import JobInfo
 
 from ddtrace import config
 from ddtrace import tracer
-from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import SPAN_KIND
-from ddtrace.ext import SpanKind
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 
 from .constants import DD_PARTIAL_VERSION
 from .constants import DD_WAS_LONG_RUNNING
-from .constants import RAY_COMPONENT
 from .constants import RAY_JOB_MESSAGE
 from .constants import RAY_JOB_STATUS
 from .constants import RAY_STATUS_FAILED
 from .constants import RAY_STATUS_FINISHED
 from .constants import RAY_STATUS_RUNNING
 from .constants import RAY_SUBMISSION_ID_TAG
-from .utils import _inject_ray_span_tags_and_metrics
 
 
 log = get_logger(__name__)
-
-
-@contextmanager
-def long_running_ray_span(
-    span_name: str,
-    service: str,
-    span_type: str,
-    resource: Optional[str] = None,
-    child_of: Optional[Union[Span, Context]] = None,
-    activate: bool = True,
-):
-    """Context manager that handles Ray span creation and long-running span lifecycle"""
-    with tracer.start_span(
-        name=span_name, service=service, resource=resource, span_type=span_type, child_of=child_of, activate=activate
-    ) as span:
-        span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
-        _inject_ray_span_tags_and_metrics(span)
-        start_long_running_span(span)
-
-        try:
-            yield span
-        except BaseException:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            stop_long_running_span(span)
 
 
 class RaySpanManager:
@@ -167,10 +136,11 @@ class RaySpanManager:
             parent_id=job_span.parent_id,
             context=job_span.context,
         )
-        new_span._set_attribute("component", RAY_COMPONENT)
         new_span.start_ns = job_span.start_ns
-        new_span._meta = job_span._meta.copy()
-        new_span._metrics = job_span._metrics.copy()
+        for k, v in job_span._get_str_attributes().items():
+            new_span._set_attribute(k, v)
+        for k, v in job_span._get_numeric_attributes().items():
+            new_span._set_attribute(k, v)
 
         return new_span
 
@@ -187,10 +157,10 @@ class RaySpanManager:
         for span in job_spans:
             self._emit_partial_span(span)
 
-    def _finish_span(self, span: Span, job_info: Optional[JobInfo] = None) -> None:
+    def _finish_span(self, span: Span, job_info: Optional["JobInfo"] = None) -> None:
         # only if span was long running
         if span.get_metric(DD_PARTIAL_VERSION) is not None:
-            del span._metrics[DD_PARTIAL_VERSION]
+            span._remove_attribute(DD_PARTIAL_VERSION)
 
             span._set_attribute(DD_WAS_LONG_RUNNING, 1)
             span._set_attribute(RAY_JOB_STATUS, RAY_STATUS_FINISHED)
@@ -235,7 +205,7 @@ class RaySpanManager:
                 timer.cancel()
             self._job_spans.pop(submission_id, None)
 
-    def stop_long_running_job(self, submission_id: str, job_info: Optional[JobInfo]) -> None:
+    def stop_long_running_job(self, submission_id: str, job_info: Optional["JobInfo"]) -> None:
         with self._lock:
             job_span = self._root_spans[submission_id]
 
@@ -269,7 +239,7 @@ def start_long_running_job(job_span: Span) -> None:
     start_long_running_span(job_span)
 
 
-def stop_long_running_job(submission_id: str, job_info: Optional[JobInfo] = None) -> None:
+def stop_long_running_job(submission_id: str, job_info: Optional["JobInfo"] = None) -> None:
     get_span_manager().stop_long_running_job(submission_id, job_info)
 
 

@@ -15,6 +15,7 @@
 #include "echion/threads.h"
 #include "echion/vm.h"
 
+#include <cstdint>
 #include <cstring>
 #include <mutex>
 #include <pthread.h>
@@ -52,7 +53,10 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
         return 0;
     }
     if (stack_size > 0) {
-        pthread_attr_setstacksize(&attr, stack_size);
+        if (pthread_attr_setstacksize(&attr, stack_size) != 0) {
+            std::cerr << "Failed to set sampling thread stack size (" << stack_size << " bytes): " << strerror(errno)
+                      << std::endl;
+        }
     }
 
     pthread_t thread_id{ 0 };
@@ -73,6 +77,42 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
 #include <mach/mach.h>
 #endif
 
+namespace {
+
+// Returns the CPU time of the calling thread in microseconds, or 0 on error.
+uint64_t
+get_thread_cpu_time_us()
+{
+#if defined(__linux__)
+    struct timespec ts
+    {
+        0, 0
+    };
+
+    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) != 0) {
+        return 0;
+    }
+
+    return static_cast<uint64_t>(ts.tv_sec * 1'000'000ULL + ts.tv_nsec / 1000);
+#elif defined(__MACH__)
+    mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
+    thread_basic_info_data_t info;
+    thread_port_t thread = mach_thread_self();
+    int kr = thread_info(thread, THREAD_BASIC_INFO, reinterpret_cast<thread_info_t>(&info), &count);
+    mach_port_deallocate(mach_task_self(), thread);
+    if (kr != KERN_SUCCESS) {
+        return 0;
+    }
+
+    return static_cast<uint64_t>(info.user_time.seconds + info.system_time.seconds) * 1'000'000ULL +
+           info.user_time.microseconds + info.system_time.microseconds;
+#else
+    return 0;
+#endif
+}
+
+} // namespace
+
 void
 Sampler::adapt_sampling_interval()
 {
@@ -83,10 +123,10 @@ Sampler::adapt_sampling_interval()
     };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
-    auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
+    auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1'000'000ULL + ts.tv_nsec / 1000);
 
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
-    auto new_sampler_thread_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
+    auto new_sampler_thread_count = static_cast<uint64_t>(ts.tv_sec * 1'000'000ULL + ts.tv_nsec / 1000);
 #elif defined(__MACH__)
     // Get the process CPU time
     task_thread_times_info_data_t task_info_data;
@@ -184,6 +224,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
     auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
+        auto sample_capture_cpu_before = get_thread_cpu_time_us();
+
         // Clear ephemeral string table entries (task names, greenlet names) periodically.
         // Safe because strings are copied into StringArena during sample construction.
         auto current_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
@@ -196,32 +238,144 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
-        // Perform the sample
-        for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
-            for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                auto success = thread.sample(*echion, tstate, wall_time_us);
+        // Reset per-cycle asyncio task accumulator before iterating sampled threads
+        echion->reset_asyncio_task_count();
+
+        // When max_threads_per_sample is set, we collect all threads first, then apply
+        // reservoir sampling (Algorithm R) to select a uniform random subset, and only
+        // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
+        if (max_threads_per_sample == 0) {
+            for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+                for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
+                    auto success = thread.sample(*echion, tstate, wall_time_us);
+                    if (success) {
+                        Sample::profile_borrow().stats().increment_sample_count();
+                    }
+                });
+            });
+        } else {
+            thread_candidates.clear();
+
+            for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+                for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
+                    thread_candidates.push_back(*tstate);
+                });
+            });
+
+            // Algorithm R: if we have more threads than the cap, select a uniform random subset.
+            // Selected threads are placed in [0, sample_count). Overflow threads remain in
+            // [sample_count, size) as fallbacks in case a selected thread was unregistered
+            // between collection and sampling.
+            // We use Algorithm R rather than the asymptotically faster Algorithm L because we
+            // already traverse all threads unconditionally above (the CPython thread list is a
+            // linked list, so discovery always costs O(n)). Algorithm L's advantage is skipping
+            // elements to reduce random-number generation, but that only pays off when iteration
+            // itself is expensive — it isn't here. Algorithm R is simpler and sufficient.
+            size_t sample_count = thread_candidates.size();
+            if (sample_count > max_threads_per_sample) {
+                for (size_t i = max_threads_per_sample; i < sample_count; i++) {
+                    std::uniform_int_distribution<size_t> dist(0, i);
+                    size_t j = dist(rng);
+                    if (j < max_threads_per_sample) {
+                        std::swap(thread_candidates[j], thread_candidates[i]);
+                    }
+                }
+                sample_count = max_threads_per_sample;
+            }
+
+            // Apply inverse-probability weighting: each sampled thread represents n/k threads,
+            // so scale wall_time_us up to preserve correct absolute wall-time totals.
+            // Note: If a thread disappears between snapshot collection and sampling, fewer than
+            // sample_count threads are actually sampled. The weight per sample is pre-computed
+            // so the total reported wall time can be slightly under the true value under high
+            // thread churn. This is a rare edge case.
+            const size_t n_total = thread_candidates.size();
+            const microsecond_t effective_wall_time_us =
+              (sample_count < n_total)
+                ? wall_time_us * static_cast<microsecond_t>(n_total) / static_cast<microsecond_t>(sample_count)
+                : wall_time_us;
+
+            size_t fallback_idx = sample_count;
+            for (size_t i = 0; i < sample_count; i++) {
+                // The lock is acquired per iteration rather than for the whole loop so that new
+                // threads can register (which also needs this lock) between stack unwinds. Holding
+                // it for the entire loop would block thread registration for the full sampling cycle.
+                const std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+
+                // The tstate is a snapshot captured earlier, and thread_info_map is re-looked up
+                // here by thread_id. Under extreme thread churn a pthread_t could theoretically
+                // be reused between snapshot collection and this lookup (old thread exits, new
+                // thread registers with same ID), causing the new ThreadInfo to be paired with
+                // the old tstate. This window is a few microseconds and pthread_t reuse within
+                // it is unlikely.
+                auto it = echion->thread_info_map().find(thread_candidates[i].thread_id);
+                if (it == echion->thread_info_map().end()) {
+                    // Thread was unregistered; try to fill from overflow
+                    for (; fallback_idx < thread_candidates.size(); ++fallback_idx) {
+                        auto fb_it = echion->thread_info_map().find(thread_candidates[fallback_idx].thread_id);
+                        if (fb_it != echion->thread_info_map().end()) {
+                            thread_candidates[i] = thread_candidates[fallback_idx];
+                            it = fb_it;
+                            // Advance so this candidate isn't reused on the next fallback search
+                            fallback_idx++;
+                            break;
+                        }
+                    }
+                    if (it == echion->thread_info_map().end()) {
+                        continue;
+                    }
+                }
+                auto success = it->second->sample(*echion, &thread_candidates[i], effective_wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
-            });
-        });
-
-        Sample::profile_borrow().stats().increment_sampling_event_count();
-        Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
-        Sample::profile_borrow().stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
-        Sample::profile_borrow().stats().set_fast_copy_memory_enabled(fast_copy_active);
-
-        // Drain copy_memory errors accumulated since the last sampling cycle into ProfilerStats
-        auto copy_errors = g_copy_memory_error_count.exchange(0, std::memory_order_relaxed);
-        if (copy_errors > 0) {
-            Sample::profile_borrow().stats().add_copy_memory_error_count(copy_errors);
+            }
         }
+
+        // Collect greenlet count before acquiring the profile lock to avoid
+        // holding two locks simultaneously (greenlet lock then profile lock).
+        size_t greenlet_count;
+        {
+            const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
+            greenlet_count = echion->greenlet_info_map().size();
+        }
+
+        // Drain copy_memory errors accumulated since the last sampling cycle.
+        auto copy_errors = g_copy_memory_error_count.exchange(0, std::memory_order_relaxed);
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
             if (sample_time_now - interval_adjust_time_prev > microseconds(g_adaptive_sampling_interval_us)) {
                 adapt_sampling_interval();
                 interval_adjust_time_prev = sample_time_now;
+            }
+        }
+
+        // Measure CPU time before acquiring the profile lock so lock-wait time is
+        // not counted as sampling overhead.
+        auto sample_capture_cpu_after = get_thread_cpu_time_us();
+
+        // Update all end-of-cycle stats under a single borrow so they always land in
+        // the same upload window as the samples they describe. Without this, the uploader
+        // could swap cur_profiler_stats between two separate borrow calls, silently
+        // shifting some counters (including sample_capture_cpu_time_us) into the next window.
+        {
+            auto borrow = Sample::profile_borrow();
+
+            borrow.stats().increment_sampling_event_count();
+            borrow.stats().set_string_table_count(echion->string_table().size());
+            borrow.stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
+            borrow.stats().set_fast_copy_memory_enabled(fast_copy_active);
+            borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
+            borrow.stats().set_greenlet_count(greenlet_count);
+
+            if (copy_errors > 0) {
+                borrow.stats().add_copy_memory_error_count(copy_errors);
+            }
+
+            size_t cpu_diff = sample_capture_cpu_after - sample_capture_cpu_before;
+            if (cpu_diff > 0) {
+                borrow.stats().add_sample_capture_cpu_time_us(cpu_diff);
             }
         }
 
@@ -314,13 +468,39 @@ Sampler::postfork_child()
 }
 
 void
+Sampler::prefork()
+{
+    was_running_at_fork_ = thread_seq_num.load() & 1;
+}
+
+void
+Sampler::postfork_parent()
+{
+    // The parent's sampling thread survives the fork unchanged; no restart needed.
+    // Calling start() here would launch a second thread, corrupt the thread_seq_num
+    // parity invariant used by prefork(), and cause a data race on EchionSampler state.
+}
+
+void
 Sampler::restart_after_fork()
 {
     // Restart the sampler if it was running before fork.
-    // Odd thread_seq_num means the sampler was started and not stopped.
-    if (thread_seq_num.load() & 1) {
+    // We use the saved flag because prefork changed the thread_seq_num parity.
+    if (was_running_at_fork_) {
         start();
     }
+}
+
+static void
+stack_atfork_prepare()
+{
+    Sampler::get().prefork();
+}
+
+static void
+stack_atfork_parent()
+{
+    Sampler::get().postfork_parent();
 }
 
 static void
@@ -359,7 +539,14 @@ Sampler::one_time_setup()
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
     stack_postfork_cleanup();
-    pthread_atfork(nullptr, nullptr, stack_atfork_child);
+
+    // ProfilerState::start registers
+    // dd_wrapper's pthread_atfork handler before Sampler::start is called,
+    // so the POSIX FIFO child-handler ordering guarantees dd_wrapper's
+    // postfork_child runs first — rebuilding the Profiles Dictionary before the
+    // sampling thread restarts and calls intern_string.
+    // More details in https://github.com/DataDog/dd-trace-py/pull/17183
+    pthread_atfork(stack_atfork_prepare, stack_atfork_parent, stack_atfork_child);
 }
 
 void

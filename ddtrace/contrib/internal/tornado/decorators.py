@@ -1,6 +1,7 @@
 import sys
 
 from ddtrace import config
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.internal.constants import COMPONENT
 
 from .constants import FUTURE_SPAN_KEY
@@ -57,7 +58,8 @@ def wrap_executor(tracer, fn, args, kwargs, span_name, service=None, resource=No
     span is attached to the returned ``Future`` and a callback is set
     so that it will close the span when the ``Future`` is done.
     """
-    span = tracer.trace(span_name, service=service, resource=resource, span_type=span_type)
+    span = tracer.trace(span_name, resource=resource, span_type=span_type)
+    set_service_and_source(span, service, config.tornado)
 
     span._set_attribute(COMPONENT, config.tornado.integration_name)
 

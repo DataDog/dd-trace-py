@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 /* Shared line table parsing for profiling.
  *
  * Provides allocation-free, GIL-free line number resolution from
@@ -24,20 +26,33 @@ read_varint(const unsigned char* table, Py_ssize_t len, Py_ssize_t* i)
     Py_ssize_t guard = len - 1;
     if (*i >= guard)
         return 0;
-    int val = table[++*i] & 63;
-    int shift = 0;
+
+    uint32_t val = table[++*i] & 63;
+    uint32_t shift = 0;
     while (*i < guard && table[*i] & 64) {
         shift += 6;
-        val |= (table[++*i] & 63) << shift;
+
+        if (shift >= 32) {
+            // Guard against UB from over-large shift on malformed input;
+            // advance `i` past remaining continuation bytes to leave it in a
+            // consistent state, even though callers don't rely on the value of
+            // i or reuse it
+            for (; *i < guard && table[*i] & 64; ++*i)
+                ;
+
+            return 0;
+        }
+
+        val |= static_cast<uint32_t>(table[++*i] & 63) << shift;
     }
-    return val;
+    return static_cast<int>(val);
 }
 
 inline int
 read_signed_varint(const unsigned char* table, Py_ssize_t len, Py_ssize_t* i)
 {
-    int val = read_varint(table, len, i);
-    return (val & 1) ? -(val >> 1) : (val >> 1);
+    uint32_t val = static_cast<uint32_t>(read_varint(table, len, i));
+    return (val & 1) ? -static_cast<int>(val >> 1) : static_cast<int>(val >> 1);
 }
 
 #endif /* PY_VERSION_HEX >= 0x030b0000 */

@@ -1,5 +1,7 @@
 from collections import Counter
 import os
+from pathlib import Path
+import signal
 import subprocess
 import sys
 import time
@@ -34,10 +36,8 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
     def tearDown(self):
         super(CeleryIntegrationTask, self).tearDown()
-        if os.path.isfile("celerybeat-schedule.dir"):
-            os.remove("celerybeat-schedule.bak")
-            os.remove("celerybeat-schedule.dat")
-            os.remove("celerybeat-schedule.dir")
+        for file_path in ("celerybeat-schedule.bak", "celerybeat-schedule.dat", "celerybeat-schedule.dir"):
+            Path(file_path).unlink(missing_ok=True)
 
     def test_concurrent_delays(self):
         # it should create one trace for each delayed execution
@@ -816,13 +816,26 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             celery_proc = subprocess.Popen(
                 ["ddtrace-run", "celery", "--app=tests.contrib.celery.tasks", "worker", "--beat", "--loglevel=info"],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
             )
             sleep(5)
             celery_proc.terminate()
-            output, _ = celery_proc.communicate(timeout=10)
+            try:
+                output, stderr = celery_proc.communicate(timeout=60)
+            except subprocess.TimeoutExpired:
+                os.killpg(celery_proc.pid, signal.SIGKILL)
+                output, stderr = celery_proc.communicate()
+                print(
+                    "WARNING: celery beat process did not terminate within 60s.\n"
+                    f"stdout: {output!r}\nstderr: {stderr!r}",
+                    file=sys.stderr,
+                )
             # Check for panics in the output
-            assert b"panic" not in output.lower(), f"Found panic in celery beat output:\n{output}"
+            full_output = output + stderr
+            assert b"panic" not in full_output.lower(), (
+                f"Found panic in celery beat output:\nstdout:\n{output}\nstderr:\n{stderr}"
+            )
 
 
 @pytest.mark.parametrize("distributed_tracing_enabled", [True, False])

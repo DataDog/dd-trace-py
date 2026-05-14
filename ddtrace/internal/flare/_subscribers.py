@@ -31,6 +31,7 @@ def _process_payloads(flare: Flare, state: TracerFlareState, payloads: t.Sequenc
     for payload in payloads:
         if payload.metadata is None:
             log.debug("Flare: flare payload missing metadata, path=%r", payload.path)
+            continue
         elif isinstance(payload.metadata.id, str) and payload.metadata.id.lower() == "configuration_order":
             continue
 
@@ -73,8 +74,10 @@ def _process_payloads(flare: Flare, state: TracerFlareState, payloads: t.Sequenc
                 flare.clean_up_files()
                 state.current_request_start = None
             else:
-                log.warning(
-                    "Flare: received unexpected product type for tracer flare: %s. Case ID: %r. Skipping...",
+                # none_action is expected when the payload is not relevant to us
+                # (e.g. configuration_order for AGENT_CONFIG, wrong task_type for AGENT_TASK)
+                log.debug(
+                    "Flare: skipping non-actionable payload for product %s. Case ID: %r.",
                     product_type,
                     flare_action.case_id,
                 )

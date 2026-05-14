@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: A rare crash that could occur post-fork in fork-based applications has been fixed.

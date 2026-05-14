@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    telemetry: This fix resolves an issue where unhandled exceptions raised by
+    ``importlib.metadata`` during interpreter shutdown (for example, when Gunicorn
+    workers exit uncleanly after a failed startup) caused ``update_imported_dependencies``
+    to surface errors through ``sys.excepthook``. Failures while discovering
+    dependencies for the ``app-dependencies-loaded`` telemetry payload are now
+    logged at debug level and swallowed so they no longer propagate out of the
+    dependency-reporting path.

@@ -91,6 +91,42 @@ def test_coverage_multiprocessing_coverage_stopped():
 
 
 @pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
+def test_coverage_multiprocessing_no_lines_after_stop():
+    """When coverage is stopped before join(), child lines must not leak into the parent collector."""
+    import multiprocessing
+
+    if __name__ == "__main__":
+        import os
+        from pathlib import Path
+
+        multiprocessing.set_start_method(os.environ["start_method"], force=True)
+
+        from ddtrace.internal.coverage.code import ModuleCodeCollector
+        from ddtrace.internal.coverage.installer import install
+
+        cwd = os.getcwd()
+        include_paths = [Path(cwd) / "tests/coverage/included_path/"]
+        install(include_paths=include_paths)
+
+        ModuleCodeCollector.start_coverage()
+        from tests.coverage.included_path.callee import called_in_session_main
+
+        process = multiprocessing.Process(target=called_in_session_main, args=(1, 2))
+        process.start()
+        ModuleCodeCollector.stop_coverage()
+        process.join()
+
+        # After stop_coverage(), child data should not be absorbed.
+        # Check that no extra lines were injected from the child process.
+        # Use an absolute path — instance.lines keys come from code.co_filename.
+        instance = ModuleCodeCollector._instance
+        child_only_file = str(Path(cwd) / "tests/coverage/included_path/lib.py")
+        assert child_only_file not in instance.lines, (
+            f"Child lines leaked into parent after stop_coverage(): {dict(instance.lines)}"
+        )
+
+
+@pytest.mark.subprocess(parametrize={"start_method": ["fork", "forkserver", "spawn"]})
 def test_coverage_multiprocessing_session():
     import multiprocessing
 

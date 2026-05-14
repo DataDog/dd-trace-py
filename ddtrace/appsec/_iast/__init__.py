@@ -199,6 +199,7 @@ def enable_iast_propagation():
         from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
         from ddtrace.appsec._iast._loader import _exec_iast_patched_module
         from ddtrace.appsec._iast._taint_tracking import initialize_native_state
+        from ddtrace.appsec._shared._stacktrace import get_info_frame  # noqa: F401
 
         global _iast_propagation_enabled
         if _iast_propagation_enabled:

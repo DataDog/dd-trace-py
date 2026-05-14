@@ -9,18 +9,21 @@
     "type": "",
     "error": 0,
     "meta": {
+      "_dd.llmobs.span_kind": "workflow",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "692ef60900000000",
+      "_dd.p.tid": "69f4c23e00000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.langchain",
       "language": "python",
-      "runtime-id": "a68883ab67584c508d0af032620ec63f"
+      "runtime-id": "3debb88a7ed046bdb1fc7200cd9b8f55"
     },
     "metrics": {
+      "_dd.llmobs.enabled": 0.0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 12707.0
+      "process_id": 41082.0
     },
-    "duration": 1230000,
-    "start": 1764685321990158000
+    "duration": 1096500,
+    "start": 1777648190251992254
   }]]

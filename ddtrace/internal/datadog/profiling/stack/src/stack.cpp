@@ -5,6 +5,7 @@
 #include "thread_span_links.hpp"
 
 #include "echion/echion_sampler.h"
+#include "echion/vm.h"
 
 using namespace Datadog;
 
@@ -252,6 +253,20 @@ stack_set_max_sampling_period(PyObject* Py_UNUSED(self), PyObject* args)
     }
 
     Sampler::get().set_max_sampling_period(max_interval_us);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_max_threads(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned int max_threads;
+
+    if (!PyArg_ParseTuple(args, "I", &max_threads)) {
+        return NULL;
+    }
+
+    Sampler::get().set_max_threads_per_sample(max_threads);
 
     Py_RETURN_NONE;
 }
@@ -666,6 +681,37 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     Py_RETURN_NONE;
 }
 
+static PyObject*
+stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    int enabled = 1;
+
+    if (!PyArg_ParseTuple(args, "|p", &enabled)) {
+        return NULL;
+    }
+
+    if (Sampler::get().is_running()) {
+        PyErr_SetString(PyExc_RuntimeError, "set_fast_copy must be called before the sampler is started");
+        return NULL;
+    }
+
+    set_fast_copy_enabled(static_cast<bool>(enabled));
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+// process_vm_readv is always available on macOS
+#if defined PL_LINUX
+    if (failed_safe_copy) {
+        Py_RETURN_TRUE;
+    }
+#endif
+    Py_RETURN_FALSE;
+}
+
 static PyMethodDef stack_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_stop, METH_VARARGS, "Stop the sampler" },
@@ -696,7 +742,14 @@ static PyMethodDef stack_methods[] = {
       stack_set_max_sampling_period,
       METH_VARARGS,
       "Set max sampling period for adaptive sampling" },
+    { "set_max_threads", stack_set_max_threads, METH_VARARGS, "Set max threads to sample per cycle (0 = unlimited)" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
+    // Memory copy strategy
+    { "set_fast_copy", stack_set_fast_copy, METH_VARARGS, "Enable or disable fast memory copying (safe_memcpy)" },
+    { "is_safe_copy_failed",
+      stack_is_safe_copy_failed,
+      METH_NOARGS,
+      "Check if all safe copy methods failed to initialize" },
     // Native call monitoring
     { "start_native_monitoring",
       start_native_monitoring,

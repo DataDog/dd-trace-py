@@ -163,10 +163,10 @@ async def test_google_genai_generate_content_async_stream_error(
         ("qodo-7b", "qodo", "qodo-7b"),
         ("mars-7b", "camb.ai", "mars-7b"),
         # edge cases
-        ("weird_directory/unknown-model", "custom", "unknown-model"),
-        ("", "custom", "custom"),
-        ("just-a-slash/", "custom", "custom"),
-        ("multiple/slashes/in/path/model-name", "custom", "model-name"),
+        ("weird_directory/unknown-model", "unknown", "unknown-model"),
+        ("", "unknown", "unknown"),
+        ("just-a-slash/", "unknown", "unknown"),
+        ("multiple/slashes/in/path/model-name", "unknown", "model-name"),
     ],
 )
 def test_extract_provider_and_model_name(model_name, expected_provider, expected_model):

@@ -20,6 +20,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -130,9 +131,9 @@ def _traced_parse(func, args, kwargs):
     # be a top level span. Therefore we must explicitly set the service name.
     with tracer.trace(
         name="graphql.parse",
-        service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
+        set_service_and_source(span, trace_utils.int_service(pin, config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         span._set_attribute(_GRAPHQL_SOURCE, source_str)
@@ -150,9 +151,9 @@ def _traced_validate(func, args, kwargs):
     # be a top level span. Therefore we must explicitly set the service name.
     with tracer.trace(
         name="graphql.validate",
-        service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
+        set_service_and_source(span, trace_utils.int_service(pin, config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         span._set_attribute(_GRAPHQL_SOURCE, source_str)
@@ -180,9 +181,9 @@ def _traced_execute(func, args, kwargs):
     with tracer.trace(
         name="graphql.execute",
         resource=source_str or None,
-        service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
+        set_service_and_source(span, trace_utils.int_service(pin, config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
@@ -209,9 +210,9 @@ def _traced_query(func, args, kwargs):
     with tracer.trace(
         name=schematize_url_operation("graphql.request", protocol="graphql", direction=SpanDirection.INBOUND),
         resource=resource or None,
-        service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
+        set_service_and_source(span, trace_utils.int_service(pin, config.graphql), config.graphql)
         span._set_attribute(COMPONENT, config.graphql.integration_name)
 
         # mark span as measured and set sample rate

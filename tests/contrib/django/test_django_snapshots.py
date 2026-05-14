@@ -16,7 +16,7 @@ from tests.webclient import Client
 SERVER_PORT = 8000
 # these tests behave nondeterministically with respect to rate limiting, which can cause the sampling decision to flap
 # FIXME: db.name behaves unreliably for some of these tests
-SNAPSHOT_IGNORES = ["metrics._sampling_priority_v1", "meta.db.name"]
+SNAPSHOT_IGNORES = ["metrics._sampling_priority_v1", "meta.db.name", "meta._dd.svc_src"]
 
 FILE_PATH = Path(__file__).resolve().parent
 

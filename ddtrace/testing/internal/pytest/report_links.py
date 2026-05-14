@@ -1,7 +1,7 @@
-import os
 import re
 from urllib.parse import quote
 
+from ddtrace.internal.settings import env as _env
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.git import GitTag
 
@@ -14,7 +14,7 @@ SAFE_FOR_QUERY = re.compile(r"\A[A-Za-z0-9._-]+\Z")
 
 def print_test_report_links(terminalreporter, session_manager):
     base_url = _get_base_url(
-        dd_site=os.getenv("DD_SITE", DEFAULT_DATADOG_SITE), dd_subdomain=os.getenv("DD_SUBDOMAIN", "")
+        dd_site=_env.get("DD_SITE", DEFAULT_DATADOG_SITE), dd_subdomain=_env.get("DD_SUBDOMAIN", "")
     )
     ci_tags = session_manager.env_tags
     service = session_manager.service

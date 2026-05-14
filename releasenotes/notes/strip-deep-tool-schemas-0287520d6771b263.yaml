@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where deeply nested tool schemas in Anthropic and OpenAI
+    integrations were not yet supported. The Anthropic and OpenAI integrations 
+    now check each tool's schema depth at extraction time. If a tool's schema exceeds the maximum allowed
+    depth, the schema is truncated.

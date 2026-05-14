@@ -197,8 +197,30 @@ class _ChatCompletionHook(_BaseCompletionHook):
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createChatCompletion"
 
+    @staticmethod
+    def _materialize_message_content(kwargs):
+        """Materialize any iterable message content fields to lists before the OpenAI SDK
+        consumes them, so that our post-call tag extraction can still read the content.
+        """
+        for message in kwargs.get("messages", []):
+            content = _get_attr(message, "content", None)
+            if content is None or isinstance(content, (str, list)):
+                continue
+            try:
+                materialized = list(content)
+            except (TypeError, StopIteration):
+                continue
+            if isinstance(message, dict):
+                message["content"] = materialized
+            else:
+                try:
+                    message.content = materialized
+                except (AttributeError, TypeError):
+                    pass
+
     def _record_request(self, pin, integration, instance, span, args, kwargs):
         super()._record_request(pin, integration, instance, span, args, kwargs)
+        self._materialize_message_content(kwargs)
         if parse_version(OPENAI_VERSION) >= (1, 26) and kwargs.get("stream"):
             stream_options = kwargs.get("stream_options", {})
             if not isinstance(stream_options, dict):

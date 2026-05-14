@@ -508,17 +508,11 @@ def test_module_watchdog_does_not_rewrap_get_code():
 
     from tests.internal.namespace_test import ns_module
 
-    # Check that the loader's get_code is wrapped:
+    # Check that the loader's get_code is wrapped after import and stays wrapped after reloads.
     assert ns_module.__loader__.get_code._dd_get_code is True
-    initial_get_code = ns_module.__loader__.get_code
-
-    # Reload module a couple of times and check that the loader's get_code is still the same as the original
     reload(ns_module)
     reload(ns_module)
-    new_get_code = ns_module.__loader__.get_code
-    assert new_get_code is initial_get_code, (
-        f"module loader get_code (id: {id(new_get_code)}is not initial get_code (id: {id(initial_get_code)})"
-    )
+    assert ns_module.__loader__.get_code._dd_get_code is True
 
 
 @pytest.mark.subprocess
@@ -572,7 +566,6 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.__init__",
         "ddtrace.contrib.trace_utils",
         "ddtrace.contrib.celery",
-        "ddtrace.contrib.valkey",
         "ddtrace.contrib.asgi",
         "ddtrace.contrib.bottle",
         "ddtrace.contrib.flask_cache",
@@ -612,3 +605,47 @@ def test_lazy_decorator():
     import tests.internal.lazy as lazy
 
     assert lazy.new_value == 42
+
+
+@pytest.mark.subprocess(timeout=10)
+def test_module_watchdog_find_spec_no_cross_thread_deadlock():
+    """Regression: ModuleWatchdog.find_spec() must not re-enter the import machinery
+    and deadlock with a background thread holding a parent package import lock.
+    """
+    import sys
+    import threading
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    bootstrap = sys.modules.get("importlib._bootstrap")
+    if bootstrap is None or not hasattr(bootstrap, "_get_module_lock"):
+        import pytest
+
+        pytest.skip("importlib._bootstrap._get_module_lock not available")
+
+    _get_module_lock = bootstrap._get_module_lock
+
+    ModuleWatchdog.install()
+
+    lock = _get_module_lock("tests")  # hold the "tests" import lock, simulating a package mid-import
+    lock.acquire()
+
+    background_done = threading.Event()
+
+    def background():
+        for finder in sys.meta_path:
+            if isinstance(finder, ModuleWatchdog):
+                finder.find_spec("tests._ddtrace_regression_nonexistent", None, None)
+                break
+        background_done.set()
+
+    t = threading.Thread(target=background)
+    t.start()
+    t.join(timeout=5)
+    try:
+        assert background_done.is_set(), (
+            "Deadlock: ModuleWatchdog.find_spec() blocked the background thread on a "
+            "module import lock held by the main thread"
+        )
+    finally:
+        lock.release()

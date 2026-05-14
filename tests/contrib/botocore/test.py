@@ -63,6 +63,7 @@ snapshot_ignores = [
     "meta.aws.response.body.HTTPHeaders.x-amzn-requestid",
     "meta.error.stack",
     "meta.aws.response.body.HTTPHeaders.x-amz-crc32",
+    "metrics.retry_attempts",
 ]
 
 
@@ -278,7 +279,7 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.operation") == "PutItem"
         # Since the dynamodb_primary_key_names_for_tables isn't configured, we
         # cannot create span pointers for this item.
-        assert not span._links
+        assert not span._get_links()
 
     @mock_dynamodb
     def test_dynamodb_put_get_with_table_primary_key_mapping(self):
@@ -326,14 +327,20 @@ class BotocoreTest(TracerTestCase):
         # This span pointer is only available if the
         # dynamodb_primary_key_names_for_tables is properly configured with the
         # table and its primary key field names.
-        assert span._links == [
-            SpanLink._SpanPointer(
-                pointer_kind="aws.dynamodb.item",
-                pointer_direction=_SpanPointerDirection.DOWNSTREAM,
-                # We have more detailed tests for the hashing behavior
-                # elsewhere. Here we just want to make sure that the pointer is
-                # correctly attached to the span.
-                pointer_hash="de960284e8cba01c46f87b102ab1c9cb",
+        assert span._get_links() == [
+            SpanLink(
+                trace_id=0,
+                span_id=0,
+                attributes={
+                    "link.kind": "span-pointer",
+                    "ptr.kind": "aws.dynamodb.item",
+                    "ptr.dir": _SpanPointerDirection.DOWNSTREAM.value,
+                    # We have more detailed tests for the hashing behavior
+                    # elsewhere. Here we just want to make sure that the pointer is
+                    # correctly attached to the span.
+                    "ptr.hash": "de960284e8cba01c46f87b102ab1c9cb",
+                },
+                _skip_validation=True,
             ),
         ]
 
@@ -383,7 +390,7 @@ class BotocoreTest(TracerTestCase):
         # The rest of the logic should have worked but since the config is
         # malformed with unexpectedly three key attributes, we cannot actually
         # create the span pointers.
-        assert not span._links
+        assert not span._get_links()
 
     @mock_s3
     def test_s3_client(self):
@@ -404,7 +411,7 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "aws.s3"
         assert span.resource == "s3.listbuckets"
 
-        assert not span._links, "no links, i.e. no span pointers"
+        assert not span._get_links(), "no links, i.e. no span pointers"
 
         # testing for span error
         self.reset()
@@ -511,14 +518,20 @@ class BotocoreTest(TracerTestCase):
         assert span.get_tag("aws.s3.bucket_name") == "mybucket"
         assert span.get_tag("bucketname") == "mybucket"
 
-        assert span._links == [
-            SpanLink._SpanPointer(
-                pointer_kind="aws.s3.object",
-                pointer_direction=_SpanPointerDirection.DOWNSTREAM,
-                # We have more detailed tests for the hashing behavior
-                # elsewhere. Here we just want to make sure that the pointer is
-                # correctly attached to the span.
-                pointer_hash="def44fdefcd83bc907515567dc742be1",
+        assert span._get_links() == [
+            SpanLink(
+                trace_id=0,
+                span_id=0,
+                attributes={
+                    "link.kind": "span-pointer",
+                    "ptr.kind": "aws.s3.object",
+                    "ptr.dir": _SpanPointerDirection.DOWNSTREAM.value,
+                    # We have more detailed tests for the hashing behavior
+                    # elsewhere. Here we just want to make sure that the pointer is
+                    # correctly attached to the span.
+                    "ptr.hash": "def44fdefcd83bc907515567dc742be1",
+                },
+                _skip_validation=True,
             ),
         ]
 
@@ -529,7 +542,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.s3.bucket_name") == "mybucket"
             assert span.get_tag("bucketname") == "mybucket"
 
-            assert span._links == []
+            assert span._get_links() == []
 
     @mock_s3
     def test_s3_put_no_params(self):
@@ -543,14 +556,20 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("component") == "botocore"
 
             # We still create the link since we're hashing the parameter data.
-            assert span._links == [
-                SpanLink._SpanPointer(
-                    pointer_kind="aws.s3.object",
-                    pointer_direction=_SpanPointerDirection.DOWNSTREAM,
-                    # We have more detailed tests for the hashing behavior
-                    # elsewhere. Here we just want to make sure that the pointer is
-                    # correctly attached to the span.
-                    pointer_hash="def44fdefcd83bc907515567dc742be1",
+            assert span._get_links() == [
+                SpanLink(
+                    trace_id=0,
+                    span_id=0,
+                    attributes={
+                        "link.kind": "span-pointer",
+                        "ptr.kind": "aws.s3.object",
+                        "ptr.dir": _SpanPointerDirection.DOWNSTREAM.value,
+                        # We have more detailed tests for the hashing behavior
+                        # elsewhere. Here we just want to make sure that the pointer is
+                        # correctly attached to the span.
+                        "ptr.hash": "def44fdefcd83bc907515567dc742be1",
+                    },
+                    _skip_validation=True,
                 ),
             ]
 
@@ -3292,7 +3311,7 @@ class BotocoreTest(TracerTestCase):
             assert span.service == "aws.s3"
             assert span.resource == "s3.listbuckets"
 
-            assert not span._links, "no links, i.e. no span pointers"
+            assert not span._get_links(), "no links, i.e. no span pointers"
 
             # testing for span error
             self.reset()
@@ -3359,7 +3378,7 @@ class BotocoreTest(TracerTestCase):
             assert span.get_tag("aws.operation") == "PutItem"
             # Since the dynamodb_primary_key_names_for_tables isn't configured, we
             # cannot create span pointers for this item.
-            assert not span._links
+            assert not span._get_links()
 
     @pytest.mark.skip(reason="broken during period of skipping on main branch")
     @pytest.mark.snapshot(ignores=snapshot_ignores)

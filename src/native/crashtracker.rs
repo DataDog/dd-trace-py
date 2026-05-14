@@ -1,11 +1,8 @@
-use anyhow;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
 use std::time::Duration;
 
-use libdd_common::Endpoint;
 use libdd_crashtracker::{
     register_runtime_frame_callback, register_runtime_stacktrace_string_callback,
     CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
@@ -33,6 +30,7 @@ pub trait RustWrapper {
 #[pyclass(
     eq,
     eq_int,
+    from_py_object,
     name = "StacktraceCollection",
     module = "datadog.internal._native"
 )]
@@ -60,6 +58,7 @@ impl From<StacktraceCollectionPy> for StacktraceCollection {
 }
 
 #[pyclass(
+    skip_from_py_object,
     name = "CrashtrackerConfiguration",
     module = "datadog.internal._native"
 )]
@@ -68,47 +67,56 @@ pub struct CrashtrackerConfigurationPy {
     config: Option<CrashtrackerConfiguration>,
 }
 
-// additional_files: Vec<String>,
-// create_alt_stack: bool,
-// use_alt_stack: bool,
-// endpoint: Option<Endpoint>,
-// resolve_frames: StacktraceCollection,
-// mut signals: Vec<i32>,
-// timeout_ms: u32,
-// unix_socket_path: Option<String>,
-
 #[pymethods]
 impl CrashtrackerConfigurationPy {
     #[new]
-    #[pyo3(signature = (additional_files, create_alt_stack, use_alt_stack, timeout_ms, resolve_frames, endpoint=None, unix_socket_path=None, test_token=None))]
+    #[pyo3(signature = (
+        additional_files,
+        create_alt_stack,
+        use_alt_stack,
+        timeout_ms,
+        resolve_frames,
+        collect_all_threads,
+        max_threads,
+        endpoint=None,
+        unix_socket_path=None,
+        test_token=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         additional_files: Vec<String>,
         create_alt_stack: bool,
         use_alt_stack: bool,
         timeout_ms: u64,
         resolve_frames: StacktraceCollectionPy,
+        collect_all_threads: bool,
+        max_threads: usize,
         endpoint: Option<&str>,
         unix_socket_path: Option<String>,
         test_token: Option<String>,
     ) -> anyhow::Result<Self> {
         let resolve_frames: StacktraceCollection = resolve_frames.into();
-        let mut endpoint = endpoint.map(Endpoint::from_slice);
-        if let (Some(ref mut ep), Some(token)) = (endpoint.as_mut(), test_token) {
-            ep.test_token = Some(Cow::Owned(token));
+        let mut builder = CrashtrackerConfiguration::builder()
+            .additional_files(additional_files)
+            .collect_all_threads(collect_all_threads)
+            .max_threads(max_threads)
+            .create_alt_stack(create_alt_stack)
+            .use_alt_stack(use_alt_stack)
+            .timeout(Duration::from_millis(timeout_ms))
+            .resolve_frames(resolve_frames)
+            .demangle_names(true);
+        if let Some(url) = endpoint {
+            builder = builder.endpoint_url(url);
+        }
+        if let Some(token) = test_token {
+            builder = builder.endpoint_test_token(&token);
+        }
+        if let Some(path) = unix_socket_path {
+            builder = builder.unix_socket_path(path);
         }
 
         Ok(Self {
-            config: Some(CrashtrackerConfiguration::new(
-                additional_files,
-                create_alt_stack,
-                use_alt_stack,
-                endpoint,
-                resolve_frames,
-                libdd_crashtracker::default_signals(),
-                Some(Duration::from_millis(timeout_ms)),
-                unix_socket_path,
-                true, /* demangle_names */
-            )?),
+            config: Some(builder.build()?),
         })
     }
 }
@@ -123,6 +131,7 @@ impl RustWrapper for CrashtrackerConfigurationPy {
 }
 
 #[pyclass(
+    skip_from_py_object,
     name = "CrashtrackerReceiverConfig",
     module = "datadog.internal._native"
 )]
@@ -163,7 +172,11 @@ impl RustWrapper for CrashtrackerReceiverConfigPy {
     }
 }
 
-#[pyclass(name = "CrashtrackerMetadata", module = "datadog.internal._native")]
+#[pyclass(
+    skip_from_py_object,
+    name = "CrashtrackerMetadata",
+    module = "datadog.internal._native"
+)]
 #[derive(Clone)]
 pub struct CrashtrackerMetadataPy {
     metadata: Option<Metadata>,

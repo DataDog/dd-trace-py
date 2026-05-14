@@ -11,7 +11,7 @@ from .common import run_test_async
 CONNECTION_STRING = "AccountEndpoint=http://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
 ERR_DB_NAME = "db.azure_cosmos_error"
 ERR_CONTAINER_NAME = "container.azure_cosmos_error"
-SNAPSHOT_IGNORES = ["meta.http.useragent", "meta.error.stack"]
+SNAPSHOT_IGNORES = ["meta.http.useragent", "meta.error.stack", "meta._dd.base_service"]
 
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 
@@ -30,7 +30,7 @@ def test_cosmos_sync(tracer, test_spans):
     test_spans.assert_has_spans()
     query_spans = list(test_spans.filter_spans(name="cosmosdb.query"))
     for span in query_spans:
-        assert "sdk-python-cosmos" in span._meta["http.useragent"]
+        assert "sdk-python-cosmos" in span._get_str_attribute("http.useragent")
 
 
 @pytest.mark.asyncio
@@ -41,7 +41,7 @@ async def test_cosmos_async(tracer, test_spans):
     test_spans.assert_has_spans()
     query_spans = list(test_spans.filter_spans(name="cosmosdb.query"))
     for span in query_spans:
-        assert "sdk-python-cosmos-async" in span._meta["http.useragent"]
+        assert "sdk-python-cosmos-async" in span._get_str_attribute("http.useragent")
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)

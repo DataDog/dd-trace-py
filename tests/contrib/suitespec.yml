@@ -1,4 +1,3 @@
----
 components:
   aiohttp:
     - ddtrace/contrib/aiohttp.py
@@ -22,6 +21,8 @@ components:
   aws_lambda:
     - ddtrace/contrib/internal/aws_lambda/*
     - ddtrace/ext/aws.py
+  aws_durable_execution_sdk_python:
+    - ddtrace/contrib/internal/aws_durable_execution_sdk_python/*
   azure_cosmos:
     - ddtrace/contrib/internal/azure_cosmos/*
   azure_durable_functions:
@@ -207,7 +208,6 @@ components:
   valkey:
     - ddtrace/contrib/internal/valkey/*
     - ddtrace/contrib/internal/valkey_utils.py
-    - ddtrace/contrib/valkey.py
     - ddtrace/_trace/utils_valkey.py
     - ddtrace/ext/valkey.py
   vertica:
@@ -278,7 +278,7 @@ suites:
     env:
       TEST_KAFKA_HOST: kafka
       TEST_KAFKA_PORT: '29092'
-    parallelism: 2
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -387,6 +387,17 @@ suites:
       - tests/contrib/aws_lambda/*
       - tests/snapshots/tests.{suite}.*
     snapshot: true
+  aws_durable_execution_sdk_python:
+    venvs_per_job: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@aws_durable_execution_sdk_python'
+      - tests/contrib/aws_durable_execution_sdk_python/*
+      - tests/snapshots/tests.{suite}.*
+    snapshot: true
   azure_cosmos:
     venvs_per_job: 4
     paths:
@@ -428,6 +439,9 @@ suites:
     snapshot: true
     services:
       - azurite
+  # the azure_functions suites don't work in the arm64 testrunner container
+  # (the one that runs from scripts/ddtest on Mac OS)
+  # they can be run on OSX bare metal after `brew tap azure/functions && brew install azure-functions-core-tools@4`
   azure_functions:
     parallelism: 4
     paths:
@@ -934,7 +948,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
   mlflow:
-    parallelism: 2
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -1230,6 +1244,7 @@ suites:
       - tests/contrib/futures/*
       - tests/contrib/dbapi/*
       - tests/contrib/dbapi_async/*
+      - tests/snapshots/tests.contrib.sqlite3*
     pattern: asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$
     snapshot: true
   structlog:

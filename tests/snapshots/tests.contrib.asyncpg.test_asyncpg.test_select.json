@@ -11,15 +11,16 @@
     "meta": {
       "_dd.base_service": "tests.contrib.asyncpg",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a5ec6800000000",
+      "_dd.p.tid": "69e127cd00000000",
       "_dd.svc_src": "asyncpg",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.asyncpg",
       "component": "asyncpg",
       "db.name": "postgres",
       "db.system": "postgresql",
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "de75a97ec88f4b8fabe0ac2b0caaa682",
+      "runtime-id": "7c6ddd312d184c6da0f24f213d7564a2",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
@@ -28,10 +29,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
       "network.destination.port": 5432.0,
-      "process_id": 28476.0
+      "process_id": 16387.0
     },
-    "duration": 11354000,
-    "start": 1772481640748340262
+    "duration": 3491042,
+    "start": 1776363469844494712
   }],
 [
   {
@@ -46,14 +47,16 @@
     "meta": {
       "_dd.base_service": "tests.contrib.asyncpg",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a5ec6800000000",
+      "_dd.p.tid": "69e127cd00000000",
+      "_dd.svc_src": "asyncpg",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.asyncpg",
       "component": "asyncpg",
       "db.name": "postgres",
       "db.system": "postgresql",
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "de75a97ec88f4b8fabe0ac2b0caaa682",
+      "runtime-id": "7c6ddd312d184c6da0f24f213d7564a2",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
@@ -63,8 +66,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
       "network.destination.port": 5432.0,
-      "process_id": 28476.0
+      "process_id": 16387.0
     },
-    "duration": 478541,
-    "start": 1772481640761459346
+    "duration": 267334,
+    "start": 1776363469848965587
   }]]

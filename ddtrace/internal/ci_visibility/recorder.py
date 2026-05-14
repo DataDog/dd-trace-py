@@ -665,6 +665,33 @@ class CIVisibility(Service):
             cls._instance.is_known_tests_enabled(),
         )
 
+    # AIDEV-NOTE: _suspend()/_resume() allow a nested pytest session (e.g. inline_run())
+    # or a test fixture to get a clean-slate view of CIVisibility without stopping the
+    # outer session's instance.  Unlike calling disable(), _suspend() never calls stop()
+    # on the instance, so the outer tracer and telemetry keep running.  Pair them in a
+    # try/finally block: suspended = _suspend() ... finally: _resume(suspended).
+    @classmethod
+    def _suspend(cls) -> Optional["CIVisibility"]:
+        """Remove the active instance without stopping it.  Returns the instance for _resume()."""
+        if cls._instance is None:
+            return None
+        instance = cls._instance
+        cls._instance = None
+        cls.enabled = False
+        unregister_ci_visibility_instance()
+        return instance
+
+    @classmethod
+    def _resume(cls, instance: Optional["CIVisibility"]) -> None:
+        """Restore a previously suspended instance as the active singleton."""
+        if instance is None:
+            return
+        cls._instance = instance
+        cls.enabled = True
+        register_ci_visibility_instance(instance)
+        # Re-register atexit: any inner disable() will have called atexit.unregister.
+        atexit.register(cls.disable)
+
     @classmethod
     def disable(cls) -> None:
         if cls._instance is None:

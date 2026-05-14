@@ -28,13 +28,6 @@ from tests.utils import override_global_config
 from tests.utils import snapshot
 
 
-try:
-    from json.decoder import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
-
-
 APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
 config_asm = {"_asm_enabled": True}
 config_good_rules = {"_asm_static_rule_file": rules.RULES_GOOD_PATH, "_asm_enabled": True}
@@ -161,6 +154,7 @@ def test_headers_collection(tracer):
         "service",
         "meta._dd.rc.client_id",
         "meta._dd.appsec.rc_products",
+        "meta._dd.svc_src",
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -192,6 +186,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
         "service",
         "meta._dd.rc.client_id",
         "meta._dd.appsec.rc_products",
+        "meta._dd.svc_src",
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -322,6 +317,7 @@ def test_ip_update_rules_expired_no_block(tracer):
         "meta._dd.base_service",
         "meta._dd.rc.client_id",
         "meta._dd.appsec.rc_products",
+        "meta._dd.svc_src",
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
@@ -344,6 +340,7 @@ def test_appsec_span_tags_snapshot(tracer):
         "meta._dd.base_service",
         "meta._dd.rc.client_id",
         "meta._dd.appsec.rc_products",
+        "meta._dd.svc_src",
     ],
 )
 def test_appsec_span_tags_snapshot_with_errors(tracer):

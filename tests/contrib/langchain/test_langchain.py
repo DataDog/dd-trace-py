@@ -21,6 +21,9 @@ IGNORE_FIELDS = [
     "meta.langchain.request.openai-chat.parameters.max_completion_tokens"
     "meta.langchain.request.openai-chat.parameters.max_tokens",
     "meta.langchain.request.api_key",
+    "metrics._dd.llmobs.input_tokens",
+    "metrics._dd.llmobs.output_tokens",
+    "metrics._dd.llmobs.total_tokens",
 ]
 
 
@@ -313,7 +316,7 @@ def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, anthropi
 
     kwargs = dict(
         temperature=1,
-        model_name="claude-3-opus-20240229",
+        model_name="claude-sonnet-4-5-20250929",
     )
 
     if "anthropic_api_url" in langchain_anthropic.ChatAnthropic.__fields__:

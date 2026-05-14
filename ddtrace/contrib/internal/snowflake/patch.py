@@ -1,7 +1,6 @@
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -96,7 +95,4 @@ def patched_connect(connect_func, _, args, kwargs):
         "db.warehouse": conn.warehouse,
     }
 
-    pin = Pin(tags=tags)
-    traced_conn = TracedConnection(conn, pin=pin, cfg=config.snowflake, cursor_cls=_SFTracedCursor)
-    pin.onto(traced_conn)
-    return traced_conn
+    return TracedConnection(conn, cfg=config.snowflake, cursor_cls=_SFTracedCursor, db_tags=tags)

@@ -9,7 +9,9 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68135be100000000",
+      "_dd.p.tid": "69e7b35200000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
       "aas.function.name": "http_get_ok",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -19,15 +21,15 @@
       "http.url": "http://0.0.0.0:7071/api/httpgetok?<redacted>",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "bebb19bc0290454d80b19e0ee5a4546e",
+      "runtime-id": "65f75a094e034e73aeb2c646c362fb82",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 3676
+      "_sampling_priority_v1": 1.0,
+      "process_id": 74240.0
     },
-    "duration": 902208,
-    "start": 1746099169732256385
+    "duration": 189000,
+    "start": 1776792402723669000
   }]]

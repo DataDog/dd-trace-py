@@ -1,9 +1,10 @@
 import gzip
+import os
 from typing import Optional
 from unittest import mock
 
 from ddtrace.internal._encoding import BufferedEncoder
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.trace import Span
 from tests.utils import BaseTestCase
 from tests.utils import override_global_config
@@ -117,12 +118,19 @@ class TestHTTPWriterMultiplePayloads(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self.original_env = dict(os.environ)
+        os.environ.update({"DD_API_KEY": "foobar.baz"})
         self.statsd = mock.Mock()
+
+    def tearDown(self):
+        os.environ.clear()
+        os.environ.update(self.original_env)
+        super().tearDown()
 
     def test_multiple_payloads_processed_individually(self):
         """Test that multiple payloads are each processed through _flush_single_payload."""
         with override_global_config(dict(_health_metrics_enabled=True)):
-            writer = AgentWriter("http://localhost:8126", dogstatsd=self.statsd, sync_mode=True)
+            writer = CIVisibilityWriter("http://localhost:8126", dogstatsd=self.statsd, sync_mode=True)
 
             # Replace the encoder with our custom multiple payload encoder
             encoder = MultiplePayloadEncoder(8 << 20, 1 << 20).set_test_data(
@@ -154,7 +162,7 @@ class TestHTTPWriterMultiplePayloads(BaseTestCase):
     def test_single_payload_backward_compatibility(self):
         """Test that single payload encoders still work as before."""
         with override_global_config(dict(_health_metrics_enabled=True)):
-            writer = AgentWriter("http://localhost:8126", dogstatsd=self.statsd, sync_mode=True)
+            writer = CIVisibilityWriter("http://localhost:8126", dogstatsd=self.statsd, sync_mode=True)
 
             # Replace the encoder with a single payload encoder
             encoder = SinglePayloadEncoder(8 << 20, 1 << 20).set_test_data(payload_data=b"single_test", n_traces=5)
@@ -177,7 +185,7 @@ class TestHTTPWriterMultiplePayloads(BaseTestCase):
     def test_none_payloads_skipped(self):
         """Test that None payloads are skipped but valid ones are processed."""
         with override_global_config(dict(_health_metrics_enabled=True)):
-            writer = AgentWriter("http://localhost:8126", dogstatsd=self.statsd, sync_mode=True)
+            writer = CIVisibilityWriter("http://localhost:8126", dogstatsd=self.statsd, sync_mode=True)
 
             # Replace the encoder with a None payload encoder
             encoder = NonePayloadEncoder(8 << 20, 1 << 20)
@@ -202,7 +210,7 @@ class TestHTTPWriterMultiplePayloads(BaseTestCase):
     def test_gzip_compression_per_payload(self):
         """Test that gzip compression is applied to each payload individually."""
         with override_global_config(dict(_health_metrics_enabled=True)):
-            writer = AgentWriter("http://localhost:8126", dogstatsd=self.statsd, sync_mode=True)
+            writer = CIVisibilityWriter("http://localhost:8126", dogstatsd=self.statsd, sync_mode=True)
             writer._intake_accepts_gzip = True  # Enable gzip compression
 
             # Replace the encoder with multiple payloads
@@ -231,7 +239,7 @@ class TestHTTPWriterMultiplePayloads(BaseTestCase):
     def test_individual_payload_error_handling(self):
         """Test that errors in individual payload sending are handled properly."""
         with override_global_config(dict(_health_metrics_enabled=True)):
-            writer = AgentWriter("http://localhost:8126", dogstatsd=self.statsd, sync_mode=True)
+            writer = CIVisibilityWriter("http://localhost:8126", dogstatsd=self.statsd, sync_mode=True)
 
             # Replace the encoder with multiple payloads
             encoder = MultiplePayloadEncoder(8 << 20, 1 << 20).set_test_data(
@@ -257,7 +265,7 @@ class TestHTTPWriterMultiplePayloads(BaseTestCase):
     def test_metrics_recorded_per_payload(self):
         """Test that metrics are recorded correctly for each payload."""
         with override_global_config(dict(_health_metrics_enabled=True)):
-            writer = AgentWriter("http://localhost:8126", dogstatsd=self.statsd, sync_mode=True)
+            writer = CIVisibilityWriter("http://localhost:8126", dogstatsd=self.statsd, sync_mode=True)
 
             # Replace the encoder with multiple payloads
             encoder = MultiplePayloadEncoder(8 << 20, 1 << 20).set_test_data(

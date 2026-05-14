@@ -4,8 +4,8 @@
 #
 #    pip-compile --allow-unsafe --no-annotate .riot/requirements/14e3100.in
 #
-attrs==25.4.0
-coverage[toml]==7.13.4
+attrs==26.1.0
+coverage[toml]==7.13.5
 gevent==25.9.1
 greenlet==3.3.2
 gunicorn[gevent]==25.1.0
@@ -14,7 +14,7 @@ iniconfig==2.3.0
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 mock==5.2.0
-numpy==2.4.2
+numpy==2.4.3
 opentracing==2.4.0
 packaging==26.0
 pluggy==1.6.0

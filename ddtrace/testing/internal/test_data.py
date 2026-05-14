@@ -144,6 +144,10 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
         self.metrics.update(metrics)
 
 
+def _itr_test_skipping_enabled_tag_value(session: "TestSession") -> str:
+    return TAG_TRUE if session.itr_skipping_enabled else "false"
+
+
 class TestRun(TestItem["Test", t.NoReturn]):
     __test__ = False
 
@@ -197,6 +201,10 @@ class TestRun(TestItem["Test", t.NoReturn]):
         For retry scenarios, only the last retry gets this tag.
         """
         self.tags[TestTag.FINAL_STATUS] = final_status.value
+
+    def set_final_tags(self) -> None:
+        super().set_final_tags()
+        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self.session)
 
 
 class Test(TestItem["TestSuite", "TestRun"]):
@@ -269,6 +277,9 @@ class Test(TestItem["TestSuite", "TestRun"]):
         test_run = TestRun(name=self.name, parent=self)
         test_run.attempt_number = len(self.test_runs)
         test_run.set_service(self.service)
+        config_errors = getattr(self.session, "configuration_errors", None)
+        if isinstance(config_errors, dict) and config_errors:
+            test_run.set_tags(config_errors)
         self.test_runs.append(test_run)
         return test_run
 
@@ -323,6 +334,12 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def is_flaky_run(self) -> bool:
         return self._is_flaky_run
 
+    def has_passed(self) -> bool:
+        return any(run.get_status() == TestStatus.PASS for run in self.test_runs)
+
+    def has_failed(self) -> bool:
+        return any(run.get_status() == TestStatus.FAIL for run in self.test_runs)
+
 
 class TestSuite(TestItem["TestModule", "Test"]):
     ChildClass = Test
@@ -335,6 +352,10 @@ class TestSuite(TestItem["TestModule", "Test"]):
 
     def __str__(self) -> str:
         return f"{self.parent.name}/{self.name}"
+
+    def set_final_tags(self) -> None:
+        super().set_final_tags()
+        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self.session)
 
 
 class TestModule(TestItem["TestSession", "TestSuite"]):
@@ -351,6 +372,10 @@ class TestModule(TestItem["TestSession", "TestSuite"]):
     def set_location(self, module_path: Path) -> None:
         self.module_path = str(module_path)
 
+    def set_final_tags(self) -> None:
+        super().set_final_tags()
+        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self.session)
+
 
 class TestSession(TestItem[t.NoReturn, "TestModule"]):
     ChildClass = TestModule
@@ -362,6 +387,7 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
         self.itr_enabled = False
         self.itr_skipping_enabled = False
         self.itr_skipping_level = ITRSkippingLevel.TEST
+        self.configuration_errors: dict[str, str] = {}
 
     def set_session_id(self, session_id: int) -> None:
         self.item_id = session_id
@@ -385,7 +411,7 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
     def set_final_tags(self) -> None:
         super().set_final_tags()
 
-        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = TAG_TRUE if self.itr_skipping_enabled else "false"
+        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self)
 
         if self.itr_enabled:
             has_itr_skips = self.tests_skipped_by_itr > 0
@@ -453,5 +479,11 @@ class TestTag:
     BROWSER_DRIVER = "test.browser.driver"
 
     CODE_COVERAGE_LINES_PCT = "test.code_coverage.lines_pct"
+
+    # Library configuration error tags — set when backend requests fail.
+    LIBRARY_CONFIGURATION_ERROR_SETTINGS = "_dd.ci.library_configuration_error.settings"
+    LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS = "_dd.ci.library_configuration_error.skippable_tests"
+    LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS = "_dd.ci.library_configuration_error.known_tests"
+    LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS = "_dd.ci.library_configuration_error.test_management_tests"
 
     __test__ = False

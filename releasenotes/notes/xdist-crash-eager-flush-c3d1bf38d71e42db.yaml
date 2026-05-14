@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where pytest-xdist worker crashes (``os._exit``, SIGKILL, segfault)
+    caused buffered test events to be lost. To enable eager flushing, set ``DD_TRACE_PARTIAL_FLUSH_MIN_SPANS=1``.

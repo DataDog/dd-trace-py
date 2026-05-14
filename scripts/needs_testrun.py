@@ -240,7 +240,13 @@ def for_each_testrun_needed(suites: list[str], action: t.Callable[[str], None], 
             action(suite)
 
 
+# Can be set externally to override changed file detection (used for local testing via --file)
+_changed_files_override: t.Optional[set[str]] = None
+
+
 def pr_matches_patterns(patterns: set[str]) -> bool:
+    if _changed_files_override is not None:
+        return bool([_ for p in patterns for _ in fnmatch.filter(_changed_files_override, p)])
     try:
         changed_files = get_changed_files(_get_pr_number())
     except Exception:
