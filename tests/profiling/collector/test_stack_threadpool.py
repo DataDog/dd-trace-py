@@ -91,28 +91,22 @@ def test_threadpool_worker_with_explicit_child_span(tmp_path: Path, tracer: Trac
     # worker thread so any hit here proves the worker is linked correctly.
     all_span_samples = pprof_utils.get_samples_with_label_key(profile, "span id")
     assert all_span_samples, (
-        "Profile has no samples with a 'span id' label — "
-        "is the StackCollector running and the tracer connected?"
+        "Profile has no samples with a 'span id' label — is the StackCollector running and the tracer connected?"
     )
 
-    # child_span._local_root is child_span itself (no Span parent, only a Context
-    # parent), so _stack.link_span stores child_span_id as both span_id and
-    # local_root_span_id when the worker activates the child span.
     pprof_utils.assert_profile_has_sample(
         profile,
         samples=all_span_samples,
         expected_sample=pprof_utils.StackEvent(
             span_id=child_span_id,
-            local_root_span_id=child_span_id,
+            local_root_span_id=local_root_span_id,
             trace_type=span_type,
         ),
         print_samples_on_failure=True,
     )
 
 
-def test_threadpool_worker_context_propagated_not_linked_to_profiler(
-    tmp_path: Path, tracer: Tracer
-) -> None:
+def test_threadpool_worker_context_propagated_not_linked_to_profiler(tmp_path: Path, tracer: Tracer) -> None:
     """
     Worker thread profiler samples should carry the parent span's span_id when
     the futures integration propagates the parent Context (no explicit child span).
@@ -132,8 +126,7 @@ def test_threadpool_worker_context_propagated_not_linked_to_profiler(
     span_type = ext.SpanTypes.WEB
 
     def worker_context_only() -> None:
-        # Deliberately no tracer.trace() call here; only the propagated Context
-        # is active, set up by _wrap_execution via tracer._activate_context().
+        # no tracer.trace() call here; only the propagated Context is active
         for _ in range(20):
             time.sleep(0.1)
 
@@ -148,9 +141,8 @@ def test_threadpool_worker_context_propagated_not_linked_to_profiler(
 
     profile = pprof_utils.parse_newest_profile(output_filename)
 
-    # Confirm the worker was actually sampled by looking for ThreadPoolExecutor
-    # thread-name labels. Without this, a missing-sample scenario would silently
-    # pass as an empty set
+    # Check that the worker was actually sampled by looking for ThreadPoolExecutor
+    # thread-name labels
     all_worker_samples = _get_threadpool_samples(profile)
     assert all_worker_samples, (
         "No samples found from ThreadPoolExecutor worker threads "
@@ -159,10 +151,8 @@ def test_threadpool_worker_context_propagated_not_linked_to_profiler(
         "thread names for executor threads. Increase sleep iterations if needed."
     )
 
-    # worker samples should carry the parent span's IDs.
     worker_samples_with_span_id = [
-        s for s in all_worker_samples
-        if pprof_utils.get_label_with_key(profile.string_table, s, "span id") is not None
+        s for s in all_worker_samples if pprof_utils.get_label_with_key(profile.string_table, s, "span id") is not None
     ]
     assert worker_samples_with_span_id, (
         "Worker thread samples have no 'span id' label — the profiler did not link "
@@ -170,15 +160,16 @@ def test_threadpool_worker_context_propagated_not_linked_to_profiler(
         "propagated the trace Context via tracer._activate_context()."
     )
 
-    # Context propagation does not carry span_type, so _stack.link_span is called
-    # with None for span_type. The trace_type label is therefore absent from worker
-    # samples in this code path.
+    # _wrap_submit attaches _local_root_span_id and _span_type
+    # to the Context, so the worker gets the full parent span info including
+    # trace_type.
     pprof_utils.assert_profile_has_sample(
         profile,
         samples=worker_samples_with_span_id,
         expected_sample=pprof_utils.StackEvent(
             span_id=parent_span_id,
             local_root_span_id=local_root_span_id,
+            trace_type=span_type,
         ),
         print_samples_on_failure=True,
     )

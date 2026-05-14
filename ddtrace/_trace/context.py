@@ -49,6 +49,8 @@ class Context(object):
         "_baggage",
         "_is_remote",
         "_reactivate",
+        "_local_root_span_id",
+        "_span_type",
         "__weakref__",
     ]
 

@@ -17,6 +17,15 @@ def _wrap_submit(func, args, kwargs):
         "threading.submit", ()
     ).llmobs_ctx.value
 
+    # Attach the submitting span's local-root info to the context
+    # This is used when linking worker threads to the parent span across thread boundaries.
+    # current_ctx is a fresh copy (not the live span object), so mutation is safe.
+    if current_ctx is not None:
+        current_span = ddtrace.tracer.current_span()
+        if current_span is not None:
+            current_ctx._local_root_span_id = current_span._local_root.span_id
+            current_ctx._span_type = current_span._local_root.span_type
+
     # The target function can be provided as a kwarg argument "fn" or the first positional argument
     self = args[0]
     if "fn" in kwargs:
