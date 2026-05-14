@@ -184,21 +184,12 @@ def test_configure_agentless_writer_swaps_writer():
 
     llmobs_service.enable(agentless_enabled=False)
     assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
-    swapped = ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=True)
-    assert swapped is True
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
-
-
-@pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>"})
-def test_configure_agentless_writer_noop_when_already_agentless():
-    import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
-    from ddtrace.llmobs import LLMObs as llmobs_service
-
+    llmobs_service.disable()
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
     llmobs_service.enable(agentless_enabled=True)
     assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
-    swapped = ddtrace.tracer._span_aggregator.configure_agentless_writer(enable=True)
-    assert swapped is False
+    llmobs_service.disable()
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
 
 
 @pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1"})
