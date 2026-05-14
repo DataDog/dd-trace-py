@@ -4,6 +4,7 @@ features:
     Profiling: The heap profiler can now track allocations made through
     ``PYMEM_DOMAIN_MEM`` (``PyMem_Malloc/Calloc/Realloc``) in addition to the
     existing ``PYMEM_DOMAIN_OBJ`` coverage when
-    ``DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED=true`` is set. This support is effective
-    on Python 3.12 and newer, making some previously invisible allocations visible
-    in heap profiles in those environments.
+    ``DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED=true`` is set. This makes some
+    previously invisible allocations — list internal buffers, dict key tables,
+    ``array.array`` data, ``bytearray`` buffers (Python 3.13+) — visible in
+    heap profiles.

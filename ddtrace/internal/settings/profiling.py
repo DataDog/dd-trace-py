@@ -437,12 +437,11 @@ class ProfilingConfigMemory(DDConfig):
         help=(
             "Whether to track MEM-domain allocations (PyMem_Malloc/Calloc/Realloc) in "
             "the heap profiler. When enabled, allocations such as list internal buffers "
-            "and array.array data are captured. Requires Python 3.12 or later. "
-            "Disabled by default: MEM-domain interposition adds per-allocation overhead "
-            "on hot paths (list/dict resize, buffer growth) and can extend the time "
-            "threads hold Python locks that allocate inside critical sections. Enable "
-            "this when you need visibility into PyMem_*-only allocations that the "
-            "OBJ-domain hook does not capture."
+            "and array.array data are captured. Disabled by default: MEM-domain "
+            "interposition adds per-allocation overhead on hot paths (list/dict resize, "
+            "buffer growth) and can extend the time threads hold Python locks that "
+            "allocate inside critical sections. Enable this when you need visibility "
+            "into PyMem_*-only allocations that the OBJ-domain hook does not capture."
         ),
     )
 

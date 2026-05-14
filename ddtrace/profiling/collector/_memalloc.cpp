@@ -30,16 +30,12 @@ typedef struct
    object-oriented approach and allocate a context per object.
 */
 static memalloc_context_t global_memalloc_ctx;
-#ifdef _PY312_AND_LATER
 static memalloc_context_t global_memalloc_ctx_mem;
-#endif // _PY312_AND_LATER
 
 static bool memalloc_enabled = false;
-#ifdef _PY312_AND_LATER
 /* true only while MEM-domain hooks are installed (between start() with the
  * caller's mem_domain_enabled=true and the next stop()). */
 static bool memalloc_mem_installed = false;
-#endif // _PY312_AND_LATER
 static std::once_flag memalloc_fork_handler_once_flag;
 
 /* Two-slot buffer for atomically publishing the saved (original) allocator.
@@ -54,18 +50,14 @@ static PyMemAllocatorEx g_saved_alloc_buf[2];
 static int g_saved_alloc_slot = 0;
 static std::atomic<const PyMemAllocatorEx*> g_saved_alloc_pub{ nullptr };
 
-#ifdef _PY312_AND_LATER
 /* MEM-domain saved allocator — same two-slot scheme as OBJ above, kept as
  * an independent buffer + atomic pair so each domain's lifecycle is fully
- * isolated.  only installed on Python 3.12+.  Earlier versions
- * run GC inline during allocation, which can use-after-free through the
- * MEM-realloc path (see #14550).  The OBJ hook works around
- * this with pygc_temp_disable_guard_t in memalloc_heap_track_invokes_cpython;
- * extending the same workaround to MEM is deferred. */
+ * isolated. On Python 3.9–3.11, pygc_temp_disable_guard_t in
+ * memalloc_heap_track_invokes_cpython suppresses GC during traceback
+ * collection so the MEM-realloc path can't use-after-free (see PR #14550). */
 static PyMemAllocatorEx g_saved_alloc_mem_buf[2];
 static int g_saved_alloc_mem_slot = 0;
 static std::atomic<const PyMemAllocatorEx*> g_saved_alloc_mem_pub{ nullptr };
-#endif // _PY312_AND_LATER
 
 static void
 memalloc_free(void* Py_UNUSED(ctx), void* ptr)
@@ -170,7 +162,6 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     return ptr2;
 }
 
-#ifdef _PY312_AND_LATER
 /* ---------------------------------------------------------------------------
  * PYMEM_DOMAIN_MEM hooks — direct copies of the OBJ hooks above, reading
  * the MEM-domain saved-allocator atomic pair. Kept as separate function
@@ -260,7 +251,6 @@ memalloc_realloc_mem(void* ctx, void* ptr, size_t new_size)
 
     return ptr2;
 }
-#endif // _PY312_AND_LATER
 
 PyDoc_STRVAR(memalloc_start__doc__,
              "start($module, max_nframe, heap_sample_interval, mem_domain_enabled)\n"
@@ -273,14 +263,14 @@ PyDoc_STRVAR(memalloc_start__doc__,
              "Sets the average number of bytes allocated between samples to\n"
              "heap_sample_interval.\n"
              "If heap_sample_interval is set to 0, it is disabled entirely.\n"
-             "If mem_domain_enabled is true and the Python version supports it\n"
-             "(>= 3.12), MEM-domain allocations (PyMem_Malloc/Calloc/Realloc)\n"
-             "are tracked in addition to OBJ-domain allocations. This is off\n"
-             "by default because MEM-domain interposition adds per-allocation\n"
-             "overhead on hot paths (list/dict resize, buffer growth) and can\n"
-             "extend the time threads hold Python locks that allocate inside\n"
-             "critical sections. Enable it when you need visibility into\n"
-             "PyMem_*-only allocations that the OBJ hook does not capture.\n");
+             "If mem_domain_enabled is true, MEM-domain allocations\n"
+             "(PyMem_Malloc/Calloc/Realloc) are tracked in addition to\n"
+             "OBJ-domain allocations. This is off by default because MEM-domain\n"
+             "interposition adds per-allocation overhead on hot paths (list/dict\n"
+             "resize, buffer growth) and can extend the time threads hold Python\n"
+             "locks that allocate inside critical sections. Enable it when you\n"
+             "need visibility into PyMem_*-only allocations that the OBJ hook\n"
+             "does not capture.\n");
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
@@ -363,7 +353,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     g_saved_alloc_pub.store(&g_saved_alloc_buf[slot], std::memory_order_release);
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
 
-#ifdef _PY312_AND_LATER
     if (enable_mem_domain) {
         PyMemAllocatorEx alloc_mem;
         alloc_mem.malloc = memalloc_malloc_mem;
@@ -382,9 +371,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &alloc_mem);
         memalloc_mem_installed = true;
     }
-#else
-    (void)enable_mem_domain; // silence -Wunused-variable on Python < 3.12
-#endif // _PY312_AND_LATER
 
     memalloc_enabled = true;
 
@@ -418,7 +404,6 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &restore);
     }
 
-#ifdef _PY312_AND_LATER
     if (memalloc_mem_installed) {
         const PyMemAllocatorEx* saved_mem = g_saved_alloc_mem_pub.load(std::memory_order_acquire);
         if (saved_mem) {
@@ -429,7 +414,6 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         g_saved_alloc_mem_pub.store(nullptr, std::memory_order_release);
         memalloc_mem_installed = false;
     }
-#endif // _PY312_AND_LATER
 
     memalloc_heap_tracker_deinit_no_cpython();
 

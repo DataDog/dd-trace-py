@@ -387,9 +387,12 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
        just toggling a boolean) and the alternative is hard-to-diagnose crashes.
 
        RAII guard automatically re-enables GC when it goes out of scope. */
-#if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
+#if !defined(_PY312_AND_LATER)
+    /* Python 3.9–3.11 run GC inline during allocation, which can use-after-free
+     * via the MEM-realloc path. The guard has separate Python 3.9 and 3.10+
+     * implementations; both expose the same RAII interface. */
     pygc_temp_disable_guard_t gc_guard;
-#endif // defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
+#endif // !defined(_PY312_AND_LATER)
 
     /* The weight of the allocation is described above, but briefly: it's the
        count of bytes allocated since the last sample, including this one, which

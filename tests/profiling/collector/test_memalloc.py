@@ -1282,7 +1282,7 @@ def _make_mem_domain_object(size_bytes: int) -> object:
     """Return an object whose primary allocation goes through PYMEM_DOMAIN_MEM.
 
     On Python 3.13+, ``bytearray`` moved its internal buffer to the MEM domain,
-    making it the canonical test vehicle.  On Python 3.12 we use list
+    making it the canonical test vehicle.  On Python 3.9–3.12 we use list
     multiplication: ``PyList_New`` calls ``PyMem_Calloc`` (PYMEM_DOMAIN_MEM)
     for the ``ob_item`` pointer array, so ``[None] * N`` produces a dominant
     MEM allocation of ``N * sizeof(void*)`` bytes (the list header itself goes
@@ -1321,7 +1321,6 @@ def _count_heap_samples_with_function(
     return matched
 
 
-@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
 def test_mem_domain_allocations_appear_in_heap_samples(tmp_path: Path) -> None:
     """A large PYMEM_DOMAIN_MEM allocation must produce heap-space samples."""
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_heap_samples")
@@ -1371,7 +1370,6 @@ def test_bytearray_tracked_on_py313(tmp_path: Path) -> None:
     del ba
 
 
-@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
 def test_mem_domain_free_untracks(tmp_path: Path) -> None:
     """MEM free hook must untrack the allocation so heap-space drops after del.
 
@@ -1407,7 +1405,6 @@ def test_mem_domain_free_untracks(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
 def test_mem_domain_realloc_retracks(tmp_path: Path) -> None:
     """Growing a list (reallocs ob_item via PyMem_Realloc) must not corrupt the heap tracker."""
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_realloc")
@@ -1425,7 +1422,6 @@ def test_mem_domain_realloc_retracks(tmp_path: Path) -> None:
     del lst
 
 
-@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
 def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
     """OBJ and MEM allocations in the same session must not corrupt heap tracker state."""
     output_filename: str = _setup_profiling_prelude(tmp_path, "test_obj_mem_coexist")
@@ -1441,3 +1437,38 @@ def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, "OBJ + MEM coexistence test: expected heap-space samples"
     del d, lst
+
+
+@pytest.mark.skipif(
+    PY_312_OR_ABOVE, reason="GC is deferred during allocation on Python 3.12+; the UAF race only exists on 3.9-3.11"
+)
+def test_mem_realloc_under_gc_pressure_no_crash(tmp_path: Path) -> None:
+    """Regression test for the PROF-11496 / PR #14550 realloc+GC use-after-free.
+
+    On Python 3.9-3.11 GC can fire inline from inside an allocator hook. If MEM
+    realloc moves data (e.g. PyList resize) and traceback collection then
+    triggers GC which visits the moved structure, the GC sees stale pointers.
+    pygc_temp_disable_guard_t in memalloc_heap_track_invokes_cpython suppresses
+    this. Force the race by aggressively lowering GC thresholds while doing
+    millions of list/dict mutations through PyMem_Realloc.
+    """
+    _setup_profiling_prelude(tmp_path, "test_mem_realloc_under_gc_pressure")
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=4 * 1024, mem_domain_enabled=True)
+
+    old_thresholds = gc.get_threshold()
+    gc.set_threshold(1, 1, 1)  # collect on essentially every container alloc
+    try:
+        with mc:
+            for _ in range(20):
+                lst: list[object] = []
+                for j in range(20_000):
+                    lst.append(j)  # ob_item PyMem_Realloc cycles
+                d: dict[int, int] = {}
+                for j in range(20_000):
+                    d[j] = j  # ma_keys PyMem_Realloc cycles
+                gc.collect()
+            mc.snapshot()
+    finally:
+        gc.set_threshold(*old_thresholds)
+    # The assertion is "the test process did not crash" — reaching this line
+    # means the guard kept the realloc+GC interaction safe.
