@@ -94,7 +94,7 @@ def bedrock_llmobs(tracer, monkeypatch):
             "_dd_api_key": "<not-a-real-key>",
         }
     ):
-        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
         LLMObs._instance._llmobs_span_writer.stop()
         LLMObs._instance._llmobs_span_writer = mock.MagicMock()
         yield LLMObs
@@ -111,7 +111,7 @@ def bedrock_agents_llmobs(tracer, monkeypatch):
             "_dd_api_key": "<not-a-real-key>",
         }
     ):
-        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
         LLMObs._instance._llmobs_span_writer.stop()
         LLMObs._instance._llmobs_span_writer = mock.MagicMock()
         yield LLMObs
