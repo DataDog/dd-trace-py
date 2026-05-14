@@ -46,11 +46,6 @@ async def _async_chunks(n):
         yield i
 
 
-# ---------------------------------------------------------------------------
-# Default ``start_stream`` is a no-op
-# ---------------------------------------------------------------------------
-
-
 def test_base_handler_start_stream_default_is_noop():
     """``BaseStreamHandler.start_stream`` default implementation must be a
     side-effect-free no-op so contribs that do not override it are unaffected
@@ -70,11 +65,6 @@ def test_base_handler_start_stream_default_is_noop():
     assert handler.options == {}
 
 
-# ---------------------------------------------------------------------------
-# ``start_stream`` fires lazily on iteration entry, not at construction
-# ---------------------------------------------------------------------------
-
-
 def test_traced_stream_does_not_fire_start_stream_on_construction():
     """Constructing the wrapper must NOT trigger ``start_stream`` — the hook
     only runs when the caller actually starts iterating. This is the codex
@@ -91,11 +81,6 @@ def test_traced_async_stream_does_not_fire_start_stream_on_construction():
     handler = _AsyncRecordingHandler()
     make_traced_stream(_async_chunks(3), handler)
     assert handler.start_stream_calls == 0
-
-
-# ---------------------------------------------------------------------------
-# ``start_stream`` fires exactly once across mixed ``__iter__`` / ``__next__``
-# ---------------------------------------------------------------------------
 
 
 def test_traced_stream_fires_start_stream_once_on_for_loop():
@@ -144,11 +129,6 @@ async def test_traced_async_stream_fires_start_stream_once_on_anext_calls():
     assert await traced.__anext__() == 0
     assert await traced.__anext__() == 1
     assert handler.start_stream_calls == 1
-
-
-# ---------------------------------------------------------------------------
-# ``start_stream`` fires *before* the first chunk is processed
-# ---------------------------------------------------------------------------
 
 
 def test_traced_stream_start_stream_fires_before_first_chunk():

@@ -1385,3 +1385,152 @@ def test_cassette_deny_before_does_not_call_openai(mock_execute_request, openai_
     # Exactly one call — the before-evaluation. If OpenAI was hit, the
     # after-hook would have fired a second call.
     mock_execute_request.assert_called_once()
+
+
+def _find_openai_llm_span(test_spans):
+    """Return the openai LLM span (the only non-AI-Guard span)."""
+    from ddtrace.appsec._constants import AI_GUARD
+
+    spans = test_spans.spans
+    llm_span = next((s for s in spans if s.name != AI_GUARD.RESOURCE_TYPE), None)
+    assert llm_span is not None, f"No openai LLM span found among: {[s.name for s in spans]}"
+    return llm_span
+
+
+def _assert_block_tagged_on_llm_span(llm_span):
+    """Pin every signal that the LLMObs payload derived from this APM span
+    depends on for surfacing an AI Guard block.
+
+    Pre-fix failure modes that each assertion catches:
+    - ``llm_span.error == 1`` — drives the LLMObs ``status: error`` field on
+      the emitted span event. The after-hook block originally submitted
+      ``error == 0`` because ``span.finish()`` ran before the after-dispatch
+      raised.
+    - ``error.type`` — distinguishes an AI Guard abort from a generic SDK
+      error in the LLMObs UI. Accepts both ``AIGuardAbortError`` (openai
+      SDK not importable) and the compound ``OpenAIAIGuardAbortError``
+      actually raised by the integration.
+    - ``error.message`` — populates the LLMObs event ``error.message``;
+      empty if the abort was never surfaced through ``set_exc_info`` (the
+      regression-prone path: if ``g.send((resp, err))`` skips the error
+      branch, message/type/stack all stay unset).
+
+    Note: ``_dd.llmobs.submitted`` is NOT asserted here because the metric
+    is only set when LLMObs is actually enabled in the test process. The
+    ``ai_guard_openai`` suite runs with LLMObs disabled, so the integration's
+    ``llmobs_set_tags`` short-circuits before stamping the metric. The
+    contract being tested is the *APM-side* error data the LLMObs trace
+    processor reads from on span finish.
+    """
+    assert llm_span.error == 1
+    assert "AIGuardAbortError" in (llm_span.get_tag("error.type") or "")
+    assert "AIGuardAbortError" in (llm_span.get_tag("error.message") or "")
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_sync_before_block_tags_llm_span_with_error(mock_execute_request, openai_client, tracer, test_spans):
+    """Before-hook DENY: the openai LLM span MUST exist and carry the abort
+    so the LLMObs payload reaches the backend as an errored llm span.
+
+    Pre-fix the dispatch raises before ``_traced_endpoint`` is entered, so
+    no openai span is ever created — ``_find_openai_llm_span`` then fails
+    with ``No openai LLM span found among: ['ai_guard']``.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    with pytest.raises(AIGuardAbortError):
+        openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    _assert_block_tagged_on_llm_span(_find_openai_llm_span(test_spans))
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_sync_after_block_tags_llm_span_with_error(mock_execute_request, openai_client, tracer, test_spans):
+    """After-hook DENY: the openai LLM span MUST carry the abort error and
+    preserve the real OpenAI response metadata.
+
+    Pre-fix the after-dispatch fires AFTER ``span.finish()`` has already
+    submitted the LLMObs span as success — so ``llm_span.error == 0`` and
+    the abort is invisible to LLMObs.
+    """
+    mock_execute_request.side_effect = [
+        mock_evaluate_response("ALLOW"),
+        mock_evaluate_response("DENY"),
+    ]
+
+    with pytest.raises(AIGuardAbortError):
+        openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    llm_span = _find_openai_llm_span(test_spans)
+    _assert_block_tagged_on_llm_span(llm_span)
+    # The after-block path runs ``_record_response`` with the *real* OpenAI
+    # response object (plus the error), so ``openai.response.model`` MUST
+    # be present. A regression that skipped ``_record_response`` on the
+    # error path would drop this tag and ship an LLMObs error span that's
+    # missing the model identity it had on the wire.
+    assert llm_span.get_tag("openai.response.model"), (
+        "openai.response.model missing — _record_response did not run on the "
+        "real response before the after-hook abort was raised"
+    )
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_chat_async_before_block_tags_llm_span_with_error(
+    mock_execute_request, async_openai_client, tracer, test_spans
+):
+    """Async variant of ``test_chat_sync_before_block_tags_llm_span_with_error``."""
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    with pytest.raises(AIGuardAbortError):
+        await async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    _assert_block_tagged_on_llm_span(_find_openai_llm_span(test_spans))
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_chat_async_after_block_tags_llm_span_with_error(
+    mock_execute_request, async_openai_client, tracer, test_spans
+):
+    """Async variant of ``test_chat_sync_after_block_tags_llm_span_with_error``."""
+    mock_execute_request.side_effect = [
+        mock_evaluate_response("ALLOW"),
+        mock_evaluate_response("DENY"),
+    ]
+
+    with pytest.raises(AIGuardAbortError):
+        await async_openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    llm_span = _find_openai_llm_span(test_spans)
+    _assert_block_tagged_on_llm_span(llm_span)
+    assert llm_span.get_tag("openai.response.model"), (
+        "openai.response.model missing — _record_response did not run on the "
+        "real response before the after-hook abort was raised"
+    )
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_sync_before_block_records_request_model_on_llm_span(
+    mock_execute_request, openai_client, tracer, test_spans
+):
+    """Before-hook DENY: the openai LLM span MUST still carry the request
+    metadata captured by ``_record_request`` (model, endpoint, method).
+
+    The before-hook dispatches AFTER ``_traced_endpoint``'s first ``yield``,
+    which already ran ``_record_request`` on the span. Pre-fix the span
+    never existed; post-fix it exists *with* the request data even though
+    the OpenAI call never happened. A regression that dispatched the
+    before-hook before ``_record_request`` would drop these tags and ship
+    an LLMObs error span missing the request identity.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    with pytest.raises(AIGuardAbortError):
+        openai_client.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    llm_span = _find_openai_llm_span(test_spans)
+    _assert_block_tagged_on_llm_span(llm_span)
+    assert llm_span.get_tag("openai.request.model") == CHAT_MODEL
+    assert llm_span.get_tag("openai.request.endpoint") == "/v1/chat/completions"
+    assert llm_span.get_tag("openai.request.method") == "POST"
