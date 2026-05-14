@@ -645,8 +645,14 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         @classmethod
         def is_wrapped(cls, f: FunctionType) -> bool:
             try:
-                return get_function_code(f) in _ctx_registry
-            except Exception:
+                code = get_function_code(f)
+                if code not in _ctx_registry:
+                    return False
+                # Also verify that THIS function instance is wrapped, not just some
+                # other function that shares the same code object (e.g. closures
+                # re-created in a loop).
+                return t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ is _ctx_registry[code]
+            except (AttributeError, Exception):
                 return False
 
         @classmethod
@@ -661,7 +667,20 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             code = get_function_code(f)
             with _ctx_registry_lock:
                 if code in _ctx_registry:
-                    raise ValueError("Function already wrapped")
+                    # Allow wrapping a new function instance that shares the same
+                    # code object as an already-wrapped (but orphaned) function.
+                    # This happens when closures are re-created in a loop: each
+                    # iteration produces a new function object but the same code
+                    # object. If the new function doesn't carry __dd_context_wrapped__
+                    # the old monitoring registration is stale and should be replaced.
+                    try:
+                        if t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ is _ctx_registry[code]:
+                            raise ValueError("Function already wrapped")
+                    except AttributeError:
+                        pass
+                    # Stale entry: clean up old monitoring before re-registering.
+                    old = _ctx_registry.pop(code)
+                    _monitoring.unregister(code, old)
                 _ctx_registry[code] = self
             _monitoring.register(code, self)
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self

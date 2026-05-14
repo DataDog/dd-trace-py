@@ -658,7 +658,10 @@ def test_wrapping_context_deepcopy():
 
     assert route_copy.ctx is not wc
     assert hasattr(route_copy.ctx, "_storage")
-    assert hasattr(route_copy.ctx, "_trampoline_lock")
+    # _trampoline_lock only exists on the bytecode-based LazyWrappingContext (< 3.15);
+    # on 3.15+ LazyWrappingContext is an alias for WrappingContext and has no trampoline.
+    if sys.version_info < (3, 15):
+        assert hasattr(route_copy.ctx, "_trampoline_lock")
     # Use base __enter__/__exit__ so we don't trigger __frame__ (which expects
     # to run inside a wrapped call). This verifies the copied context's
     # _storage is a new, working ContextVar.
@@ -1026,6 +1029,7 @@ class DummyLazyWrappingContext(LazyWrappingContext):
         return super().__enter__()
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 15), reason="LazyWrappingContext is eager on 3.15+")
 def test_wrapping_context_lazy():
     free = 42
 
@@ -1103,6 +1107,7 @@ def test_wrapping_context_lazy_multiple_wrappers():
     assert c1.count == c2.count == 0
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 15), reason="LazyWrappingContext is eager on 3.15+")
 def test_wrapping_context_lazy_unwrap_before_call():
     free = 42
 
