@@ -2,9 +2,7 @@
 features:
   - |
     ai_guard: add AI Guard evaluation support to the OpenAI SDK chat completions
-    instrumentation. Non-streaming requests and responses are evaluated through
-    the configured AI Guard client, and evaluation is automatically skipped when
-    a framework integration (LangChain, Strands Agents) is already evaluating
-    the same call. Streaming requests (``stream=True``) are not yet evaluated
-    and pass through unchanged; streaming support will be added in a follow-up
-    release.
+    instrumentation. Both non-streaming and streaming requests
+    and non-streaming responses are evaluated through the configured AI Guard client, and
+    evaluation is automatically skipped when a framework integration (LangChain,
+    Strands Agents) is already evaluating the same call.
