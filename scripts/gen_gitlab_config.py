@@ -595,12 +595,12 @@ def gen_pre_checks() -> None:
     check(
         name="Style",
         command="scripts/lint style",
-        paths={"docker*", "*.py", "*.pyi", "pyproject.toml", "*.cpp", "*.h"},
+        paths={"docker*", "*.py", "*.pyi", "pyproject.toml", "*.cpp", "*.h", "scripts/lint"},
     )
     check(
         name="Typing",
         command="scripts/lint typing",
-        paths={"docker*", "*.py", "*.pyi", "pyproject.toml", "mypy.ini"},
+        paths={"docker*", "*.py", "*.pyi", "pyproject.toml", "mypy.ini", "scripts/lint"},
     )
     check(
         name="Spelling",
@@ -610,17 +610,17 @@ def gen_pre_checks() -> None:
     check(
         name="Security",
         command="scripts/lint security",
-        paths={"docker*", "ddtrace/*", "pyproject.toml"},
+        paths={"docker*", "ddtrace/*", "pyproject.toml", "scripts/lint"},
     )
     check(
         name="Run riotfile.py tests",
         command="scripts/lint riot",
-        paths={"docker*", "riotfile.py", "pyproject.toml"},
+        paths={"docker*", "riotfile.py", "pyproject.toml", "scripts/lint"},
     )
     check(
         name="Style: Test snapshots",
         command="scripts/lint fmt-snapshots && git diff --exit-code tests/snapshots",
-        paths={"docker*", "tests/snapshots/*"},
+        paths={"docker*", "tests/snapshots/*", "scripts/lint"},
     )
     check(
         name="Run scripts/*.py tests",
@@ -635,7 +635,7 @@ def gen_pre_checks() -> None:
     check(
         name="Check ddtrace error logs",
         command="scripts/lint error-log-check",
-        paths={"ddtrace/*", "scripts/check_constant_log_message.py"},
+        paths={"ddtrace/*", "scripts/check_constant_log_message.py", "scripts/lint"},
     )
     check(
         name="Check project dependencies",
