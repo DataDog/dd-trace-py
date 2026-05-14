@@ -16,6 +16,7 @@ from ddtrace.appsec._ai_guard._openai import _convert_openai_messages
 from ddtrace.appsec._ai_guard._openai import _convert_openai_response
 from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_before
 from ddtrace.appsec.ai_guard import AIGuardAbortError
+from tests.appsec.ai_guard.openai._span_helpers import assert_block_emits_both_spans
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import override_ai_guard_config
 
@@ -789,44 +790,6 @@ def test_chat_streaming_after_hook_not_invoked(mock_execute_request, openai_clie
 # ---------------------------------------------------------------------------
 
 
-def _find_ai_guard_span(spans):
-    from ddtrace.appsec._constants import AI_GUARD
-
-    for span in spans:
-        if span.name == AI_GUARD.RESOURCE_TYPE:
-            return span
-    return None
-
-
-def _find_openai_span(spans):
-    from ddtrace.appsec._constants import AI_GUARD
-
-    for span in spans:
-        if span.name != AI_GUARD.RESOURCE_TYPE and "openai" in (span.service or "").lower():
-            return span
-    for span in spans:
-        if span.name != AI_GUARD.RESOURCE_TYPE:
-            return span
-    return None
-
-
-def _assert_block_emits_both_spans(test_spans, decision):
-    from ddtrace.appsec._constants import AI_GUARD
-
-    spans = test_spans.spans
-    ai_guard_span = _find_ai_guard_span(spans)
-    assert ai_guard_span is not None, f"AI Guard span not found in {[s.name for s in spans]}"
-    assert ai_guard_span.get_tag(AI_GUARD.ACTION_TAG) == decision
-    assert ai_guard_span.get_tag(AI_GUARD.BLOCKED_TAG) == "true"
-
-    openai_span = _find_openai_span(spans)
-    assert openai_span is not None, f"OpenAI/LLMObs span not found in {[s.name for s in spans]}"
-    assert openai_span.error == 1, "OpenAI span should have error=1 after AI Guard block"
-    assert "AIGuardAbortError" in (openai_span.get_tag("error.type") or ""), (
-        f"OpenAI span error.type should reference AIGuardAbortError, got: {openai_span.get_tag('error.type')!r}"
-    )
-
-
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_chat_block_emits_ai_guard_and_openai_spans(mock_execute_request, openai_client_mock, test_spans, decision):
@@ -838,7 +801,7 @@ def test_chat_block_emits_ai_guard_and_openai_spans(mock_execute_request, openai
     with pytest.raises(openai.UnprocessableEntityError):
         openai_client_mock.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
 
-    _assert_block_emits_both_spans(test_spans, decision)
+    assert_block_emits_both_spans(test_spans, decision)
 
 
 @pytest.mark.asyncio
@@ -855,7 +818,7 @@ async def test_chat_async_block_emits_ai_guard_and_openai_spans(
     with pytest.raises(openai.UnprocessableEntityError):
         await async_openai_client_mock.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
 
-    _assert_block_emits_both_spans(test_spans, decision)
+    assert_block_emits_both_spans(test_spans, decision)
 
 
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
@@ -871,7 +834,7 @@ def test_chat_streaming_sync_block_emits_ai_guard_and_openai_spans(
     with pytest.raises(openai.UnprocessableEntityError):
         openai_client_stream.chat.completions.create(model=CHAT_MODEL, messages=_user_messages(), stream=True)
 
-    _assert_block_emits_both_spans(test_spans, decision)
+    assert_block_emits_both_spans(test_spans, decision)
 
 
 @pytest.mark.asyncio
@@ -890,7 +853,7 @@ async def test_chat_streaming_async_block_emits_ai_guard_and_openai_spans(
             model=CHAT_MODEL, messages=_user_messages(), stream=True
         )
 
-    _assert_block_emits_both_spans(test_spans, decision)
+    assert_block_emits_both_spans(test_spans, decision)
 
 
 # ---------------------------------------------------------------------------
