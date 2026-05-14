@@ -617,7 +617,7 @@ class LLMObs(Service):
             span_kind,
             input_type,
             output_type,
-            export_to_llmobs=True,
+            export_to_llmobs=self._export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
         if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
             # APM agentless path: APM agentless ingestion interprets dots in tag keys as
@@ -682,10 +682,11 @@ class LLMObs(Service):
     def _llmobs_tags(self, span: Span) -> list[str]:
         tags = dict(get_llmobs_tags(span) or {})
 
-        tags["error"] = str(span.error)
-        err_type = span.get_tag(ERROR_TYPE)
-        if err_type:
-            tags["error_type"] = err_type
+        if self._export_mode != LLMObsExportMode.APM_AGENTLESS:
+            tags["error"] = str(span.error)
+            err_type = span.get_tag(ERROR_TYPE)
+            if err_type:
+                tags["error_type"] = err_type
 
         return sorted("{}:{}".format(k, v) for k, v in tags.items())
 

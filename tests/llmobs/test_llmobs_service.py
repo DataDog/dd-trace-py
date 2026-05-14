@@ -1161,15 +1161,14 @@ def test_tags(ddtrace_global_config, llmobs, monkeypatch):
 def test_tag_dot_keys_sanitized_on_agentless_apm_path():
     """APM agentless path: dots in tag keys are replaced with underscores before encoding."""
     from ddtrace.llmobs import LLMObs as llmobs_service
-    from ddtrace.llmobs._constants import LLMOBS_STRUCT
-    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+    from ddtrace.llmobs._utils import get_llmobs_tags
 
     llmobs_service.enable()
     with llmobs_service.task(name="test_task") as span:
         pass
-    tags = _get_llmobs_data_metastruct(span)[LLMOBS_STRUCT.TAGS]
+    tags = get_llmobs_tags(span)
     assert all("." not in k for k in tags), f"Dot in tag key on agentless path: {tags}"
-    assert "ddtrace_version" in tags
+    assert tags is not None and "ddtrace_version" in tags
     llmobs_service.disable()
 
 
@@ -1184,14 +1183,13 @@ def test_tag_dot_keys_sanitized_on_agentless_apm_path():
 def test_tag_dot_keys_preserved_on_direct_llmobs_path():
     """LLMOBS_DIRECT path (DD_APM_TRACING_ENABLED=false): dots in tag keys are not modified."""
     from ddtrace.llmobs import LLMObs as llmobs_service
-    from ddtrace.llmobs._constants import LLMOBS_STRUCT
-    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+    from ddtrace.llmobs._utils import get_llmobs_tags
 
     llmobs_service.enable()
     with llmobs_service.task(name="test_task") as span:
         pass
-    tags = _get_llmobs_data_metastruct(span)[LLMOBS_STRUCT.TAGS]
-    assert "ddtrace.version" in tags
+    tags = get_llmobs_tags(span)
+    assert tags is not None and "ddtrace.version" in tags
     llmobs_service.disable()
 
 
@@ -1206,14 +1204,13 @@ def test_tag_dot_keys_preserved_on_direct_llmobs_path():
 def test_tag_dot_keys_preserved_on_apm_agent_path():
     """APM_AGENT_PROXY path: dots in tag keys are not modified (agent handles encoding)."""
     from ddtrace.llmobs import LLMObs as llmobs_service
-    from ddtrace.llmobs._constants import LLMOBS_STRUCT
-    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+    from ddtrace.llmobs._utils import get_llmobs_tags
 
     llmobs_service.enable(agentless_enabled=False)
     with llmobs_service.task(name="test_task") as span:
         pass
-    tags = _get_llmobs_data_metastruct(span)[LLMOBS_STRUCT.TAGS]
-    assert "ddtrace.version" in tags
+    tags = get_llmobs_tags(span)
+    assert tags is not None and "ddtrace.version" in tags
     llmobs_service.disable()
 
 
