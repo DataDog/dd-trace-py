@@ -124,7 +124,7 @@ class JobSpec:
         suite_name = env["SUITE_NAME"]
         env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
         env["PIP_CACHE_KEY"] = (
-            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
+            subprocess.check_output([f"{GITLAB}/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
         )
         lines.append("  cache:")
         lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
