@@ -99,7 +99,9 @@ tests-gen:
 
 run-tests-trigger:
  stage: tests
- needs: [ tests-gen "ddtrace-internal:build linux" ]
+ needs:
+   - job: tests-gen
+   - job: "ddtrace-internal:build linux"
  variables:
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
