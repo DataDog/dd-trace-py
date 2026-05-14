@@ -1546,21 +1546,24 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "false"
+        "default": "false",
+        "experimental": true
       }
     ],
     "DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS": [
       {
         "implementation": "A",
         "type": "int",
-        "default": "30000"
+        "default": "30000",
+        "experimental": true
       }
     ],
     "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": [
       {
         "implementation": "B",
         "type": "boolean",
-        "default": "true"
+        "default": "true",
+        "experimental": true
       }
     ],
     "DD_EXTERNAL_ENV": [
