@@ -617,18 +617,10 @@ class LLMObs(Service):
             output_type,
             export_to_llmobs=self._export_mode == LLMObsExportMode.LLMOBS_DIRECT,
         )
-        if self._export_mode != LLMObsExportMode.LLMOBS_DIRECT:
-            # APM path: write error tags into meta_struct.TAGS so the intake has them
-            # alongside meta.error.
-            tags = dict(llmobs_data.get(LLMOBS_STRUCT.TAGS) or {})
-            if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
-                # Agentless APM intake interprets dots in tag keys as nested-path
-                # separators, so replace them with underscores before encoding.
-                tags = {k.replace(".", "_"): v for k, v in tags.items()}
-            tags["error"] = str(span.error)
-            err_type = span.get_tag(ERROR_TYPE)
-            if err_type:
-                tags["error_type"] = err_type
+        if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
+            # APM agentless path: APM agentless ingestion interprets dots in tag keys as
+            # nested-path separators, so replace them with underscores before encoding.
+            tags = {k.replace(".", "_"): v for k, v in llmobs_data.get(LLMOBS_STRUCT.TAGS, {}).items()}
             llmobs_data[LLMOBS_STRUCT.TAGS] = tags
         span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
         return True
@@ -687,10 +679,13 @@ class LLMObs(Service):
 
     def _llmobs_tags(self, span: Span) -> list[str]:
         tags = dict(get_llmobs_tags(span) or {})
-        tags["error"] = str(span.error)
-        err_type = span.get_tag(ERROR_TYPE)
-        if err_type:
-            tags["error_type"] = err_type
+
+        if self._export_mode == LLMObsExportMode.LLMOBS_DIRECT:
+            tags["error"] = str(span.error)
+            err_type = span.get_tag(ERROR_TYPE)
+            if err_type:
+                tags["error_type"] = err_type
+
         return sorted("{}:{}".format(k, v) for k, v in tags.items())
 
     def _do_annotations(self, span: Span) -> None:
