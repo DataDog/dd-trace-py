@@ -231,7 +231,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             payload = self._buffer
             count = self._count
             self._reset()
-        return [(bytes(payload), count)]
+        return [(payload, count)]
 
     def _item_to_dict(self, item: "Span") -> dict[str, Any]:
         if not item.parent_id:

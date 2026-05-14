@@ -26,7 +26,7 @@ from ddtrace.trace import tracer
 #  \___/ \_|  |_/\_|     \___/ \_| \_|  \_/  \_| |_/\_| \_/  \_/
 # Do not register any functions that import ddtrace modules that have not been
 # imported yet.
-post_preload: list[t.Callable] = []
+post_preload = []
 
 
 def register_post_preload(func: t.Callable) -> None:

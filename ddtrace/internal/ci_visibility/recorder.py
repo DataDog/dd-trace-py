@@ -488,7 +488,7 @@ class CIVisibility(Service):
         if (
             not cls.enabled
             or cls._instance is None
-            or asbool(env.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", False))
+            or asbool(env.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", default=False))
         ):
             return False
         return cls._instance._api_settings.skipping_enabled
@@ -514,7 +514,7 @@ class CIVisibility(Service):
         if cls._instance is None:
             return False
         return cls._instance._api_settings.flaky_test_retries_enabled and asbool(
-            env.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", True)
+            env.get("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", default=True)
         )
 
     @classmethod
@@ -522,7 +522,7 @@ class CIVisibility(Service):
         if cls._instance is None:
             return False
         return cls._instance._api_settings.test_management.enabled and asbool(
-            env.get("DD_TEST_MANAGEMENT_ENABLED", True)
+            env.get("DD_TEST_MANAGEMENT_ENABLED", default=True)
         )
 
     @classmethod
@@ -530,7 +530,7 @@ class CIVisibility(Service):
         if cls._instance is None:
             return False
         return cls._instance._api_settings.coverage_enabled or asbool(
-            env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", False)
+            env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         )
 
     @classmethod

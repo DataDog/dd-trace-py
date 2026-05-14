@@ -9,7 +9,7 @@ from typing import Optional
 from ddtrace.internal.safety import get_slots
 
 
-GetSetDescriptor = type(type.__dict__["__dict__"])  # noqa: F821
+GetSetDescriptor = type(type.__dict__["__dict__"])  # type: ignore[index]  # noqa: F821
 
 
 def get_args(frame: FrameType) -> Iterator[tuple[str, Any]]:

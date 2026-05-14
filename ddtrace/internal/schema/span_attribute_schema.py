@@ -1,6 +1,5 @@
 from enum import Enum
 import sys
-from typing import Any
 from typing import Optional
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
@@ -92,7 +91,7 @@ def url_operation_v1(v0_operation, protocol=None, direction=None):
     return "{}.{}.request".format(protocol, server_or_client)
 
 
-_SPAN_ATTRIBUTE_TO_FUNCTION: dict[str, dict[str, Any]] = {
+_SPAN_ATTRIBUTE_TO_FUNCTION = {
     "v0": {
         "cache_operation": cache_operation_v0,
         "cloud_api_operation": cloud_api_operation_v0,

@@ -46,7 +46,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         system = getattr(model, "system", None)
         if system:
             system = PYDANTIC_AI_SYSTEM_TO_PROVIDER.get(system, system)
-        return model_name, system or ""
+        return model_name, system
 
     def _llmobs_set_tags(
         self,

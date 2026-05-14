@@ -39,7 +39,7 @@ def _set_span_tags(
     span._set_attribute(db.SYSTEM, valkeyx.APP)
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
     if query is not None:
-        span_name = schematize_cache_operation(valkeyx.RAWCMD, cache_provider=valkeyx.APP)
+        span_name = schematize_cache_operation(valkeyx.RAWCMD, cache_provider=valkeyx.APP)  # type: ignore[operator]
         span._set_attribute(span_name, query)
     # some valkey clients do not have a connection_pool attribute (ex. aiovalkey v1.3)
     if not is_cluster and hasattr(instance, "connection_pool"):

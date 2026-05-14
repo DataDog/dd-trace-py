@@ -11,7 +11,6 @@ from typing import Iterable
 from typing import Mapping
 from typing import Optional
 from typing import Sequence
-from typing import TypedDict
 import uuid
 
 import ddtrace
@@ -202,12 +201,6 @@ AppliedConfigType = dict[str, ConfigMetadata]
 TargetsType = dict[str, ConfigMetadata]
 
 
-class CachedTargetFile(TypedDict):
-    path: str
-    length: Optional[int]
-    hashes: list[dict[str, str]]
-
-
 class RemoteConfigClient:
     """
     The Remote Configuration client regularly checks for updates on the agent
@@ -251,7 +244,7 @@ class RemoteConfigClient:
         if p_tags_list := process_tags.process_tags_list:
             self._client_tracer["process_tags"] = p_tags_list
 
-        self.cached_target_files: list[CachedTargetFile] = []
+        self.cached_target_files: list[AppliedConfigType] = []
 
         # Product callbacks for single subscriber architecture
         self._product_callbacks: dict[str, RCCallback] = {}

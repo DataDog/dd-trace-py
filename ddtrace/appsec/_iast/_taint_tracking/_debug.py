@@ -10,7 +10,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 if _is_iast_propagation_debug_enabled():
-    TAINTED_FRAMES: list = []
+    TAINTED_FRAMES = []
 
     def trace_calls_and_returns(frame, event, arg):
         co = frame.f_code
