@@ -34,6 +34,30 @@
 // Forward declaration: PeriodicThread is defined later in this file.
 typedef struct periodic_thread PeriodicThread;
 
+// Forward declarations for module callbacks defined later in this file.
+static PyObject*
+_threads_at_exit(PyObject* module, PyObject* args);
+static int
+_threads_exec(PyObject* module);
+static int
+_threads_traverse(PyObject* module, visitproc visit, void* arg);
+static int
+_threads_clear(PyObject* module);
+static void
+_threads_free(void* module);
+
+// Interned module name for PyImport_GetModule. Written once in _threads_exec
+// before any PeriodicThread can be created; read-only thereafter (safe for
+// free-threaded mode: the import lock provides the happens-before guarantee).
+// NOTE: This is a process-global, so a second sub-interpreter reuses the string
+// object created by the first — technically incorrect for isolated
+// sub-interpreters (Python 3.12+). Safe in practice because interned strings
+// are immortal and PyImport_GetModule compares by content, but the proper fix
+// is a heap-type refactor using PyType_FromModuleAndSpec +
+// PyType_GetModuleByDef, which gives each method direct access to its module
+// state without any global lookup.
+static PyObject* _threads_module_name = NULL;
+
 struct module_state
 {
     // At-exit barrier to avoid making Python VM calls during or after shutdown.
@@ -52,6 +76,35 @@ struct module_state
         // handler never ran (e.g. uWSGI --skip-atexit).
         return at_exit.load(std::memory_order_acquire) || py_is_finalizing();
     }
+};
+
+// ----------------------------------------------------------------------------
+static PyMethodDef _threads_methods[] = {
+    { "_at_exit", _threads_at_exit, METH_NOARGS, "Signal that Python is exiting" },
+    { NULL, NULL, 0, NULL } /* Sentinel */
+};
+
+// ----------------------------------------------------------------------------
+static PyModuleDef_Slot _threads_slots[] = {
+    { Py_mod_exec, (void*)_threads_exec },
+#if PY_VERSION_HEX >= 0x030d0000
+    // Declare that this module is safe to use without the GIL (free-threaded).
+    { Py_mod_gil, Py_MOD_GIL_NOT_USED },
+#endif
+    { 0, NULL },
+};
+
+// ----------------------------------------------------------------------------
+static struct PyModuleDef threadsmodule = {
+    PyModuleDef_HEAD_INIT,
+    "_threads",           /* name of module */
+    NULL,                 /* module documentation, may be NULL */
+    sizeof(module_state), /* size of per-interpreter state of the module */
+    _threads_methods,
+    _threads_slots,    /* m_slots */
+    _threads_traverse, /* m_traverse */
+    _threads_clear,    /* m_clear */
+    _threads_free,     /* m_free */
 };
 
 // ----------------------------------------------------------------------------
@@ -412,10 +465,6 @@ typedef struct periodic_thread
     std::unique_ptr<std::thread> _thread;
 } PeriodicThread;
 
-// Pointer to the module definition, needed for module state lookup
-// in PeriodicThread_init. Set during PyInit__threads.
-static PyModuleDef* threadsmodule_ptr = NULL;
-
 // ----------------------------------------------------------------------------
 static PyMemberDef PeriodicThread_members[] = {
     { "interval", T_DOUBLE, offsetof(PeriodicThread, interval), 0, "thread interval" },
@@ -466,14 +515,18 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
     self->_stopping = false;
     self->_skip_shutdown = false;
 
-    // Look up this interpreter's module state. PyState_FindModule searches the
-    // current interpreter, so each sub-interpreter gets its own module_state.
-    PyObject* mod = PyState_FindModule(threadsmodule_ptr);
+    // Look up this interpreter's module state. PyState_FindModule does not work
+    // for multi-phase init modules (slots != NULL), so we use
+    // PyImport_GetModule with the fully qualified name instead — each
+    // sub-interpreter has its own sys.modules entry, so this still gives
+    // per-interpreter state.
+    PyObject* mod = PyImport_GetModule(_threads_module_name);
     if (mod == NULL) {
         PyErr_SetString(PyExc_RuntimeError, "_threads module not initialized");
         return -1;
     }
     self->_state = (module_state*)PyModule_GetState(mod);
+    Py_DECREF(mod);
 
     self->_started = std::make_unique<Event>();
     self->_stopped = std::make_shared<Event>();
@@ -935,10 +988,14 @@ PeriodicThread_dealloc(PeriodicThread* self)
     //
     // Full cleanup is therefore correct in all cases;
 
-    // Unmap the PeriodicThread from periodic_threads.
-    if (self->ident != NULL && self->_state != nullptr && self->_state->periodic_threads != NULL &&
-        PyDict_Contains(self->_state->periodic_threads, self->ident))
-        PyDict_DelItem(self->_state->periodic_threads, self->ident);
+    // Unmap the PeriodicThread from periodic_threads. Use unconditional DelItem
+    // + error clear instead of Contains+DelItem to avoid a TOCTOU race in
+    // free-threaded mode: another thread may delete the key between the two
+    // calls. KeyError on a missing key is harmless.
+    if (self->ident != NULL && self->_state != nullptr && self->_state->periodic_threads != NULL) {
+        if (PyDict_DelItem(self->_state->periodic_threads, self->ident) < 0)
+            PyErr_Clear();
+    }
 
     Py_XDECREF(self->name);
     Py_XDECREF(self->_target);
@@ -1080,87 +1137,66 @@ _threads_free(void* module)
 }
 
 // ----------------------------------------------------------------------------
-static PyMethodDef _threads_methods[] = {
-    { "_at_exit", _threads_at_exit, METH_NOARGS, "Signal that Python is exiting" },
-    { NULL, NULL, 0, NULL } /* Sentinel */
-};
-
-// ----------------------------------------------------------------------------
-static struct PyModuleDef threadsmodule = {
-    PyModuleDef_HEAD_INIT,
-    "_threads",           /* name of module */
-    NULL,                 /* module documentation, may be NULL */
-    sizeof(module_state), /* size of per-interpreter state of the module */
-    _threads_methods,
-    NULL,              /* m_slots */
-    _threads_traverse, /* m_traverse */
-    _threads_clear,    /* m_clear */
-    _threads_free,     /* m_free */
-};
-
-// ----------------------------------------------------------------------------
-PyMODINIT_FUNC
-PyInit__threads(void)
+// Module exec function: runs once per interpreter after the module object is
+// created. Replaces the old single-phase init body; returning -1 signals error.
+static int
+_threads_exec(PyObject* m)
 {
-    PyObject* m = NULL;
-
     if (PyType_Ready(&PeriodicThreadType) < 0)
-        return NULL;
-
-    threadsmodule_ptr = &threadsmodule;
-    m = PyModule_Create(threadsmodule_ptr);
-    if (m == NULL)
-        return NULL;
+        return -1;
 
     // Initialize module state (placement new for std::atomic + PyObject* members).
+    module_state* state = (module_state*)PyModule_GetState(m);
+    new (state) module_state();
+
+    if (_threads_module_name == NULL) {
+        _threads_module_name = PyUnicode_InternFromString("ddtrace.internal._threads");
+        if (_threads_module_name == NULL)
+            return -1;
+    }
+
+    state->periodic_threads = PyDict_New();
+    if (state->periodic_threads == NULL)
+        return -1;
+
+    // Register the atexit hook — the sole writer of module_state::at_exit.
     {
-        module_state* state = (module_state*)PyModule_GetState(m);
-        new (state) module_state();
-
-        state->periodic_threads = PyDict_New();
-        if (state->periodic_threads == NULL)
-            goto error;
-
-        // Register the atexit hook — the sole writer of module_state::at_exit.
-        {
-            PyObject* atexit_mod = PyImport_ImportModule("atexit");
-            if (atexit_mod == NULL)
-                goto error;
-            PyObject* at_exit_fn = PyObject_GetAttrString(m, "_at_exit");
-            if (at_exit_fn == NULL) {
-                Py_DECREF(atexit_mod);
-                goto error;
-            }
-            PyObject* res = PyObject_CallMethod(atexit_mod, "register", "O", at_exit_fn);
-            Py_DECREF(at_exit_fn);
+        PyObject* atexit_mod = PyImport_ImportModule("atexit");
+        if (atexit_mod == NULL)
+            return -1;
+        PyObject* at_exit_fn = PyObject_GetAttrString(m, "_at_exit");
+        if (at_exit_fn == NULL) {
             Py_DECREF(atexit_mod);
-            if (res == NULL)
-                goto error;
-            Py_DECREF(res);
+            return -1;
         }
+        PyObject* res = PyObject_CallMethod(atexit_mod, "register", "O", at_exit_fn);
+        Py_DECREF(at_exit_fn);
+        Py_DECREF(atexit_mod);
+        if (res == NULL)
+            return -1;
+        Py_DECREF(res);
     }
 
     Py_INCREF(&PeriodicThreadType);
     if (PyModule_AddObject(m, "PeriodicThread", (PyObject*)&PeriodicThreadType) < 0) {
         Py_DECREF(&PeriodicThreadType);
-        goto error;
+        return -1;
     }
 
-    {
-        // PyModule_AddObject steals the reference on success; give it an extra
-        // one so state->periodic_threads remains valid for the module's lifetime.
-        module_state* state = (module_state*)PyModule_GetState(m);
-        Py_INCREF(state->periodic_threads);
-        if (PyModule_AddObject(m, "periodic_threads", state->periodic_threads) < 0) {
-            Py_DECREF(state->periodic_threads);
-            goto error;
-        }
+    // PyModule_AddObject steals the reference on success; give it an extra
+    // one so state->periodic_threads remains valid for the module's lifetime.
+    Py_INCREF(state->periodic_threads);
+    if (PyModule_AddObject(m, "periodic_threads", state->periodic_threads) < 0) {
+        Py_DECREF(state->periodic_threads);
+        return -1;
     }
 
-    return m;
+    return 0;
+}
 
-error:
-    Py_XDECREF(m);
-
-    return NULL;
+// ----------------------------------------------------------------------------
+PyMODINIT_FUNC
+PyInit__threads(void)
+{
+    return PyModuleDef_Init(&threadsmodule);
 }
