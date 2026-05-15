@@ -1,7 +1,7 @@
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,
-    types::{PyDict, PyMapping, PyMappingMethods as _, PyTuple},
+    types::{PyDict, PyMapping, PyTuple},
 };
 
 /// Python-facing `AgentResponse` object passed to the response callback after each
@@ -16,13 +16,13 @@ pub struct AgentResponsePy {
 impl AgentResponsePy {
     #[new]
     fn new(py: Python<'_>, rate_by_service: Bound<'_, PyAny>) -> PyResult<Self> {
-        let dict = if let Ok(d) = rate_by_service.downcast::<PyDict>() {
+        let dict = if let Ok(d) = rate_by_service.cast::<PyDict>() {
             d.clone()
-        } else if let Ok(m) = rate_by_service.downcast::<PyMapping>() {
+        } else if let Ok(m) = rate_by_service.cast::<PyMapping>() {
             let dict = PyDict::new(py);
             if let Ok(items) = m.items() {
                 for item in items.iter() {
-                    let Ok(pair) = item.downcast::<PyTuple>() else {
+                    let Ok(pair) = item.cast::<PyTuple>() else {
                         continue;
                     };
                     let Ok(k) = pair.get_item(0) else {
