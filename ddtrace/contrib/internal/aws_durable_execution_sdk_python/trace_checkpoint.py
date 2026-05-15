@@ -66,7 +66,7 @@ def _record_integration_error(exc: BaseException) -> None:
             1,
             (("integration_name", _INTEGRATION_NAME), ("error_type", type(exc).__name__)),
         )
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 
