@@ -101,7 +101,7 @@ run-tests-trigger:
   stage: tests
   needs:
     - job: tests-gen
-    - job: "ddtrace-internal:build linux"
+    - job: "ddtrace-internal build linux"
       artifacts: true
       parallel:
         matrix:
