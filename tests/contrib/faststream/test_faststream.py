@@ -5,14 +5,17 @@ supported broker, so no Docker services are required. The same middleware
 auto-attach path is exercised across Kafka, Confluent, RabbitMQ, NATS, and
 Redis.
 """
+
 import asyncio
 from types import SimpleNamespace
 
 import pytest
 
+from ddtrace.contrib.internal.faststream._middleware import _aiokafka_consume_tags
+from ddtrace.contrib.internal.faststream._middleware import _confluent_consume_tags
 from ddtrace.contrib.internal.faststream._middleware import _DDTraceMiddleware
-from ddtrace.contrib.internal.faststream._middleware import _kafka_consume
-from ddtrace.contrib.internal.faststream._middleware import _rabbit_consume
+from ddtrace.contrib.internal.faststream._middleware import _rabbit_consume_tags
+from ddtrace.contrib.internal.faststream._middleware import detect_broker
 from ddtrace.contrib.internal.faststream._middleware import detect_messaging_system
 from ddtrace.contrib.internal.faststream.patch import patch
 from ddtrace.contrib.internal.faststream.patch import unpatch
@@ -20,7 +23,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_SYSTEM
-from tests.utils import TracerTestCase
+from tests.utils import override_config
 
 
 def _run(coro):
@@ -36,50 +39,22 @@ def _patched_faststream():
 
 
 # AIDEV-NOTE: Per-broker matrix. Each entry is (import_path_for_broker_module,
-# expected_messaging_system). The import-path module exposes a
-# ``<X>Broker`` class and a ``Test<X>Broker`` test broker, both used below.
+# expected_messaging_system, broker_cls_name, test_broker_cls_name). The
+# import-path module exposes both a ``<X>Broker`` class and a
+# ``Test<X>Broker`` class, both used below.
 _BROKERS = [
-    pytest.param(
-        "faststream.kafka",
-        "kafka",
-        "KafkaBroker",
-        "TestKafkaBroker",
-        id="kafka",
-    ),
-    pytest.param(
-        "faststream.confluent",
-        "kafka",
-        "KafkaBroker",
-        "TestKafkaBroker",
-        id="confluent",
-    ),
-    pytest.param(
-        "faststream.rabbit",
-        "rabbitmq",
-        "RabbitBroker",
-        "TestRabbitBroker",
-        id="rabbit",
-    ),
-    pytest.param(
-        "faststream.nats",
-        "nats",
-        "NatsBroker",
-        "TestNatsBroker",
-        id="nats",
-    ),
-    pytest.param(
-        "faststream.redis",
-        "redis",
-        "RedisBroker",
-        "TestRedisBroker",
-        id="redis",
-    ),
+    pytest.param("faststream.kafka", "kafka", "KafkaBroker", "TestKafkaBroker", id="kafka"),
+    pytest.param("faststream.confluent", "kafka", "KafkaBroker", "TestKafkaBroker", id="confluent"),
+    pytest.param("faststream.rabbit", "rabbitmq", "RabbitBroker", "TestRabbitBroker", id="rabbit"),
+    pytest.param("faststream.nats", "nats", "NatsBroker", "TestNatsBroker", id="nats"),
+    pytest.param("faststream.redis", "redis", "RedisBroker", "TestRedisBroker", id="redis"),
 ]
 
 
 def _import_broker(module_path, broker_cls_name, test_broker_cls_name):
     """Import the broker classes; skip the test if the optional extra is not
-    installed in the venv."""
+    installed in the venv.
+    """
     try:
         mod = __import__(module_path, fromlist=[broker_cls_name, test_broker_cls_name])
     except ImportError as e:
@@ -87,7 +62,7 @@ def _import_broker(module_path, broker_cls_name, test_broker_cls_name):
     return getattr(mod, broker_cls_name), getattr(mod, test_broker_cls_name)
 
 
-class TestFastStreamUnit(TracerTestCase):
+class TestFastStreamUnit:
     """Pure unit tests for the per-broker dispatch helpers — no broker needed."""
 
     def test_messaging_system_detection_unknown(self):
@@ -95,11 +70,36 @@ class TestFastStreamUnit(TracerTestCase):
             pass
 
         assert detect_messaging_system(CustomBroker()) == "faststream"
+        assert detect_broker(CustomBroker()) == ("faststream", "faststream")
 
-    def test_kafka_consume_tag_extraction(self):
+    def test_aiokafka_consume_tag_extraction(self):
         raw = SimpleNamespace(topic="t", partition=3, offset=42, key=b"k")
-        msg = SimpleNamespace(raw_message=raw)
-        destination, tags, links = _kafka_consume(msg)
+        msg = SimpleNamespace(raw_message=raw, batch_headers=[])
+        destination, tags, links = _aiokafka_consume_tags(msg)
+        assert destination == "t"
+        assert tags["messaging.kafka.partition"] == 3
+        assert tags["messaging.kafka.message.offset"] == 42
+        assert tags["messaging.kafka.message.key"] == b"k"
+        assert links is None
+
+    def test_confluent_consume_tag_extraction(self):
+        # confluent_kafka.Message exposes topic/partition/offset/key as
+        # zero-arg methods, not attributes — the extractor must call them.
+        class MethodRawMessage:
+            def topic(self):
+                return "t"
+
+            def partition(self):
+                return 3
+
+            def offset(self):
+                return 42
+
+            def key(self):
+                return b"k"
+
+        msg = SimpleNamespace(raw_message=MethodRawMessage(), batch_headers=[])
+        destination, tags, links = _confluent_consume_tags(msg)
         assert destination == "t"
         assert tags["messaging.kafka.partition"] == 3
         assert tags["messaging.kafka.message.offset"] == 42
@@ -109,7 +109,7 @@ class TestFastStreamUnit(TracerTestCase):
     def test_rabbit_consume_destination_format(self):
         raw = SimpleNamespace(exchange="ex", routing_key="rk", delivery_tag=7)
         msg = SimpleNamespace(raw_message=raw)
-        destination, tags, links = _rabbit_consume(msg)
+        destination, tags, links = _rabbit_consume_tags(msg)
         assert destination == "ex.rk"
         assert tags["messaging.rabbitmq.destination.routing_key"] == "rk"
         assert tags["messaging.rabbitmq.message.delivery_tag"] == 7
@@ -128,20 +128,20 @@ class TestFastStreamUnit(TracerTestCase):
             captured["headers"] = dict(c.headers)
             return None
 
-        with self.override_config("faststream", dict(distributed_tracing_enabled=True)):
+        with override_config("faststream", dict(distributed_tracing_enabled=True)):
             _run(middleware.publish_scope(call_next, cmd))
 
         header_keys_lower = {k.lower() for k in captured.get("headers", {}).keys()}
         assert "x-datadog-trace-id" in header_keys_lower
 
 
-class TestFastStreamBrokers(TracerTestCase):
-    """End-to-end tests across every supported FastStream broker."""
+class TestFastStreamBrokers:
+    """End-to-end tests across every supported FastStream broker.
 
-    @pytest.fixture(autouse=True)
-    def _capture_self(self):
-        # Allow parametrized methods to access self.tracer / self.get_spans().
-        yield
+    Uses the ``test_spans`` / ``tracer`` fixtures (project conftest) — not
+    ``TracerTestCase``, since ``@pytest.mark.parametrize`` does not work on
+    ``unittest.TestCase`` subclasses.
+    """
 
     @pytest.mark.parametrize("module_path,messaging_system,broker_cls,test_broker_cls", _BROKERS)
     def test_middleware_attached_on_broker_construction(
@@ -150,9 +150,9 @@ class TestFastStreamBrokers(TracerTestCase):
         BrokerCls, _ = _import_broker(module_path, broker_cls, test_broker_cls)
         broker = BrokerCls()
 
-        assert any(
-            isinstance(m, _DDTraceMiddleware) for m in broker.config.broker_middlewares
-        ), f"Datadog middleware not attached on {broker_cls}"
+        assert any(isinstance(m, _DDTraceMiddleware) for m in broker.config.broker_middlewares), (
+            f"Datadog middleware not attached on {broker_cls}"
+        )
 
         # Constructing a second instance must not double-register.
         broker2 = BrokerCls()
@@ -160,15 +160,13 @@ class TestFastStreamBrokers(TracerTestCase):
         assert count == 1, f"Middleware registered {count}x instead of once on {broker_cls}"
 
     @pytest.mark.parametrize("module_path,messaging_system,broker_cls,test_broker_cls", _BROKERS)
-    def test_messaging_system_detection(
-        self, module_path, messaging_system, broker_cls, test_broker_cls
-    ):
+    def test_messaging_system_detection(self, module_path, messaging_system, broker_cls, test_broker_cls):
         BrokerCls, _ = _import_broker(module_path, broker_cls, test_broker_cls)
         assert detect_messaging_system(BrokerCls()) == messaging_system
 
     @pytest.mark.parametrize("module_path,messaging_system,broker_cls,test_broker_cls", _BROKERS)
     def test_publish_consume_round_trip_emits_spans(
-        self, module_path, messaging_system, broker_cls, test_broker_cls
+        self, module_path, messaging_system, broker_cls, test_broker_cls, test_spans
     ):
         BrokerCls, TestBrokerCls = _import_broker(module_path, broker_cls, test_broker_cls)
         broker = BrokerCls()
@@ -186,7 +184,7 @@ class TestFastStreamBrokers(TracerTestCase):
 
         _run(run())
 
-        spans = self.get_spans()
+        spans = test_spans.get_spans()
         consume_spans = [s for s in spans if s.name.endswith("consume")]
         publish_spans = [s for s in spans if s.name.endswith("publish")]
 
@@ -200,9 +198,19 @@ class TestFastStreamBrokers(TracerTestCase):
         assert any(s.get_tag("span.kind") == SpanKind.CONSUMER for s in consume_spans)
         assert any(s.get_tag("span.kind") == SpanKind.PRODUCER for s in publish_spans)
 
-    def test_kafka_publish_consume_distributed_trace_round_trip(self):
+        # Regression: the destination must be the actual subscription name,
+        # not a bound-method repr (Confluent's raw_message uses methods).
+        for s in consume_spans + publish_spans:
+            dest = s.get_tag(MESSAGING_DESTINATION_NAME)
+            if dest is not None:
+                assert "method" not in dest and "function" not in dest, (
+                    f"{messaging_system} {s.name} destination looks like a callable repr: {dest!r}"
+                )
+
+    def test_kafka_publish_consume_distributed_trace_round_trip(self, test_spans):
         """Critical: a publish span and the consume span it triggers must
-        share the same trace_id when DT is enabled."""
+        share the same trace_id when DT is enabled.
+        """
         kafka = pytest.importorskip("faststream.kafka")
         BrokerCls = kafka.KafkaBroker
         TestBrokerCls = kafka.TestKafkaBroker
@@ -217,10 +225,10 @@ class TestFastStreamBrokers(TracerTestCase):
             async with TestBrokerCls(broker) as test_broker:
                 await test_broker.publish("payload", "dt-topic")
 
-        with self.override_config("faststream", dict(distributed_tracing_enabled=True)):
+        with override_config("faststream", dict(distributed_tracing_enabled=True)):
             _run(run())
 
-        spans = self.get_spans()
+        spans = test_spans.get_spans()
         publish_spans = [s for s in spans if s.name.endswith("publish")]
         consume_spans = [s for s in spans if s.name.endswith("consume")]
         assert publish_spans and consume_spans
@@ -228,11 +236,10 @@ class TestFastStreamBrokers(TracerTestCase):
         publish_trace = publish_spans[0].trace_id
         consume_trace = consume_spans[0].trace_id
         assert publish_trace == consume_trace, (
-            f"Distributed trace not propagated: publish trace_id={publish_trace} "
-            f"!= consume trace_id={consume_trace}"
+            f"Distributed trace not propagated: publish trace_id={publish_trace} != consume trace_id={consume_trace}"
         )
 
-    def test_kafka_consume_span_has_bootstrap_servers_tag(self):
+    def test_kafka_consume_span_has_bootstrap_servers_tag(self, test_spans):
         """Kafka consume span should carry the bootstrap-servers tag."""
         kafka = pytest.importorskip("faststream.kafka")
         broker = kafka.KafkaBroker("broker-host:9092")
@@ -247,12 +254,12 @@ class TestFastStreamBrokers(TracerTestCase):
 
         _run(run())
 
-        spans = self.get_spans()
+        spans = test_spans.get_spans()
         consume_spans = [s for s in spans if s.name.endswith("consume")]
         assert consume_spans
         assert consume_spans[0].get_tag("messaging.kafka.bootstrap.servers") == "broker-host:9092"
 
-    def test_kafka_publish_tombstone_tag(self):
+    def test_kafka_publish_tombstone_tag(self, test_spans):
         """Producer span must carry kafka.tombstone='True' when body is None."""
         kafka = pytest.importorskip("faststream.kafka")
         broker = kafka.KafkaBroker()
@@ -267,12 +274,12 @@ class TestFastStreamBrokers(TracerTestCase):
 
         _run(run())
 
-        spans = self.get_spans()
+        spans = test_spans.get_spans()
         publish_spans = [s for s in spans if s.name.endswith("publish")]
         assert publish_spans
         assert publish_spans[0].get_tag("kafka.tombstone") == "True"
 
-    def test_kafka_consume_received_message_tag(self):
+    def test_kafka_consume_received_message_tag(self, test_spans):
         """Consumer span must carry kafka.received_message='True'."""
         kafka = pytest.importorskip("faststream.kafka")
         broker = kafka.KafkaBroker()
@@ -287,24 +294,23 @@ class TestFastStreamBrokers(TracerTestCase):
 
         _run(run())
 
-        spans = self.get_spans()
+        spans = test_spans.get_spans()
         consume_spans = [s for s in spans if s.name.endswith("consume")]
         assert consume_spans
         assert consume_spans[0].get_tag("kafka.received_message") == "True"
 
     def test_dsm_pathway_header_injected_when_enabled(self):
         """When DSM is enabled, the produce path injects ``dd-pathway-ctx``
-        into the outgoing command's headers via the registered handler."""
+        into the outgoing command's headers via the registered handler.
+        """
         from ddtrace import config as ddconfig
 
         if not getattr(ddconfig, "_data_streams_enabled", False):
             pytest.skip("DSM not enabled in this test environment")
 
         # Lazily import so the DSM submodule is bound only if the env enables it
-        kafka = pytest.importorskip("faststream.kafka")
+        pytest.importorskip("faststream.kafka")
         from faststream._internal.context.repository import ContextRepo
-
-        from ddtrace.contrib.internal.faststream._middleware import _DDTraceMiddleware
 
         factory = _DDTraceMiddleware(messaging_system="kafka")
         middleware = factory(None, context=ContextRepo())
@@ -323,7 +329,7 @@ class TestFastStreamBrokers(TracerTestCase):
             f"DSM pathway header not injected; saw {header_keys_lower}"
         )
 
-    def test_destination_tag_kafka(self):
+    def test_destination_tag_kafka(self, test_spans):
         """Sanity: the consume span resource and destination tag are the topic."""
         kafka = pytest.importorskip("faststream.kafka")
         broker = kafka.KafkaBroker()
@@ -338,7 +344,7 @@ class TestFastStreamBrokers(TracerTestCase):
 
         _run(run())
 
-        spans = self.get_spans()
+        spans = test_spans.get_spans()
         consume_spans = [s for s in spans if s.name.endswith("consume")]
         assert consume_spans[0].get_tag(MESSAGING_DESTINATION_NAME) == "input-topic"
         assert consume_spans[0].resource == "input-topic"

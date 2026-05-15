@@ -743,10 +743,11 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@faststream'
+      - '@datastreams'
       - tests/contrib/faststream/*
     pattern: faststream$
     runner: riot
-    snapshot: false
+    snapshot: true
   flask:
     env:
       TEST_MEMCACHED_HOST: memcached

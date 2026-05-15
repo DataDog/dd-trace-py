@@ -1826,6 +1826,8 @@ def listen():
         "aiokafka.send",
         "aiokafka.getone",
         "aiokafka.getmany",
+        "faststream.consume",
+        "faststream.publish",
         "mlflow.run",
     ):
         core.on(f"context.started.{context_name}", _start_span)
@@ -1864,6 +1866,8 @@ def listen():
         "azure.eventhubs.patched_producer_send_batch",
         "aiokafka.getone",
         "aiokafka.getmany",
+        "faststream.consume",
+        "faststream.publish",
         "google_cloud_pubsub.receive",
         "google_cloud_pubsub.request",
     ):

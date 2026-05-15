@@ -11,7 +11,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
 from ._middleware import _DDTraceMiddleware
-from ._middleware import detect_messaging_system
 
 
 config._add(
@@ -48,10 +47,7 @@ def _traced_broker_init(func, instance, args, kwargs):
     if any(isinstance(m, _DDTraceMiddleware) for m in existing):
         return
 
-    middleware = _DDTraceMiddleware(
-        messaging_system=detect_messaging_system(instance),
-        broker=instance,
-    )
+    middleware = _DDTraceMiddleware(broker=instance)
     add = getattr(config_obj, "add_middleware", None)
     if callable(add):
         add(middleware)

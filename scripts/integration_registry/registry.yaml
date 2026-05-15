@@ -400,7 +400,7 @@ integrations:
   - faststream
   tested_versions_by_dependency:
     faststream:
-      min: 0.6.7
+      min: 0.6.0
       max: 0.6.7
 
 - integration_name: flask

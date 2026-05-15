@@ -8,7 +8,13 @@ The FastStream contrib middleware emits two events:
 - ``faststream.consume.post`` — fired right after a message arrives and a
   consumer span has been created. Handler decodes any inbound pathway header
   and chains a consumer-side checkpoint.
+
+Both events pass the destination string already extracted by the per-driver
+tag-extractors in ``ddtrace.contrib.internal.faststream._middleware`` so that
+DSM does not need to re-walk ``raw_message`` (whose accessors differ between
+aiokafka and confluent_kafka).
 """
+
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
@@ -47,6 +53,7 @@ def dsm_faststream_publish_pre(
     cmd: "PublishCommand",
     span: Any,
     messaging_system: str,
+    destination: Optional[str] = None,
 ) -> None:
     from . import data_streams_processor as processor
 
@@ -54,7 +61,8 @@ def dsm_faststream_publish_pre(
     if not dsm_processor:
         return
 
-    destination = getattr(cmd, "destination", "") or ""
+    if destination is None:
+        destination = getattr(cmd, "destination", "") or ""
     body = getattr(cmd, "body", None)
     if body is None:
         body = getattr(cmd, "message", None)
@@ -80,6 +88,7 @@ def dsm_faststream_consume_post(
     span: Any,
     messaging_system: str,
     group_id: Optional[str] = None,
+    destination: Optional[str] = None,
 ) -> None:
     from . import data_streams_processor as processor
 
@@ -98,18 +107,10 @@ def dsm_faststream_consume_post(
     body = getattr(msg, "body", None)
     payload_size = _calculate_byte_size(body) + _calculate_byte_size(decoded_headers)
 
-    raw = getattr(msg, "raw_message", None)
-    destination = ""
-    for attr in ("topic", "subject", "channel", "exchange"):
-        val = getattr(raw, attr, None) if raw is not None else None
-        if val:
-            destination = val if isinstance(val, str) else str(val)
-            break
-
     edge_tags = ["direction:in"]
     if group_id:
         edge_tags.append(f"group:{group_id}")
-    edge_tags.append(f"{_destination_tag_key(messaging_system)}:{destination}")
+    edge_tags.append(f"{_destination_tag_key(messaging_system)}:{destination or ''}")
     edge_tags.append(f"type:{messaging_system}")
 
     ctx = DsmPathwayCodec.decode(decoded_headers, dsm_processor)
