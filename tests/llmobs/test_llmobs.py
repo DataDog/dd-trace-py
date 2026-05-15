@@ -902,7 +902,7 @@ def test_no_llmobs_trace_id_without_llmobs_context(llmobs):
 
 
 @pytest.mark.parametrize("llmobs_env", [{"DD_APM_TRACING_ENABLED": "false"}])
-def test_apm_traces_dropped_when_disabled(llmobs, tracer, llmobs_env):
+def test_llmobs_events_still_sent_if_apm_tracing_disabled(llmobs, llmobs_events, tracer, llmobs_env):
     from tests.utils import DummyWriter
 
     dummy_writer = DummyWriter()
@@ -918,6 +918,8 @@ def test_apm_traces_dropped_when_disabled(llmobs, tracer, llmobs_env):
     # Check that no APM traces were sent to the writer
     assert len(dummy_writer.traces) == 0, "APM traces should be dropped when DD_APM_TRACING_ENABLED=false"
 
-    # But LLMObs spans should still carry the LLMObsSpanData payload
-    assert get_llmobs_span_kind(llm_span) == "llm"
-    assert get_llmobs_model_name(llm_span) == "test-model"
+    # But LLMObs events should still be sent
+    assert len(llmobs_events) == 1
+    llm_event = llmobs_events[0]
+    assert llm_event["meta"]["span"]["kind"] == "llm"
+    assert llm_event["meta"]["model_name"] == "test-model"
