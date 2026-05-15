@@ -8,7 +8,4 @@ if ! ensure_uv; then
   exit 1
 fi
 
-TARGET_SCRIPT="$1"
-shift
-
-exec uv run --script "$TARGET_SCRIPT" "$@"
+exec uv run --only-group clean python setup.py clean --all "$@"
