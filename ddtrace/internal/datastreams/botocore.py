@@ -47,7 +47,7 @@ def get_stream(params):
     return stream
 
 
-def get_eventbridge_bus_name(message):
+def get_eventbridge_bus_name(message: dict) -> str:
     # type: (dict) -> str
     """
     :message: contains the EventBridge message entry for the current botocore action
