@@ -38,3 +38,4 @@ build_base_venvs:
       - ddtrace/_version.py
       - ddtrace/**/*.so*
       - ddtrace/internal/datadog/profiling/test/test_*
+      - "pywheels/*.whl"
