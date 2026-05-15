@@ -552,6 +552,49 @@ def test_same_profiler_restart_allowed() -> None:
     p.stop(flush=False)
 
 
+@pytest.mark.subprocess(err=None)
+def test_start_registers_sigterm_handler() -> None:
+    """Profiler.start must register _stop_on_signal as a SIGTERM/SIGINT handler via register_on_exit_signal."""
+    from unittest import mock
+
+    from ddtrace.internal import atexit
+    from ddtrace.profiling import profiler
+
+    with mock.patch.object(atexit, "register_on_exit_signal") as mock_reg:
+        p = profiler.Profiler()
+        p.start()
+        mock_reg.assert_called_once_with(p._stop_on_signal)
+        p.stop(flush=False)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not supported on Windows")
+@pytest.mark.subprocess(status=-15, out=lambda s: s.count("flushed") == 1, err=None)
+def test_profiler_flushes_on_sigterm() -> None:
+    """Profiler must flush the last profile exactly once when the process receives SIGTERM.
+
+    Asserts:
+    - upload is called (flush happened).
+    - upload is called exactly once (no double-flush from atexit + signal, or scheduler race).
+
+    The process exits with status -15 (killed by SIGTERM) because register_on_exit_signal
+    chains onto _raise_default which re-raises SIGTERM with SIG_DFL after all handlers
+    complete, so atexit never runs.
+    """
+    import os
+    import signal
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler
+
+    with mock.patch.object(ddup, "upload", lambda *a, **kw: print("flushed", flush=True)):
+        p = profiler.Profiler()
+        p.start()
+        os.kill(os.getpid(), signal.SIGTERM)
+
+        # (unreachable: _raise_default re-raises SIGTERM with SIG_DFL, killing the process)
+
+
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_ENABLED="true"),
     ddtrace_run=True,
