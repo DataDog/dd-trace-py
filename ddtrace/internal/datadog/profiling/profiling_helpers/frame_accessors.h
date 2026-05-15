@@ -94,17 +94,16 @@ inline PyCodeObject*
 get_code_if_not_skip(py_frame_t* frame)
 {
     PyCodeObject* code = get_code_from_frame(frame);
-    if (code == NULL || !PyCode_Check(reinterpret_cast<PyObject*>(code))) {
-        return NULL;
+    if (code == nullptr || !PyCode_Check(reinterpret_cast<PyObject*>(code))) {
+        return nullptr;
     }
-
 #if PY_VERSION_HEX >= 0x030c0000
     if (frame->owner != FRAME_OWNED_BY_THREAD && frame->owner != FRAME_OWNED_BY_GENERATOR) {
-        return NULL;
+        return nullptr;
     }
 #elif PY_VERSION_HEX >= 0x030b0000
     if (_PyFrame_IsIncomplete(frame)) {
-        return NULL;
+        return nullptr;
     }
 #endif
 
