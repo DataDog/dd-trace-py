@@ -111,6 +111,7 @@ run-tests-trigger:
   variables:
     UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
     NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
+    PARENT_PIPELINE_ID: "${CI_PIPELINE_ID}"
   # Allow the child job to fail if explicitly asked
   rules:
     - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
