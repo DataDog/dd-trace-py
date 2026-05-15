@@ -34,9 +34,6 @@ def cleanup_loaded_modules() -> None:
     if not enabled:
         return
 
-    original_reprlib_module = sys.modules.get("reprlib")
-    original_thread_module = sys.modules.get("_thread")
-
     def drop(module_name: str) -> None:
         module = sys.modules.get(module_name)
         # Don't delete modules that are currently being imported (they might be None or incomplete)
@@ -104,27 +101,16 @@ def cleanup_loaded_modules() -> None:
             # CPython on boot.
             "threading",
             "_thread",
+            # reprlib does `from _thread import get_ident` at module level;
+            # unloading it ensures a fresh re-import binds the correct get_ident
+            # after _thread is reloaded, keeping it picklable.
+            "reprlib",
         ]
     )
     for u in UNLOAD_MODULES:
         for m in list(sys.modules):
             if m == u or m.startswith(u + "."):
                 drop(m)
-
-    if original_reprlib_module is not None or original_thread_module is not None or "reprlib" in sys.modules:
-        # Modules imported before cleanup can keep direct references to the old
-        # reprlib or _thread objects. If _thread is re-imported, stale reprlib
-        # references can retain the old get_ident builtin and become
-        # unpicklable.
-        import _thread
-
-        current_get_ident = _thread.get_ident
-        if original_thread_module is not None:
-            original_thread_module.get_ident = current_get_ident  # type: ignore[attr-defined]
-        if original_reprlib_module is not None:
-            original_reprlib_module.get_ident = current_get_ident  # type: ignore[attr-defined]
-        if "reprlib" in sys.modules:
-            sys.modules["reprlib"].get_ident = current_get_ident  # type: ignore[attr-defined]
 
     # Because we are not unloading it, the logging module requires a reference
     # to the newly imported threading module to allow it to retrieve the correct
