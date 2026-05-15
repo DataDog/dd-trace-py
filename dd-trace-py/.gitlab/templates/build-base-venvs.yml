@@ -7,7 +7,7 @@ build_base_venvs:
       artifacts: true
   parallel:
     matrix:
-      - PYTHON_VERSION: [{python_versions: ''}]
+      - PYTHON_VERSION: [{python_versions}]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
     PIP_VERBOSE: '0'
