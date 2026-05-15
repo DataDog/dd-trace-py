@@ -119,7 +119,7 @@ def cleanup_loaded_modules() -> None:
     # hook on the threading module to perform this update.
     @ModuleWatchdog.after_module_imported("threading")
     def _(threading):
-        logging.threading = threading
+        logging.threading = threading  # type: ignore[attr-defined]
 
     # Do module cloning only once
     enabled = False
