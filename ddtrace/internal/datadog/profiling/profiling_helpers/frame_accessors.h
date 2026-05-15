@@ -79,29 +79,36 @@ get_code_from_frame(py_frame_t* frame)
 #endif
 }
 
-/* Return true for frames that should be skipped during stack walking:
+/*
+ * Returns the PyCodeObject* for the frame if it should be walked,
+ * or NULL if the frame should be skipped. Skipped frames are:
  *   - frames whose code slot is NULL or not a real PyCodeObject
  *   - Python 3.12+ "cstack"/interpreter shim frames
  *   - Python 3.11 incomplete frames (prev_instr < firsttraceable)
  *
  * IMPORTANT: Calls PyCode_Check() which dereferences the code object.
  * Only safe when the code object pointer is valid (GIL held or
- * object known to be alive). */
-inline bool
-should_skip_frame(py_frame_t* frame)
+ * object known to be alive).
+ */
+inline PyCodeObject*
+get_code_if_not_skip(py_frame_t* frame)
 {
-    PyObject* code = reinterpret_cast<PyObject*>(get_code_from_frame(frame));
-    if (code == NULL || !PyCode_Check(code)) {
-        return true;
+    PyCodeObject* code = get_code_from_frame(frame);
+    if (code == NULL || !PyCode_Check(reinterpret_cast<PyObject*>(code))) {
+        return NULL;
     }
 
 #if PY_VERSION_HEX >= 0x030c0000
-    return frame->owner != FRAME_OWNED_BY_THREAD && frame->owner != FRAME_OWNED_BY_GENERATOR;
+    if (frame->owner != FRAME_OWNED_BY_THREAD && frame->owner != FRAME_OWNED_BY_GENERATOR) {
+        return NULL;
+    }
 #elif PY_VERSION_HEX >= 0x030b0000
-    return _PyFrame_IsIncomplete(frame);
-#else
-    return false;
+    if (_PyFrame_IsIncomplete(frame)) {
+        return NULL;
+    }
 #endif
+
+    return code;
 }
 
 /* Return the best available function name for a code object.
