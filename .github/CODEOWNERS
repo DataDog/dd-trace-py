@@ -42,7 +42,7 @@ static-analysis.datadog.yml         @DataDog/python-guild
 .gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
 .readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
 README.md                           @DataDog/python-guild  @DataDog/apm-core-python
-hatch.toml                          @DataDog/python-guild
+scripts/lint                        @DataDog/python-guild
 mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
 pyproject.toml                      @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
