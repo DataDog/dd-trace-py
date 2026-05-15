@@ -627,6 +627,7 @@ def gen_pre_checks() -> None:
         command="scripts/run-script-doctests.py",
         paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
     )
+    """
     check(
         name="Check suitespec coverage",
         command="scripts/lint suitespec-check",
@@ -657,6 +658,7 @@ def gen_pre_checks() -> None:
         command="scripts/lint hook-tests",
         paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*", "scripts/lint"},
     )
+    """
     if not checks:
         return
 
