@@ -512,6 +512,64 @@ def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess)
         assert "string_at" in json.dumps(message["experimental"])
 
 
+code_all_threads = """
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ctypes
+import sys
+import threading
+import time
+
+import ddtrace.auto
+
+_hold = threading.Event()
+
+def _set_os_thread_name(name: str) -> None:
+    # Crashtracker reads Linux task comm; set it explicitly (not only Thread.name).
+    libc = ctypes.CDLL("libc.so.6")
+    libc.pthread_self.restype = ctypes.c_void_p
+    libc.pthread_setname_np.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    libc.pthread_setname_np.restype = ctypes.c_int
+    libc.pthread_setname_np(libc.pthread_self(), name.encode("utf-8", "replace"))
+
+
+def _worker(name: str) -> None:
+    _set_os_thread_name(name)
+    _hold.wait()
+
+for i in range(3):
+    threading.Thread(target=_worker, args=(f"test_thread_{i}",), daemon=False).start()
+
+time.sleep(0.1)
+
+ctypes.string_at(0)
+sys.exit(-1)
+"""
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_all_threads(run_python_code_in_subprocess):
+    service = "test_crashtracker_all_threads"
+    with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_SERVICE"] = service
+        stdout, stderr, exitcode, _ = run_python_code_in_subprocess(code_all_threads, env=env)
+
+        assert not stdout
+        assert not stderr
+        assert exitcode == -11
+
+        _ping = utils.get_crash_ping(client, service=service)
+
+        report = utils.get_crash_report(client, service=service)
+
+        assert b"test_thread_0" in report["body"]
+        assert b"test_thread_1" in report["body"]
+        assert b"test_thread_2" in report["body"]
+        assert b"string_at" in report["body"]
+
+
 # Subprocess code for test_crashtracker_native_extension_crash.
 #
 # Using C++ means the symbol is name-mangled in the binary

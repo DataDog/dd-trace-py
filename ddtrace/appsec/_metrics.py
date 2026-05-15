@@ -1,6 +1,7 @@
 import functools
 from typing import Any
 from typing import Callable
+from typing import Literal
 from typing import Optional
 
 from ddtrace.appsec import _constants
@@ -223,3 +224,66 @@ def report_ato_sdk_usage(event_type: str, v2: bool = True) -> None:
     version = "v2" if v2 else "v1"
     tags = (("event_type", event_type), ("sdk_version", version))
     telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "sdk.event", 1, tags=tags)
+
+
+@_safe_metric(WARNING_TAGS.TELEMETRY_METRICS, ":user_auth:missing_user_login")
+def report_user_auth_missing_user_login(
+    framework: str,
+    event_type: Literal[
+        "login_success",
+        "login_failure",
+        "signup",
+    ],
+) -> None:
+    tags = (("framework", framework), ("event_type", event_type))
+    telemetry.telemetry_writer.add_count_metric(
+        TELEMETRY_NAMESPACE.APPSEC,
+        "instrum.user_auth.missing_user_login",
+        1,
+        tags=tags,
+    )
+
+
+def _is_user_auth_value_missing(value: Any) -> bool:
+    return value is None or value == ""
+
+
+def report_user_auth_missing(
+    framework: str,
+    event_type: Literal[
+        "login_success",
+        "login_failure",
+        "signup",
+    ],
+    user_id: Any,
+    user_login: Any,
+    report_missing_login: bool,
+) -> None:
+    has_no_user_login = _is_user_auth_value_missing(user_login)
+    has_no_user_id = _is_user_auth_value_missing(user_id)
+
+    if report_missing_login and has_no_user_login:
+        report_user_auth_missing_user_login(framework, event_type)
+
+    login_unavailable = not report_missing_login or has_no_user_login
+    if has_no_user_id and login_unavailable:
+        report_user_auth_missing_user_id(framework, event_type)
+
+
+@_safe_metric(WARNING_TAGS.TELEMETRY_METRICS, ":user_auth:missing_user_id")
+def report_user_auth_missing_user_id(
+    framework: str,
+    event_type: Literal[
+        "login_success",
+        "login_failure",
+        "signup",
+        "authenticated_request",
+    ],
+) -> None:
+    tags = (("framework", framework), ("event_type", event_type))
+    telemetry.telemetry_writer.add_count_metric(
+        TELEMETRY_NAMESPACE.APPSEC,
+        "instrum.user_auth.missing_user_id",
+        1,
+        tags=tags,
+    )

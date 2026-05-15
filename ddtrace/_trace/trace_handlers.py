@@ -115,9 +115,6 @@ class _TracedIterable(wrapt.ObjectProxy):
             self._finish_spans()
             raise
 
-    # PY2 Support
-    next = __next__
-
     def close(self):
         if getattr(self.__wrapped__, "close", None):
             self.__wrapped__.close()

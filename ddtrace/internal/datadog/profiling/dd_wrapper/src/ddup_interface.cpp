@@ -2,7 +2,9 @@
 
 #include "defer.hpp"
 #include "libdatadog_helpers.hpp"
+#include "profile_borrow.hpp"
 #include "profiler_state.hpp"
+#include "profiler_stats.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
 #include "uploader.hpp"
@@ -113,6 +115,22 @@ void
 ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
 {
     Datadog::UploaderBuilder::set_max_timeout_ms(max_timeout_ms);
+}
+
+void
+ddup_set_profiler_settings_json(std::string_view settings_json) // cppcheck-suppress unusedFunction
+{
+    // Store the caller-supplied compact JSON object on ProfilerState
+    // (process-global). It is passed verbatim to libdatadog's exporter via
+    // the `info` channel on each upload, so we only sanity-check that it
+    // looks like a JSON object here. Empty objects and non-object inputs are
+    // dropped silently.
+    auto& info_json = Datadog::ProfilerState::get().profiler_settings_info_json;
+    if (settings_json.size() > 2 && settings_json.front() == '{' && settings_json.back() == '}') {
+        info_json.assign(settings_json);
+    } else {
+        info_json.clear();
+    }
 }
 
 bool
