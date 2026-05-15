@@ -37,13 +37,19 @@ def _extract_model_name(instance: Any) -> Optional[str]:
 
     Strips path prefixes (e.g. "models/gemini-2.5-flash" → "gemini-2.5-flash")
     since some providers use resource paths rather than bare model names.
+
+    `base_model_id` is checked first so that langchain-aws ChatBedrockConverse
+    instances using an inference profile (where `model_id` is the profile ARN
+    and `base_model_id` is the underlying foundation model) report the
+    foundation model rather than the opaque profile identifier.
     """
-    for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
-        if hasattr(instance, attr):
-            model_name = getattr(instance, attr)
-            if model_name and isinstance(model_name, str) and "/" in model_name:
-                model_name = model_name.split("/")[-1]
-            return model_name
+    for attr in ("base_model_id", "model", "model_name", "model_id", "model_key", "repo_id"):
+        model_name = getattr(instance, attr, None)
+        if not model_name:
+            continue
+        if isinstance(model_name, str) and "/" in model_name:
+            model_name = model_name.split("/")[-1]
+        return model_name
     return None
 
 
