@@ -27,11 +27,11 @@
 .gitlab/system-tests.yml:50 OSS DataDog/system-tests, expected to stay public
 .github/workflows/system-tests.yml:96 OSS DataDog/system-tests, expected to stay public
 .github/workflows/system-tests.yml:149 OSS DataDog/system-tests, expected to stay public
-.github/workflows/system-tests.yml:342 OSS DataDog/system-tests reusable action
-.github/workflows/system-tests.yml:369 OSS DataDog/datadog-lambda-python checkout
-.github/workflows/system-tests.yml:391 OSS DataDog/system-tests reusable workflow
-.github/workflows/system-tests.yml:421 OSS DataDog/system-tests reusable workflow
-.github/workflows/system-tests.yml:431 OSS DataDog/system-tests reusable workflow
+.github/workflows/system-tests.yml:346 OSS DataDog/system-tests reusable action
+.github/workflows/system-tests.yml:373 OSS DataDog/datadog-lambda-python checkout
+.github/workflows/system-tests.yml:395 OSS DataDog/system-tests reusable workflow
+.github/workflows/system-tests.yml:425 OSS DataDog/system-tests reusable workflow
+.github/workflows/system-tests.yml:435 OSS DataDog/system-tests reusable workflow
 
 
 # ===== Internal benchmarking platform =====
@@ -42,8 +42,8 @@
 .gitlab/benchmarks/microbenchmarks.yml:36 URL rewrite for internal benchmarking-platform clone
 .gitlab/benchmarks/microbenchmarks.yml:38 internal benchmarking-platform clone (rerouted via insteadOf)
 .gitlab/benchmarks/microbenchmarks.yml:93 dd-trace-py.git URL set as origin in benchmarking script
-.gitlab/benchmarks/microbenchmarks.yml:173 URL rewrite for internal benchmarking-platform clone
-.gitlab/benchmarks/microbenchmarks.yml:175 internal benchmarking-platform clone (rerouted via insteadOf)
+.gitlab/benchmarks/microbenchmarks.yml:176 URL rewrite for internal benchmarking-platform clone
+.gitlab/benchmarks/microbenchmarks.yml:178 internal benchmarking-platform clone (rerouted via insteadOf)
 .gitlab/benchmarks/macrobenchmarks.yml:61 internal benchmarking-platform clone via gitlab.ddbuild.io
 
 
