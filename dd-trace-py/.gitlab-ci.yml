@@ -102,6 +102,7 @@ run-tests-trigger:
  needs:
    - job: tests-gen
    - job: "ddtrace-internal:build linux"
+     artifacts: true
  variables:
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
