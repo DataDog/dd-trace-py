@@ -79,6 +79,7 @@ def cleanup_loaded_modules() -> None:
             "wrapt",
             "bytecode",  # needed by before-fork hooks
             "pathlib",  # used in singledispatch
+            "dataclasses",  # for product loaded remotely that use dataclasses
         ]
     )
     for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):

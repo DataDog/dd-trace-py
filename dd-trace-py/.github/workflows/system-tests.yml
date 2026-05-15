@@ -8,7 +8,7 @@ on:
   pull_request: {}
   workflow_dispatch: {}
   schedule:
-    - cron: '00 04 * * 2-6'
+    - cron: '00 04 * * *'
 
 permissions:
   id-token: write
@@ -95,7 +95,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '24c2e96e7703a8128d5a29cae2e95776d86ef790'
+          ref: '0c5de1b1354fa47fb24b88695e9fdafdfb69b6f7'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -148,7 +148,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '24c2e96e7703a8128d5a29cae2e95776d86ef790'
+          ref: '0c5de1b1354fa47fb24b88695e9fdafdfb69b6f7'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -392,7 +392,7 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@23941ab6de4122b7d0ca2b0d4aa7818def68a0d5
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@0c5de1b1354fa47fb24b88695e9fdafdfb69b6f7
     secrets: inherit
     with:
       library: python_lambda
@@ -422,7 +422,7 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@23941ab6de4122b7d0ca2b0d4aa7818def68a0d5
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@0c5de1b1354fa47fb24b88695e9fdafdfb69b6f7
     secrets: inherit
     with:
       library: python

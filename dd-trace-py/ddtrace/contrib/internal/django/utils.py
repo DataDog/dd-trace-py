@@ -29,13 +29,6 @@ from ddtrace.trace import Span
 import ddtrace.vendor.xmltodict as xmltodict
 
 
-try:
-    from json import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
-
-
 log = get_logger(__name__)
 
 if django.VERSION < (1, 10, 0):

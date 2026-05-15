@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import field
+from pathlib import Path
 from types import FrameType
 import typing as t
 
@@ -55,6 +56,22 @@ class DynamicSpan(Signal):
         span.set_tags(probe.tags)
         span._set_attribute(PROBE_ID_TAG_NAME, probe.probe_id)
         span._set_attribute(_ORIGIN_KEY, "di")
+
+        # Set Code Origin tags
+        root = span._local_root
+        root_co_type = root.get_tag("_dd.code_origin.type")
+        span._set_attribute("_dd.code_origin.type", "intermediate" if root_co_type == "entry" else "entry")
+
+        if root_co_type is None:
+            root._set_attribute("_dd.code_origin.type", "entry")
+
+        frame = self.frame
+        code = frame.f_code
+        for s in (root, span) if root_co_type is None else (span,):
+            s._set_attribute("_dd.code_origin.frames.0.file", str(Path(code.co_filename).resolve()))
+            s._set_attribute("_dd.code_origin.frames.0.line", str(frame.f_lineno))
+            s._set_attribute("_dd.code_origin.frames.0.type", probe.module)
+            s._set_attribute("_dd.code_origin.frames.0.method", probe.func_qname)
 
     def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float, scope: t.Mapping[str, t.Any]) -> None:
         if self._span_cm is not None:

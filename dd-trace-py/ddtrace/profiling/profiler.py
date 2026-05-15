@@ -76,6 +76,13 @@ class Profiler(object):
 
         atexit.register(self.stop)
 
+        # register_on_exit_signal is needed for processes terminated via SIGTERM (e.g.
+        # Ray workers, Kubernetes pods). Python atexit handlers do NOT run on SIGTERM by default,
+        # so without this the last partial profile window is silently lost.
+        # We register _stop_on_signal (not stop) to avoid deadlocking when SIGTERM arrives while
+        # _active_lock is already held by the main thread (e.g. during start or stop).
+        atexit.register_on_exit_signal(self._stop_on_signal)
+
         # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
         # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
         # For uWSGI, _start_on_fork is registered via uwsgidecorators.postfork() in check_uwsgi().
@@ -97,6 +104,40 @@ class Profiler(object):
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
+
+    def _stop_on_signal(self) -> None:
+        """Flush and stop the profiler when an exit signal (SIGTERM/SIGINT) is received.
+
+        Signal handlers run in the main thread between bytecodes. If the main thread already
+        holds _active_lock (e.g. SIGTERM races with start or stop), a blocking acquire
+        would deadlock. We use non-blocking acquire and bail out when the lock is unavailable:
+        in that case start/stop is already in progress and will handle cleanup itself.
+
+        This mirrors the pattern used by the tracer's shutdown method.
+        """
+        atexit.unregister(self.stop)
+
+        if not Profiler._active_lock.acquire(blocking=False):
+            # If the lock is unavailable, stop is already running on the main thread
+            # (signal handlers are delivered between bytecodes of the main thread, so the main
+            # thread itself holds the lock). A blocking acquire here would deadlock. We bail out
+            # and rely on the in-progress stop to complete the flush. The narrow race where
+            # _raise_default terminates the process before stop finishes is a known
+            # limitation: there is no safe way to wait for a lock held by the
+            # current thread from within a signal handler.
+            return
+
+        try:
+            self._profiler.stop(flush=True)
+        except service.ServiceStatusError:
+            pass
+        except Exception:
+            LOG.debug("Exception while stopping profiler on exit signal", exc_info=True)
+        finally:
+            if Profiler._active_instance is self:
+                Profiler._active_instance = None
+            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
+            Profiler._active_lock.release()
 
     def _start_on_fork(self) -> None:
         """Start a fresh profiler in child process after fork. This is needed for uWSGI support."""
