@@ -46,17 +46,6 @@ def get_stream(params):
     stream = params.get("StreamARN", params.get("StreamName", ""))
     return stream
 
-
-def get_eventbridge_bus_name(message):
-    # type: (dict) -> str
-    """
-    :message: contains the EventBridge message entry for the current botocore action
-
-    Return the event bus name for a PutEvents entry.
-    """
-    return message.get("EventBusName", "default")
-
-
 def inject_context(trace_data, endpoint_service, dsm_identifier, message):
     # type: (dict, str, str, Any) -> None
     """
@@ -138,7 +127,7 @@ def handle_kinesis_produce(ctx, stream, dd_ctx_json, record, *args):
 def handle_eventbridge_produce(ctx, span, endpoint_service, trace_data, params, message=None):
     if not message:
         message = params
-    event_bus_name = get_eventbridge_bus_name(message)
+    event_bus_name = message.get("EventBusName", "default")
     inject_context(trace_data, "eventbridge", event_bus_name, message)
 
 
