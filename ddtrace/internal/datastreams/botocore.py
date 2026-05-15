@@ -124,11 +124,15 @@ def handle_kinesis_produce(ctx, stream, dd_ctx_json, record, *args):
             inject_context(dd_ctx_json["_datadog"], "kinesis", stream, record)
 
 
-def handle_eventbridge_produce(ctx, span, endpoint_service, trace_data, params, entry=None):
-    if not entry:
-        entry = params
-    event_bus_name = entry.get("EventBusName", "default")
-    inject_context(trace_data, "eventbridge", event_bus_name, entry)
+def handle_eventbridge_produce(ctx, span, endpoint_service, trace_data, request_params, event_entry=None):
+    # EventBridge DSM injection is normally dispatched once per PutEvents entry, so
+    # `event_entry` is the specific event being mutated while `request_params` is the
+    # full PutEvents payload. Fall back to `request_params` for any caller that only
+    # passes a single message-like object.
+    if not event_entry:
+        event_entry = request_params
+    event_bus_name = event_entry.get("EventBusName", "default")
+    inject_context(trace_data, "eventbridge", event_bus_name, event_entry)
 
 
 def handle_sqs_sns_produce(ctx, span, endpoint_service, trace_data, params, message=None):
