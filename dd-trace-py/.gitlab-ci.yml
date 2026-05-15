@@ -119,6 +119,8 @@ run-tests-trigger:
     include:
       - artifact: dd-trace-py/.gitlab/tests-gen.yml
         job: tests-gen
+      - artifact: pywheels/ddtrace_internal-0.0.0-py3-none-any.whl
+        job: "ddtrace-internal:build linux"
     strategy: depend
 
 serverless lambda tests:
