@@ -206,3 +206,33 @@ def test_advanced_schema_deserialize(protobuf, tracer, test_spans):
     assert tags[SCHEMA_TAGS.SCHEMA_OPERATION] == "deserialization"
     assert tags[SCHEMA_TAGS.SCHEMA_ID] == MESSAGE_SCHEMA_ID
     assert metrics[SCHEMA_TAGS.SCHEMA_WEIGHT] == 1
+
+
+def test_parse_from_string_preserves_return_value(protobuf, tracer, test_spans):
+    """Regression: ``_traced_deserialize_message`` swallowed
+    ``ParseFromString``'s return value (the number of bytes consumed) by
+    not ``return``-ing through ``func(*args, **kwargs)``. Callers got
+    ``None`` instead of an ``int``. The wrapper also called the underlying
+    method twice when the pin was disabled (no ``return`` on the early
+    bail-out branch either).
+    """
+    importlib.reload(other_message_pb2)
+    OtherMessage = other_message_pb2.OtherMessage
+
+    msg = OtherMessage()
+    msg.name.append("Alice")
+    msg.age = 30
+    bytes_data = msg.SerializeToString()
+
+    decoded = OtherMessage()
+    unwrapped_result = OtherMessage().ParseFromString(bytes_data)
+    assert isinstance(unwrapped_result, int)
+
+    with tracer.trace("other_message.deserialize") as span:
+        span.context.sampling_priority = AUTO_KEEP
+        wrapped_result = decoded.ParseFromString(bytes_data)
+
+    # Wrapped call must pass through the original return value.
+    assert wrapped_result == unwrapped_result
+    assert decoded.name == msg.name
+    assert decoded.age == msg.age
