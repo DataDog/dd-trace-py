@@ -2,12 +2,12 @@ build_base_venvs:
   extends: .cached_testrunner
   stage: setup
   needs:
-    - job: "ddtrace-internal:build linux: [amd64, cp314-cp314, v85383392-751efc0-manylinux2014_x86_64]"
+    - pipeline: $PARENT_PIPELINE_ID
+      job: "ddtrace-internal:build linux: [amd64, cp314-cp314, v85383392-751efc0-manylinux2014_x86_64]"
       artifacts: true
-      pipeline: $PARENT_PIPELINE_ID
   parallel:
     matrix:
-      - PYTHON_VERSION: [{python_versions}]
+      - PYTHON_VERSION: [{python_versions: ''}]
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
     PIP_VERBOSE: '0'
