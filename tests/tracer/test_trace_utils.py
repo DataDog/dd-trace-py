@@ -286,6 +286,71 @@ class TestHeaders(object):
         )
         assert span.get_tag("http.referrer_hostname") == expected_hostname
 
+    def test_security_testing_headers_collected_unconditionally(self, span, integration_config):
+        assert not integration_config.is_header_tracing_configured
+        trace_utils.set_http_meta(
+            span,
+            integration_config,
+            request_headers={
+                "x-datadog-endpoint-scan": "scan-uuid-1",
+                "x-datadog-security-test": "test-uuid-2",
+                "x-other-header": "ignored",
+            },
+        )
+        assert span.get_tag("http.request.headers.x-datadog-endpoint-scan") == "scan-uuid-1"
+        assert span.get_tag("http.request.headers.x-datadog-security-test") == "test-uuid-2"
+        assert span.get_tag("http.request.headers.x-other-header") is None
+
+    def test_security_testing_headers_absent_when_not_in_request(self, span, integration_config):
+        trace_utils.set_http_meta(
+            span,
+            integration_config,
+            request_headers={"content-type": "application/json"},
+        )
+        assert span.get_tag("http.request.headers.x-datadog-endpoint-scan") is None
+        assert span.get_tag("http.request.headers.x-datadog-security-test") is None
+
+    def test_security_testing_headers_case_sensitive_lookup(self, span, integration_config):
+        trace_utils.set_http_meta(
+            span,
+            integration_config,
+            request_headers={
+                "X-Datadog-Endpoint-Scan": "scan-uuid-3",
+                "X-Datadog-Security-Test": "test-uuid-4",
+            },
+            headers_are_case_sensitive=True,
+        )
+        assert span.get_tag("http.request.headers.x-datadog-endpoint-scan") == "scan-uuid-3"
+        assert span.get_tag("http.request.headers.x-datadog-security-test") == "test-uuid-4"
+
+    def test_security_testing_headers_empty_value_still_tagged(self, span, integration_config):
+        # RFC: collect unconditionally — presence of the header with an empty
+        # value is still a valid signal.
+        trace_utils.set_http_meta(
+            span,
+            integration_config,
+            request_headers={
+                "x-datadog-endpoint-scan": "",
+                "x-datadog-security-test": "ok",
+            },
+        )
+        assert span.get_tag("http.request.headers.x-datadog-endpoint-scan") == ""
+        assert span.get_tag("http.request.headers.x-datadog-security-test") == "ok"
+
+    def test_security_testing_headers_not_propagated_downstream(self, span, integration_config):
+        trace_utils.set_http_meta(
+            span,
+            integration_config,
+            request_headers={
+                "x-datadog-endpoint-scan": "scan-uuid",
+                "x-datadog-security-test": "test-uuid",
+            },
+        )
+        out_headers: dict = {}
+        HTTPPropagator.inject(span.context, out_headers)
+        assert "x-datadog-endpoint-scan" not in out_headers
+        assert "x-datadog-security-test" not in out_headers
+
 
 @pytest.mark.parametrize(
     "pin,config_val,default,global_service,expected",
