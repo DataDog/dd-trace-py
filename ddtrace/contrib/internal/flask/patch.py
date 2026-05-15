@@ -52,13 +52,6 @@ from .wrappers import wrap_function
 from .wrappers import wrap_view
 
 
-try:
-    from json import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
-
-
 log = get_logger(__name__)
 
 FLASK_VERSION = "flask.version"

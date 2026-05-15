@@ -94,6 +94,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "aws-durable-execution-sdk-python",
+        "integration": "aws_durable_execution_sdk_python",
+        "minimum_tracer_supported": "1.4.0",
+        "max_tracer_supported": "1.4.0",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "datadog-lambda",
         "integration": "aws_lambda",
         "minimum_tracer_supported": "6.105.0",
@@ -675,7 +682,7 @@
         "dependency": "requests",
         "integration": "requests",
         "minimum_tracer_supported": "2.25.1",
-        "max_tracer_supported": "2.32.5",
+        "max_tracer_supported": "2.34.1",
         "auto-instrumented": true
     },
     {
