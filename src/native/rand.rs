@@ -55,23 +55,58 @@ pub fn seed() {
     });
 }
 
-/// Generate a random 64-bit unsigned integer.
-#[pyfunction]
-pub fn rand64bits() -> u64 {
-    if secure_random() {
-        return OsRng.try_next_u64().expect("OsRng failed");
+fn native_log_warn(msg: &str) {
+    use std::io::Write;
+    let line = format!("WARNING {msg}\n");
+    // 1. stdout — captured by most container/Lambda runtimes
+    let _ = std::io::stdout().write_all(line.as_bytes());
+    let _ = std::io::stdout().flush();
+    // 2. stderr — captured separately; some runtimes only watch one of the two
+    let _ = std::io::stderr().write_all(line.as_bytes());
+    let _ = std::io::stderr().flush();
+    // 3. file — proves the function ran even when both streams are redirected
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/dd_rand64bits.log")
+    {
+        let _ = writeln!(f, "{msg}");
     }
-    RNG.with(|rng| rng.borrow_mut().gen())
 }
 
-/// Generate a 128-bit trace ID: [32-bit unix seconds][32 zeros][64 random bits]
-#[pyfunction]
-pub fn generate_128bit_trace_id() -> u128 {
+// Core RNG logic — called by the pyfunction wrapper, span_data.rs, and tests.
+// Returns (value, secure_random_flag).
+pub(crate) fn rand64bits_impl() -> (u64, bool) {
+    let secure = secure_random();
+    let v = if secure {
+        OsRng.try_next_u64().expect("OsRng failed")
+    } else {
+        RNG.with(|rng| rng.borrow_mut().gen())
+    };
+    let path = if secure { "OsRng" } else { "SmallRng" };
+    native_log_warn(&format!("LTN [rand64bits] secure_random={secure} path={path} -> {v}"));
+    (v, secure)
+}
+
+pub(crate) fn generate_128bit_trace_id_impl() -> u128 {
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as u128;
-    (timestamp << 96) | (rand64bits() as u128)
+    (timestamp << 96) | (rand64bits_impl().0 as u128)
+}
+
+/// Generate a random 64-bit unsigned integer.
+#[pyfunction]
+pub fn rand64bits(_py: Python<'_>) -> u64 {
+    rand64bits_impl().0
+}
+
+/// Generate a 128-bit trace ID: [32-bit unix seconds][32 zeros][64 random bits]
+#[pyfunction]
+pub fn generate_128bit_trace_id(py: Python<'_>) -> u128 {
+    let _ = py; // py unused here; rand64bits logging covers the inner call
+    generate_128bit_trace_id_impl()
 }
 
 #[cfg(test)]
@@ -122,7 +157,7 @@ mod tests {
     #[test]
     fn test_rand64bits_unique_values() {
         // 2^-64 ≈ 5e-20 collision probability per pair; 1000 samples is safe.
-        let values: HashSet<u64> = (0..1000).map(|_| rand64bits()).collect();
+        let values: HashSet<u64> = (0..1000).map(|_| rand64bits_impl().0).collect();
         assert!(
             values.len() > 990,
             "Expected unique rand64bits values, got {} distinct in 1000",
@@ -133,7 +168,7 @@ mod tests {
     #[test]
     fn test_rand64bits_uses_full_range() {
         // If the RNG were stuck below 2^32, none of the high 32 bits would be set.
-        let any_high_bit_set = (0..100).any(|_| rand64bits() >> 32 != 0);
+        let any_high_bit_set = (0..100).any(|_| rand64bits_impl().0 >> 32 != 0);
         assert!(
             any_high_bit_set,
             "rand64bits never set bits above 32 — RNG range is too narrow"
@@ -145,7 +180,7 @@ mod tests {
     #[test]
     fn test_rand64bits_osrng_path_produces_varied_values() {
         with_secure_random(true, || {
-            let values: HashSet<u64> = (0..100).map(|_| rand64bits()).collect();
+            let values: HashSet<u64> = (0..100).map(|_| rand64bits_impl().0).collect();
             assert!(
                 values.len() > 90,
                 "OsRng path in rand64bits produced insufficient diversity: {} distinct in 100",
@@ -157,7 +192,7 @@ mod tests {
     #[test]
     fn test_rand64bits_osrng_path_uses_full_range() {
         with_secure_random(true, || {
-            let any_high_bit_set = (0..100).any(|_| rand64bits() >> 32 != 0);
+            let any_high_bit_set = (0..100).any(|_| rand64bits_impl().0 >> 32 != 0);
             assert!(
                 any_high_bit_set,
                 "OsRng path in rand64bits never set bits above 32"
@@ -171,7 +206,7 @@ mod tests {
     fn test_seed_does_not_break_rng() {
         // seed() reseeds the thread-local SmallRng; verify it still produces values.
         seed();
-        let values: HashSet<u64> = (0..10).map(|_| rand64bits()).collect();
+        let values: HashSet<u64> = (0..10).map(|_| rand64bits_impl().0).collect();
         assert!(!values.is_empty());
     }
 
@@ -193,7 +228,7 @@ mod tests {
     fn test_trace_id_timestamp_in_high_bits() {
         // Format: [32-bit unix seconds][32 zeros][64 random bits]
         // Top 32 bits must be a plausible Unix timestamp.
-        let id = generate_128bit_trace_id();
+        let id = generate_128bit_trace_id_impl();
         let timestamp = (id >> 96) as u32;
         // 2020-01-01T00:00:00Z = 1_577_836_800
         // 2100-01-01T00:00:00Z = 4_102_444_800
@@ -211,7 +246,7 @@ mod tests {
     fn test_trace_id_middle_bits_zero() {
         // Bits 95-64 (the 32 bits after the timestamp) must always be zero per the spec.
         for _ in 0..20 {
-            let id = generate_128bit_trace_id();
+            let id = generate_128bit_trace_id_impl();
             let middle = ((id >> 64) & 0xFFFF_FFFF) as u32;
             assert_eq!(
                 middle, 0,
@@ -224,7 +259,7 @@ mod tests {
     fn test_trace_id_low_bits_vary() {
         // The low 64 bits carry the random payload; they must not be constant.
         let lows: HashSet<u64> = (0..100)
-            .map(|_| generate_128bit_trace_id() as u64)
+            .map(|_| generate_128bit_trace_id_impl() as u64)
             .collect();
         assert!(
             lows.len() > 90,
@@ -235,7 +270,7 @@ mod tests {
 
     #[test]
     fn test_trace_id_ids_are_unique() {
-        let ids: HashSet<u128> = (0..1000).map(|_| generate_128bit_trace_id()).collect();
+        let ids: HashSet<u128> = (0..1000).map(|_| generate_128bit_trace_id_impl()).collect();
         assert!(
             ids.len() > 990,
             "Expected unique trace IDs, got {} distinct in 1000",

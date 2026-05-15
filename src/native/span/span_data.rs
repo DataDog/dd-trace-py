@@ -139,7 +139,7 @@ impl SpanData {
         // Initialize span_id from parameter or generate random
         span.data.span_id = span_id
             .and_then(|obj| obj.extract::<u64>().ok())
-            .unwrap_or_else(crate::rand::rand64bits);
+            .unwrap_or_else(|| crate::rand::rand64bits_impl().0);
         // Initialize trace_id: use provided value, or generate based on 128-bit mode config.
         // When auto-generating, reads the Rust-owned AtomicBool set by Python Config.__init__:
         //   enabled  → generate_128bit_trace_id() (SystemTime upper bits + random lower bits)
@@ -159,9 +159,9 @@ impl SpanData {
                 Err(_) => {
                     // Invalid type — fall through to auto-generation.
                     let id = if crate::config::get_128_bit_trace_id_enabled() {
-                        crate::rand::generate_128bit_trace_id()
+                        crate::rand::generate_128bit_trace_id_impl()
                     } else {
-                        crate::rand::rand64bits() as u128
+                        crate::rand::rand64bits_impl().0 as u128
                     };
                     span.set_trace_id_native(id);
                     None
@@ -169,9 +169,9 @@ impl SpanData {
             },
             None => {
                 let id = if crate::config::get_128_bit_trace_id_enabled() {
-                    crate::rand::generate_128bit_trace_id()
+                    crate::rand::generate_128bit_trace_id_impl()
                 } else {
-                    crate::rand::rand64bits() as u128
+                    crate::rand::rand64bits_impl().0 as u128
                 };
                 span.set_trace_id_native(id);
                 None
