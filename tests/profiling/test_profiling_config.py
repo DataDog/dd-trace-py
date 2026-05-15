@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from ddtrace.internal.settings.profiling import ProfilingConfig
@@ -146,8 +148,6 @@ class TestDumpSettings:
             assert not key.startswith("dd.profiling."), f"unexpected channel header in key: {key!r}"
 
     def test_values_are_json_serializable(self) -> None:
-        import json
-
         settings = ProfilingConfig().dump_settings()
         json.dumps(settings)  # must not raise
 
