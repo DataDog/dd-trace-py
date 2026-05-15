@@ -9,6 +9,7 @@ log = logging.getLogger(__name__)
 
 def setup_tracing():
     from ddtrace import patch
+    import ddtrace.auto  # noqa:F401
 
     patch(ray=True)
 
