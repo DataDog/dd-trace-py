@@ -58,7 +58,7 @@ include:
     # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
     # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
-    - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
+    - ln -s "${CI_PROJECT_DIR}/dd-trace-py" "/home/bits/project"
 
 .test_base_riot_gpu:
   extends: .test_base_riot
