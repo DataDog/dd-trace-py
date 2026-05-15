@@ -17,7 +17,7 @@ impl AgentResponsePy {
     #[new]
     fn new(py: Python<'_>, rate_by_service: Bound<'_, PyAny>) -> PyResult<Self> {
         let dict = if let Ok(d) = rate_by_service.cast::<PyDict>() {
-            d.clone()
+            d.copy()?
         } else if let Ok(m) = rate_by_service.cast::<PyMapping>() {
             let dict = PyDict::new(py);
             if let Ok(items) = m.items() {
