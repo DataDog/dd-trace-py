@@ -1942,10 +1942,10 @@ class LLMObs(Service):
             "ddtrace.version": __version__,
             "language": "python",
         }
-        if LLMObs._git_repository_url:
-            initial_tags[git.REPOSITORY_URL] = LLMObs._git_repository_url
-        if LLMObs._git_commit_sha:
-            initial_tags[git.COMMIT_SHA] = LLMObs._git_commit_sha
+        if self._git_repository_url:
+            initial_tags[git.REPOSITORY_URL] = self._git_repository_url
+        if self._git_commit_sha:
+            initial_tags[git.COMMIT_SHA] = self._git_commit_sha
         if session_id:
             initial_tags["session_id"] = session_id
         for baggage_key, tag_key in (
