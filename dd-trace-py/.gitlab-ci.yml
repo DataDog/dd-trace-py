@@ -102,6 +102,11 @@ run-tests-trigger:
   needs:
     - job: tests-gen
     - job: "ddtrace-internal:build linux"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp314-cp314"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   variables:
     UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
     NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
@@ -116,11 +121,6 @@ run-tests-trigger:
         job: tests-gen
       - artifact: pywheels/*.whl 
         job: "ddtrace-internal:build linux" 
-        parallel:
-          matrix:
-            - ARCH_TAG: "amd64"
-              PYTHON_TAG: "cp314-cp314"
-              IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
     strategy: depend
 
 serverless lambda tests:
