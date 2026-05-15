@@ -98,26 +98,30 @@ tests-gen:
       - dd-trace-py/.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
 
 run-tests-trigger:
- stage: tests
- needs:
-   - job: tests-gen
-   - job: "ddtrace-internal:build linux"
-     artifacts: true
- variables:
-   UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
-   NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
- # Allow the child job to fail if explicitly asked
- rules:
-   - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
-     allow_failure: true
-   - allow_failure: false
- trigger:
-   include:
-     - artifact: dd-trace-py/.gitlab/tests-gen.yml
-       job: tests-gen
-     - artifact: pywheels/*.whl 
-       job: "ddtrace-internal:build linux" 
-   strategy: depend
+  stage: tests
+  needs:
+    - job: tests-gen
+    - job: "ddtrace-internal:build linux"
+  variables:
+    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
+  # Allow the child job to fail if explicitly asked
+  rules:
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
+  trigger:
+    include:
+      - artifact: dd-trace-py/.gitlab/tests-gen.yml
+        job: tests-gen
+      - artifact: pywheels/*.whl 
+        job: "ddtrace-internal:build linux" 
+        parallel:
+          matrix:
+            - ARCH_TAG: "amd64"
+              PYTHON_TAG: "cp314-cp314"
+              IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+    strategy: depend
 
 serverless lambda tests:
   stage: tests
