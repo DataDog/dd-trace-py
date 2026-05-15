@@ -34,8 +34,7 @@ build_base_venvs:
   artifacts:
     name: venv_$PYTHON_VERSION
     paths:
-      - .riot/venv_*
-      - ddtrace/_version.py
-      - ddtrace/**/*.so*
-      - ddtrace/internal/datadog/profiling/test/test_*
-      - "pywheels/*.whl"
+      - dd-trace-py/.riot/venv_*
+      - dd-trace-py/ddtrace/_version.py
+      - dd-trace-py/ddtrace/**/*.so*
+      - dd-trace-py/ddtrace/internal/datadog/profiling/test/test_*
