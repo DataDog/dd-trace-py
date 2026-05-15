@@ -183,6 +183,12 @@ class Sample
     // This is useful when the Sample object is embedded and will be destroyed later
     bool export_sample();
 
+    // Exports the sample as a heap tombstone: negates the heap_space value and
+    // exports. Used by the memalloc heap profiler to emit a delta that cancels
+    // a previously-emitted live allocation. Mutates the sample in place; the
+    // caller is expected to discard or clear() the sample after this call.
+    bool export_sample_negative();
+
     static ProfileBorrow profile_borrow();
     static void postfork_child();
     static void cleanup();

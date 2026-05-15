@@ -129,11 +129,37 @@ class heap_tracker_t
     void postfork_child();
 
   private:
+    /* Delta-export change event. ADD events reference the live traceback in
+     * allocs_m via raw pointer; REMOVE events own the extracted unique_ptr.
+     * The raw pointer in ADD is valid until export because the traceback is
+     * owned by either allocs_m or a subsequent REMOVE event in pending_changes
+     * (both are cleared together at export time). */
+    struct change_event
+    {
+        enum Kind : uint8_t
+        {
+            ADD,
+            REMOVE
+        };
+        void* ptr;
+        traceback_t* tb;
+        std::unique_ptr<traceback_t> owner; // set for REMOVE, null for ADD
+        Kind kind;
+    };
+
     uint32_t next_sample_size_no_cpython(uint32_t sample_size);
 
     /* This function is called from heap_tracker_t::postfork_child() as part of
        the fork handler to reset the sampling state. */
     void reset_sampling_state_no_cpython();
+
+    /* Return REMOVE-event tracebacks to the pool without emitting them. Used by
+     * the high-churn fallback and resync paths in export_heap_no_cpython. */
+    void flush_pending_to_pool_no_cpython();
+
+    /* Emit every live entry in allocs_m as a positive sample. Used by the
+     * resync and high-churn fallback paths. */
+    void export_full_snapshot_no_cpython();
 
     /* Heap profiler sampling interval */
     uint64_t sample_size;
@@ -162,6 +188,15 @@ class heap_tracker_t
     /* Traceback pool - reduces allocation overhead. Access is always under GIL. */
     static constexpr size_t POOL_CAPACITY = 128;
     std::vector<std::unique_ptr<traceback_t>> pool;
+
+    /* Delta export state. pending_changes accumulates ADD/REMOVE events between
+     * snapshots; export_heap_no_cpython drains it and emits the deltas.
+     * snapshots_since_resync counts elapsed snapshots; on RESYNC_INTERVAL we
+     * emit a full snapshot to bound backend-state drift from any lost upload. */
+    static constexpr size_t PENDING_CHANGES_RESERVE = 4096;
+    static constexpr uint32_t RESYNC_INTERVAL = 10;
+    std::vector<change_event> pending_changes;
+    uint32_t snapshots_since_resync;
 };
 
 // Pool implementation
@@ -219,8 +254,10 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   , rng(sample_size_val != 0U ? sample_size_val : 0x9e3779b9U) // 2^32 / phi (golden ratio)
   , current_sample_size(next_sample_size_no_cpython(sample_size_val))
   , allocated_memory(0)
+  , snapshots_since_resync(0)
 {
     pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
+    pending_changes.reserve(PENDING_CHANGES_RESERVE);
 }
 
 void
@@ -236,7 +273,12 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     auto node = allocs_m.extract(ptr);
     if (!node.empty()) {
         live_filter.erase(ptr);
-        pool_put_no_cpython(std::move(node.mapped()));
+        /* Move the traceback into a REMOVE event so it stays alive until the
+         * next export emits its tombstone. The pool reuse is deferred until
+         * after emission. */
+        auto owner = std::move(node.mapped());
+        auto* raw = owner.get();
+        pending_changes.push_back({ ptr, raw, std::move(owner), change_event::REMOVE });
     }
 }
 
@@ -280,13 +322,38 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     }
 
     auto [it, inserted] = allocs_m.insert_or_assign(ptr, std::move(tb));
-    (void)it; // Unused, but needed for structured binding
 
     /* This should always be a new insertion. If not, we failed to properly untrack a previous allocation. */
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
 
+    /* Record ADD event referencing the live traceback. The raw pointer remains
+     * valid until export: either the entry stays in allocs_m, or a subsequent
+     * untrack moves ownership into a REMOVE event in pending_changes — both
+     * are cleared in the same export pass. */
+    pending_changes.push_back({ ptr, it->second.get(), nullptr, change_event::ADD });
+
     // Get ready for the next sample
     reset_sampling_state_no_cpython();
+}
+
+void
+heap_tracker_t::flush_pending_to_pool_no_cpython()
+{
+    for (auto& evt : pending_changes) {
+        if (evt.kind == change_event::REMOVE && evt.owner) {
+            pool_put_no_cpython(std::move(evt.owner));
+        }
+    }
+    pending_changes.clear();
+}
+
+void
+heap_tracker_t::export_full_snapshot_no_cpython()
+{
+    for (const auto& [ptr, tb] : allocs_m) {
+        (void)ptr; // Suppress unused variable warning
+        tb->sample.export_sample();
+    }
 }
 
 void
@@ -294,10 +361,28 @@ heap_tracker_t::export_heap_no_cpython()
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    /* Iterate over live samples and export them */
-    for (const auto& [ptr, tb] : allocs_m) {
-        (void)ptr; // Suppress unused variable warning
-        tb->sample.export_sample();
+    /* Resync: periodically drop pending deltas and emit a full snapshot to
+     * bound backend-state drift if any delta upload is dropped. The backend
+     * must interpret this as a state reset, which requires wire-format
+     * coordination; see heap-export-delta-tracking-design.md. */
+    if (snapshots_since_resync >= RESYNC_INTERVAL) {
+        flush_pending_to_pool_no_cpython();
+        export_full_snapshot_no_cpython();
+        snapshots_since_resync = 0;
+    } else {
+        /* Delta emission: ADDs reference live tracebacks via raw pointer (kept
+         * alive by either allocs_m or a later REMOVE event in this buffer).
+         * REMOVEs own the extracted unique_ptr and emit a negative tombstone. */
+        for (auto& evt : pending_changes) {
+            if (evt.kind == change_event::ADD) {
+                evt.tb->sample.export_sample();
+            } else {
+                evt.tb->sample.export_sample_negative();
+                pool_put_no_cpython(std::move(evt.owner));
+            }
+        }
+        pending_changes.clear();
+        ++snapshots_since_resync;
     }
 
     Datadog::Sample::profile_borrow().stats().set_heap_tracker_size(allocs_m.size());
@@ -324,6 +409,11 @@ heap_tracker_t::postfork_child()
     // Profile::postfork_child()
     pool.clear();
 
+    // Pending delta events may contain raw pointers into allocs_m and owned
+    // tracebacks; clear before dropping allocs_m so the raw pointers in any
+    // ADD events do not get stranded.
+    pending_changes.clear();
+
     // Allocations map may contain data from the parent process, and also
     // traceback_t objects may reference invalid Profile state.
     allocs_m.clear();
@@ -331,6 +421,9 @@ heap_tracker_t::postfork_child()
     // Filter must be reset alongside allocs_m to maintain the superset
     // invariant.
     live_filter.clear();
+
+    // Reset the delta resync counter so the child starts with a fresh cycle.
+    snapshots_since_resync = 0;
 
     // Reset the sampling state to start fresh after fork.
     reset_sampling_state_no_cpython();

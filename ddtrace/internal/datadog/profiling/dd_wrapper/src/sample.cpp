@@ -432,6 +432,21 @@ Datadog::Sample::export_sample()
 }
 
 bool
+Datadog::Sample::export_sample_negative()
+{
+    // Negate heap_space in place so the emitted sample subtracts from the
+    // backend's cumulative heap state. libdatadog accepts negative i64 values
+    // (sample.rs Value is &[i64] with no sign validation).
+    if (0U != (type_mask & SampleType::Heap)) {
+        const size_t heap_space_idx = ProfilerState::get().profile_state.val().heap_space;
+        if (heap_space_idx < values.size()) {
+            values[heap_space_idx] = -values[heap_space_idx];
+        }
+    }
+    return export_sample();
+}
+
+bool
 Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
