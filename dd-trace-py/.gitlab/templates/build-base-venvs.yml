@@ -4,7 +4,7 @@ build_base_venvs:
   needs:
     - job: "ddtrace-internal:build linux: [amd64, cp314-cp314, v85383392-751efc0-manylinux2014_x86_64]"
       artifacts: true
-      pipeline: ${{PARENT_PIPELINE_ID}}
+      pipeline: $PARENT_PIPELINE_ID
   parallel:
     matrix:
       - PYTHON_VERSION: [{python_versions}]
