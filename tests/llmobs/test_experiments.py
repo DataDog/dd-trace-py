@@ -2481,9 +2481,9 @@ class TestRerunEvaluators:
         # New span IDs are generated — they must differ from the originals
         assert result_row["span_id"] != "abc"
         assert result_row["trace_id"] != "def"
-        # Both new IDs must be valid UUIDs
-        assert UUID(result_row["span_id"])
-        assert UUID(result_row["trace_id"])
+        # span_id is a stringified 64-bit int (rand64bits); trace_id is a 32-char hex (128-bit).
+        assert int(result_row["span_id"]) > 0
+        assert re.fullmatch(r"[0-9a-f]{32}", result_row["trace_id"])
         # A new child experiment was created
         assert len(new_experiment_ids) == 1
         # Eval metrics and span copies are posted to the new experiment
@@ -2546,11 +2546,12 @@ class TestRerunEvaluators:
 
         result_row = new_result.result["runs"][0].rows[0]
 
-        # Span identity is regenerated — new UUIDs, different from the originals
+        # Span identity is regenerated — new IDs, different from the originals.
+        # span_id is a stringified 64-bit int (rand64bits); trace_id is a 32-char hex (128-bit).
         assert result_row["span_id"] != "original-span"
         assert result_row["trace_id"] != "original-trace"
-        assert UUID(result_row["span_id"])
-        assert UUID(result_row["trace_id"])
+        assert int(result_row["span_id"]) > 0
+        assert re.fullmatch(r"[0-9a-f]{32}", result_row["trace_id"])
 
         # All span metadata from the pulled result is preserved in the new rows
         assert result_row["duration"] == 798_832_000
@@ -2667,6 +2668,63 @@ class TestRerunEvaluators:
         # Parent is unchanged
         assert list(exp._experiment._summary_evaluators) == [dummy_summary_evaluator]
 
+    def test_experiment_rerun_does_not_mutate_source_experiment(self, llmobs, test_dataset_one_record):
+        """rerun_evaluators() must not mutate the source experiment's fields at all.
+
+        Snapshots id/name/tags/task/summary_evaluators/remote_evaluator_names before the
+        call, and asserts they are identical after — including under task= override.
+        """
+        run_info = run_info_with_stable_id(0)
+        prior_row = {
+            "idx": 0,
+            "record_id": "rec-1",
+            "span_id": "orig-span",
+            "trace_id": "orig-trace",
+            "timestamp": MOCK_TIMESTAMP_NS,
+            "duration": 500_000_000,
+            "span_name": "my_task",
+            "input": {"q": "hi"},
+            "output": "hello",
+            "expected_output": "hello",
+            "evaluations": {},
+            "metadata": {},
+            "error": {"message": None, "type": None, "stack": None},
+        }
+        prior_run = ExperimentRun(run_info, {}, [prior_row])
+        prior_result = {"summary_evaluations": {}, "rows": [prior_row], "runs": [prior_run]}
+
+        exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+        exp.result = prior_result
+        exp._experiment._id = "original-exp-id"
+        exp._experiment._project_id = "mock-project-id"
+
+        before_id = exp._experiment._id
+        before_name = exp._experiment.name
+        before_tags = dict(exp._experiment._tags)
+        before_task = exp._experiment._task
+        before_task_accepts_metadata = exp._experiment._task_accepts_metadata
+        before_summary_evs = list(exp._experiment._summary_evaluators)
+        before_remote_names = set(exp._experiment._remote_evaluator_names)
+
+        def alt_task(input_data, config):
+            return {"answer": "alt"}
+
+        with (
+            mock.patch.object(
+                llmobs._instance._dne_client, "experiment_create", return_value=("new-rerun-id", "test-exp-rerun")
+            ),
+            mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"),
+        ):
+            exp.rerun_evaluators(evaluators=[dummy_evaluator], task=alt_task)
+
+        assert exp._experiment._id == before_id
+        assert exp._experiment.name == before_name
+        assert exp._experiment._tags == before_tags
+        assert exp._experiment._task is before_task
+        assert exp._experiment._task_accepts_metadata == before_task_accepts_metadata
+        assert list(exp._experiment._summary_evaluators) == before_summary_evs
+        assert set(exp._experiment._remote_evaluator_names) == before_remote_names
+
     def test_experiment_rerun_retry_without_task_raises(self, llmobs):
         """rerun_evaluators(missing_task_strategy='retry') raises ValueError when no task is provided."""
         run_info = _ExperimentRunInfo(run_interation=0)
@@ -2691,15 +2749,18 @@ class TestRerunEvaluators:
         exp = _make_pulled_experiment(llmobs, evaluators=[dummy_evaluator])
         exp.result = prior_result
 
+        # Precondition is validated before any backend call, so experiment_create
+        # must NOT be invoked — otherwise we'd leave an orphan child experiment.
         with (
             mock.patch.object(
                 llmobs._instance._dne_client,
                 "experiment_create",
                 return_value=("new-rerun-id", "test-rerun"),
-            ),
+            ) as mock_create,
             pytest.raises(ValueError, match="Cannot retry failed rows without a task"),
         ):
             exp.rerun_evaluators(evaluators=[dummy_evaluator], missing_task_strategy="retry")
+        assert mock_create.call_count == 0
 
     def test_experiment_rerun_retry_with_task_retries_failed_rows(self, llmobs):
         """rerun_evaluators(task=..., missing_task_strategy='retry') re-executes failed rows via the provided task."""

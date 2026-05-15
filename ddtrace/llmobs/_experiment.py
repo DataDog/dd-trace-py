@@ -14,6 +14,7 @@ from typing import Any
 from typing import Awaitable
 from typing import Callable
 from typing import Iterator
+from typing import Literal
 from typing import Mapping
 from typing import Optional
 from typing import Sequence
@@ -49,6 +50,9 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import generate_128bit_trace_id
+from ddtrace.internal.native import rand64bits
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -1132,6 +1136,8 @@ class _TaskResultRequired(TypedDict):
 class TaskResult(_TaskResultRequired, total=False):
     duration: int
     span_name: str
+    # input / expected_output are only set on the rerun path (eval-only replay over a
+    # pulled experiment, where _dataset is absent); run() reads them from _dataset[idx].
     input: "JSONType"
     expected_output: "JSONType"
 
@@ -1288,8 +1294,8 @@ def _build_span_copies(
     timestamps = [r["timestamp"] for r in rows_with_span if r.get("timestamp")]
     min_start_ns = min(timestamps) if timestamps else 0
     offset_ns = time.time_ns() - min_start_ns
-    new_trace_id = uuid.uuid4().hex
-    id_map: dict[str, str] = {r["span_id"]: uuid.uuid4().hex for r in rows_with_span}
+    new_trace_id = format_trace_id(generate_128bit_trace_id())
+    id_map: dict[str, str] = {r["span_id"]: str(rand64bits()) for r in rows_with_span}
 
     spans = []
     for row in rows_with_span:
@@ -1308,6 +1314,7 @@ def _build_span_copies(
             "start_ns": (row["timestamp"] or 0) + offset_ns,
             "duration": row.get("duration") or 1,  # backend requires non-zero (Go `required` tag)
             "meta": {
+                "span.kind": "experiment",
                 "input": row.get("input"),
                 "output": row.get("output"),
                 "expected_output": row.get("expected_output"),
@@ -3171,30 +3178,35 @@ class SyncExperiment:
         evaluators: "Sequence[Union[EvaluatorType, AsyncEvaluatorType]]",
         result: ExperimentResult,
         summary_evaluators: "Optional[list[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]]" = None,
+        _experiment: "Optional[Experiment]" = None,
     ) -> "SyncExperiment":
         """Build a SyncExperiment clone representing a completed rerun.
 
-        Shallow-copies the parent's Experiment, overriding only the fields that differ
-        for the rerun (id, name, tags, evaluators). All other state — dataset, task,
-        llmobs_instance, config, project info — is shared by reference.
+        When ``_experiment`` is provided (the in-flight clone built inside
+        ``_rerun_evaluators``), it is wrapped directly so we don't double-clone.
+        Otherwise a fresh shallow copy of ``parent._experiment`` is created and the
+        rerun-specific fields are overridden.
         """
         rerun = cls.__new__(cls)
-        exp = copy(parent._experiment)
-        exp._id = new_id
-        exp.name = new_name
-        exp._tags = {**parent._experiment._tags, "experiment_id": new_id}
-        exp._evaluators = list(evaluators)
-        if summary_evaluators is not None:
-            exp._summary_evaluators = list(summary_evaluators)
-        exp._remote_evaluator_names = {
-            e.name  # type: ignore[union-attr]
-            for e in evaluators
-            if hasattr(e, "_is_remote_evaluator") and e._is_remote_evaluator
-        }
-        exp._run_results = []
-        exp._retries = []
-        exp._has_errors = False
-        exp._interrupted = False
+        if _experiment is not None:
+            exp = _experiment
+        else:
+            exp = copy(parent._experiment)
+            exp._id = new_id
+            exp.name = new_name
+            exp._tags = {**parent._experiment._tags, "experiment_id": new_id}
+            exp._evaluators = list(evaluators)
+            if summary_evaluators is not None:
+                exp._summary_evaluators = list(summary_evaluators)
+            exp._remote_evaluator_names = {
+                e.name  # type: ignore[union-attr]
+                for e in evaluators
+                if hasattr(e, "_is_remote_evaluator") and e._is_remote_evaluator
+            }
+            exp._run_results = []
+            exp._retries = []
+            exp._has_errors = False
+            exp._interrupted = False
         rerun._experiment = exp
         rerun.result = result
         return rerun
@@ -3287,7 +3299,7 @@ class SyncExperiment:
         self,
         evaluators: "Sequence[Union[EvaluatorType, AsyncEvaluatorType]]",
         task: Optional[Union[TaskType, AsyncTaskType]] = None,
-        missing_task_strategy: str = "raise",
+        missing_task_strategy: Literal["raise", "skip", "retry"] = "raise",
         jobs: int = 1,
         raise_errors: bool = False,
         max_retries: int = 0,
@@ -3353,7 +3365,7 @@ class SyncExperiment:
         previous_result: ExperimentResult,
         evaluators: "list[Union[EvaluatorType, AsyncEvaluatorType]]",
         task: Optional[Union[TaskType, AsyncTaskType]],
-        missing_task_strategy: str,
+        missing_task_strategy: Literal["raise", "skip", "retry"],
         jobs: int,
         raise_errors: bool,
         max_retries: int,
@@ -3385,6 +3397,15 @@ class SyncExperiment:
         else:  # "retry"
             rows_to_eval = [r for r in rows if not (r.get("error") or {}).get("message")]
             rows_to_retry = [r for r in rows if (r.get("error") or {}).get("message")]
+
+        # Validate task availability before any backend call so we don't orphan a
+        # child experiment on the backend when the retry precondition fails.
+        if rows_to_retry and task is None and self._experiment._task is None:
+            raise ValueError(
+                "Cannot retry failed rows without a task. "
+                "Pass a task to rerun_evaluators() when using "
+                "missing_task_strategy='retry' on a pulled experiment."
+            )
 
         def _default_retry_delay(attempt: int) -> float:
             return 0.1 * (attempt + 1)
@@ -3436,26 +3457,35 @@ class SyncExperiment:
             # Step 1 — create child experiment with parent_experiment_id lineage.
             new_experiment_id, new_name = self._experiment._create_rerun_experiment(evaluators)
 
-            # Swap identity onto the shared Experiment so retried task spans, eval metrics,
-            # and summary evaluators all stamp the new experiment ID. Restored in finally.
-            original_id = self._experiment._id
-            original_tags = dict(self._experiment._tags)
-            original_task = self._experiment._task
-            original_task_accepts_metadata = self._experiment._task_accepts_metadata
-            self._experiment._id = new_experiment_id
-            self._experiment._tags["experiment_id"] = new_experiment_id
-            self._experiment._tags["run_id"] = str(run._id)
-            self._experiment._tags["run_iteration"] = str(run._run_iteration)
+            # Build an isolated clone for the rerun. All downstream steps read/write the
+            # clone so the source experiment object the user holds is never touched.
+            rerun_exp = copy(self._experiment)
+            rerun_exp._id = new_experiment_id
+            rerun_exp.name = new_name
+            rerun_exp._tags = {
+                **self._experiment._tags,
+                "experiment_id": new_experiment_id,
+                "run_id": str(run._id),
+                "run_iteration": str(run._run_iteration),
+            }
+            rerun_exp._evaluators = list(evaluators)
+            if summary_evaluators is not None:
+                rerun_exp._summary_evaluators = list(summary_evaluators)
+            rerun_exp._remote_evaluator_names = rerun_remote_names
+            rerun_exp._run_results = []
+            rerun_exp._retries = []
+            rerun_exp._has_errors = False
+            rerun_exp._interrupted = False
             if task is not None:
-                self._experiment._task = task
-                self._experiment._task_accepts_metadata = "metadata" in inspect.signature(task).parameters
+                rerun_exp._task = task
+                rerun_exp._task_accepts_metadata = "metadata" in inspect.signature(task).parameters
 
             try:
                 # Step 2 — build replay span copies (new UUIDs, shared trace_id, offset timestamps).
                 span_copies, id_map, new_trace_id = _build_span_copies(
                     rows_to_eval,
                     new_experiment_id,
-                    convert_tags_dict_to_list(self._experiment._tags),
+                    convert_tags_dict_to_list(rerun_exp._tags),
                 )
 
                 # Step 3 — reconstruct task_results pointing at the new span IDs.
@@ -3464,7 +3494,14 @@ class SyncExperiment:
                 # Step 4 — retry failed rows via the original task (creates new spans).
                 if rows_to_retry:
                     retried = await self._retry_failed_rows(
-                        rows_to_retry, run, _get_record, jobs, max_retries, resolved_retry_delay, raise_errors
+                        rerun_exp,
+                        rows_to_retry,
+                        run,
+                        _get_record,
+                        jobs,
+                        max_retries,
+                        resolved_retry_delay,
+                        raise_errors,
                     )
                     task_results.extend(retried)
                     task_results.sort(key=lambda t: t["idx"])
@@ -3472,7 +3509,7 @@ class SyncExperiment:
                 # Step 5 — run only the provided evaluators (override the experiment's own list).
                 semaphore = asyncio.Semaphore(jobs)
                 eval_coros = [
-                    self._experiment._evaluate_record(
+                    rerun_exp._evaluate_record(
                         _get_record(task_result["idx"]),
                         task_result,
                         semaphore,
@@ -3487,13 +3524,11 @@ class SyncExperiment:
 
                 # Step 6 — post replay spans + eval metrics in a single call.
                 eval_post_failed = self._post_replay_spans_and_evals(
-                    task_results, evaluations, span_copies, new_experiment_id, rerun_remote_names
+                    rerun_exp, task_results, evaluations, span_copies, new_experiment_id
                 )
 
-                # Step 7 — run summary evaluators (override list if provided).
-                summary_evals = await self._run_summary_stage(
-                    task_results, evaluations, summary_evaluators, raise_errors, jobs
-                )
+                # Step 7 — run summary evaluators (override list already set on the clone).
+                summary_evals = await self._run_summary_stage(rerun_exp, task_results, evaluations, raise_errors, jobs)
 
                 # Step 8 — build the ExperimentRun result rows.
                 experiment_rows: list[ExperimentRowResult] = []
@@ -3501,7 +3536,7 @@ class SyncExperiment:
                     idx = task_result["idx"]
                     record = _get_record(idx)
                     metadata: dict[str, JSONType] = {
-                        "tags": cast(list[JSONType], convert_tags_dict_to_list(self._experiment._tags))
+                        "tags": cast(list[JSONType], convert_tags_dict_to_list(rerun_exp._tags))
                     }
                     metadata.update(task_result.get("metadata") or {})
                     exp_row: ExperimentRowResult = {
@@ -3529,10 +3564,10 @@ class SyncExperiment:
 
                 run_obj = ExperimentRun(run, summary_eval_dict, experiment_rows)
                 result = Experiment._build_result([run_obj])
-                self._experiment._log_experiment_summary(result)
-                logger.info("Rerun experiment URL: %s", self._experiment.url, extra={"product": "llmobs"})
+                rerun_exp._log_experiment_summary(result)
+                logger.info("Rerun experiment URL: %s", rerun_exp.url, extra={"product": "llmobs"})
                 if not eval_post_failed:
-                    self._experiment._update_status("completed")
+                    rerun_exp._update_status("completed")
                 return SyncExperiment._for_rerun(
                     self,
                     new_experiment_id,
@@ -3540,13 +3575,13 @@ class SyncExperiment:
                     evaluators,
                     result,
                     summary_evaluators=summary_evaluators,
+                    _experiment=rerun_exp,
                 )
-            finally:
-                # Restore original identity so this experiment object is unchanged.
-                self._experiment._id = original_id
-                self._experiment._tags = original_tags
-                self._experiment._task = original_task
-                self._experiment._task_accepts_metadata = original_task_accepts_metadata
+            except Exception:
+                # Any uncaught exception between Steps 2-8 leaves the backend child
+                # experiment without a terminal status; mark it failed before re-raising.
+                rerun_exp._update_status("failed")
+                raise
 
         try:
             asyncio.get_running_loop()
@@ -3560,6 +3595,7 @@ class SyncExperiment:
 
     async def _retry_failed_rows(
         self,
+        experiment: "Experiment",
         rows_to_retry: "list[ExperimentRowResult]",
         run: "_ExperimentRunInfo",
         get_record: "Callable[[int], DatasetRecord]",
@@ -3568,17 +3604,16 @@ class SyncExperiment:
         retry_delay: Callable[[int], float],
         raise_errors: bool,
     ) -> "list[TaskResult]":
-        """Re-execute the task for rows that errored on the original run."""
-        if self._experiment._task is None:
-            raise ValueError(
-                "Cannot retry failed rows without a task. "
-                "Pass a task to rerun_evaluators() when using "
-                "missing_task_strategy='retry' on a pulled experiment."
-            )
+        """Re-execute the task for rows that errored on the original run.
+
+        Operates against the passed-in rerun clone so the source experiment is untouched.
+        Caller must ensure ``experiment._task`` is set — ``_rerun_evaluators`` validates
+        this before any backend call so we never orphan a child experiment.
+        """
         asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
         retry_coros = [
-            self._experiment._process_record(
+            experiment._process_record(
                 (row["idx"], get_record(row["idx"])),
                 run,
                 semaphore,
@@ -3596,67 +3631,68 @@ class SyncExperiment:
                 continue
             if r is not None:
                 results.append(r)
-                self._experiment._check_task_result_error(r, raise_errors)
+                experiment._check_task_result_error(r, raise_errors)
         return results
 
     def _post_replay_spans_and_evals(
         self,
+        experiment: "Experiment",
         task_results: "list[TaskResult]",
         evaluations: list,
         span_copies: list,
         new_experiment_id: str,
-        rerun_remote_names: "set[str]",
     ) -> bool:
         """Post replay spans and eval metrics in a single experiment_eval_post call.
 
+        Operates against the passed-in rerun clone so the source experiment is untouched.
         Returns True if the post failed (caller marks the experiment failed).
         """
-        if not self._experiment._llmobs_instance:
+        if not experiment._llmobs_instance:
             return False
 
         pending_metrics: list["LLMObsExperimentEvalMetricEvent"] = []
-        original_remote_names = self._experiment._remote_evaluator_names
-        self._experiment._remote_evaluator_names = rerun_remote_names
-        try:
-            for task_result, evaluation in zip(task_results, evaluations):
-                if evaluation:
-                    pending_metrics.extend(self._experiment._generate_metrics_for_record(task_result, evaluation))
-        finally:
-            self._experiment._remote_evaluator_names = original_remote_names
+        for task_result, evaluation in zip(task_results, evaluations):
+            if evaluation:
+                pending_metrics.extend(experiment._generate_metrics_for_record(task_result, evaluation))
 
-        if not pending_metrics:
+        # Post even when pending_metrics is empty as long as we have replay spans —
+        # otherwise the child experiment would land on the backend with no spans at all
+        # (e.g. every evaluator errored). Skip only when there's literally nothing to send.
+        if not pending_metrics and not span_copies:
             return False
 
         try:
-            self._experiment._llmobs_instance._dne_client.experiment_eval_post(
+            experiment._llmobs_instance._dne_client.experiment_eval_post(
                 new_experiment_id,
                 pending_metrics,
-                convert_tags_dict_to_list(self._experiment._tags),
+                convert_tags_dict_to_list(experiment._tags),
                 spans=span_copies if span_copies else None,
             )
         except Exception:
-            logger.debug("Failed to post eval metrics for re-run", exc_info=True)
-            self._experiment._update_status("failed")
+            logger.error(
+                "Failed to post eval metrics for re-run experiment %s",
+                new_experiment_id,
+                exc_info=True,
+            )
+            experiment._update_status("failed")
             return True
-        self._experiment._llmobs_instance.flush()
+        experiment._llmobs_instance.flush()
         return False
 
     async def _run_summary_stage(
         self,
+        experiment: "Experiment",
         task_results: "list[TaskResult]",
         evaluations: list,
-        summary_evaluators_override: "Optional[list[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]]",
         raise_errors: bool,
         jobs: int,
     ) -> list:
-        """Run summary evaluators, optionally with an override list. State is restored on exit."""
-        original_summary_evs = self._experiment._summary_evaluators
-        if summary_evaluators_override is not None:
-            self._experiment._summary_evaluators = summary_evaluators_override
-        try:
-            return await self._experiment._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
-        finally:
-            self._experiment._summary_evaluators = original_summary_evs
+        """Run summary evaluators against the rerun clone.
+
+        The clone already carries the override list (set in ``_rerun_evaluators._run``),
+        so no save/restore is needed.
+        """
+        return await experiment._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
 
     @property
     def url(self) -> str:
