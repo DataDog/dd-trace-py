@@ -96,11 +96,11 @@ def _normalize_route_slow(route: str) -> Optional[str]:
             # static prefix plus the gobbled remainder) is one atomic element.
             if i != len(segments) - 1:
                 return None
-            return (
-                "/" + "/".join(out_segments + ["{" + _encode_param_name(catch_all.group(1)) + "}"])
-                if out_segments
-                else "/{" + _encode_param_name(catch_all.group(1)) + "}"
-            )
+            tail = "{" + _encode_param_name(catch_all.group(1)) + "}"
+            result = "/" + "/".join(out_segments + [tail]) if out_segments else "/" + tail
+            if keep_trailing:
+                result += "/"
+            return result
 
         if len(matches) == 1:
             out_segments.append("{" + _encode_param_name(matches[0].group(1)) + "}")

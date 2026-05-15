@@ -23,11 +23,16 @@ from ddtrace.appsec._api_security._normalized_route import normalize_route
         ("/asm/{param_int:int}/{param_str:str}", "/asm/{param_int}/{param_str}"),
         # Catch-all path converter: rule 5 catch-all exception
         ("/files/{file_path:path}", "/files/{file_path}"),
+        ("/{tail:path}", "/{tail}"),
         # Catch-all with in-segment static prefix: entire tail is one atomic element
         ("/files/file-{tail:path}", "/files/{tail}"),
         # Trailing slash preserved when declared (rule 1)
         ("/api/", "/api/"),
         ("/api/{v}/", "/api/{v}/"),
+        # Rule 1 also applies on catch-all routes: declared trailing slash must be preserved.
+        ("/files/{file_path:path}/", "/files/{file_path}/"),
+        ("/{tail:path}/", "/{tail}/"),
+        ("/files/file-{tail:path}/", "/files/{tail}/"),
         # Root only
         ("/", "/"),
         # Static-constant URL-encoding (rule 3): unsafe chars encoded, safe set preserved
