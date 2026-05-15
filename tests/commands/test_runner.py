@@ -548,3 +548,17 @@ def test_ddtrace_auto_atexit():
 
     assert registered_funcs, "No registered functions"
     assert unregistered_funcs, "No unregistered functions"
+
+
+@pytest.mark.subprocess(ddtrace_run=True, status=-2)
+def test_ddtrace_run_asyncio_sigint():
+    """Repro: asyncio.run() + SIGINT under ddtrace-run."""
+    import asyncio
+    import os
+    import signal
+
+    async def main():
+        asyncio.get_event_loop().call_later(0.1, os.kill, os.getpid(), signal.SIGINT)
+        await asyncio.sleep(10)
+
+    asyncio.run(main())
