@@ -352,14 +352,14 @@ class _ProfilerInstance(service.Service):
 
         if self._scheduler is not None:
             self._scheduler.stop()
-            # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop
-            # collectors before the possibly running flush is finished.
             if join:
                 self._scheduler.join()
-            if flush:
-                # Do not stop the collectors before flushing, they might be needed (snapshot)
-                self._scheduler.flush()
 
+        # Stop all collectors (including the native stack sampler) before flushing.
+        # The stack sampler must not be running during scheduler.flush() because
+        # flush triggers code_provenance which imports setuptools/packaging, and
+        # the sampler reading stale PyCodeObject* during those imports causes SIGSEGV.
+        # Sampled data is already buffered in libdatadog, so stopping early loses nothing.
         for col in reversed(self._collectors):
             try:
                 col.stop()
@@ -370,3 +370,6 @@ class _ProfilerInstance(service.Service):
         if join:
             for col in reversed(self._collectors):
                 col.join()
+
+        if self._scheduler is not None and flush:
+            self._scheduler.flush()
