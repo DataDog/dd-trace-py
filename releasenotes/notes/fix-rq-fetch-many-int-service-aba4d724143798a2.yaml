@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    rq: Fixes the ``rq.job.fetch_many`` span ignoring the user's
+    ``DD_SERVICE`` and always falling back to the ``rq-worker`` integration
+    default.

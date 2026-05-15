@@ -183,7 +183,7 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
             span_name=schematize_messaging_operation(
                 "rq.job.fetch_many", provider="rq", direction=SpanDirection.PROCESSING
             ),
-            service=trace_utils.ext_service(pin, config.rq_worker),
+            service=trace_utils.int_service(pin, config.rq_worker),
             pin=pin,
             tags={COMPONENT: config.rq.integration_name, JOB_ID: job_ids},
             integration_config=config.rq_worker,
