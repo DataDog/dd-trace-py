@@ -70,7 +70,7 @@ fi
 
 echo "Using merged compile_commands.json from: ${BUILD_DIR}"
 
-# Collect all profiling source files (not headers, not test files, not build artifacts).
+# Collect all profiling source files, except for  headers, source files, build artifacts.
 # Fuzz sources are included so clang-tidy catches compilation regressions in the harnesses
 # without the overhead of a full libFuzzer build.
 SOURCE_FILES=()
