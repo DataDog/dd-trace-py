@@ -160,26 +160,38 @@ Sampler::adapt_sampling_interval()
     auto sampler_thread_delta = static_cast<double>(new_sampler_thread_count - sampler_thread_count);
     auto process_delta =
       static_cast<double>(new_process_count) - static_cast<double>(process_count) - sampler_thread_delta;
-    if (process_delta <= 0) {
-        process_delta = 1; // Avoid division by zero or negative values
+
+    // Update the high-watermark with the raw application CPU delta so that idle
+    // periods don't inflate the sampling interval beyond what 1% of peak activity
+    // would require.  We only update when there is real activity (process_delta > 0)
+    // to avoid recording noise.
+    if (process_delta > 0) {
+        max_process_delta_seen = std::max(max_process_delta_seen, process_delta);
     }
+
+    // Use the high-watermark as the effective process delta: this keeps the interval
+    // anchored to peak observed CPU utilization, guaranteeing at-most target_overhead
+    // at peak while collecting more samples during idle periods.
+    // Fall back to 1 only when we have never observed any process activity yet.
+    auto effective_process_delta = (max_process_delta_seen > 0) ? max_process_delta_seen : 1.0;
 
     auto current_interval = static_cast<double>(sample_interval_us.load());
 
     // We assume that every sampling operation contributes a fixed amount of
     // overhead, while the application consumes an average amount of CPU over
     // time. With:
-    //    s - sampler time
-    //    p - process time
-    //    o - overhead threshold
-    //    I - interval
-    //    I'- interval after adjustment
+    //    s  - sampler time
+    //    p' - high-watermark of application process time
+    //    o  - overhead threshold
+    //    I  - interval
+    //    I' - interval after adjustment
     // we use the following formula to adapt the sampling interval
-    //    I' = I * [(s / p) / o]
-    // As the value could be small when the process is idle, we use a lower
-    // bound of the sampling interval to avoid CPU spikes from the sampler.
+    //    I' = I * [(s / p') / o]
+    // Using the high-watermark p' instead of the instantaneous p ensures that
+    // idle periods do not push the interval out, providing more samples while
+    // bounding overhead at at-most o relative to peak CPU usage.
     auto new_interval =
-      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / process_delta) / target_overhead));
+      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / effective_process_delta) / target_overhead));
 
     // Cap the new interval to the min/max sampling period
     if (new_interval < g_min_sampling_period_us) {

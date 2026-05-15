@@ -49,6 +49,7 @@ class Sampler
     // Internal perf counters
     uint64_t process_count = 0;
     uint64_t sampler_thread_count = 0;
+    double max_process_delta_seen = 0.0; // high-watermark of application CPU delta
 
     bool do_adaptive_sampling = true;
     double target_overhead = g_target_overhead;
