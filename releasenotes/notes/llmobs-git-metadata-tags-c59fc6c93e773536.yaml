@@ -4,6 +4,5 @@ features:
     LLM Observability: automatically tags spans and experiments with ``git.commit.sha`` and
     ``git.repository_url``. Values come from ``DD_GIT_COMMIT_SHA`` / ``DD_GIT_REPOSITORY_URL``
     or the main package's ``Project-URL`` metadata, falling back to running ``git`` against the
-    current working directory when those are empty (so notebooks and workstation runs work
-    out of the box). Honors ``DD_TRACE_GIT_METADATA_ENABLED``. User-supplied experiment tags
-    with the same keys take precedence.
+    current working directory. Honors ``DD_TRACE_GIT_METADATA_ENABLED`` and user-supplied tags
+    with the same keys.
