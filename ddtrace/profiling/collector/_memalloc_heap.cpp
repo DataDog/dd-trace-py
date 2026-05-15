@@ -158,6 +158,9 @@ class heap_tracker_t
     /* Traceback pool - reduces allocation overhead. Access is always under GIL. */
     static constexpr size_t POOL_CAPACITY = 128;
     std::vector<std::unique_ptr<traceback_t>> pool;
+
+    /* Initial capacity of the allocations map */
+    static constexpr size_t INITAL_ALLOC_MAP_CAPACITY = 1024;
 };
 
 // Pool implementation
@@ -216,8 +219,8 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   , current_sample_size(next_sample_size_no_cpython(sample_size_val))
   , allocated_memory(0)
 {
-    pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
-    allocs_m.reserve(1024);      // Pre-allocate map capacity to avoid rehashing during ramp-up.
+    pool.reserve(POOL_CAPACITY);                 // Pre-allocate pool capacity to avoid reallocations
+    allocs_m.reserve(INITAL_ALLOC_MAP_CAPACITY); // Pre-allocate map capacity to avoid rehashing during ramp-up.
 }
 
 void
