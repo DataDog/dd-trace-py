@@ -1,4 +1,5 @@
 #!/bin/sh
+LINT_CMD="${LINT_CMD:-scripts/lint}"
 staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.(py|pyi)$' | tr '\n' ' ')
 if [ -n "$staged_files" ]; then
     # Drop .pyi stubs whose .py counterpart is also staged to avoid mypy
@@ -17,7 +18,7 @@ if [ -n "$staged_files" ]; then
     done
     deduped="${deduped# }"
     if [ -n "$deduped" ]; then
-        hatch -v run lint:typing -- $deduped
+        "$LINT_CMD" typing -- $deduped
     else
         echo 'Run mypy skipped: all staged stubs have corresponding .py files'
     fi

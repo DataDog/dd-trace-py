@@ -105,6 +105,30 @@ def test_foo():
         assert "1 passed" in result.stdout
 
 
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
+def test_dataclasses_not_unloaded():
+    import ddtrace  # noqa
+
+    import dataclasses
+
+    @dataclasses.dataclass
+    class A:
+        x: int
+
+    import ddtrace.auto  # noqa
+
+    # Reload the module (if it was unloaded)
+    import dataclasses  # noqa
+
+    @dataclasses.dataclass
+    class B(A):
+        y: int
+
+    b = B(x=1, y=2)
+
+    assert b
+
+
 def test_uwsgi_gevent():
     """
     Test that we support uwsgi + gevent when threads are patched.
