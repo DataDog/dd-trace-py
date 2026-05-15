@@ -1,11 +1,9 @@
-import unittest
-
 import pymemcache
 from pymemcache.client import hash as pymemcache_hash
 import wrapt
 
 
-class AutoPatchTestCase(unittest.TestCase):
+def test_patch():
     """Test ensuring that ddtrace-run patches pymemcache.
 
     This ensures that things like the patch functions are properly exported
@@ -20,9 +18,7 @@ class AutoPatchTestCase(unittest.TestCase):
 
     this is indicitive of the patch function not being exported by the module.
     """
-
-    def test_patch(self):
-        assert issubclass(pymemcache.client.base.Client, wrapt.ObjectProxy)
-        assert issubclass(pymemcache_hash.Client, wrapt.ObjectProxy)
-        if hasattr(pymemcache_hash.HashClient, "client_class"):
-            assert issubclass(pymemcache_hash.HashClient.client_class, wrapt.ObjectProxy)
+    assert issubclass(pymemcache.client.base.Client, wrapt.ObjectProxy)
+    assert issubclass(pymemcache_hash.Client, wrapt.ObjectProxy)
+    if hasattr(pymemcache_hash.HashClient, "client_class"):
+        assert issubclass(pymemcache_hash.HashClient.client_class, wrapt.ObjectProxy)
