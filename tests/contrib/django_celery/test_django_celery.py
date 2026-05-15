@@ -34,6 +34,8 @@ def test_django_celery_gevent_startup():
     else:
         out = out.decode("utf-8")
         err = err.decode("utf-8")
+        # retcode -15 is SIGTERM, which is expected when Celery exits cleanly after a timeout.
+        # "not recommended" appears in stderr when no broker is configured and is not an error.
         if retcode not in (0, -15) and "not recommended" not in err:
             assert False, "Celery was finished with errors: %s" % err
 
