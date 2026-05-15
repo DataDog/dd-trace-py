@@ -27,6 +27,7 @@ from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_ins
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
+from ddtrace.contrib.internal.trace_utils_base import _store_security_testing_headers
 from ddtrace.contrib.internal.trace_utils_base import set_user  # noqa:F401
 from ddtrace.ext import http
 from ddtrace.ext import net
@@ -488,6 +489,8 @@ def set_http_meta(
         referrer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
         if referrer_host:
             span._set_attribute(http.REFERRER_HOSTNAME, referrer_host)
+
+        _store_security_testing_headers(request_headers, span, headers_are_case_sensitive)
 
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
