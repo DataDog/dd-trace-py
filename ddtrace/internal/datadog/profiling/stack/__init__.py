@@ -42,10 +42,6 @@ try:
                 local_root_span_type = span._local_root.span_type
             _stack.link_span(span_id, local_root_span_id, local_root_span_type)
         elif isinstance(span, context.Context) and span.span_id is not None:
-            # When the futures integration propagates a parent trace to a worker
-            # thread through tracer._activate_context(), context_provider.activate()
-            # fires with a Context, not a Span
-            #
             # _wrap_submit attaches _local_root_span_id to the Context
             # from the submitting span so we get the true distributed root.
             # Fall back to span_id when the attribute is absent (e.g. the Context
