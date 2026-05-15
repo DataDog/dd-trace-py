@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    tracing: collect the ``x-datadog-endpoint-scan`` and ``x-datadog-security-test`` HTTP
+    request headers on service entry spans unconditionally as
+    ``http.request.headers.x-datadog-endpoint-scan`` and
+    ``http.request.headers.x-datadog-security-test`` tags. These markers identify
+    Datadog-originated endpoint scans and security tests so the API inventory pipeline
+    can distinguish scan/test traffic from real user traffic. The headers are tagged
+    regardless of ``DD_TRACE_HEADER_TAGS`` configuration or AppSec enablement, and are
+    not propagated to downstream services.
