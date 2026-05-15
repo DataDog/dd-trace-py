@@ -11,7 +11,8 @@ try:
     from ddtrace._trace import context
     from ddtrace._trace import span as ddspan
 
-    from ._stack import *  # noqa: F403, F401
+    from . import _stack
+    from ._stack import *  # noqa: F403, F401  # type: ignore[assignment]
 
     is_available = True
 
@@ -39,7 +40,7 @@ try:
             else:
                 local_root_span_id = span._local_root.span_id
                 local_root_span_type = span._local_root.span_type
-            _stack.link_span(span_id, local_root_span_id, local_root_span_type)  # type: ignore # noqa: F405
+            _stack.link_span(span_id, local_root_span_id, local_root_span_type)
         elif isinstance(span, context.Context) and span.span_id is not None:
             # When the futures integration propagates a parent trace to a worker
             # thread through tracer._activate_context(), context_provider.activate()
@@ -55,7 +56,7 @@ try:
             # inherit the correct distributed root.
             _propagated_root.span_id = local_root_span_id
             _propagated_root.span_type = span_type
-            _stack.link_span(span.span_id, local_root_span_id, span_type)  # type: ignore # noqa: F405
+            _stack.link_span(span.span_id, local_root_span_id, span_type)
 
 except Exception as e:
     failure_msg = str(e)
