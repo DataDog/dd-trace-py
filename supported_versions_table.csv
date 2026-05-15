@@ -57,7 +57,7 @@ httpx,httpx,0.25.2,0.28.1,True
 jinja2,jinja2,2.10.3,3.1.6,True
 confluent-kafka,kafka,1.9.2,2.14.0,True
 kombu,kombu,4.6.11,5.6.2,False
-langchain-core,langchain,0.1.53,1.2.31,True
+langchain-core,langchain,0.1.53,1.4.0,True
 langgraph,langgraph,0.2.23,1.1.10,True
 langgraph-checkpoint,langgraph,1.0.12,4.0.3,True
 langgraph-prebuilt,langgraph,0.1.8,1.0.13,True

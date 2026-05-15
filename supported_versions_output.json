@@ -418,7 +418,7 @@
         "dependency": "langchain-core",
         "integration": "langchain",
         "minimum_tracer_supported": "0.1.53",
-        "max_tracer_supported": "1.2.31",
+        "max_tracer_supported": "1.4.0",
         "auto-instrumented": true
     },
     {
