@@ -676,5 +676,3 @@ def _convert_to_string(attr):
         else:
             return ensure_text(attr)
     return attr
-
-
