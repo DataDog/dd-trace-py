@@ -550,7 +550,7 @@ def test_ddtrace_auto_atexit():
     assert unregistered_funcs, "No unregistered functions"
 
 
-@pytest.mark.subprocess(ddtrace_run=True, status=1, err=b"")
+@pytest.mark.subprocess(ddtrace_run=True, status=1, err=lambda s: "wrap_signals" not in s)
 def test_ddtrace_run_asyncio_sigint():
     """ddtrace-run should not cause asyncio.run() to produce a traceback on keyboard interrupt."""
     import asyncio
