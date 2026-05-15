@@ -257,6 +257,57 @@ def test_cross_invocation_tracing_disabled_skips_checkpoint():
     assert captured[-1] == [], f"writer disabled but _datadog_* still persisted: {captured[-1]!r}"
 
 
+def test_durable_context_parent_id_attribute_contract():
+    """Snitch test: the integration reads ``durable_context._parent_id`` to
+    parent ``_datadog_*`` checkpoints inside ``run_in_child_context``.  Our
+    ``getattr(..., None)`` would silently return ``None`` if the SDK ever
+    renamed or dropped the attribute — AWS would still accept the checkpoint
+    (None = child of execution), so the bug would only surface as wrong
+    parenting in the durable trace tree, not as a crash.
+
+    Pins the SDK contract:
+      - Top-level ``_parent_id`` is ``None``.
+      - Inside ``run_in_child_context``, ``_parent_id`` equals the parent
+        operation id (a non-empty ``str``) — which is the value our
+        integration stamps onto ``OperationIdentifier.parent_id``.
+    """
+    observed: dict = {}
+
+    def child_body(child_ctx):
+        observed["child_parent_id"] = getattr(child_ctx, "_parent_id", "<missing>")
+        return "done"
+
+    @ades.durable_execution
+    def workflow(event, context):
+        observed["top_parent_id"] = getattr(context, "_parent_id", "<missing>")
+        context.run_in_child_context(child_body, name="child")
+        # Record the child op's id so we verify ``_parent_id`` really is the
+        # parent operation id (the semantic our integration depends on),
+        # not just some opaque non-empty string.
+        for op in context.state.operations.values():
+            if getattr(op, "name", None) == "child":
+                observed["child_op_id"] = op.operation_id
+                break
+
+    with DurableFunctionTestRunner(workflow) as runner:
+        runner.run()
+
+    assert observed.get("top_parent_id") is None, (
+        f"Top-level DurableContext._parent_id must be None, got "
+        f"{observed.get('top_parent_id')!r}. Did the SDK rename _parent_id?"
+    )
+    child_pid = observed.get("child_parent_id")
+    assert isinstance(child_pid, str) and child_pid, (
+        f"Child DurableContext._parent_id must be a non-empty str (the "
+        f"parent operation id), got {child_pid!r}. Did the SDK rename _parent_id?"
+    )
+    assert child_pid == observed.get("child_op_id"), (
+        f"Child _parent_id ({child_pid!r}) must equal the parent operation "
+        f"id ({observed.get('child_op_id')!r}); the integration stamps this "
+        f"onto OperationIdentifier.parent_id."
+    )
+
+
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_workflow_failed_status():
     """Step that exhausts retries: terminal aws.durable.execute span has invocation_status=failed."""
