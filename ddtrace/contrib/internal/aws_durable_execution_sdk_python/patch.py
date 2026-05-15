@@ -89,9 +89,8 @@ class TracedThreadPoolExecutor(ThreadPoolExecutor):
         return super().submit(_wrapped, *args, **kwargs)
 
 
-def _read_execution_state(durable_context):
-    """Return (execution_arn, is_replay_execution) from a DurableContext."""
-    state = getattr(durable_context, "state", None)
+def _read_execution_state(state):
+    """Return (execution_arn, is_replay_execution) from an ExecutionState."""
     if state is None:
         return None, None
     arn = getattr(state, "durable_execution_arn", None) or None
@@ -116,7 +115,8 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
     @functools.wraps(user_func)
     def traced_user_func(*inner_args, **inner_kwargs):
         durable_context = get_argument_value(inner_args, inner_kwargs, 1, "durable_context", optional=True)
-        arn, is_replay = _read_execution_state(durable_context)
+        state = getattr(durable_context, "state", None)
+        arn, is_replay = _read_execution_state(state)
 
         # Pre-visit our prior ``_datadog_*`` checkpoints so the SDK's
         # replay tracker can transition out of REPLAY when the user code
@@ -129,7 +129,6 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
         # _datadog_* ops, those ops are still loaded on resume — skipping the
         # mark here would pin the SDK into REPLAY forever. The mark is a
         # no-op when no _datadog_* ops exist (see trace_checkpoint tests).
-        state = getattr(durable_context, "state", None)
         if state is not None:
             mark_trace_context_checkpoints_visited(state)
 
