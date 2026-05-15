@@ -32,8 +32,11 @@ def _parse_trace_methods(raw_dd_trace_methods: str) -> list[tuple[str, str]]:
             return []
 
         # Store the prefix and the methods  (eg. for "foo.bar.baz:qux,quux",
-        # this is "foo.bar.baz" for the prefix and "qux,quux" for the methods)
-        qualified_method_prefix, methods = qualified_methods.split(":")
+        # this is "foo.bar.baz" for the prefix and "qux,quux" for the methods).
+        # Use split(":", 1) so a typo like "mymod:method1:method2" reaches the
+        # per-method validation and produces an "Invalid method name" warning,
+        # instead of raising an unhandled ``ValueError`` during tracer startup.
+        qualified_method_prefix, methods = qualified_methods.split(":", 1)
 
         if qualified_method_prefix == "__main__":
             # __main__ cannot be used since the __main__ that exists now is not the same as the __main__ that the user

@@ -29,6 +29,9 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
         ("module.", []),
         ("module.method", []),
         ("module.method;module.method", []),
+        ("module:method1:method2", []),
+        ("module::method", []),
+        ("module:method;mod2:m1:m2", []),
     ],
 )
 def test_trace_methods_parse(dd_trace_methods: str, expected_output: list[tuple[str, str]]):
