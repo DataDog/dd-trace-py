@@ -6,3 +6,8 @@ fixes:
     ``DD_DJANGO_CACHE_SERVICE`` now override the service tag on their
     respective spans. Previously they were ignored in favor of the
     ``DD_<INTEGRATION>_SERVICE_NAME`` form.
+  - |
+    Fixed a bug in the kombu integration where programmatically setting
+    ``config.kombu["service"]`` before patching was applied to producer spans
+    but not consumer spans. Both pins now read from the same service config
+    source.

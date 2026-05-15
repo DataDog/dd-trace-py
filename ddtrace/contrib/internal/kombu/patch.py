@@ -85,7 +85,9 @@ def patch():
         service=schematize_service_name(prod_service),
     ).onto(kombu.messaging.Producer)
 
-    Pin(service=schematize_service_name(config.kombu["service_name"])).onto(kombu.messaging.Consumer)
+    Pin(service=schematize_service_name(config.kombu.service or config.kombu["service_name"])).onto(
+        kombu.messaging.Consumer
+    )
 
 
 def unpatch():

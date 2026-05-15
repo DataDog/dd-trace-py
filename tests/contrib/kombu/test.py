@@ -3,6 +3,7 @@ import kombu
 import mock
 import pytest
 
+from ddtrace import config
 from ddtrace.contrib.internal.kombu import utils
 from ddtrace.contrib.internal.kombu.patch import patch
 from ddtrace.contrib.internal.kombu.patch import unpatch
@@ -227,6 +228,18 @@ class TestKombuSchematization(TracerTestCase):
         spans = self._create_schematized_spans()
         assert spans[0].name == "kombu.send", "Expected kombu.send, got {}".format(spans[0].name)
         assert spans[1].name == "kombu.process", "Expected kombu.process, got {}".format(spans[1].name)
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict())
+    def test_programmatic_service_config_applied_to_both_pins(self):
+        """config.kombu['service'] set before patch() is reflected in both producer and consumer pins."""
+        unpatch()
+        config.kombu["service"] = "custom-kombu"
+        patch()
+
+        spans = self._create_schematized_spans()
+        assert len(spans) == 2, f"Expected 2 spans, got {len(spans)}"
+        assert spans[0].service == "custom-kombu", f"Producer service: {spans[0].service}"
+        assert spans[1].service == "custom-kombu", f"Consumer service: {spans[1].service}"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_producer(self):
