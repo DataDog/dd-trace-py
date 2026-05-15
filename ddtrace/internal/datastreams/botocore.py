@@ -124,11 +124,11 @@ def handle_kinesis_produce(ctx, stream, dd_ctx_json, record, *args):
             inject_context(dd_ctx_json["_datadog"], "kinesis", stream, record)
 
 
-def handle_eventbridge_produce(ctx, span, endpoint_service, trace_data, params, message=None):
-    if not message:
-        message = params
-    event_bus_name = message.get("EventBusName", "default")
-    inject_context(trace_data, "eventbridge", event_bus_name, message)
+def handle_eventbridge_produce(ctx, span, endpoint_service, trace_data, params, entry=None):
+    if not entry:
+        entry = params
+    event_bus_name = entry.get("EventBusName", "default")
+    inject_context(trace_data, "eventbridge", event_bus_name, entry)
 
 
 def handle_sqs_sns_produce(ctx, span, endpoint_service, trace_data, params, message=None):
