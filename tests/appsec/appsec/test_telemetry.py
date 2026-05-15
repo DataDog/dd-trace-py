@@ -164,6 +164,38 @@ def test_metrics_when_appsec_block_custom(telemetry_writer, tracer):
     )
 
 
+@pytest.mark.parametrize(
+    "user_id,user_login,report_missing_login,expected_metric_names",
+    [
+        # both absent, login reporting enabled → both fire
+        (None, None, True, {"instrum.user_auth.missing_user_login", "instrum.user_auth.missing_user_id"}),
+        # both absent, login reporting disabled → only missing_user_id fires
+        (None, None, False, {"instrum.user_auth.missing_user_id"}),
+        # id present, login absent → only missing_user_login (present id suppresses missing_user_id)
+        ("123", None, True, {"instrum.user_auth.missing_user_login"}),
+        # login present, id absent → no metrics (login is a valid fallback for id)
+        (None, "fred", True, set()),
+        # both present → no metrics (happy path)
+        ("123", "fred", True, set()),
+    ],
+)
+def test_report_user_auth_missing(telemetry_writer, user_id, user_login, report_missing_login, expected_metric_names):
+    from ddtrace.appsec import _metrics
+
+    telemetry_writer._namespace.flush()
+    _metrics.report_user_auth_missing("django", "login_failure", user_id, user_login, report_missing_login)
+
+    flushed = telemetry_writer._namespace.flush()
+    metrics = flushed.get(TELEMETRY_EVENT_TYPE.METRICS, {}).get(TELEMETRY_NAMESPACE.APPSEC.value, [])
+    user_auth_metrics = [m for m in metrics if m["metric"].startswith("instrum.user_auth.")]
+    assert {m["metric"] for m in user_auth_metrics} == expected_metric_names
+    assert len(user_auth_metrics) == len(expected_metric_names), user_auth_metrics
+    for metric in user_auth_metrics:
+        assert "framework:django" in metric["tags"]
+        assert "event_type:login_failure" in metric["tags"]
+        assert len(metric["tags"]) == 2
+
+
 def test_log_metric_error_ddwaf_init(telemetry_writer):
     with override_global_config(
         dict(
