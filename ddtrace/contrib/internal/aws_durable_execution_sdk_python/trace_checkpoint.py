@@ -39,11 +39,35 @@ from aws_durable_execution_sdk_python.state import ExecutionState
 
 from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _DatadogMultiHeader
 
 
 log = get_logger(__name__)
+
+
+_INTEGRATION_NAME = "aws_durable_execution_sdk_python"
+
+
+def _record_integration_error(exc: BaseException) -> None:
+    """Emit an ``integration_errors`` count metric for a swallowed exception.
+
+    Goes to Datadog internal telemetry (visible to us), not customer logs.
+    Paired with ``log.debug`` everywhere we catch-and-continue so the failure
+    is observable to Datadog without exposing internal exceptions to the
+    customer's log pipeline.  Must never raise — telemetry is best-effort.
+    """
+    try:
+        telemetry_writer.add_count_metric(
+            TELEMETRY_NAMESPACE.TRACERS,
+            "integration_errors",
+            1,
+            (("integration_name", _INTEGRATION_NAME), ("error_type", type(exc).__name__)),
+        )
+    except Exception:
+        pass
 
 
 _CHECKPOINT_NAME_PREFIX = "_datadog_"
@@ -117,8 +141,9 @@ def mark_trace_context_checkpoints_visited(state: ExecutionState) -> None:
         for op_id, op in list(state.operations.items()):
             if op.name and op.name.startswith(_CHECKPOINT_NAME_PREFIX):
                 state.track_replay(op_id)
-    except Exception:
+    except Exception as e:
         log.debug("mark_trace_context_checkpoints_visited failed", exc_info=True)
+        _record_integration_error(e)
 
 
 def _allocate_checkpoint_n(state) -> int:
@@ -137,8 +162,9 @@ def _allocate_checkpoint_n(state) -> int:
             n = _max_existing_checkpoint_n(state) + 1
         try:
             setattr(state, _STATE_NEXT_N_ATTR, n + 1)
-        except Exception:
+        except Exception as e:
             log.debug("Could not advance checkpoint counter", exc_info=True)
+            _record_integration_error(e)
             return -1
         return n
 
@@ -240,8 +266,9 @@ def maybe_save_trace_context_checkpoint(durable_context: DurableContext, span: S
         headers: dict = {}
         try:
             _inject_datadog_headers(span, headers)
-        except Exception:
+        except Exception as e:
             log.debug("Datadog header injection failed", exc_info=True)
+            _record_integration_error(e)
             return
         if not headers:
             return
@@ -285,7 +312,9 @@ def maybe_save_trace_context_checkpoint(durable_context: DurableContext, span: S
         # checkpoints on suspend.  Cost is negligible — it's suspending anyway.
         try:
             state.create_checkpoint(update, is_sync=True)
-        except Exception:
+        except Exception as e:
             log.debug("Failed to write trace-context checkpoint", exc_info=True)
-    except Exception:
+            _record_integration_error(e)
+    except Exception as e:
         log.debug("maybe_save_trace_context_checkpoint failed", exc_info=True)
+        _record_integration_error(e)

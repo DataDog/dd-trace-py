@@ -505,3 +505,53 @@ def test_save_no_op_when_inject_raises():
         trace_checkpoint.maybe_save_trace_context_checkpoint(durable, span)
 
     assert state._captured == []
+
+
+def test_record_integration_error_emits_telemetry_count_metric():
+    """``_record_integration_error`` emits an ``integration_errors`` count
+    metric tagged with the integration name and the exception class name,
+    matching the format used by ddtrace's global telemetry excepthook.
+    """
+    with mock.patch.object(trace_checkpoint.telemetry_writer, "add_count_metric") as mock_add:
+        trace_checkpoint._record_integration_error(RuntimeError("boom"))
+
+    mock_add.assert_called_once_with(
+        trace_checkpoint.TELEMETRY_NAMESPACE.TRACERS,
+        "integration_errors",
+        1,
+        (("integration_name", "aws_durable_execution_sdk_python"), ("error_type", "RuntimeError")),
+    )
+
+
+def test_record_integration_error_swallows_telemetry_failures():
+    """Telemetry is best-effort — a writer failure must not propagate."""
+    with mock.patch.object(
+        trace_checkpoint.telemetry_writer, "add_count_metric", side_effect=RuntimeError("telemetry down")
+    ):
+        trace_checkpoint._record_integration_error(ValueError("inner"))  # does not raise
+
+
+def test_swallowed_paths_record_integration_error():
+    """All ``except Exception`` paths in trace_checkpoint route through the
+    telemetry helper.  Covers: mark_visited, header inject, and the outer
+    catch-all in maybe_save_trace_context_checkpoint.
+    """
+    state = _make_state()
+    durable = SimpleNamespace(state=state, _parent_id=None)
+
+    with mock.patch.object(trace_checkpoint, "_record_integration_error") as mock_rec:
+        # 1. mark_visited: track_replay raises
+        bad_state = SimpleNamespace(
+            operations={"d-0": SimpleNamespace(name="_datadog_0")},
+            track_replay=mock.Mock(side_effect=RuntimeError("mark")),
+        )
+        trace_checkpoint.mark_trace_context_checkpoints_visited(bad_state)
+
+        # 2. maybe_save: inject raises
+        with mock.patch.object(trace_checkpoint, "_inject_datadog_headers", side_effect=RuntimeError("inject")):
+            trace_checkpoint.maybe_save_trace_context_checkpoint(durable, _fake_span())
+
+    # Both swallowed-exception paths produced a telemetry call.
+    assert mock_rec.call_count >= 2
+    error_types = [type(call.args[0]).__name__ for call in mock_rec.call_args_list]
+    assert "RuntimeError" in error_types
