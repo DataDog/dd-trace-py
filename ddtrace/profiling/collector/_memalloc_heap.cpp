@@ -217,6 +217,7 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   , allocated_memory(0)
 {
     pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
+    allocs_m.reserve(1024);      // Pre-allocate map capacity to avoid rehashing during ramp-up.
 }
 
 void
