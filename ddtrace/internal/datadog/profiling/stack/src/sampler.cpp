@@ -114,7 +114,7 @@ get_thread_cpu_time_us()
 } // namespace
 
 void
-Sampler::adapt_sampling_interval()
+Sampler::adapt_sampling_interval(double wall_delta_us)
 {
 #if defined(__linux__)
     struct timespec ts
@@ -161,19 +161,21 @@ Sampler::adapt_sampling_interval()
     auto process_delta =
       static_cast<double>(new_process_count) - static_cast<double>(process_count) - sampler_thread_delta;
 
-    // Update the high-watermark with the raw application CPU delta so that idle
-    // periods don't inflate the sampling interval beyond what 1% of peak activity
-    // would require.  We only update when there is real activity (process_delta > 0)
-    // to avoid recording noise.
-    if (process_delta > 0) {
-        max_process_delta_seen = std::max(max_process_delta_seen, process_delta);
+    // Update the high-watermark of the application CPU *rate* (CPU-us per
+    // wall-us). Normalizing by the actual measurement window avoids a bias
+    // where a longer window (e.g. because sampling many threads took more time)
+    // makes the app look busier than it really is.  We only update when there
+    // is real activity to avoid recording noise.
+    if (process_delta > 0 && wall_delta_us > 0) {
+        max_process_cpu_rate = std::max(max_process_cpu_rate, process_delta / wall_delta_us);
     }
 
-    // Use the high-watermark as the effective process delta: this keeps the interval
-    // anchored to peak observed CPU utilization, guaranteeing at-most target_overhead
-    // at peak while collecting more samples during idle periods.
-    // Fall back to 1 only when we have never observed any process activity yet.
-    auto effective_process_delta = (max_process_delta_seen > 0) ? max_process_delta_seen : 1.0;
+    // Reconstruct the effective process delta for this window from the peak
+    // rate. This keeps the interval anchored to peak observed CPU utilization
+    // regardless of whether the current window is longer or shorter than the
+    // peak one. Fall back to 1 only when we have never observed any process
+    // activity yet.
+    auto effective_process_delta = (max_process_cpu_rate > 0) ? max_process_cpu_rate * wall_delta_us : 1.0;
 
     auto current_interval = static_cast<double>(sample_interval_us.load());
 
@@ -190,8 +192,8 @@ Sampler::adapt_sampling_interval()
     // Using the high-watermark p' instead of the instantaneous p ensures that
     // idle periods do not push the interval out, providing more samples while
     // bounding overhead at at-most o relative to peak CPU usage.
-    auto new_interval =
-      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / effective_process_delta) / target_overhead));
+    auto new_interval = static_cast<microsecond_t>(
+      current_interval * ((sampler_thread_delta / effective_process_delta) / target_overhead));
 
     // Cap the new interval to the min/max sampling period
     if (new_interval < g_min_sampling_period_us) {
@@ -357,8 +359,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
-            if (sample_time_now - interval_adjust_time_prev > microseconds(g_adaptive_sampling_interval_us)) {
-                adapt_sampling_interval();
+            auto adapt_elapsed = sample_time_now - interval_adjust_time_prev;
+            if (adapt_elapsed > microseconds(g_adaptive_sampling_interval_us)) {
+                auto wall_delta_us = static_cast<double>(duration_cast<microseconds>(adapt_elapsed).count());
+                adapt_sampling_interval(wall_delta_us);
                 interval_adjust_time_prev = sample_time_now;
             }
         }

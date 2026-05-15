@@ -49,7 +49,7 @@ class Sampler
     // Internal perf counters
     uint64_t process_count = 0;
     uint64_t sampler_thread_count = 0;
-    double max_process_delta_seen = 0.0; // high-watermark of application CPU delta
+    double max_process_cpu_rate = 0.0; // high-watermark of application CPU rate (CPU-us per wall-us)
 
     bool do_adaptive_sampling = true;
     double target_overhead = g_target_overhead;
@@ -57,7 +57,7 @@ class Sampler
     unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
     std::minstd_rand rng{ std::random_device{}() };
     std::vector<PyThreadState> thread_candidates;
-    void adapt_sampling_interval();
+    void adapt_sampling_interval(double wall_delta_us);
 
     // Tracks whether the sampler was running when prefork was called,
     // so that postfork_parent/restart_after_fork can restore it.
