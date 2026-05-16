@@ -148,7 +148,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
             quit_thread.wait()
 
         alloc_thread = threading.Thread(name="allocator", target=alloc)
-        alloc_thread._ddtrace_profiling_ignore = True  # pyright: ignore[reportAttributeAccessIssue]
+        setattr(alloc_thread, "_ddtrace_profiling_ignore", True)
         alloc_thread.start()
 
         mc.snapshot()

@@ -42,6 +42,7 @@ class ProfilingConfigLock(DDConfig):
 class ProfilingConfigMemory(DDConfig):
     enabled: bool
     events_buffer: int
+    mem_domain_enabled: bool
 
 class ProfilingConfigHeap(DDConfig):
     enabled: bool
@@ -63,4 +64,5 @@ ddup_is_available: bool
 stack_v2_failure_msg: Optional[str]
 stack_v2_is_available: bool
 
+def _derive_default_heap_sample_size(heap_config: ProfilingConfigHeap, default_heap_sample_size: int = ...) -> int: ...
 def config_str(config: ProfilingConfig) -> str: ...
