@@ -4,12 +4,8 @@ set -euo pipefail
 REQUIREMENTS_IN="requirements.in"
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo)"
 REQUIREMENTS_PATH="${REPO_ROOT}/${REQUIREMENTS_IN}"
-RAPID_SERVICE_DIR="domains/apm_sdk/apps/apis/rapid_python_http_smoke_test"
-RAPID_SERVICE_NAME="rapid_python_http_smoke_test"
-RAPID_JSON_REL="${RAPID_SERVICE_DIR}/rapid.json"
-RAPID_JSON_PATH="${REPO_ROOT}/${RAPID_JSON_REL}"
-RAPID_BUILD_BAZEL_REL="${RAPID_SERVICE_DIR}/BUILD.bazel"
-RAPID_BUILD_BAZEL_PATH="${REPO_ROOT}/${RAPID_BUILD_BAZEL_REL}"
+DEFAULT_BRANCH="apm-sdk-py-smoke-tests-staging"
+DEFAULT_RAPID_JSON_REL="domains/apm_sdk/apps/apis/rapid_python_http_smoke_test/rapid.json"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCH_BAZEL_HELPER="${SCRIPT_DIR}/_patch_build_bazel_pyversion.py"
 
@@ -36,8 +32,15 @@ Arguments:
   e.g. 110616709, 2c9ea00a672e91cf812b59d123a3924ac06c0564, or 2c9ea00a67
 
 Options:
+  --branch <name>         Branch to checkout, commit, and push to.
+                          Default: ${DEFAULT_BRANCH}
+  --rapid-json <path>     Path (relative to dd-source repo root) of the
+                          rapid.json to patch with env-var values.
+                          Default: ${DEFAULT_RAPID_JSON_REL}
+  --no-push               Stage commit locally but skip \`git push\`. Useful
+                          when you want a human to inspect the commit first.
   --env KEY=VALUE         Add or override an env-var in \`extensions.containerenv.values\`
-                          of the smoke-test rapid.json. Repeat for multiple env vars.
+                          of the target rapid.json. Repeat for multiple env vars.
                           KEY must be uppercase alphanumeric (env-var style).
                           VALUE is taken verbatim. KEY removal is not supported.
   --python-version 3.X    Pin the smoke test to a single Python version (e.g.
@@ -45,7 +48,7 @@ Options:
                             1. requirements.in lines are filtered to that
                                version's wheels only (no cross-version fan-out).
                             2. DD_SERVICE is added to rapid.json env vars as
-                               \`${RAPID_SERVICE_NAME}_py3X\` so the Datadog UI
+                               \`<service_name>_py3X\` so the Datadog UI
                                can distinguish per-version profiles.
                             3. BUILD.bazel for the target is patched so the
                                Bazel runtime actually picks Python X.Y (the
@@ -81,16 +84,19 @@ Examples:
 Notes:
   - Must be invoked from inside the dd-source repo (script's writes are
     relative to dd-source's repo root).
-  - The rapid.json that gets patched is hard-coded to the rapid_python_http_smoke_test
-    service ($RAPID_JSON_REL).
+  - The rapid.json that gets patched defaults to the rapid_python_http_smoke_test
+    service. Use --rapid-json to target a different service.
   - All changes (requirements.in/.txt + rapid.json) ride in a single commit
-    on the apm-sdk-py-smoke-tests-staging branch.
+    on the branch given by --branch (default: ${DEFAULT_BRANCH}).
 USAGE
 }
 
 ENV_OVERRIDES=()
 POSITIONAL_ARGS=()
 PY_VERSION=""
+BRANCH="$DEFAULT_BRANCH"
+RAPID_JSON_REL="$DEFAULT_RAPID_JSON_REL"
+PUSH=true
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -112,6 +118,28 @@ while [[ $# -gt 0 ]]; do
       PY_VERSION="${1#--python-version=}"
       shift
       ;;
+    --branch)
+      [[ $# -ge 2 ]] || { echo "ERROR: --branch requires a name argument"; exit 1; }
+      BRANCH="$2"
+      shift 2
+      ;;
+    --branch=*)
+      BRANCH="${1#--branch=}"
+      shift
+      ;;
+    --rapid-json)
+      [[ $# -ge 2 ]] || { echo "ERROR: --rapid-json requires a path argument"; exit 1; }
+      RAPID_JSON_REL="$2"
+      shift 2
+      ;;
+    --rapid-json=*)
+      RAPID_JSON_REL="${1#--rapid-json=}"
+      shift
+      ;;
+    --no-push)
+      PUSH=false
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -125,6 +153,15 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Derive service-name + dir + BUILD.bazel path from the (possibly user-supplied)
+# rapid.json path. RAPID_SERVICE_NAME is used to label DD_SERVICE when
+# --python-version is set; RAPID_BUILD_BAZEL_REL exists only for that path.
+RAPID_JSON_PATH="${REPO_ROOT}/${RAPID_JSON_REL}"
+RAPID_SERVICE_DIR="$(dirname "$RAPID_JSON_REL")"
+RAPID_SERVICE_NAME="$(basename "$RAPID_SERVICE_DIR")"
+RAPID_BUILD_BAZEL_REL="${RAPID_SERVICE_DIR}/BUILD.bazel"
+RAPID_BUILD_BAZEL_PATH="${REPO_ROOT}/${RAPID_BUILD_BAZEL_REL}"
 
 # Validate --env values up-front so we fail fast before doing any work.
 for kv in "${ENV_OVERRIDES[@]:-}"; do
@@ -225,9 +262,9 @@ fi
 BASE_URL="${BUCKET_URL}/${RESOLVED_REF}"
 INDEX_URL="${BASE_URL}/index-manylinux2014.html"
 
-git fetch origin apm-sdk-py-smoke-tests-staging
-git checkout origin/apm-sdk-py-smoke-tests-staging
-git checkout -B apm-sdk-py-smoke-tests-staging
+git fetch origin "$BRANCH"
+git checkout "origin/${BRANCH}"
+git checkout -B "$BRANCH"
 
 echo "Fetching wheel listing from ${INDEX_URL} ..."
 LISTING=$(curl -fsSL "${INDEX_URL}")
@@ -364,7 +401,7 @@ DIFF_TARGETS=(requirements.in requirements.txt "$RAPID_JSON_REL")
 if [[ -n "$PY_VERSION" ]]; then
   DIFF_TARGETS+=("$RAPID_BUILD_BAZEL_REL")
 fi
-if git diff --quiet origin/apm-sdk-py-smoke-tests-staging "${DIFF_TARGETS[@]}"; then
+if git diff --quiet "origin/${BRANCH}" "${DIFF_TARGETS[@]}"; then
   echo "Nothing to commit — branch already matches requested state."
   exit 0
 fi
@@ -382,8 +419,13 @@ if [[ -n "$PY_VERSION" ]]; then
   COMMIT_MSG="${COMMIT_MSG} + pin Python ${PY_VERSION}"
 fi
 git commit -m "$COMMIT_MSG" > /dev/null 2>&1
-git push > /dev/null 2>&1
+
+if [[ "$PUSH" == "true" ]]; then
+  git push > /dev/null 2>&1
+  echo "Changes pushed to ${BRANCH}."
+else
+  echo "Changes committed locally on ${BRANCH} but NOT pushed (--no-push)."
+  echo "To push: git push origin ${BRANCH}"
+fi
 
 git checkout main
-
-echo "Changes pushed."
