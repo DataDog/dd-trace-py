@@ -118,6 +118,23 @@ def patch() -> None:
         )
         wrap("anthropic", "resources.beta.messages.messages.AsyncMessages.stream", traced_chat_model_generate)
 
+    # AnthropicBedrock / AsyncAnthropicBedrock define their own beta Messages classes in
+    # anthropic.lib.bedrock._beta_messages whose `create` attribute is bound to the first-party
+    # function at module import time, before patch() runs. The wrap() above on the first-party
+    # class does not affect those captured references, so Bedrock callers see no spans unless we
+    # also wrap the Bedrock module paths directly.
+    try:
+        import anthropic.lib.bedrock._beta_messages  # noqa: F401
+    except ImportError:
+        pass
+    else:
+        wrap("anthropic", "lib.bedrock._beta_messages.Messages.create", traced_chat_model_generate)
+        wrap(
+            "anthropic",
+            "lib.bedrock._beta_messages.AsyncMessages.create",
+            traced_async_chat_model_generate,
+        )
+
 
 def unpatch() -> None:
     if not getattr(anthropic, "_datadog_patch", False):
@@ -135,5 +152,13 @@ def unpatch() -> None:
         unwrap(anthropic.resources.beta.messages.messages.Messages, "stream")
         unwrap(anthropic.resources.beta.messages.messages.AsyncMessages, "create")
         unwrap(anthropic.resources.beta.messages.messages.AsyncMessages, "stream")
+
+    try:
+        import anthropic.lib.bedrock._beta_messages as _bedrock_beta_messages
+    except ImportError:
+        pass
+    else:
+        unwrap(_bedrock_beta_messages.Messages, "create")
+        unwrap(_bedrock_beta_messages.AsyncMessages, "create")
 
     delattr(anthropic, "_datadog_integration")
