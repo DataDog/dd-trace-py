@@ -19,7 +19,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
-from ddtrace.internal.settings.profiling import (  # type: ignore[attr-defined]
+from ddtrace.internal.settings.profiling import (
     _derive_default_heap_sample_size,  # pyright: ignore[reportAttributeAccessIssue]
 )
 from ddtrace.profiling.collector import memalloc
@@ -148,7 +148,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
             quit_thread.wait()
 
         alloc_thread = threading.Thread(name="allocator", target=alloc)
-        alloc_thread._ddtrace_profiling_ignore = True  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+        alloc_thread._ddtrace_profiling_ignore = True  # pyright: ignore[reportAttributeAccessIssue]
         alloc_thread.start()
 
         mc.snapshot()

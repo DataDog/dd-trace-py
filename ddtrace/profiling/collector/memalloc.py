@@ -47,7 +47,7 @@ class MemoryCollector:
         )
         self.ignore_profiler = cast(bool, ignore_profiler if ignore_profiler is not None else config.ignore_profiler)
         mem_default: bool = config.memory.mem_domain_enabled  # pyright: ignore[reportAttributeAccessIssue]
-        self.mem_domain_enabled = cast(bool, mem_domain_enabled if mem_domain_enabled is not None else mem_default)
+        self.mem_domain_enabled = mem_domain_enabled if mem_domain_enabled is not None else mem_default
 
     def start(self) -> None:
         """Start collecting memory profiles."""
