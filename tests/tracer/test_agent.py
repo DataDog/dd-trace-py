@@ -557,3 +557,87 @@ def test_info(mock_connection, request_response, read_response, status_response,
 
     mock_connection.return_value = MockConn()
     assert info() == expected
+
+
+@mock.patch("ddtrace.internal.agent.get_connection")
+def test_info_does_not_retry_on_5xx(mock_connection):
+    """info() itself must keep its single-attempt semantics so existing callers are unaffected."""
+    call_count = [0]
+
+    class MockResponse(object):
+        def read(self):
+            return "{}"
+
+        @property
+        def status(self):
+            return 500
+
+        @property
+        def reason(self):
+            return "Internal Server Error"
+
+    class MockConn:
+        def request(self, *args, **kwargs):
+            return None
+
+        def getresponse(self):
+            call_count[0] += 1
+            return MockResponse()
+
+        def close(self):
+            return None
+
+    mock_connection.return_value = MockConn()
+
+    assert info() is None
+    assert call_count[0] == 1
+
+
+@mock.patch("ddtrace.internal.agent.get_connection")
+def test_agent_check_retries_info_on_5xx(mock_connection):
+    """AgentCheckPeriodicService._agent_check retries /info on transient 5xx."""
+    call_count = [0]
+
+    class MockResponse(object):
+        def read(self):
+            return "{}"
+
+        @property
+        def status(self):
+            return 500
+
+        @property
+        def reason(self):
+            return "Internal Server Error"
+
+    class MockConn:
+        def request(self, *args, **kwargs):
+            return None
+
+        def getresponse(self):
+            call_count[0] += 1
+            return MockResponse()
+
+        def close(self):
+            return None
+
+    mock_connection.return_value = MockConn()
+
+    class _Service(agent.AgentCheckPeriodicService):
+        def __init__(self):
+            super().__init__(interval=0.0)
+            self.received = "unset"
+
+        def info_check(self, agent_info):
+            self.received = agent_info
+            return False
+
+        def online(self):
+            pass
+
+    service = _Service()
+    service._agent_check()
+
+    # fibonacci_backoff_with_jitter(attempts=3) issues 3 total requests before giving up
+    assert call_count[0] == 3
+    assert service.received is None

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: This fix makes the tracer resilient to transient failures
+    from the local trace agent.
