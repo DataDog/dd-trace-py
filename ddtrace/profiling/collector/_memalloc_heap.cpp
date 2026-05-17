@@ -128,6 +128,35 @@ class heap_tracker_t
     void postfork_child();
 
   private:
+    /* Delta-export change event. ADD events reference the live traceback in
+     * allocs_m via raw pointer; REMOVE events own the extracted unique_ptr.
+     *
+     * The raw pointer in ADD is valid until export because the traceback is
+     * owned by either allocs_m or a subsequent REMOVE event in pending_changes
+     * (both are cleared together at export time). REMOVE events emit a
+     * negative tombstone — heap_space is negated lazily at emit time so an
+     * earlier ADD that aliases the same traceback (same ptr, same snapshot
+     * interval) reads the original positive value. `tombstone_applied` guards
+     * against re-negation when an emit fails and we retry. */
+    struct change_event
+    {
+        enum Kind : uint8_t
+        {
+            ADD,
+            REMOVE
+        };
+        void* ptr;
+        traceback_t* tb;
+        std::unique_ptr<traceback_t> owner; // set for REMOVE, null for ADD
+        Kind kind;
+        bool tombstone_applied = false; // REMOVE only; true after heap_space is negated
+        uint8_t failed_attempts = 0;    // export retries counter; events exceeding MAX are dropped
+    };
+
+    /* Cap retries on a single event before dropping it, so a persistent
+     * libdatadog rejection cannot grow pending_changes without bound. */
+    static constexpr uint8_t MAX_EXPORT_RETRIES = 2;
+
     uint32_t next_sample_size_no_cpython(uint32_t sample_size);
 
     /* This function is called from heap_tracker_t::postfork_child() as part of
@@ -161,6 +190,21 @@ class heap_tracker_t
 
     /* Initial capacity of the allocations map */
     static constexpr size_t INITAL_ALLOC_MAP_CAPACITY = 512;
+
+    /* Delta export state. pending_changes accumulates ADD/REMOVE events between
+     * snapshots; export_heap_no_cpython drains it and emits the deltas.
+     *
+     * Pre-reserved at construction so steady-state push_back is allocation-free.
+     * On pathological bursts the vector may reallocate. The reallocation goes
+     * through ::operator new (system malloc), NOT PyMem_Malloc, so it does not
+     * reenter the Python allocator hooks where untrack_no_cpython runs from.
+     * (Reentry would also be caught by memalloc_reentrant_guard_t earlier in
+     * the call.) Dropping events at the push site instead would risk
+     * use-after-clear on a queued ADD whose traceback gets pool_put'd by a
+     * matching REMOVE that overflowed — letting the vector grow is the safe
+     * option. */
+    static constexpr size_t PENDING_CHANGES_RESERVE = 4096;
+    std::vector<change_event> pending_changes;
 };
 
 // Pool implementation
@@ -223,6 +267,7 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
     pool.reserve(POOL_CAPACITY);
     // Pre-allocate map capacity to avoid rehashing during ramp-up.
     allocs_m.reserve(INITAL_ALLOC_MAP_CAPACITY);
+    pending_changes.reserve(PENDING_CHANGES_RESERVE);
 }
 
 void
@@ -232,7 +277,14 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 
     auto node = allocs_m.extract(ptr);
     if (!node.empty()) {
-        pool_put_no_cpython(std::move(node.mapped()));
+        /* Move the traceback into a REMOVE event so it stays alive until the
+         * next export emits its tombstone. heap_space negation is deferred to
+         * emit time so any earlier ADD event aliasing this traceback (same ptr
+         * tracked and freed within the same snapshot) still emits its original
+         * positive value before the REMOVE flips the sign. */
+        auto owner = std::move(node.mapped());
+        auto* raw = owner.get();
+        pending_changes.push_back({ ptr, raw, std::move(owner), change_event::REMOVE });
     }
 }
 
@@ -266,10 +318,15 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     auto [it, inserted] = allocs_m.insert_or_assign(ptr, std::move(tb));
-    (void)it; // Unused, but needed for structured binding
 
     /* This should always be a new insertion. If not, we failed to properly untrack a previous allocation. */
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
+
+    /* Record ADD event referencing the live traceback. The raw pointer remains
+     * valid until export: either the entry stays in allocs_m, or a subsequent
+     * untrack moves ownership into a REMOVE event in pending_changes — both
+     * are cleared in the same export pass. */
+    pending_changes.push_back({ ptr, it->second.get(), nullptr, change_event::ADD });
 
     // Get ready for the next sample
     reset_sampling_state_no_cpython();
@@ -280,11 +337,53 @@ heap_tracker_t::export_heap_no_cpython()
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    /* Iterate over live samples and export them */
-    for (const auto& [ptr, tb] : allocs_m) {
-        (void)ptr; // Suppress unused variable warning
-        tb->sample.export_sample();
+    /* Delta emission: ADDs reference live tracebacks via raw pointer (kept
+     * alive by either allocs_m or a later REMOVE event in this buffer).
+     * REMOVEs own the extracted unique_ptr and emit a negative tombstone;
+     * heap_space is negated lazily here (guarded by tombstone_applied) so an
+     * earlier ADD aliasing the same traceback emits the original positive
+     * value before the REMOVE flips the sign, and so retries on libdatadog
+     * rejection don't toggle the sign each attempt.
+     *
+     * On libdatadog rejection, retain the event for retry on the next snapshot
+     * — without this, an ADD or REMOVE that Profile_add2 refuses is silently
+     * dropped, causing permanent drift in the backend's running heap state.
+     * Bounded by MAX_EXPORT_RETRIES so a persistent rejection cannot grow
+     * pending_changes without bound.
+     *
+     * No periodic resync is emitted today: a full-snapshot would not carry a
+     * wire-format marker telling the backend to reset accumulated state, so
+     * the backend would double-count instead of recovering from drift. If a
+     * delta upload is dropped, the backend's state diverges from live until
+     * the next profiler restart (which clears allocs_m and pending_changes).
+     * Adding a resync requires either backend-side reset signaling or
+     * emitting compensating negative+positive pairs for every live entry —
+     * out of scope for v1; see heap-export-delta-tracking-design.md. */
+    std::vector<change_event> retained;
+    for (auto& evt : pending_changes) {
+        if (evt.kind == change_event::REMOVE && !evt.tombstone_applied) {
+            evt.tb->sample.negate_heap_space();
+            evt.tombstone_applied = true;
+        }
+        if (evt.tb->sample.export_sample()) {
+            // Success: recycle the REMOVE traceback; ADDs leave their
+            // tracebacks in allocs_m where they were.
+            if (evt.kind == change_event::REMOVE) {
+                pool_put_no_cpython(std::move(evt.owner));
+            }
+            continue;
+        }
+        // libdatadog rejected: retry next snapshot, up to MAX_EXPORT_RETRIES.
+        if (evt.failed_attempts >= MAX_EXPORT_RETRIES) {
+            if (evt.kind == change_event::REMOVE) {
+                pool_put_no_cpython(std::move(evt.owner));
+            }
+            continue;
+        }
+        ++evt.failed_attempts;
+        retained.push_back(std::move(evt));
     }
+    pending_changes = std::move(retained);
 
     Datadog::Sample::profile_borrow().stats().set_heap_tracker_size(allocs_m.size());
 }
@@ -309,6 +408,11 @@ heap_tracker_t::postfork_child()
     // Profile state. Global Profile state is reset after fork in
     // Profile::postfork_child()
     pool.clear();
+
+    // Pending delta events may contain raw pointers into allocs_m and owned
+    // tracebacks; clear before dropping allocs_m so the raw pointers in any
+    // ADD events do not get stranded.
+    pending_changes.clear();
 
     // Allocations map may contain data from the parent process, and also
     // traceback_t objects may reference invalid Profile state.

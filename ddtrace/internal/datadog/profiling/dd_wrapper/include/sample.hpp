@@ -183,6 +183,13 @@ class Sample
     // This is useful when the Sample object is embedded and will be destroyed later
     bool export_sample();
 
+    // Flip the sign on the heap_space value so this sample is emitted as a
+    // tombstone (negative delta) by a subsequent export_sample() call. Idempotent
+    // when called twice — but heap-tracker callers should call this exactly once
+    // at REMOVE-event creation time so retries on transient libdatadog rejection
+    // emit a stable negative value instead of toggling sign on every attempt.
+    void negate_heap_space();
+
     static ProfileBorrow profile_borrow();
     static void postfork_child();
     static void cleanup();

@@ -627,15 +627,19 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
         assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
         assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-        # Validate all samples have valid values
+        # Validate all samples have valid values. Heap deltas can be negative
+        # (tombstones for freed allocations). pprof aggregation by stack can
+        # also produce all-zero buckets when an ADD and REMOVE pair targets
+        # the same stack within one upload window — those buckets are
+        # legitimate cancelled-delta artifacts, so skip them in the loop.
         for sample in final_profile.sample:
-            # Check that at least one value type is non-zero
-            has_heap = sample.value[heap_space_idx] > 0
-            has_alloc = sample.value[alloc_space_idx] > 0
-            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-            assert sample.value[alloc_count_idx] >= 0, (
-                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
-            )
+            heap = sample.value[heap_space_idx]
+            alloc = sample.value[alloc_space_idx]
+            count = sample.value[alloc_count_idx]
+            if heap == 0 and alloc == 0 and count == 0:
+                continue  # cancelled ADD+REMOVE pair aggregated to zero bucket
+            assert heap != 0 or alloc > 0, "Sample should have either heap-space != 0 or alloc-space > 0"
+            assert count >= 0, f"alloc-samples should be non-negative, got {count}"
 
         # Get live samples (heap-space > 0)
         live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
@@ -718,52 +722,68 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
         assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-        # Since no objects were deleted, heap samples should accumulate (first_batch + second_batch)
-        # Count heap samples in both profiles
-        after_first_heap_samples = [s for s in after_first_batch_profile.sample if s.value[heap_space_idx] > 0]
-        final_heap_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
-
-        assert len(final_heap_samples) > len(after_first_heap_samples), (
-            f"Final should have more heap samples than after first batch (nothing deleted). "
-            f"Got final={len(final_heap_samples)}, after_first={len(after_first_heap_samples)}"
+        # With delta semantics, each upload carries only the changes since the
+        # previous one. The after-first-batch profile contains positive samples
+        # from batch one; the final profile contains positive samples from
+        # batch two. Verify each batch's deltas land in the corresponding
+        # upload rather than expecting cumulative live state in the final.
+        after_first_one_samples = [
+            s
+            for s in after_first_batch_profile.sample
+            if s.value[heap_space_idx] > 0 and has_function_in_profile_sample(after_first_batch_profile, s, one)
+        ]
+        final_two_samples = [
+            s
+            for s in final_profile.sample
+            if s.value[heap_space_idx] > 0 and has_function_in_profile_sample(final_profile, s, two)
+        ]
+        assert len(after_first_one_samples) > 0, (
+            f"After-first-batch upload should contain positive deltas from batch one, "
+            f"got {len(after_first_one_samples)}"
+        )
+        assert len(final_two_samples) > 0, (
+            f"Final upload should contain positive deltas from batch two, got {len(final_two_samples)}"
         )
 
-        # Validate all samples in final profile have valid values
+        # Neither batch's own allocations were freed, so the buckets attributed
+        # to `one` and `two` should not carry negative tombstones in the final
+        # upload. (Negatives may appear from unrelated frees that happen
+        # incidentally inside the Python runtime — those use different stacks.)
+        one_negatives_final = [
+            s
+            for s in final_profile.sample
+            if s.value[heap_space_idx] < 0 and has_function_in_profile_sample(final_profile, s, one)
+        ]
+        two_negatives_final = [
+            s
+            for s in final_profile.sample
+            if s.value[heap_space_idx] < 0 and has_function_in_profile_sample(final_profile, s, two)
+        ]
+        assert len(one_negatives_final) == 0, (
+            f"Final upload should not have negative tombstones for batch one (not freed), "
+            f"got {len(one_negatives_final)}"
+        )
+        assert len(two_negatives_final) == 0, (
+            f"Final upload should not have negative tombstones for batch two (not freed), "
+            f"got {len(two_negatives_final)}"
+        )
+
+        # Skip all-zero samples (cancelled ADD+REMOVE pair artifacts from pprof
+        # aggregation) when validating individual sample values.
         for sample in final_profile.sample:
-            has_heap = sample.value[heap_space_idx] > 0
-            has_alloc = sample.value[alloc_space_idx] > 0
-            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-            assert sample.value[alloc_count_idx] >= 0, (
-                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
-            )
+            heap = sample.value[heap_space_idx]
+            alloc = sample.value[alloc_space_idx]
+            count = sample.value[alloc_count_idx]
+            if heap == 0 and alloc == 0 and count == 0:
+                continue
+            assert heap != 0 or alloc > 0, "Sample should have either heap-space != 0 or alloc-space > 0"
+            assert count >= 0, f"alloc-samples should be non-negative, got {count}"
 
-        # Get live samples (heap-space > 0)
-        live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
-
-        batch_one_live_samples = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, one)
-        ]
-
-        batch_two_live_samples = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, two)
-        ]
-
-        assert len(batch_one_live_samples) > 0, (
-            f"Should have live samples from batch one, got {len(batch_one_live_samples)}"
-        )
-        assert len(batch_two_live_samples) > 0, (
-            f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
-        )
-
-        # batch_one samples were reported in first snapshot, so alloc-space should be 0 in later snapshots
-        # batch_two samples are new allocations, so alloc-space should be > 0
-        batch_one_valid = all(
-            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] == 0 for sample in batch_one_live_samples
-        )
-        assert batch_one_valid, "Batch one samples should have heap-space > 0 and alloc-space == 0 (already reported)"
-
+        # Sanity-check that batch two's positive samples (the new deltas in the
+        # final upload) carry both heap-space and alloc-space > 0, since they
+        # represent newly-tracked allocations rather than pre-existing live state.
         batch_two_valid = all(
-            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] > 0 for sample in batch_two_live_samples
+            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] > 0 for sample in final_two_samples
         )
         assert batch_two_valid, "Batch two samples should have heap-space > 0 and alloc-space > 0 (new allocations)"
 
@@ -1029,6 +1049,263 @@ def test_heap_stress() -> None:
             del x[:100]
     finally:
         _memalloc.stop()
+
+
+def _alloc_in_named_function(n: int, size: int) -> list[Union[tuple[None, ...], bytearray]]:
+    """Allocate n objects of `size`. Named so the heap profile can attribute samples back to it."""
+    return [one(size) for _ in range(n)]
+
+
+def test_delta_export_emits_negative_tombstones_after_free(tmp_path: Path) -> None:
+    """After freeing tracked allocations, the next snapshot should emit
+    negative-value tombstones for each freed sample so the backend can
+    integrate deltas to current state. Without negative samples the backend
+    would see only positive live state and never observe frees.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_delta_export_emits_negative_tombstones_after_free")
+    mc = memalloc.MemoryCollector(heap_sample_size=1024)
+
+    with mc:
+        live = _alloc_in_named_function(2_000, 1024)
+        mc.snapshot_and_parse_pprof(output_filename)
+        del live[:]
+        gc.collect()
+        profile_drained = mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
+
+    heap_space_idx = pprof_utils.get_sample_type_index(profile_drained, "heap-space")
+    assert heap_space_idx >= 0
+
+    negative_samples = [
+        s
+        for s in profile_drained.sample
+        if s.value[heap_space_idx] < 0 and has_function_in_profile_sample(profile_drained, s, _alloc_in_named_function)
+    ]
+    assert len(negative_samples) > 0, (
+        "expected at least one negative-value tombstone from the allocator after free, got 0"
+    )
+
+
+def test_delta_export_steady_state_skips_unchanged_samples(tmp_path: Path) -> None:
+    """When nothing is freed between snapshots, the second snapshot should
+    emit only the new allocations since the previous snapshot. A bug that
+    re-emits unchanged live entries every snapshot would double-count them
+    on the backend's running heap state.
+    """
+    output_filename_first = _setup_profiling_prelude(tmp_path, "test_delta_export_steady_state_first")
+    mc = memalloc.MemoryCollector(heap_sample_size=1024)
+
+    with mc:
+        # First batch establishes the baseline live set.
+        baseline = _alloc_in_named_function(2_000, 1024)
+        profile_first = mc.snapshot_and_parse_pprof(output_filename_first)
+
+        # Second snapshot with no allocations or frees in between.
+        output_filename_second = _setup_profiling_prelude(tmp_path, "test_delta_export_steady_state_second")
+        profile_second = mc.snapshot_and_parse_pprof(output_filename_second, assert_samples=False)
+
+        # Keep baseline alive through both snapshots so frees do not affect the result.
+        assert len(baseline) == 2_000
+
+    heap_space_idx_first = pprof_utils.get_sample_type_index(profile_first, "heap-space")
+    heap_space_idx_second = pprof_utils.get_sample_type_index(profile_second, "heap-space")
+
+    first_live = [
+        s
+        for s in profile_first.sample
+        if s.value[heap_space_idx_first] > 0
+        and has_function_in_profile_sample(profile_first, s, _alloc_in_named_function)
+    ]
+    second_live = [
+        s
+        for s in profile_second.sample
+        if s.value[heap_space_idx_second] > 0
+        and has_function_in_profile_sample(profile_second, s, _alloc_in_named_function)
+    ]
+
+    assert len(first_live) > 0, "first snapshot should have allocator samples"
+    # Second snapshot should contain ZERO positive samples from the allocator: pending_changes
+    # was cleared at the first export, and no new allocations from _alloc_in_named_function
+    # happened in between. (pprof aggregates same-stack samples; a re-emitted bucket would
+    # show up here.) A non-zero count indicates the delta path is incorrectly re-emitting
+    # unchanged live entries.
+    assert len(second_live) == 0, (
+        f"second snapshot re-emitted unchanged live samples: first={len(first_live)}, "
+        f"second={len(second_live)} (delta path may be falling back to full snapshot)"
+    )
+
+
+def test_delta_export_churn_net_heap_is_zero(tmp_path: Path) -> None:
+    """Under a balanced alloc/free workload, the delta path must emit enough
+    negative tombstones to cancel every positive ADD that targets the same
+    stack. pprof aggregates same-stack samples into a single bucket whose
+    value is the sum; if the delta path is working, the aggregated heap-space
+    sum for `_alloc_in_named_function` is zero (positives + negatives cancel).
+    If REMOVEs were not emitted, the sum would be strongly positive.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_delta_export_churn_net_heap_is_zero")
+    mc = memalloc.MemoryCollector(heap_sample_size=256)
+
+    with mc:
+        for _ in range(50):
+            batch = _alloc_in_named_function(500, 256)
+            del batch
+        gc.collect()
+        profile = mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
+
+    heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+    allocator_heap_sum = sum(
+        s.value[heap_space_idx]
+        for s in profile.sample
+        if has_function_in_profile_sample(profile, s, _alloc_in_named_function)
+    )
+    # The allocator stack should net to zero after balanced churn. A strongly
+    # positive sum indicates the delta path failed to emit REMOVE tombstones.
+    assert allocator_heap_sum == 0, (
+        f"net heap-space for allocator stack should be 0 after balanced churn, "
+        f"got {allocator_heap_sum} (delta path may have skipped REMOVE tombstones)"
+    )
+
+
+def test_delta_export_no_resync_for_steady_state(tmp_path: Path) -> None:
+    """The delta path emits NO periodic resync today. Past the first snapshot
+    that drains the initial ADDs, repeated snapshots of an unchanging heap
+    must not re-emit positive samples from the allocator — emitting a plain
+    full snapshot without a backend reset marker would double-count live
+    allocations in any backend that integrates deltas (see Copilot review on
+    PR #18125). Take 15 snapshots without modifying the heap; only the first
+    should carry positive allocator samples.
+    """
+    mc = memalloc.MemoryCollector(heap_sample_size=1024)
+
+    profiles = []
+    with mc:
+        live = _alloc_in_named_function(2_000, 1024)
+
+        # Take well past the old RESYNC_INTERVAL (10) so a stale resync would
+        # surface here if it ever sneaks back in.
+        for i in range(15):
+            output_filename = _setup_profiling_prelude(tmp_path, f"test_no_resync_{i}")
+            profiles.append(mc.snapshot_and_parse_pprof(output_filename, assert_samples=False))
+
+        # Keep live alive across every snapshot so any positive samples must
+        # come from a re-emit, not from a fresh allocation.
+        assert len(live) == 2_000
+
+    heap_space_idx = pprof_utils.get_sample_type_index(profiles[0], "heap-space")
+    # The first snapshot drains the initial ADD events — expect positive samples.
+    first_live = [
+        s
+        for s in profiles[0].sample
+        if s.value[heap_space_idx] > 0 and has_function_in_profile_sample(profiles[0], s, _alloc_in_named_function)
+    ]
+    assert len(first_live) > 0, "first snapshot should carry the initial ADD deltas"
+
+    # Every snapshot after the first must have zero positive samples from the
+    # allocator stack — pending_changes is empty between snapshots, so the
+    # delta path emits nothing.
+    for idx in range(1, len(profiles)):
+        idx_in_this = pprof_utils.get_sample_type_index(profiles[idx], "heap-space")
+        re_emitted = [
+            s
+            for s in profiles[idx].sample
+            if s.value[idx_in_this] > 0 and has_function_in_profile_sample(profiles[idx], s, _alloc_in_named_function)
+        ]
+        assert len(re_emitted) == 0, (
+            f"snapshot {idx} re-emitted {len(re_emitted)} allocator samples — "
+            "a periodic resync without a backend reset marker would double-count live state"
+        )
+
+
+def test_delta_export_net_heap_is_zero_across_snapshots(tmp_path: Path) -> None:
+    """The delta path must converge to a net heap-space of zero across snapshots
+    after every tracked allocation has been freed: every ADD positive must be
+    matched by a REMOVE tombstone reaching the backend. A silent drop on a
+    libdatadog rejection (Profile_add2 returns false) would leave one half of
+    an ADD/REMOVE pair missing and the net non-zero.
+
+    The retain-on-failure logic guards against that: failed events stay in
+    pending_changes and are retried on subsequent snapshots up to
+    MAX_EXPORT_RETRIES. See chatgpt-codex-connector P2 review on PR #18125.
+
+    This test exercises the success path of the retry code on a modest
+    workload (so the run completes in seconds even when libdatadog does
+    reject). If libdatadog never rejects at this scale, the assertion still
+    catches any other delta-emission bug that would skew the sum.
+    """
+    mc = memalloc.MemoryCollector(heap_sample_size=256)
+
+    total_heap_space_for_allocator = 0
+    with mc:
+        live = _alloc_in_named_function(5_000, 512)
+        del live
+        gc.collect()
+
+        # Three snapshots: first drains the initial ADD+REMOVE batch; any
+        # retained events from rejection get retried on the next two passes
+        # (bounded by MAX_EXPORT_RETRIES = 2 in C++).
+        for i in range(3):
+            output_filename = _setup_profiling_prelude(tmp_path, f"test_delta_net_zero_{i}")
+            profile = mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
+            heap_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+            total_heap_space_for_allocator += sum(
+                s.value[heap_idx]
+                for s in profile.sample
+                if has_function_in_profile_sample(profile, s, _alloc_in_named_function)
+            )
+
+    assert total_heap_space_for_allocator == 0, (
+        f"net heap-space across all snapshots should be 0 (positives + tombstones cancel), "
+        f"got {total_heap_space_for_allocator} (delta path may drop failed exports)"
+    )
+
+
+def test_delta_export_heavy_churn_stays_consistent(tmp_path: Path) -> None:
+    """Under sustained alloc/free churn between snapshots, the delta path must
+    not crash, hang, or corrupt state. Hook-side push_backs into pending_changes
+    can grow the buffer past its initial reserve under bursty workloads — the
+    reallocation goes through system malloc (operator new), NOT through
+    PyMem_Malloc, so it does not reenter untrack_no_cpython. This test exercises
+    that growth path and verifies the visible invariants: the profiler does not
+    crash, snapshots succeed, and a second snapshot drains cleanly with no
+    residual positive samples from the same allocator stack.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_delta_export_heavy_churn_stays_consistent")
+    # Aggressive sampling so most allocations register as events, exercising
+    # the hook-side push_back code paths added by this change.
+    mc = memalloc.MemoryCollector(heap_sample_size=64)
+
+    with mc:
+        # ~50K event-equivalents (100 iters * 250 allocs * 2 [alloc + free]).
+        # Below the PENDING_CHANGES_RESERVE bound — picked to exercise the new
+        # paths without piling so many same-stack samples that downstream
+        # libdatadog limits become the dominant signal.
+        for _ in range(100):
+            batch = _alloc_in_named_function(250, 256)
+            del batch
+        gc.collect()
+        profile = mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
+        # Second snapshot exercises the post-drain path: pending_changes has
+        # been cleared by the first snapshot; this one should be empty (no
+        # additional churn between calls) and emit nothing under the delta path.
+        profile2 = mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
+
+    # Profiler survived and produced parseable profiles.
+    assert profile is not None
+    assert profile2 is not None
+
+    # The second snapshot must not re-emit positive allocator samples; the
+    # first one drained any pending ADDs and nothing new was tracked between
+    # snapshots, so any positive samples there would indicate a stuck buffer
+    # or a sneak resync re-emission.
+    heap_space_idx_2 = pprof_utils.get_sample_type_index(profile2, "heap-space")
+    re_emitted = [
+        s
+        for s in profile2.sample
+        if s.value[heap_space_idx_2] > 0 and has_function_in_profile_sample(profile2, s, _alloc_in_named_function)
+    ]
+    assert len(re_emitted) == 0, (
+        f"second snapshot leaked positive samples from the allocator stack: got {len(re_emitted)}"
+    )
 
 
 @pytest.mark.parametrize("heap_sample_size", (0, 512 * 1024, 1024 * 1024, 2048 * 1024, 4096 * 1024))

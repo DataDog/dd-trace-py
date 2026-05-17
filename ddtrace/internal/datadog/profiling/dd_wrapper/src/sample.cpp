@@ -431,6 +431,20 @@ Datadog::Sample::export_sample()
     return ProfilerState::get().profile_state.collect(sample, endtime_ns);
 }
 
+void
+Datadog::Sample::negate_heap_space()
+{
+    // Flip the sign on heap_space so a subsequent export_sample() emits this
+    // sample as a tombstone. libdatadog accepts negative i64 values
+    // (sample.rs Value is &[i64] with no sign validation).
+    if (0U != (type_mask & SampleType::Heap)) {
+        const size_t heap_space_idx = ProfilerState::get().profile_state.val().heap_space;
+        if (heap_space_idx < values.size()) {
+            values[heap_space_idx] = -values[heap_space_idx];
+        }
+    }
+}
+
 bool
 Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
 {
