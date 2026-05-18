@@ -134,6 +134,7 @@ variables:
   extends: .build_base
   variables:
     SYSTEM_VERSION_COMPAT: "0"
+      # Pin the deployment target as the tart VM image may run a different minor version
     MACOSX_DEPLOYMENT_TARGET: "14.7"
     DD_USE_SCCACHE: "1"
   script: |
@@ -171,11 +172,13 @@ variables:
   tags: [ "macos:sonoma-tart" ]
   variables:
     ARCH_TAG: "arm64"
-    PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
-    # Disable runner-wrapped script sections so the multi-line script's
-    # stdout/stderr stream inline instead of being swallowed by the
-    # collapsed section wrapper.
+    # The script section wrapper doesn't play nicely with zsh `setopt shwordsplit`
     FF_SCRIPT_SECTIONS: "false"
+  parallel:
+    matrix:
+      - PYTHON_VERSIONS:
+          - "3.9 3.10 3.11"
+          - "3.12 3.13 3.14"
 
 # Only amd64 manylinux2014 wheels
 "upload manylinux2014_x86_64":
