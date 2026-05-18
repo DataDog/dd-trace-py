@@ -399,6 +399,10 @@ class Tracer(object):
         self._pid = getpid()
         self._recreate(reset_buffer=True)
         self._new_process = True
+        # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
+        active = self.context_provider.active()
+        if active is not None:
+            core.dispatch("ddtrace.context_provider.activate", (active,))
 
     def _recreate(
         self,

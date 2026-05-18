@@ -82,6 +82,22 @@ def test_normalize_headers(input_headers, expected):
             True,
             None,
         ),
+        # content-type may legally carry parameters (e.g. charset)
+        ({"content-type": "application/json; charset=utf-8"}, '{"key": "value"}', False, {"key": "value"}),
+        ({"content-type": "application/json;charset=utf-8"}, '{"key": "value"}', False, {"key": "value"}),
+        ({"content-type": "  application/json ; charset=utf-8 "}, '{"key": "value"}', False, {"key": "value"}),
+        (
+            {"content-type": "application/x-www-form-urlencoded; charset=utf-8"},
+            "key=value",
+            False,
+            {"key": ["value"]},
+        ),
+        (
+            {"content-type": "application/xml; charset=utf-8"},
+            "<root><key>value</key></root>",
+            False,
+            {"root": {"key": "value"}},
+        ),
     ],
 )
 def test_parse_http_body(headers, body, is_body_base64, expected_output, mocker):
