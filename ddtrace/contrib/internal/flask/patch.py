@@ -389,10 +389,8 @@ def unpatch():
 
 
 def patched_wsgi_app(wrapped, instance, args, kwargs):
-    # Starting point for all requests. PEP-3333 args. Endpoint discovery runs unconditionally —
-    # gated by ``asm_config._api_security_endpoint_collection`` inside ``_collect_routes_once``,
-    # not by tracing — so the pre-PR contract that registration is tracing-independent is preserved.
     environ, start_response = args
+    # Registration is gated on asm_config, not tracing — keep this above the tracing short-circuit.
     _collect_routes_once(instance, environ.get("SCRIPT_NAME") or "")
     if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
@@ -400,30 +398,20 @@ def patched_wsgi_app(wrapped, instance, args, kwargs):
     return middleware(environ, start_response)
 
 
-# WeakKeyDictionary[Flask, set[script_name]] — perf gate for ``_collect_routes_once``.
-# Entries drop when Flask releases an app; ``endpoint_collection`` dedupes by (method, path).
 _collected_scripts_by_app: "weakref.WeakKeyDictionary[flask.Flask, set[str]]" = weakref.WeakKeyDictionary()
 
 
 def _collect_flask_routes(app, script_name):
-    """Register every rule in ``app.url_map`` into endpoint_collection, prefixed by ``script_name``.
-
-    Flask's url_map already contains Blueprint-prefixed rules; ``script_name`` adds the
-    DispatcherMiddleware mount prefix that Flask itself is unaware of.
-    """
+    """Register every rule in ``app.url_map`` into endpoint_collection, prefixed by ``script_name``."""
     try:
         url_map = app.url_map
     except Exception:
         return
-    # Strip trailing ``/`` from the prefix — rule.rule always starts with ``/`` (Werkzeug invariant).
     prefix = script_name.rstrip("/") if script_name else ""
     for rule in url_map.iter_rules():
         try:
             full_path = prefix + rule.rule
-            # Register every method the framework actually serves: user-declared + Werkzeug-auto-HEAD
-            # + Flask-auto-OPTIONS. Anything that yields 2xx/4xx (not 405) is part of the attack surface.
-            # ``rule.methods is None`` (raw Werkzeug add() without Flask) means the route responds to
-            # every method — register the ``*`` wildcard convention.
+            # ``rule.methods is None`` means the route responds to every method — emit the ``*`` wildcard.
             methods: list[str] = ["*"] if rule.methods is None else list(rule.methods)
             for method in methods:
                 endpoint_collection.add_endpoint(method, full_path, operation_name="flask.request")
@@ -432,35 +420,27 @@ def _collect_flask_routes(app, script_name):
 
 
 def _walk_wsgi_mounts(wsgi_app, script_name):
-    """Yield ``(flask_app, full_prefix)`` for every Flask app reachable from a WSGI
-    chain, recursing through ``werkzeug.middleware.dispatcher.DispatcherMiddleware``
-    and composing mount prefixes as it descends.
-    """
+    """Yield ``(flask_app, full_prefix)`` for every Flask app reachable through nested DispatcherMiddleware."""
     if _DispatcherMiddleware is not None and isinstance(wsgi_app, _DispatcherMiddleware):
-        # Default app first (handles any path that doesn't match a mount), then each mount.
-        # Strip trailing ``/`` so ``/outer/`` + ``/inner`` composes as ``/outer/inner``.
         yield from _walk_wsgi_mounts(wsgi_app.app, script_name)
         parent = script_name.rstrip("/") if script_name else ""
         for mount_prefix, mounted in wsgi_app.mounts.items():
             yield from _walk_wsgi_mounts(mounted, parent + mount_prefix)
         return
-    # ``app.wsgi_app`` is a bound method (``__self__`` is the Flask app); a direct Flask instance also matches.
+    # ``app.wsgi_app`` is a bound method (``__self__`` is the Flask app); bare instances also match.
     target = getattr(wsgi_app, "__self__", wsgi_app)
     if isinstance(target, flask.Flask):
         yield target, script_name
 
 
 def _collect_routes_once(app, script_name=""):
-    """Walk ``app`` (and any DispatcherMiddleware reachable from its wsgi_app) once per ``(app, script_name)``.
-
-    The cached entry is invalidated by ``patched_add_url_rule`` on every ``Flask.add_url_rule`` call, so an
-    app factory that constructs a ``DispatcherMiddleware`` before registering its route modules still gets a
-    fresh walk on the next request. Steady-state hot paths keep using the cached walk.
-    """
+    """Walk ``app`` (and any DM reachable from its wsgi_app) once per ``(app, script_name)``."""
     if not asm_config._api_security_endpoint_collection:
         return
     if not isinstance(app, flask.Flask):
         return
+    # Normalize trailing ``/`` so ``/api`` and ``/api/`` share a cache entry (they register identically).
+    script_name = script_name.rstrip("/")
     scripts = _collected_scripts_by_app.get(app)
     if scripts is None:
         scripts = set()
@@ -474,7 +454,8 @@ def _collect_routes_once(app, script_name=""):
     scripts.add(script_name)
     try:
         _collect_flask_routes(app, script_name)
-        # Pattern A: user assigned a DM back onto app.wsgi_app — descend it to register mounts on first request.
+        # Safety net for Pattern A (DM assigned onto ``app.wsgi_app``): the eager DM-init walk normally
+        # covers this; descending again here also catches DMs constructed before this app was patched.
         for sub_app, sub_prefix in _walk_wsgi_mounts(app.wsgi_app, script_name):
             if sub_app is app:
                 continue
@@ -484,12 +465,8 @@ def _collect_routes_once(app, script_name=""):
 
 
 def patched_dispatcher_middleware_init(wrapped, instance, args, kwargs):
-    """Walk mounts eagerly at DispatcherMiddleware construction so Pattern B (DM as the outer WSGI app, not
-    owned by any Flask app) discovers sub-apps that never receive traffic. Pattern A is handled by the
-    first-request walk in ``patched_wsgi_app``.
-    """
+    """Walk DM mounts eagerly at construction so sub-apps that never receive traffic still reach discovery."""
     wrapped(*args, **kwargs)
-    # Bail when endpoint collection is disabled — DM construction is on the synchronous app-startup path.
     if not asm_config._api_security_endpoint_collection:
         return
     try:
@@ -519,16 +496,7 @@ def patched_render_debugger_html(wrapped, instance, args, kwargs):
 
 
 def patched_add_url_rule(wrapped, instance, args, kwargs):
-    """Wrap all views attached to this app and re-register endpoints under every known SCRIPT_NAME.
-
-    Endpoint registration is normally deferred to ``_collect_routes_once()`` (the mount prefix isn't known
-    here, since sub-apps are built before being mounted). But when an app factory mounts a
-    ``DispatcherMiddleware`` *before* registering its route modules, the eager DM walk runs against an empty
-    ``url_map`` and the cache says "already walked" — so without a re-walk here, late-registered routes for
-    sub-apps that never receive traffic would never reach endpoint discovery. Re-running the walk under each
-    cached SCRIPT_NAME after the wrapped ``add_url_rule`` picks up the new rule immediately and is idempotent
-    (``endpoint_collection`` dedupes by ``(method, path)``).
-    """
+    """Wrap views and re-walk under each known SCRIPT_NAME so late-registered routes reach endpoint discovery."""
 
     def _wrap(rule, endpoint=None, view_func=None, provide_automatic_options=None, **kwargs):
         wrapped_view = None
@@ -544,13 +512,11 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
             provide_automatic_options=provide_automatic_options,
             **kwargs,
         )
-        # Re-walk on the registration path (never the request hot path) so the new rule reaches
-        # endpoint_collection even when no request ever hits the app it was added to.
         if asm_config._api_security_endpoint_collection:
             try:
                 scripts = _collected_scripts_by_app.get(instance)
             except TypeError:
-                scripts = None  # non-hashable Flask subclass — guard mirrors the WeakKeyDictionary insertion
+                scripts = None
             if scripts:
                 for script_name in list(scripts):
                     _collect_flask_routes(instance, script_name)

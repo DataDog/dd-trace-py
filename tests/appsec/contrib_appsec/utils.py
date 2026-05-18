@@ -281,8 +281,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert isinstance(ep.path, str)
                 assert ep.resource_name
                 assert ep.operation_name
-                # Skip Flask's per-app auto /static/<path:filename> rule (also exposed at /<mount>/static/...
-                # under DispatcherMiddleware) — not user-defined, 404s for fake filenames.
+                # Skip Flask's per-app auto /static/ rule — 404s for fake filenames.
                 if ep.method not in ("GET", "*", "POST") or "/static/" in ep.path:
                     continue
                 found.add(ep.path)

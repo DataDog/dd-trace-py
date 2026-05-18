@@ -1,9 +1,4 @@
-"""Sub-application variant of the Flask test app.
-
-Views from ``app.py`` are re-registered on per-prefix sub-Flask-apps mounted under
-``werkzeug.middleware.dispatcher.DispatcherMiddleware`` to exercise the DM code paths
-(endpoint discovery, span resource with script_root, etc.).
-"""
+"""Sub-app variant of ``app.py``: views re-registered on sub-apps under DispatcherMiddleware."""
 
 import os
 
@@ -34,10 +29,7 @@ def _make_root_app():
     app = Flask("root_subapps", template_folder=tmpl_path)
 
     app.route("/", methods=["GET", "POST", "OPTIONS"])(index)
-    # ``/asm`` (no slash) is owned by the DM mount — a root-level rule would be shadowed; only ``/asm/`` is
-    # reachable. ``/login`` stays on root because mounting it would yield empty PATH_INFO (Flask rejects
-    # empty URL rules) and the test suite hits the bare ``/login``. No-slash form first to match the flat
-    # app's stacked-decorator order — Werkzeug 1.x arbitrates slash/no-slash by registration order.
+    # ``/login`` stays on root: mounting it would yield empty PATH_INFO (Flask rejects empty rules).
     app.route("/login", methods=["GET"])(login_user)
     app.route("/login/", methods=["GET"])(login_user)
     app.route("/login_sdk", methods=["GET"])(login_user_sdk)
@@ -50,8 +42,7 @@ def _make_root_app():
 
 def _make_asm_subapp():
     app = Flask("asm_sub", template_folder=tmpl_path)
-    # Direct app routes (no Blueprint) — Blueprint-in-sub-app + DM hit a Werkzeug 1.x slash-redirect quirk;
-    # nested-blueprint discovery has its own unit test in test_flask.py.
+    # Direct routes (no Blueprint) — Blueprint-in-sub-app + DM hits a Werkzeug 1.x slash-redirect quirk.
     app.route("/", methods=["GET", "POST", "OPTIONS"])(multi_view)
     app.route("/<int:param_int>/<string:param_str>", methods=["GET", "POST", "OPTIONS"])(multi_view)
     app.route("/<int:param_int>/<string:param_str>/", methods=["GET", "POST", "OPTIONS"])(multi_view)
@@ -91,7 +82,7 @@ redirect_httpx_subapp = _make_redirect_subapp(redirect_httpx, "redirect_httpx_su
 redirect_httpx_async_subapp = _make_redirect_subapp(redirect_httpx_async, "redirect_httpx_async_sub")
 
 
-# Mount via DM assigned back to root.wsgi_app so root.test_client() still works.
+# Assign DM back onto root.wsgi_app so root.test_client() still drives the dispatcher.
 root.wsgi_app = DispatcherMiddleware(
     root.wsgi_app,
     {
@@ -105,8 +96,5 @@ root.wsgi_app = DispatcherMiddleware(
     },
 )
 
-# Public handle used by the test fixture, same attribute name as in app.py.
 app = root
-
-# Keep the flat app importable so pytest collection still works.
 __all__ = ("app", "flat_app")
