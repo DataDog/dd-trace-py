@@ -25,7 +25,6 @@ from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_cost_tags
 from ddtrace.llmobs._utils import get_llmobs_input
-from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
 from ddtrace.llmobs._utils import get_llmobs_input_value
@@ -34,7 +33,6 @@ from ddtrace.llmobs._utils import get_llmobs_metrics
 from ddtrace.llmobs._utils import get_llmobs_model_name
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_output
-from ddtrace.llmobs._utils import get_llmobs_output_documents
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -346,7 +344,9 @@ class TestLLMIOProcessing:
 
         with llmobs.retrieval() as unscrubbed_ret_span:
             llmobs.annotate(unscrubbed_ret_span, output_data=[{"text": "public result", "name": "result.pdf"}])
-        assert get_llmobs_output(unscrubbed_ret_span) == {"documents": [{"text": "public result", "name": "result.pdf"}]}
+        assert get_llmobs_output(unscrubbed_ret_span) == {
+            "documents": [{"text": "public result", "name": "result.pdf"}]
+        }
 
     @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_mutate_documents)])
     def test_document_processor_mixed_io(self, llmobs, llmobs_enable_opts):
