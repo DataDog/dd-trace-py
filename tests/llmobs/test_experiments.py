@@ -2207,9 +2207,9 @@ class TestRerunEvaluators:
         # New span IDs are generated — they must differ from the originals
         assert new_result.result["runs"][0].rows[0]["span_id"] != "abc"
         assert new_result.result["runs"][0].rows[0]["trace_id"] != "def"
-        # Both new IDs must be valid UUIDs
-        assert UUID(new_result.result["runs"][0].rows[0]["span_id"])
-        assert UUID(new_result.result["runs"][0].rows[0]["trace_id"])
+        # span_id is a stringified 64-bit int; trace_id is a 32-char hex string.
+        assert int(new_result.result["runs"][0].rows[0]["span_id"]) > 0
+        assert re.fullmatch(r"[0-9a-f]{32}", new_result.result["runs"][0].rows[0]["trace_id"])
         # rerun returns a new SyncExperiment; the original experiment is unchanged
         assert new_result is not exp
         assert new_result.result is not first_result
