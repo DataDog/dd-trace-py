@@ -15,7 +15,7 @@ cd ../pywheels
 
 export PYTHONUNBUFFERED=TRUE
 
-../lib-injection/dl_wheels.py \
+../dd-trace-py/lib-injection/dl_wheels.py \
     --python-version=$PYTHON_VERSION \
     --ddtrace-flavor=${DDTRACE_FLAVOR:-} \
     --local-ddtrace \
