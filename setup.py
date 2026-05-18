@@ -471,7 +471,7 @@ class LibraryDownload:
     version: t.Optional[str] = None
     url_root: t.Optional[str] = None
     available_releases: dict[str, list[str]] = {}
-    expected_checksums: t.Optional[dict[str, str]] = None
+    expected_checksums: t.Optional[dict[str, dict[str, str]]] = None
     translate_suffix: dict[str, tuple[str, ...]] = {}
 
     @classmethod
@@ -565,10 +565,10 @@ class LibraryDownload:
             # Open the tarfile first to get the files needed.
             # This could be solved with "r:gz" mode, that allows random access
             # but that approach does not work on Windows
-            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+            with tarfile.open(filename, mode="r|gz", errorlevel=2) as tar:
                 dynfiles = [c for c in tar.getmembers() if c.name.endswith(suffixes)]
 
-            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+            with tarfile.open(filename, mode="r|gz", errorlevel=2) as tar:
                 tar.extractall(members=dynfiles, path=HERE)
                 Path(HERE / archive_dir).rename(arch_dir)
 
@@ -900,14 +900,14 @@ class CustomBuildExt(build_ext):
             cargo_files = [NATIVE_CRATE / "Cargo.toml", NATIVE_CRATE / "Cargo.lock"]
 
             # Get all source files (including subdirectories)
-            source_files = []
+            source_files: list[Path] = []
             # Find all .rs files in the crate (including subdirectories)
             source_files.extend(NATIVE_CRATE.glob("**/*.rs"))
             # Add cargo files
             source_files.extend([f for f in cargo_files if f.exists()])
 
             # Check if any source file is newer than the library
-            newest_source_time = 0
+            newest_source_time: float = 0.0
             for src_file in source_files:
                 if src_file.exists():
                     newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
@@ -970,13 +970,13 @@ class CustomBuildExt(build_ext):
             wrapper_mtime = wrapper_library.stat().st_mtime
 
             # Check dd_wrapper source files
-            source_files = []
+            source_files: list[Path] = []
             source_files.extend(dd_wrapper_dir.glob("**/*.cpp"))
             source_files.extend(dd_wrapper_dir.glob("**/*.hpp"))
             source_files.extend([dd_wrapper_dir / "CMakeLists.txt"])
 
             # Check if any source file is newer than the wrapper library
-            newest_source_time = 0
+            newest_source_time: float = 0.0
             for src_file in source_files:
                 if src_file.exists():
                     newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
@@ -999,7 +999,7 @@ class CustomBuildExt(build_ext):
 
             install_args = [f"--config {COMPILE_MODE}"]
 
-            cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()
+            cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()  # type: ignore[attr-defined]
             subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
             subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
             subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
@@ -1189,7 +1189,7 @@ class CustomBuildExt(build_ext):
         # Forward the install path of every successfully pre-built shared dep so
         # each consuming extension's CMakeLists.txt can use find_package() instead
         # of running its own FetchContent build.
-        built = getattr(self, "_built_shared_deps", set())
+        built: set[str] = getattr(self, "_built_shared_deps", set())
         for dep in SHARED_DEPS:
             if dep.name in built:
                 cmake_args += [f"-D{dep.cmake_var}={dep.install_dir}"]
@@ -1391,7 +1391,7 @@ class DebugMetadata:
             for ext, elapsed_ns in sorted(cls.build_times.items(), key=lambda x: x[1], reverse=True):
                 elapsed_s = elapsed_ns / 1e9
                 ext_percent = (elapsed_ns / total_ns) * 100.0
-                f.write(f"\t{ext.name}: {elapsed_s:0.2f}s ({ext_percent:0.2f}%)\n")
+                f.write(f"\t{ext}: {elapsed_s:0.2f}s ({ext_percent:0.2f}%)\n")
 
             if cls.shared_dep_times:
                 f.write("Shared dependency build times:\n")
