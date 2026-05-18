@@ -109,3 +109,40 @@ class DDConfig(Env):
 
     def value_source(self, env_name: str) -> str:
         return self._value_source.get(env_name, ValueSource.UNKNOWN)
+
+    def dump_settings(self) -> dict[str, Any]:
+        """Return a {dotted_name: value} snapshot of this config tree,
+        including ``private=True`` entries.
+
+        Keys are the dotted Python config path relative to this config root
+        (e.g. ``stack.adaptive_sampling``, ``upload_interval``). The config
+        ``__prefix__`` is deliberately *not* included, because callers
+        typically wrap the dict under a channel-specific header (e.g.
+        ``info.profiler.settings``) that already conveys the scope. Values
+        are coerced to JSON-friendly types (bool/int/float/str/None/list/
+        dict); anything exotic is stringified via ``repr``.
+
+        Use this when you need to publish the effective configuration on a
+        per-event channel (e.g. the profiler's per-profile ``info`` field).
+        For process-level telemetry, use
+        :func:`ddtrace.internal.telemetry.report_configuration`, which skips
+        private items.
+        """
+        settings: dict[str, Any] = {}
+        for name, _ in type(self).items(recursive=True):
+            env_val = self
+            for p in name.split("."):
+                env_val = getattr(env_val, p)
+
+            settings[name] = _json_safe_value(env_val)
+        return settings
+
+
+def _json_safe_value(value: Any) -> Any:
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [_json_safe_value(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _json_safe_value(v) for k, v in value.items()}
+    return repr(value)
