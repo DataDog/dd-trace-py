@@ -87,7 +87,7 @@ class TraceMiddleware(object):
                 # if get an Exception (404 is still an exception)
                 status = _detect_and_set_status_error(err_type, span)
 
-        route = req.root_path or "" + req.uri_template
+        route = (req.root_path or "") + req.uri_template
 
         core.dispatch(
             "web.request.finish", (span, config.falcon, None, None, status, None, None, resp._headers, route, True)
