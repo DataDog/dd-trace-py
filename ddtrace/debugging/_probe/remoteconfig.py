@@ -51,7 +51,7 @@ def xlate_keys(d: dict[str, Any], mapping: dict[str, str]) -> dict[str, Any]:
     return {mapping.get(k, k): v for k, v in d.items()}
 
 
-def _compile_segment(segment: dict) -> TemplateSegment:
+def _compile_segment(segment: dict[str, Any]) -> TemplateSegment:
     if "str" in segment:
         return LiteralTemplateSegment(str_value=segment["str"])
 
@@ -87,7 +87,7 @@ class ProbeFactory(object):
         raise NotImplementedError()
 
     @classmethod
-    def build(cls, args: dict[str, Any], attribs: dict[str, Any]) -> Any:
+    def build(cls, args: dict[str, Any], attribs: dict[str, Any]) -> "Probe":
         cls.update_args(args, attribs)
 
         where = attribs["where"]
@@ -256,7 +256,7 @@ def build_probe(attribs: dict[str, Any]) -> Probe:
 
 
 @_filter_by_env_and_version
-def get_probes(config: dict, status_logger: ProbeStatusLogger) -> Iterable[Probe]:
+def get_probes(config: dict[str, Any], status_logger: ProbeStatusLogger) -> Iterable[Probe]:
     try:
         return [build_probe(config)]
     except InvalidProbeConfiguration:
@@ -367,7 +367,7 @@ class DebuggerRCCallback(RCCallback):
         log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
         for payload in payloads:
             if payload.metadata is None:
-                log.debug(
+                log.debug(  # type: ignore[unreachable]
                     "[%s][P: %s] Dynamic Instrumentation: no RCM metadata for configuration; skipping",
                     os.getpid(),
                     os.getppid(),
