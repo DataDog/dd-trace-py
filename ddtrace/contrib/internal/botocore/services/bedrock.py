@@ -468,9 +468,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     pin = function_vars.get("pin")
     model_id = params.get("modelId")
     model_provider, model_name = parse_model_id(model_id)
-    model_id, model_provider, model_name = _resolve_application_inference_profile(
-        model_id, model_provider, model_name
-    )
+    model_id, model_provider, model_name = _resolve_application_inference_profile(model_id, model_provider, model_name)
     integration = function_vars.get("integration")
     submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
     with core.context_with_data(

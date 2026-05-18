@@ -8,6 +8,7 @@ call whose `modelId` is an application-inference-profile ARN. This lets the
 botocore span report the resolved base model without having to call
 `bedrock:GetInferenceProfile` or construct its own boto3 client.
 """
+
 import threading
 from typing import Optional
 
@@ -33,4 +34,3 @@ def lookup_inference_profile(profile_arn: str) -> Optional[str]:
 def _clear_inference_profile_cache() -> None:
     with _CACHE_LOCK:
         _INFERENCE_PROFILE_CACHE.clear()
-
