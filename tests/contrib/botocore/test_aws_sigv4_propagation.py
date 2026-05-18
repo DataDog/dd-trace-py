@@ -57,7 +57,8 @@ def patched_botocore():
 @pytest.fixture
 def s3_client(patched_botocore):
     """An S3 client with stubbed credentials. We never actually send anything;
-    we hook before-send to capture the signed AWSRequest and short-circuit."""
+    we hook before-send to capture the signed AWSRequest and short-circuit.
+    """
     session = botocore.session.Session()
     session.set_credentials(
         access_key="AKIAIOSFODNN7EXAMPLE",
@@ -71,7 +72,8 @@ def _capture_signed_request(client) -> dict:
     """Make a stubbed S3 ListBuckets call and return the AWSRequest at
     `before-send` (after signing). Aborts the actual network send by raising
     from the handler — pytest sees the exception and we use the captured
-    request from the dict."""
+    request from the dict.
+    """
     captured: dict = {}
 
     def before_send(request, **kwargs):
@@ -87,9 +89,7 @@ def _capture_signed_request(client) -> dict:
     except _StopBeforeWire:
         pass
     if "headers" not in captured:
-        pytest.fail(
-            "before-send handler was never called — request did not reach the signing stage"
-        )
+        pytest.fail("before-send handler was never called — request did not reach the signing stage")
     return captured["headers"]
 
 
@@ -113,6 +113,7 @@ def _reset_http_propagation_suppressed():
     still necessary.
     """
     from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+
     token = http_propagation_suppressed.set(False)
     yield
     http_propagation_suppressed.reset(token)
@@ -138,15 +139,14 @@ def test_trace_headers_are_in_sigv4_signed_headers(s3_client):
         f"x-datadog-trace-id not in SignedHeaders {signed_headers!r}. "
         f"The header was injected AFTER signing — AWS will reject this request."
     )
-    assert "traceparent" in signed_headers, (
-        f"traceparent not in SignedHeaders {signed_headers!r}"
-    )
+    assert "traceparent" in signed_headers, f"traceparent not in SignedHeaders {signed_headers!r}"
 
 
 def test_subscriber_skips_injection_when_propagation_suppressed():
     """When `http_propagation_suppressed` is True, the shared HTTP subscriber
     must not call HTTPPropagator.inject. This is the seam botocore uses to
-    avoid double-injection after its before-sign handler already injected."""
+    avoid double-injection after its before-sign handler already injected.
+    """
     from ddtrace._trace.subscribers.http_client import HttpClientTracingSubscriber
     from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
 
@@ -160,9 +160,7 @@ def test_subscriber_skips_injection_when_propagation_suppressed():
 
     token = http_propagation_suppressed.set(True)
     try:
-        with mock.patch(
-            "ddtrace._trace.subscribers.http_client.HTTPPropagator.inject"
-        ) as inject:
+        with mock.patch("ddtrace._trace.subscribers.http_client.HTTPPropagator.inject") as inject:
             HttpClientTracingSubscriber.on_started(ctx)
             inject.assert_not_called()
     finally:
@@ -181,11 +179,12 @@ def test_subscriber_injects_when_propagation_not_suppressed():
     ctx.event = event
     ctx.span.context = mock.MagicMock()
 
-    with mock.patch(
-        "ddtrace._trace.subscribers.http_client.HTTPPropagator.inject"
-    ) as inject, mock.patch(
-        "ddtrace._trace.subscribers.http_client.trace_utils.distributed_tracing_enabled",
-        return_value=True,
+    with (
+        mock.patch("ddtrace._trace.subscribers.http_client.HTTPPropagator.inject") as inject,
+        mock.patch(
+            "ddtrace._trace.subscribers.http_client.trace_utils.distributed_tracing_enabled",
+            return_value=True,
+        ),
     ):
         HttpClientTracingSubscriber.on_started(ctx)
         inject.assert_called_once()
@@ -193,7 +192,8 @@ def test_subscriber_injects_when_propagation_not_suppressed():
 
 def test_before_sign_handler_injects_when_span_active(patched_botocore):
     """The handler must inject propagation headers into the AWSRequest and
-    set the suppression contextvar."""
+    set the suppression contextvar.
+    """
     from botocore.awsrequest import AWSRequest
 
     from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
@@ -215,7 +215,8 @@ def test_before_sign_handler_injects_when_span_active(patched_botocore):
 
 def test_before_sign_handler_noop_when_no_active_span(patched_botocore):
     """The handler must NOT inject when there's no active span — defensive
-    against being called outside the normal flow."""
+    against being called outside the normal flow.
+    """
     from botocore.awsrequest import AWSRequest
 
     from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
@@ -239,7 +240,8 @@ def test_before_sign_handler_noop_when_botocore_distributed_tracing_disabled(
 ):
     """When DD_BOTOCORE_DISTRIBUTED_TRACING=false, the handler must not
     inject. (The contextvar guard in patched_api_call handles the urllib3
-    side of suppression — covered separately.)"""
+    side of suppression — covered separately.)
+    """
     from botocore.awsrequest import AWSRequest
 
     from ddtrace import config
@@ -263,7 +265,8 @@ def test_before_sign_handler_noop_when_botocore_distributed_tracing_disabled(
 def test_patch_registers_handler_on_new_sessions():
     """After patch() runs, emitting `before-sign` on any newly created Session
     must trigger our handler — proven by side effect (header injected into the
-    request), not by poking botocore internals."""
+    request), not by poking botocore internals.
+    """
     from botocore.awsrequest import AWSRequest
 
     from ddtrace.contrib.internal.botocore.patch import patch
@@ -292,7 +295,8 @@ def test_patch_registers_handler_on_new_sessions():
 
 def test_unpatch_removes_session_init_wrapper():
     """After unpatch(), newly created Sessions must NOT have the handler —
-    emitting `before-sign` must not mutate the request."""
+    emitting `before-sign` must not mutate the request.
+    """
     from botocore.awsrequest import AWSRequest
 
     from ddtrace.contrib.internal.botocore.patch import patch
@@ -326,7 +330,8 @@ def test_distributed_tracing_disabled_suppresses_urllib3_injection_for_aws(s3_cl
     """When DD_BOTOCORE_DISTRIBUTED_TRACING=false, AWS requests must contain
     NO trace propagation headers at any layer. Today's behavior leaks
     headers via the urllib3 subscriber even when botocore's flag is off —
-    the contextvar guard in patched_api_call fixes that."""
+    the contextvar guard in patched_api_call fixes that.
+    """
     from ddtrace import config
 
     original = config.botocore["distributed_tracing"]
@@ -337,9 +342,7 @@ def test_distributed_tracing_disabled_suppresses_urllib3_injection_for_aws(s3_cl
         config.botocore["distributed_tracing"] = original
 
     leaked = {h for h in headers if h.lower() in PROPAGATION_HEADERS}
-    assert leaked == set(), (
-        f"propagation headers leaked despite DD_BOTOCORE_DISTRIBUTED_TRACING=false: {leaked}"
-    )
+    assert leaked == set(), f"propagation headers leaked despite DD_BOTOCORE_DISTRIBUTED_TRACING=false: {leaked}"
 
 
 @pytest.mark.parametrize("distributed_tracing", [True, False])
@@ -347,7 +350,8 @@ def test_contextvar_resets_after_botocore_call(s3_client, distributed_tracing):
     """A urllib3 request made AFTER a botocore call must still get headers
     injected — the suppression contextvar must not leak past the AWS call,
     regardless of which branch (True or False) initially set it inside
-    patched_api_call."""
+    patched_api_call.
+    """
     from ddtrace import config
     from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
 
@@ -366,7 +370,8 @@ def test_contextvar_resets_after_botocore_call(s3_client, distributed_tracing):
 def test_non_aws_urllib3_request_still_gets_headers(patched_botocore):
     """A urllib3 request made outside any botocore call must still have
     propagation headers injected. Regression guard: the new contextvar
-    must not leak globally."""
+    must not leak globally.
+    """
     import urllib3
 
     # Patch urllib3 too so the integration is active.
@@ -375,9 +380,7 @@ def test_non_aws_urllib3_request_still_gets_headers(patched_botocore):
 
     patch_urllib3()
     try:
-        with mock.patch(
-            "ddtrace._trace.subscribers.http_client.HTTPPropagator.inject"
-        ) as inject:
+        with mock.patch("ddtrace._trace.subscribers.http_client.HTTPPropagator.inject") as inject:
             # Use a connection that never connects — we just need the urlopen
             # call to reach the integration's wrapper. A bogus host raises
             # but the subscriber fires first.
@@ -396,11 +399,10 @@ def test_presigned_url_generation_is_unaffected(s3_client):
     """generate_presigned_url does not go through _make_api_call. We must
     not crash, and the returned URL must not embed Datadog headers as
     query params (which would mean we accidentally injected in the wrong
-    place)."""
+    place).
+    """
     with ddtrace.tracer.trace("test.presign"):
-        url = s3_client.generate_presigned_url(
-            "get_object", Params={"Bucket": "b", "Key": "k"}, ExpiresIn=60
-        )
+        url = s3_client.generate_presigned_url("get_object", Params={"Bucket": "b", "Key": "k"}, ExpiresIn=60)
     assert "x-datadog" not in url.lower()
     assert "traceparent" not in url.lower()
 
@@ -408,7 +410,8 @@ def test_presigned_url_generation_is_unaffected(s3_client):
 def test_concurrent_aws_calls_do_not_leak_suppression(patched_botocore):
     """Two AWS calls in two threads must each manage their own contextvar
     independently. We verify by snapshotting the contextvar inside the
-    before-send hook for each call."""
+    before-send hook for each call.
+    """
     import threading
 
     from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
@@ -450,8 +453,10 @@ def test_handler_does_not_overwrite_existing_propagation_headers():
     a custom propagator), the handler must not overwrite it. This is the
     'never break user intent' guard. We also verify the handler still
     injects headers it did NOT preset, so a no-op handler can't pass this
-    test."""
+    test.
+    """
     from botocore.awsrequest import AWSRequest
+
     from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
 
     request = AWSRequest(method="GET", url="https://example.com/")

@@ -21,9 +21,7 @@ log = get_logger(__name__)
 # injection to avoid clobbering or duplicating headers after signing.
 # ContextVar provides per-thread isolation: concurrent requests in different
 # threads each see their own value of this flag.
-http_propagation_suppressed: ContextVar[bool] = ContextVar(
-    "dd_http_propagation_suppressed", default=False
-)
+http_propagation_suppressed: ContextVar[bool] = ContextVar("dd_http_propagation_suppressed", default=False)
 
 
 class HttpClientTracingSubscriber(TracingSubscriber):

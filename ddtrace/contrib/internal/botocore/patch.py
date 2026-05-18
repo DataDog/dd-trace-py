@@ -155,9 +155,7 @@ def _wrap_session_init(wrapped, instance, args, kwargs):
             unique_id=_DD_BEFORE_SIGN_HANDLER_UID,
         )
     except Exception:
-        log.warning(
-            "dd-trace-py: failed to register botocore before-sign handler", exc_info=True
-        )
+        log.warning("dd-trace-py: failed to register botocore before-sign handler", exc_info=True)
     return result
 
 
