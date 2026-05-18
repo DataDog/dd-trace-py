@@ -253,13 +253,13 @@ class PromptManager:
         attributes: dict[str, Any],
     ) -> Optional[ManagedPrompt]:
         """Evaluate a prompt via the FFE (Eppo UFC) path. Returns None on any failure."""
-        import os
+        from ddtrace.internal.settings import env as dd_env_settings
 
-        env_val = os.environ.get("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED")
+        env_val = dd_env_settings.get("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED")
         if env_val is not None and env_val.lower() == "false":
             return None
         if env_val is None:
-            os.environ["DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"] = "true"
+            dd_env_settings["DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"] = "true"
 
         try:
             from ddtrace.internal.openfeature._config import _get_ffe_config
@@ -293,7 +293,6 @@ class PromptManager:
         except Exception:
             log.debug("FF prompt evaluation failed for %s", prompt_id, exc_info=True)
             return None
-
 
     def _fetch_from_registry(
         self, prompt_id: str, label: Optional[str], timeout: float
