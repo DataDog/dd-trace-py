@@ -75,7 +75,7 @@
     DD_DEBUGGER_EXPL_INCLUDE: "boto3"
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
   script: |
     git clone --depth 1 --branch ${BOTO3_TAG} https://github.com/boto/boto3.git
     cd boto3
@@ -102,7 +102,7 @@
     DD_DEBUGGER_EXPL_COVERAGE_INSTRUMENTATION_RATE: "0.01"
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
   script: |
     git clone --depth 1 --branch ${BOTO3_TAG} https://github.com/boto/boto3.git
     cd boto3
