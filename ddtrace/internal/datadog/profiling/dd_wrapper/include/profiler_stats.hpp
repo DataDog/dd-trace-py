@@ -46,6 +46,9 @@ class ProfilerStats
     // Number of greenlets currently tracked by the stack profiler
     std::optional<size_t> greenlet_count;
 
+    // Total CPU time (in microseconds) spent by the sampler thread capturing samples
+    size_t sample_capture_cpu_time_us = 0;
+
   public:
     ProfilerStats() = default;
     ~ProfilerStats() = default;
@@ -79,6 +82,9 @@ class ProfilerStats
 
     void set_greenlet_count(size_t count);
     std::optional<size_t> get_greenlet_count() const;
+
+    void add_sample_capture_cpu_time_us(size_t cpu_time_us);
+    size_t get_sample_capture_cpu_time_us() const;
 
     // Returns a JSON string containing relevant Profiler Stats to be included
     // in the libdatadog payload.

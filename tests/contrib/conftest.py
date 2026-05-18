@@ -4,6 +4,8 @@ import sys
 
 import pytest
 
+from tests.llmobs.conftest import reset_agentless_cache  # noqa: F401
+
 
 # Add scripts/ to sys.path so integration_registry package is importable
 _scripts_dir = str(pathlib.Path(__file__).parent.parent.parent / "scripts" / "integration_registry")
