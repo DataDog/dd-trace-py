@@ -45,6 +45,7 @@ DEV_PROMPT_RESPONSE = {
     "template": "DEBUG: Hello {name}!",
 }
 
+
 def _reset_prompt_state():
     """Reset LLMObs prompt manager state."""
     if LLMObs.enabled:
@@ -354,6 +355,7 @@ class TestPrompts:
 
         assert refresh_mock.call_count == 2
 
+
 class TestPromptRouting:
     """Tests for the routing demux logic."""
 
@@ -445,4 +447,3 @@ class TestPromptRouting:
         assert "label" in str(w[0].message)
         assert "targeting" in str(w[0].message).lower()
         assert w[0].category == UserWarning
-
