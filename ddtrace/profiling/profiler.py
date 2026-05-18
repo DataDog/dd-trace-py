@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+import json
 import logging
 from typing import Any
 from typing import Callable
@@ -240,6 +241,21 @@ class _ProfilerInstance(service.Service):
             process_tags=self.process_tags,
         )
         ddup.start()
+
+        # Surface the effective profiler configuration on each uploaded profile
+        # under the event's `info.profiler.settings` header. This is a one-shot
+        # snapshot at startup; runtime-mutable values (e.g. the adaptive
+        # sampling interval) are already exposed via ProfilerStats fields.
+        try:
+            settings = profiling_config.dump_settings()
+            # Drop `tags`: user/process tags already ride on the upload event's
+            # dedicated tag channel and would otherwise be duplicated into
+            # `info.profiler.settings.tags.*` for no extra signal.
+            settings.pop("tags", None)
+            info_payload = {"profiler": {"settings": settings}}
+            ddup.set_profiler_settings_json(json.dumps(info_payload))
+        except Exception:
+            LOG.debug("Failed to publish profiler settings to info channel", exc_info=True)
 
     def __post_init__(self) -> None:
         if self._exception_profiling_enabled:
