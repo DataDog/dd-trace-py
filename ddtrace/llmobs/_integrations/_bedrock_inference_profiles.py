@@ -13,7 +13,7 @@ import threading
 from typing import Optional
 
 
-_INFERENCE_PROFILE_CACHE: dict = {}
+_INFERENCE_PROFILE_CACHE: dict[str, str] = {}
 _CACHE_LOCK = threading.Lock()
 
 
