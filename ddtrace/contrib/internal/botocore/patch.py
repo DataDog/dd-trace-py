@@ -15,7 +15,7 @@ import wrapt
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -113,7 +113,7 @@ def _inject_trace_headers_handler(request, **kwargs):
     extra headers appear between signing and the wire — historically
     dd-trace-py injected in the urllib3 layer, which is too late.
 
-    After injecting, sets ``http_propagation_suppressed`` so the shared HTTP
+    After injecting, sets ``_http_propagation_suppressed`` so the shared HTTP
     subscriber skips its own injection for the rest of this in-flight call.
     """
     if not config.botocore["distributed_tracing"]:
@@ -136,7 +136,7 @@ def _inject_trace_headers_handler(request, **kwargs):
             continue
         request.headers[header_name] = header_value
 
-    http_propagation_suppressed.set(True)
+    _http_propagation_suppressed.set(True)
 
 
 def _wrap_session_init(wrapped, instance, args, kwargs):
@@ -293,10 +293,7 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     #
     # Reset on exit so nothing leaks to subsequent unrelated HTTP calls in
     # the same task/thread.
-    if not config.botocore["distributed_tracing"]:
-        token = http_propagation_suppressed.set(True)
-    else:
-        token = http_propagation_suppressed.set(False)
+    token = _http_propagation_suppressed.set(not config.botocore["distributed_tracing"])
     try:
         return patching_fn(
             original_func=original_func,
@@ -306,7 +303,7 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
             function_vars=function_vars,
         )
     finally:
-        http_propagation_suppressed.reset(token)
+        _http_propagation_suppressed.reset(token)
 
 
 def prep_context_injection(ctx, endpoint_name, operation, trace_operation, params):

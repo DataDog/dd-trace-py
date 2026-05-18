@@ -19,9 +19,7 @@ log = get_logger(__name__)
 # inject before SigV4 signing so the trace headers are part of the canonical
 # request). The shared HTTP subscriber checks this flag and skips its own
 # injection to avoid clobbering or duplicating headers after signing.
-# ContextVar provides per-thread isolation: concurrent requests in different
-# threads each see their own value of this flag.
-http_propagation_suppressed: ContextVar[bool] = ContextVar("dd_http_propagation_suppressed", default=False)
+_http_propagation_suppressed: ContextVar[bool] = ContextVar("dd_http_propagation_suppressed", default=False)
 
 
 class HttpClientTracingSubscriber(TracingSubscriber):
@@ -37,7 +35,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: HttpClientRequestEvent = ctx.event
 
-        if http_propagation_suppressed.get():
+        if _http_propagation_suppressed.get():
             return
 
         if trace_utils.distributed_tracing_enabled(event.integration_config) and event.request_headers is not None:

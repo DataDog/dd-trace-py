@@ -99,7 +99,7 @@ class _StopBeforeWire(Exception):
 
 @pytest.fixture(autouse=True)
 def _reset_http_propagation_suppressed():
-    """Reset the http_propagation_suppressed contextvar around every test.
+    """Reset the _http_propagation_suppressed contextvar around every test.
 
     Several tests in this file trigger the before-sign handler, which sets
     the contextvar to True. Without this fixture, pytest-randomly can order
@@ -112,11 +112,11 @@ def _reset_http_propagation_suppressed():
     handler directly (bypassing patched_api_call), so per-test reset here is
     still necessary.
     """
-    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+    from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 
-    token = http_propagation_suppressed.set(False)
+    token = _http_propagation_suppressed.set(False)
     yield
-    http_propagation_suppressed.reset(token)
+    _http_propagation_suppressed.reset(token)
 
 
 def test_trace_headers_are_in_sigv4_signed_headers(s3_client):
@@ -143,12 +143,12 @@ def test_trace_headers_are_in_sigv4_signed_headers(s3_client):
 
 
 def test_subscriber_skips_injection_when_propagation_suppressed():
-    """When `http_propagation_suppressed` is True, the shared HTTP subscriber
+    """When `_http_propagation_suppressed` is True, the shared HTTP subscriber
     must not call HTTPPropagator.inject. This is the seam botocore uses to
     avoid double-injection after its before-sign handler already injected.
     """
     from ddtrace._trace.subscribers.http_client import HttpClientTracingSubscriber
-    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+    from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 
     ctx = mock.MagicMock()
     event = mock.MagicMock()
@@ -158,13 +158,13 @@ def test_subscriber_skips_injection_when_propagation_suppressed():
     ctx.event = event
     ctx.span.context = mock.MagicMock()
 
-    token = http_propagation_suppressed.set(True)
+    token = _http_propagation_suppressed.set(True)
     try:
         with mock.patch("ddtrace._trace.subscribers.http_client.HTTPPropagator.inject") as inject:
             HttpClientTracingSubscriber.on_started(ctx)
             inject.assert_not_called()
     finally:
-        http_propagation_suppressed.reset(token)
+        _http_propagation_suppressed.reset(token)
 
 
 def test_subscriber_injects_when_propagation_not_suppressed():
@@ -196,21 +196,21 @@ def test_before_sign_handler_injects_when_span_active(patched_botocore):
     """
     from botocore.awsrequest import AWSRequest
 
-    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+    from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
     from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
 
     request = AWSRequest(method="GET", url="https://example.com/")
     assert "x-datadog-trace-id" not in request.headers
 
     # Reset the contextvar so the test starts from a known state.
-    token = http_propagation_suppressed.set(False)
+    token = _http_propagation_suppressed.set(False)
     try:
         with ddtrace.tracer.trace("test.span"):
             _inject_trace_headers_handler(request=request)
         assert "x-datadog-trace-id" in request.headers
-        assert http_propagation_suppressed.get() is True
+        assert _http_propagation_suppressed.get() is True
     finally:
-        http_propagation_suppressed.reset(token)
+        _http_propagation_suppressed.reset(token)
 
 
 def test_before_sign_handler_noop_when_no_active_span(patched_botocore):
@@ -219,20 +219,20 @@ def test_before_sign_handler_noop_when_no_active_span(patched_botocore):
     """
     from botocore.awsrequest import AWSRequest
 
-    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+    from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
     from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
 
     request = AWSRequest(method="GET", url="https://example.com/")
 
-    token = http_propagation_suppressed.set(False)
+    token = _http_propagation_suppressed.set(False)
     try:
         # No tracer.trace() context manager — no active span.
         _inject_trace_headers_handler(request=request)
         assert "x-datadog-trace-id" not in request.headers
         # Contextvar must remain False so urllib3 falls back to its own injection.
-        assert http_propagation_suppressed.get() is False
+        assert _http_propagation_suppressed.get() is False
     finally:
-        http_propagation_suppressed.reset(token)
+        _http_propagation_suppressed.reset(token)
 
 
 def test_before_sign_handler_noop_when_botocore_distributed_tracing_disabled(
@@ -245,21 +245,21 @@ def test_before_sign_handler_noop_when_botocore_distributed_tracing_disabled(
     from botocore.awsrequest import AWSRequest
 
     from ddtrace import config
-    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+    from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
     from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
 
     request = AWSRequest(method="GET", url="https://example.com/")
 
     original = config.botocore["distributed_tracing"]
     config.botocore["distributed_tracing"] = False
-    token = http_propagation_suppressed.set(False)
+    token = _http_propagation_suppressed.set(False)
     try:
         with ddtrace.tracer.trace("test.span"):
             _inject_trace_headers_handler(request=request)
         assert "x-datadog-trace-id" not in request.headers
     finally:
         config.botocore["distributed_tracing"] = original
-        http_propagation_suppressed.reset(token)
+        _http_propagation_suppressed.reset(token)
 
 
 def test_patch_registers_handler_on_new_sessions():
@@ -353,7 +353,7 @@ def test_contextvar_resets_after_botocore_call(s3_client, distributed_tracing):
     patched_api_call.
     """
     from ddtrace import config
-    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+    from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 
     original = config.botocore["distributed_tracing"]
     config.botocore["distributed_tracing"] = distributed_tracing
@@ -364,7 +364,7 @@ def test_contextvar_resets_after_botocore_call(s3_client, distributed_tracing):
 
     # Regardless of which branch was taken, the contextvar must be back to
     # False after the call returns.
-    assert http_propagation_suppressed.get() is False
+    assert _http_propagation_suppressed.get() is False
 
 
 def test_non_aws_urllib3_request_still_gets_headers(patched_botocore):
@@ -414,7 +414,7 @@ def test_concurrent_aws_calls_do_not_leak_suppression(patched_botocore):
     """
     import threading
 
-    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+    from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 
     results: dict[str, bool] = {}
 
@@ -424,7 +424,7 @@ def test_concurrent_aws_calls_do_not_leak_suppression(patched_botocore):
         client = session.create_client("s3", region_name="us-east-1")
 
         def before_send(request, **kwargs):
-            results[name] = http_propagation_suppressed.get()
+            results[name] = _http_propagation_suppressed.get()
             raise _StopBeforeWire()
 
         client.meta.events.register_first("before-send.s3.ListBuckets", before_send)
@@ -445,7 +445,7 @@ def test_concurrent_aws_calls_do_not_leak_suppression(patched_botocore):
     assert set(results) == {"a", "b"}, f"Not all threads completed; got keys: {set(results)}"
     assert results == {"a": True, "b": True}
     # And the parent test scope must NOT see suppression set.
-    assert http_propagation_suppressed.get() is False
+    assert _http_propagation_suppressed.get() is False
 
 
 def test_handler_does_not_overwrite_existing_propagation_headers():
