@@ -4,6 +4,7 @@
 
 import asyncio
 from types import FrameType
+from typing import Any
 from typing import Optional
 from typing import Sequence
 from typing import Union
@@ -37,11 +38,11 @@ def unregister_thread(python_thread_id: int) -> None: ...
 
 # Asyncio support
 def track_asyncio_loop(thread_id: int, loop: Optional[asyncio.AbstractEventLoop]) -> None: ...
-def link_tasks(parent: asyncio.Task, child: asyncio.Future) -> None: ...
-def weak_link_tasks(parent: asyncio.Task, child: asyncio.Future) -> None: ...
+def link_tasks(parent: asyncio.Task[Any], child: asyncio.Future[Any]) -> None: ...
+def weak_link_tasks(parent: asyncio.Task[Any], child: asyncio.Future[Any]) -> None: ...
 def init_asyncio(
-    scheduled_tasks: Sequence[asyncio.Task],
-    eager_tasks: Optional[Sequence[asyncio.Task]],
+    scheduled_tasks: Sequence[asyncio.Task[Any]],
+    eager_tasks: Optional[Sequence[asyncio.Task[Any]]],
 ) -> None: ...
 
 # Greenlet support
