@@ -47,10 +47,10 @@ variables:
     DD_DISABLE_VPA: true
   artifacts:
     paths:
-      - "dd-trace-py/pywheels/*.whl"
-      - "dd-trace-py/pywheels/*.tar.gz"
-      - "dd-trace-py/debugwheelhouse/*.log"
-      - "dd-trace-py/debugwheelhouse/*.zip"
+      - "pywheels/*.whl"
+      - "pywheels/*.tar.gz"
+      - "debugwheelhouse/*.log"
+      - "debugwheelhouse/*.zip"
   cache:
     - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
       paths:
@@ -245,7 +245,7 @@ variables:
     - job: "build sdist"
       artifacts: true
   script:
-    - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/dd-trace-py/pywheels/*.tar.gz | head -n 1)
+    - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
     - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
     - twine check ${SDIST_FILE}
     - pip install ${SDIST_FILE}
@@ -264,8 +264,8 @@ variables:
     - bash dd-trace-py/.gitlab/scripts/build-wheel-windows.sh
   artifacts:
     paths:
-      - "dd-trace-py/pywheels/*.whl"
-      - "dd-trace-py/debugwheelhouse/*.log"
+      - "pywheels/*.whl"
+      - "debugwheelhouse/*.log"
 
 # Downloads win_arm64 wheels from GitHub Actions (arm64 cannot be cross-compiled
 # from the amd64 Windows runners available in GitLab).
