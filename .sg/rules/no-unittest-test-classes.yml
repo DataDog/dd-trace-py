@@ -4,6 +4,10 @@ severity: warning
 language: python
 files:
   - "tests/**/*.py"
+  # Utility modules that define shared base classes — not individual test files.
+  # The rule targets actual test classes, not these shared foundations.
+  - "!tests/utils.py"
+  - "!tests/subprocesstest.py"
 rule:
   kind: class_definition
   has:
