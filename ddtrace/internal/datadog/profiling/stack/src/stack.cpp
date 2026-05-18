@@ -682,6 +682,24 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 }
 
 static PyObject*
+stack_pause_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Pause the sampling thread and wait for any in-flight sample to complete.
+    // Returns True if the sampler was paused, False if it wasn't running.
+    if (Sampler::get().pause()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_resume_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    Sampler::get().resume();
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
 {
     int enabled = 1;
@@ -785,6 +803,12 @@ static PyMethodDef stack_methods[] = {
       stack_reinstall_segv_handler,
       METH_NOARGS,
       "Reinstall SIGSEGV handler after another component overwrites it" },
+    // Sampling pause/resume for safe signal handler swapping
+    { "pause_sampling",
+      stack_pause_sampling,
+      METH_NOARGS,
+      "Pause sampling thread and wait for in-flight sample to complete" },
+    { "resume_sampling", stack_resume_sampling, METH_NOARGS, "Resume a paused sampling thread" },
     // Native call monitoring
     { "start_native_monitoring",
       start_native_monitoring,

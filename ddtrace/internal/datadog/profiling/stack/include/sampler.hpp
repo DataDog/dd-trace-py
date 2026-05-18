@@ -40,6 +40,14 @@ class Sampler
     std::mutex thread_exit_mutex;
     std::condition_variable thread_exit_cv;
 
+    // Pause synchronization — allows the faulthandler wrapper to temporarily
+    // suspend sampling so signal handlers can be safely swapped without racing
+    // with in-flight safe_memcpy calls.
+    std::atomic<bool> pause_requested_{ false };
+    std::atomic<bool> paused_{ false };
+    std::mutex pause_mutex_;
+    std::condition_variable pause_cv_;
+
     // This is a singleton, so no public constructor
     Sampler();
 
@@ -76,6 +84,8 @@ class Sampler
 
     bool start();
     void stop();
+    bool pause();
+    void resume();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);

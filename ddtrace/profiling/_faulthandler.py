@@ -9,6 +9,11 @@ coexist correctly:
 - Our handler recovers from expected faults during safe_memcpy (siglongjmp)
 - For unexpected faults, we chain to faulthandler's handler for traceback output
 
+The handler swap must not race with the sampling thread: if safe_memcpy faults
+while our handler is temporarily uninstalled, the fault goes to faulthandler or
+the default handler and the process crashes. To prevent this, we pause the
+sampling thread (waiting for any in-flight sample to complete) before swapping.
+
 The wrap is applied via ModuleWatchdog so it takes effect regardless of when
 faulthandler is imported (before or after ddtrace).
 """
@@ -25,42 +30,41 @@ from ddtrace.internal.module import ModuleWatchdog
 
 @ModuleWatchdog.after_module_imported("faulthandler")
 def _(faulthandler: ModuleType) -> None:
-    # Only apply the wrap if the stack module is available and fast_copy might be used
     if not stack.is_available:
         return
 
-    # faulthandler.enable is a C built-in; we cannot use ddtrace's wrap which
-    # requires __code__, so we monkey-patch the module attribute directly.
     _original_enable: Callable[..., None] = faulthandler.enable
 
     def _patched_enable(*args: typing.Any, **kwargs: typing.Any) -> None:
-        # Temporarily remove our SIGSEGV handler before faulthandler installs
-        # its own, so faulthandler records the previous handler (not ours) as
-        # its saved handler.  Without this, faulthandler saves our handler and
-        # we save faulthandler, creating a cycle: our handler re-raises to
-        # faulthandler, which restores and re-raises back to ours indefinitely.
+        # Pause the sampling thread so no safe_memcpy is in flight during the
+        # handler swap.  If the sampler isn't running this is a no-op and the
+        # swap is inherently safe.
+        was_paused: bool = stack.pause_sampling()
         try:
-            stack.uninstall_segv_handler()
-        except Exception:  # nosec: B110
-            pass
+            # Remove our SIGSEGV/SIGBUS handler so faulthandler records the real
+            # previous handler (not ours), avoiding a handler cycle.
+            try:
+                stack.uninstall_segv_handler()
+            except Exception:  # nosec: B110
+                pass
 
-        try:
-            _original_enable(*args, **kwargs)
-        except Exception:
-            # faulthandler.enable failed; reinstall our handler.
+            try:
+                _original_enable(*args, **kwargs)
+            except Exception:
+                try:
+                    stack.reinstall_segv_handler()
+                except Exception:  # nosec: B110
+                    pass
+                raise
+
+            # Reinstall our handler on top of faulthandler's.
             try:
                 stack.reinstall_segv_handler()
             except Exception:  # nosec: B110
                 pass
-            raise
-
-        # Reinstall our SIGSEGV handler on top of faulthandler's.
-        # init_segv_catcher saves faulthandler's handler as g_old_segv,
-        # so unexpected faults chain to faulthandler for traceback output.
-        try:
-            stack.reinstall_segv_handler()
-        except Exception:  # nosec: B110
-            pass
+        finally:
+            if was_paused:
+                stack.resume_sampling()
 
     faulthandler.enable = _patched_enable  # type: ignore[attr-defined]
 

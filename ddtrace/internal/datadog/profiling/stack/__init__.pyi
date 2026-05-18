@@ -43,6 +43,16 @@ def reinstall_segv_handler() -> None:
     """
     ...
 
+# Pause/resume sampling
+def pause_sampling() -> bool:
+    """Pause the sampling thread and wait for any in-flight sample to complete.
+
+    Returns True if the sampler was paused, False if it wasn't running.
+    """
+    ...
+
+def resume_sampling() -> None: ...
+
 # span <-> profile association
 def link_span(span: Optional[Union[context.Context, ddspan.Span]]) -> None: ...
 
