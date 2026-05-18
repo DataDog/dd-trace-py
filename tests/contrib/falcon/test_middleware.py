@@ -41,6 +41,10 @@ class MiddlewareTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
         # Root-mounted app: behaviour unchanged.
         ("", "/users/{id}", "/users/{id}"),
         (None, "/users/{id}", "/users/{id}"),
+        # Custom router that returns no uri_template: must not raise TypeError.
+        ("/prefix", None, "/prefix"),
+        ("", None, ""),
+        (None, None, ""),
     ],
 )
 def test_process_response_route_includes_root_path(root_path, uri_template, want_route):
