@@ -147,7 +147,7 @@ def _convert_openai_response(resp: Any) -> list[Message]:
     return result
 
 
-def _openai_chat_completion_before(client: AIGuardClient, kwargs: dict) -> None:
+def _openai_chat_completion_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:
     """Listener for ``openai.chat.completions.create.before``."""
     if is_aiguard_context_active():
         logger.debug("AI Guard openai before-hook skipped: framework context active (e.g. Strands plugin)")
@@ -187,7 +187,7 @@ def _openai_chat_completion_before(client: AIGuardClient, kwargs: dict) -> None:
     return None
 
 
-def _openai_chat_completion_after(client: AIGuardClient, kwargs: dict, resp: Any) -> None:
+def _openai_chat_completion_after(client: AIGuardClient, kwargs: dict[str, Any], resp: Any) -> None:
     """Listener for ``openai.chat.completions.create.after``.
 
     Evaluates the full conversation (request + response) after the LLM

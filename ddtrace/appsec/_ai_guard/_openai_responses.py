@@ -334,7 +334,7 @@ def _convert_openai_response_output(resp: Any) -> list[Message]:
     return result
 
 
-def _openai_response_create_before(client: AIGuardClient, kwargs: dict) -> None:
+def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:
     """Listener for ``openai.responses.create.before``.
 
     Streaming Responses requests are skipped here — streaming coverage is the
@@ -375,7 +375,7 @@ def _openai_response_create_before(client: AIGuardClient, kwargs: dict) -> None:
     return None
 
 
-def _openai_response_create_after(client: AIGuardClient, kwargs: dict, resp: Any) -> None:
+def _openai_response_create_after(client: AIGuardClient, kwargs: dict[str, Any], resp: Any) -> None:
     """Listener for ``openai.responses.create.after``.
 
     Evaluates the full conversation (input + output) after the Responses API
