@@ -1697,17 +1697,22 @@ class LLMObs(Service):
     def get_prompt(
         cls,
         prompt_id: str,
+        *,
         label: Optional[Literal["development", "production"]] = None,
         fallback: PromptFallback = None,
+        targeting_key: Optional[str] = None,
+        **attributes: Any,
     ) -> ManagedPrompt:
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
 
         :param prompt_id: The unique identifier of the prompt in the registry
-        :param label: Deployment label (e.g., "production", "development"). If not provided, returns the latest version.
+        :param label: Deployment label (e.g., "production", "development").
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
                          returns any of those.
+        :param targeting_key: Sticky bucketing key for A/B tests on the Feature-Flag-Evaluation (FFE) path.
+        :param attributes: Arbitrary targeting attributes for FFE allocation rules.
 
         :returns: A ManagedPrompt object with template and rendering methods
         :raises ValueError: If the prompt cannot be fetched and no fallback is provided
@@ -1725,6 +1730,13 @@ class LLMObs(Service):
                 fallback="Hello {{user}}, how can I help?"
             )
 
+            # FFE path with targeting (requires DD_ENV and agent mode)
+            prompt = LLMObs.get_prompt(
+                "greeting",
+                targeting_key="user-123",
+                tier="premium",
+            )
+
             # Use with annotation_context for observability
             # Pass the same variables to both format() and to_annotation_dict()
             prompt = LLMObs.get_prompt("greeting")
@@ -1735,7 +1747,13 @@ class LLMObs(Service):
                 )
         """
         prompt_manager = cls._ensure_prompt_manager()
-        return prompt_manager.get_prompt(prompt_id, label, fallback)
+        return prompt_manager.get_prompt(
+            prompt_id,
+            label=label,
+            fallback=fallback,
+            targeting_key=targeting_key,
+            **attributes,
+        )
 
     @classmethod
     def clear_prompt_cache(cls, hot: bool = True, warm: bool = True) -> None:
@@ -1794,6 +1812,7 @@ class LLMObs(Service):
             file_cache_enabled=file_cache_enabled,
             cache_dir=cache_dir,
             timeout=timeout,
+            agentless=bool(config._llmobs_agentless_enabled),
         )
 
     @classmethod

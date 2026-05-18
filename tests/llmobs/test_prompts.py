@@ -3,6 +3,7 @@ import os
 from typing import Optional
 from typing import Union
 from unittest.mock import patch
+import warnings
 
 import pytest
 
@@ -43,7 +44,6 @@ DEV_PROMPT_RESPONSE = {
     "label": "development",
     "template": "DEBUG: Hello {name}!",
 }
-
 
 def _reset_prompt_state():
     """Reset LLMObs prompt manager state."""
@@ -353,3 +353,96 @@ class TestPrompts:
                 manager._trigger_background_refresh("greeting:production", "greeting", "production")
 
         assert refresh_mock.call_count == 2
+
+class TestPromptRouting:
+    """Tests for the routing demux logic."""
+
+    def _make_manager(self, agentless=True):
+        return PromptManager(
+            api_key="test-key",
+            base_url="https://api.datadoghq.com",
+            file_cache_enabled=False,
+            agentless=agentless,
+        )
+
+    def test_label_routes_to_http(self):
+        manager = self._make_manager(agentless=False)
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            with patch.object(manager, "_fetch_from_ff") as ff_mock:
+                prompt = manager.get_prompt("greeting", label="production")
+        ff_mock.assert_not_called()
+        assert prompt.source == "registry"
+
+    def test_no_label_no_env_routes_to_http(self):
+        manager = self._make_manager(agentless=False)
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            with patch.object(manager, "_fetch_from_ff") as ff_mock:
+                with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                    cfg.env = None
+                    prompt = manager.get_prompt("greeting")
+        ff_mock.assert_not_called()
+        assert prompt.source == "registry"
+
+    def test_no_label_with_env_agent_mode_routes_to_ff(self):
+        manager = self._make_manager(agentless=False)
+        ff_prompt = ManagedPrompt(
+            id="greeting",
+            version="ff-v1",
+            label="production",
+            source="ff",
+            template="FF Hello!",
+            _uuid="u1",
+            _version_uuid="v1",
+        )
+        with patch.object(manager, "_fetch_from_ff", return_value=ff_prompt) as ff_mock:
+            with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                cfg.env = "staging"
+                prompt = manager.get_prompt("greeting")
+        ff_mock.assert_called_once_with("greeting", None, {})
+        assert prompt.source == "ff"
+
+    def test_no_label_with_env_agentless_routes_to_http(self):
+        manager = self._make_manager(agentless=True)
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            with patch.object(manager, "_fetch_from_ff") as ff_mock:
+                with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                    cfg.env = "production"
+                    prompt = manager.get_prompt("greeting")
+        ff_mock.assert_not_called()
+        assert prompt.source == "registry"
+
+    def test_ff_failure_falls_back_to_http(self):
+        manager = self._make_manager(agentless=False)
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            with patch.object(manager, "_fetch_from_ff", return_value=None):
+                with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                    cfg.env = "staging"
+                    prompt = manager.get_prompt("greeting")
+        assert prompt.source == "registry"
+
+    def test_targeting_key_passed_to_ff(self):
+        manager = self._make_manager(agentless=False)
+        ff_prompt = ManagedPrompt(
+            id="greeting",
+            version="ff-v1",
+            label=None,
+            source="ff",
+            template="Hello!",
+        )
+        with patch.object(manager, "_fetch_from_ff", return_value=ff_prompt) as ff_mock:
+            with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                cfg.env = "staging"
+                manager.get_prompt("greeting", targeting_key="user-123", tier="premium")
+        ff_mock.assert_called_once_with("greeting", "user-123", {"tier": "premium"})
+
+    def test_mixing_warning_label_with_targeting_key(self):
+        manager = self._make_manager()
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                manager.get_prompt("greeting", label="production", targeting_key="user-123")
+        assert len(w) == 1
+        assert "label" in str(w[0].message)
+        assert "targeting" in str(w[0].message).lower()
+        assert w[0].category == UserWarning
+

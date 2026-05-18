@@ -29,7 +29,7 @@ class ManagedPrompt:
     id: str
     version: str
     label: Optional[str]
-    source: Literal["registry", "cache", "fallback"]
+    source: Literal["registry", "cache", "fallback", "ff"]
     template: Union[str, list[Message]]
     _uuid: Optional[str] = None
     _version_uuid: Optional[str] = None

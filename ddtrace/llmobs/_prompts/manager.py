@@ -1,11 +1,14 @@
 import atexit
 import json
 import threading
+from typing import Any
 from typing import Optional
 from typing import Union
 from urllib.parse import quote
 from urllib.parse import urlencode
+import warnings
 
+from ddtrace import config
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
@@ -35,9 +38,11 @@ class PromptManager:
         timeout: float = DEFAULT_PROMPTS_TIMEOUT,
         file_cache_enabled: bool = True,
         cache_dir: Optional[str] = None,
+        agentless: bool = True,
     ) -> None:
         self._base_url = base_url if "://" in base_url else "https://" + base_url
         self._timeout = timeout
+        self._agentless = agentless
         self._headers: dict[str, str] = {
             "DD-API-KEY": api_key,
             "X-Datadog-SDK-Language": "python",
@@ -49,16 +54,52 @@ class PromptManager:
 
         self._refresh_threads: dict[str, threading.Thread] = {}
         self._refresh_lock = threading.Lock()
+        self._ffe_rc_enabled = False
         if file_cache_enabled:
             atexit.register(self._wait_for_refreshes)
 
     def get_prompt(
         self,
         prompt_id: str,
+        *,
+        label: Optional[str] = None,
+        fallback: PromptFallback = None,
+        targeting_key: Optional[str] = None,
+        **attributes: Any,
+    ) -> ManagedPrompt:
+        """Retrieve a prompt template from the registry or FFE."""
+        if label is not None and (targeting_key is not None or attributes):
+            warnings.warn(
+                "get_prompt() received 'label' alongside 'targeting_key' or other attributes. "
+                "'label' routes to the HTTP path which does not support targeting; the extra "
+                "arguments will be ignored. Drop 'label' to use Feature-Flag-Evaluation dispatch.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        dd_env = config.env
+        if label is not None:
+            telemetry.record_prompt_routing_signal("label_only")
+        elif dd_env:
+            telemetry.record_prompt_routing_signal("env_only")
+        else:
+            telemetry.record_prompt_routing_signal("neither")
+
+        if label is None and dd_env and not self._agentless:
+            prompt = self._fetch_from_ff(prompt_id, targeting_key, attributes)
+            if prompt is not None:
+                telemetry.record_prompt_source("ff")
+                return prompt
+
+        return self._get_prompt_http(prompt_id, label=label, fallback=fallback)
+
+    def _get_prompt_http(
+        self,
+        prompt_id: str,
         label: Optional[str] = None,
         fallback: PromptFallback = None,
     ) -> ManagedPrompt:
-        """Retrieve a prompt template from the registry."""
+        """Retrieve a prompt via the HTTP registry path."""
         key = cache_key(prompt_id, label)
 
         if self._cache_enabled:
@@ -188,6 +229,72 @@ class PromptManager:
         for thread in threads:
             thread.join(timeout=self._timeout)
 
+    def _ensure_ffe_rc(self) -> bool:
+        """Lazily enable FFE Remote Config so flag configurations are delivered.
+
+        Returns True if RC is enabled (either already or just now), False if enable failed.
+        """
+        if self._ffe_rc_enabled:
+            return True
+        try:
+            from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
+
+            enable_featureflags_rc()
+            self._ffe_rc_enabled = True
+            return True
+        except Exception:
+            log.debug("Failed to enable FFE Remote Config for prompt evaluation", exc_info=True)
+            return False
+
+    def _fetch_from_ff(
+        self,
+        prompt_id: str,
+        targeting_key: Optional[str],
+        attributes: dict[str, Any],
+    ) -> Optional[ManagedPrompt]:
+        """Evaluate a prompt via the FFE (Eppo UFC) path. Returns None on any failure."""
+        import os
+
+        env_val = os.environ.get("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED")
+        if env_val is not None and env_val.lower() == "false":
+            return None
+        if env_val is None:
+            os.environ["DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"] = "true"
+
+        try:
+            from ddtrace.internal.openfeature._config import _get_ffe_config
+            from ddtrace.internal.openfeature._native import VariationType
+            from ddtrace.internal.openfeature._native import resolve_flag
+        except ImportError:
+            log.debug("OpenFeature dependencies unavailable for FF prompt evaluation")
+            return None
+
+        # Ensure RC callback is registered so FFE config gets delivered
+        rc_enabled = self._ensure_ffe_rc()
+
+        try:
+            ffe_config = _get_ffe_config()
+            if ffe_config is None:
+                if not rc_enabled:
+                    log.debug("FFE Remote Config could not be enabled for prompt %s", prompt_id)
+                return None
+
+            flag_key = f"__llmobs__.prompt.{prompt_id}"
+            ctx = {"targeting_key": targeting_key or "", "attributes": attributes or {}}
+            details = resolve_flag(ffe_config, flag_key=flag_key, context=ctx, expected_type=VariationType.String)
+            if details is None or details.error_code is not None or details.variant is None:
+                return None
+
+            variant_value = details.value
+            if not isinstance(variant_value, str) or not variant_value:
+                return None
+
+            return self._parse_prompt_json(variant_value, source="ff")
+        except Exception:
+            log.debug("FF prompt evaluation failed for %s", prompt_id, exc_info=True)
+            return None
+
+
     def _fetch_from_registry(
         self, prompt_id: str, label: Optional[str], timeout: float
     ) -> tuple[Optional[ManagedPrompt], bool, str]:
@@ -202,7 +309,7 @@ class PromptManager:
             body = response.read().decode("utf-8")
 
             if status == 200:
-                return self._parse_response(body, prompt_id, label), False, ""
+                return self._parse_prompt_json(body, source="registry", prompt_id=prompt_id, label=label), False, ""
 
             not_found = status == 404
             detail = extract_error_detail(body)
@@ -227,8 +334,13 @@ class PromptManager:
             return f"{PROMPTS_ENDPOINT}/{escaped_id}?{urlencode({'label': label})}"
         return f"{PROMPTS_ENDPOINT}/{escaped_id}"
 
-    def _parse_response(self, body: str, prompt_id: str, label: Optional[str]) -> Optional[ManagedPrompt]:
-        """Parse the API response into a ManagedPrompt."""
+    @staticmethod
+    def _parse_prompt_json(
+        body: str,
+        source: str,
+        prompt_id: str = "",
+        label: Optional[str] = None,
+    ) -> Optional[ManagedPrompt]:
         try:
             data = json.loads(body)
             if not isinstance(data, dict):
@@ -238,7 +350,7 @@ class PromptManager:
                 id=data.get("prompt_id", prompt_id),
                 version=data.get("version", "unknown"),
                 label=data.get("label", label),
-                source="registry",
+                source=source,
                 template=extract_template(data, default=[]),
                 _uuid=data.get("prompt_uuid"),
                 _version_uuid=data.get("prompt_version_uuid"),

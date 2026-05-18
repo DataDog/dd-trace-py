@@ -34,6 +34,7 @@ class LLMObsTelemetryMetrics:
     USER_PROCESSOR_CALLED = "user_processor_called"
     PROMPT_SOURCE = "prompt.source"
     PROMPT_FETCH_ERROR = "prompt.fetch.error"
+    PROMPT_ROUTING_SIGNAL = "prompt.routing_signal"
     COST_TAGS_ANNOTATED = "cost_tags.annotated"
     COST_TAGS_SUBMITTED = "cost_tags.submitted"
 
@@ -279,6 +280,17 @@ def record_prompt_fetch_error(error_type: str):
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.PROMPT_FETCH_ERROR,
+        value=1,
+        tags=tuple(tags),
+    )
+
+
+def record_prompt_routing_signal(signal: str):
+    """Record the routing signal used for a get_prompt call (label_only, env_only, neither)."""
+    tags = [("signal", signal)]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.PROMPT_ROUTING_SIGNAL,
         value=1,
         tags=tuple(tags),
     )
