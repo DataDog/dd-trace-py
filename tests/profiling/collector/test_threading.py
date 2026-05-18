@@ -611,6 +611,7 @@ def test_flush_sample_handles_shallow_stack() -> None:
     """
     import threading
     import time
+    from typing import cast
 
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
