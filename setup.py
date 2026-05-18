@@ -37,7 +37,7 @@ try:
     # ORDER MATTERS
     # Import this after setuptools or it will fail
     from Cython.Build import cythonize
-    import Cython.Distutils
+    from Cython.Distutils.extension import Extension as CythonExtension
 except ImportError:
     raise ImportError(
         "Failed to import Cython modules. This can happen under versions of pip older than 18 that don't "
@@ -208,8 +208,6 @@ def retry_download(
                         # These often indicate temporary network issues
                         is_retriable = True
                         error_code = f"subprocess exit code {e.returncode}"
-                    else:
-                        error_code = type(e).__name__
 
                     if not is_retriable:
                         print(f"ERROR: Operation failed (non-retriable {error_code}): {e}")
@@ -1575,7 +1573,7 @@ else:
 
 
 if not IS_PYSTON:
-    ext_modules: list[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
+    ext_modules: list[t.Union[Extension, CythonExtension, RustExtension]] = [
         Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
@@ -1658,7 +1656,7 @@ cython_exts = []
 if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
     with _time_phase("cythonize"):
         _cython_sources = [
-            Cython.Distutils.Extension(
+            CythonExtension(
                 "ddtrace.internal._tagset",
                 sources=["ddtrace/internal/_tagset.pyx"],
                 language="c",
@@ -1679,32 +1677,32 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
 
         if sys.version_info < (3, 15):
             _cython_sources += [
-                Cython.Distutils.Extension(
+                CythonExtension(
                     "ddtrace.profiling._threading",
                     sources=["ddtrace/profiling/_threading.pyx"],
                     language="c",
                 ),
-                Cython.Distutils.Extension(
+                CythonExtension(
                     "ddtrace.profiling.collector._task",
                     sources=["ddtrace/profiling/collector/_task.pyx"],
                     language="c",
                 ),
-                Cython.Distutils.Extension(
+                CythonExtension(
                     "ddtrace.profiling.collector._exception",
                     sources=["ddtrace/profiling/collector/_exception.pyx"],
                     language="c",
                 ),
-                Cython.Distutils.Extension(
+                CythonExtension(
                     "ddtrace.profiling.collector._fast_poisson",
                     sources=["ddtrace/profiling/collector/_fast_poisson.pyx"],
                     language="c",
                 ),
-                Cython.Distutils.Extension(
+                CythonExtension(
                     "ddtrace.profiling.collector._sampler",
                     sources=["ddtrace/profiling/collector/_sampler.pyx"],
                     language="c",
                 ),
-                Cython.Distutils.Extension(
+                CythonExtension(
                     "ddtrace.profiling.collector._lock",
                     sources=["ddtrace/profiling/collector/_lock.pyx"],
                     language="c",
