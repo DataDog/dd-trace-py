@@ -2,6 +2,7 @@ import atexit
 import json
 import threading
 from typing import Any
+from typing import Literal
 from typing import Optional
 from typing import Union
 from urllib.parse import quote
@@ -336,7 +337,7 @@ class PromptManager:
     @staticmethod
     def _parse_prompt_json(
         body: str,
-        source: str,
+        source: Literal["registry", "cache", "fallback", "ff"],
         prompt_id: str = "",
         label: Optional[str] = None,
     ) -> Optional[ManagedPrompt]:
