@@ -52,14 +52,25 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
     # AIDEV-NOTE: For streaming, dispatch_end_event=False defers the ended event
     # until the stream handler calls ctx.dispatch_ended_event() in finalize_stream().
     # For errors, we must manually dispatch so the span finishes with error info.
+    # AI Guard ``.before`` / ``.after`` dispatches live INSIDE the try block so
+    # block exceptions (AnthropicAIGuardAbortError extends
+    # anthropic.UnprocessableEntityError, which is Exception-derived) reach the
+    # ctx.dispatch_ended_event(*sys.exc_info()) arm and finalize the span with
+    # error info before re-raising.
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
+            core.dispatch("anthropic.messages.create.before", (kwargs,), allow_raise=True)
             resp = func(*args, **kwargs)
         except Exception:
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
+        try:
+            core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
+        except Exception:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
         event.response = resp
         ctx.dispatch_ended_event()
         return resp
@@ -80,14 +91,25 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
         instance=instance,
     )
 
+    # AIDEV-NOTE: Unlike OpenAI's async patch, we do NOT need to catch
+    # DDBlockException + call result.close() here. OpenAI's flow creates an
+    # unstarted SDK coroutine (``result = func(...)``) *before* dispatching, so
+    # a block leaks an unawaited coroutine; here ``await func(...)`` happens
+    # AFTER dispatch, so no unstarted coroutine exists to clean up.
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
+            core.dispatch("anthropic.messages.create.before", (kwargs,), allow_raise=True)
             resp = await func(*args, **kwargs)
         except Exception:
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
+        try:
+            core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
+        except Exception:
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
         event.response = resp
         ctx.dispatch_ended_event()
         return resp
