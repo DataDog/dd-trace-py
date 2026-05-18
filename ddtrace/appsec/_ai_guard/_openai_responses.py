@@ -20,10 +20,14 @@ The converters target the same AI Guard ``Message`` schema used for Chat
 Completions, so a tenant's AI Guard rules apply uniformly across both APIs.
 """
 
+from typing import Any
+from typing import Optional
+
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 from ddtrace.appsec._ai_guard._openai import _get
 from ddtrace.appsec._ai_guard._openai import _wrap_abort_error
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
+from ddtrace.appsec.ai_guard._api_client import AIGuardClient
 from ddtrace.appsec.ai_guard._api_client import Function
 from ddtrace.appsec.ai_guard._api_client import Message
 from ddtrace.appsec.ai_guard._api_client import Options
@@ -58,7 +62,7 @@ _IMAGE_MARKER = "[image]"
 _FILE_MARKER = "[file]"
 
 
-def _extract_text_content(content):
+def _extract_text_content(content: Any) -> Optional[str]:
     """Flatten a Responses API ``content`` value (str or list of parts) to text.
 
     The Responses API wraps content in typed parts (``input_text``,
@@ -101,7 +105,7 @@ def _extract_text_content(content):
     return "".join(parts) if parts else None
 
 
-def _flatten_tool_output(output):
+def _flatten_tool_output(output: Any) -> Optional[str]:
     """Flatten a tool / MCP ``output`` value to a single string for AI Guard.
 
     OpenAI surfaces tool outputs as ``str``, a list of typed text blocks, or
@@ -121,7 +125,7 @@ def _flatten_tool_output(output):
     return str(output)
 
 
-def _function_tool_call_from_item(item):
+def _function_tool_call_from_item(item: Any) -> ToolCall:
     """Build a ToolCall from a Responses-API ``function_call`` /
     ``custom_tool_call`` item (input or output).
 
@@ -142,7 +146,7 @@ def _function_tool_call_from_item(item):
     )
 
 
-def _mcp_call_messages(item):
+def _mcp_call_messages(item: Any) -> list[Message]:
     """Build the AI Guard message pair for an ``mcp_call`` item.
 
     MCP calls are server-mediated tool invocations whose call + result land in
@@ -174,7 +178,7 @@ def _mcp_call_messages(item):
     return messages
 
 
-def _flatten_prompt_variables(prompt):
+def _flatten_prompt_variables(prompt: Any) -> Optional[str]:
     """Render ``prompt.variables`` values as evaluable text for AI Guard.
 
     The Responses API ``prompt={"id": ..., "variables": {...}}`` kwarg lets
@@ -197,6 +201,7 @@ def _flatten_prompt_variables(prompt):
     for key, value in variables.items():
         if value is None:
             continue
+        text: Optional[str]
         if isinstance(value, str):
             text = value
         elif isinstance(value, (list, tuple)):
@@ -208,7 +213,7 @@ def _flatten_prompt_variables(prompt):
     return "\n".join(parts) if parts else None
 
 
-def _convert_openai_response_input(instructions, input_, prompt=None):
+def _convert_openai_response_input(instructions: Any, input_: Any, prompt: Any = None) -> list[Message]:
     """Convert ``instructions`` + ``input`` (+ optional ``prompt``) to AI Guard ``Message`` list.
 
     ``instructions`` becomes a leading system message when set.
@@ -228,7 +233,7 @@ def _convert_openai_response_input(instructions, input_, prompt=None):
       - Unknown / forward-incompatible types are silently dropped (the
         converter fails open so SDK calls don't break on new payload shapes).
     """
-    result = []
+    result: list[Message] = []
 
     if instructions:
         result.append(Message(role="system", content=str(instructions)))
@@ -293,7 +298,7 @@ def _convert_openai_response_input(instructions, input_, prompt=None):
     return result
 
 
-def _convert_openai_response_output(resp):
+def _convert_openai_response_output(resp: Any) -> list[Message]:
     """Convert an OpenAI Response object's ``output`` list to AI Guard messages.
 
     Item types handled:
@@ -304,7 +309,7 @@ def _convert_openai_response_output(resp):
     Items in ``_RESPONSE_SKIPPED_ITEM_TYPES`` (``reasoning``, ``mcp_list_tools``)
     are dropped — they are not part of the user-visible conversation.
     """
-    result = []
+    result: list[Message] = []
     output = _get(resp, "output") or []
     for item in output:
         try:
@@ -329,7 +334,7 @@ def _convert_openai_response_output(resp):
     return result
 
 
-def _openai_response_create_before(client, kwargs):
+def _openai_response_create_before(client: AIGuardClient, kwargs: dict) -> None:
     """Listener for ``openai.responses.create.before``.
 
     Streaming Responses requests are skipped here — streaming coverage is the
@@ -370,7 +375,7 @@ def _openai_response_create_before(client, kwargs):
     return None
 
 
-def _openai_response_create_after(client, kwargs, resp):
+def _openai_response_create_after(client: AIGuardClient, kwargs: dict, resp: Any) -> None:
     """Listener for ``openai.responses.create.after``.
 
     Evaluates the full conversation (input + output) after the Responses API

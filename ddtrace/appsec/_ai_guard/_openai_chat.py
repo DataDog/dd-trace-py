@@ -6,11 +6,13 @@ contrib patching layer.
 """
 
 from collections import deque
+from typing import Any
 
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 from ddtrace.appsec._ai_guard._openai import _get
 from ddtrace.appsec._ai_guard._openai import _wrap_abort_error
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
+from ddtrace.appsec.ai_guard._api_client import AIGuardClient
 from ddtrace.appsec.ai_guard._api_client import Function
 from ddtrace.appsec.ai_guard._api_client import Message
 from ddtrace.appsec.ai_guard._api_client import Options
@@ -22,7 +24,7 @@ from ddtrace.internal.settings.asm import ai_guard_config
 logger = ddlogger.get_logger(__name__)
 
 
-def _convert_openai_messages(messages):
+def _convert_openai_messages(messages: Any) -> list[Message]:
     """Convert a list of OpenAI chat messages to AI Guard ``Message`` format.
 
     Handles both plain dicts (user-supplied) and SDK response objects
@@ -39,8 +41,8 @@ def _convert_openai_messages(messages):
     result correlates with the assistant turn that issued it. Mirrors the
     canonical pattern in ``ai_guard/integrations/litellm.py``.
     """
-    result = []
-    pending_fc_ids: deque = deque()
+    result: list[Message] = []
+    pending_fc_ids: deque[str] = deque()
     fc_counter = 0
     for msg in messages:
         try:
@@ -64,7 +66,7 @@ def _convert_openai_messages(messages):
                 ai_msg["content"] = content
 
             if role == "assistant":
-                tool_calls_out = []
+                tool_calls_out: list[ToolCall] = []
                 tool_calls = _get(msg, "tool_calls")
                 if tool_calls:
                     tool_calls_out.extend(_tool_call_from(tc) for tc in tool_calls)
@@ -94,7 +96,7 @@ def _convert_openai_messages(messages):
     return result
 
 
-def _tool_call_from(tc):
+def _tool_call_from(tc: Any) -> ToolCall:
     """Build a ``ToolCall`` from an OpenAI tool_call (dict or SDK object)."""
     fn = _get(tc, "function") or {}
     return ToolCall(
@@ -106,9 +108,9 @@ def _tool_call_from(tc):
     )
 
 
-def _convert_openai_response(resp):
+def _convert_openai_response(resp: Any) -> list[Message]:
     """Convert an OpenAI ChatCompletion response to AI Guard ``Message`` list."""
-    result = []
+    result: list[Message] = []
     choices = _get(resp, "choices") or []
     for choice in choices:
         try:
@@ -122,7 +124,7 @@ def _convert_openai_response(resp):
             if content is not None:
                 ai_msg["content"] = content
 
-            tool_calls_out = []
+            tool_calls_out: list[ToolCall] = []
             tool_calls = _get(message, "tool_calls")
             if tool_calls:
                 tool_calls_out.extend(_tool_call_from(tc) for tc in tool_calls)
@@ -145,7 +147,7 @@ def _convert_openai_response(resp):
     return result
 
 
-def _openai_chat_completion_before(client, kwargs):
+def _openai_chat_completion_before(client: AIGuardClient, kwargs: dict) -> None:
     """Listener for ``openai.chat.completions.create.before``."""
     if is_aiguard_context_active():
         logger.debug("AI Guard openai before-hook skipped: framework context active (e.g. Strands plugin)")
@@ -185,7 +187,7 @@ def _openai_chat_completion_before(client, kwargs):
     return None
 
 
-def _openai_chat_completion_after(client, kwargs, resp):
+def _openai_chat_completion_after(client: AIGuardClient, kwargs: dict, resp: Any) -> None:
     """Listener for ``openai.chat.completions.create.after``.
 
     Evaluates the full conversation (request + response) after the LLM

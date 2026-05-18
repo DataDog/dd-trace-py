@@ -9,6 +9,8 @@ accessor used by both converter families.
 """
 
 import threading
+from typing import Any
+from typing import Optional
 
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
 import ddtrace.internal.logger as ddlogger
@@ -23,7 +25,7 @@ logger = ddlogger.get_logger(__name__)
 # dependency — eagerly importing ``openai`` here would break AI Guard
 # initialization in environments that only use a different provider.
 #
-_openai_abort_error_cls = None
+_openai_abort_error_cls: Optional[type[AIGuardAbortError]] = None
 
 # The lazy build uses double-checked locking: the unsynchronised check-then-act
 # pattern would let two threads simultaneously enter the build branch and each
@@ -32,7 +34,7 @@ _openai_abort_error_cls = None
 _openai_abort_error_cls_lock = threading.Lock()
 
 
-def _get_openai_abort_error_cls():
+def _get_openai_abort_error_cls() -> Optional[type[AIGuardAbortError]]:
     """Return ``OpenAIAIGuardAbortError`` (cached), or ``None`` if openai is not importable.
 
     The class inherits from ``openai.UnprocessableEntityError`` (status 422 —
@@ -109,7 +111,7 @@ def _get_openai_abort_error_cls():
         return _openai_abort_error_cls
 
 
-def _wrap_abort_error(cause):
+def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:
     """Wrap an ``AIGuardAbortError`` into the OpenAI-compatible variant.
 
     Returns the original ``cause`` unchanged when the OpenAI SDK is not
@@ -133,7 +135,7 @@ def _wrap_abort_error(cause):
     return wrapped
 
 
-def _get(obj, key, default=None):
+def _get(obj: Any, key: str, default: Any = None) -> Any:
     """Read *key* from a dict or object attribute."""
     if isinstance(obj, dict):
         return obj.get(key, default)
