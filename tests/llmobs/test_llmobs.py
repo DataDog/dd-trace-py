@@ -297,26 +297,22 @@ class TestLLMIOProcessing:
             llmobs.annotate(unscrubbed_span, input_data="value")
         assert get_llmobs_input_messages(unscrubbed_span)[0]["content"] == "value"
 
-    def _redact_documents(span: LLMObsSpan):
+    def _mutate_documents(span: LLMObsSpan):
         for doc in span.input_documents:
             doc["text"] = ""
         for doc in span.output_documents:
             doc["text"] = ""
         return span
 
-    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_redact_documents)])
-    def test_document_processor_redact(self, llmobs, llmobs_enable_opts):
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_mutate_documents)])
+    def test_document_processor_mutate(self, llmobs, llmobs_enable_opts):
         with llmobs.embedding(model_name="test_model") as emb_span:
             llmobs.annotate(emb_span, input_data=[{"text": "secret document"}])
-
-        documents = get_llmobs_input_documents(emb_span)
-        assert documents == [{"text": ""}]
+        assert get_llmobs_input(emb_span) == {"documents": [{"text": ""}]}
 
         with llmobs.retrieval() as ret_span:
             llmobs.annotate(ret_span, output_data=[{"text": "secret result", "name": "doc.pdf"}])
-
-        documents = get_llmobs_output_documents(ret_span)
-        assert documents == [{"text": "", "name": "doc.pdf"}]
+        assert get_llmobs_output(ret_span) == {"documents": [{"text": "", "name": "doc.pdf"}]}
 
     def _drop_documents(span: LLMObsSpan):
         span.input_documents = []
@@ -327,13 +323,50 @@ class TestLLMIOProcessing:
     def test_document_processor_remove(self, llmobs, llmobs_enable_opts):
         with llmobs.embedding(model_name="test_model") as emb_span:
             llmobs.annotate(emb_span, input_data=[{"text": "secret"}])
-
-        assert get_llmobs_input_documents(emb_span) is None
+        assert get_llmobs_input(emb_span) == {}
 
         with llmobs.retrieval() as ret_span:
             llmobs.annotate(ret_span, output_data=[{"text": "secret"}])
+        assert get_llmobs_output(ret_span) == {}
 
-        assert get_llmobs_output_documents(ret_span) is None
+    def _conditional_document_processor(span: LLMObsSpan):
+        if span.get_tag("scrub_docs") == "1":
+            for doc in span.input_documents:
+                doc["text"] = "redacted"
+            for doc in span.output_documents:
+                doc["text"] = "redacted"
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_conditional_document_processor)])
+    def test_document_processor_conditional(self, llmobs, llmobs_enable_opts):
+        with llmobs.annotation_context(tags={"scrub_docs": "1"}):
+            with llmobs.embedding(model_name="test_model") as scrubbed_emb_span:
+                llmobs.annotate(scrubbed_emb_span, input_data=[{"text": "secret doc", "name": "doc.pdf"}])
+        assert get_llmobs_input(scrubbed_emb_span) == {"documents": [{"text": "redacted", "name": "doc.pdf"}]}
+
+        with llmobs.retrieval() as unscrubbed_ret_span:
+            llmobs.annotate(unscrubbed_ret_span, output_data=[{"text": "public result", "name": "result.pdf"}])
+        assert get_llmobs_output(unscrubbed_ret_span) == {"documents": [{"text": "public result", "name": "result.pdf"}]}
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_mutate_documents)])
+    def test_document_processor_mixed_io(self, llmobs, llmobs_enable_opts):
+        with llmobs.embedding(model_name="test_model") as emb_span:
+            llmobs.annotate(
+                emb_span,
+                input_data=[{"text": "secret doc", "name": "doc.pdf"}],
+                output_data="[0.1, 0.2, 0.3]",
+            )
+        assert get_llmobs_input(emb_span) == {"documents": [{"text": "", "name": "doc.pdf"}]}
+        assert get_llmobs_output(emb_span) == {"value": "[0.1, 0.2, 0.3]"}
+
+        with llmobs.retrieval() as ret_span:
+            llmobs.annotate(
+                ret_span,
+                input_data="find documents about secrets",
+                output_data=[{"text": "secret result", "name": "result.pdf", "score": 0.9}],
+            )
+        assert get_llmobs_input(ret_span) == {"value": "find documents about secrets"}
+        assert get_llmobs_output(ret_span) == {"documents": [{"text": "", "name": "result.pdf", "score": 0.9}]}
 
     def test_processor_error_is_logged(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Ensure that when an exception is raised an exception is logged."""
