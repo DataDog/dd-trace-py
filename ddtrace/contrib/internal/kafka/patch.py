@@ -134,19 +134,19 @@ def patch():
     Pin().onto(confluent_kafka.DeserializingConsumer)
 
 
-def _safe_unwrap(obj, attr):
-    # AIDEV-NOTE: When unpatch() runs late in the process lifecycle (pytest teardown,
-    # atexit, interpreter finalization), the confluent_kafka._cimpl C-extension can be
-    # partially torn down. Attribute lookups on TracedProducer/TracedConsumer then walk
-    # an MRO entry whose slot wrapper resolves against a NoneType, raising
+def _safe_unwrap(cls, attr):
+    # DEV: Use vars(cls) + delattr rather than iswrapped(cls.attr) + unwrap.
+    # Accessing a wrapped C-extension attribute (e.g. TracedProducer.produce) invokes
+    # wrapt's tp_descr_get, which calls the inner cimpl method descriptor's tp_descr_get
+    # directly — bypassing CPython's wrap_descr_get that normally converts Py_None→NULL.
+    # If Py_None reaches descr_check as `obj`, CPython raises:
     #   TypeError: descriptor 'produce' for 'cimpl.Producer' objects
     #              doesn't apply to a 'NoneType' object
-    # There's nothing actionable to clean up at that point, so swallow and log.
-    try:
-        if trace_utils.iswrapped(getattr(obj, attr, None)):
-            trace_utils.unwrap(obj, attr)
-    except (TypeError, AttributeError):
-        log.debug("kafka unpatch: skipping unwrap of %r.%s during teardown", obj, attr, exc_info=True)
+    # vars(cls) is a plain dict lookup and delattr removes by key — neither reads the
+    # descriptor value, so neither can trigger this code path.
+    # The root cause is fixed upstream in wrapt 2.2.0rc10 (commit ae93dd71, 2026-04-17);
+    if attr in vars(cls):
+        delattr(cls, attr)
 
 
 def unpatch():
