@@ -160,7 +160,7 @@ class heap_tracker_t
     std::vector<std::unique_ptr<traceback_t>> pool;
 
     /* Initial capacity of the allocations map */
-    static constexpr size_t INITAL_ALLOC_MAP_CAPACITY = 1024;
+    static constexpr size_t INITAL_ALLOC_MAP_CAPACITY = 512;
 };
 
 // Pool implementation
