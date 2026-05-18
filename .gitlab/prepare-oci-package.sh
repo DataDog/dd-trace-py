@@ -34,16 +34,16 @@ echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
 echo "Cleaning up binaries for ${ARCH}"
 if [ "${ARCH}" == "arm64" ]; then
   echo "Removing x86_64 binaries"
-  find ../pywheels-dep/ -type f -name '*x86_64*' -exec rm -f {} \;
+  find dd-trace-py/pywheels-dep/ -type f -name '*x86_64*' -exec rm -f {} \;
 elif [ "${ARCH}" == "amd64" ]; then
   echo "Removing aarch64 binaries"
-  find ../pywheels-dep/ -type f -name '*aarch64*' -exec rm -f {} \;
+  find dd-trace-py/pywheels-dep/ -type f -name '*aarch64*' -exec rm -f {} \;
 else
   echo "No ARCH set, not removing any binaries"
 fi
-cp -r ../pywheels-dep/site-packages* sources/ddtrace_pkgs
+cp -r dd-trace-py/pywheels-dep/site-packages* sources/ddtrace_pkgs
 
-cp ../lib-injection/sources/* sources/
+cp dd-trace-py/lib-injection/sources/* sources/
 
 if ! type rdfind &> /dev/null; then
   clean-apt install rdfind

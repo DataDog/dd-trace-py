@@ -26,5 +26,5 @@ export PATH="$HOME/.local/bin:$PATH"
 cd "$TMPDIR"
 source .venv/bin/activate
 echo "Running tests on $PLATFORM with Python $PYTHON_VERSION"
-python -m pytest "$CI_PROJECT_DIR/tests/internal/service_name/test_extra_services_names.py" -v -s
-python -m pytest "$CI_PROJECT_DIR/tests/appsec/architectures/test_appsec_loading_modules.py" -v -s
+python -m pytest "$CI_PROJECT_DIR/dd-trace-py/tests/internal/service_name/test_extra_services_names.py" -v -s
+python -m pytest "$CI_PROJECT_DIR/dd-trace-py/tests/appsec/architectures/test_appsec_loading_modules.py" -v -s

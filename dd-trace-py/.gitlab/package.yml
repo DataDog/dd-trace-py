@@ -326,7 +326,7 @@ download_dependency_wheels:
         - ${CI_PROJECT_DIR}/.cache/
   artifacts:
     paths:
-      - "pywheels-dep/"
+      - "dd-trace-py/pywheels-dep/"
 
 "upload all":
   extends: .upload_wheels_base
