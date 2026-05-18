@@ -355,7 +355,7 @@ class BaseSummaryEvaluator(ABC):
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
 
-def _default_context_transform(context: "EvaluatorContext") -> dict[str, Any]:
+def _default_context_transform(context: EvaluatorContext) -> dict[str, Any]:
     """Default transform: maps EvaluatorContext to remote evaluator format.
 
     Transforms the context into the format expected by remote LLM-as-Judge evaluators.
@@ -1138,8 +1138,8 @@ class TaskResult(_TaskResultRequired, total=False):
     span_name: str
     # input / expected_output are only set on the rerun path (eval-only replay over a
     # pulled experiment, where _dataset is absent); run() reads them from _dataset[idx].
-    input: "JSONType"
-    expected_output: "JSONType"
+    input: JSONType
+    expected_output: JSONType
 
 
 class EvaluationResult(TypedDict):
@@ -1269,10 +1269,10 @@ class ExperimentResult(TypedDict):
 
 
 def _build_span_copies(
-    prior_rows: "list[ExperimentRowResult]",
+    prior_rows: list[ExperimentRowResult],
     new_experiment_id: str,
     base_tags: list[str],
-) -> "tuple[list[dict], dict[str, str], str]":
+) -> tuple[list[dict], dict[str, str], str]:
     """Build semantically identical span dicts with fresh UUIDs and an offset timestamp.
 
     For each row with a span_id, a new span dict is produced with:
@@ -1330,10 +1330,10 @@ def _build_span_copies(
 
 
 def _task_results_from_previous(
-    rows: "list[ExperimentRowResult]",
-    id_map: "dict[str, str]",
+    rows: list[ExperimentRowResult],
+    id_map: dict[str, str],
     new_trace_id: str,
-) -> "list[TaskResult]":
+) -> list[TaskResult]:
     """Reconstruct TaskResult objects from a previous ExperimentRun's rows.
 
     Used by eval-only re-runs to reuse prior task outputs without re-executing the task.
@@ -1358,7 +1358,7 @@ def _task_results_from_previous(
     ]
 
 
-def _parse_experiment_result(response: dict) -> "ExperimentResult":
+def _parse_experiment_result(response: dict) -> ExperimentResult:
     """Deserialise a backend ``/events`` response into an ``ExperimentResult``.
 
     Response shape (single JSON:API object):
@@ -2300,7 +2300,7 @@ class Experiment:
     def _create_rerun_experiment(
         self,
         evaluators: "Sequence[Union[EvaluatorType, AsyncEvaluatorType]]",
-    ) -> "tuple[str, str]":
+    ) -> tuple[str, str]:
         """Create a new experiment entity for this re-run.
 
         The new experiment has ``parent_experiment_id`` set to the current experiment's ID,
@@ -3178,7 +3178,7 @@ class SyncExperiment:
         evaluators: "Sequence[Union[EvaluatorType, AsyncEvaluatorType]]",
         result: ExperimentResult,
         summary_evaluators: "Optional[list[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]]" = None,
-        _experiment: "Optional[Experiment]" = None,
+        _experiment: Optional[Experiment] = None,
     ) -> "SyncExperiment":
         """Build a SyncExperiment clone representing a completed rerun.
 
@@ -3595,15 +3595,15 @@ class SyncExperiment:
 
     async def _retry_failed_rows(
         self,
-        experiment: "Experiment",
-        rows_to_retry: "list[ExperimentRowResult]",
-        run: "_ExperimentRunInfo",
-        get_record: "Callable[[int], DatasetRecord]",
+        experiment: Experiment,
+        rows_to_retry: list[ExperimentRowResult],
+        run: _ExperimentRunInfo,
+        get_record: Callable[[int], DatasetRecord],
         jobs: int,
         max_retries: int,
         retry_delay: Callable[[int], float],
         raise_errors: bool,
-    ) -> "list[TaskResult]":
+    ) -> list[TaskResult]:
         """Re-execute the task for rows that errored on the original run.
 
         Operates against the passed-in rerun clone so the source experiment is untouched.
@@ -3636,8 +3636,8 @@ class SyncExperiment:
 
     def _post_replay_spans_and_evals(
         self,
-        experiment: "Experiment",
-        task_results: "list[TaskResult]",
+        experiment: Experiment,
+        task_results: list[TaskResult],
         evaluations: list,
         span_copies: list,
         new_experiment_id: str,
@@ -3681,8 +3681,8 @@ class SyncExperiment:
 
     async def _run_summary_stage(
         self,
-        experiment: "Experiment",
-        task_results: "list[TaskResult]",
+        experiment: Experiment,
+        task_results: list[TaskResult],
         evaluations: list,
         raise_errors: bool,
         jobs: int,
