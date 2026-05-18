@@ -36,7 +36,7 @@
 
 os tests macos:
   extends: .multi_os_test_base
-  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-6fb8511f-106729702"
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
   tags: ["macos:sonoma-tart"]
   needs: [ "build macos arm64" ]
   variables:
