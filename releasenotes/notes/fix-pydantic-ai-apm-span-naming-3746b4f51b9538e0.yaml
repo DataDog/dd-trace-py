@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    pydantic_ai: This fix resolves an issue where ``operation_name`` and ``resource_name``
+    were reversed on Pydantic AI spans. Spans now follow the standard APM convention, with
+    ``operation_name`` set to ``pydantic_ai.agent`` / ``pydantic_ai.tool`` and ``resource_name``
+    set to the specific agent or tool name, so service pages and resource breakdowns group
+    correctly.
