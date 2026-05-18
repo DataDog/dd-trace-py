@@ -138,6 +138,8 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
 
     # Don't pass all env vars to the receiver process, because there are
     # conflicts with export location derivation
+
+    # Errors intake is enabled by default in the libdatadog layer; only override if explicitly set
     crashtracking_enabled = env.get("DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED")
     if crashtracking_enabled is not None:
         receiver_env["DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"] = crashtracking_enabled
