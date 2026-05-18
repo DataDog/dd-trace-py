@@ -43,7 +43,7 @@ else
 fi
 cp -r ../pywheels-dep/site-packages* sources/ddtrace_pkgs
 
-cp lib-injection/sources/* sources/
+cp dd-trace-py/lib-injection/sources/* sources/
 
 if ! type rdfind &> /dev/null; then
   clean-apt install rdfind
