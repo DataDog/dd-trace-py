@@ -20,7 +20,7 @@ import pytest
 
 CONNECTION_STRING = "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
 EVENTHUB_NAME = "eh1"
-CONSUMER_GROUP = "cg1"
+CONSUMER_GROUP = os.environ.get("CONSUMER_GROUP", "cg1")
 DEFAULT_APPLICATION_PROPERTIES = {"property": "val", b"byteproperty": b"byteval"}
 TRACE_CONTEXT_KEYS = [
     "x-datadog-trace-id",

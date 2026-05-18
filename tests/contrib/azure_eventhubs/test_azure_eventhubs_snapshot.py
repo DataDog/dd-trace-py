@@ -1,6 +1,7 @@
 import itertools
 import os
 from pathlib import Path
+from uuid import uuid4
 
 from azure.eventhub import EventData
 from azure.eventhub import EventHubProducerClient
@@ -81,6 +82,7 @@ def patch_azure_eventhubs():
 async def test_producer(ddtrace_run_python_code_in_subprocess, env_vars):
     env = os.environ.copy()
     env.update(env_vars)
+    env["CONSUMER_GROUP"] = f"cg-{uuid4().hex[:8]}"
 
     helper_path = Path(__file__).resolve().parent.joinpath("common.py")
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(helper_path.read_text(), env=env)
