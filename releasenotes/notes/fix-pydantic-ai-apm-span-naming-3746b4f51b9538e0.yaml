@@ -1,0 +1,14 @@
+---
+fixes:
+  - |
+    pydantic_ai: Fixes APM span naming so ``operation_name`` and ``resource_name`` follow
+    Datadog APM convention. Previously, Pydantic AI integration spans surfaced the specific
+    tool/agent name as ``operation_name`` and the generic ``"Pydantic Tool"`` / ``"Pydantic Agent"``
+    label as ``resource_name`` — the reverse of the convention used elsewhere in APM. Service
+    pages, resource breakdowns, and flamegraphs now correctly group spans by
+    ``resource_name=<tool name>`` (e.g. ``calculate_square_tool``) or
+    ``resource_name=<agent name>`` (e.g. ``test_agent``), with ``operation_name=pydantic_ai.tool``
+    / ``operation_name=pydantic_ai.agent`` as the generic category. LLM Observability
+    views are unaffected: the displayed span name is read from the LLMObs metastruct,
+    which the integration already populates with the specific tool/agent name. See
+    https://github.com/DataDog/dd-trace-py/issues/18148.
