@@ -18,6 +18,7 @@ from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.utils.version import parse_version
+from tests.datastreams.utils import pathway_stats_merged
 from tests.utils import TracerTestCase
 
 
@@ -154,9 +155,7 @@ class BotocoreDSMTest(TracerTestCase):
 
             processor = data_streams_processor()
             assert processor is not None, "Datastream Monitoring is not enabled"
-            buckets = processor._buckets
-            assert len(buckets) == 1, "Expected 1 bucket but found {}".format(len(buckets))
-            first = list(buckets.values())[0].pathway_stats
+            first = pathway_stats_merged(processor)
 
             out_tags = "direction:out,topic:arn:aws:sns:us-east-1:000000000000:testTopic,type:sns"
             in_tags = "direction:in,topic:Test,type:sqs"
@@ -202,9 +201,7 @@ class BotocoreDSMTest(TracerTestCase):
 
             processor = data_streams_processor()
             assert processor is not None, "Datastream Monitoring is not enabled"
-            buckets = processor._buckets
-            assert len(buckets) == 1
-            first = list(buckets.values())[0].pathway_stats
+            first = pathway_stats_merged(processor)
 
             out_tags = "direction:out,topic:Test,type:sqs"
             in_tags = "direction:in,topic:Test,type:sqs"
@@ -255,9 +252,7 @@ class BotocoreDSMTest(TracerTestCase):
 
             processor = data_streams_processor()
             assert processor is not None, "Datastream Monitoring is not enabled"
-            buckets = processor._buckets
-            assert len(buckets) == 1
-            first = list(buckets.values())[0].pathway_stats
+            first = pathway_stats_merged(processor)
 
             out_tags = "direction:out,topic:Test,type:sqs"
             in_tags = "direction:in,topic:Test,type:sqs"
@@ -318,9 +313,7 @@ class BotocoreDSMTest(TracerTestCase):
 
             processor = data_streams_processor()
             assert processor is not None, "Datastream Monitoring is not enabled"
-            buckets = processor._buckets
-            assert len(buckets) == 1
-            first = list(buckets.values())[0].pathway_stats
+            first = pathway_stats_merged(processor)
 
             out_tags = "direction:out,topic:Test,type:sqs"
             in_tags = "direction:in,topic:Test,type:sqs"

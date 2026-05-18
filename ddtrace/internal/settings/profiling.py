@@ -342,7 +342,7 @@ class ProfilingConfigStack(DDConfig):
     fast_copy = DDConfig.v(
         bool,
         "fast_copy",
-        default=True,
+        default=False,
         help_type="Boolean",
         help="Whether to use fast memory copying (safe_memcpy) instead of process_vm_readv for stack sampling.",
         private=True,
@@ -427,6 +427,20 @@ class ProfilingConfigMemory(DDConfig):
         validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help="",
+    )
+
+    mem_domain_enabled = DDConfig.v(
+        bool,
+        "mem_domain_enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Hook PyMem_Malloc/Calloc/Realloc in the heap profiler to capture C-level "
+            "Python allocations (list internal buffers, array.array data) in addition "
+            "to PyObject_Malloc allocations. Requires Python 3.12 or later. Disabled "
+            "by default for incremental rollout; will be enabled by default once the "
+            "feature is GA."
+        ),
     )
 
 

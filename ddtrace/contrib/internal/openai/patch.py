@@ -9,6 +9,8 @@ from ddtrace import config
 from ddtrace.contrib.internal.openai import _endpoint_hooks
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
@@ -77,6 +79,16 @@ _RESOURCES = {
 }
 
 OPENAI_WITH_RAW_RESPONSE_ARG = "_dd.with_raw_response"
+
+_CHAT_COMPLETION_HOOKS = (
+    _endpoint_hooks._ChatCompletionHook,
+    _endpoint_hooks._ChatCompletionParseHook,
+)
+
+_RESPONSE_HOOKS = (
+    _endpoint_hooks._ResponseHook,
+    _endpoint_hooks._ResponseParseHook,
+)
 
 
 def patch():
@@ -237,12 +249,23 @@ def _patched_endpoint(patch_hook):
             return func(*args, **kwargs)
 
         integration = openai._datadog_integration
+        is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
+        is_response = patch_hook in _RESPONSE_HOOKS
         g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
         g.send(None)
         resp, err = None, None
         override_return = None
+        event = ""
+        if is_chat:
+            event = "openai.chat.completions.create"
+        elif is_response:
+            event = "openai.responses.create"
         try:
+            if event:
+                core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
             resp = func(*args, **kwargs)
+            if event and not kwargs.get("stream") and resp is not None:
+                core.dispatch(f"{event}.after", (kwargs, resp), allow_raise=True)
         except BaseException as e:
             err = e
             raise
@@ -382,6 +405,8 @@ def _patched_endpoint_async(patch_hook):
         if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
             return func(*args, **kwargs)
 
+        is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
+        is_response = patch_hook in _RESPONSE_HOOKS
         result = func(*args, **kwargs)
         # Detect AsyncPaginator objects (have both __aiter__ and __await__).
         # These must be returned directly (not awaited) to preserve iteration behavior.
@@ -394,8 +419,25 @@ def _patched_endpoint_async(patch_hook):
             g.send(None)
             resp, err = None, None
             override_return = None
+            event = ""
+            if is_chat:
+                event = "openai.chat.completions.create"
+            elif is_response:
+                event = "openai.responses.create"
             try:
+                if event:
+                    try:
+                        core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
+                    except DDBlockException:
+                        # AI Guard blocked the request — discard the unstarted SDK
+                        # coroutine so Python doesn't emit a "coroutine was never
+                        # awaited" warning for it.
+                        if hasattr(result, "close"):
+                            result.close()
+                        raise
                 resp = await result
+                if event and not kwargs.get("stream") and resp is not None:
+                    core.dispatch(f"{event}.after", (kwargs, resp), allow_raise=True)
             except BaseException as e:
                 err = e
                 raise

@@ -35,13 +35,10 @@ def traced_stream_read(traced_stream, original_read, amt=None):
         handler.chunks.append(json.loads(body))
         if traced_stream.__wrapped__.tell() == int(traced_stream.__wrapped__._content_length):
             formatted_response = _extract_text_and_response_reason(execution_ctx, handler.chunks[0])
-            core.dispatch(
-                "botocore.bedrock.process_response",
-                [execution_ctx, formatted_response],
-            )
+            core.dispatch("botocore.bedrock.process_response", (execution_ctx, formatted_response))
         return body
     except Exception:
-        core.dispatch("botocore.patched_bedrock_api_call.exception", [execution_ctx, sys.exc_info()])
+        core.dispatch("botocore.patched_bedrock_api_call.exception", (execution_ctx, sys.exc_info()))
         raise
 
 
@@ -54,13 +51,10 @@ def traced_stream_readlines(traced_stream, original_readlines):
         for line in lines:
             handler.chunks.append(json.loads(line))
         formatted_response = _extract_text_and_response_reason(execution_ctx, handler.chunks[0])
-        core.dispatch(
-            "botocore.bedrock.process_response",
-            [execution_ctx, formatted_response],
-        )
+        core.dispatch("botocore.bedrock.process_response", (execution_ctx, formatted_response))
         return lines
     except Exception:
-        core.dispatch("botocore.patched_bedrock_api_call.exception", [execution_ctx, sys.exc_info()])
+        core.dispatch("botocore.patched_bedrock_api_call.exception", (execution_ctx, sys.exc_info()))
         raise
 
 
@@ -70,7 +64,7 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
 
     def handle_exception(self, exception):
         core.dispatch(
-            "botocore.patched_bedrock_api_call.exception", [self.options.get("execution_ctx", {}), sys.exc_info()]
+            "botocore.patched_bedrock_api_call.exception", (self.options.get("execution_ctx", {}), sys.exc_info())
         )
 
     def finalize_stream(self, exception=None):
@@ -78,10 +72,7 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
             return
         execution_ctx = self.options.get("execution_ctx", {})
         formatted_response = _extract_streamed_response(execution_ctx, self.chunks)
-        core.dispatch(
-            "botocore.bedrock.process_response",
-            [execution_ctx, formatted_response],
-        )
+        core.dispatch("botocore.bedrock.process_response", (execution_ctx, formatted_response))
 
 
 class BotocoreConverseStreamHandler(StreamHandler):
@@ -93,14 +84,14 @@ class BotocoreConverseStreamHandler(StreamHandler):
     def handle_exception(self, exception):
         stream_processor = self.options.get("stream_processor", None)
         execution_ctx = self.options.get("execution_ctx", {})
-        core.dispatch("botocore.bedrock.process_response_converse", [execution_ctx, stream_processor])
+        core.dispatch("botocore.bedrock.process_response_converse", (execution_ctx, stream_processor))
 
     def finalize_stream(self, exception=None):
         if exception:
             return
         stream_processor = self.options.get("stream_processor", None)
         execution_ctx = self.options.get("execution_ctx", {})
-        core.dispatch("botocore.bedrock.process_response_converse", [execution_ctx, stream_processor])
+        core.dispatch("botocore.bedrock.process_response_converse", (execution_ctx, stream_processor))
 
 
 def make_botocore_streaming_body_traced_stream(streaming_body, execution_ctx):
@@ -392,7 +383,7 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
         else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
     )
 
-    core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
+    core.dispatch("botocore.patched_bedrock_api_call.started", (ctx, request_params))
     if ctx["bedrock_integration"].llmobs_enabled:
         ctx.set_item("llmobs.request_params", request_params)
 
@@ -442,7 +433,7 @@ def handle_bedrock_response(
     )
 
     if ctx["resource"] == "Converse":
-        core.dispatch("botocore.bedrock.process_response_converse", [ctx, result])
+        core.dispatch("botocore.bedrock.process_response_converse", (ctx, result))
         return result
     if ctx["resource"] == "ConverseStream":
         if "stream" in result:
@@ -505,5 +496,5 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
             result = handle_bedrock_response(ctx, result)
             return result
         except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", [ctx, sys.exc_info()])
+            core.dispatch("botocore.patched_bedrock_api_call.exception", (ctx, sys.exc_info()))
             raise

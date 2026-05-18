@@ -39,6 +39,7 @@ class ToolDefinition(TypedDict, total=False):
     name: str
     description: str
     schema: dict[str, Any]
+    version: str
 
 
 class Message(TypedDict, total=False):

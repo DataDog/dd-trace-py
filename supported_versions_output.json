@@ -3,7 +3,7 @@
         "dependency": "aiobotocore",
         "integration": "aiobotocore",
         "minimum_tracer_supported": "1.0.7",
-        "max_tracer_supported": "2.24.1",
+        "max_tracer_supported": "3.1.0",
         "auto-instrumented": false
     },
     {
@@ -91,6 +91,13 @@
         "integration": "avro",
         "minimum_tracer_supported": "1.12.1",
         "max_tracer_supported": "1.12.1",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "aws-durable-execution-sdk-python",
+        "integration": "aws_durable_execution_sdk_python",
+        "minimum_tracer_supported": "1.4.0",
+        "max_tracer_supported": "1.4.0",
         "auto-instrumented": true
     },
     {
@@ -250,14 +257,14 @@
         "dependency": "elastic-transport",
         "integration": "elasticsearch",
         "minimum_tracer_supported": "8.17.1",
-        "max_tracer_supported": "9.2.1",
+        "max_tracer_supported": "9.4.0",
         "auto-instrumented": true
     },
     {
         "dependency": "elasticsearch",
         "integration": "elasticsearch",
         "minimum_tracer_supported": "7.13.4",
-        "max_tracer_supported": "9.3.0",
+        "max_tracer_supported": "9.4.0",
         "auto-instrumented": true
     },
     {
@@ -320,7 +327,7 @@
         "dependency": "flask",
         "integration": "flask",
         "minimum_tracer_supported": "1.1.4",
-        "max_tracer_supported": "3.1.2",
+        "max_tracer_supported": "3.1.3",
         "auto-instrumented": true
     },
     {
@@ -397,7 +404,7 @@
         "dependency": "confluent-kafka",
         "integration": "kafka",
         "minimum_tracer_supported": "1.9.2",
-        "max_tracer_supported": "2.6.2",
+        "max_tracer_supported": "2.14.0",
         "auto-instrumented": true
     },
     {
@@ -503,21 +510,21 @@
         "dependency": "mlflow",
         "integration": "mlflow",
         "minimum_tracer_supported": "2.11.4",
-        "max_tracer_supported": "3.11.1",
+        "max_tracer_supported": "3.12.0",
         "auto-instrumented": false
     },
     {
         "dependency": "mlflow-skinny",
         "integration": "mlflow",
-        "minimum_tracer_supported": "3.11.1",
-        "max_tracer_supported": "3.11.1",
+        "minimum_tracer_supported": "3.12.0",
+        "max_tracer_supported": "3.12.0",
         "auto-instrumented": false
     },
     {
         "dependency": "mlflow-tracing",
         "integration": "mlflow",
-        "minimum_tracer_supported": "3.11.1",
-        "max_tracer_supported": "3.11.1",
+        "minimum_tracer_supported": "3.12.0",
+        "max_tracer_supported": "3.12.0",
         "auto-instrumented": false
     },
     {
@@ -675,7 +682,7 @@
         "dependency": "requests",
         "integration": "requests",
         "minimum_tracer_supported": "2.25.1",
-        "max_tracer_supported": "2.32.5",
+        "max_tracer_supported": "2.34.1",
         "auto-instrumented": true
     },
     {

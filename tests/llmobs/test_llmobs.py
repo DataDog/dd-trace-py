@@ -2,6 +2,7 @@ import asyncio
 import os
 from textwrap import dedent
 from typing import Optional
+from unittest import mock
 
 import pytest
 
@@ -72,6 +73,29 @@ class TestMLApp:
         assert len(spans) == 3
         for span in spans:
             assert get_llmobs_tags(span)["ml_app"] == "test-ml-app"
+
+
+class TestGitMetadata:
+    def test_git_tags_set_on_span_when_available(self, llmobs, tracer):
+        cls = llmobs._instance.__class__
+        with (
+            mock.patch.object(cls, "_git_repository_url", "https://github.com/example/repo"),
+            mock.patch.object(cls, "_git_commit_sha", "abc123def456"),
+        ):
+            with llmobs.workflow("root_llm_span") as span:
+                pass
+        tags = get_llmobs_tags(span)
+        assert tags["git.commit.sha"] == "abc123def456"
+        assert tags["git.repository_url"] == "https://github.com/example/repo"
+
+    def test_git_tags_absent_when_unavailable(self, llmobs, tracer):
+        cls = llmobs._instance.__class__
+        with mock.patch.object(cls, "_git_repository_url", ""), mock.patch.object(cls, "_git_commit_sha", ""):
+            with llmobs.workflow("root_llm_span") as span:
+                pass
+        tags = get_llmobs_tags(span)
+        assert "git.commit.sha" not in tags
+        assert "git.repository_url" not in tags
 
 
 def test_set_correct_parent_id(llmobs, tracer):
@@ -531,6 +555,7 @@ def test_annotate_with_tool_definitions(llmobs, llmobs_backend):
                 "type": "object",
                 "properties": {"location": {"type": "string"}},
             },
+            "version": "1.0.0",
         }
     ]
 
@@ -607,6 +632,16 @@ def test_annotate_with_tool_definitions_non_dict(llmobs, llmobs_backend):
     events = llmobs_backend.wait_for_num_events(num=1)
     assert len(events) == 1
     assert "tool_definitions" not in events[0][0]["spans"][0]["meta"]
+
+
+def test_annotate_with_tool_definitions_invalid_version_type(llmobs, llmobs_backend):
+    """Test that tool_definitions with non-string version field have version skipped but are otherwise kept."""
+    with llmobs.llm() as span:
+        llmobs.annotate(span, tool_definitions=[{"name": "my_tool", "version": 1}])
+
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert events[0][0]["spans"][0]["meta"]["tool_definitions"] == [{"name": "my_tool"}]
 
 
 @pytest.mark.asyncio
@@ -891,7 +926,7 @@ def test_no_llmobs_trace_id_without_llmobs_context(llmobs):
 
 
 @pytest.mark.parametrize("llmobs_env", [{"DD_APM_TRACING_ENABLED": "false"}])
-def test_apm_traces_dropped_when_disabled(llmobs, tracer, llmobs_env):
+def test_llmobs_events_still_sent_if_apm_tracing_disabled(llmobs, llmobs_events, tracer, llmobs_env):
     from tests.utils import DummyWriter
 
     dummy_writer = DummyWriter()
@@ -907,6 +942,8 @@ def test_apm_traces_dropped_when_disabled(llmobs, tracer, llmobs_env):
     # Check that no APM traces were sent to the writer
     assert len(dummy_writer.traces) == 0, "APM traces should be dropped when DD_APM_TRACING_ENABLED=false"
 
-    # But LLMObs spans should still carry the LLMObsSpanData payload
-    assert get_llmobs_span_kind(llm_span) == "llm"
-    assert get_llmobs_model_name(llm_span) == "test-model"
+    # But LLMObs events should still be sent
+    assert len(llmobs_events) == 1
+    llm_event = llmobs_events[0]
+    assert llm_event["meta"]["span"]["kind"] == "llm"
+    assert llm_event["meta"]["model_name"] == "test-model"

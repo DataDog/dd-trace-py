@@ -7,10 +7,14 @@ from typing import Union
 from ddtrace._trace.span import Span
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_generate_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_stream_before
+from ddtrace.appsec._ai_guard._langchain import _langchain_generate_finally
 from ddtrace.appsec._ai_guard._langchain import _langchain_llm_generate_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_llm_stream_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_patch
+from ddtrace.appsec._ai_guard._langchain import _langchain_stream_started
 from ddtrace.appsec._ai_guard._langchain import _langchain_unpatch
+from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_after
+from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_before
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard import new_ai_guard_client
@@ -23,6 +27,7 @@ from ddtrace.internal.settings.asm import ai_guard_config
 def ai_guard_listen():
     client = new_ai_guard_client()
     _langchain_listen(client)
+    _openai_listen(client)
     core.on("set_http_meta_for_asm", _on_set_http_meta_for_ai_guard)
 
 
@@ -37,6 +42,34 @@ def _langchain_listen(client: AIGuardClient):
     core.on("langchain.llm.generate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
+
+    # AIDEV-NOTE: ``.stream.started`` is dispatched lazily from
+    # ``BaseLangchainStreamHandler.start_stream`` (called by
+    # ``TracedStream.__iter__`` / ``__aiter__`` on iteration entry), so a
+    # stream created but never consumed cannot leak the counter into the
+    # next call in the same task. The matching reset happens via
+    # ``.stream.finally`` below (dispatched from ``finalize_stream``).
+    core.on("langchain.chatmodel.stream.started", _langchain_stream_started)
+    core.on("langchain.llm.stream.started", _langchain_stream_started)
+
+    # AIDEV-NOTE: ``.finally`` listeners release the AI Guard active-context
+    # counter. For non-streaming ``*.generate.*`` paths the counter is bumped
+    # by the matching ``.before`` listener (``func(...)`` runs synchronously
+    # so set + reset wrap the SDK call). For streaming the counter is bumped
+    # by ``.stream.started`` above, and reset here once iteration ends. We
+    # listen on ``.finally`` rather than ``.after`` so the reset still fires
+    # when the underlying LLM call raises mid-iteration.
+    core.on("langchain.chatmodel.generate.finally", _langchain_generate_finally)
+    core.on("langchain.chatmodel.agenerate.finally", _langchain_generate_finally)
+    core.on("langchain.llm.generate.finally", _langchain_generate_finally)
+    core.on("langchain.llm.agenerate.finally", _langchain_generate_finally)
+    core.on("langchain.chatmodel.stream.finally", _langchain_generate_finally)
+    core.on("langchain.llm.stream.finally", _langchain_generate_finally)
+
+
+def _openai_listen(client: AIGuardClient):
+    core.on("openai.chat.completions.create.before", partial(_openai_chat_completion_before, client))
+    core.on("openai.chat.completions.create.after", partial(_openai_chat_completion_after, client))
 
 
 def _on_set_http_meta_for_ai_guard(

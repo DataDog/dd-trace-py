@@ -260,6 +260,29 @@ class GrpcTestCase(GrpcBaseTestCase):
         self._check_client_span(client_span, "grpc-client", "SayHelloTwice", "server_streaming")
         self._check_server_span(server_span, "grpc-server", "SayHelloTwice", "server_streaming")
 
+    def test_server_stream_next_method(self):
+        # Ensure .next (not just __next__) goes through the wrapper so that
+        # span dispatch and error handling are not bypassed.  gRPC's
+        # _Rendezvous base class exposes a .next method; wrapt.ObjectProxy
+        # would fall through to it if the wrapper doesn't define next = __next__.
+        callback_called = threading.Event()
+
+        def callback(response: object) -> None:
+            callback_called.set()
+
+        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
+            stub = HelloStub(channel)
+            responses_iterator = stub.SayHelloTwice(HelloRequest(name="once"))
+            responses_iterator.add_done_callback(callback)
+            response = responses_iterator.next()
+            callback_called.wait(timeout=1)
+            assert response.message == "first response"
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span, server_span = spans
+        self._check_client_span(client_span, "grpc-client", "SayHelloTwice", "server_streaming")
+        self._check_server_span(server_span, "grpc-server", "SayHelloTwice", "server_streaming")
+
     def test_client_stream(self):
         requests_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
 
