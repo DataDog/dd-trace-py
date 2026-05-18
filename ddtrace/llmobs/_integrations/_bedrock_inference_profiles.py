@@ -33,3 +33,4 @@ def lookup_inference_profile(profile_arn: str) -> Optional[str]:
 def _clear_inference_profile_cache() -> None:
     with _CACHE_LOCK:
         _INFERENCE_PROFILE_CACHE.clear()
+

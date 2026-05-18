@@ -44,7 +44,7 @@ def _extract_model_name(instance: Any) -> Optional[str]:
     and `base_model_id` is the underlying foundation model) report the
     foundation model rather than the opaque profile identifier.
 
-    Side effect: when the instance carries both an application-inference-profile
+    When the instance carries both an application-inference-profile
     ARN in `model_id` and a `base_model_id`, the mapping is stored in a shared
     process-local cache so the botocore Bedrock integration can resolve the
     same ARN on its own span without an extra AWS call.

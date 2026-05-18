@@ -1,8 +1,11 @@
 ---
 fixes:
   - |
-    langchain: This fix resolves an issue where auto-instrumented
-    ``langchain_aws.ChatBedrockConverse`` spans reported the inference profile
-    identifier as the model name when an inference profile was used.
+    langchain, botocore: This fix resolves an issue where auto-instrumented
+    ``langchain_aws.ChatBedrockConverse`` spans reported an opaque inference-profile
+    ARN identifier as the model name when an inference profile was used.
     ``base_model_id`` which represents the underlying foundation model is now
-    checked first when extracting model names.
+    checked first when extracting model names, and the botocore Bedrock
+    integration reads the resolved base model from a shared in-process cache
+    populated by langchain so the same resolution applies to the underlying
+    ``bedrock-runtime`` span.
