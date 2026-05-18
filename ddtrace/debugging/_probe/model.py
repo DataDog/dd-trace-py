@@ -244,7 +244,7 @@ class StringTemplate:
 class CaptureExpression:
     name: str
     expr: DDExpression
-    limits: CaptureLimits = field(compare=False)
+    capture: CaptureLimits = field(compare=False)
 
 
 @dataclass
