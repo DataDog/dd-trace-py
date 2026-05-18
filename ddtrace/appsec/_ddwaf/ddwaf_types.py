@@ -137,7 +137,7 @@ def _build_mapping(
             res_key = res_key[:max_string_length]
         obj = ddwaf_object.__new__(ddwaf_object)
         _build_ddwaf_object(obj, val, observator, max_objects, max_depth - 1, max_string_length)
-        ddwaf_object_map_add(map_o, res_key, obj)
+        ddwaf_object_map_addl(map_o, res_key, len(res_key), obj)
         counter_object += 1
 
 
@@ -164,7 +164,7 @@ def _build_ddwaf_object(
         if len(encoded) > max_string_length:
             observator.set_string_length(len(encoded))
             encoded = encoded[:max_string_length]
-        ddwaf_object_string(self, encoded)
+        ddwaf_object_stringl(self, encoded, len(encoded))
     elif t is list:
         _build_sequence(self, struct, observator, max_objects, max_depth, max_string_length)
     elif t is int:
@@ -177,7 +177,7 @@ def _build_ddwaf_object(
         if len(struct) > max_string_length:
             observator.set_string_length(len(struct))
             struct = struct[:max_string_length]
-        ddwaf_object_string(self, struct)
+        ddwaf_object_stringl(self, struct, len(struct))
     elif struct is None:
         ddwaf_object_null(self)
     elif isinstance(struct, Sequence):
@@ -189,7 +189,7 @@ def _build_ddwaf_object(
         if len(encoded) > max_string_length:
             observator.set_string_length(len(encoded))
             encoded = encoded[:max_string_length]
-        ddwaf_object_string(self, encoded)
+        ddwaf_object_stringl(self, encoded, len(encoded))
 
 
 # to allow cyclic references, ddwaf_object fields are defined later
@@ -500,6 +500,15 @@ ddwaf_object_string = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_
     ),
 )
 
+ddwaf_object_stringl = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint64)(
+    ("ddwaf_object_stringl", ddwaf),
+    (
+        (3, "object"),
+        (1, "string"),
+        (1, "length"),
+    ),
+)
+
 # Not used in Python code but kept for completeness with the libddwaf API
 ddwaf_object_string_from_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
     ("ddwaf_object_string_from_unsigned", ddwaf),
@@ -581,6 +590,18 @@ ddwaf_object_map_add = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_
     (
         (1, "map"),
         (1, "key"),
+        (1, "object"),
+    ),
+)
+
+ddwaf_object_map_addl = ctypes.CFUNCTYPE(
+    ctypes.c_bool, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint64, ddwaf_object_p
+)(
+    ("ddwaf_object_map_addl", ddwaf),
+    (
+        (1, "map"),
+        (1, "key"),
+        (1, "key_length"),
         (1, "object"),
     ),
 )
