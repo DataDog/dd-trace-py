@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes the subprocess integration silently spans for
+    any shell command whose env-var assignment contained ``=`` in the
+    value.

@@ -113,6 +113,25 @@ for allowed in SubprocessCmdLine.ENV_VARS_ALLOWLIST:
             "lower=baz",
             ["dir", "-li", "/", "OTHER=any"],
         ),
+        # Regression: a value containing ``=`` (legal shell, e.g. base64 with
+        # padding, ``URL=...?k=v``, or just two ``=`` chained) made
+        # ``token.split("=")`` return 3 items, raising ``ValueError`` on the
+        # two-name unpack. The outer ``except Exception`` swallowed it and
+        # the subprocess span was dropped.
+        (
+            SubprocessCmdLine(["FOO=key=value", "BAR=baz", "dir", "-li", "/"], shell=True),
+            ["FOO=?", "BAR=?", "dir", "-li", "/"],
+            ["FOO=?", "BAR=?"],
+            "dir",
+            ["-li", "/"],
+        ),
+        (
+            SubprocessCmdLine(["BASE64=YWJjPT0=", "dir", "-li", "/"], shell=True),
+            ["BASE64=?", "dir", "-li", "/"],
+            ["BASE64=?"],
+            "dir",
+            ["-li", "/"],
+        ),
     ]
     + allowed_envvars_fixture_list,
 )
