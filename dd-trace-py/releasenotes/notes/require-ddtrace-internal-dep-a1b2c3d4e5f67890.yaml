@@ -1,4 +1,0 @@
----
-other:
-  - |
-    The ``ddtrace-internal`` package is now a required dependency of ``ddtrace``.
