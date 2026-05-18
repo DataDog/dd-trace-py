@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    fix(grpc): This fix resolves an issue where streaming ``grpc.aio`` client spans
+    could intermittently report ``error.message`` as ``"Internal error from Core"``
+    when a server aborted the RPC. The transport-level placeholder surfaced when
+    ``AioRpcError`` was raised before trailing metadata had been processed; the
+    instrumentation now awaits the call's authoritative final state, so spans
+    consistently carry the application-set abort details.

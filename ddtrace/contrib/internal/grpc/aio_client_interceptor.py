@@ -123,6 +123,32 @@ async def _handle_cancelled_error(call: aio.Call, span: Span) -> None:
     span.finish()
 
 
+async def _handle_stream_rpc_error(span: Span, call: aio.Call, rpc_error: aio.AioRpcError) -> None:
+    # AIDEV-NOTE: When a server aborts a streaming RPC, gRPC can surface the
+    # AioRpcError to the client before trailing metadata has been fully processed.
+    # In that window, rpc_error.details() returns the transport-level placeholder
+    # "Internal error from Core" instead of the application-set abort details.
+    # Awaiting call.code()/call.details() blocks until the call is fully terminated
+    # (trailers received), so it returns the authoritative final state. Fall back
+    # to the exception's snapshot only if the call cannot resolve its final state.
+    try:
+        code = await call.code()
+        details = await call.details()
+    except Exception:
+        code = rpc_error.code()
+        details = rpc_error.details()
+    if isinstance(details, bytes):
+        details = details.decode("utf-8", errors="ignore")
+    else:
+        details = str(details)
+    code_str = str(code)
+    span.error = 1
+    span._set_attribute(constants.GRPC_STATUS_CODE_KEY, code_str)
+    span._set_attribute(ERROR_MSG, details)
+    span._set_attribute(ERROR_TYPE, code_str)
+    span.finish()
+
+
 class _ClientInterceptor:
     def __init__(self, host: str, port: int) -> None:
         self._host = host
@@ -186,9 +212,10 @@ class _ClientInterceptor:
             _handle_cancelled_error()
             raise
         except aio.AioRpcError as rpc_error:
-            # NOTE: We can also handle the error in done callbacks,
-            # but reuse this error handling function used in unary response RPCs.
-            _handle_rpc_error(span, rpc_error)
+            # NOTE: We can also handle the error in done callbacks, but capturing
+            # error tags here means we hold onto the call object and can read its
+            # authoritative final state instead of rpc_error's racy snapshot.
+            await _handle_stream_rpc_error(span, call, rpc_error)
             raise
         except asyncio.CancelledError:
             # NOTE: We can't handle the cancelled error in done callbacks

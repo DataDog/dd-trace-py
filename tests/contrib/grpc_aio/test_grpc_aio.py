@@ -574,7 +574,7 @@ async def test_client_streaming_exception(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloLast"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MSG) in ("abort_details", "Internal error from Core")
+    assert client_span.get_tag(ERROR_MSG) == "abort_details"
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
@@ -678,7 +678,7 @@ async def test_bidi_streaming_exception(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MSG) in ("abort_details", "Internal error from Core")
+    assert client_span.get_tag(ERROR_MSG) == "abort_details"
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     assert client_span.get_tag(ERROR_STACK) is None
     assert client_span.get_tag("component") == "grpc_aio_client"
