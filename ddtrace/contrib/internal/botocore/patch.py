@@ -9,6 +9,7 @@ from typing import Union  # noqa:F401
 from botocore import __version__
 import botocore.client
 import botocore.exceptions
+import botocore.session
 import wrapt
 
 import ddtrace
@@ -207,6 +208,7 @@ def patch():
 
     botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
+    wrapt.wrap_function_wrapper("botocore.session", "Session.__init__", _wrap_session_init)
     Pin().onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
     Pin().onto(botocore.parsers.ResponseParser)
@@ -219,6 +221,7 @@ def unpatch():
         botocore.client._datadog_patch = False
         unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
+        unwrap(botocore.session.Session, "__init__")
 
 
 def patch_submodules(submodules: Union[list[str], bool]) -> None:

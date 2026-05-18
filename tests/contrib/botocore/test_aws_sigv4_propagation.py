@@ -98,6 +98,27 @@ class _StopBeforeWire(Exception):
     pass
 
 
+@pytest.fixture(autouse=True)
+def _reset_http_propagation_suppressed():
+    """Reset the http_propagation_suppressed contextvar around every test.
+
+    Several tests in this file trigger the before-sign handler, which sets
+    the contextvar to True. Without this fixture, pytest-randomly can order
+    tests such that a leaked True value causes
+    test_subscriber_injects_when_propagation_not_suppressed (and similar) to
+    take the early-return path in on_started and silently fail.
+
+    The Task 5 contextvar guard inside patched_api_call also resets the
+    contextvar in production code, but several tests in this file invoke the
+    handler directly (bypassing patched_api_call), so per-test reset here is
+    still necessary.
+    """
+    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+    token = http_propagation_suppressed.set(False)
+    yield
+    http_propagation_suppressed.reset(token)
+
+
 def test_trace_headers_are_in_sigv4_signed_headers(s3_client):
     """Proof-of-bug regression test.
 
@@ -238,3 +259,65 @@ def test_before_sign_handler_noop_when_botocore_distributed_tracing_disabled(
     finally:
         config.botocore["distributed_tracing"] = original
         http_propagation_suppressed.reset(token)
+
+
+def test_patch_registers_handler_on_new_sessions():
+    """After patch() runs, emitting `before-sign` on any newly created Session
+    must trigger our handler — proven by side effect (header injected into the
+    request), not by poking botocore internals."""
+    from botocore.awsrequest import AWSRequest
+
+    from ddtrace.contrib.internal.botocore.patch import patch
+
+    patch()
+    try:
+        session = botocore.session.Session()
+        request = AWSRequest(method="GET", url="https://example.com/")
+        with ddtrace.tracer.trace("test.span"):
+            session.emit(
+                "before-sign.s3.GetObject",
+                request=request,
+                signing_name="s3",
+                region_name="us-east-1",
+                signature_version="v4",
+                request_signer=None,
+                operation_name="GetObject",
+            )
+        assert "x-datadog-trace-id" in request.headers, (
+            f"before-sign handler did not fire on new session — registered handlers may be missing. "
+            f"Request headers after emit: {dict(request.headers)!r}"
+        )
+    finally:
+        unpatch()
+
+
+def test_unpatch_removes_session_init_wrapper():
+    """After unpatch(), newly created Sessions must NOT have the handler —
+    emitting `before-sign` must not mutate the request."""
+    from botocore.awsrequest import AWSRequest
+
+    from ddtrace.contrib.internal.botocore.patch import patch
+
+    patch()
+    unpatch()
+    try:
+        session = botocore.session.Session()
+        request = AWSRequest(method="GET", url="https://example.com/")
+        with ddtrace.tracer.trace("test.span"):
+            session.emit(
+                "before-sign.s3.GetObject",
+                request=request,
+                signing_name="s3",
+                region_name="us-east-1",
+                signature_version="v4",
+                request_signer=None,
+                operation_name="GetObject",
+            )
+        assert "x-datadog-trace-id" not in request.headers, (
+            f"before-sign handler still fires after unpatch — Session.__init__ wrap was not removed. "
+            f"Request headers after emit: {dict(request.headers)!r}"
+        )
+    finally:
+        # Defensive: if any assertion or session call leaves state inconsistent, this resets it.
+        # (Already unpatched at this point; this is harmless and symmetric with the other test.)
+        unpatch()
