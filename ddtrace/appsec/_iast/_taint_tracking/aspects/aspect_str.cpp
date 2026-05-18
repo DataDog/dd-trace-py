@@ -214,7 +214,7 @@ api_str_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs, Py
                     copy_and_shift_ranges_from_strings(text, result_o, offset, len_result_o, tx_map);
                 }
             }
-            Py_DECREF(check_offset);
+            Py_XDECREF(check_offset);
         }
         return result_o;
     });
