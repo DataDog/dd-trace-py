@@ -19,7 +19,6 @@ include:
       - core.*
       - .riot/venv_*
       - ddtrace/**/*.so*
-      - ddtrace/internal/datadog/profiling/test/test_*
 
 # Do not define a `needs:` in order to depend on the whole `precheck` stage
 .test_base_riot:
