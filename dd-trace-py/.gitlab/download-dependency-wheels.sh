@@ -11,11 +11,11 @@ python3 -m pip install packaging
 
 mkdir pywheels-dep
 
-cd ../pywheels
+cd pywheels
 
 export PYTHONUNBUFFERED=TRUE
 
-../dd-trace-py/lib-injection/dl_wheels.py \
+dd-trace-py/lib-injection/dl_wheels.py \
     --python-version=$PYTHON_VERSION \
     --ddtrace-flavor=${DDTRACE_FLAVOR:-} \
     --local-ddtrace \

@@ -318,8 +318,7 @@ download_dependency_wheels:
       - PYTHON_IMAGE_TAG: "3.14.0"
         PYTHON_VERSION: "3.14"
   script:
-    - cd dd-trace-py
-    - .gitlab/download-dependency-wheels.sh
+    - dd-trace-py/.gitlab/download-dependency-wheels.sh
   cache:
     - key: v0-download-dep-wheels-cache
       paths:
