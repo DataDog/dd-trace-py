@@ -539,7 +539,7 @@ def test_stop_then_start_new_profiler() -> None:
     p2 = profiler.Profiler()
     p2.start()
     assert profiler.Profiler._active_instance is p2
-    p2.stop(flush=False)
+    p2.stop(flush=False)  # type: ignore[unreachable]
 
 
 def test_same_profiler_restart_allowed() -> None:
