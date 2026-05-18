@@ -23,7 +23,7 @@ uv venv --python $env:PYTHON_VERSION .venv
 $wheelTag = "cp$($env:PYTHON_VERSION -replace '\.','')"
 $wheel = (Get-Item "$env:CI_PROJECT_DIR\pywheels\ddtrace*${wheelTag}*win_amd64.whl")[0].FullName
 uv pip install --python $env:PYTHON_VERSION `
-  -r "$env:CI_PROJECT_DIR\.gitlab\requirements\multi-os-tests.txt" `
+  -r "$env:CI_PROJECT_DIR\dd-trace-py\.gitlab\requirements\multi-os-tests.txt" `
   $wheel
 
 # Run tests

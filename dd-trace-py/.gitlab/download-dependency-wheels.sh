@@ -11,10 +11,7 @@ python3 -m pip install packaging
 
 mkdir pywheels-dep
 
-pwd
-ls -al .
-ls -al ..
-cd pywheels
+cd ../pywheels
 
 export PYTHONUNBUFFERED=TRUE
 

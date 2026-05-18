@@ -32,6 +32,7 @@ os tests ubuntu:
     PLATFORM: "Ubuntu"
   script:
     - apt-get update && apt-get install -y curl
+    - cd dd-trace-py
     - bash .gitlab/scripts/multi-os-tests.sh
 
 os tests macos:
@@ -43,6 +44,7 @@ os tests macos:
     PLATFORM: "macOS"
   script:
     - |
+      cd dd-trace-py
       for PYTHON_VERSION in 3.10 3.12 3.14; do
         export PYTHON_VERSION
         bash .gitlab/scripts/multi-os-tests.sh
@@ -62,4 +64,4 @@ os tests windows:
     matrix:
       - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
   script:
-    - powershell -File .gitlab/scripts/multi-os-tests.ps1
+    - powershell -File dd-trace-py/.gitlab/scripts/multi-os-tests.ps1
