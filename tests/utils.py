@@ -545,14 +545,14 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         """Pop and return all spans from the writer"""
         writer = self.tracer._span_aggregator.writer
         if hasattr(writer, "pop"):
-            return writer.pop()
+            return writer.pop()  # type: ignore[no-any-return]
         return []
 
     def pop_traces(self) -> list[list[Span]]:
         """Pop and return all traces from the writer"""
         writer = self.tracer._span_aggregator.writer
         if hasattr(writer, "pop_traces"):
-            return writer.pop_traces()
+            return writer.pop_traces()  # type: ignore[no-any-return]
         return []
 
     def reset(self):
@@ -583,8 +583,8 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
 class DummyWriterMixin:
     def __init__(self, *args, **kwargs):
-        self.spans = []
-        self.traces = []
+        self.spans: list[Span] = []
+        self.traces: list[list[Span]] = []
         self.json_encoder = JSONEncoder()
         self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
@@ -645,17 +645,17 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
-        return self._inner_writer.flush_queue(raise_exc)
+        self._inner_writer.flush_queue(raise_exc)
 
     def set_test_session_token(self, token: Optional[str]) -> None:
-        return self._inner_writer.set_test_session_token(token)
+        self._inner_writer.set_test_session_token(token)
 
     def stop(self, timeout: Optional[float] = None) -> None:
         self._inner_writer.stop(timeout=timeout)
 
     @property
     def interval(self) -> float:
-        return self._inner_writer._interval
+        return self._inner_writer._interval  # type: ignore[no-any-return]
 
     @interval.setter
     def interval(

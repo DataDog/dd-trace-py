@@ -31,7 +31,7 @@ def test_asyncio_timeout() -> None:
         return t
 
     async def task_with_timeout(delay: float) -> float:
-        async with asyncio.timeout(10.0):  # Long timeout, won't trigger
+        async with asyncio.timeout(10.0):  # type: ignore[attr-defined]  # Long timeout, won't trigger
             return await wait_and_return_delay(delay)
 
     async def main() -> None:
@@ -105,7 +105,7 @@ def test_asyncio_timeout() -> None:
 
     if len(exceptions) > 0:
         pprof_utils.print_all_samples(profile)
-        for e in exceptions:
-            print(e)
+        for exc in exceptions:
+            print(exc)
 
         raise exceptions[0]

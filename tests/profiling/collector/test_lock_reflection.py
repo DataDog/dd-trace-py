@@ -117,10 +117,10 @@ def is_accessible(obj: object, method_name: str) -> bool:
 @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
 def test_public_methods_accessible(lock_class: type[object], collector_class: type[object], name: str) -> None:
     """Verify wrapped lock exposes all public methods of the original."""
-    original: object = lock_class()  # type: ignore[operator]
+    original: object = lock_class()
     original_methods: set[str] = get_public_methods(original)
 
-    with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+    with collector_class(capture_pct=100):  # type: ignore[call-arg, attr-defined]
         wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
         wrapped: _ProfiledLock = wrapped_class()
         missing: set[str] = {m for m in original_methods if not is_accessible(wrapped, m)}
@@ -135,10 +135,10 @@ def test_dunders_accessible(lock_class: type[object], collector_class: type[obje
     """Verify wrapped lock exposes all dunders of the original."""
     init_ddup(f"test_dunders_{name}")
 
-    original: object = lock_class()  # type: ignore[operator]
+    original: object = lock_class()
     original_dunders: set[str] = get_dunders(original)
 
-    with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+    with collector_class(capture_pct=100):  # type: ignore[call-arg, attr-defined]
         wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
         wrapped: _ProfiledLock = wrapped_class()
         wrapped_dunders: set[str] = get_dunders(wrapped)

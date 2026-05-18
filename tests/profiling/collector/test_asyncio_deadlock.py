@@ -18,8 +18,8 @@ def test_asyncio_deadlock() -> None:
     assert stack.is_available, stack.failure_msg
 
     # We'll assign these after creation so each coroutine can await the other.
-    t1: Optional[asyncio.Task] = None
-    t2: Optional[asyncio.Task] = None
+    t1: Optional[asyncio.Task[None]] = None
+    t2: Optional[asyncio.Task[None]] = None
 
     async def task_a() -> None:
         assert t2 is not None

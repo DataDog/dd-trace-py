@@ -9,7 +9,8 @@ gevent.monkey.patch_all()
 from ddtrace.profiling import profiler  # noqa:E402,F401
 
 
-p = profiler.Profiler().start()
+p = profiler.Profiler()
+p.start()
 
 pid = os.fork()
 if pid == 0:

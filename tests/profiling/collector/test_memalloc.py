@@ -18,9 +18,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
-from ddtrace.internal.settings.profiling import (
-    _derive_default_heap_sample_size,  # pyright: ignore[reportAttributeAccessIssue]
-)
+from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size  # type: ignore[attr-defined]
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
 
@@ -73,7 +71,7 @@ def _setup_profiling_prelude(tmp_path: Path, test_name: str) -> str:
 def test_heap_samples_collected() -> None:
     import os
 
-    from ddtrace.profiling import Profiler
+    from ddtrace.profiling.profiler import Profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import _allocate_1k
 
@@ -146,7 +144,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
             quit_thread.wait()
 
         alloc_thread = threading.Thread(name="allocator", target=alloc)
-        alloc_thread._ddtrace_profiling_ignore = True  # pyright: ignore[reportAttributeAccessIssue]
+        alloc_thread._ddtrace_profiling_ignore = True  # type: ignore[attr-defined]
         alloc_thread.start()
 
         mc.snapshot()
@@ -169,7 +167,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
 )
 def test_heap_profiler_large_heap_overhead() -> None:
     # NOTE: A regression test for integer arithmetic bugs.
-    from ddtrace.profiling import Profiler
+    from ddtrace.profiling.profiler import Profiler
     from tests.profiling.collector.test_memalloc import one
 
     p = Profiler()
@@ -248,7 +246,7 @@ class HeapInfo:
 
 
 def has_function_in_profile_sample(
-    profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, function_or_name: Union[Callable, str]
+    profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, function_or_name: Union[Callable[..., object], str]
 ) -> bool:
     """Check if a pprof profile sample contains a function in its stack trace.
 
@@ -276,7 +274,7 @@ def has_function_in_profile_sample(
 
 
 def get_tracemalloc_stats_per_func(
-    stats: Sequence[Statistic], funcs: Sequence[Callable]
+    stats: Sequence[Statistic], funcs: Sequence[Callable[..., object]]
 ) -> tuple[dict[str, int], dict[str, int]]:
     source_to_func: dict[str, str] = {}
 
@@ -288,8 +286,8 @@ def get_tracemalloc_stats_per_func(
     actual_sizes: dict[str, int] = {}
     actual_counts: dict[str, int] = {}
     for stat in stats:
-        f = stat.traceback[0]
-        key = f.filename + str(f.lineno)
+        frame = stat.traceback[0]
+        key = frame.filename + str(frame.lineno)
         if key in source_to_func:
             func_name = source_to_func[key]
             actual_sizes[func_name] = stat.size
@@ -312,7 +310,7 @@ def test_memalloc_data_race_regression() -> None:
     import threading
     import time
 
-    from ddtrace.profiling import Profiler
+    from ddtrace.profiling.profiler import Profiler
 
     gc.enable()
     # This threshold is controls when garbage collection is triggered. The
@@ -446,9 +444,11 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
     actual_count_total = sum(actual_counts.values())
 
     def get_allocation_info_from_profile(
-        profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], funcs: Sequence[Union[Callable, str]]
+        profile: pprof_pb2.Profile,
+        samples: Sequence[pprof_pb2.Sample],
+        funcs: Sequence[Union[Callable[..., object], str]],
     ) -> dict[str, HeapInfo]:
-        got = {}
+        got: dict[str, HeapInfo] = {}
         for sample in samples:
             if sample.value[heap_space_idx] > 0:
                 continue
@@ -781,7 +781,7 @@ def test_memory_collector_exception_handling(tmp_path: Path) -> None:
             assert profile is not None
             raise ValueError("Test exception")
 
-    with mc:
+    with mc:  # type: ignore[unreachable]
         _allocate_1k()
         profile = mc.snapshot_and_parse_pprof(output_filename)
         assert profile is not None
@@ -933,7 +933,7 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
     mc = memalloc.MemoryCollector(heap_sample_size=8)
 
     # Store reference to nested function for later qualname access
-    worker_func = None
+    worker_func: Callable[[], None] | None = None
 
     with mc:
         threads: list[threading.Thread] = []
@@ -969,7 +969,7 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 
         worker_samples = 0
         for sample in profile.sample:
-            if worker_func and has_function_in_profile_sample(profile, sample, worker_func):
+            if worker_func is not None and has_function_in_profile_sample(profile, sample, worker_func):
                 worker_samples += 1
 
         assert worker_samples > 0, (
@@ -990,7 +990,7 @@ def test_start_wrong_arg() -> None:
     from ddtrace.profiling.collector import _memalloc
 
     with pytest.raises(TypeError, match="function takes exactly 2 arguments \\(1 given\\)"):
-        _memalloc.start(2)  # pyright: ignore[reportCallIssue]
+        _memalloc.start(2)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
         _memalloc.start(429496, 1)
@@ -1236,7 +1236,7 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
     _memalloc.start(64, 1)
 
     stop = threading.Event()
-    shared: dict = {}
+    shared: dict[str, object] = {}
 
     def mutate(tid: int) -> None:
         i = 0
