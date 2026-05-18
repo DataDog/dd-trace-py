@@ -19,7 +19,7 @@ echo "Installing Python $PYTHON_VERSION and dependencies in $TMPDIR..."
 uv python install $PYTHON_VERSION
 uv venv --python $PYTHON_VERSION .venv
 WHEEL_PATH="$CI_PROJECT_DIR/pywheels/ddtrace*${WHEEL_TAG}*${WHEEL_PATTERN}"
-uv pip install --python $PYTHON_VERSION -r "$CI_PROJECT_DIR/.gitlab/requirements/multi-os-tests.txt" $WHEEL_PATH
+uv pip install --python $PYTHON_VERSION -r "$CI_PROJECT_DIR/dd-trace-py/.gitlab/requirements/multi-os-tests.txt" $WHEEL_PATH
 
 # Run tests
 export PATH="$HOME/.local/bin:$PATH"
