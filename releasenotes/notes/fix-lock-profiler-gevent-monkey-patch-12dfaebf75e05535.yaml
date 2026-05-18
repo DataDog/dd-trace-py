@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue where monkey patching in gevent silently dropped lock profiling samples.
+    This issue was caused by ``gevent`` monkey-patching e.g. ``threading.Lock`` (and other primitives) in place 
+    after the profiler had already patched it.
