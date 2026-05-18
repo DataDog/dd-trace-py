@@ -2,6 +2,7 @@ import asyncio
 import os
 from textwrap import dedent
 from typing import Optional
+from unittest import mock
 
 import pytest
 
@@ -72,6 +73,29 @@ class TestMLApp:
         assert len(spans) == 3
         for span in spans:
             assert get_llmobs_tags(span)["ml_app"] == "test-ml-app"
+
+
+class TestGitMetadata:
+    def test_git_tags_set_on_span_when_available(self, llmobs, tracer):
+        cls = llmobs._instance.__class__
+        with (
+            mock.patch.object(cls, "_git_repository_url", "https://github.com/example/repo"),
+            mock.patch.object(cls, "_git_commit_sha", "abc123def456"),
+        ):
+            with llmobs.workflow("root_llm_span") as span:
+                pass
+        tags = get_llmobs_tags(span)
+        assert tags["git.commit.sha"] == "abc123def456"
+        assert tags["git.repository_url"] == "https://github.com/example/repo"
+
+    def test_git_tags_absent_when_unavailable(self, llmobs, tracer):
+        cls = llmobs._instance.__class__
+        with mock.patch.object(cls, "_git_repository_url", ""), mock.patch.object(cls, "_git_commit_sha", ""):
+            with llmobs.workflow("root_llm_span") as span:
+                pass
+        tags = get_llmobs_tags(span)
+        assert "git.commit.sha" not in tags
+        assert "git.repository_url" not in tags
 
 
 def test_set_correct_parent_id(llmobs, tracer):
