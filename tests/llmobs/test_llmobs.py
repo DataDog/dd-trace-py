@@ -253,6 +253,9 @@ class TestLLMIOProcessing:
                 if s.get_tag("scrub_values") == "1":
                     s.input = [{"content": "scrubbed"}]
                     s.output = [{"content": "scrubbed"}]
+                else:
+                    for msg in s.input + s.output:
+                        msg["content"] = "redacted"
                 return s
 
             LLMObs.register_processor(span_processor)
@@ -261,6 +264,10 @@ class TestLLMIOProcessing:
                 LLMObs.annotate(llm_span, input_data="value", output_data="value", tags={"scrub_values": "1"})
             with LLMObs.llm("openai.request") as llm_span:
                 LLMObs.annotate(llm_span, input_data="value", output_data="value", tags={"scrub_values": "0"})
+            with LLMObs.embedding(model_name="test_model") as emb_span:
+                LLMObs.annotate(emb_span, input_data=[{"text": "sensitive doc", "name": "doc.pdf"}])
+            with LLMObs.retrieval() as ret_span:
+                LLMObs.annotate(ret_span, output_data=[{"text": "sensitive result", "name": "result.pdf", "score": 0.9}])
             """
             ),
             env=env,
@@ -270,13 +277,20 @@ class TestLLMIOProcessing:
         assert err.decode() == ""
         events = llmobs_backend.wait_for_num_events(num=1)
         traces = events[0]
-        assert len(traces) == 2
+        assert len(traces) == 4
         assert "scrub_values:1" in traces[0]["spans"][0]["tags"]
         assert traces[0]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "scrubbed"
         assert traces[0]["spans"][0]["meta"]["output"]["messages"][0]["content"] == "scrubbed"
         assert "scrub_values:0" in traces[1]["spans"][0]["tags"]
         assert traces[1]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "value"
         assert traces[1]["spans"][0]["meta"]["output"]["messages"][0]["content"] == "value"
+        assert traces[2]["spans"][0]["meta"]["span"]["kind"] == "embedding"
+        assert traces[2]["spans"][0]["meta"]["input"]["documents"][0]["text"] == "redacted"
+        assert traces[2]["spans"][0]["meta"]["input"]["documents"][0]["name"] == "doc.pdf"
+        assert traces[3]["spans"][0]["meta"]["span"]["kind"] == "retrieval"
+        assert traces[3]["spans"][0]["meta"]["output"]["documents"][0]["text"] == "redacted"
+        assert traces[3]["spans"][0]["meta"]["output"]["documents"][0]["name"] == "result.pdf"
+        assert traces[3]["spans"][0]["meta"]["output"]["documents"][0]["score"] == 0.9
 
     def test_register_unregister_processor(self, llmobs):
         def _sp(s):
@@ -296,10 +310,8 @@ class TestLLMIOProcessing:
         assert get_llmobs_input_messages(unscrubbed_span)[0]["content"] == "value"
 
     def _mutate_documents(span: LLMObsSpan):
-        for doc in span.input_documents:
-            doc["text"] = ""
-        for doc in span.output_documents:
-            doc["text"] = ""
+        for msg in span.input + span.output:
+            msg["content"] = ""
         return span
 
     @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_mutate_documents)])
@@ -313,8 +325,8 @@ class TestLLMIOProcessing:
         assert get_llmobs_output(ret_span) == {"documents": [{"text": "", "name": "doc.pdf"}]}
 
     def _drop_documents(span: LLMObsSpan):
-        span.input_documents = []
-        span.output_documents = []
+        span.input = []
+        span.output = []
         return span
 
     @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_drop_documents)])
@@ -329,10 +341,8 @@ class TestLLMIOProcessing:
 
     def _conditional_document_processor(span: LLMObsSpan):
         if span.get_tag("scrub_docs") == "1":
-            for doc in span.input_documents:
-                doc["text"] = "redacted"
-            for doc in span.output_documents:
-                doc["text"] = "redacted"
+            for msg in span.input + span.output:
+                msg["content"] = "redacted"
         return span
 
     @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_conditional_document_processor)])
@@ -348,7 +358,16 @@ class TestLLMIOProcessing:
             "documents": [{"text": "public result", "name": "result.pdf"}]
         }
 
-    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_mutate_documents)])
+    def _kind_aware_document_processor(span: LLMObsSpan):
+        if span.get_tag("span.kind") == "embedding":
+            for msg in span.input:
+                msg["content"] = ""
+        elif span.get_tag("span.kind") == "retrieval":
+            for msg in span.output:
+                msg["content"] = ""
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_kind_aware_document_processor)])
     def test_document_processor_mixed_io(self, llmobs, llmobs_enable_opts):
         with llmobs.embedding(model_name="test_model") as emb_span:
             llmobs.annotate(

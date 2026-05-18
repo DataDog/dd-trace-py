@@ -158,7 +158,6 @@ from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
 from ddtrace.llmobs._writer import should_use_agentless
-from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
@@ -326,8 +325,6 @@ class LLMObsSpan:
     input: list[Message] = field(default_factory=list)
     output: list[Message] = field(default_factory=list)
     _tags: dict[str, str] = field(default_factory=dict)
-    input_documents: list[Document] = field(default_factory=list)
-    output_documents: list[Document] = field(default_factory=list)
 
     def get_tag(self, key: str) -> Optional[str]:
         """Get a tag from the span.
@@ -356,8 +353,8 @@ def _build_llmobs_span(
         llmobs_output = _MetaIO()
 
     llmobs_span = LLMObsSpan()
-    input_type: Literal["value", "messages", ""] = ""
-    output_type: Literal["value", "messages", ""] = ""
+    input_type: Literal["value", "messages", "documents", ""] = ""
+    output_type: Literal["value", "messages", "documents", ""] = ""
 
     input_value = llmobs_input.get(LLMOBS_STRUCT.VALUE)
     if input_value is not None:
@@ -369,6 +366,11 @@ def _build_llmobs_span(
         input_type = "messages"
         llmobs_span.input = enforce_message_role(input_messages)
 
+    input_documents = llmobs_input.get(LLMOBS_STRUCT.DOCUMENTS)
+    if input_documents is not None:
+        input_type = "documents"
+        llmobs_span.input = [Message(content=doc.get("text", ""), role="") for doc in input_documents]
+
     output_value = llmobs_output.get(LLMOBS_STRUCT.VALUE)
     if output_value is not None:
         output_type = "value"
@@ -379,11 +381,10 @@ def _build_llmobs_span(
         output_type = "messages"
         llmobs_span.output = enforce_message_role(output_messages)
 
-    if (input_documents := llmobs_input.get(LLMOBS_STRUCT.DOCUMENTS)) is not None:
-        llmobs_span.input_documents = input_documents
-
-    if (output_documents := llmobs_output.get(LLMOBS_STRUCT.DOCUMENTS)) is not None:
-        llmobs_span.output_documents = output_documents
+    output_documents = llmobs_output.get(LLMOBS_STRUCT.DOCUMENTS)
+    if output_documents is not None:
+        output_type = "documents"
+        llmobs_span.output = [Message(content=doc.get("text", ""), role="") for doc in output_documents]
 
     return llmobs_span, input_type, output_type
 
@@ -393,8 +394,8 @@ def _normalize_llmobs_meta(
     llmobs_span: LLMObsSpan,
     llmobs_meta: _Meta,
     span_kind: str,
-    input_type: Literal["value", "messages", ""],
-    output_type: Literal["value", "messages", ""],
+    input_type: Literal["value", "messages", "documents", ""],
+    output_type: Literal["value", "messages", "documents", ""],
     export_to_llmobs: bool,
 ) -> None:
     """Normalize the llmobs meta dict in place so `_llmobs_span_event()` can read it directly.
@@ -444,10 +445,16 @@ def _normalize_llmobs_meta(
         meta_input[LLMOBS_STRUCT.MESSAGES] = llmobs_span.input
     elif input_type == "value" and llmobs_span.input:
         meta_input[LLMOBS_STRUCT.VALUE] = llmobs_span.input[0].get("content", "")
-    if llmobs_span.input_documents:
-        meta_input[LLMOBS_STRUCT.DOCUMENTS] = llmobs_span.input_documents
-    else:
-        meta_input.pop(LLMOBS_STRUCT.DOCUMENTS, None)
+    elif input_type == "documents":
+        original_docs = meta_input.get(LLMOBS_STRUCT.DOCUMENTS) or []
+        if llmobs_span.input:
+            meta_input[LLMOBS_STRUCT.DOCUMENTS] = [
+                {**original_docs[i], "text": msg.get("content", "")}
+                for i, msg in enumerate(llmobs_span.input)
+                if i < len(original_docs)
+            ]
+        else:
+            meta_input.pop(LLMOBS_STRUCT.DOCUMENTS, None)
     if meta_input:
         llmobs_meta[LLMOBS_STRUCT.INPUT] = meta_input
     else:
@@ -457,10 +464,16 @@ def _normalize_llmobs_meta(
         meta_output[LLMOBS_STRUCT.MESSAGES] = llmobs_span.output
     elif output_type == "value" and llmobs_span.output:
         meta_output[LLMOBS_STRUCT.VALUE] = llmobs_span.output[0].get("content", "")
-    if llmobs_span.output_documents:
-        meta_output[LLMOBS_STRUCT.DOCUMENTS] = llmobs_span.output_documents
-    else:
-        meta_output.pop(LLMOBS_STRUCT.DOCUMENTS, None)
+    elif output_type == "documents":
+        original_docs = meta_output.get(LLMOBS_STRUCT.DOCUMENTS) or []
+        if llmobs_span.output:
+            meta_output[LLMOBS_STRUCT.DOCUMENTS] = [
+                {**original_docs[i], "text": msg.get("content", "")}
+                for i, msg in enumerate(llmobs_span.output)
+                if i < len(original_docs)
+            ]
+        else:
+            meta_output.pop(LLMOBS_STRUCT.DOCUMENTS, None)
     if meta_output:
         llmobs_meta[LLMOBS_STRUCT.OUTPUT] = meta_output
     else:
@@ -583,6 +596,7 @@ class LLMObs(Service):
         error = False
         try:
             llmobs_span._tags = get_llmobs_tags(span) or {}
+            llmobs_span._tags["span.kind"] = get_llmobs_span_kind(span) or ""
             result = self._user_span_processor(llmobs_span)
             if result is None:
                 return None
