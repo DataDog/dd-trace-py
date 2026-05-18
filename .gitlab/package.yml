@@ -134,12 +134,21 @@ variables:
   extends: .build_base
   variables:
     SYSTEM_VERSION_COMPAT: "0"
-      # Pin the deployment target as the tart VM image may run a different minor version
     MACOSX_DEPLOYMENT_TARGET: "14.7"
     DD_USE_SCCACHE: "1"
+
+"build macos amd64":
+  extends: .build_macos_base
+  tags: [ "macos:sonoma-amd64", "specific:true" ]
+  variables:
+    ARCH_TAG: "amd64"
+  parallel:
+    matrix:
+      # amd64 runners are slower
+      - PYTHON_VERSIONS:
+          - "3.9 3.10 3.11"
+          - "3.12 3.13 3.14"
   script: |
-    # Forces word splitting in zsh
-    setopt shwordsplit 2>/dev/null || true
     set -euo pipefail
     if ! command -v sccache &> /dev/null; then
       brew install sccache
@@ -154,18 +163,6 @@ variables:
     done
     sccache --show-stats
 
-"build macos amd64":
-  extends: .build_macos_base
-  tags: [ "macos:sonoma-amd64", "specific:true" ]
-  variables:
-    ARCH_TAG: "amd64"
-  parallel:
-    matrix:
-      # amd64 runners are slower
-      - PYTHON_VERSIONS:
-          - "3.9 3.10 3.11"
-          - "3.12 3.13 3.14"
-
 "build macos arm64":
   extends: .build_macos_base
   image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
@@ -174,8 +171,6 @@ variables:
     ARCH_TAG: "arm64"
     # The script section wrapper doesn't play nicely with zsh `setopt shwordsplit`
     FF_SCRIPT_SECTIONS: "false"
-    # Tart VMs are ephemeral; point sccache at the shared bucket the Tart
-    # IAM role has access to so the arm64 job gets cross-job cache reuse.
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
     SCCACHE_REGION: "us-east-1"
   parallel:
@@ -183,6 +178,28 @@ variables:
       - PYTHON_VERSIONS:
           - "3.9 3.10 3.11"
           - "3.12 3.13 3.14"
+  script: |
+    setopt shwordsplit 2>/dev/null || true
+    set -euo pipefail
+    if ! command -v sccache &> /dev/null; then
+      brew install sccache
+    fi
+    # sccache hardcodes the IMDS IP (169.254.169.254) and ignores $AWS_EC2_METADATA_SERVICE_ENDPOINT,
+    # so resolve creds from the tart iam-proxy beforehand
+    role=$(curl -sS "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/")
+    creds=$(curl -sS "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}")
+    export AWS_ACCESS_KEY_ID=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["AccessKeyId"])' <<<"$creds")
+    export AWS_SECRET_ACCESS_KEY=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["SecretAccessKey"])' <<<"$creds")
+    export AWS_SESSION_TOKEN=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["Token"])' <<<"$creds")
+    for python_version in ${PYTHON_VERSIONS}; do
+      echo -e "\e[0Ksection_start:`date +%s`:build_macos_${python_version}\r\e[0KBuilding macOS wheel for Python ${python_version}"
+
+      export UV_PYTHON="${python_version}"
+      .gitlab/scripts/build-wheel.sh
+
+      echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
+    done
+    sccache --show-stats
 
 # Only amd64 manylinux2014 wheels
 "upload manylinux2014_x86_64":
