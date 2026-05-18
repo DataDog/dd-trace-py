@@ -13,10 +13,10 @@ from ddtrace.appsec._ai_guard._langchain import _langchain_llm_stream_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_patch
 from ddtrace.appsec._ai_guard._langchain import _langchain_stream_started
 from ddtrace.appsec._ai_guard._langchain import _langchain_unpatch
-from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_after
-from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_before
-from ddtrace.appsec._ai_guard._openai import _openai_response_create_after
-from ddtrace.appsec._ai_guard._openai import _openai_response_create_before
+from ddtrace.appsec._ai_guard._openai_chat import _openai_chat_completion_after
+from ddtrace.appsec._ai_guard._openai_chat import _openai_chat_completion_before
+from ddtrace.appsec._ai_guard._openai_responses import _openai_response_create_after
+from ddtrace.appsec._ai_guard._openai_responses import _openai_response_create_before
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard import new_ai_guard_client

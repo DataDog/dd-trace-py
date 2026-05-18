@@ -12,9 +12,9 @@ import ddtrace.appsec._ai_guard as ai_guard_mod
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active
 from ddtrace.appsec._ai_guard._context import set_aiguard_context_active
-from ddtrace.appsec._ai_guard._openai import _convert_openai_messages
-from ddtrace.appsec._ai_guard._openai import _convert_openai_response
-from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_before
+from ddtrace.appsec._ai_guard._openai_chat import _convert_openai_messages
+from ddtrace.appsec._ai_guard._openai_chat import _convert_openai_response
+from ddtrace.appsec._ai_guard._openai_chat import _openai_chat_completion_before
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from tests.appsec.ai_guard.openai._span_helpers import assert_block_emits_both_spans
 from tests.appsec.ai_guard.utils import mock_evaluate_response
