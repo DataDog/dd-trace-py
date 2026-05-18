@@ -361,3 +361,107 @@ def test_contextvar_resets_after_botocore_call(s3_client, distributed_tracing):
     # Regardless of which branch was taken, the contextvar must be back to
     # False after the call returns.
     assert http_propagation_suppressed.get() is False
+
+
+def test_non_aws_urllib3_request_still_gets_headers(patched_botocore):
+    """A urllib3 request made outside any botocore call must still have
+    propagation headers injected. Regression guard: the new contextvar
+    must not leak globally."""
+    import urllib3
+
+    # Patch urllib3 too so the integration is active.
+    from ddtrace.contrib.internal.urllib3.patch import patch as patch_urllib3
+    from ddtrace.contrib.internal.urllib3.patch import unpatch as unpatch_urllib3
+
+    patch_urllib3()
+    try:
+        with mock.patch(
+            "ddtrace._trace.subscribers.http_client.HTTPPropagator.inject"
+        ) as inject:
+            # Use a connection that never connects — we just need the urlopen
+            # call to reach the integration's wrapper. A bogus host raises
+            # but the subscriber fires first.
+            pool = urllib3.HTTPConnectionPool("127.0.0.1", port=1, maxsize=1)
+            with ddtrace.tracer.trace("test.urllib3"):
+                try:
+                    pool.urlopen("GET", "/", retries=False, timeout=0.001)
+                except Exception:
+                    pass
+            inject.assert_called_once()
+    finally:
+        unpatch_urllib3()
+
+
+def test_presigned_url_generation_is_unaffected(s3_client):
+    """generate_presigned_url does not go through _make_api_call. We must
+    not crash, and the returned URL must not embed Datadog headers as
+    query params (which would mean we accidentally injected in the wrong
+    place)."""
+    with ddtrace.tracer.trace("test.presign"):
+        url = s3_client.generate_presigned_url(
+            "get_object", Params={"Bucket": "b", "Key": "k"}, ExpiresIn=60
+        )
+    assert "x-datadog" not in url.lower()
+    assert "traceparent" not in url.lower()
+
+
+def test_concurrent_aws_calls_do_not_leak_suppression(patched_botocore):
+    """Two AWS calls in two threads must each manage their own contextvar
+    independently. We verify by snapshotting the contextvar inside the
+    before-send hook for each call."""
+    import threading
+
+    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+
+    results: dict[str, bool] = {}
+
+    def run(name: str):
+        session = botocore.session.Session()
+        session.set_credentials(access_key="A", secret_key="B")
+        client = session.create_client("s3", region_name="us-east-1")
+
+        def before_send(request, **kwargs):
+            results[name] = http_propagation_suppressed.get()
+            raise _StopBeforeWire()
+
+        client.meta.events.register_first("before-send.s3.ListBuckets", before_send)
+        try:
+            with ddtrace.tracer.trace("test.span"):
+                client.list_buckets()
+        except _StopBeforeWire:
+            pass
+
+    threads = [threading.Thread(target=run, args=(name,)) for name in ("a", "b")]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # Both calls must have seen suppression == True (the before-sign handler
+    # set it before before-send fires).
+    assert set(results) == {"a", "b"}, f"Not all threads completed; got keys: {set(results)}"
+    assert results == {"a": True, "b": True}
+    # And the parent test scope must NOT see suppression set.
+    assert http_propagation_suppressed.get() is False
+
+
+def test_handler_does_not_overwrite_existing_propagation_headers():
+    """If the application has already set a propagation header (e.g., from
+    a custom propagator), the handler must not overwrite it. This is the
+    'never break user intent' guard. We also verify the handler still
+    injects headers it did NOT preset, so a no-op handler can't pass this
+    test."""
+    from botocore.awsrequest import AWSRequest
+    from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
+
+    request = AWSRequest(method="GET", url="https://example.com/")
+    request.headers["x-datadog-trace-id"] = "explicit-app-value"
+
+    with ddtrace.tracer.trace("test.span"):
+        _inject_trace_headers_handler(request=request)
+
+    # The application's value is preserved.
+    assert request.headers["x-datadog-trace-id"] == "explicit-app-value"
+    # Headers the application did NOT pre-set were still injected,
+    # proving the handler ran end-to-end rather than no-opping.
+    assert "traceparent" in request.headers
