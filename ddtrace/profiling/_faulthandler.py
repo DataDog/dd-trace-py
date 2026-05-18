@@ -34,17 +34,22 @@ def _(faulthandler: ModuleType) -> None:
         return
 
     _original_enable: Callable[..., None] = faulthandler.enable
+    _original_disable: Callable[[], None] = faulthandler.disable
 
     def _patched_enable(*args: typing.Any, **kwargs: typing.Any) -> None:
-        # Pause the sampling thread so no safe_memcpy is in flight during the
-        # handler swap.  If the sampler isn't running this is a no-op and the
-        # swap is inherently safe.
         was_paused: bool = stack.pause_sampling()
         try:
-            # Remove our SIGSEGV/SIGBUS handler so faulthandler records the real
-            # previous handler (not ours), avoiding a handler cycle.
             try:
                 stack.uninstall_segv_handler()
+            except Exception:  # nosec: B110
+                pass
+
+            # Disable faulthandler before re-enabling so it does a fresh
+            # sigaction install.  Without this, Python may reinstall the
+            # handler while it is already the current handler, saving itself as
+            # its own ``previous`` and creating an infinite handler loop.
+            try:
+                _original_disable()
             except Exception:  # nosec: B110
                 pass
 
@@ -57,7 +62,6 @@ def _(faulthandler: ModuleType) -> None:
                     pass
                 raise
 
-            # Reinstall our handler on top of faulthandler's.
             try:
                 stack.reinstall_segv_handler()
             except Exception:  # nosec: B110

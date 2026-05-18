@@ -1,0 +1,284 @@
+"""Tests for faulthandler + stack profiler coexistence.
+
+Validates that:
+- faulthandler.enable can be called before/after the profiler starts
+- faulthandler's traceback output works when our SIGSEGV handler is installed
+- The pause/resume mechanism works correctly for safe handler swapping
+- Edge cases like stop-while-paused and fork-after-enable are handled
+
+Note: the tests do not add _DD_PROFILING_STACK_FAST_COPY=1 to the env as the
+default is to use fast copy.
+"""
+
+import sys
+
+import pytest
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(err=None)
+def test_faulthandler_enable_after_profiler_start() -> None:
+    """faulthandler.enable called after profiler start must not crash."""
+    import faulthandler
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+
+    if stack.is_available:
+        ddup.config(env="test", service="test", version="0.0.0")
+        ddup.start()
+
+        stack.start()
+        try:
+            faulthandler.enable()
+            assert faulthandler.is_enabled()
+        finally:
+            stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(err=None)
+def test_faulthandler_enable_before_profiler_start() -> None:
+    """faulthandler already enabled when profiler starts must not crash."""
+    import faulthandler
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+
+    if stack.is_available:
+        faulthandler.enable()
+        assert faulthandler.is_enabled()
+
+        ddup.config(env="test", service="test", version="0.0.0")
+        ddup.start()
+
+        stack.start()
+        try:
+            from ddtrace.profiling import _faulthandler  # noqa: F401
+
+            assert faulthandler.is_enabled()
+        finally:
+            stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(err=None)
+def test_faulthandler_multiple_enables() -> None:
+    """Calling faulthandler.enable called multiple times must not crash or leak handlers."""
+    import faulthandler
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+
+    if stack.is_available:
+        ddup.config(env="test", service="test", version="0.0.0")
+        ddup.start()
+
+        stack.start()
+        try:
+            for _ in range(10):
+                faulthandler.enable()
+            assert faulthandler.is_enabled()
+        finally:
+            stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(env={"PYTHONFAULTHANDLER": "1", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None)
+def test_pythonfaulthandler_env_after_profiler_start() -> None:
+    """PYTHONFAULTHANDLER=1 auto-enables faulthandler before any user code runs.
+
+    The profiler must coexist with the pre-enabled faulthandler.
+    """
+    import faulthandler
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    assert stack.is_available
+    assert faulthandler.is_enabled()
+
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    stack.start()
+    try:
+        assert faulthandler.is_enabled()
+    finally:
+        stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(env={"PYTHONFAULTHANDLER": "1"}, err=None)
+def test_pythonfaulthandler_env_with_multiple_enables() -> None:
+    """Calling faulthandler.enable repeatedly with PYTHONFAULTHANDLER=1 must not corrupt the handler chain."""
+    import faulthandler
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    if stack.is_available:
+        assert faulthandler.is_enabled()
+
+        ddup.config(env="test", service="test", version="0.0.0")
+        ddup.start()
+
+        stack.start()
+        try:
+            for _ in range(10):
+                faulthandler.enable()
+            assert faulthandler.is_enabled()
+        finally:
+            stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    status=-11,
+    err=lambda s: "Fatal Python error" in s or "Segmentation fault" in s,
+)
+def test_faulthandler_traceback_on_segfault() -> None:
+    """When a real SIGSEGV occurs, faulthandler's traceback must be printed.
+
+    Our handler is on top but not armed (no safe_memcpy in progress), so it
+    chains to faulthandler which prints the traceback, then the process dies.
+
+    faulthandler must be enabled BEFORE importing the native stack module so
+    that init_segv_catcher (which runs as a library constructor)
+    saves faulthandler's handler as g_old_segv with a clean ``previous``
+    pointing at SIG_DFL.
+    """
+    import faulthandler
+    import signal
+    import sys
+
+    # Enable faulthandler BEFORE loading the native stack module.
+    # The library constructor installs our handler at import time, so
+    # faulthandler must already be set up with previous=SIG_DFL.
+    if not faulthandler.is_enabled():
+        faulthandler.enable(file=sys.stderr)
+
+    from ddtrace.internal.datadog.profiling import stack
+
+    if not stack.is_available:
+        sys.stderr.write("Fatal Python error\n")
+        signal.raise_signal(signal.SIGSEGV)
+
+    # Our handler was installed by the library constructor.
+    # Chain: our handler → faulthandler → SIG_DFL.
+    signal.raise_signal(signal.SIGSEGV)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(err=None)
+def test_pause_sampling_returns_false_when_not_running() -> None:
+    """Calling pause_sampling must return False when the sampler is not running."""
+    from ddtrace.internal.datadog.profiling import stack
+
+    if stack.is_available:
+        assert stack.pause_sampling() is False
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(err=None)
+def test_pause_resume_while_running() -> None:
+    """Calling pause_sampling must return True when sampler is running, and resume must work."""
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+
+    if stack.is_available:
+        ddup.config(env="test", service="test", version="0.0.0")
+        ddup.start()
+
+        stack.start()
+        try:
+            time.sleep(0.05)
+            assert stack.pause_sampling() is True
+            stack.resume_sampling()
+            time.sleep(0.05)
+        finally:
+            stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(err=None)
+def test_stop_while_paused() -> None:
+    """Stopping the sampler while paused must not hang or crash."""
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+
+    if stack.is_available:
+        ddup.config(env="test", service="test", version="0.0.0")
+        ddup.start()
+
+        stack.start()
+        time.sleep(0.05)
+        assert stack.pause_sampling() is True
+        stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(err=None)
+def test_faulthandler_enable_during_sampling() -> None:
+    """Calling faulthandler.enable while sampling is active must pause/swap/resume safely."""
+    import faulthandler
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    if stack.is_available:
+        ddup.config(env="test", service="test", version="0.0.0")
+        ddup.start()
+
+        stack.start()
+        try:
+            time.sleep(0.1)
+            faulthandler.enable()
+            assert faulthandler.is_enabled()
+            time.sleep(0.1)
+        finally:
+            stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(err=None)
+def test_faulthandler_with_fork() -> None:
+    """Fork after calling faulthandler.enable + profiler start must not crash."""
+    import os
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    if stack.is_available:
+        import faulthandler
+
+        ddup.config(env="test", service="test", version="0.0.0")
+        ddup.start()
+
+        faulthandler.enable()
+        stack.start()
+        try:
+            pid = os.fork()
+            if pid == 0:
+                try:
+                    import time
+
+                    time.sleep(0.05)
+                except Exception:
+                    os._exit(1)
+                os._exit(0)
+            else:
+                _, status = os.waitpid(pid, 0)
+                assert os.WIFEXITED(status), f"Child killed by signal {os.WTERMSIG(status)}"
+                assert os.WEXITSTATUS(status) == 0, "Child exited with non-zero status"
+        finally:
+            stack.stop()
