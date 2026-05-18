@@ -9,8 +9,6 @@ from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_after
 from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_before
 from ddtrace.appsec._ai_guard._anthropic import _convert_anthropic_messages
 from ddtrace.appsec._ai_guard._anthropic import _convert_anthropic_response
-from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active
-from ddtrace.appsec._ai_guard._context import set_aiguard_context_active
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import override_ai_guard_config
@@ -22,16 +20,6 @@ CHAT_PARAMS = dict(model=CHAT_MODEL, max_tokens=256)
 
 def _user_messages(content="Hello"):
     return [{"role": "user", "content": content}]
-
-
-@pytest.fixture
-def aiguard_active_context():
-    """Mark the current task as under active AI Guard evaluation for the test."""
-    token = set_aiguard_context_active()
-    try:
-        yield
-    finally:
-        reset_aiguard_context_active(token)
 
 
 @pytest.fixture

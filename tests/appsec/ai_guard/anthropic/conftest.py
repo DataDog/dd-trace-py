@@ -6,10 +6,26 @@ import httpx
 import pytest
 
 from ddtrace.appsec._ai_guard import init_ai_guard
+from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active
+from ddtrace.appsec._ai_guard._context import set_aiguard_context_active
 from ddtrace.contrib.internal.anthropic.patch import patch
 from ddtrace.contrib.internal.anthropic.patch import unpatch
 from tests.appsec.ai_guard.utils import override_ai_guard_config
 from tests.utils import override_env
+
+
+@pytest.fixture
+def aiguard_active_context():
+    """Mark the current task as under active AI Guard evaluation for the test.
+
+    Always resets on teardown — even if the test raises — so subsequent tests
+    do not observe a leaked active counter.
+    """
+    token = set_aiguard_context_active()
+    try:
+        yield
+    finally:
+        reset_aiguard_context_active(token)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -135,13 +151,17 @@ def _fake_tool_use_body() -> bytes:
     ).encode()
 
 
+def _fake_tool_use_response() -> httpx.Response:
+    return httpx.Response(
+        status_code=200,
+        headers={"content-type": "application/json"},
+        content=_fake_tool_use_body(),
+    )
+
+
 class _ToolUseMockTransport(httpx.BaseTransport):
     def handle_request(self, request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            status_code=200,
-            headers={"content-type": "application/json"},
-            content=_fake_tool_use_body(),
-        )
+        return _fake_tool_use_response()
 
 
 @pytest.fixture

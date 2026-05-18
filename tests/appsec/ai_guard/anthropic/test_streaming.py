@@ -4,8 +4,6 @@ from unittest.mock import patch
 
 import pytest
 
-from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active
-from ddtrace.appsec._ai_guard._context import set_aiguard_context_active
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 
@@ -16,15 +14,6 @@ CHAT_PARAMS = dict(model=CHAT_MODEL, max_tokens=256)
 
 def _user_messages(content="Hello"):
     return [{"role": "user", "content": content}]
-
-
-@pytest.fixture
-def aiguard_active_context():
-    token = set_aiguard_context_active()
-    try:
-        yield
-    finally:
-        reset_aiguard_context_active(token)
 
 
 # ---------------------------------------------------------------------------

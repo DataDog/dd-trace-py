@@ -139,6 +139,25 @@ def _wrap_abort_error(cause):
     return wrapped
 
 
+def _tool_call_from_block(block):
+    """Convert a single Anthropic ``tool_use`` content block to an AI Guard ``ToolCall``.
+
+    Anthropic delivers ``input`` as a parsed dict; AI Guard's schema is
+    JSON-string-typed, so serialise once via ``json.dumps(..., default=str)``
+    to tolerate non-JSON-serializable values (datetimes, custom classes)
+    without breaking the converter.
+    """
+    tool_input = _get(block, "input", {})
+    try:
+        arguments = json.dumps(tool_input, default=str)
+    except Exception:
+        arguments = str(tool_input)
+    return ToolCall(
+        id=_get(block, "id", "") or "",
+        function=Function(name=_get(block, "name", "") or "", arguments=arguments),
+    )
+
+
 def _flatten_text_blocks(value):
     """Join ``text`` fields from a list of Anthropic content blocks (str or list).
 
@@ -227,19 +246,7 @@ def _convert_anthropic_messages(system, messages):
                     if text:
                         text_parts.append(text)
                 elif block_type == "tool_use":
-                    tool_id = _get(block, "id", "") or ""
-                    tool_name = _get(block, "name", "") or ""
-                    tool_input = _get(block, "input", {})
-                    try:
-                        arguments = json.dumps(tool_input, default=str)
-                    except Exception:
-                        arguments = str(tool_input)
-                    tool_calls_out.append(
-                        ToolCall(
-                            id=tool_id,
-                            function=Function(name=tool_name, arguments=arguments),
-                        )
-                    )
+                    tool_calls_out.append(_tool_call_from_block(block))
                 elif block_type == "tool_result":
                     tool_use_id = _get(block, "tool_use_id", "") or ""
                     tool_content = _flatten_text_blocks(_get(block, "content"))
@@ -289,19 +296,7 @@ def _convert_anthropic_response(resp):
                 if text:
                     text_parts.append(text)
             elif block_type == "tool_use":
-                tool_id = _get(block, "id", "") or ""
-                tool_name = _get(block, "name", "") or ""
-                tool_input = _get(block, "input", {})
-                try:
-                    arguments = json.dumps(tool_input, default=str)
-                except Exception:
-                    arguments = str(tool_input)
-                tool_calls_out.append(
-                    ToolCall(
-                        id=tool_id,
-                        function=Function(name=tool_name, arguments=arguments),
-                    )
-                )
+                tool_calls_out.append(_tool_call_from_block(block))
 
         if not text_parts and not tool_calls_out:
             return []
