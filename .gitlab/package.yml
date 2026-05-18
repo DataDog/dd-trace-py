@@ -172,6 +172,10 @@ variables:
   variables:
     ARCH_TAG: "arm64"
     PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
+    # Tart VMs are ephemeral; point sccache at the shared bucket the Tart
+    # IAM role has access to so the arm64 job gets cross-job cache reuse.
+    SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
+    SCCACHE_REGION: "us-east-1"
 
 # "upload manylinux2014_x86_64":
 #   extends: .upload_wheels_base
