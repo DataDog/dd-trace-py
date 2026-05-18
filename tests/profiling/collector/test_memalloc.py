@@ -934,9 +934,6 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 
     mc = memalloc.MemoryCollector(heap_sample_size=8)
 
-    # Store reference to nested function for later qualname access
-    worker_func = None
-
     with mc:
         threads: list[threading.Thread] = []
 
@@ -951,9 +948,6 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
                 else:
                     data = [i] * 100
                 del data
-
-        # Capture reference before context manager exits
-        worker_func = worker
 
         for i in range(20):
             t = threading.Thread(target=worker)
@@ -971,7 +965,7 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 
         worker_samples = 0
         for sample in profile.sample:
-            if worker_func and has_function_in_profile_sample(profile, sample, worker_func):  # type: ignore[truthy-function]
+            if has_function_in_profile_sample(profile, sample, worker):
                 worker_samples += 1
 
         assert worker_samples > 0, (

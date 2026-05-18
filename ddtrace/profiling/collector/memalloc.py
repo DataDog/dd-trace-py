@@ -46,7 +46,7 @@ class MemoryCollector:
             heap_sample_size if heap_sample_size is not None else config.heap.sample_size,  # pyright: ignore
         )
         self.ignore_profiler = cast(bool, ignore_profiler if ignore_profiler is not None else config.ignore_profiler)
-        mem_default: bool = config.memory.mem_domain_enabled  # pyright: ignore[reportAttributeAccessIssue]
+        mem_default: bool = config.memory.mem_domain_enabled
         self.mem_domain_enabled = mem_domain_enabled if mem_domain_enabled is not None else mem_default
 
     def start(self) -> None:
