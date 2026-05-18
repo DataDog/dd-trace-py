@@ -281,13 +281,34 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         if supported_operations is None or operation in supported_operations:
             patching_fn = patched_endpoint[PATCHING_FN_KEY]
 
-    return patching_fn(
-        original_func=original_func,
-        instance=instance,
-        args=args,
-        kwargs=kwargs,
-        function_vars=function_vars,
-    )
+    # Initialize the propagation-suppression contextvar for this AWS call.
+    #
+    # If distributed_tracing is disabled for botocore, suppress urllib3-layer
+    # injection entirely for this call — the user explicitly opted out, so AWS
+    # must see no Datadog/W3C trace headers at any layer.
+    #
+    # Otherwise initialize to False; the before-sign handler will flip it to
+    # True if and when it actually injects. If the handler never fires (e.g.,
+    # anonymous/unsigned requests, or unusual signing flows), the contextvar
+    # stays False and the urllib3 subscriber falls back to today's behavior —
+    # so we never regress existing AWS-via-ddtrace setups.
+    #
+    # Reset on exit so nothing leaks to subsequent unrelated HTTP calls in
+    # the same task/thread.
+    if not config.botocore["distributed_tracing"]:
+        token = http_propagation_suppressed.set(True)
+    else:
+        token = http_propagation_suppressed.set(False)
+    try:
+        return patching_fn(
+            original_func=original_func,
+            instance=instance,
+            args=args,
+            kwargs=kwargs,
+            function_vars=function_vars,
+        )
+    finally:
+        http_propagation_suppressed.reset(token)
 
 
 def prep_context_injection(ctx, endpoint_name, operation, trace_operation, params):

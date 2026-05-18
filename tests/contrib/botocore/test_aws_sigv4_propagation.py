@@ -9,7 +9,6 @@ mismatch errors. dd-trace-java avoids this by injecting at the
 """
 
 import re
-from typing import Optional
 from unittest import mock
 
 import botocore.session
@@ -321,3 +320,44 @@ def test_unpatch_removes_session_init_wrapper():
         # Defensive: if any assertion or session call leaves state inconsistent, this resets it.
         # (Already unpatched at this point; this is harmless and symmetric with the other test.)
         unpatch()
+
+
+def test_distributed_tracing_disabled_suppresses_urllib3_injection_for_aws(s3_client):
+    """When DD_BOTOCORE_DISTRIBUTED_TRACING=false, AWS requests must contain
+    NO trace propagation headers at any layer. Today's behavior leaks
+    headers via the urllib3 subscriber even when botocore's flag is off —
+    the contextvar guard in patched_api_call fixes that."""
+    from ddtrace import config
+
+    original = config.botocore["distributed_tracing"]
+    config.botocore["distributed_tracing"] = False
+    try:
+        headers = _capture_signed_request(s3_client)
+    finally:
+        config.botocore["distributed_tracing"] = original
+
+    leaked = {h for h in headers if h.lower() in PROPAGATION_HEADERS}
+    assert leaked == set(), (
+        f"propagation headers leaked despite DD_BOTOCORE_DISTRIBUTED_TRACING=false: {leaked}"
+    )
+
+
+@pytest.mark.parametrize("distributed_tracing", [True, False])
+def test_contextvar_resets_after_botocore_call(s3_client, distributed_tracing):
+    """A urllib3 request made AFTER a botocore call must still get headers
+    injected — the suppression contextvar must not leak past the AWS call,
+    regardless of which branch (True or False) initially set it inside
+    patched_api_call."""
+    from ddtrace import config
+    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+
+    original = config.botocore["distributed_tracing"]
+    config.botocore["distributed_tracing"] = distributed_tracing
+    try:
+        _capture_signed_request(s3_client)
+    finally:
+        config.botocore["distributed_tracing"] = original
+
+    # Regardless of which branch was taken, the contextvar must be back to
+    # False after the call returns.
+    assert http_propagation_suppressed.get() is False
