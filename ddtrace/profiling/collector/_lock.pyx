@@ -4,6 +4,7 @@
 # would cause Cython compilation errors since they aren't valid C types.
 
 import _thread
+import functools
 import os.path
 import sys
 import time
@@ -471,6 +472,72 @@ class LockCollector(collector.CaptureSamplerCollector):
     MODULE: ModuleType  # e.g., threading module
     PATCHED_LOCK_NAME: str  # e.g., "Lock", "RLock", "Semaphore"
 
+    _active_collectors: set = set()
+    _gevent_hook_registered: bool = False
+    _gevent_monkey_wrapped: bool = False
+
+    @classmethod
+    def _ensure_gevent_monkey_hook(cls) -> None:
+        """Register a one-time hook to detect gevent monkey-patching.
+
+        When gevent.monkey.patch_all() or patch_thread() runs, it replaces
+        threading.Lock (and friends) in-place, destroying our _LockAllocatorWrapper.
+        This hook wraps those functions so we can re-apply lock profiling afterwards.
+        """
+        if cls._gevent_hook_registered:
+            return
+        cls._gevent_hook_registered = True
+
+        def _on_gevent_monkey_imported(gevent_monkey_module: ModuleType) -> None:
+            cls._wrap_gevent_monkey(gevent_monkey_module)
+
+        if "gevent.monkey" in sys.modules:
+            cls._wrap_gevent_monkey(sys.modules["gevent.monkey"])
+
+        ModuleWatchdog.register_module_hook("gevent.monkey", _on_gevent_monkey_imported)
+
+    @classmethod
+    def _wrap_gevent_monkey(cls, gevent_monkey: ModuleType) -> None:
+        """Wrap gevent.monkey.patch_all and patch_thread with a post-callback."""
+        if cls._gevent_monkey_wrapped:
+            return
+        cls._gevent_monkey_wrapped = True
+
+        original_patch_all = gevent_monkey.patch_all
+        original_patch_thread = gevent_monkey.patch_thread
+
+        @functools.wraps(original_patch_all)
+        def _wrapped_patch_all(*args: Any, **kwargs: Any) -> Any:
+            result = original_patch_all(*args, **kwargs)
+            cls._repatch_after_gevent_monkey()
+            return result
+
+        @functools.wraps(original_patch_thread)
+        def _wrapped_patch_thread(*args: Any, **kwargs: Any) -> Any:
+            result = original_patch_thread(*args, **kwargs)
+            cls._repatch_after_gevent_monkey()
+            return result
+
+        gevent_monkey.patch_all = _wrapped_patch_all
+        gevent_monkey.patch_thread = _wrapped_patch_thread
+
+        if hasattr(gevent_monkey, "is_module_patched") and gevent_monkey.is_module_patched("threading"):
+            cls._repatch_after_gevent_monkey()
+
+    @classmethod
+    def _repatch_after_gevent_monkey(cls) -> None:
+        """Re-apply lock profiling patches on any collector whose wrapper was overwritten."""
+        for collector_inst in list(cls._active_collectors):
+            current = collector_inst._get_patch_target()
+            if not isinstance(current, _LockAllocatorWrapper):
+                log.debug(
+                    "%s: gevent monkey-patching overwrote lock profiler wrapper on %s.%s; re-applying.",
+                    type(collector_inst).__name__,
+                    collector_inst.MODULE.__name__,
+                    collector_inst.PATCHED_LOCK_NAME,
+                )
+                collector_inst.patch()
+
     def __init__(
         self,
         tracer: Optional[Tracer] = None,
@@ -492,6 +559,9 @@ class LockCollector(collector.CaptureSamplerCollector):
         """Start collecting lock usage."""
         _c_initialize_gevent_support()
         self.patch()
+
+        LockCollector._active_collectors.add(self)
+        LockCollector._ensure_gevent_monkey_hook()
 
         # Register a hook to re-apply patches if the target module is
         # re-imported after cleanup_loaded_modules() discards it from sys.modules.
@@ -529,6 +599,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         """Stop collecting lock usage."""
         super(LockCollector, self)._stop_service()  # type: ignore[safe-super]
         self.unpatch()
+        LockCollector._active_collectors.discard(self)
         if self._reimport_hook is not None:
             ModuleWatchdog.unregister_module_hook(self.MODULE.__name__, self._reimport_hook)
             self._reimport_hook = None
