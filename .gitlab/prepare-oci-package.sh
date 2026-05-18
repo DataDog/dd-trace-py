@@ -15,7 +15,7 @@ if [ -z "$PYTHON_PACKAGE_VERSION" ]; then
   # wheels have the form:
   # ddtrace-2.11.0.dev41+g50bf57680-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
   # the version is everything between the first and second "-"
-  WHEELS_LIST=(pywheels/*.whl)
+  WHEELS_LIST=(../pywheels/*.whl)
   FIRST_WHEEL=${WHEELS_LIST[1]}
 
   #everything before -
@@ -34,16 +34,16 @@ echo -n "$PYTHON_PACKAGE_VERSION" > sources/version
 echo "Cleaning up binaries for ${ARCH}"
 if [ "${ARCH}" == "arm64" ]; then
   echo "Removing x86_64 binaries"
-  find pywheels-dep/ -type f -name '*x86_64*' -exec rm -f {} \;
+  find ../pywheels-dep/ -type f -name '*x86_64*' -exec rm -f {} \;
 elif [ "${ARCH}" == "amd64" ]; then
   echo "Removing aarch64 binaries"
-  find pywheels-dep/ -type f -name '*aarch64*' -exec rm -f {} \;
+  find ../pywheels-dep/ -type f -name '*aarch64*' -exec rm -f {} \;
 else
   echo "No ARCH set, not removing any binaries"
 fi
-cp -r pywheels-dep/site-packages* sources/ddtrace_pkgs
+cp -r ../pywheels-dep/site-packages* sources/ddtrace_pkgs
 
-cp dd-trace-py/lib-injection/sources/* sources/
+cp lib-injection/sources/* sources/
 
 if ! type rdfind &> /dev/null; then
   clean-apt install rdfind
