@@ -169,3 +169,72 @@ def test_subscriber_injects_when_propagation_not_suppressed():
     ):
         HttpClientTracingSubscriber.on_started(ctx)
         inject.assert_called_once()
+
+
+def test_before_sign_handler_injects_when_span_active(patched_botocore):
+    """The handler must inject propagation headers into the AWSRequest and
+    set the suppression contextvar."""
+    from botocore.awsrequest import AWSRequest
+
+    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+    from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
+
+    request = AWSRequest(method="GET", url="https://example.com/")
+    assert "x-datadog-trace-id" not in request.headers
+
+    # Reset the contextvar so the test starts from a known state.
+    token = http_propagation_suppressed.set(False)
+    try:
+        with ddtrace.tracer.trace("test.span"):
+            _inject_trace_headers_handler(request=request)
+        assert "x-datadog-trace-id" in request.headers
+        assert http_propagation_suppressed.get() is True
+    finally:
+        http_propagation_suppressed.reset(token)
+
+
+def test_before_sign_handler_noop_when_no_active_span(patched_botocore):
+    """The handler must NOT inject when there's no active span — defensive
+    against being called outside the normal flow."""
+    from botocore.awsrequest import AWSRequest
+
+    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+    from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
+
+    request = AWSRequest(method="GET", url="https://example.com/")
+
+    token = http_propagation_suppressed.set(False)
+    try:
+        # No tracer.trace() context manager — no active span.
+        _inject_trace_headers_handler(request=request)
+        assert "x-datadog-trace-id" not in request.headers
+        # Contextvar must remain False so urllib3 falls back to its own injection.
+        assert http_propagation_suppressed.get() is False
+    finally:
+        http_propagation_suppressed.reset(token)
+
+
+def test_before_sign_handler_noop_when_botocore_distributed_tracing_disabled(
+    patched_botocore,
+):
+    """When DD_BOTOCORE_DISTRIBUTED_TRACING=false, the handler must not
+    inject. (The contextvar guard in patched_api_call handles the urllib3
+    side of suppression — covered separately.)"""
+    from botocore.awsrequest import AWSRequest
+
+    from ddtrace import config
+    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+    from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
+
+    request = AWSRequest(method="GET", url="https://example.com/")
+
+    original = config.botocore["distributed_tracing"]
+    config.botocore["distributed_tracing"] = False
+    token = http_propagation_suppressed.set(False)
+    try:
+        with ddtrace.tracer.trace("test.span"):
+            _inject_trace_headers_handler(request=request)
+        assert "x-datadog-trace-id" not in request.headers
+    finally:
+        config.botocore["distributed_tracing"] = original
+        http_propagation_suppressed.reset(token)

@@ -11,8 +11,10 @@ import botocore.client
 import botocore.exceptions
 import wrapt
 
+import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -32,6 +34,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
+from ddtrace.propagation.http import HTTPPropagator
 
 from .services.bedrock import patched_bedrock_api_call
 from .services.bedrock_agents import patched_bedrock_agents_api_call
@@ -94,6 +97,67 @@ def _load_dynamodb_primary_key_names_for_tables() -> dict[str, set[str]]:
     except Exception as e:
         log.warning("failed to load DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS: %s", e)
         return {}
+
+
+_DD_BEFORE_SIGN_HANDLER_UID = "datadog-before-sign-inject"
+
+
+def _inject_trace_headers_handler(request, **kwargs):
+    """Botocore ``before-sign`` event handler.
+
+    Injects W3C and Datadog propagation headers into the outbound AWSRequest
+    *before* botocore.signers.RequestSigner.sign() runs, so the headers are
+    part of the canonical request that SigV4 signs. AWS strict-signature
+    services (AppSync, API Gateway IAM auth, etc.) reject requests when
+    extra headers appear between signing and the wire — historically
+    dd-trace-py injected in the urllib3 layer, which is too late.
+
+    After injecting, sets ``http_propagation_suppressed`` so the shared HTTP
+    subscriber skips its own injection for the rest of this in-flight call.
+    """
+    if not config.botocore["distributed_tracing"]:
+        return
+
+    span = ddtrace.tracer.current_span()
+    if span is None:
+        return
+
+    propagation_headers: dict[str, str] = {}
+    try:
+        HTTPPropagator.inject(span.context, propagation_headers)
+    except Exception:
+        log.debug("dd-trace-py: HTTPPropagator.inject failed in before-sign handler", exc_info=True)
+        return
+
+    for header_name, header_value in propagation_headers.items():
+        # Don't clobber a header the application set explicitly.
+        if header_name in request.headers:
+            continue
+        request.headers[header_name] = header_value
+
+    http_propagation_suppressed.set(True)
+
+
+def _wrap_session_init(wrapped, instance, args, kwargs):
+    """Register the before-sign handler on every botocore Session at init.
+
+    boto3.session.Session instantiates botocore.session.Session internally,
+    so this single wrap covers both APIs. aiobotocore.AioSession subclasses
+    botocore.session.Session and calls super().__init__(), so it's also
+    covered.
+    """
+    result = wrapped(*args, **kwargs)
+    try:
+        instance.register(
+            "before-sign",
+            _inject_trace_headers_handler,
+            unique_id=_DD_BEFORE_SIGN_HANDLER_UID,
+        )
+    except Exception:
+        log.warning(
+            "dd-trace-py: failed to register botocore before-sign handler", exc_info=True
+        )
+    return result
 
 
 # Botocore default settings
