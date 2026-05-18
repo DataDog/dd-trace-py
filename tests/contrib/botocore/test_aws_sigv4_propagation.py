@@ -121,3 +121,51 @@ def test_trace_headers_are_in_sigv4_signed_headers(s3_client):
     assert "traceparent" in signed_headers, (
         f"traceparent not in SignedHeaders {signed_headers!r}"
     )
+
+
+def test_subscriber_skips_injection_when_propagation_suppressed():
+    """When `http_propagation_suppressed` is True, the shared HTTP subscriber
+    must not call HTTPPropagator.inject. This is the seam botocore uses to
+    avoid double-injection after its before-sign handler already injected."""
+    from ddtrace._trace.subscribers.http_client import HttpClientTracingSubscriber
+    from ddtrace._trace.subscribers.http_client import http_propagation_suppressed
+
+    ctx = mock.MagicMock()
+    event = mock.MagicMock()
+    event.request_headers = {}
+    event.integration_config = mock.MagicMock()
+    event.integration_config.distributed_tracing_enabled = True
+    ctx.event = event
+    ctx.span.context = mock.MagicMock()
+
+    token = http_propagation_suppressed.set(True)
+    try:
+        with mock.patch(
+            "ddtrace._trace.subscribers.http_client.HTTPPropagator.inject"
+        ) as inject:
+            HttpClientTracingSubscriber.on_started(ctx)
+            inject.assert_not_called()
+    finally:
+        http_propagation_suppressed.reset(token)
+
+
+def test_subscriber_injects_when_propagation_not_suppressed():
+    """Default behavior must be preserved when the flag is unset."""
+    from ddtrace._trace.subscribers.http_client import HttpClientTracingSubscriber
+
+    ctx = mock.MagicMock()
+    event = mock.MagicMock()
+    event.request_headers = {}
+    event.integration_config = mock.MagicMock()
+    event.integration_config.distributed_tracing_enabled = True
+    ctx.event = event
+    ctx.span.context = mock.MagicMock()
+
+    with mock.patch(
+        "ddtrace._trace.subscribers.http_client.HTTPPropagator.inject"
+    ) as inject, mock.patch(
+        "ddtrace._trace.subscribers.http_client.trace_utils.distributed_tracing_enabled",
+        return_value=True,
+    ):
+        HttpClientTracingSubscriber.on_started(ctx)
+        inject.assert_called_once()
