@@ -297,7 +297,7 @@ if not SERVERLESS_BUILD:
 
 
 class PatchedDistribution(Distribution):
-    def __init__(self, attrs=None):
+    def __init__(self, attrs: t.Optional[dict[str, t.Any]] = None) -> None:
         super().__init__(attrs)
         # Tell ext_hashes about your manually-built Rust artifact
 
@@ -320,7 +320,7 @@ class PatchedDistribution(Distribution):
 
 
 class ExtensionHashes(build_ext):
-    def run(self):
+    def run(self) -> None:
         try:
             dist = self.distribution
             for ext in chain(dist.ext_modules, getattr(dist, "rust_extensions", [])):
@@ -393,7 +393,7 @@ class ExtensionHashes(build_ext):
 class CustomBuildRust(build_rust):
     """Custom build_rust command that handles dedup_headers and header copying."""
 
-    def initialize_options(self):
+    def initialize_options(self) -> None:
         super().initialize_options()
 
     def is_installed(self, bin_file):
@@ -425,7 +425,7 @@ class CustomBuildRust(build_rust):
 
             cargo_install_with_retry()
 
-    def run(self):
+    def run(self) -> None:
         """Run the build process with additional post-processing."""
 
         has_profiling_feature = False
@@ -586,7 +586,7 @@ class LibraryDownload:
             (download_dir / ".version").write_text(cls.version)
 
     @classmethod
-    def run(cls):
+    def run(cls) -> None:
         cls.download_artifacts()
 
     @classmethod
@@ -649,7 +649,7 @@ _WHEEL_EXCLUDED_EXTENSIONS = frozenset(
 
 
 class LibraryDownloader(BuildPyCommand):
-    def run(self):
+    def run(self) -> None:
         # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
         # is set to True when the package is being installed in editable mode, which we need to know
         # for some extensions
@@ -697,7 +697,7 @@ class LibraryDownloader(BuildPyCommand):
 
 class CleanLibraries(CleanCommand):
     @staticmethod
-    def remove_native_extensions():
+    def remove_native_extensions() -> None:
         """Remove native extensions and shared libraries installed by setup.py."""
         for pattern in ("*.so", "*.pyd", "*.dylib", "*.dll"):
             for path in DDTRACE_DIR.rglob(pattern):
@@ -709,12 +709,12 @@ class CleanLibraries(CleanCommand):
                         print(f"WARNING: could not remove {path}: {e}")
 
     @staticmethod
-    def remove_artifacts():
+    def remove_artifacts() -> None:
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
         CleanLibraries.remove_native_extensions()
 
     @staticmethod
-    def remove_rust_targets():
+    def remove_rust_targets() -> None:
         """Remove all Rust target dirs (target, target3.9, target3.10, etc.)."""
         # rmtree is a superset of `cargo clean`; target* catches plain target and versioned
         for target_dir in NATIVE_CRATE.glob("target*"):
@@ -722,7 +722,7 @@ class CleanLibraries(CleanCommand):
                 shutil.rmtree(target_dir, True)
 
     @staticmethod
-    def remove_build_artifacts():
+    def remove_build_artifacts() -> None:
         """Remove egg-info, dist, .eggs, *.egg, and CMake FetchContent cache.
 
         The base distutils clean command does not remove these. They can cause
@@ -742,7 +742,7 @@ class CleanLibraries(CleanCommand):
             shutil.rmtree(cmake_deps, True)
 
     @staticmethod
-    def remove_build_dir():
+    def remove_build_dir() -> None:
         """Remove the entire build/ tree for a clean slate.
 
         The base CleanCommand only removes specific subdirs (build_temp, build_lib, etc.)
@@ -752,7 +752,7 @@ class CleanLibraries(CleanCommand):
         if build_dir.exists():
             shutil.rmtree(build_dir, True)
 
-    def run(self):
+    def run(self) -> None:
         CleanLibraries.remove_rust_targets()
         CleanLibraries.remove_artifacts()
         CleanLibraries.remove_build_dir()
@@ -835,7 +835,7 @@ SHARED_DEPS: list[SharedDep] = [
 class CustomBuildExt(build_ext):
     INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
 
-    def run(self):
+    def run(self) -> None:
         with _time_phase("build_rust"):
             self.build_rust()
 
@@ -853,7 +853,7 @@ class CustomBuildExt(build_ext):
         with _time_phase("build_extensions"):
             super().run()
 
-    def build_extensions(self):
+    def build_extensions(self) -> None:
         # Enable parallel extension builds by default.  All extensions are
         # independent at this point (Rust and libdd_wrapper are already built
         # in run()), so they can safely compile concurrently.  The user can
@@ -1075,7 +1075,7 @@ class CustomBuildExt(build_ext):
                     "WARNING: An error occurred while stripping the symbols from '{}', ignoring: {}".format(so_file, e)
                 )
 
-    def build_extension(self, ext):
+    def build_extension(self, ext: Extension) -> None:
         if isinstance(ext, CMakeExtension):
             try:
                 self.build_extension_cmake(ext)
@@ -1458,16 +1458,16 @@ if DebugMetadata.enabled:
 class CMakeExtension(Extension):
     def __init__(
         self,
-        name,
-        source_dir=Path.cwd(),
-        extra_source_dirs=[],
-        cmake_args=[],
-        build_args=[],
-        install_args=[],
-        build_type=None,
-        optional=True,  # By default, extensions are optional
-        dependencies=[],
-    ):
+        name: str,
+        source_dir: Path = Path.cwd(),
+        extra_source_dirs: list[Path] = [],
+        cmake_args: list[str] = [],
+        build_args: list[str] = [],
+        install_args: list[str] = [],
+        build_type: t.Optional[str] = None,
+        optional: bool = True,  # By default, extensions are optional
+        dependencies: list[Path] = [],
+    ) -> None:
         super().__init__(name, sources=[])
         self.source_dir = source_dir
         self.extra_source_dirs = extra_source_dirs  # extra source dirs to include when computing extension hash
