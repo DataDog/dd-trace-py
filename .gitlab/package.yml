@@ -172,6 +172,10 @@ variables:
   variables:
     ARCH_TAG: "arm64"
     PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
+    # Disable runner-wrapped script sections so the multi-line script's
+    # stdout/stderr stream inline instead of being swallowed by the
+    # collapsed section wrapper.
+    FF_SCRIPT_SECTIONS: "false"
 
 # Only amd64 manylinux2014 wheels
 "upload manylinux2014_x86_64":
