@@ -14,6 +14,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import LangChainIntegration
+from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_inference_profile
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
@@ -42,7 +43,21 @@ def _extract_model_name(instance: Any) -> Optional[str]:
     instances using an inference profile (where `model_id` is the profile ARN
     and `base_model_id` is the underlying foundation model) report the
     foundation model rather than the opaque profile identifier.
+
+    Side effect: when the instance carries both an application-inference-profile
+    ARN in `model_id` and a `base_model_id`, the mapping is stored in a shared
+    process-local cache so the botocore Bedrock integration can resolve the
+    same ARN on its own span without an extra AWS call.
     """
+    model_id_attr = getattr(instance, "model_id", None)
+    base_model_id_attr = getattr(instance, "base_model_id", None)
+    if (
+        isinstance(model_id_attr, str)
+        and isinstance(base_model_id_attr, str)
+        and "application-inference-profile/" in model_id_attr
+    ):
+        record_inference_profile(model_id_attr, base_model_id_attr)
+
     for attr in ("base_model_id", "model", "model_name", "model_id", "model_key", "repo_id"):
         model_name = getattr(instance, attr, None)
         if not model_name:

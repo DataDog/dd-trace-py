@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    botocore: This fix resolves an issue where auto-instrumented Bedrock spans
+    from the botocore integration reported the application inference profile
+    ARN as the model name when an application inference profile was used. When
+    the langchain integration is also active and the application is using
+    ``langchain_aws.ChatBedrockConverse`` (which exposes the underlying
+    ``base_model_id``), the botocore Bedrock integration now reports the
+    resolved foundation model on its own span instead of the opaque
+    inference-profile ARN.

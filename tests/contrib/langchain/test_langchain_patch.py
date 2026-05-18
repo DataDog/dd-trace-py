@@ -1,7 +1,11 @@
+import pytest
+
 from ddtrace.contrib.internal.langchain.patch import _extract_model_name
 from ddtrace.contrib.internal.langchain.patch import get_version
 from ddtrace.contrib.internal.langchain.patch import patch
 from ddtrace.contrib.internal.langchain.patch import unpatch
+from ddtrace.llmobs._integrations._bedrock_inference_profiles import _clear_inference_profile_cache
+from ddtrace.llmobs._integrations._bedrock_inference_profiles import lookup_inference_profile
 from tests.contrib.patch import PatchTestCase
 
 
@@ -99,41 +103,83 @@ class _FakeInstance:
             setattr(self, name, value)
 
 
-def test_extract_model_name_uses_model_id_when_no_base_model_id():
-    instance = _FakeInstance(model_id="anthropic.claude-3-5-sonnet-20240620-v1:0")
-    assert _extract_model_name(instance) == "anthropic.claude-3-5-sonnet-20240620-v1:0"
+@pytest.fixture(
+    params=[
+        pytest.param(
+            (
+                {"model_id": "anthropic.claude-3-5-sonnet-20240620-v1:0"},
+                "anthropic.claude-3-5-sonnet-20240620-v1:0",
+            ),
+            id="model_id",
+        ),
+        pytest.param(
+            (
+                {
+                    "model_id": "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/my-profile",
+                    "base_model_id": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                },
+                "anthropic.claude-3-5-sonnet-20240620-v1:0",
+            ),
+            id="base_model_id",
+        ),
+        pytest.param(
+            (
+                {"base_model_id": None, "model_id": "anthropic.claude-3-5-sonnet-20240620-v1:0"},
+                "anthropic.claude-3-5-sonnet-20240620-v1:0",
+            ),
+            id="base_model_id_none",
+        ),
+        pytest.param(
+            (
+                {"base_model_id": "", "model_id": "anthropic.claude-3-5-sonnet-20240620-v1:0"},
+                "anthropic.claude-3-5-sonnet-20240620-v1:0",
+            ),
+            id="base_model_id_empty",
+        ),
+        pytest.param(({"model": "models/gemini-2.5-flash"}, "gemini-2.5-flash"), id="path_prefix"),
+        pytest.param(({}, None), id="no_model_attrs"),
+    ]
+)
+def extract_model_name_case(request):
+    attrs, expected_model_name = request.param
+    return _FakeInstance(**attrs), expected_model_name
 
 
-def test_extract_model_name_prefers_base_model_id_over_model_id():
-    # ChatBedrockConverse with an inference profile: model_id is the profile
-    # ARN, base_model_id names the underlying foundation model.
-    instance = _FakeInstance(
-        model_id="arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/my-profile",
-        base_model_id="anthropic.claude-3-5-sonnet-20240620-v1:0",
-    )
-    assert _extract_model_name(instance) == "anthropic.claude-3-5-sonnet-20240620-v1:0"
+def test_extract_model_name(extract_model_name_case):
+    instance, expected_model_name = extract_model_name_case
+    assert _extract_model_name(instance) == expected_model_name
 
 
-def test_extract_model_name_falls_through_when_base_model_id_is_none():
-    instance = _FakeInstance(
-        base_model_id=None,
-        model_id="anthropic.claude-3-5-sonnet-20240620-v1:0",
-    )
-    assert _extract_model_name(instance) == "anthropic.claude-3-5-sonnet-20240620-v1:0"
+@pytest.fixture
+def clear_inference_profile_cache():
+    _clear_inference_profile_cache()
+    yield
+    _clear_inference_profile_cache()
 
 
-def test_extract_model_name_falls_through_when_base_model_id_is_empty_string():
-    instance = _FakeInstance(
-        base_model_id="",
-        model_id="anthropic.claude-3-5-sonnet-20240620-v1:0",
-    )
-    assert _extract_model_name(instance) == "anthropic.claude-3-5-sonnet-20240620-v1:0"
+def test_extract_model_name_records_inference_profile_mapping(clear_inference_profile_cache):
+    arn = "arn:aws:bedrock:us-east-2:123456789012:application-inference-profile/p7aksl2pa6w7"
+    base = "anthropic.claude-haiku-4-5-20251001-v1:0"
+    instance = _FakeInstance(model_id=arn, base_model_id=base)
+
+    _extract_model_name(instance)
+
+    assert lookup_inference_profile(arn) == base
 
 
-def test_extract_model_name_strips_path_prefix():
-    instance = _FakeInstance(model="models/gemini-2.5-flash")
-    assert _extract_model_name(instance) == "gemini-2.5-flash"
+def test_extract_model_name_without_base_model_id_does_not_record(clear_inference_profile_cache):
+    arn = "arn:aws:bedrock:us-east-2:123456789012:application-inference-profile/p7aksl2pa6w7"
+    instance = _FakeInstance(model_id=arn)
+
+    _extract_model_name(instance)
+
+    assert lookup_inference_profile(arn) is None
 
 
-def test_extract_model_name_returns_none_when_no_attrs_set():
-    assert _extract_model_name(_FakeInstance()) is None
+def test_extract_model_name_non_application_arn_does_not_record(clear_inference_profile_cache):
+    arn = "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-tg1-large"
+    instance = _FakeInstance(model_id=arn, base_model_id="amazon.titan-tg1-large")
+
+    _extract_model_name(instance)
+
+    assert lookup_inference_profile(arn) is None
