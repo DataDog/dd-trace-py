@@ -3,7 +3,6 @@ fixes:
   - |
     langchain: This fix resolves an issue where auto-instrumented
     ``langchain_aws.ChatBedrockConverse`` spans reported the inference profile
-    identifier as the model name when an inference profile was used. The
-    integration now prefers ``base_model_id`` over ``model_id`` when extracting
-    the model name, so spans report the underlying foundation model instead of
-    the opaque inference-profile ARN.
+    identifier as the model name when an inference profile was used.
+    ``base_model_id`` which represents the underlying foundation model is now
+    checked first when extracting model names.
