@@ -31,5 +31,4 @@ build_base_venvs:
   artifacts:
     name: venv_$PYTHON_VERSION
     when: always
-    paths:
-      - !reference [.riot_job_artifacts, artifacts, paths]
+    paths: !reference [.riot_job_artifacts, artifacts, paths]

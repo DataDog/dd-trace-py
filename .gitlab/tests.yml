@@ -31,8 +31,7 @@ include:
     - !reference [.services, ddagent]
   artifacts:
     when: always
-    paths:
-      - !reference [.riot_job_artifacts, artifacts, paths]
+    paths: !reference [.riot_job_artifacts, artifacts, paths]
     reports:
       junit: test-results/junit*.xml
     expire_in: 1 week
