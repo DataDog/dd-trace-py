@@ -157,6 +157,7 @@ pip_cache_shared_venvs/
 # Claude
 CLAUDE.local.md
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 .claude/worktrees/
 
 # oh-my-claudecode
@@ -226,3 +227,6 @@ src/native/target*
 
 # APM AI Toolkit Analysis Logs
 .analysis/
+
+# file created when running scripts/lint
+uv.lock

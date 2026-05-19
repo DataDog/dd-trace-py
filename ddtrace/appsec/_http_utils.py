@@ -45,15 +45,21 @@ def parse_http_body(
         if not content_type:
             return None
 
-        if content_type in ("application/json", "application/vnd.api+json", "text/json"):
+        # Content-Type legally carries parameters (charset, boundary, ...),
+        # e.g. application/json; charset=utf-8 — many HTTP clients always
+        # add a charset. Match against the bare media type so a charset
+        # suffix doesn't silently skip body inspection.
+        base_content_type = content_type.split(";", 1)[0].strip()
+
+        if base_content_type in ("application/json", "application/vnd.api+json", "text/json"):
             return json.loads(body)
-        elif content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
+        elif base_content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
             return parse_qs(body)
-        elif content_type in ("application/xml", "text/xml"):
+        elif base_content_type in ("application/xml", "text/xml"):
             return xmltodict.parse(body)
-        elif content_type.startswith("multipart/form-data"):
+        elif base_content_type == "multipart/form-data":
             return http_utils.parse_form_multipart(body, normalized_headers)
-        elif content_type == "text/plain":
+        elif base_content_type == "text/plain":
             return None
         else:
             return None

@@ -74,7 +74,7 @@
       "auto_instrumented": true,
       "tested_versions": [
         {
-          "version": "3.13.4",
+          "version": "3.13.5",
           "python_version": "3.9"
         },
         {
@@ -82,23 +82,23 @@
           "python_version": "3.9"
         },
         {
-          "version": "3.13.4",
+          "version": "3.13.5",
           "python_version": "3.10"
         },
         {
-          "version": "3.13.4",
+          "version": "3.13.5",
           "python_version": "3.11"
         },
         {
-          "version": "3.13.4",
+          "version": "3.13.5",
           "python_version": "3.12"
         },
         {
-          "version": "3.13.4",
+          "version": "3.13.5",
           "python_version": "3.13"
         },
         {
-          "version": "3.13.4",
+          "version": "3.13.5",
           "python_version": "3.14"
         }
       ]
@@ -4306,11 +4306,11 @@
           "python_version": "3.9"
         },
         {
-          "version": "2.31.0",
+          "version": "2.32.5",
           "python_version": "3.9"
         },
         {
-          "version": "2.31.0",
+          "version": "2.34.1",
           "python_version": "3.10"
         },
         {
@@ -4318,19 +4318,19 @@
           "python_version": "3.11"
         },
         {
-          "version": "2.31.0",
+          "version": "2.34.1",
           "python_version": "3.11"
         },
         {
-          "version": "2.32.3",
+          "version": "2.34.1",
           "python_version": "3.12"
         },
         {
-          "version": "2.32.3",
+          "version": "2.34.1",
           "python_version": "3.13"
         },
         {
-          "version": "2.32.5",
+          "version": "2.34.1",
           "python_version": "3.14"
         }
       ]

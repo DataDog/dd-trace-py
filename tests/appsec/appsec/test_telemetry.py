@@ -7,11 +7,14 @@ import pytest
 
 import ddtrace.appsec._asm_request_context as asm_request_context
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 import ddtrace.appsec._ddwaf.ddwaf_types
 import ddtrace.appsec._ddwaf.waf
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import enable_asm
+from ddtrace.appsec._utils import DDWaf_result
+from ddtrace.appsec._utils import _observator
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
@@ -74,22 +77,6 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
             assert len(metric["tags"]) == 1
         else:
             pytest.fail("Unexpected generate_metrics {}".format(metric_name))
-
-
-def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
-    distributions_metrics = metrics_result[TELEMETRY_EVENT_TYPE.DISTRIBUTIONS][TELEMETRY_NAMESPACE.APPSEC.value]
-
-    assert len(distributions_metrics) == 2, "Expected 2 distributions_metrics"
-    for metric in distributions_metrics:
-        if metric["metric"] in ["waf.duration", "waf.duration_ext"]:
-            assert len(metric["points"]) >= 1
-            assert isinstance(metric["points"][0], float)
-            assert f"rule_triggered:{str(is_rule_triggered).lower()}" in metric["tags"]
-            assert f"request_blocked:{str(is_blocked_request).lower()}" in metric["tags"]
-            assert f"waf_version:{asm_config._ddwaf_version}" in metric["tags"]
-            assert any("event_rules_version" in t for t in metric["tags"])
-        else:
-            pytest.fail("Unexpected distributions_metrics {}".format(metric["metric"]))
 
 
 def test_metrics_when_appsec_doesnt_runs(telemetry_writer, tracer):
@@ -193,6 +180,60 @@ def test_report_user_auth_missing(telemetry_writer, user_id, user_login, report_
     for metric in user_auth_metrics:
         assert "framework:django" in metric["tags"]
         assert "event_type:login_failure" in metric["tags"]
+
+
+def test_waf_duration_distribution_metrics(telemetry_writer, tracer):
+    telemetry_writer._namespace.flush()
+    with asm_context(tracer=tracer, span_name="test", config=config_asm) as span:
+        set_http_meta(span, rules.Config())
+
+    distributions_metrics = telemetry_writer._namespace.flush()[TELEMETRY_EVENT_TYPE.DISTRIBUTIONS][
+        TELEMETRY_NAMESPACE.APPSEC.value
+    ]
+    waf_metrics = {metric["metric"]: metric for metric in distributions_metrics if metric["metric"].startswith("waf.")}
+
+    assert set(waf_metrics) == {"waf.duration", "waf.duration_ext"}
+    for metric in waf_metrics.values():
+        assert len(metric["points"]) >= 1
+        assert isinstance(metric["points"][0], float)
+        assert f"waf_version:{asm_config._ddwaf_version}" in metric["tags"]
+        assert any(tag.startswith("event_rules_version:") for tag in metric["tags"])
+        assert len(metric["tags"]) == 2
+
+
+def test_rasp_duration_distribution_metrics(telemetry_writer, tracer):
+    telemetry_writer._namespace.flush()
+    with asm_context(tracer=tracer, span_name="test", config=config_asm):
+        waf_result = DDWaf_result(0, [], {}, 12.5, 20.25, False, _observator(), {})
+        asm_request_context.set_waf_telemetry_results(
+            "rules_rasp",
+            False,
+            waf_result,
+            EXPLOIT_PREVENTION.TYPE.SQLI,
+            False,
+        )
+        waf_result = DDWaf_result(0, [], {}, 3.0, 4.0, False, _observator(), {})
+        asm_request_context.set_waf_telemetry_results(
+            "rules_rasp",
+            False,
+            waf_result,
+            EXPLOIT_PREVENTION.TYPE.LFI,
+            False,
+        )
+
+    distributions_metrics = telemetry_writer._namespace.flush()[TELEMETRY_EVENT_TYPE.DISTRIBUTIONS][
+        TELEMETRY_NAMESPACE.APPSEC.value
+    ]
+    rasp_metrics = {
+        metric["metric"]: metric for metric in distributions_metrics if metric["metric"].startswith("rasp.")
+    }
+
+    assert set(rasp_metrics) == {"rasp.duration", "rasp.duration_ext"}
+    assert rasp_metrics["rasp.duration"]["points"] == [15.5]
+    assert rasp_metrics["rasp.duration_ext"]["points"] == [24.25]
+    for metric in rasp_metrics.values():
+        assert f"waf_version:{asm_config._ddwaf_version}" in metric["tags"]
+        assert any(tag.startswith("event_rules_version:") for tag in metric["tags"])
         assert len(metric["tags"]) == 2
 
 

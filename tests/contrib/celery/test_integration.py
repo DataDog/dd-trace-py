@@ -1,6 +1,7 @@
 from collections import Counter
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import time
@@ -816,13 +817,14 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
                 ["ddtrace-run", "celery", "--app=tests.contrib.celery.tasks", "worker", "--beat", "--loglevel=info"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                start_new_session=True,
             )
             sleep(5)
             celery_proc.terminate()
             try:
                 output, stderr = celery_proc.communicate(timeout=60)
             except subprocess.TimeoutExpired:
-                celery_proc.kill()
+                os.killpg(celery_proc.pid, signal.SIGKILL)
                 output, stderr = celery_proc.communicate()
                 print(
                     "WARNING: celery beat process did not terminate within 60s.\n"

@@ -61,6 +61,7 @@ cdef extern from "ddup_interface.hpp":
 
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
+    void ddup_set_profiler_settings_json(string_view settings_json)
 
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
@@ -398,6 +399,10 @@ def config(
 
 def start() -> None:
     ddup_start()
+
+
+def set_profiler_settings_json(settings_json: StringType) -> None:
+    call_func_with_str(ddup_set_profiler_settings_json, settings_json)
 
 
 def _get_endpoint(tracer)-> str:

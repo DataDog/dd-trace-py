@@ -32,7 +32,7 @@ def patch():
 def unpatch():
     """Remove tracing from patched modules."""
 
-    if getattr(asyncio, "_datadog_patch", False):
+    if not getattr(asyncio, "_datadog_patch", False):
         return
     asyncio._datadog_patch = False
     unwrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)

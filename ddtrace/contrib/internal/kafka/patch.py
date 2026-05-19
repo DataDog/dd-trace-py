@@ -134,22 +134,33 @@ def patch():
     Pin().onto(confluent_kafka.DeserializingConsumer)
 
 
+def _safe_unwrap(cls, attr):
+    # DEV: Use vars(cls) + delattr rather than iswrapped(cls.attr) + unwrap.
+    # Accessing a wrapped C-extension attribute (e.g. TracedProducer.produce) invokes
+    # wrapt's tp_descr_get, which calls the inner cimpl method descriptor's tp_descr_get
+    # directly — bypassing CPython's wrap_descr_get that normally converts Py_None→NULL.
+    # If Py_None reaches descr_check as `obj`, CPython raises:
+    #   TypeError: descriptor 'produce' for 'cimpl.Producer' objects
+    #              doesn't apply to a 'NoneType' object
+    # vars(cls) is a plain dict lookup and delattr removes by key — neither reads the
+    # descriptor value, so neither can trigger this code path.
+    # The root cause is fixed upstream in wrapt 2.2.0rc10 (commit ae93dd71, 2026-04-17);
+    if attr in vars(cls):
+        delattr(cls, attr)
+
+
 def unpatch():
     if getattr(confluent_kafka, "_datadog_patch", False):
         confluent_kafka._datadog_patch = False
 
     for producer in (TracedProducer, TracedSerializingProducer):
-        if trace_utils.iswrapped(producer.produce):
-            trace_utils.unwrap(producer, "produce")
+        _safe_unwrap(producer, "produce")
     for consumer in (TracedConsumer, TracedDeserializingConsumer):
-        if trace_utils.iswrapped(consumer.poll):
-            trace_utils.unwrap(consumer, "poll")
-        if trace_utils.iswrapped(consumer.commit):
-            trace_utils.unwrap(consumer, "commit")
+        _safe_unwrap(consumer, "poll")
+        _safe_unwrap(consumer, "commit")
 
     # Consume is not implemented in deserializing consumers
-    if trace_utils.iswrapped(TracedConsumer.consume):
-        trace_utils.unwrap(TracedConsumer, "consume")
+    _safe_unwrap(TracedConsumer, "consume")
 
     confluent_kafka.Producer = _Producer
     confluent_kafka.Consumer = _Consumer
