@@ -7,7 +7,10 @@
         "type": "array",
         "default": null,
         "internal": true,
-        "deprecated": true
+        "deprecated": true,
+        "deprecation": {
+          "removal_version": "5.0.0"
+        }
       }
     ],
     "DATADOG_TRACE_AGENT_HOSTNAME": [
@@ -16,7 +19,10 @@
         "type": "string",
         "default": null,
         "internal": true,
-        "deprecated": true
+        "deprecated": true,
+        "deprecation": {
+          "removal_version": "5.0.0"
+        }
       }
     ],
     "DD_ACTION_EXECUTION_ID": [
@@ -451,6 +457,7 @@
         "default": "true",
         "deprecated": true,
         "deprecation": {
+          "removal_version": "5.0.0",
           "replaced_by": "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED"
         }
       }
@@ -917,7 +924,10 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false",
-        "deprecated": true
+        "deprecated": true,
+        "deprecation": {
+          "removal_version": "5.0.0"
+        }
       }
     ],
     "DD_COMPILE_MODE": [

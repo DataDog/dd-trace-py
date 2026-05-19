@@ -47,7 +47,7 @@ def generate_module(data: dict) -> str:
     aliases = {name: e["aliases"] for name, e in entries.items() if e.get("aliases")}
 
     # Build deprecation mapping: canonical name (if entry is deprecated) plus each deprecated alias.
-    # Each value is a dict with optional keys: removal_version, extra_message, replaced_by.
+    # Each value is a dict with keys: removal_version (required), extra_message, replaced_by.
     # Entry-level metadata comes from entry["deprecation"]; per-alias metadata from
     # entry["deprecation"]["aliases"]. The boolean entry["deprecated"] is the headline signal.
     deprecation_map: dict[str, dict[str, str]] = {}
@@ -55,10 +55,14 @@ def generate_module(data: dict) -> str:
     for name, entry in entries.items():
         block = entry.get("deprecation") or {}
         if entry.get("deprecated"):
+            if "removal_version" not in block:
+                raise ValueError(f"{name}: 'deprecated: true' requires deprecation.removal_version")
             deprecation_map[name] = {k: block[k] for k in _META_KEYS if k in block}
         elif any(k in block for k in _META_KEYS):
             raise ValueError(f"{name}: entry-level deprecation metadata present but 'deprecated: true' missing")
         for alias, alias_info in (block.get("aliases") or {}).items():
+            if "removal_version" not in alias_info:
+                raise ValueError(f"{name}.aliases.{alias}: deprecated alias requires removal_version")
             deprecation_map[alias] = {k: alias_info[k] for k in _META_KEYS if k in alias_info}
 
     supported = "\n".join(f'        "{n}",' for n in all_names)

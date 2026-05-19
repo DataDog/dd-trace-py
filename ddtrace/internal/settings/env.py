@@ -20,12 +20,11 @@ warning. To add a new deprecation, edit ``supported-configurations.json`` —
 no code change is required.
 """
 
-from __future__ import annotations
-
 from collections.abc import MutableMapping
 import logging
 import os
 from typing import Iterator
+import warnings
 
 from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
 from ddtrace.internal.settings._supported_configurations import DEPRECATED_CONFIGURATIONS
@@ -36,14 +35,20 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 # AIDEV-NOTE: Use stdlib logging here instead of ddtrace.internal.logger.get_logger.
 # ddtrace/internal/logger.py imports ddtrace.internal.settings.env, so using
 # get_logger() would create a circular import at module-load time.
-# AIDEV-NOTE: ``debtcollector.deprecate`` is imported lazily inside
-# ``_emit_deprecation_warning`` for the same reason: ``ddtrace.vendor`` pulls in
-# ``ddtrace.internal.module`` -> ``ddtrace.internal.logger`` -> this module.
+# AIDEV-NOTE: Emit the deprecation via stdlib warnings.warn rather than
+# debtcollector.deprecate. ``ddtrace.vendor`` imports ddtrace.internal.module ->
+# ddtrace.internal.logger -> this module, so any top-level import of
+# ``ddtrace.vendor.debtcollector`` here triggers a partial-init ImportError.
+# The message format matches debtcollector's output for consistency with other
+# DDTraceDeprecationWarning sites.
 logger = logging.getLogger(__name__)
 
 _ALIAS_TARGETS: frozenset[str] = frozenset(alias for aliases in CONFIGURATION_ALIASES.values() for alias in aliases)
 _warned_keys: set[str] = set()
-_deprecation_warned: set[str] = set()
+# Values are unique sentinel objects; see _emit_deprecation_warning for the
+# setdefault-based check-and-set pattern that makes the once-only gate atomic
+# under the GIL.
+_deprecation_warned: dict[str, object] = {}
 
 
 def _validate_key(key: str) -> None:
@@ -68,28 +73,27 @@ def _validate_key(key: str) -> None:
 
 def _emit_deprecation_warning(key: str) -> None:
     """Fire a once-per-process DDTraceDeprecationWarning for a deprecated env var the user actually set."""
-    if key in _deprecation_warned:
-        return
     info = DEPRECATED_CONFIGURATIONS.get(key)
     if info is None:
         return
-    _deprecation_warned.add(key)
+    # Atomic check-and-set: setdefault inserts and returns our fresh sentinel
+    # iff key was absent; otherwise it returns whatever sentinel another caller
+    # stored. Comparing by identity tells us if we won the race.
+    sentinel = object()
+    if _deprecation_warned.setdefault(key, sentinel) is not sentinel:
+        return
 
-    parts = []
+    prefix = f"{key} is deprecated"
+    if "removal_version" in info:
+        prefix += f" and will be removed in version '{info['removal_version']}'"
+    extras = []
     if "replaced_by" in info:
-        parts.append(f"Use {info['replaced_by']} instead.")
+        extras.append(f"Use {info['replaced_by']} instead.")
     if "extra_message" in info:
-        parts.append(info["extra_message"])
-    message = " ".join(parts) if parts else None
+        extras.append(info["extra_message"])
+    message = f"{prefix}: {' '.join(extras)}" if extras else prefix
 
-    from ddtrace.vendor.debtcollector import deprecate
-
-    deprecate(  # type: ignore[no-untyped-call]
-        f"{key} is deprecated",
-        message=message,
-        removal_version=info.get("removal_version"),
-        category=DDTraceDeprecationWarning,
-    )
+    warnings.warn(message, category=DDTraceDeprecationWarning, stacklevel=3)
 
 
 def warn_deprecated_set_vars() -> None:

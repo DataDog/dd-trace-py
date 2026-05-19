@@ -26,6 +26,8 @@ def test_canonical_of_deprecated_alias_is_not_itself_deprecated():
     assert "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED" not in sc.DEPRECATED_CONFIGURATIONS
 
 
-def test_deprecated_marker_only_entries_have_empty_dict():
-    # Vars marked deprecated but with no metadata (e.g. DATADOG_TAGS) appear with {}.
-    assert sc.DEPRECATED_CONFIGURATIONS.get("DATADOG_TAGS") == {}
+def test_every_deprecation_has_removal_version():
+    # The generator rejects deprecated entries that lack removal_version, so the
+    # output mapping should have it for every entry.
+    missing = [k for k, info in sc.DEPRECATED_CONFIGURATIONS.items() if "removal_version" not in info]
+    assert missing == []

@@ -29,6 +29,7 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings.env import warn_deprecated_set_vars
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
@@ -448,8 +449,6 @@ class Config(object):
     def __init__(self) -> None:
         # Surface a DDTraceDeprecationWarning for any deprecated env vars the user has set,
         # even if no code path reads them. See ddtrace/internal/settings/env.py for details.
-        from ddtrace.internal.settings.env import warn_deprecated_set_vars
-
         warn_deprecated_set_vars()
 
         # Must validate Otel configurations before creating the config object.
