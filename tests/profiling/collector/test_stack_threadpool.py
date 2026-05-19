@@ -14,9 +14,11 @@ import uuid
 import pytest
 
 from ddtrace import ext
+from ddtrace._trace.context import Context
 from ddtrace.contrib.internal.futures.patch import patch as futures_patch
 from ddtrace.contrib.internal.futures.patch import unpatch as futures_unpatch
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.datadog.profiling import stack as stack_module
 from ddtrace.profiling.collector import stack
 from ddtrace.trace import Tracer
 from tests.profiling.collector import pprof_utils
@@ -33,6 +35,16 @@ def patch_futures():
         yield
     finally:
         futures_unpatch()
+
+
+def test_link_span_plain_context_without_local_root_metadata() -> None:
+    """Context activation must not pass None as local_root_span_id to native link_span."""
+    if not stack_module.is_available:
+        pytest.skip("stack profiler not available")
+
+    ctx = Context(trace_id=123, span_id=456)
+    assert ctx._local_root_span_id is None
+    stack_module.link_span(ctx)
 
 
 def _get_threadpool_samples(profile) -> list[Sample]:

@@ -441,6 +441,71 @@ def test_concurrent_futures_with_gevent():
     os.waitpid(pid, 0)
 
 
+def test_submit_does_not_mutate_parent_span_context(tracer):
+    """Executor submit must not attach profiler fields to the parent span's live context."""
+
+    def worker():
+        pass
+
+    with tracer.trace("parent") as parent:
+        parent_ctx = parent.context
+        assert parent_ctx._local_root_span_id is None
+        assert parent_ctx._span_type is None
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(worker).result()
+
+        assert parent_ctx._local_root_span_id is None
+        assert parent_ctx._span_type is None
+
+
+def test_submit_does_not_mutate_thread_local_context(tracer):
+    """Executor submit must not mutate a Context stored in the submitting thread's provider."""
+
+    from ddtrace._trace.context import Context
+
+    ctx = Context(trace_id=123, span_id=456, is_remote=False)
+
+    def worker():
+        pass
+
+    tracer.context_provider.activate(ctx)
+    try:
+        assert tracer.current_trace_context() is ctx
+        assert ctx._local_root_span_id is None
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(worker).result()
+
+        assert ctx._local_root_span_id is None
+        assert ctx._span_type is None
+    finally:
+        tracer.context_provider.activate(None)
+
+
+def test_submit_propagates_context_copy_with_profiler_metadata(tracer):
+    """Worker receives a copied context carrying local-root metadata for linking."""
+
+    propagated = []
+
+    def worker():
+        propagated.append(tracer.current_trace_context())
+
+    with tracer.trace("parent") as parent:
+        parent_ctx = parent.context
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(worker).result()
+
+    assert len(propagated) == 1
+    worker_ctx = propagated[0]
+    assert worker_ctx is not parent_ctx
+    assert worker_ctx.trace_id == parent.trace_id
+    assert worker_ctx.span_id == parent.span_id
+    assert parent_ctx._local_root_span_id is None
+    assert worker_ctx._local_root_span_id == parent._local_root.span_id
+    assert worker_ctx._span_type == parent._local_root.span_type
+
+
 def test_submit_no_wait(tracer, test_spans):
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 

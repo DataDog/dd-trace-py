@@ -17,10 +17,11 @@ def _wrap_submit(func, args, kwargs):
         "threading.submit", ()
     ).llmobs_ctx.value
 
-    # Attach the submitting span's local-root info to the context
-    # This is used when linking worker threads to the parent span across thread boundaries.
-    # current_ctx is a fresh copy (not the live span object), so mutation is safe.
-    if current_ctx is not None:
+    # Copy before attaching linkage metadata. current_trace_context() returns
+    # the active Context (or the current span's .context), not a detached copy; mutating
+    # it in place would alter the submitting thread's live trace state.
+    if current_ctx is not None and current_ctx.trace_id is not None and current_ctx.span_id is not None:
+        current_ctx = current_ctx.copy(current_ctx.trace_id, current_ctx.span_id)
         current_span = ddtrace.tracer.current_span()
         if current_span is not None:
             current_ctx._local_root_span_id = current_span._local_root.span_id
