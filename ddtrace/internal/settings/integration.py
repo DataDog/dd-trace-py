@@ -56,7 +56,7 @@ class IntegrationConfig(AttrDict):
         self.setdefault("analytics_sample_rate", 1.0)
 
         env_var_id = _integration_env_var_id(name)
-        service = env.get("DD_%s_SERVICE" % env_var_id, default=None)
+        service = env.get(f"DD_{env_var_id}_SERVICE", default=None)
         self.setdefault("service", service)
         self.setdefault("service_name", service)
 
