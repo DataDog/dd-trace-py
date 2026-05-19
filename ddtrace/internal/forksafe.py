@@ -41,7 +41,7 @@ def set_forked():
     _forked = True
 
 
-def has_forked():
+def has_forked() -> bool:
     return _forked
 
 
