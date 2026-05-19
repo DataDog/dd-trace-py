@@ -158,6 +158,9 @@ class heap_tracker_t
     /* Traceback pool - reduces allocation overhead. Access is always under GIL. */
     static constexpr size_t POOL_CAPACITY = 128;
     std::vector<std::unique_ptr<traceback_t>> pool;
+
+    /* Initial capacity of the allocations map */
+    static constexpr size_t INITAL_ALLOC_MAP_CAPACITY = 512;
 };
 
 // Pool implementation
@@ -216,7 +219,10 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   , current_sample_size(next_sample_size_no_cpython(sample_size_val))
   , allocated_memory(0)
 {
-    pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
+    // Pre-allocate pool capacity to avoid reallocations
+    pool.reserve(POOL_CAPACITY);
+    // Pre-allocate map capacity to avoid rehashing during ramp-up.
+    allocs_m.reserve(INITAL_ALLOC_MAP_CAPACITY);
 }
 
 void
@@ -366,7 +372,8 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
         return;
     }
 
-    /* Prior to Python 3.12, and particularly in Python 3.11, collecting
+    /* PR #14550 — realloc+GC use-after-free crash.
+       Prior to Python 3.12, and particularly in Python 3.11, collecting
        tracebacks while intercepting allocations is prone to crashes. We
        currently use the C Python API to collect tracebacks, which can
        do allocations. These allocations can in turn trigger garbage collection,
