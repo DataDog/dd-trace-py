@@ -10,7 +10,7 @@
     OpenAI instrumentation -- spans go missing and AI Guard before/after hooks
     silently no-op.
 
-    The only supported entry point is :func:`_get_openai_abort_error_cls` in
+    The only supported entry point is :func:`_wrap_abort_error` in
     ``_openai.py``, which performs the import inside a ``try`` block at call
     time. Do not bypass it.
 """

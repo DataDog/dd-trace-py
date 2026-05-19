@@ -20,20 +20,17 @@ __all__ = ["_wrap_abort_error"]
 
 
 def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:
-    """Wrap an ``AIGuardAbortError`` into the OpenAI-compatible variant.
+    """Wrap *cause* so it satisfies both ``except AIGuardAbortError`` and
+    ``except openai.UnprocessableEntityError``.
 
-    Returns the original ``cause`` unchanged when the OpenAI SDK is not
-    importable -- the listener still surfaces a block, just without OpenAI
-    exception-hierarchy compatibility (this matches the AI Guard contract:
-    catch-by-``AIGuardAbortError`` always works, OpenAI-style ``except
-    UnprocessableEntityError`` is a convenience for users who already speak
-    the SDK's error vocabulary).
+    Falls back to *cause* unchanged when the OpenAI SDK is not importable;
+    catch-by-``AIGuardAbortError`` still works either way.
     """
     exception_class: type[AIGuardAbortError] = AIGuardAbortError
     try:
-        # AIDEV-NOTE: ``_openai_errors`` imports the optional OpenAI SDK, so keep
-        # this import lazy. Python's import lock gives a single class object under
-        # concurrent cold imports without a custom cache or lock in ``_common``.
+        # AIDEV-NOTE: import lazily -- ``_openai_errors`` pulls in the optional
+        # OpenAI SDK at import time. Python's import lock guarantees all
+        # concurrent cold imports observe the same class object.
         from ddtrace.appsec._ai_guard._openai_errors import OpenAIAIGuardAbortError
 
         exception_class = OpenAIAIGuardAbortError
