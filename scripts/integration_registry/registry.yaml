@@ -177,7 +177,7 @@ integrations:
   tested_versions_by_dependency:
     azure-eventhub:
       min: 5.12.2
-      max: 5.15.0
+      max: 5.15.1
 
 - integration_name: azure_functions
   is_external_package: true

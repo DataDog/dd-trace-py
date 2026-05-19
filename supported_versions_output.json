@@ -140,7 +140,7 @@
         "dependency": "azure-eventhub",
         "integration": "azure_eventhubs",
         "minimum_tracer_supported": "5.12.2",
-        "max_tracer_supported": "5.15.0",
+        "max_tracer_supported": "5.15.1",
         "pinned": "true",
         "auto-instrumented": true
     },
