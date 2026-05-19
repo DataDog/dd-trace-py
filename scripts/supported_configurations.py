@@ -63,13 +63,14 @@ def generate_module(data: dict) -> str:
 
     supported = "\n".join(f'        "{n}",' for n in all_names)
 
-    def _format_alias_entry(name: str, vals: list[str], max_len: int = 120) -> str:
-        single = '    "{}": [{}],'.format(name, ", ".join('"{}"'.format(a) for a in vals))
+    def _format_entry(name: str, items: list[str], open_char: str, close_char: str, max_len: int = 120) -> str:
+        single = f'    "{name}": {open_char}{", ".join(items)}{close_char},'
         if len(single) <= max_len:
             return single
-        return '    "{}": [\n{}\n    ],'.format(name, "\n".join(f'        "{a}",' for a in vals))
+        body = "\n".join(f"        {item}," for item in items)
+        return f'    "{name}": {open_char}\n{body}\n    {close_char},'
 
-    alias_lines = "\n".join(_format_alias_entry(n, v) for n, v in aliases.items())
+    alias_lines = "\n".join(_format_entry(n, [f'"{a}"' for a in v], "[", "]") for n, v in aliases.items())
 
     aliases_block = (
         f"CONFIGURATION_ALIASES: dict[str, list[str]] = {{\n{alias_lines}\n}}"
@@ -77,18 +78,11 @@ def generate_module(data: dict) -> str:
         else "CONFIGURATION_ALIASES: dict[str, list[str]] = {}"
     )
 
-    def _format_deprecation(name: str, info: dict[str, str], max_len: int = 120) -> str:
-        if not info:
-            return f'    "{name}": {{}},'
-        items = sorted(info.items())
-        single = '    "{}": {{{}}},'.format(name, ", ".join(f'"{k}": "{v}"' for k, v in items))
-        if len(single) <= max_len:
-            return single
-        body = "\n".join(f'        "{k}": "{v}",' for k, v in items)
-        return f'    "{name}": {{\n{body}\n    }},'
-
     if deprecation_map:
-        deprecation_lines = "\n".join(_format_deprecation(n, deprecation_map[n]) for n in sorted(deprecation_map))
+        deprecation_lines = "\n".join(
+            _format_entry(n, [f'"{k}": "{v}"' for k, v in sorted(deprecation_map[n].items())], "{", "}")
+            for n in sorted(deprecation_map)
+        )
         deprecated_block = (
             f"# DEPRECATED_CONFIGURATIONS values may contain: removal_version, extra_message, replaced_by\n"
             f"DEPRECATED_CONFIGURATIONS: dict[str, dict[str, str]] = {{\n{deprecation_lines}\n}}"

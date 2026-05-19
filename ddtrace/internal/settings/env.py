@@ -92,12 +92,6 @@ def _emit_deprecation_warning(key: str) -> None:
     )
 
 
-def _maybe_warn_deprecated_read(source_key: str) -> None:
-    """Emit a deprecation warning if ``source_key`` (the actual env var found) is deprecated."""
-    if source_key in DEPRECATED_CONFIGURATIONS:
-        _emit_deprecation_warning(source_key)
-
-
 def warn_deprecated_set_vars() -> None:
     """Emit a DDTraceDeprecationWarning for each deprecated env var the user has set.
 
@@ -127,11 +121,11 @@ class EnvConfig(MutableMapping):
     def __getitem__(self, key: str) -> str:
         _validate_key(key)
         if (value := os.environ.get(key)) is not None:
-            _maybe_warn_deprecated_read(key)
+            _emit_deprecation_warning(key)
             return value
         for alias in CONFIGURATION_ALIASES.get(key, ()):
             if (value := os.environ.get(alias)) is not None:
-                _maybe_warn_deprecated_read(alias)
+                _emit_deprecation_warning(alias)
                 return value
         raise KeyError(key)
 

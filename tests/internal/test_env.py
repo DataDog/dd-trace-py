@@ -251,8 +251,6 @@ def test_deprecation_warning_fires_only_once_per_key(monkeypatch):
 
 
 def test_contains_check_does_not_fire_deprecation_warning(monkeypatch):
-    # __contains__ probes existence — should not fire a user-facing deprecation warning,
-    # whether the deprecated var is set or unset.
     monkeypatch.delenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", raising=False)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always", DDTraceDeprecationWarning)
@@ -270,7 +268,6 @@ def test_contains_check_does_not_fire_deprecation_warning(monkeypatch):
 
 
 def test_deprecated_unset_var_does_not_fire_warning(monkeypatch):
-    # A deprecated var that the user did not set should not fire a warning on read.
     monkeypatch.delenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", raising=False)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always", DDTraceDeprecationWarning)
