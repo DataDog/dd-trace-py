@@ -32,8 +32,6 @@ variables:
   needs:
     - job: "ddtrace-internal build linux"
       artifacts: true
-    - job: "ddtrace-internal build macos"
-      artifacts: true
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"
@@ -256,6 +254,9 @@ variables:
 "build windows":
   stage: package
   tags: ["windows-v2:2022"]
+  needs:
+    - job: "ddtrace-internal build linux"
+      artifacts: true
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
