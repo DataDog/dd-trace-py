@@ -24,8 +24,8 @@ from collections.abc import Mapping
 from typing import Any
 from typing import Optional
 
+from ddtrace.appsec._ai_guard._common import _get
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
-from ddtrace.appsec._ai_guard._openai import _get
 from ddtrace.appsec._ai_guard._openai import _wrap_abort_error
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
 from ddtrace.appsec.ai_guard._api_client import AIGuardClient
