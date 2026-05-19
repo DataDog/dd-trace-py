@@ -13,7 +13,9 @@ except ImportError:
     import tomli as tomllib
 
 import pytest
+
 from ddtrace import __version__
+
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 

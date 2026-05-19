@@ -33,7 +33,6 @@ from distutils.dep_util import newer_group  # isort: skip
 from distutils.util import get_platform  # isort: skip
 
 
-
 try:
     # ORDER MATTERS
     # Import this after setuptools or it will fail
@@ -1723,12 +1722,6 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
             compiler_directives={"language_level": "3"},
             cache=True,
         )
-
-if os.getenv("CI_COMMIT_TAG") is not None:
-    ddtrace_internal_spec = ""
-else:
-    root = os.getenv("CI_PROJECT_DIR", HERE.parent)
-    ddtrace_internal_spec = f" @ file://{root}/pywheels/ddtrace_internal-0.0.0-py3-none-any.whl"
 
 PACKAGE_NAME = f"ddtrace{WHEEL_FLAVOR}"
 if PACKAGE_NAME != "ddtrace":
