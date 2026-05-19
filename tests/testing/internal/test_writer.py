@@ -187,12 +187,12 @@ class TestGetMinFlushEvents:
             # Remove both vars if they exist
             import os
 
-            os.environ.pop("_DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", None)
+            os.environ.pop("_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS", None)
             os.environ.pop("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", None)
             assert _get_min_flush_events() is None
 
     def test_reads_private_env_var(self) -> None:
-        with patch.dict("os.environ", {"_DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "5"}):
+        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "5"}):
             assert _get_min_flush_events() == 5
 
     def test_reads_legacy_env_var(self) -> None:
@@ -202,24 +202,24 @@ class TestGetMinFlushEvents:
     def test_private_env_var_takes_priority(self) -> None:
         with patch.dict(
             "os.environ",
-            {"_DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "3", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "99"},
+            {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "3", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "99"},
         ):
             assert _get_min_flush_events() == 3
 
     def test_value_1(self) -> None:
-        with patch.dict("os.environ", {"_DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"}):
+        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"}):
             assert _get_min_flush_events() == 1
 
     def test_negative_returns_none(self) -> None:
-        with patch.dict("os.environ", {"_DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "-3"}):
+        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "-3"}):
             assert _get_min_flush_events() is None
 
     def test_zero_returns_none(self) -> None:
-        with patch.dict("os.environ", {"_DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "0"}):
+        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "0"}):
             assert _get_min_flush_events() is None
 
     def test_invalid_value_returns_none(self) -> None:
-        with patch.dict("os.environ", {"_DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "not_a_number"}):
+        with patch.dict("os.environ", {"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "not_a_number"}):
             assert _get_min_flush_events() is None
 
 
