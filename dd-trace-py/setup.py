@@ -55,6 +55,29 @@ from urllib.request import urlretrieve
 
 HERE = Path(__file__).resolve().parent
 
+
+def load_module_from_project_file(mod_name, fname):
+    """
+    Helper used to load a module from a file in this project
+
+    DEV: Loading this way will by-pass loading all parent modules
+         e.g. importing `ddtrace.vendor.psutil.setup` will load `ddtrace/__init__.py`
+         which has side effects like loading the tracer
+    """
+    fpath = HERE / fname
+
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(mod_name, fpath)
+    if spec is None:
+        raise ImportError(f"Could not find module {mod_name} in {fpath}")
+    mod = importlib.util.module_from_spec(spec)
+    if spec.loader is None:
+        raise ImportError(f"Could not load module {mod_name} from {fpath}")
+    spec.loader.exec_module(mod)
+    return mod
+
+
 requirements = load_module_from_project_file("requirements", HERE / "requirements.py")
 
 CURRENT_OS = platform.system()
@@ -264,28 +287,6 @@ def verify_checksum_from_hash(expected_checksum, filename):
         print("expected checksum: %s" % expected_checksum)
         print("actual checksum: %s" % actual_checksum)
         sys.exit(1)
-
-
-def load_module_from_project_file(mod_name, fname):
-    """
-    Helper used to load a module from a file in this project
-
-    DEV: Loading this way will by-pass loading all parent modules
-         e.g. importing `ddtrace.vendor.psutil.setup` will load `ddtrace/__init__.py`
-         which has side effects like loading the tracer
-    """
-    fpath = HERE / fname
-
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(mod_name, fpath)
-    if spec is None:
-        raise ImportError(f"Could not find module {mod_name} in {fpath}")
-    mod = importlib.util.module_from_spec(spec)
-    if spec.loader is None:
-        raise ImportError(f"Could not load module {mod_name} from {fpath}")
-    spec.loader.exec_module(mod)
-    return mod
 
 
 def is_64_bit_python():
