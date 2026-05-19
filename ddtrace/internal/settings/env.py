@@ -83,9 +83,7 @@ def _emit_deprecation_warning(key: str) -> None:
     if _deprecation_warned.setdefault(key, sentinel) is not sentinel:
         return
 
-    prefix = f"{key} is deprecated"
-    if "removal_version" in info:
-        prefix += f" and will be removed in version '{info['removal_version']}'"
+    prefix = f"{key} is deprecated and will be removed in version '{info['removal_version']}'"
     extras = []
     if "replaced_by" in info:
         extras.append(f"Use {info['replaced_by']} instead.")
