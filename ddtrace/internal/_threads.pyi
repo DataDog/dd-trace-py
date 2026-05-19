@@ -8,9 +8,9 @@ class PeriodicThread:
     def __init__(
         self,
         interval: float,
-        target: t.Callable,
+        target: t.Callable[..., t.Any],
         name: t.Optional[str] = None,
-        on_shutdown: t.Optional[t.Callable] = None,
+        on_shutdown: t.Optional[t.Callable[..., t.Any]] = None,
         no_wait_at_start: bool = False,
     ) -> None: ...
     def start(self) -> None: ...
