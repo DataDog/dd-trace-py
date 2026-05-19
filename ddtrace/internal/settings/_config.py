@@ -34,10 +34,8 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.vendor.debtcollector import deprecate
 
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
@@ -569,14 +567,6 @@ class Config(object):
             "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: set(x.strip().upper().split(","))
         )
 
-        # Emit deprecation warning if env var is set (still functional, removal in 5.0.0)
-        if "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in env:
-            deprecate(
-                "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED is deprecated",
-                message="128-bit trace ID generation will become mandatory in version 5.0.0.",
-                removal_version="5.0.0",
-                category=DDTraceDeprecationWarning,
-            )
         _native_config.set_128_bit_trace_id_enabled(
             _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
         )
@@ -700,14 +690,9 @@ class Config(object):
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
-        if "DD_TRACE_INFERRED_SPANS_ENABLED" in env:
-            deprecate(
-                "DD_TRACE_INFERRED_SPANS_ENABLED is deprecated",
-                message="Please use DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED instead.",
-                removal_version="5.0.0",
-                category=DDTraceDeprecationWarning,
-            )
-        self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
+        self._inferred_proxy_services_enabled = _get_config(
+            ["DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", "DD_TRACE_INFERRED_SPANS_ENABLED"], False, asbool
+        )
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
 
         # When True, the default span name for @tracer.wrap() on methods includes the class name.

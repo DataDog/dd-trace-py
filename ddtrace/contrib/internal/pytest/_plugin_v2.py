@@ -4,7 +4,6 @@ import typing as t
 from _pytest.runner import runtestprotocol
 import pytest
 
-from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
 from ddtrace.contrib.internal.coverage.patch import _is_coverage_available
 from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage
@@ -76,7 +75,6 @@ from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.vendor.debtcollector import deprecate
 
 
 if _pytest_version_supports_retries():
@@ -436,15 +434,6 @@ def pytest_configure(config: pytest_Config) -> None:
     if not hasattr(config, "workerinput"):
         skipped_suites = set()
         skip_pytest_runtest_protocol = False
-
-    if env.get("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
-        # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
-        deprecate(
-            "the DD_PYTEST_USE_NEW_PLUGIN_BETA environment variable is deprecated",
-            message="the new pytest plugin is now the default version. No additional configurations are required.",
-            removal_version="3.0.0",
-            category=DDTraceDeprecationWarning,
-        )
 
     try:
         from ddtrace.contrib.internal.pytest.plugin import is_enabled
