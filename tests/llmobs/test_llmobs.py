@@ -253,7 +253,7 @@ class TestLLMIOProcessing:
                 if s.get_tag("scrub_values") == "1":
                     s.input = [{"content": "scrubbed"}]
                     s.output = [{"content": "scrubbed"}]
-                else:
+                elif s.get_tag("span.kind") in ("embedding", "retrieval"):
                     for msg in s.input + s.output:
                         msg["content"] = "redacted"
                 return s
