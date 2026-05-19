@@ -32,7 +32,6 @@ from distutils.command.clean import clean as CleanCommand  # isort: skip
 from distutils.dep_util import newer_group  # isort: skip
 from distutils.util import get_platform  # isort: skip
 
-from requirements import install_requires
 
 
 try:
@@ -55,6 +54,8 @@ from urllib.request import urlretrieve
 
 
 HERE = Path(__file__).resolve().parent
+
+requirements = load_module_from_project_file("requirements", HERE / "requirements.py")
 
 CURRENT_OS = platform.system()
 
