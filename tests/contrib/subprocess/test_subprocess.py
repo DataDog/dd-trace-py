@@ -142,6 +142,27 @@ def test_shellcmdline(cmdline_obj, full_list, env_vars, binary, arguments):
     assert cmdline_obj.arguments == arguments
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "BASE64",  # digit in the middle
+        "HTTP2",  # digit at the end
+        "S3_BUCKET",  # digit right after underscore
+        "A1B2C3",  # alternating letters and digits
+    ],
+)
+def test_shellcmdline_scrubs_env_var_names_with_digits(name: str) -> None:
+    """Env var names containing digits must be recognised and their values scrubbed.
+
+    Regression: _COMPILED_ENV_VAR_REGEXP used [A-Z_]+ which excludes digits,
+    so names like BASE64 were not matched and values were never redacted.
+    """
+    token = f"{name}=secret"
+    cmdline = SubprocessCmdLine([token, "ls"], shell=True)
+    assert cmdline.env_vars == [f"{name}=?"], f"value of {name} was not scrubbed"
+    assert cmdline.binary == "ls"
+
+
 denied_binaries_fixture_list = []
 for denied in SubprocessCmdLine.BINARIES_DENYLIST:
     denied_binaries_fixture_list.extend(

@@ -229,7 +229,7 @@ class SubprocessCmdLine:
         "*credentials*",
         "stripetoken",
     ]
-    _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
+    _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_][A-Z0-9_]*=\w+")
 
     def __init__(self, shell_args: Union[str, list[str]], shell: bool = False) -> None:
         """
