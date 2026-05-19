@@ -363,21 +363,6 @@ class Git:
                 yield packfile
 
 
-def get_pr_base_commit_sha(base_branch_head_sha: str, head_sha: str) -> t.Optional[str]:
-    """Compute the true PR base commit SHA as the merge base of base_branch_head_sha and head_sha.
-
-    On GitHub Actions, pull_request.base.sha is the HEAD of the base branch, not the actual merge
-    base commit. This function uses `git merge-base` to find the common ancestor.
-    """
-    try:
-        git = Git()
-    except RuntimeError as e:
-        log.warning("Error getting git data for merge-base computation: %s", e)
-        return None
-
-    return git.get_merge_base(base_branch_head_sha, head_sha) or None
-
-
 def get_git_tags_from_git_command() -> dict[str, t.Optional[str]]:
     try:
         git = Git()
