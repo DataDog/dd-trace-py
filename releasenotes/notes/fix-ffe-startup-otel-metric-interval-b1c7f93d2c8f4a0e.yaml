@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    openfeature: Reduces the default ``DataDogProvider`` initialization timeout to 25 seconds so common
+    30 second web-server worker timeouts do not kill startup before OpenFeature can mark the provider
+    as not ready and recover when Remote Config arrives later.
+  - |
+    opentelemetry: Treats ``OTEL_METRIC_EXPORT_INTERVAL`` and ``OTEL_METRIC_EXPORT_TIMEOUT`` as
+    supported startup configurations, preventing false unsupported-configuration warnings.

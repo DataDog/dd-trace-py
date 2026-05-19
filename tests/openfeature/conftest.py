@@ -12,8 +12,8 @@ def fast_initialization_timeout():
     """
     Override the provider initialization timeout to 100ms for all tests.
 
-    The production default is 30s (matching other SDKs), but that makes any
-    test that calls api.set_provider() without pre-loaded config hang for 30s.
+    The production default is 25s, but that makes any
+    test that calls api.set_provider() without pre-loaded config hang for 25s.
     Tests that need to verify timeout/blocking behaviour set their own explicit
     initialization_timeout= on DataDogProvider() directly, which takes priority
     over the config value.

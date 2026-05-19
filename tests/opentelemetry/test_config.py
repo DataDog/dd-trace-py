@@ -225,6 +225,20 @@ def test_otel_metrics_exporter_configuration_otlp():
 
 
 @pytest.mark.subprocess(
+    env={
+        "OTEL_METRIC_EXPORT_INTERVAL": "1234",
+        "OTEL_METRIC_EXPORT_TIMEOUT": "567",
+    },
+    err=b"",
+)
+def test_otel_metric_reader_configuration_supported():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.METRICS_METRIC_READER_EXPORT_INTERVAL == 1234
+    assert otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT == 567
+
+
+@pytest.mark.subprocess(
     env={"DD_METRICS_OTEL_ENABLED": "True", "OTEL_METRICS_EXPORTER": "true"},
     err=b"Setting OTEL_METRICS_EXPORTER to true is not supported by ddtrace, this configuration will be ignored.\n",
 )
