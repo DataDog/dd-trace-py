@@ -77,7 +77,12 @@ def load_module_from_project_file(mod_name, fname):
     return mod
 
 
-requirements = load_module_from_project_file("requirements", HERE / "requirements.py")
+requirements_file = HERE / "requirements.py"
+if os.path.isfile(requirements_file):
+    requirements = load_module_from_project_file("requirements", HERE / "requirements.py")
+    install_requires = requirements.install_requires
+else:
+    install_requires = []
 
 CURRENT_OS = platform.system()
 
@@ -1742,7 +1747,7 @@ setup(
             "ddtrace.internal.datadog.profiling.ddup.test*",
         ]
     ),
-    install_requires=requirements.install_requires,
+    install_requires=install_requires,
     include_package_data=False,
     package_data={
         # Type stubs and markers for all packages
