@@ -5,6 +5,11 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+# AIDEV-NOTE: _wrap_session_init is imported from the botocore integration —
+# it is intentionally shared. aiobotocore.AioSession inherits from
+# botocore.session.Session, so the same wrap serves both. If you rename or
+# refactor _wrap_session_init in botocore/patch.py you must update this
+# import too. See the matching anchor on the definition there.
 from ddtrace.contrib.internal.botocore.patch import _wrap_session_init
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY

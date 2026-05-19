@@ -15,6 +15,12 @@ import wrapt
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+# AIDEV-NOTE: Cross-module import of a leading-underscore private symbol.
+# This is intentional: _http_propagation_suppressed is the shared coordination
+# primitive between this integration (which wants urllib3 to skip its own
+# header injection) and the urllib3-layer HttpClientTracingSubscriber. See the
+# AIDEV-NOTE on its definition in ddtrace/_trace/subscribers/http_client.py
+# for the ownership contract.
 from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -124,6 +130,16 @@ def _inject_trace_headers_handler(request, **kwargs):
     if not config.botocore["distributed_tracing"]:
         return
 
+    # AIDEV-NOTE: We use the global tracer's current_span() rather than looking
+    # up the integration's Pin (Pin.get_from(client)) because the before-sign
+    # event handler receives the AWSRequest, not the client — there's no
+    # convenient hook to the Pin here. For setups using Pin.override() to
+    # point the botocore integration at a non-default tracer, this handler
+    # would still inject from the global tracer's currently active span.
+    # That's consistent with how other event-driven integrations behave but
+    # could surprise a user who explicitly switched tracers. If a user
+    # reports this, the fix is to thread the Pin through the Session-init
+    # wrap into a closure the handler can read.
     span = ddtrace.tracer.current_span()
     if span is None:
         return
@@ -142,6 +158,13 @@ def _inject_trace_headers_handler(request, **kwargs):
         request.headers[header_name] = header_value
 
 
+# AIDEV-NOTE: _wrap_session_init is also imported by
+# ddtrace.contrib.internal.aiobotocore.patch — treat as semi-public within
+# the botocore/aiobotocore integration family. If you rename or refactor it,
+# update the aiobotocore import too. The shared wrap is what lets a user
+# who only enables the aiobotocore integration still get the SigV4 fix:
+# aiobotocore.AioSession inherits from botocore.session.Session and calls
+# super().__init__(), so wrapping Session.__init__ catches both.
 def _wrap_session_init(wrapped, instance, args, kwargs):
     """Register the before-sign handler on every botocore Session at init.
 

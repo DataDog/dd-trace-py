@@ -14,11 +14,25 @@ from ddtrace.propagation.http import HTTPPropagator
 
 log = get_logger(__name__)
 
-# Set to True by a higher-level integration that has already injected
-# propagation headers (e.g., the botocore before-sign handler, which must
-# inject before SigV4 signing so the trace headers are part of the canonical
-# request). The shared HTTP subscriber checks this flag and skips its own
-# injection to avoid clobbering or duplicating headers after signing.
+# AIDEV-NOTE: Cross-module coordination primitive. Set to True by a higher-level
+# integration that has already injected propagation headers and wants this
+# subscriber to skip its own injection.
+#
+# Consumers today: ddtrace.contrib.internal.botocore.patch and
+# ddtrace.contrib.internal.aiobotocore.patch (the SigV4 fix — botocore's
+# before-sign event fires earlier than this subscriber's on_started, so
+# headers can land in the canonical signed request).
+#
+# OWNERSHIP CONTRACT (do not break): only `patched_api_call` is allowed to
+# .set() this contextvar, and it MUST capture the Token and reset() in a
+# try/finally. The before-sign event handler itself must not touch the
+# contextvar — see the leak history in PR #18152 if you're tempted to
+# change that. The handler was previously allowed to flip it True; that
+# caused a real leak when early-return paths in patched_api_call bypassed
+# the try/finally.
+#
+# ContextVar provides per-thread isolation: concurrent requests in different
+# threads each see their own value of this flag.
 _http_propagation_suppressed: ContextVar[bool] = ContextVar("dd_http_propagation_suppressed", default=False)
 
 
