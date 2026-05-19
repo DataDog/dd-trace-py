@@ -20,6 +20,7 @@ The converters target the same AI Guard ``Message`` schema used for Chat
 Completions, so a tenant's AI Guard rules apply uniformly across both APIs.
 """
 
+from collections.abc import Mapping
 from typing import Any
 from typing import Optional
 
@@ -42,8 +43,11 @@ logger = ddlogger.get_logger(__name__)
 # Responses-API content blocks that carry user-visible text. Restricting to
 # this allowlist avoids picking up stray ``text`` fields on unrelated block
 # shapes (e.g. an annotation block with a "text" attribute that isn't user
-# content).
-_RESPONSE_TEXT_BLOCK_TYPES = ("input_text", "output_text", "text")
+# content). The bare ``"text"`` alias is intentionally excluded — the
+# Responses API uses ``input_text`` (request) / ``output_text`` (response)
+# exclusively, so accepting bare ``"text"`` would broaden the surface
+# without matching any documented producer.
+_RESPONSE_TEXT_BLOCK_TYPES = ("input_text", "output_text")
 # Refusal-style blocks carry their content under a ``refusal`` key.
 _RESPONSE_REFUSAL_BLOCK_TYPES = ("refusal", "output_refusal")
 # AIDEV-NOTE: Item types that must never reach the AI Guard evaluator.
@@ -188,14 +192,30 @@ def _flatten_prompt_variables(prompt: Any) -> Optional[str]:
     before the model. Each variable is rendered as ``key: value`` lines so a
     policy rule can match on the variable name and on the payload.
 
-    Non-string, non-list values are stringified rather than dropped — a
-    variable shaped as a dict or number is still user input and should not
-    silently bypass the evaluator.
+    Value handling:
+      - ``str`` → as-is.
+      - ``list`` / ``tuple`` → flattened via :func:`_extract_text_content`
+        (typed content parts only).
+      - ``Mapping`` (including ``dict``) → routed through
+        :func:`_extract_text_content` as a single-part list so typed
+        content-part dicts (``{"type": "input_text", ...}``) render. Any
+        mapping shape not recognised by the typed-part allowlist (e.g.
+        ``{"image_url": "https://signed-url..."}``, ``{"file_id": "file-abc"}``)
+        is **dropped** rather than ``str()``'d — those payloads can carry
+        signed URLs / opaque ids that must not leak into the AI Guard
+        evaluation request, and they carry no evaluable signal anyway.
+      - Other scalars (``int``, ``float``, ``bool``) → stringified; these
+        are user input with no secret-leak surface and would otherwise
+        silently bypass the evaluator.
+
+    The outer ``variables`` container is accepted as any ``Mapping``, not
+    just ``dict``, so Mapping-shaped SDK wrappers don't silently bypass AI
+    Guard for prompt-template calls.
     """
     if prompt is None:
         return None
     variables = _get(prompt, "variables")
-    if not variables or not isinstance(variables, dict):
+    if not variables or not isinstance(variables, Mapping):
         return None
     parts = []
     for key, value in variables.items():
@@ -206,8 +226,10 @@ def _flatten_prompt_variables(prompt: Any) -> Optional[str]:
             text = value
         elif isinstance(value, (list, tuple)):
             text = _extract_text_content(value)
+        elif isinstance(value, Mapping):
+            text = _extract_text_content([value])
         else:
-            text = _extract_text_content([value]) or str(value)
+            text = str(value)
         if text:
             parts.append(f"{key}: {text}")
     return "\n".join(parts) if parts else None
@@ -232,6 +254,17 @@ def _convert_openai_response_input(instructions: Any, input_: Any, prompt: Any =
       - Items in ``_RESPONSE_SKIPPED_ITEM_TYPES`` are dropped.
       - Unknown / forward-incompatible types are silently dropped (the
         converter fails open so SDK calls don't break on new payload shapes).
+
+    AIDEV-NOTE: fail-open security tradeoff. Per-item exceptions are
+    swallowed (``logger.debug`` only) and items with unrecognised shape are
+    dropped. If the entire ``input`` list is unconvertible — or yields only
+    a ``system`` message from ``instructions`` — the before-hook returns
+    without calling :meth:`AIGuardClient.evaluate`, so a sufficiently novel
+    or malformed payload can bypass AI Guard rather than block on the
+    converter error. This matches Chat's pre-existing behaviour and the AI
+    Guard contract that backend transport failures must not break SDK
+    calls; the tradeoff is intentional but worth pinning when reasoning
+    about coverage.
     """
     result: list[Message] = []
 
