@@ -189,21 +189,27 @@ class BaseWriter(ABC):
 def _get_min_flush_events() -> t.Optional[int]:
     """Read the minimum number of buffered events before triggering an early flush.
 
-    Uses DD_TRACE_PARTIAL_FLUSH_MIN_SPANS for backwards compatibility with the
-    old CI Visibility plugin, which used the same env var (via the APM tracer's
-    SpanAggregator) to control how eagerly test events were sent.
+    Uses _DD_TRACE_PARTIAL_FLUSH_MIN_SPANS (preferred) or DD_TRACE_PARTIAL_FLUSH_MIN_SPANS
+    (fallback, for backwards compatibility with the old CI Visibility plugin, which used
+    the same env var via the APM tracer's SpanAggregator) to control how eagerly test
+    events were sent. The private prefixed var avoids collisions with the tracer's own
+    handling of DD_TRACE_PARTIAL_FLUSH_MIN_SPANS.
 
     Returns None (the default) to disable threshold-based flushing — events are
     only sent on the 60-second periodic timer or on shutdown.
     """
-    raw = env.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS")
+    raw = env.get("_DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", env.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"))
     if raw is None:
         return None
     try:
         value = int(raw)
         return value if value > 0 else None
     except (ValueError, TypeError):
-        log.warning("Invalid value for DD_TRACE_PARTIAL_FLUSH_MIN_SPANS: %r; threshold-based flushing disabled", raw)
+        log.warning(
+            "Invalid value for _DD_TRACE_PARTIAL_FLUSH_MIN_SPANS / DD_TRACE_PARTIAL_FLUSH_MIN_SPANS: %r;"
+            " threshold-based flushing disabled",
+            raw,
+        )
         return None
 
 
