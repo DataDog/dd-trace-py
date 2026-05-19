@@ -470,3 +470,74 @@ def test_handler_does_not_overwrite_existing_propagation_headers():
     # Headers the application did NOT pre-set were still injected,
     # proving the handler ran end-to-end rather than no-opping.
     assert "traceparent" in request.headers
+
+
+def test_pin_disabled_does_not_leak_suppression_to_subsequent_calls(s3_client):
+    """If the tracer is disabled at runtime, pin.enabled() returns False and
+    patched_api_call early-returns before its try/finally. The before-sign
+    handler can still fire — it must NOT leave the suppression contextvar set
+    to True, because patched_api_call's try/finally never ran to reset it.
+
+    Today this leaks: handler flips contextvar to True, no reset, and
+    every subsequent non-AWS HTTP call in this task silently loses trace
+    header injection."""
+    from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
+
+    # Disable the tracer so pin.enabled() returns False and patched_api_call
+    # early-returns before its try/finally.
+    original_enabled = ddtrace.tracer.enabled
+    ddtrace.tracer.enabled = False
+    try:
+        # Make a call. The early-return path runs; the handler still fires
+        # at before-sign time because the Session wrap registered it.
+        try:
+            _capture_signed_request(s3_client)
+        except _StopBeforeWire:
+            # We intentionally short-circuit the wire send via _StopBeforeWire,
+            # which propagates. Do not catch other exceptions — if
+            # _capture_signed_request fails before reaching the signing stage
+            # (e.g., from a broken monkey-patch), the assertion below would be
+            # vacuously true and the test would be a false green.
+            pass
+
+        # The contextvar must be False after the call — the handler must
+        # not leak True into the rest of this task.
+        assert _http_propagation_suppressed.get() is False, (
+            "before-sign handler leaked _http_propagation_suppressed=True "
+            "outside patched_api_call's managed scope"
+        )
+    finally:
+        ddtrace.tracer.enabled = original_enabled
+
+
+def test_submodule_excluded_does_not_leak_suppression(s3_client):
+    """If _PATCHED_SUBMODULES excludes the endpoint, patched_api_call early-returns
+    before its try/finally, but the before-sign handler still fires. Same leak
+    shape as the pin-disabled case."""
+    from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
+    from ddtrace.contrib.internal.botocore.patch import _PATCHED_SUBMODULES
+
+    # Exclude S3 from the patched submodules. patched_api_call hits the
+    # `_PATCHED_SUBMODULES and endpoint_name not in _PATCHED_SUBMODULES` branch
+    # and early-returns. Save/restore prior state in case something else
+    # added entries before us.
+    original_submodules = set(_PATCHED_SUBMODULES)
+    _PATCHED_SUBMODULES.add("sqs")  # something other than s3
+    try:
+        try:
+            _capture_signed_request(s3_client)
+        except _StopBeforeWire:
+            # We intentionally short-circuit the wire send via _StopBeforeWire,
+            # which propagates. Do not catch other exceptions — if
+            # _capture_signed_request fails before reaching the signing stage
+            # (e.g., from a broken monkey-patch), the assertion below would be
+            # vacuously true and the test would be a false green.
+            pass
+
+        assert _http_propagation_suppressed.get() is False, (
+            "before-sign handler leaked _http_propagation_suppressed=True "
+            "when patched_api_call early-returned via _PATCHED_SUBMODULES"
+        )
+    finally:
+        _PATCHED_SUBMODULES.clear()
+        _PATCHED_SUBMODULES.update(original_submodules)
