@@ -452,10 +452,6 @@ class SessionManager:
 
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
-        if len(commits_not_in_backend) == 0:
-            log.debug("All latest commits found in backend, skipping metadata upload")
-            return
-
         if git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0):
             log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
             unshallow_successful = git.try_all_unshallow_repository_methods()
@@ -476,6 +472,10 @@ class SessionManager:
         # This is done here rather than at env_tags collection time because on shallow clones the
         # required commits are only available after the fetch above completes.
         self._update_pr_merge_base(git)
+
+        if len(commits_not_in_backend) == 0:
+            log.debug("All latest commits found in backend, skipping metadata upload")
+            return
 
         revisions_to_send = git.get_filtered_revisions(
             excluded_commits=backend_commits, included_commits=commits_not_in_backend

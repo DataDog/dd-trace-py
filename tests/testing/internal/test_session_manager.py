@@ -546,3 +546,35 @@ class TestUpdatePrMergeBase:
 
         mock_git.get_merge_base.assert_called_once_with(base_sha, head_sha)
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
+
+    def test_upload_git_data_computes_merge_base_when_all_commits_known(self) -> None:
+        """merge-base is populated even when all commits are already in the backend (no pack upload)."""
+        from ddtrace.testing.internal.git import GitTag
+
+        base_sha = "base-sha"
+        head_sha = "head-sha"
+        expected_merge_base = "merge-base-sha"
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {
+            GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: base_sha,
+            GitTag.COMMIT_HEAD_SHA: head_sha,
+        }
+        sm.api_client = Mock()
+        # Backend already knows all commits — no pack upload will happen.
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
+        mock_git.is_shallow_repository.return_value = False
+        mock_git.get_merge_base.return_value = expected_merge_base
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git.get_merge_base.assert_called_once_with(base_sha, head_sha)
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
+        mock_git.pack_objects.assert_not_called()
