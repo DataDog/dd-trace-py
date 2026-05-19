@@ -14,6 +14,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.trace import Tracer  # noqa:F401
 
 from urllib.parse import quote
+from urllib.parse import unquote_to_bytes
 
 import wrapt
 
@@ -244,24 +245,97 @@ def construct_url(environ):
             if environ["SERVER_PORT"] != "80":
                 url += ":" + environ["SERVER_PORT"]
 
-    url += quote(environ.get("SCRIPT_NAME", ""))
-    # we need the raw uri here for reporting, not the computed one
-    if environ.get("RAW_URI"):
-        url += environ["RAW_URI"]
+    # SCRIPT_NAME composition with RAW_URI / REQUEST_URI is subtle. Two distinct
+    # WSGI flows put a non-empty SCRIPT_NAME in environ:
+    #   1. werkzeug DispatcherMiddleware (and similar in-process mounts) set
+    #      SCRIPT_NAME to the mount prefix AND the original (pre-strip) request
+    #      line is preserved in RAW_URI / REQUEST_URI. PATH_INFO is the
+    #      post-strip remainder, so RAW_URI == SCRIPT_NAME + PATH_INFO.
+    #      Prepending SCRIPT_NAME on top would double the mount prefix
+    #      (e.g. /admin/admin/...).
+    #   2. A reverse proxy (or upstream WSGI server) strips a path prefix before
+    #      handing the request off, exposing only the post-strip path in
+    #      RAW_URI / REQUEST_URI; PATH_INFO matches RAW_URI. SCRIPT_NAME carries
+    #      the prefix that was stripped, so RAW_URI != SCRIPT_NAME + PATH_INFO
+    #      (the two differ by exactly the missing prefix). Skipping SCRIPT_NAME
+    #      would lose the prefix from the reported URL — including the case
+    #      where the post-strip path coincidentally starts with the mount
+    #      segment (public URL ``/api/api/users``, RAW_URI ``/api/users``).
+    # Disambiguate by computing the canonical PEP-3333 concatenation
+    # ``SCRIPT_NAME + PATH_INFO`` and comparing it against the raw URI's path
+    # component. Equal → case (1), don't prepend. Different → case (2), prepend.
+    # The PATH_INFO fallback path always prepends SCRIPT_NAME because PATH_INFO
+    # is the stripped value in both flows.
+    script_name = environ.get("SCRIPT_NAME") or ""
+    path_info = environ.get("PATH_INFO") or ""
+    raw = environ.get("RAW_URI") or environ.get("REQUEST_URI") or ""
+    if raw:
+        if script_name and not _raw_uri_already_includes_script_name(raw, script_name, path_info):
+            url += quote(script_name)
+        url += raw
         # on old versions of wsgi, the raw uri does not include the query string
-        if environ.get("QUERY_STRING") and "?" not in environ["RAW_URI"]:
-            url += "?" + environ["QUERY_STRING"]
-    elif environ.get("REQUEST_URI"):
-        url += environ["REQUEST_URI"]
-        # on old versions of wsgi, the raw uri does not include the query string
-        if environ.get("QUERY_STRING") and "?" not in environ["REQUEST_URI"]:
+        if environ.get("QUERY_STRING") and "?" not in raw:
             url += "?" + environ["QUERY_STRING"]
     else:
-        url += quote(environ.get("PATH_INFO", ""))
+        url += quote(script_name)
+        url += quote(path_info)
         if environ.get("QUERY_STRING"):
             url += "?" + environ["QUERY_STRING"]
 
     return url
+
+
+def _raw_uri_already_includes_script_name(raw: str, script_name: str, path_info: str) -> bool:
+    """Return True iff ``raw`` already includes ``script_name`` (the
+    DispatcherMiddleware / in-process-mount case), so the caller should not
+    prepend it a second time.
+
+    The canonical PEP-3333 reconstruction of the request path is
+    ``SCRIPT_NAME + PATH_INFO``. In an in-process mount, ``RAW_URI`` (the
+    pre-strip request line) matches that concatenation. In a reverse-proxy
+    strip, ``RAW_URI`` matches ``PATH_INFO`` alone (the prefix was stripped
+    upstream and is not in the raw line) — even when ``PATH_INFO`` happens to
+    start with the same first segment as ``SCRIPT_NAME``, which a naive
+    boundary check on ``RAW_URI`` alone could not distinguish.
+
+    ``SCRIPT_NAME == "/"`` is a degenerate root-mount form: there's no real
+    prefix to inject, so we treat it as "already included" to avoid producing
+    a leading double slash.
+
+    If ``PATH_INFO`` is empty we fall back to a path-boundary check on the raw
+    URI; this preserves DispatcherMiddleware correctness in legacy WSGI
+    environs that don't set ``PATH_INFO``, at the cost of regressing the
+    reverse-proxy-with-overlap case which is rare in practice and undetectable
+    without ``PATH_INFO``.
+    """
+    sn = script_name.rstrip("/")
+    if not sn:
+        # script_name was "" (caller already gates on this) or "/" — nothing to prepend
+        return True
+    raw_path = raw.split("?", 1)[0].split("#", 1)[0]
+    if path_info:
+        # PATH_INFO and SCRIPT_NAME are WSGI-decoded strings (PEP-3333), but
+        # RAW_URI / REQUEST_URI are the original percent-encoded request line.
+        # Decode the raw path before comparing so benign encoding differences
+        # (e.g. ``%20`` vs literal space) don't flip the decision and cause an
+        # accidental double-prefix. Use ``unquote_to_bytes`` + ``latin-1`` —
+        # the byte-exact lossless round-trip PEP-3333 prescribes for environ
+        # strings — instead of ``unquote``'s default UTF-8/replace, which can
+        # turn a stray ``%FF`` into ``�`` and silently mismatch a PATH_INFO
+        # that the WSGI server passed through as latin-1.
+        try:
+            decoded_raw_path = unquote_to_bytes(raw_path).decode("latin-1")
+        except Exception:
+            decoded_raw_path = raw_path
+        return decoded_raw_path == sn + path_info
+    # Fallback: PATH_INFO is empty / missing. Use a path-segment-boundary check
+    # — DispatcherMiddleware-correct, but the reverse-proxy-with-overlap case
+    # is unrecoverable here without PATH_INFO. ``?`` and ``#`` aren't possible
+    # in ``raw_path`` since we've split them off above.
+    if not raw_path.startswith(sn):
+        return False
+    rest = raw_path[len(sn) :]
+    return rest == "" or rest[0] == "/"
 
 
 def get_request_headers(environ: Mapping[str, str]) -> Mapping[str, str]:

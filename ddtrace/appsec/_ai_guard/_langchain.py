@@ -3,6 +3,8 @@ from typing import Any
 from typing import Sequence
 import uuid
 
+from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active_current
+from ddtrace.appsec._ai_guard._context import set_aiguard_context_active
 from ddtrace.appsec._ai_guard.messages import try_format_json
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClient
@@ -197,21 +199,37 @@ def _handle_agent_action_result(client: AIGuardClient, result, args, kwargs):
 
 
 def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists):
+    set_aiguard_context_active()
     for messages in message_lists:
         result = _evaluate_langchain_messages(client, messages)
-        if result:
+        if result is not None:
             return result
     return None
 
 
 def _langchain_llm_generate_before(client: AIGuardClient, prompts):
+    """``langchain.llm.[a]generate.before`` listener — see chatmodel variant."""
     from langchain_core.messages import HumanMessage
 
+    set_aiguard_context_active()
     for prompt in prompts:
         result = _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
-        if result:
+        if result is not None:
             return result
     return None
+
+
+def _langchain_generate_finally(*args, **kwargs):
+    """Paired ``.finally`` listener for the four langchain ``generate`` events.
+
+    Releases the AI Guard active counter that the matching ``.before``
+    listener bumped. Dispatched from the contrib's ``finally`` block so it
+    fires on every exit path — success, block (``core.dispatch(..., allow_raise=True)``
+    raises out of ``.before``), or exception inside the underlying LLM call. The
+    counter reset is a no-op when the counter is already zero, so listener
+    invocations that don't pair with a ``.before`` set are safe.
+    """
+    reset_aiguard_context_active_current()
 
 
 def _langchain_chatmodel_stream_before(client: AIGuardClient, instance, args, kwargs):
@@ -228,15 +246,36 @@ def _langchain_llm_stream_before(client: AIGuardClient, instance, args, kwargs):
     return _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
 
 
+def _langchain_stream_started(*args, **kwargs):
+    """Paired ``.stream.started`` listener for langchain stream events.
+
+    Acquires the AI Guard active-context counter for the duration of stream
+    iteration. Dispatched from ``BaseLangchainStreamHandler.start_stream``
+    (in ``ddtrace/contrib/internal/langchain/utils.py``), which is called
+    by ``TracedStream.__iter__`` / ``TracedAsyncStream.__aiter__`` on
+    iteration entry — so a stream created but never iterated cannot bump
+    the depth. The matching reset happens in
+    :func:`_langchain_generate_finally` via the ``.stream.finally`` event.
+    """
+    set_aiguard_context_active()
+
+
 def _evaluate_langchain_messages(client: AIGuardClient, messages):
+    """Evaluate the prompt and re-raise ``AIGuardAbortError`` on a block.
+
+    Re-raises so the contrib's ``core.dispatch(..., allow_raise=True)``
+    propagates the abort. The ``AIGuardClient`` already gates on
+    ``ai_guard_config._ai_guard_block``, so a raised error always represents
+    a blocking decision. Allow / skip paths return ``None``.
+    """
     from langchain_core.messages import HumanMessage
 
     # only call evaluator when the last message is an actual user prompt
     if len(messages) > 0 and isinstance(messages[-1], HumanMessage):
         try:
             client.evaluate(_convert_messages(messages), Options(block=ai_guard_config._ai_guard_block))
-        except AIGuardAbortError as e:
-            return e
+        except AIGuardAbortError:
+            raise
         except Exception:
             logger.debug("Failed to evaluate chat model prompt", exc_info=True)
     return None

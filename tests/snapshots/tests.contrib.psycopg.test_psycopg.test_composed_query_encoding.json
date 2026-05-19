@@ -11,8 +11,8 @@
     "meta": {
       "_dd.base_service": "tests.contrib.psycopg",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69dd48bc00000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69eb938f00000000",
+      "_dd.svc_src": "postgres",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.psycopg",
       "component": "psycopg",
       "db.application": "None",
@@ -21,7 +21,7 @@
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "c56a9ba77f2d4899b4d299470795a3e3",
+      "runtime-id": "8a3d0e2dfe4245d9b89032afb9c3a8da",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
@@ -32,8 +32,8 @@
       "_sampling_priority_v1": 1.0,
       "db.row_count": 2.0,
       "network.destination.port": 5432.0,
-      "process_id": 14990.0
+      "process_id": 22503.0
     },
-    "duration": 1393916,
-    "start": 1776109756472501386
+    "duration": 1325042,
+    "start": 1777046415585378384
   }]]

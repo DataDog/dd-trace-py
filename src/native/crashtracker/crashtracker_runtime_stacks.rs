@@ -47,13 +47,11 @@ pub unsafe fn init_dump_traceback_fn() {
 
             const RTLD_DEFAULT: *mut std::ffi::c_void = ptr::null_mut();
 
-            let symbol_ptr = dlsym(
-                RTLD_DEFAULT,
-                b"_Py_DumpTracebackThreads\0".as_ptr() as *const std::ffi::c_char,
-            );
+            let symbol_ptr = dlsym(RTLD_DEFAULT, c"_Py_DumpTracebackThreads".as_ptr());
 
             if !symbol_ptr.is_null() {
-                DUMP_TRACEBACK_FN = Some(std::mem::transmute(symbol_ptr));
+                DUMP_TRACEBACK_FN =
+                    Some(std::mem::transmute::<*mut c_void, PyDumpTracebackThreadsFn>(symbol_ptr));
             }
         }
 
@@ -76,9 +74,7 @@ unsafe fn dump_python_traceback_as_string(
     let dump_fn = match get_cached_dump_traceback_fn() {
         Some(func) => func,
         None => {
-            emit_stacktrace_string(
-                "<python_runtime_stacktrace_unavailable>\0".as_ptr() as *const c_char
-            );
+            emit_stacktrace_string(c"<python_runtime_stacktrace_unavailable>".as_ptr());
             return;
         }
     };
@@ -88,22 +84,32 @@ unsafe fn dump_python_traceback_as_string(
     // and use it to read the output
     let mut pipefd: [c_int; 2] = [0, 0];
     if pipe(&mut pipefd as *mut [c_int; 2]) != 0 {
-        emit_stacktrace_string("<pipe_creation_failed>\0".as_ptr() as *const c_char);
+        emit_stacktrace_string(c"<pipe_creation_failed>".as_ptr());
         return;
     }
 
     let read_fd = pipefd[0];
     let write_fd = pipefd[1];
 
-    fcntl(read_fd, libc::F_SETFL as c_int, libc::O_NONBLOCK as c_int);
+    if fcntl(read_fd, libc::F_SETFL as c_int, libc::O_NONBLOCK as c_int) == -1 {
+        // Non-fatal: log and continue; read may block but won't crash.
+        let msg = b"<fcntl_O_NONBLOCK_failed>\0";
+        libc::write(
+            libc::STDERR_FILENO,
+            msg.as_ptr() as *const libc::c_void,
+            msg.len(),
+        );
+    }
 
     // Use null thread state for signal-safety; CPython will dump all threads.
     let error_msg = dump_fn(write_fd, ptr::null_mut(), ptr::null_mut());
 
-    close(write_fd);
+    // Ignore close return: EINTR cannot occur on Linux for close, and
+    // any other error means the fd is already gone — nothing to recover.
+    let _ = close(write_fd);
 
     if !error_msg.is_null() {
-        close(read_fd);
+        let _ = close(read_fd);
         emit_stacktrace_string(error_msg as *const c_char);
         return;
     }
@@ -115,7 +121,7 @@ unsafe fn dump_python_traceback_as_string(
         MAX_TRACEBACK_SIZE,
     );
 
-    close(read_fd);
+    let _ = close(read_fd);
 
     if bytes_read > 0 {
         let bytes_read = bytes_read as usize;
@@ -134,7 +140,7 @@ unsafe fn dump_python_traceback_as_string(
         return;
     }
 
-    emit_stacktrace_string("<traceback_read_failed>\0".as_ptr() as *const c_char);
+    emit_stacktrace_string(c"<traceback_read_failed>".as_ptr());
 }
 
 pub unsafe extern "C" fn native_runtime_stack_string_callback(

@@ -57,6 +57,22 @@ NO_CHILDREN = object()
 DDTRACE_PATH = Path(__file__).resolve().parents[1]
 FILE_PATH = Path(__file__).resolve().parent
 
+# Snapshot keys for the LLMObs APM shadow tags (`_dd.llmobs.*`). These are
+# derived from response payloads and vary by cassette / SDK version, so we
+# ignore them globally in snapshot comparisons. Their wiring is covered by
+# dedicated unit tests under tests/llmobs and tests/contrib/<integration>/.
+_LLMOBS_SHADOW_IGNORES = [
+    "meta._dd.llmobs.span_kind",
+    "meta._dd.llmobs.model_name",
+    "meta._dd.llmobs.model_provider",
+    "metrics._dd.llmobs.enabled",
+    "metrics._dd.llmobs.input_tokens",
+    "metrics._dd.llmobs.output_tokens",
+    "metrics._dd.llmobs.total_tokens",
+    "metrics._dd.llmobs.cache_read_input_tokens",
+    "metrics._dd.llmobs.cache_write_input_tokens",
+]
+
 
 def assert_is_measured(span):
     """Assert that the span has the proper _dd.measured tag set"""
@@ -623,22 +639,13 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
                 self._inner_writer.write(spans)
 
     def pop(self):
-        spans = DummyWriterMixin.pop(self)
-        # Stop the writer threads in case the writer is no longer used.
-        # Otherwise we risk accumulating threads and file descriptors causing crashes
-        # In case the writer is used again it will be restarted by native side.
-        if isinstance(self._inner_writer, NativeWriter):
-            self._inner_writer._exporter.stop_worker()
-        return spans
+        return DummyWriterMixin.pop(self)
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
         return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 
     def flush_queue(self, raise_exc: bool = False) -> None:
         return self._inner_writer.flush_queue(raise_exc)
-
-    def before_fork(self) -> None:
-        return self._inner_writer.before_fork()
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         return self._inner_writer.set_test_session_token(token)
@@ -1223,6 +1230,11 @@ def snapshot_context(
     ignores = list(ignores or [])
     if not token.startswith("tests.internal.test_process_tags."):
         ignores.append("meta._dd.tags.process")
+    # LLMObs APM shadow tags (`_dd.llmobs.*`) are derived from the response and
+    # vary by cassette/SDK version. Their wiring is covered by dedicated unit
+    # tests in tests/llmobs and tests/contrib/<integration>/test_*_llmobs.py,
+    # so we ignore them globally in snapshot comparisons.
+    ignores.extend(_LLMOBS_SHADOW_IGNORES)
     tracer = ddtrace.tracer
 
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)

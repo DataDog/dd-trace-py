@@ -15,6 +15,7 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import Constant_Class
+from ddtrace.appsec._metrics import UNKNOWN_VERSION
 from ddtrace.appsec._metrics import report_waf_run_error
 from ddtrace.appsec._metrics import report_waf_truncation
 from ddtrace.appsec._metrics import set_waf_request_metrics
@@ -24,9 +25,11 @@ from ddtrace.appsec._utils import get_triggers
 from ddtrace.appsec._utils import is_inferred_span
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.internal import core
+from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import BlockingException
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 if TYPE_CHECKING:
@@ -276,10 +279,20 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
     entry_span._set_attribute(APPSEC.WAF_VERSION, asm_config._ddwaf_version)
     if env.downstream_requests:
         update_span_metrics(entry_span, APPSEC.DOWNSTREAM_REQUESTS, env.downstream_requests)
+    tags = (
+        ("event_rules_version", telemetry_results.version or UNKNOWN_VERSION),
+        ("waf_version", asm_config._ddwaf_version),
+    )
     if telemetry_results.total_duration:
         update_span_metrics(entry_span, APPSEC.WAF_DURATION, telemetry_results.duration)
+        telemetry.telemetry_writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.APPSEC, "waf.duration", telemetry_results.duration, tags=tags
+        )
         telemetry_results.duration = 0.0
         update_span_metrics(entry_span, APPSEC.WAF_DURATION_EXT, telemetry_results.total_duration)
+        telemetry.telemetry_writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.APPSEC, "waf.duration_ext", telemetry_results.total_duration, tags=tags
+        )
         telemetry_results.total_duration = 0.0
     if telemetry_results.timeout:
         update_span_metrics(entry_span, APPSEC.WAF_TIMEOUTS, telemetry_results.timeout)
@@ -290,6 +303,12 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         update_span_metrics(entry_span, APPSEC.RASP_DURATION, telemetry_results.rasp.duration)
         update_span_metrics(entry_span, APPSEC.RASP_DURATION_EXT, telemetry_results.rasp.total_duration)
         update_span_metrics(entry_span, APPSEC.RASP_RULE_EVAL, telemetry_results.rasp.sum_eval)
+        telemetry.telemetry_writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.APPSEC, "rasp.duration", telemetry_results.rasp.duration, tags=tags
+        )
+        telemetry.telemetry_writer.add_distribution_metric(
+            TELEMETRY_NAMESPACE.APPSEC, "rasp.duration_ext", telemetry_results.rasp.total_duration, tags=tags
+        )
     if telemetry_results.truncation.string_length:
         entry_span._set_attribute(APPSEC.TRUNCATION_STRING_LENGTH, max(telemetry_results.truncation.string_length))
     if telemetry_results.truncation.container_size:

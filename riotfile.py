@@ -96,6 +96,7 @@ _base_env = {
     "CARGO_BUILD_JOBS": "12",
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
+    "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
@@ -533,7 +534,7 @@ venv = Venv(
         Venv(
             name="dd_coverage",
             command="pytest --no-cov {cmdargs} tests/coverage -s",
-            pys=select_pys(max_version="3.12"),
+            pys=select_pys(),
         ),
         Venv(
             name="detect_global_locks",
@@ -801,9 +802,10 @@ venv = Venv(
         ),
         Venv(
             name="logging",
-            command="pytest {cmdargs} tests/contrib/logging",
+            command="pytest -n auto {cmdargs} tests/contrib/logging",
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             pys=select_pys(),
         ),
@@ -971,10 +973,13 @@ venv = Venv(
                 "redis": ">=2.10,<2.11",
                 "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django[testing]": "==3.10.0",
+                # async ASGI tests (#17404 / #17728) silently skip without it.
+                "pytest-asyncio": latest,
+                # setuptools 80 removed `pkg_resources`, still imported by django-q[2].
+                "setuptools": "<80",
                 "pylibmc": latest,
                 "python-memcached": latest,
                 "pytest-randomly": latest,
-                "django-q": latest,
                 "spyne": latest,
                 "zeep": latest,
                 "bcrypt": "==4.2.1",
@@ -996,6 +1001,7 @@ venv = Venv(
                     pkgs={
                         "django": ["~=2.2.0", "~=3.0.0", "~=4.0"],
                         "channels": latest,
+                        "django-q": latest,
                     },
                 ),
                 Venv(
@@ -1005,6 +1011,28 @@ venv = Venv(
                         "django": ["~=4.2"],
                         "psycopg": latest,
                         "channels": latest,
+                        "django-q": latest,
+                    },
+                ),
+                Venv(
+                    # django 5.x (#17728 coverage). Uses django-q2 because django-q imports
+                    # django.utils.baseconv (removed in Django 5.0). Postgres-touching tests
+                    # and Django-4.2-specific test_cached_view are skipped because Django 5.0
+                    # dropped Postgres 12, but the suite's docker-compose still runs Postgres 12.
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    command=(
+                        "pytest {cmdargs} "
+                        "--ignore=tests/contrib/django/test_django_dbm.py "
+                        "--ignore=tests/contrib/django/test_django_snapshots.py "
+                        "-k 'not test_user_name_included and not test_user_name_excluded "
+                        "and not test_cached_view' "
+                        "tests/contrib/django"
+                    ),
+                    pkgs={
+                        "django": ["~=5.1"],
+                        "psycopg": latest,
+                        "channels": latest,
+                        "django-q2": latest,
                     },
                 ),
             ],
@@ -1972,6 +2000,7 @@ venv = Venv(
                 "pytest-xdist": latest,
                 "pytest-benchmark": latest,
                 "pytest-bdd": latest,
+                "pytest-timeout": latest,
             },
             env={
                 "DD_AGENT_PORT": "9126",
@@ -2275,9 +2304,10 @@ venv = Venv(
         ),
         Venv(
             name="urllib3",
-            command="pytest {cmdargs} tests/contrib/urllib3",
+            command="pytest -n auto {cmdargs} tests/contrib/urllib3",
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             venvs=[
                 Venv(
@@ -2430,12 +2460,12 @@ venv = Venv(
         ),
         Venv(
             name="redis",
+            command="pytest {cmdargs} tests/contrib/redis",
             pkgs={
                 "pytest-randomly": latest,
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} tests/contrib/redis",
                     pys=select_pys(min_version="3.9", max_version="3.10"),
                     pkgs={
                         "redis": [
@@ -2449,7 +2479,6 @@ venv = Venv(
                 Venv(
                     # redis added support for Python 3.11 in 4.3
                     pys="3.11",
-                    command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": ["~=4.3", "==5.0.1"],
                         "pytest-asyncio": "==0.23.7",
@@ -2457,7 +2486,6 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.12", max_version="3.13"),
-                    command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": latest,
                         "pytest-asyncio": "==0.23.7",
@@ -2465,7 +2493,6 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.14"),
-                    command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
                         "redis": latest,
                         "pytest-asyncio": latest,
@@ -3024,6 +3051,7 @@ venv = Venv(
                         "langchain-anthropic": "~=0.3.0",
                         "langchain-aws": "~=0.2.0",
                         "langchain-cohere": "~=0.3.0",
+                        "langchain-google-genai": "~=2.0.0",
                     },
                     pys=select_pys(min_version="3.9", max_version="3.12"),
                 ),
@@ -3034,8 +3062,9 @@ venv = Venv(
                         "langchain-anthropic": latest,
                         "langchain-aws": latest,
                         "langchain-cohere": latest,
+                        "langchain-google-genai": latest,
                     },
-                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
                 ),
             ],
         ),
@@ -3175,21 +3204,21 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.9"),
                     pkgs={
-                        "pydantic-ai": ["==0.8.1"],
+                        "pydantic-ai-slim[openai]": ["==0.8.1"],
                         "pydantic": "==2.12.0a1",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "pydantic-ai": ["==0.8.1", "==1.0.0"],
+                        "pydantic-ai-slim[openai]": ["==0.8.1", "==1.0.0"],
                         "pydantic": "==2.12.0a1",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "pydantic-ai": ["==1.63.0"],
+                        "pydantic-ai-slim[openai]": ["==1.63.0"],
                     },
                 ),
             ],
@@ -3250,10 +3279,11 @@ venv = Venv(
             },
             pkgs={
                 "pytest-randomly": latest,
+                "pytest-xdist": latest,
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} -vv tests/contrib/kafka",
+                    command="pytest -n auto {cmdargs} -vv tests/contrib/kafka",
                     venvs=[
                         Venv(
                             pys=select_pys(min_version="3.9", max_version="3.10"),
@@ -3277,6 +3307,15 @@ venv = Venv(
                 "datadog-lambda": [">=6.105.0", latest],
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
+            },
+        ),
+        Venv(
+            name="aws_durable_execution_sdk_python",
+            command="pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python",
+            pys=select_pys(min_version="3.11"),
+            pkgs={
+                "aws-durable-execution-sdk-python": ["~=1.4.0", latest],
+                "aws-durable-execution-sdk-python-testing": [latest],
             },
         ),
         Venv(
@@ -3597,10 +3636,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3653,10 +3692,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3695,10 +3734,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -3738,10 +3777,10 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # memcpy-based sampler
+                        # safe_memcpy fast-copy path (process_vm_readv is the default)
                         Venv(
                             env={
-                                "ECHION_USE_FAST_COPY_MEMORY": "1",
+                                "_DD_PROFILING_STACK_FAST_COPY": "1",
                             },
                             pkgs={
                                 "protobuf": latest,
@@ -4402,6 +4441,15 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="ai_guard_openai",
+            command="pytest {cmdargs} tests/appsec/ai_guard/openai/",
+            pys=select_pys(),
+            pkgs={
+                "pytest-asyncio": "==0.23.7",
+                "openai": ["==1.102.0", latest],
+            },
         ),
         Venv(
             name="claude_agent_sdk",

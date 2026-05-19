@@ -8,6 +8,16 @@ from ddtrace.vendor.debtcollector import deprecate
 from .http import HttpConfig
 
 
+def _integration_env_var_id(name: str) -> str:
+    """Build the env var identifier portion for an integration name.
+
+    Hyphens are not valid POSIX identifiers, so normalize them to underscores
+    so env vars are usable from shells. Used to derive ``DD_<id>_SERVICE``,
+    ``DD_TRACE_<id>_ENABLED``, etc. from an integration name.
+    """
+    return name.upper().replace("-", "_")
+
+
 class IntegrationConfig(AttrDict):
     """
     Integration specific configuration object.
@@ -45,10 +55,11 @@ class IntegrationConfig(AttrDict):
         self.setdefault("analytics_enabled", False)
         self.setdefault("analytics_sample_rate", 1.0)
 
+        env_var_id = _integration_env_var_id(name)
         service = env.get(
-            "DD_%s_SERVICE" % name.upper(),
+            "DD_%s_SERVICE" % env_var_id,
             default=env.get(
-                "DD_%s_SERVICE_NAME" % name.upper(),
+                "DD_%s_SERVICE_NAME" % env_var_id,
                 default=None,
             ),
         )

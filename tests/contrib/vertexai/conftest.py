@@ -36,27 +36,25 @@ def mock_async_client():
 
 
 @pytest.fixture
-def test_spans(ddtrace_global_config, vertexai, test_spans):
-    try:
-        if ddtrace_global_config.get("_llmobs_enabled", False):
-            # Have to disable and re-enable LLMObs to use the mock tracer.
-            LLMObs.disable()
-            LLMObs.enable(integrations_enabled=False, agentless_enabled=False)
-        yield test_spans
-    except Exception:
-        yield
-
-
-@pytest.fixture
-def mock_llmobs_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    try:
-        LLMObsSpanWriterMock = patcher.start()
-        m = mock.MagicMock()
-        LLMObsSpanWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
+def vertexai_llmobs(tracer, monkeypatch):
+    # Preserve meta_struct["_llmobs"] on spans so tests can assert against
+    # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it after
+    # enqueueing to LLMObsSpanWriter.
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
+    LLMObs.disable()
+    with override_global_config(
+        {
+            "_llmobs_ml_app": "<ml-app-name>",
+            "_dd_api_key": "<not-a-real-key>",
+        }
+    ):
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
+        # Replace the real LLMObsSpanWriter with a mock so we don't keep a
+        # background flush thread alive trying to ship spans during the test.
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        yield LLMObs
+    LLMObs.disable()
 
 
 @pytest.fixture

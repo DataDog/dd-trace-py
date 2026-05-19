@@ -290,7 +290,7 @@ def is_64_bit_python():
 
 
 rust_features = ["stats"]
-if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
+if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
     rust_features.append("profiling")
     if not SERVERLESS_BUILD:
         rust_features.append("crashtracker")
@@ -842,7 +842,7 @@ class CustomBuildExt(build_ext):
             self.build_rust()
 
         # Build libdd_wrapper before building other extensions that depend on it
-        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
+        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
             with _time_phase("build_libdd_wrapper"):
                 self.build_libdd_wrapper()
 
@@ -1606,7 +1606,7 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
+    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
         # Memory profiler now uses CMake to support Abseil dependency
         MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
         memalloc_cmake_args = []
@@ -1653,25 +1653,28 @@ else:
 cython_exts = []
 if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
     with _time_phase("cythonize"):
-        cython_exts = cythonize(
-            [
-                Cython.Distutils.Extension(
-                    "ddtrace.internal._tagset",
-                    sources=["ddtrace/internal/_tagset.pyx"],
-                    language="c",
-                ),
-                Extension(
-                    "ddtrace.internal._encoding",
-                    ["ddtrace/internal/_encoding.pyx"],
-                    include_dirs=["."],
-                    libraries=encoding_libraries,
-                    define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
-                ),
-                Extension(
-                    "ddtrace.internal.telemetry.metrics_namespaces",
-                    ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
-                    language="c",
-                ),
+        _cython_sources = [
+            Cython.Distutils.Extension(
+                "ddtrace.internal._tagset",
+                sources=["ddtrace/internal/_tagset.pyx"],
+                language="c",
+            ),
+            Extension(
+                "ddtrace.internal._encoding",
+                ["ddtrace/internal/_encoding.pyx"],
+                include_dirs=["."],
+                libraries=encoding_libraries,
+                define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
+            ),
+            Extension(
+                "ddtrace.internal.telemetry.metrics_namespaces",
+                ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
+                language="c",
+            ),
+        ]
+
+        if sys.version_info < (3, 15):
+            _cython_sources += [
                 Cython.Distutils.Extension(
                     "ddtrace.profiling._threading",
                     sources=["ddtrace/profiling/_threading.pyx"],
@@ -1702,7 +1705,9 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
                     sources=["ddtrace/profiling/collector/_lock.pyx"],
                     language="c",
                 ),
-            ],
+            ]
+        cython_exts = cythonize(
+            _cython_sources,
             compile_time_env={
                 "PY_MAJOR_VERSION": sys.version_info.major,
                 "PY_MINOR_VERSION": sys.version_info.minor,

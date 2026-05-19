@@ -46,6 +46,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
                 url=event.request_url,
                 target_host=event.target_host,
                 status_code=event.response_status_code,
+                status_msg=event.response_status_msg,
                 query=event.query,
                 request_headers=event.request_headers,
                 response_headers=event.response_headers,

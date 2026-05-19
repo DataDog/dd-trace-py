@@ -32,7 +32,12 @@ def test_global_tags(litellm, request_vcr, test_spans):
 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 def test_litellm_completion(litellm, snapshot_context, request_vcr, stream, n):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion"):
+    shadow_ignores = [
+        "metrics._dd.llmobs.input_tokens",
+        "metrics._dd.llmobs.output_tokens",
+        "metrics._dd.llmobs.total_tokens",
+    ]
+    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=shadow_ignores):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
@@ -48,7 +53,13 @@ def test_litellm_completion(litellm, snapshot_context, request_vcr, stream, n):
 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 async def test_litellm_acompletion(litellm, snapshot_context, request_vcr, stream, n):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["resource"]):
+    shadow_ignores = [
+        "resource",
+        "metrics._dd.llmobs.input_tokens",
+        "metrics._dd.llmobs.output_tokens",
+        "metrics._dd.llmobs.total_tokens",
+    ]
+    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=shadow_ignores):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = await litellm.acompletion(
@@ -64,7 +75,13 @@ async def test_litellm_acompletion(litellm, snapshot_context, request_vcr, strea
 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 def test_litellm_text_completion(litellm, snapshot_context, request_vcr, stream, n):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["resource"]):
+    shadow_ignores = [
+        "resource",
+        "metrics._dd.llmobs.input_tokens",
+        "metrics._dd.llmobs.output_tokens",
+        "metrics._dd.llmobs.total_tokens",
+    ]
+    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=shadow_ignores):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             resp = litellm.text_completion(
                 model="gpt-3.5-turbo",
@@ -79,7 +96,13 @@ def test_litellm_text_completion(litellm, snapshot_context, request_vcr, stream,
 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 async def test_litellm_atext_completion(litellm, snapshot_context, request_vcr, stream, n):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["resource"]):
+    shadow_ignores = [
+        "resource",
+        "metrics._dd.llmobs.input_tokens",
+        "metrics._dd.llmobs.output_tokens",
+        "metrics._dd.llmobs.total_tokens",
+    ]
+    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=shadow_ignores):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             resp = await litellm.atext_completion(
                 model="gpt-3.5-turbo",
@@ -106,7 +129,15 @@ def test_litellm_completion_different_models(litellm, snapshot_context, request_
         cassette_name = f"completion_{model_base}.yaml"
 
     with snapshot_context(
-        token="tests.contrib.litellm.test_litellm.test_litellm_completion", ignores=["meta.litellm.request.model"]
+        token="tests.contrib.litellm.test_litellm.test_litellm_completion",
+        ignores=[
+            "meta.litellm.request.model",
+            "meta._dd.llmobs.model_name",
+            "meta._dd.llmobs.model_provider",
+            "metrics._dd.llmobs.input_tokens",
+            "metrics._dd.llmobs.output_tokens",
+            "metrics._dd.llmobs.total_tokens",
+        ],
     ):
         with request_vcr.use_cassette(cassette_name):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -120,7 +151,14 @@ def test_litellm_completion_different_models(litellm, snapshot_context, request_
 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 def test_litellm_router_completion(litellm, snapshot_context, request_vcr, router, stream, n):
-    with snapshot_context(token="tests.contrib.litellm.test_litellm.test_litellm_router_completion"):
+    shadow_ignores = [
+        "metrics._dd.llmobs.input_tokens",
+        "metrics._dd.llmobs.output_tokens",
+        "metrics._dd.llmobs.total_tokens",
+    ]
+    with snapshot_context(
+        token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=shadow_ignores
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = router.completion(
@@ -137,7 +175,13 @@ def test_litellm_router_completion(litellm, snapshot_context, request_vcr, route
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 async def test_litellm_router_acompletion(litellm, snapshot_context, request_vcr, router, stream, n):
     with snapshot_context(
-        token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=["resource"]
+        token="tests.contrib.litellm.test_litellm.test_litellm_router_completion",
+        ignores=[
+            "resource",
+            "metrics._dd.llmobs.input_tokens",
+            "metrics._dd.llmobs.output_tokens",
+            "metrics._dd.llmobs.total_tokens",
+        ],
     ):
         with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -155,7 +199,13 @@ async def test_litellm_router_acompletion(litellm, snapshot_context, request_vcr
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 def test_litellm_router_text_completion(litellm, snapshot_context, request_vcr, router, stream, n):
     with snapshot_context(
-        token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=["resource"]
+        token="tests.contrib.litellm.test_litellm.test_litellm_router_completion",
+        ignores=[
+            "resource",
+            "metrics._dd.llmobs.input_tokens",
+            "metrics._dd.llmobs.output_tokens",
+            "metrics._dd.llmobs.total_tokens",
+        ],
     ):
         with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
             prompt = "What color is the sky?"
@@ -173,7 +223,13 @@ def test_litellm_router_text_completion(litellm, snapshot_context, request_vcr, 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 async def test_litellm_router_atext_completion(litellm, snapshot_context, request_vcr, router, stream, n):
     with snapshot_context(
-        token="tests.contrib.litellm.test_litellm.test_litellm_router_completion", ignores=["resource"]
+        token="tests.contrib.litellm.test_litellm.test_litellm_router_completion",
+        ignores=[
+            "resource",
+            "metrics._dd.llmobs.input_tokens",
+            "metrics._dd.llmobs.output_tokens",
+            "metrics._dd.llmobs.total_tokens",
+        ],
     ):
         with request_vcr.use_cassette(get_cassette_name(stream=stream, n=n)):
             prompt = "What color is the sky?"

@@ -11,25 +11,25 @@
     "meta": {
       "_dd.base_service": "tests.contrib.rq",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de954600000000",
-      "_dd.svc_src": "m",
+      "_dd.p.tid": "69ebafae00000000",
+      "_dd.svc_src": "rq",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "84b3eb03-a78d-4d21-a226-38ea1f1f8c5e",
+      "job.id": "aa36ddd4-5431-44c0-8ebd-957485769f07",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "6a01082606b940feb84197d38404ca13",
+      "runtime-id": "c291c5d77b15483685e620c76193a901",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 62795.0
+      "process_id": 45019.0
     },
-    "duration": 4062958,
-    "start": 1776194886952341093
+    "duration": 1745041,
+    "start": 1777053614741532966
   }],
 [
   {
@@ -44,25 +44,25 @@
     "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de954700000000",
+      "_dd.p.tid": "69ebafaf00000000",
       "_dd.svc_src": "rq_worker",
       "_dd.tags.process": "entrypoint.name:rq,entrypoint.type:script,entrypoint.workdir:project,svc.auto:rq",
       "component": "rq",
-      "job.id": "84b3eb03-a78d-4d21-a226-38ea1f1f8c5e",
+      "job.id": "aa36ddd4-5431-44c0-8ebd-957485769f07",
       "job.origin": "q",
       "job.status": "finished",
       "language": "python",
-      "runtime-id": "49c432eaa05545fc82bae63bc420a786",
+      "runtime-id": "8571784cd73547bbae3dfd3bb2a2e9a9",
       "span.kind": "consumer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 62892.0
+      "process_id": 45138.0
     },
-    "duration": 6456250,
-    "start": 1776194887469234093
+    "duration": 7156542,
+    "start": 1777053615281510799
   },
      {
        "name": "rq.job.perform",
@@ -77,8 +77,8 @@
          "_dd.base_service": "",
          "_dd.svc_src": "rq",
          "component": "rq",
-         "job.id": "84b3eb03-a78d-4d21-a226-38ea1f1f8c5e"
+         "job.id": "aa36ddd4-5431-44c0-8ebd-957485769f07"
        },
-       "duration": 3341208,
-       "start": 1776194887470919343
+       "duration": 3555125,
+       "start": 1777053615283434966
      }]]

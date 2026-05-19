@@ -63,16 +63,16 @@ class LLMObsSpanData(TypedDict, total=False):
     """Structure of LLMObs span data attached to APM spans."""
 
     name: str
-    parent_id: Optional[int]
-    trace_id: int
+    parent_id: str
+    trace_id: str
     ml_app: str
     session_id: str
     tags: dict[str, str]
     metrics: dict[str, Any]
     span_links: list["_SpanLink"]
     config: "ExperimentConfigType"
-    is_evaluation_span: bool
     meta: _Meta
+    _dd: dict[str, str]
 
 
 class _LLMObsSpanEventOptional(TypedDict, total=False):
@@ -145,10 +145,19 @@ class EvaluatorInferResponse(TypedDict, total=False):
     status: Optional[str]
 
 
+_SHOULD_USE_AGENTLESS: Optional[bool] = None
+
+
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
     """Determine whether to use agentless mode based on agent availability and capabilities."""
     if user_defined_agentless_enabled is not None:
         return user_defined_agentless_enabled
+
+    global _SHOULD_USE_AGENTLESS
+
+    if _SHOULD_USE_AGENTLESS is False:
+        # perf: Agent with EVP proxy confirmed present; skip the network call on repeat invocations.
+        return _SHOULD_USE_AGENTLESS
 
     agent_info: Optional[dict[str, Any]]
 
@@ -161,7 +170,21 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
         return True
 
     endpoints = agent_info.get("endpoints", [])
-    return not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
+    _SHOULD_USE_AGENTLESS = not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
+    return _SHOULD_USE_AGENTLESS
+
+
+def llmobs_apm_trace_agentless_enabled() -> bool:
+    """Whether LLMObs config requires the APM trace writer to be agentless.
+
+    Auto-detects via :func:`should_use_agentless` only when the user hasn't expressed a
+    preference (``DD_LLMOBS_AGENTLESS_ENABLED`` unset and no programmatic value resolved yet).
+    """
+    if not config._dd_api_key or config._llmobs_agentless_enabled is False:
+        return False
+    elif config._llmobs_agentless_enabled or config._trace_agentless_enabled:
+        return True
+    return should_use_agentless()
 
 
 class BaseLLMObsWriter(PeriodicService):
@@ -625,7 +648,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "canonical_id": attrs.get("canonical_id"),
                     "input_data": attrs["input"],
                     "expected_output": attrs.get("expected_output"),
-                    "metadata": attrs.get("metadata", {}),
+                    "metadata": attrs.get("metadata") or {},
                     "tags": attrs.get("tags", []),
                 }
                 class_records.append(dataset_record)

@@ -11,8 +11,10 @@ from typing import Union
 from ddtrace import config
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec._trace_utils import _aiguard_manual_keep
+from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
+from ddtrace.internal._exceptions import DDBlockException
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
@@ -93,8 +95,13 @@ class AIGuardClientError(Exception):
         super().__init__(message)
 
 
-class AIGuardAbortError(Exception):
-    """Exception to abort current execution due to security policy."""
+class AIGuardAbortError(DDBlockException):
+    """Exception to abort current execution due to security policy.
+
+    Inherits from ``DDBlockException`` (which is ``BaseException``-derived) so
+    that a generic ``except Exception:`` in user code does not accidentally
+    swallow an AI Guard block decision.
+    """
 
     def __init__(
         self,
@@ -314,6 +321,23 @@ class AIGuardClient:
                 if root_span:
                     _aiguard_manual_keep(root_span)
                     root_span.set_tag(AI_GUARD.EVENT_TAG, "true")
+                    # Populate client IP on the service-entry span only when an ai_guard span
+                    # is actually created, mirroring the AppSec spec. The candidate IP was
+                    # stashed earlier by set_http_meta when DD_AI_GUARD_ENABLED=true.
+                    # Discard the key after use so a later evaluate() call can't inherit a
+                    # stale IP from an earlier request that shared this context tree.
+                    client_ip = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
+                    core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
+                    if client_ip:
+                        root_span._set_attribute(http.CLIENT_IP, client_ip)
+                        root_span._set_attribute("network.client.ip", client_ip)
+                    # Copy anomaly-detection attributes from the root span onto the
+                    # ai_guard span with the `ai_guard.` prefix, so intake processing has them
+                    # even when the root span arrives in a later trace chunk.
+                    for tag_name in AI_GUARD.ANOMALY_DETECTION_TAGS:
+                        tag_value = root_span.get_tag(tag_name)
+                        if tag_value is not None:
+                            span.set_tag(f"{AI_GUARD.TAG}.{tag_name}", tag_value)
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(
