@@ -21,6 +21,7 @@ from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
+from ddtrace.testing.internal.test_data import TestTag
 from tests.testing.mocks import mock_backend_connector
 
 
@@ -176,6 +177,8 @@ class TestAPIClientGetSettings:
         assert settings.require_git is False
         assert settings.itr_enabled is False
 
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_SETTINGS: "true"}
+
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.UNKNOWN)
         ]
@@ -221,6 +224,8 @@ class TestAPIClientGetSettings:
         assert settings.require_git is False
         assert settings.itr_enabled is False
 
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_SETTINGS: "true"}
+
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
 
     def test_get_settings_errors_in_response(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
@@ -254,7 +259,7 @@ class TestAPIClientGetSettings:
                 settings = api_client.get_settings()
 
         assert "Error getting settings from API" in caplog.text
-        assert "KeyError" in caplog.text
+        assert "'data'" in caplog.text
 
         assert settings.early_flake_detection.enabled is False
         assert settings.auto_test_retries.enabled is False
@@ -266,9 +271,65 @@ class TestAPIClientGetSettings:
         assert settings.require_git is False
         assert settings.itr_enabled is False
 
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_SETTINGS: "true"}
+
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
         ]
+
+    def test_get_settings_no_error_on_success(self, mock_telemetry: Mock) -> None:
+        mock_connector = (
+            mock_backend_connector()
+            .with_post_json_response(
+                endpoint="/api/v2/libraries/tests/services/setting",
+                response_data={
+                    "data": {
+                        "attributes": {
+                            "code_coverage": False,
+                            "coverage_report_upload_enabled": False,
+                            "di_enabled": False,
+                            "early_flake_detection": {
+                                "enabled": False,
+                                "faulty_session_threshold": 30,
+                                "slow_test_retries": {"10s": 5, "30s": 3, "5m": 2, "5s": 10},
+                            },
+                            "flaky_test_retries_enabled": False,
+                            "impacted_tests_enabled": False,
+                            "itr_enabled": False,
+                            "known_tests_enabled": False,
+                            "require_git": False,
+                            "test_management": {"attempt_to_fix_retries": 20, "enabled": False},
+                            "tests_skipping": False,
+                        },
+                        "id": "00000000-0000-0000-0000-000000000000",
+                        "type": "ci_app_tracers_test_service_settings",
+                    }
+                },
+            )
+            .build()
+        )
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={"os.platform": "Linux"},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            api_client.get_settings()
+
+        assert api_client.configuration_errors == {}
 
 
 class TestAPIClientGetKnownTests:
@@ -327,6 +388,7 @@ class TestAPIClientGetKnownTests:
                             "env": "some-env",
                             "repository_url": "http://github.com/DataDog/some-repo.git",
                             "configurations": {"os.platform": "Linux"},
+                            "page_info": {},
                         },
                     }
                 },
@@ -341,6 +403,218 @@ class TestAPIClientGetKnownTests:
             TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_02"),
             TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_03"),
         }
+
+    def test_get_known_tests_pagination_sends_page_info_correctly(self, mock_telemetry: Mock) -> None:
+        """First page sends empty page_info; second page sends only page_state."""
+        page1_response = {
+            "data": {
+                "attributes": {
+                    "tests": {"mod1": {"suite1.py": ["test_a"]}},
+                    "page_info": {"has_next": True, "cursor": "cursor-page-1"},
+                },
+                "id": "F4Go_FYpcB0",
+                "type": "ci_app_libraries_tests",
+            }
+        }
+        page2_response = {
+            "data": {
+                "attributes": {
+                    "tests": {"mod2": {"suite2.py": ["test_b"]}},
+                },
+                "id": "F4Go_FYpcB0",
+                "type": "ci_app_libraries_tests",
+            }
+        }
+        mock_connector = mock_backend_connector().build()
+        mock_connector.post_json.side_effect = [
+            BackendResult(response=Mock(status=200), parsed_response=page1_response),
+            BackendResult(response=Mock(status=200), parsed_response=page2_response),
+        ]
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="svc",
+            env="env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/org/repo.git",
+                GitTag.COMMIT_SHA: "sha",
+                GitTag.BRANCH: "main",
+                GitTag.COMMIT_MESSAGE: "msg",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={"os.platform": "Linux"},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            known_tests = api_client.get_known_tests()
+
+        assert len(mock_connector.post_json.call_args_list) == 2
+        assert mock_connector.post_json.call_args_list[0][0][1]["data"]["attributes"]["page_info"] == {}
+        assert mock_connector.post_json.call_args_list[1][0][1]["data"]["attributes"]["page_info"] == {
+            "page_state": "cursor-page-1"
+        }
+        assert known_tests == {
+            TestRef(SuiteRef(ModuleRef("mod1"), "suite1.py"), "test_a"),
+            TestRef(SuiteRef(ModuleRef("mod2"), "suite2.py"), "test_b"),
+        }
+
+    def test_get_known_tests_max_pages_limit_bails_and_disables_known_tests(
+        self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        When _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES=2, only 2 requests are made;
+        we log and return empty set (disable known tests).
+        """
+        monkeypatch.setenv("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", "2")
+
+        page1_response = {
+            "data": {
+                "attributes": {
+                    "tests": {"mod1": {"suite1.py": ["test_one"]}},
+                    "page_info": {"has_next": True, "cursor": "cursor-1"},
+                },
+                "id": "F4Go_FYpcB0",
+                "type": "ci_app_libraries_tests",
+            }
+        }
+        page2_response = {
+            "data": {
+                "attributes": {
+                    "tests": {"mod2": {"suite2.py": ["test_two"]}},
+                    "page_info": {"has_next": True, "cursor": "cursor-2"},
+                },
+                "id": "F4Go_FYpcB0",
+                "type": "ci_app_libraries_tests",
+            }
+        }
+        page3_response = {
+            "data": {
+                "attributes": {
+                    "tests": {"mod3": {"suite3.py": ["test_three"]}},
+                },
+                "id": "F4Go_FYpcB0",
+                "type": "ci_app_libraries_tests",
+            }
+        }
+        mock_connector = mock_backend_connector().build()
+        mock_connector.post_json.side_effect = [
+            BackendResult(response=Mock(status=200), parsed_response=page1_response),
+            BackendResult(response=Mock(status=200), parsed_response=page2_response),
+            BackendResult(response=Mock(status=200), parsed_response=page3_response),
+        ]
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="svc",
+            env="env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/org/repo.git",
+                GitTag.COMMIT_SHA: "sha",
+                GitTag.BRANCH: "main",
+                GitTag.COMMIT_MESSAGE: "msg",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={"os.platform": "Linux"},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            with caplog.at_level(level=logging.WARNING, logger="ddtrace.testing"):
+                known_tests = api_client.get_known_tests()
+
+        assert mock_connector.post_json.call_count == 2, "should stop after max_pages=2, not request page 3"
+        assert "Known tests pagination exceeded max pages: 2" in caplog.text
+        assert known_tests == set()
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS: "true"}
+
+    def test_get_known_tests_max_pages_zero_uses_default(
+        self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Non-positive _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES is invalid; we use default and fetch normally."""
+        monkeypatch.setenv("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", "0")
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/ci/libraries/tests",
+                response_data={
+                    "data": {
+                        "attributes": {"tests": {"m": {"s.py": ["t"]}}},
+                        "id": "F4Go_FYpcB0",
+                        "type": "ci_app_libraries_tests",
+                    }
+                },
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+        api_client = APIClient(
+            service="svc",
+            env="env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/org/repo.git",
+                GitTag.COMMIT_SHA: "sha",
+                GitTag.BRANCH: "main",
+                GitTag.COMMIT_MESSAGE: "msg",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={"os.platform": "Linux"},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            with caplog.at_level(level=logging.WARNING, logger="ddtrace.testing"):
+                known_tests = api_client.get_known_tests()
+        assert "_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES must be positive" in caplog.text
+        assert known_tests == {TestRef(SuiteRef(ModuleRef("m"), "s.py"), "t")}
+
+    def test_get_known_tests_page_info_non_dict_returns_empty_and_records_error(
+        self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Malformed page_info (non-dict) is handled: we return empty set and record BAD_JSON."""
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/ci/libraries/tests",
+                response_data={
+                    "data": {
+                        "attributes": {
+                            "tests": {"m": {"s.py": ["t"]}},
+                            "page_info": "not-a-dict",
+                        },
+                        "id": "F4Go_FYpcB0",
+                        "type": "ci_app_libraries_tests",
+                    }
+                },
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+        api_client = APIClient(
+            service="svc",
+            env="env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/org/repo.git",
+                GitTag.COMMIT_SHA: "sha",
+                GitTag.BRANCH: "main",
+                GitTag.COMMIT_MESSAGE: "msg",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={"os.platform": "Linux"},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            with caplog.at_level(level=logging.WARNING, logger="ddtrace.testing"):
+                known_tests = api_client.get_known_tests()
+        assert "page_info is not a dict" in caplog.text
+        assert known_tests == set()
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS: "true"}
+        assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
+            call(ErrorType.BAD_JSON)
+        ]
 
     def test_get_known_tests_missing_git_data(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = mock_backend_connector().build()
@@ -367,6 +641,7 @@ class TestAPIClientGetKnownTests:
         assert mock_connector.post_json.call_args_list == []
 
         assert known_tests == set()
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS: "true"}
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.UNKNOWN)
@@ -404,6 +679,7 @@ class TestAPIClientGetKnownTests:
         assert "Error getting known tests from API: No can do" in caplog.text
 
         assert known_tests == set()
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS: "true"}
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
 
     def test_get_known_tests_errors_in_response(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
@@ -437,9 +713,9 @@ class TestAPIClientGetKnownTests:
                 known_tests = api_client.get_known_tests()
 
         assert "Error getting known tests from API" in caplog.text
-        assert "KeyError" in caplog.text
 
         assert known_tests == set()
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS: "true"}
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
@@ -627,6 +903,7 @@ class TestAPIClientGetTestManagementTests:
         assert mock_connector.post_json.call_args_list == []
 
         assert properties == {}
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS: "true"}
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.UNKNOWN)
@@ -666,6 +943,7 @@ class TestAPIClientGetTestManagementTests:
         assert "Error getting Test Management properties from API" in caplog.text
 
         assert properties == {}
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS: "true"}
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
 
     def test_get_test_management_tests_errors_in_response(
@@ -701,9 +979,10 @@ class TestAPIClientGetTestManagementTests:
                 properties = api_client.get_test_management_properties()
 
         assert "Failed to parse Test Management tests data from API" in caplog.text
-        assert "KeyError" in caplog.text
+        assert "'data'" in caplog.text
 
         assert properties == {}
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS: "true"}
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
@@ -778,7 +1057,7 @@ class TestAPIClientGetKnownCommits:
         assert "Git info not available" in caplog.text
         assert mock_connector.post_json.call_args_list == []
 
-        assert commits == []
+        assert commits is None
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.UNKNOWN)
@@ -815,7 +1094,7 @@ class TestAPIClientGetKnownCommits:
 
         assert "Error getting known commits from API" in caplog.text
 
-        assert commits == []
+        assert commits is None
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
 
     def test_get_known_commits_errors_in_response(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
@@ -849,9 +1128,9 @@ class TestAPIClientGetKnownCommits:
                 commits = api_client.get_known_commits(latest_commits=["0000abcd", "1111abcd"])
 
         assert "Failed to parse search_commits data" in caplog.text
-        assert "KeyError" in caplog.text
+        assert "'data'" in caplog.text
 
-        assert commits == []
+        assert commits is None
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
@@ -970,6 +1249,7 @@ class TestAPIClientGetSkippableTests:
 
         assert skippable_tests == set()
         assert correlation_id is None
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS: "true"}
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.UNKNOWN)
@@ -1010,6 +1290,7 @@ class TestAPIClientGetSkippableTests:
 
         assert skippable_tests == set()
         assert correlation_id is None
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS: "true"}
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
 
@@ -1046,10 +1327,11 @@ class TestAPIClientGetSkippableTests:
                 skippable_tests, correlation_id = api_client.get_skippable_tests()
 
         assert "Failed to parse skippable tests data" in caplog.text
-        assert "KeyError" in caplog.text
+        assert "'data'" in caplog.text
 
         assert skippable_tests == set()
         assert correlation_id is None
+        assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS: "true"}
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
@@ -1057,7 +1339,7 @@ class TestAPIClientGetSkippableTests:
 
 
 @pytest.fixture
-def packfile(tmpdir: t.Any) -> Path:
+def packfile(tmpdir: t.Any) -> t.Generator[Path, None, None]:
     path = Path(str(tmpdir)) / "file.pack"
     path.write_text("twelve bytes")
     yield path
@@ -1288,7 +1570,7 @@ class TestAPIClientUploadCoverageReport:
         # Create a simple LCOV report
         coverage_report = b"SF:test.py\nDA:1,1\nLF:1\nLH:1\nend_of_record\n"
 
-        with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
+        with caplog.at_level(level=logging.DEBUG, logger="ddtrace.testing"):
             api_client.upload_coverage_report(coverage_report, coverage_format="lcov")
 
         # Verify post_files was called
@@ -1368,6 +1650,38 @@ class TestAPIClientUploadCoverageReport:
         assert event_data["ci.pipeline.id"] == "123456"
         assert event_data["ci.workspace_path"] == "/workspace"
 
+    def test_upload_coverage_report_with_pr_number_tag(self, mock_telemetry: Mock) -> None:
+        """Test coverage report upload preserves pr.* tags."""
+
+        mock_connector = Mock()
+        mock_connector.post_files.return_value = BackendResult(response=Mock(status=200))
+
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                "pr.number": "42",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        coverage_report = b"SF:test.py\nDA:1,1\nLF:1\nLH:1\nend_of_record\n"
+        api_client.upload_coverage_report(coverage_report, coverage_format="lcov")
+
+        files = mock_connector.post_files.call_args[1]["files"]
+        event_file = files[1]
+        event_data = json.loads(event_file.data.decode("utf-8"))
+
+        assert event_data["pr.number"] == "42"
+
     def test_upload_coverage_report_empty_report(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         """Test uploading an empty coverage report."""
         mock_connector = Mock()
@@ -1420,7 +1734,7 @@ class TestAPIClientUploadCoverageReport:
 
         coverage_report = b"SF:test.py\nDA:1,1\nLF:1\nLH:1\nend_of_record\n"
 
-        with caplog.at_level(level=logging.ERROR, logger="ddtrace.testing"):
+        with caplog.at_level(level=logging.WARNING, logger="ddtrace.testing"):
             api_client.upload_coverage_report(coverage_report, coverage_format="lcov")
 
         assert "Failed to upload coverage report" in caplog.text

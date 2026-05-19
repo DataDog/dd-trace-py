@@ -26,6 +26,23 @@ class LRUCache
 
     void store(const K& k, std::unique_ptr<V> v);
 
+    void clear()
+    {
+        items.clear();
+        index.clear();
+    }
+
+    void postfork_child()
+    {
+        // At fork, the sampling thread may have been modifying the list
+        // mid-operation (e.g., splice in lookup, emplace in store). Traversing
+        // the list to free nodes (as std::list::clear does) can crash on corrupted
+        // pointers. Use placement new to construct fresh empty containers,
+        // abandoning the old data (intentional one-time leak).
+        new (&items) std::list<std::pair<K, std::unique_ptr<V>>>();
+        new (&index) std::unordered_map<K, typename std::list<std::pair<K, std::unique_ptr<V>>>::iterator>();
+    }
+
   private:
     size_t capacity;
     std::list<std::pair<K, std::unique_ptr<V>>> items;

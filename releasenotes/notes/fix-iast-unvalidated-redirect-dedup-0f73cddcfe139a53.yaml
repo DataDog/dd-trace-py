@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    IAST: This fix resolves an issue where duplicate ``UNVALIDATED_REDIRECT`` vulnerabilities could be reported
+    for a single ``redirect()`` call.

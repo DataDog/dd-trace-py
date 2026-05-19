@@ -2,8 +2,6 @@ import contextlib
 import random
 import string
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 from unittest.mock import Mock
 
@@ -31,40 +29,49 @@ def find_ai_guard_span(test_spans: TracerSpanContainer) -> Span:
 
 def assert_ai_guard_span(
     test_spans: TracerSpanContainer,
-    tags: Dict[str, Any],
-    meta_struct: Dict[str, Any],
+    tags: dict[str, Any],
+    meta_struct: dict[str, Any],
 ) -> None:
     span = find_ai_guard_span(test_spans)
     for tag, value in tags.items():
         assert tag in span.get_tags(), f"Missing {tag} from spans tags"
         assert span.get_tag(tag) == value, f"Wrong value {span.get_tag(tag)}, expected {value}"
     struct = span._get_struct_tag(AI_GUARD.TAG)
+    assert struct is not None
     for meta, value in meta_struct.items():
         assert meta in struct.keys(), f"Missing {meta} from meta_struct keys"
         assert struct[meta] == value, f"Wrong value {struct[meta]}, expected {value}"
 
 
-def mock_evaluate_response(action: str, reason: str = "", tags: List[str] = None, block: bool = True) -> Mock:
+def mock_evaluate_response(
+    action: str,
+    reason: str = "",
+    tags: Optional[list[str]] = None,
+    block: bool = True,
+    sds_findings: Optional[list[Any]] = None,
+    tag_probs: Optional[dict[str, float]] = None,
+) -> Mock:
     mock_response = Mock()
     mock_response.status = 200
-    mock_response.get_json.return_value = {
-        "data": {
-            "attributes": {
-                "action": action,
-                "reason": reason,
-                "tags": tags if tags else [],
-                "is_blocking_enabled": block,
-            }
-        }
+    attributes = {
+        "action": action,
+        "reason": reason,
+        "tags": tags if tags else [],
+        "is_blocking_enabled": block,
     }
+    if sds_findings is not None:
+        attributes["sds_findings"] = sds_findings
+    if tag_probs is not None:
+        attributes["tag_probs"] = tag_probs
+    mock_response.get_json.return_value = {"data": {"attributes": attributes}}
     return mock_response
 
 
 def assert_mock_execute_request_call(
     mock_execute_request,
     ai_guard_client: AIGuardClient,
-    messages: List[Message],
-    meta: Optional[Dict[str, Any]] = None,
+    messages: list[Message],
+    meta: Optional[dict[str, Any]] = None,
     endpoint: Optional[str] = None,
 ):
     expected_attributes = {"messages": messages, "meta": meta or {"service": config.service, "env": config.env}}
@@ -86,7 +93,7 @@ def override_ai_guard_config(values):
         >>> with self.override_ai_guard_config(dict(name=value,...)):
             # Your test
     """
-    # List of global variables we allow overriding
+    # list of global variables we allow overriding
     global_config_keys = [
         "_dd_api_key",
         "_dd_app_key",

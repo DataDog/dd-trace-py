@@ -6,11 +6,7 @@ import re
 import shlex
 from shlex import join
 from typing import Callable  # noqa:F401
-from typing import Deque  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 
@@ -19,10 +15,15 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.runtime import get_runtime_propagation_envs
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
 from ddtrace.trace import tracer
 
 
@@ -30,7 +31,7 @@ log = get_logger(__name__)
 
 config._add(
     "subprocess",
-    dict(sensitive_wildcards=os.getenv("DD_SUBPROCESS_SENSITIVE_WILDCARDS", default="").split(",")),
+    dict(sensitive_wildcards=env.get("DD_SUBPROCESS_SENSITIVE_WILDCARDS", default="").split(",")),
 )
 
 
@@ -39,12 +40,12 @@ def get_version() -> str:
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"subprocess": "*"}
 
 
-_STR_CALLBACKS: Dict[str, Callable[[str], None]] = {}
-_LST_CALLBACKS: Dict[str, Callable[[Union[List[str], str]], None]] = {}
+_STR_CALLBACKS: dict[str, Callable[[str], None]] = {}
+_LST_CALLBACKS: dict[str, Callable[[Union[list[str], str]], None]] = {}
 
 
 def add_str_callback(name: str, callback: Callable[[str], None]):
@@ -66,7 +67,7 @@ def del_str_callback(name: str):
     _STR_CALLBACKS.pop(name, None)
 
 
-def add_lst_callback(name: str, callback: Callable[[Union[List[str], str]], None]):
+def add_lst_callback(name: str, callback: Callable[[Union[list[str], str]], None]):
     """Add a callback function for list commands.
 
     Args:
@@ -89,23 +90,40 @@ def should_trace_subprocess():
     return not asm_config._bypass_instrumentation_for_waf and asm_config._asm_enabled
 
 
-def patch() -> List[str]:
-    """Patch subprocess and os functions to enable security monitoring.
+def patch() -> list[str]:
+    """Patch subprocess and os functions to enable security monitoring and process lineage.
 
-    This function instruments various subprocess and os functions to provide
-    security monitoring capabilities for AAP (Application Attack Protection).
+    Popen.__init__ is always patched for session lineage injection so that exec-based
+    child processes receive lineage env vars whenever ddtrace is active, independent of
+    whether ASM is enabled. Opt out via DD_TRACE_SUBPROCESS_ENABLED=false.
 
-    Note:
-        Patching always occurs because AAP can be enabled dynamically via remote config.
-        Already patched functions are skipped.
+    Popen.wait is also always patched alongside Popen.__init__ to complete span
+    lifecycle tracking, though _traced_subprocess_wait is a no-op without ASM.
+
+    os.system, os.fork, and os._spawnvef are ASM-specific and only patched when ASM
+    modules are loaded. AAP can be enabled dynamically via remote config, so
+    already-patched functions are skipped.
     """
-    patched: List[str] = []
+    import subprocess  # nosec
+
+    patched: list[str] = []
+
+    should_patch_Popen_init = not trace_utils.iswrapped(subprocess.Popen.__init__)
+    should_patch_Popen_wait = not trace_utils.iswrapped(subprocess.Popen.wait)
+    if should_patch_Popen_init or should_patch_Popen_wait:
+        Pin().onto(subprocess)
+        # We store the parameters on __init__ in the context and set the tags on wait
+        # (where all the Popen objects eventually arrive, unless killed before it)
+        if should_patch_Popen_init:
+            trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
+        if should_patch_Popen_wait:
+            trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
+        patched.append("subprocess")
 
     if not asm_config._load_modules:
         return patched
 
     import os  # nosec
-    import subprocess  # nosec
 
     should_patch_system = not trace_utils.iswrapped(os.system)
     should_patch_fork = (not trace_utils.iswrapped(os.fork)) if hasattr(os, "fork") else False
@@ -123,18 +141,6 @@ def patch() -> List[str]:
             trace_utils.wrap(os, "_spawnvef", _traced_osspawn(os))
         patched.append("os")
 
-    should_patch_Popen_init = not trace_utils.iswrapped(subprocess.Popen.__init__)
-    should_patch_Popen_wait = not trace_utils.iswrapped(subprocess.Popen.wait)
-    if should_patch_Popen_init or should_patch_Popen_wait:
-        Pin().onto(subprocess)
-        # We store the parameters on __init__ in the context and set the tags on wait
-        # (where all the Popen objects eventually arrive, unless killed before it)
-        if should_patch_Popen_init:
-            trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
-        if should_patch_Popen_wait:
-            trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
-        patched.append("subprocess")
-
     return patched
 
 
@@ -148,10 +154,10 @@ class SubprocessCmdLineCacheEntry:
     """
 
     binary: Optional[str] = None
-    arguments: Optional[List] = None
+    arguments: Optional[list] = None
     truncated: bool = False
-    env_vars: Optional[List] = None
-    as_list: Optional[List] = None
+    env_vars: Optional[list] = None
+    as_list: Optional[list] = None
     as_string: Optional[str] = None
 
 
@@ -164,8 +170,8 @@ class SubprocessCmdLine:
     """
 
     # This catches the computed values into a SubprocessCmdLineCacheEntry object
-    _CACHE: Dict[str, SubprocessCmdLineCacheEntry] = {}
-    _CACHE_DEQUE: Deque[str] = collections.deque()
+    _CACHE: dict[str, SubprocessCmdLineCacheEntry] = {}
+    _CACHE_DEQUE: collections.deque[str] = collections.deque()
     _CACHE_MAXSIZE = 32
     _CACHE_LOCK = RLock()
 
@@ -225,7 +231,7 @@ class SubprocessCmdLine:
     ]
     _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
 
-    def __init__(self, shell_args: Union[str, List[str]], shell: bool = False) -> None:
+    def __init__(self, shell_args: Union[str, list[str]], shell: bool = False) -> None:
         """
         For shell=True, the shell_args is parsed to extract environment variables,
         binary, and arguments. For shell=False, the first element is the binary
@@ -247,7 +253,7 @@ class SubprocessCmdLine:
             if isinstance(shell_args, str):
                 tokens = shlex.split(shell_args)
             else:
-                tokens = cast(List[str], shell_args)
+                tokens = cast(list[str], shell_args)
 
             # Extract previous environment variables, scrubbing all the ones not
             # in ENV_VARS_ALLOWLIST
@@ -270,7 +276,7 @@ class SubprocessCmdLine:
         """Extract and scrub environment variables from shell command tokens.
 
         Args:
-            tokens: List of command tokens to process
+            tokens: list of command tokens to process
 
         Side effects:
             Updates self.env_vars, self.binary, and self.arguments
@@ -389,11 +395,11 @@ class SubprocessCmdLine:
         msg = ' "4kB argument truncated by %d characters"' % oversize
         return str_[0 : -(oversize + len(msg))] + msg
 
-    def _as_list_and_string(self) -> Tuple[List[str], str]:
+    def _as_list_and_string(self) -> tuple[list[str], str]:
         """Generate both list and string representations of the command.
 
         Returns:
-            Tuple[List[str], str]: (command_as_list, command_as_string)
+            tuple[list[str], str]: (command_as_list, command_as_string)
 
         Note:
             The string representation may be truncated if it exceeds size limits.
@@ -408,7 +414,7 @@ class SubprocessCmdLine:
         """Get the command as a list of strings.
 
         Returns:
-            List[str]: Command represented as list of arguments
+            list[str]: Command represented as list of arguments
 
         Note:
             Result is cached for performance. Includes environment variables,
@@ -495,12 +501,12 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
             return wrapped(*args, **kwargs)
 
         with tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
-            span._set_tag_str(COMMANDS.SHELL, shellcmd.as_string())
+            span._set_attribute(COMMANDS.SHELL, shellcmd.as_string())
             if shellcmd.truncated:
-                span._set_tag_str(COMMANDS.TRUNCATED, "yes")
-            span._set_tag_str(COMMANDS.COMPONENT, "os")
+                span._set_attribute(COMMANDS.TRUNCATED, "yes")
+            span._set_attribute(COMMANDS.COMPONENT, "os")
             ret = wrapped(*args, **kwargs)
-            span._set_tag_str(COMMANDS.EXIT_CODE, str(ret))
+            span._set_attribute(COMMANDS.EXIT_CODE, str(ret))
             return ret
     else:
         return wrapped(*args, **kwargs)
@@ -520,7 +526,7 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
 
     with tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
         span.set_tag(COMMANDS.EXEC, ["os.fork"])
-        span._set_tag_str(COMMANDS.COMPONENT, "os")
+        span._set_attribute(COMMANDS.COMPONENT, "os")
         return wrapped(*args, **kwargs)
 
 
@@ -549,24 +555,43 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
     with tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
         span.set_tag(COMMANDS.EXEC, shellcmd.as_list())
         if shellcmd.truncated:
-            span._set_tag_str(COMMANDS.TRUNCATED, "true")
-        span._set_tag_str(COMMANDS.COMPONENT, "os")
+            span._set_attribute(COMMANDS.TRUNCATED, "true")
+        span._set_attribute(COMMANDS.COMPONENT, "os")
 
         ret = wrapped(*args, **kwargs)
         if mode == os.P_WAIT:
-            span._set_tag_str(COMMANDS.EXIT_CODE, str(ret))
+            span._set_attribute(COMMANDS.EXIT_CODE, str(ret))
         return ret
 
 
 @trace_utils.with_traced_module
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
-    """Traced wrapper for subprocess.Popen.__init__ method.
+    """Wrapper for ``subprocess.Popen.__init__``.
 
-    Note:
-        Only instruments when AAP is enabled and WAF bypass is not active.
-        Stores command details in context for later use by _traced_subprocess_wait.
-        Creates a span that will be completed by the wait() method.
+    When instrumentation telemetry is on, merges runtime propagation env vars into the
+    child ``env`` (copying from ``os.environ`` if unset) so exec-based children keep
+    lineage context.
+
+    When ASM subprocess tracing is active, records the command for ``Popen.wait`` and
+    emits a subprocess span around the real ``__init__``.
     """
+    if telemetry_config.TELEMETRY_ENABLED:
+        # Process tracking is only used in instrumentation telemetry. Skip if telemetry is disabled.
+        # ``subprocess.Popen.__init__`` exposes ``env`` as the 11th argument (index 10) for
+        # the Python versions we support.
+        #
+        # We build the child ``env`` from the parent (``os.environ``) merged with any
+        # caller-supplied mapping. That is usually equivalent to ``env=None``, but it can
+        # differ in edge cases and _may_ interact oddly with ``preexec_fn`` or other
+        # POSIX-specific process setup.
+        current_env = get_argument_value(args, kwargs, 10, "env", optional=True)
+        if current_env is None:
+            child_env = os.environ.copy()  # ast-grep-ignore: os-environ-fix-access
+        else:
+            child_env = current_env
+        child_env.update(get_runtime_propagation_envs())
+        args, kwargs = set_argument_value(args, kwargs, 10, "env", child_env, override_unset=True)
+
     if should_trace_subprocess():
         try:
             cmd_args = args[0] if len(args) else kwargs["args"]
@@ -614,16 +639,16 @@ def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
 
         with tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:
             if core.find_item(COMMANDS.CTX_SUBP_IS_SHELL):
-                span._set_tag_str(COMMANDS.SHELL, core.find_item(COMMANDS.CTX_SUBP_LINE))
+                span._set_attribute(COMMANDS.SHELL, core.find_item(COMMANDS.CTX_SUBP_LINE))
             else:
                 span.set_tag(COMMANDS.EXEC, core.find_item(COMMANDS.CTX_SUBP_LINE))
 
             truncated = core.find_item(COMMANDS.CTX_SUBP_TRUNCATED)
             if truncated:
-                span._set_tag_str(COMMANDS.TRUNCATED, "yes")
-            span._set_tag_str(COMMANDS.COMPONENT, "subprocess")
+                span._set_attribute(COMMANDS.TRUNCATED, "yes")
+            span._set_attribute(COMMANDS.COMPONENT, "subprocess")
             ret = wrapped(*args, **kwargs)
-            span._set_tag_str(COMMANDS.EXIT_CODE, str(ret))
+            span._set_attribute(COMMANDS.EXIT_CODE, str(ret))
             return ret
     else:
         return wrapped(*args, **kwargs)

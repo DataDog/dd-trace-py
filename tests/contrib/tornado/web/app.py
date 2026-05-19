@@ -4,6 +4,8 @@ import time
 import tornado.concurrent
 import tornado.web
 
+from ddtrace.trace import tracer
+
 from . import uimodules
 from .compat import ThreadPoolExecutor
 from .compat import sleep
@@ -29,7 +31,6 @@ class ResponseStatusHandler(tornado.web.RequestHandler):
 class NestedHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
         with tracer.trace("tornado.sleep"):
             yield sleep(0.05)
         self.write("OK")
@@ -38,8 +39,6 @@ class NestedHandler(tornado.web.RequestHandler):
 class NestedWrapHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
-
         # define a wrapped coroutine: having an inner coroutine
         # is only for easy testing
         @tracer.wrap("tornado.coro")
@@ -54,8 +53,6 @@ class NestedWrapHandler(tornado.web.RequestHandler):
 class NestedExceptionWrapHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
-
         # define a wrapped coroutine: having an inner coroutine
         # is only for easy testing
         @tracer.wrap("tornado.coro")
@@ -116,8 +113,6 @@ class SyncExceptionHandler(tornado.web.RequestHandler):
 
 class SyncNestedWrapHandler(tornado.web.RequestHandler):
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
-
         # define a wrapped coroutine: having an inner coroutine
         # is only for easy testing
         @tracer.wrap("tornado.func")
@@ -130,8 +125,6 @@ class SyncNestedWrapHandler(tornado.web.RequestHandler):
 
 class SyncNestedExceptionWrapHandler(tornado.web.RequestHandler):
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
-
         # define a wrapped coroutine: having an inner coroutine
         # is only for easy testing
         @tracer.wrap("tornado.func")
@@ -141,6 +134,34 @@ class SyncNestedExceptionWrapHandler(tornado.web.RequestHandler):
 
         func()
         self.write("OK")
+
+
+class RouteComplexPatternHandler(tornado.web.RequestHandler):
+    """Handler for a route whose regex has no reverse mapping (_path is None)."""
+
+    @tornado.gen.coroutine
+    def get(self):
+        self.write("complex")
+
+
+class RouteMixedPatternHandler(tornado.web.RequestHandler):
+    """Handler for a route with both a non-capturing group and a capturing group."""
+
+    @tornado.gen.coroutine
+    def get(self, item_id):
+        self.write("mixed")
+
+
+class RouteOrderSpecificHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self):
+        self.write("specific")
+
+
+class RouteOrderCatchAllHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self, path=None):
+        self.write("catch_all")
 
 
 class CustomDefaultHandler(tornado.web.ErrorHandler):
@@ -158,7 +179,6 @@ class ExecutorHandler(tornado.web.RequestHandler):
 
     @tornado.concurrent.run_on_executor
     def outer_executor(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
         with tracer.trace("tornado.executor.with"):
             time.sleep(0.05)
 
@@ -172,7 +192,6 @@ class ExecutorSubmitHandler(tornado.web.RequestHandler):
     executor = ThreadPoolExecutor(max_workers=3)
 
     def query(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
         with tracer.trace("tornado.executor.query"):
             time.sleep(0.05)
 
@@ -193,7 +212,6 @@ class ExecutorDelayedHandler(tornado.web.RequestHandler):
         # waiting here means expecting that the `get()` flushes
         # the request trace
         time.sleep(0.01)
-        tracer = self.settings["datadog_trace"]["tracer"]
         with tracer.trace("tornado.executor.with"):
             time.sleep(0.05)
 
@@ -217,7 +235,6 @@ try:
             # wait before creating a trace so that we're sure
             # the `tornado.executor.with` span has the right
             # parent
-            tracer = self.settings["datadog_trace"]["tracer"]
             with tracer.trace("tornado.executor.with"):
                 time.sleep(0.05)
 
@@ -257,7 +274,6 @@ class ExecutorExceptionHandler(tornado.web.RequestHandler):
         # the `tornado.executor.with` span has the right
         # parent
         time.sleep(0.05)
-        tracer = self.settings["datadog_trace"]["tracer"]
         with tracer.trace("tornado.executor.with"):
             raise Exception("Ouch!")
 
@@ -273,8 +289,6 @@ class ExecutorWrapHandler(tornado.web.RequestHandler):
 
     @tornado.gen.coroutine
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
-
         @tracer.wrap("tornado.executor.wrap")
         @tornado.concurrent.run_on_executor
         def outer_executor(self):
@@ -290,8 +304,6 @@ class ExecutorExceptionWrapHandler(tornado.web.RequestHandler):
 
     @tornado.gen.coroutine
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
-
         @tracer.wrap("tornado.executor.wrap")
         @tornado.concurrent.run_on_executor
         def outer_executor(self):
@@ -315,13 +327,29 @@ def make_app(settings=None):
         [(r"/nested_app/handler1/", SuccessHandler), (r"/nested_app/handler2/", SuccessHandler)], **settings
     )
 
+    route_order_app = tornado.web.Application(
+        [
+            (r"/route_order/specific/", RouteOrderSpecificHandler),
+            (r"/route_order/(.*)", RouteOrderCatchAllHandler),
+        ],
+        **settings,
+    )
+
     return tornado.web.Application(
         [
             # custom handlers
             (r"/success/", SuccessHandler),
+            # Non-capturing group: Tornado cannot build a reverse mapping (_path is None).
+            # Used to test that _find_route falls back to _regex_to_route in this case.
+            (r"/complex/(?:new|existing)/", RouteComplexPatternHandler),
+            # Mixed: non-capturing group followed by a capturing group.
+            # _path is None (non-capturing group breaks Tornado's reverse logic), but
+            # _regex_to_route should still replace the capturing group with %s.
+            (r"/mixed/(?:items|things)/([0-9]+)/", RouteMixedPatternHandler),
             (r"/status_code/([0-9]+)", ResponseStatusHandler),
             (r"/nested/.*", NestedHandler),
             (r"/nested_app/.*", nested_application),
+            (r"/route_order/.*", route_order_app),
             (r"/nested_wrap/", NestedWrapHandler),
             (r"/nested_exception_wrap/", NestedExceptionWrapHandler),
             (r"/exception/", ExceptionHandler),

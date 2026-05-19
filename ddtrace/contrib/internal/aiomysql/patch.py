@@ -1,5 +1,3 @@
-from typing import Dict
-
 import aiomysql
 import wrapt
 
@@ -10,6 +8,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -32,12 +31,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(aiomysql, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"aiomysql": ">=0.1.0"}
 
 
@@ -79,17 +77,16 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
         with tracer.trace(
             self._self_datadog_name,
-            service=trace_utils.ext_service(pin, config.aiomysql),
             resource=resource,
             span_type=SpanTypes.SQL,
         ) as s:
-            s._set_tag_str(COMPONENT, config.aiomysql.integration_name)
+            set_service_and_source(s, trace_utils.ext_service(pin, config.aiomysql), config.aiomysql)
+            s._set_attribute(COMPONENT, config.aiomysql.integration_name)
 
             # set span.kind to the type of request being performed
-            s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
-            # PERF: avoid setting via Span.set_tag
-            s.set_metric(_SPAN_MEASURED_KEY, 1)
+            s._set_attribute(_SPAN_MEASURED_KEY, 1)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
@@ -104,8 +101,9 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                 result = await method(*args, **kwargs)
                 return result
             finally:
-                s.set_metric(db.ROWCOUNT, self.rowcount)
-                s.set_metric("db.rownumber", self.rownumber)
+                s._set_attribute(db.ROWCOUNT, self.rowcount)
+                if self.rownumber is not None:
+                    s._set_attribute("db.rownumber", self.rownumber)
 
     async def executemany(self, query, *args, **kwargs):
         result = await self._trace_method(

@@ -1,11 +1,7 @@
 import itertools
 import re
-from typing import Dict  # noqa:F401
-from typing import FrozenSet  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import Union
 import urllib.parse
 
@@ -37,6 +33,9 @@ from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import BAGGAGE_TAG_PREFIX
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+from ..internal.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+from ..internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
+from ..internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -70,10 +69,10 @@ _HTTP_HEADER_TAGS: Literal["x-datadog-tags"] = "x-datadog-tags"
 _HTTP_HEADER_TRACEPARENT: Literal["traceparent"] = "traceparent"
 _HTTP_HEADER_TRACESTATE: Literal["tracestate"] = "tracestate"
 _HTTP_HEADER_BAGGAGE: Literal["baggage"] = "baggage"
+BAGGAGE_DELIMITER = ","
 
 
-def _possible_header(header):
-    # type: (str) -> FrozenSet[str]
+def _possible_header(header: str) -> frozenset[str]:
     return frozenset([header, get_wsgi_header(header).lower()])
 
 
@@ -112,8 +111,9 @@ _TRACEPARENT_HEX_REGEX = re.compile(
 )
 
 
-def _extract_header_value(possible_header_names, headers, default=None):
-    # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
+def _extract_header_value(
+    possible_header_names: frozenset[str], headers: dict[str, str], default: Optional[str] = None
+) -> Optional[str]:
     for header in possible_header_names:
         if header in headers:
             return ensure_text(headers[header], errors="backslashreplace")
@@ -121,7 +121,7 @@ def _extract_header_value(possible_header_names, headers, default=None):
     return default
 
 
-def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
+def _attach_baggage_to_context(headers: dict[str, str], context: Context):
     if context is not None:
         for key, value in headers.items():
             for possible_prefix in _POSSIBLE_HTTP_BAGGAGE_PREFIX:
@@ -129,8 +129,7 @@ def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
                     context.set_baggage_item(key[len(possible_prefix) :], value)
 
 
-def _hex_id_to_dd_id(hex_id):
-    # type: (str) -> int
+def _hex_id_to_dd_id(hex_id: str) -> int:
     """Helper to convert hex ids into Datadog compatible ints."""
     return int(hex_id, 16)
 
@@ -138,8 +137,7 @@ def _hex_id_to_dd_id(hex_id):
 _b3_id_to_dd_id = _hex_id_to_dd_id
 
 
-def _dd_id_to_b3_id(dd_id):
-    # type: (int) -> str
+def _dd_id_to_b3_id(dd_id: int) -> str:
     """Helper to convert Datadog trace/span int ids into lower case hex values"""
     if dd_id > _MAX_UINT_64BITS:
         # b3 trace ids can have the length of 16 or 32 characters:
@@ -152,7 +150,7 @@ def _record_http_telemetry(metric_name: str, header_style: str) -> None:
     """Record telemetry metric for HTTP propagation operations.
 
     :param metric_name: The name of the metric to record
-    :param tags: Tuple of tag key-value pairs to include with the metric
+    :param tags: tuple of tag key-value pairs to include with the metric
     """
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.TRACERS,
@@ -190,8 +188,7 @@ class _DatadogMultiHeader:
         return key.startswith("_dd.p.")
 
     @staticmethod
-    def _get_tags_value(headers):
-        # type: (Dict[str, str]) -> Optional[str]
+    def _get_tags_value(headers: dict[str, str]) -> Optional[str]:
         return _extract_header_value(
             _POSSIBLE_HTTP_HEADER_TAGS,
             headers,
@@ -230,7 +227,7 @@ class _DatadogMultiHeader:
     @staticmethod
     def _higher_order_is_valid(upper_64_bits: str) -> bool:
         try:
-            if len(upper_64_bits) != 16 or not (int(upper_64_bits, 16) or (upper_64_bits.islower())):
+            if len(upper_64_bits) != 16 or not (int(upper_64_bits, 16) and upper_64_bits == upper_64_bits.lower()):
                 raise ValueError
         except ValueError:
             return False
@@ -238,8 +235,7 @@ class _DatadogMultiHeader:
         return True
 
     @staticmethod
-    def _inject(span_context, headers):
-        # type: (Context, Dict[str, str]) -> None
+    def _inject(span_context: Context, headers: dict[str, str]) -> None:
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
@@ -277,9 +273,8 @@ class _DatadogMultiHeader:
             return
 
         # Only propagate trace tags which means ignoring the _dd.origin
-        tags_to_encode = {
-            k: v for k, v in span_context._meta.items() if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
-        }
+        context_meta = list(span_context._meta.items())
+        tags_to_encode = {k: v for k, v in context_meta if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)}
 
         if tags_to_encode:
             try:
@@ -300,8 +295,7 @@ class _DatadogMultiHeader:
         _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_DATADOG)
 
     @staticmethod
-    def _extract(headers):
-        # type: (Dict[str, str]) -> Optional[Context]
+    def _extract(headers: dict[str, str]) -> Optional[Context]:
         trace_id_str = _extract_header_value(POSSIBLE_HTTP_HEADER_TRACE_IDS, headers)
         if trace_id_str is None:
             return None
@@ -431,8 +425,7 @@ class _B3MultiHeader:
     """
 
     @staticmethod
-    def _inject(span_context, headers):
-        # type: (Context, Dict[str, str]) -> None
+    def _inject(span_context: Context, headers: dict[str, str]) -> None:
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
@@ -453,8 +446,7 @@ class _B3MultiHeader:
         _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_B3_MULTI)
 
     @staticmethod
-    def _extract(headers):
-        # type: (Dict[str, str]) -> Optional[Context]
+    def _extract(headers: dict[str, str]) -> Optional[Context]:
         trace_id_val = _extract_header_value(
             _POSSIBLE_HTTP_HEADER_B3_TRACE_IDS,
             headers,
@@ -551,8 +543,7 @@ class _B3SingleHeader:
     """
 
     @staticmethod
-    def _inject(span_context, headers):
-        # type: (Context, Dict[str, str]) -> None
+    def _inject(span_context: Context, headers: dict[str, str]) -> None:
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
@@ -572,8 +563,7 @@ class _B3SingleHeader:
         _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_B3_SINGLE)
 
     @staticmethod
-    def _extract(headers):
-        # type: (Dict[str, str]) -> Optional[Context]
+    def _extract(headers: dict[str, str]) -> Optional[Context]:
         single_header = _extract_header_value(_POSSIBLE_HTTP_HEADER_B3_SINGLE_HEADER, headers)
         if not single_header:
             return None
@@ -683,8 +673,7 @@ class _TraceContext:
         return tag_val.replace("~", "=")
 
     @staticmethod
-    def _get_traceparent_values(tp):
-        # type: (str) -> Tuple[int, int, Literal[0,1]]
+    def _get_traceparent_values(tp: str) -> tuple[int, int, Literal[0, 1]]:
         """If there is no traceparent, or if the traceparent value is invalid raise a ValueError.
         Otherwise we extract the trace-id, span-id, and sampling priority from the
         traceparent header.
@@ -699,7 +688,7 @@ class _TraceContext:
             span_id_hex,
             trace_flags_hex,
             future_vals,
-        ) = valid_tp_values.groups()  # type: Tuple[str, str, str, str, Optional[str]]
+        ) = valid_tp_values.groups()
 
         if version == "ff":
             # https://www.w3.org/TR/trace-context/#version
@@ -724,14 +713,12 @@ class _TraceContext:
         # was set to keep "01" or drop "00"
         # trace flags is a bit field: https://www.w3.org/TR/trace-context/#trace-flags
         # if statement is required to cast traceflags to a Literal
-        sampling_priority = 1 if trace_flags & 0x1 else 0  # type: Literal[0, 1]
+        sampling_priority: Literal[0, 1] = 1 if trace_flags & 0x1 else 0
 
         return trace_id, span_id, sampling_priority
 
     @staticmethod
-    def _get_tracestate_values(ts_l):
-        # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str], Optional[str]]
-
+    def _get_tracestate_values(ts_l: list[str]) -> tuple[Optional[int], dict[str, str], Optional[str], Optional[str]]:
         # tracestate list parsing example: ["dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64","congo=t61rcWkgMzE"]
         # -> 2, {"_dd.p.dm":"-4","_dd.p.usr.id":"baz64"}, "rum"
 
@@ -804,9 +791,116 @@ class _TraceContext:
         return sampling_priority
 
     @staticmethod
-    def _extract(headers):
-        # type: (Dict[str, str]) -> Optional[Context]
+    def _tracestate_member_exceeds_item_char_cap(member: str) -> bool:
+        return len(member) > DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
 
+    @staticmethod
+    def _tracestate_drop_items_until_count_prefer_oversized(items: list[str], max_count: int) -> None:
+        """Shrink ``items`` in place until ``len(items) <= max_count``.
+
+        Removes list-members with more than ``DD_TRACE_TRACESTATE_ITEM_MAX_CHARS`` characters
+        first (left to right), then drops from the end if still over the cap.
+
+        Runs in O(len(items)) so attacker-controlled headers with many short list-members cannot
+        force quadratic work when trimming to ``max_count``.
+        """
+        if len(items) <= max_count:
+            return
+        excess = len(items) - max_count
+        removed = 0
+        kept: list[str] = []
+        for m in items:
+            if removed < excess and _TraceContext._tracestate_member_exceeds_item_char_cap(m):
+                removed += 1
+                continue
+            kept.append(m)
+        items[:] = kept
+        if len(items) > max_count:
+            del items[max_count:]
+
+    @staticmethod
+    def _tracestate_pack_members_to_byte_limit(members: list[str], *, never_skip_first: bool = False) -> list[str]:
+        """Append members until the UTF-8 byte budget is exhausted.
+
+        When a member does not fit, it is skipped if it exceeds ``DD_TRACE_TRACESTATE_ITEM_MAX_CHARS``
+        (so smaller later entries can still be kept); otherwise packing stops.
+        If ``never_skip_first`` is true, the first member is always kept (even over budget).
+        """
+        ts_l: list[str] = []
+        total_bytes = 0
+        for idx, member in enumerate(members):
+            segment_len = len(member.encode("utf-8")) + (1 if ts_l else 0)
+            if never_skip_first and idx == 0:
+                ts_l.append(member)
+                total_bytes += segment_len
+                continue
+            if total_bytes + segment_len <= DD_TRACE_TRACESTATE_MAX_BYTES:
+                ts_l.append(member)
+                total_bytes += segment_len
+                continue
+            if _TraceContext._tracestate_member_exceeds_item_char_cap(member):
+                log.debug(
+                    "tracestate skipping list-member over item char limit while fitting byte budget",
+                )
+                continue
+            log.debug(
+                "tracestate byte length exceeds maximum (%d), truncating whole entries",
+                DD_TRACE_TRACESTATE_MAX_BYTES,
+            )
+            break
+        return ts_l
+
+    @staticmethod
+    def _tracestate_members_after_limits_no_dd(members_stripped: list[str]) -> list[str]:
+        items = list(members_stripped)
+        if len(items) > DD_TRACE_TRACESTATE_MAX_ITEMS:
+            log.debug(
+                "tracestate list-member count exceeds maximum (%d), truncating",
+                DD_TRACE_TRACESTATE_MAX_ITEMS,
+            )
+            _TraceContext._tracestate_drop_items_until_count_prefer_oversized(items, DD_TRACE_TRACESTATE_MAX_ITEMS)
+        return _TraceContext._tracestate_pack_members_to_byte_limit(items, never_skip_first=False)
+
+    @staticmethod
+    def _tracestate_members_after_limits(members_stripped: list[str]) -> list[str]:
+        """Apply list-member and UTF-8 byte limits to tracestate segments.
+
+        The Datadog ``dd=`` list-member is preferred: the last ``dd=`` entry is always kept
+        (even when it alone exceeds the byte cap), placed first for budgeting, and never
+        displaced by other vendors under the byte limit. List-members longer than
+        ``DD_TRACE_TRACESTATE_ITEM_MAX_CHARS`` are dropped first when trimming count or bytes.
+        """
+        dd_index = -1
+        for i in range(len(members_stripped) - 1, -1, -1):
+            if members_stripped[i].startswith("dd="):
+                dd_index = i
+                break
+
+        if dd_index < 0:
+            return _TraceContext._tracestate_members_after_limits_no_dd(members_stripped)
+
+        dd_mem = members_stripped[dd_index]
+        others: list[str] = []
+        for j, m in enumerate(members_stripped):
+            if j == dd_index:
+                continue
+            if m.startswith("dd="):
+                continue
+            others.append(m)
+
+        max_others = DD_TRACE_TRACESTATE_MAX_ITEMS - 1
+        if len(others) > max_others:
+            log.debug(
+                "tracestate list-member count exceeds maximum (%d), truncating",
+                DD_TRACE_TRACESTATE_MAX_ITEMS,
+            )
+            _TraceContext._tracestate_drop_items_until_count_prefer_oversized(others, max_others)
+
+        prioritized = [dd_mem] + others
+        return _TraceContext._tracestate_pack_members_to_byte_limit(prioritized, never_skip_first=True)
+
+    @staticmethod
+    def _extract(headers: dict[str, str]) -> Optional[Context]:
         try:
             tp = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACEPARENT, headers)
             if tp is None:
@@ -823,8 +917,13 @@ class _TraceContext:
         return _TraceContext._get_context(trace_id, span_id, trace_flag, ts, meta)
 
     @staticmethod
-    def _get_context(trace_id, span_id, trace_flag, ts, meta=None):
-        # type: (int, int, Optional[Literal[0,1]], Optional[str], Optional[Dict[str, str]]) -> Context
+    def _get_context(
+        trace_id: int,
+        span_id: int,
+        trace_flag: Optional[Literal[0, 1]],
+        ts: Optional[str],
+        meta: Optional[dict[str, str]] = None,
+    ) -> Context:
         if meta is None:
             meta = {}
         origin = None
@@ -832,7 +931,8 @@ class _TraceContext:
         if ts:
             # whitespace is allowed, but whitespace to start or end values should be trimmed
             # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"
-            ts_l = [member.strip() for member in ts.split(",")]
+            members_stripped = [member.strip() for member in ts.split(",")]
+            ts_l = _TraceContext._tracestate_members_after_limits(members_stripped)
             ts = ",".join(ts_l)
             # the value MUST contain only ASCII characters in the
             # range of 0x20 to 0x7E
@@ -869,8 +969,7 @@ class _TraceContext:
         )
 
     @staticmethod
-    def _inject(span_context, headers):
-        # type: (Context, Dict[str, str]) -> None
+    def _inject(span_context: Context, headers: dict[str, str]) -> None:
         tp = span_context._traceparent
         if tp:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
@@ -905,7 +1004,7 @@ class _BaggageHeader:
         return urllib.parse.quote(str(value).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_VALUE)
 
     @staticmethod
-    def _inject(span_context: Context, headers: Dict[str, str]) -> None:
+    def _inject(span_context: Context, headers: dict[str, str]) -> None:
         baggage_items = span_context._baggage.items()
         if not baggage_items:
             return
@@ -922,7 +1021,7 @@ class _BaggageHeader:
                 )
                 baggage_items = itertools.islice(baggage_items, DD_TRACE_BAGGAGE_MAX_ITEMS)  # type: ignore
 
-            encoded_items: List[str] = []
+            encoded_items: list[str] = []
             total_size = 0
             for key, value in baggage_items:
                 item = f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
@@ -961,25 +1060,53 @@ class _BaggageHeader:
         return Context(baggage={})
 
     @staticmethod
-    def _extract(headers: Dict[str, str]) -> Context:
+    def _extract(headers: dict[str, str]) -> Context:
         header_value = _extract_header_value(_POSSIBLE_HTTP_BAGGAGE_HEADER, headers)
 
         if not header_value:
             return Context(baggage={})
 
-        baggage = {}
-        baggages = header_value.split(",")
-        for key_value in baggages:
+        baggage_data: dict[str, str] = {}
+        total_size = 0
+        splitted_header = header_value.split(BAGGAGE_DELIMITER)
+        for pair_index, key_value in enumerate(splitted_header):
+            if pair_index >= DD_TRACE_BAGGAGE_MAX_ITEMS:
+                log.warning(
+                    "Baggage item limit exceeded, dropping excess items, skipped: %d items",
+                    len(splitted_header) - DD_TRACE_BAGGAGE_MAX_ITEMS,
+                )
+                telemetry_writer.add_count_metric(
+                    namespace=TELEMETRY_NAMESPACE.TRACERS,
+                    name="context_header.truncated",
+                    value=1,
+                    tags=(("truncation_reason", "baggage_item_count_exceeded"),),
+                )
+                break
             if "=" not in key_value:
                 return _BaggageHeader._record_malformed_and_return_empty()
+            base_size_bytes = len(key_value) if key_value.isascii() else len(key_value.encode("utf-8"))
+            segment_bytes = base_size_bytes + (len(BAGGAGE_DELIMITER) if baggage_data else 0)
+            if total_size + segment_bytes > DD_TRACE_BAGGAGE_MAX_BYTES:
+                log.warning(
+                    "Baggage header size exceeded, dropping excess items. size would be %d bytes",
+                    total_size + segment_bytes,
+                )
+                telemetry_writer.add_count_metric(
+                    namespace=TELEMETRY_NAMESPACE.TRACERS,
+                    name="context_header.truncated",
+                    value=1,
+                    tags=(("truncation_reason", "baggage_byte_count_exceeded"),),
+                )
+                break
             key, value = key_value.split("=", 1)
             key = urllib.parse.unquote(key.strip())
             value = urllib.parse.unquote(value.strip())
             if not key or not value:
                 return _BaggageHeader._record_malformed_and_return_empty()
-            baggage[key] = value
+            baggage_data[key] = value
+            total_size += segment_bytes
 
-        return Context(baggage=baggage)
+        return Context(baggage=baggage_data)
 
 
 _PROP_STYLES = {
@@ -1038,7 +1165,7 @@ class HTTPPropagator(object):
         return injection_context
 
     @staticmethod
-    def _extract_configured_contexts_avail(normalized_headers: Dict[str, str]) -> Tuple[List[Context], List[str]]:
+    def _extract_configured_contexts_avail(normalized_headers: dict[str, str]) -> tuple[list[Context], list[str]]:
         contexts = []
         styles_w_ctx = []
         if config._propagation_style_extract is not None:
@@ -1112,7 +1239,7 @@ class HTTPPropagator(object):
         return primary_context
 
     @staticmethod
-    def inject(context: Union[Context, Span], headers: Dict[str, str]) -> None:
+    def inject(context: Union[Context, Span], headers: dict[str, str]) -> None:
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::

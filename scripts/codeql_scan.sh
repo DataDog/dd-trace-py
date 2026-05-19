@@ -13,7 +13,7 @@ git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch 
 dd-octo-sts debug --scope DataDog/dd-trace-py --policy codeql || true
 
 # Create CodeQL databases.
-$CODEQL database create "$CODEQL_DB" $DB_CONFIGS
+$CODEQL database create "$CODEQL_DB" $DB_CONFIGS --codescanning-config=.github/codeql-config.yml
 
 # Run queries for each supported ecosystem and save results to intermediate SARIF files.
 $CODEQL database analyze "$CODEQL_DB" "$PYTHON_CUSTOM_QLPACK" $SCAN_CONFIGS --sarif-category="python" --output="/tmp/python.sarif"

@@ -144,10 +144,8 @@ class LoggerTestCase(BaseTestCase):
                 log_fn("test")
 
         # Assert that we did not perform any rate limiting
-        self.assertEqual(call_handlers.call_count, 1000 * len(ALL_LEVEL_NAMES))
-
-        # Our buckets are empty (DEBUG level logging should not create buckets)
-        self.assertEqual(ddtrace.internal.logger._buckets, dict())
+        # DEV: We may have more calls due to asyncrnous tasks (ex: periodic trace writer)
+        self.assertGreaterEqual(call_handlers.call_count, 1000 * len(ALL_LEVEL_NAMES))
 
     @mock.patch("logging.Logger.callHandlers")
     def test_logger_handle_bucket(self, call_handlers):

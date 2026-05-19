@@ -22,6 +22,7 @@ def test_asyncio_run_frames_captured():
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_utils import async_run
 
     assert stack.is_available, stack.failure_msg
 
@@ -42,7 +43,7 @@ def test_asyncio_run_frames_captured():
         # asyncio.gather will automatically wrap my_coroutine into a Task
         await asyncio.gather(short_task, my_coroutine(execution_time_sec))
 
-    asyncio.run(main())
+    async_run(main())
 
     p.stop()
 
@@ -53,10 +54,25 @@ def test_asyncio_run_frames_captured():
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0, "No task names found - asyncio task tracking failed!"
 
-    base_event_loop_prefix = "BaseEventLoop." if sys.version_info >= (3, 11) else ""
-    selector_prefix = (
-        ("KqueueSelector." if sys.platform == "darwin" else "EpollSelector.") if sys.version_info >= (3, 11) else ""
-    )
+    use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
+
+    # uvloop uses a C-based event loop that doesn't go through Python's BaseEventLoop methods
+    # so we only expect these frames when NOT using uvloop
+    if use_uvloop:
+        event_loop_frames = []
+    else:
+        base_event_loop_prefix = "BaseEventLoop." if sys.version_info >= (3, 11) else ""
+        selector_prefix = (
+            ("KqueueSelector." if sys.platform == "darwin" else "EpollSelector.") if sys.version_info >= (3, 11) else ""
+        )
+        event_loop_frames = [
+            pprof_utils.StackLocation(function_name=f"{selector_prefix}select", filename="", line_no=-1),
+            pprof_utils.StackLocation(function_name=f"{base_event_loop_prefix}_run_once", filename="", line_no=-1),
+            pprof_utils.StackLocation(function_name=f"{base_event_loop_prefix}run_forever", filename="", line_no=-1),
+            pprof_utils.StackLocation(
+                function_name=f"{base_event_loop_prefix}run_until_complete", filename="", line_no=-1
+            ),
+        ]
 
     def loc(f_name: str, filename: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=f_name, filename=filename, line_no=line_no)
@@ -71,11 +87,8 @@ def test_asyncio_run_frames_captured():
             locations=[
                 loc("sleep"),
                 loc("main", filename="test_asyncio_idle.py", line_no=main.__code__.co_firstlineno + 2),
-                loc(f"{selector_prefix}select"),
-                loc(f"{base_event_loop_prefix}_run_once"),
-                loc(f"{base_event_loop_prefix}run_forever"),
-                loc(f"{base_event_loop_prefix}run_until_complete"),
             ]
+            + event_loop_frames
             + ([loc("Runner.run")] if sys.version_info >= (3, 11) else [])
             + [loc("run")],
         ),
@@ -97,11 +110,8 @@ def test_asyncio_run_frames_captured():
                     line_no=my_coroutine.__code__.co_firstlineno + 1,
                 ),
                 loc("main", filename="test_asyncio_idle.py", line_no=main.__code__.co_firstlineno + 9),
-                loc(f"{selector_prefix}select"),
-                loc(f"{base_event_loop_prefix}_run_once"),
-                loc(f"{base_event_loop_prefix}run_forever"),
-                loc(f"{base_event_loop_prefix}run_until_complete"),
             ]
+            + event_loop_frames
             + ([loc("Runner.run")] if sys.version_info >= (3, 11) else [])
             + [loc("run")],
         ),
@@ -122,11 +132,8 @@ def test_asyncio_run_frames_captured():
                     line_no=my_coroutine.__code__.co_firstlineno + 1,
                 ),
                 loc("main", filename="test_asyncio_idle.py", line_no=main.__code__.co_firstlineno + 9),
-                loc(f"{selector_prefix}select"),
-                loc(f"{base_event_loop_prefix}_run_once"),
-                loc(f"{base_event_loop_prefix}run_forever"),
-                loc(f"{base_event_loop_prefix}run_until_complete"),
             ]
+            + event_loop_frames
             + ([loc("Runner.run")] if sys.version_info >= (3, 11) else [])
             + [loc("run")],
         ),

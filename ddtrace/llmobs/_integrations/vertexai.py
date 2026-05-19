@@ -1,27 +1,18 @@
 from typing import Any
-from typing import Dict
 from typing import Iterable
-from typing import List
 from typing import Optional
 
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_vertexai
 from ddtrace.llmobs._integrations.google_utils import get_system_instructions_vertexai
 from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_vertexai
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
 from ddtrace.trace import Span
@@ -31,18 +22,18 @@ class VertexAIIntegration(BaseLLMIntegration):
     _integration_name = "vertexai"
 
     def _set_base_span_tags(
-        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
+        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
     ) -> None:
         if provider is not None:
-            span._set_tag_str("vertexai.request.provider", provider)
+            span._set_attribute("vertexai.request.provider", provider)
         if model is not None:
-            span._set_tag_str("vertexai.request.model", model)
+            span._set_attribute("vertexai.request.model", model)
 
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -59,25 +50,34 @@ class VertexAIIntegration(BaseLLMIntegration):
             input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, history, system_instruction)
 
-        output_messages: List[Message] = [Message(content="")]
+        output_messages: list[Message] = [Message(content="")]
         if response is not None:
             output_messages = self._extract_output_message(response)
             metrics = self._extract_metrics_from_response(response)
 
-        tool_definitions = self._extract_tools(instance, kwargs.get("tools", []))
-        if tool_definitions:
-            span._set_ctx_item(TOOL_DEFINITIONS, tool_definitions)
+        tool_definitions = self._extract_tools(instance, kwargs.get("tools", [])) or None
+        _annotate_llmobs_span_data(
+            span,
+            kind="llm",
+            model_name=span.get_tag("vertexai.request.model") or "",
+            model_provider=span.get_tag("vertexai.request.provider") or "",
+            metadata=metadata,
+            input_messages=input_messages,
+            output_messages=output_messages,
+            metrics=metrics,
+            tool_definitions=tool_definitions,
+        )
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "llm",
-                MODEL_NAME: span.get_tag("vertexai.request.model") or "",
-                MODEL_PROVIDER: span.get_tag("vertexai.request.provider") or "",
-                METADATA: metadata,
-                INPUT_MESSAGES: input_messages,
-                OUTPUT_MESSAGES: output_messages,
-                METRICS: metrics,
-            }
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        metrics = self._extract_metrics_from_response(response) if response is not None else {}
+        model_name = span.get_tag("vertexai.request.model")
+        model_provider = span.get_tag("vertexai.request.provider")
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            "llm",
+            model_name=model_name,
+            model_provider=model_provider,
         )
 
     def _extract_metrics_from_response(self, response):
@@ -116,10 +116,10 @@ class VertexAIIntegration(BaseLLMIntegration):
             metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = thoughts_tokens
         return metrics
 
-    def _extract_input_message(self, contents, history, system_instruction=None) -> List[Message]:
+    def _extract_input_message(self, contents, history, system_instruction=None) -> list[Message]:
         from vertexai.generative_models._generative_models import Part
 
-        messages: List[Message] = []
+        messages: list[Message] = []
         if system_instruction:
             for instruction in system_instruction:
                 messages.append(Message(content=instruction or "", role="system"))
@@ -146,8 +146,8 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.extend(self._extract_messages_from_content(content))
         return messages
 
-    def _extract_output_message(self, generations) -> List[Message]:
-        output_messages: List[Message] = []
+    def _extract_output_message(self, generations) -> list[Message]:
+        output_messages: list[Message] = []
         # streamed responses will be a list of chunks
         if isinstance(generations, list):
             message_content = ""
@@ -171,8 +171,8 @@ class VertexAIIntegration(BaseLLMIntegration):
         return output_messages
 
     @staticmethod
-    def _extract_messages_from_content(content) -> List[Message]:
-        messages: List[Message] = []
+    def _extract_messages_from_content(content) -> list[Message]:
+        messages: list[Message] = []
         role = _get_attr(content, "role", "")
         parts = _get_attr(content, "parts", [])
         if not parts or not isinstance(parts, Iterable):

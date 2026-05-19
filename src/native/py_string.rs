@@ -9,7 +9,9 @@ use pyo3::{
     Py, PyAny, PyErr, Python,
 };
 
-use libdd_trace_utils::span::SpanText;
+use libdd_trace_utils::span::{SpanBytes, SpanText, TraceData};
+use serde::Serialize;
+use std::borrow::Borrow;
 
 /// A Python bytes/str backed utf-8 string we can read without needing access to the GIL
 /// that can be put in a libdatadog span.
@@ -67,6 +69,20 @@ impl PyBackedString {
             Some(obj) => obj.bind(py).clone(),
             None => PyString::intern(py, self.deref()).into_any(),
         }
+    }
+
+    /// Visit the held Python object (if any) for the cyclic GC.
+    ///
+    /// Storage is always a `PyString`, `PyBytes`, or `PyNone` — atomic types that
+    /// cannot themselves be part of cycles, so visiting is technically optional
+    /// for cycle-breaking. We still visit for correct refcount accounting from
+    /// CPython's perspective.
+    #[inline(always)]
+    pub fn traverse(&self, visit: &pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        if let Some(obj) = &self.storage {
+            visit.call(obj)?;
+        }
+        Ok(())
     }
 }
 
@@ -211,4 +227,26 @@ impl SpanText for PyBackedString {
             storage: None,
         }
     }
+}
+
+#[derive(Clone, Default, Debug, PartialEq, Eq, Hash, Serialize)]
+pub struct Bytes(Vec<u8>);
+
+impl SpanBytes for Bytes {
+    fn from_static_bytes(value: &'static [u8]) -> Self {
+        Self(value.to_vec())
+    }
+}
+
+impl Borrow<[u8]> for Bytes {
+    fn borrow(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+#[derive(Clone, Default, Debug, PartialEq)]
+pub struct PyTraceData;
+impl TraceData for PyTraceData {
+    type Text = PyBackedString;
+    type Bytes = Bytes;
 }

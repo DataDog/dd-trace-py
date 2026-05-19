@@ -1,3 +1,11 @@
+from enum import Enum
+
+
+class ITRSkippingLevel(Enum):
+    SUITE = "suite"
+    TEST = "test"
+
+
 DEFAULT_SERVICE_NAME = "test"
 DEFAULT_ENV_NAME = "none"
 DEFAULT_SITE = "datadoghq.com"
@@ -10,3 +18,12 @@ TAG_TRUE = "true"
 TAG_FALSE = "false"
 
 EMPTY_NAME = "."
+
+# Bazel / offline mode environment variables
+DD_TEST_OPTIMIZATION_MANIFEST_FILE = "DD_TEST_OPTIMIZATION_MANIFEST_FILE"
+DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES = "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES"
+DD_TEST_OPTIMIZATION_ENV_DATA_FILE = "DD_TEST_OPTIMIZATION_ENV_DATA_FILE"
+TEST_UNDECLARED_OUTPUTS_DIR = "TEST_UNDECLARED_OUTPUTS_DIR"
+
+# The only supported .testoptimization manifest version
+SUPPORTED_MANIFEST_VERSION = 1

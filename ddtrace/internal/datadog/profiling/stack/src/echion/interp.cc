@@ -1,7 +1,7 @@
 #include <echion/interp.h>
 
 void
-for_each_interp(_PyRuntimeState* runtime, std::function<void(InterpreterInfo& interp)> callback)
+for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterInfo& interp)>& callback)
 {
     InterpreterInfo interpreter_info = { 0 };
 

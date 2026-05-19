@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/5ae45008-c9a5-4671-9bfa-973f7bce6554/records",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "0",
+      "Content-Type": "application/json"
+    },
+    "body": ""
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "420",
+      "date": "Thu, 26 Mar 2026 20:01:04 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"record-id-1\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"422c9d15-2e5e-11ef-99c3-7291dac01325\"},\"canonical_id\":\"c02b6981-4980-4ed0-8fac-730b7ed3cc1c\",\"created_at\":\"2026-03-26T19:54:07.374706Z\",\"dataset_id\":\"5ae45008-c9a5-4671-9bfa-973f7bce6554\",\"expected_output\":{\"answer\":\"Paris\"},\"input\":{\"prompt\":\"What is the capital of France?\"},\"updated_at\":\"2026-03-26T20:00:54.190367Z\"}}],\"meta\":{\"after\":\"\"}}"
+  }
+}

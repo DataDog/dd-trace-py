@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    django: Fixes ``RuntimeError: coroutine ignored GeneratorExit`` that occurred under ASGI with async views
+    and async middleware hooks on Python 3.13+. Async view methods and middleware hooks are now correctly
+    detected and awaited instead of being wrapped with sync bytecode wrappers.

@@ -1,10 +1,8 @@
-import os
-from typing import Dict
-
 import bottle
 import wrapt
 
 from ddtrace import config
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 
 from .trace import TracePlugin
@@ -14,17 +12,16 @@ from .trace import TracePlugin
 config._add(
     "bottle",
     dict(
-        distributed_tracing=asbool(os.getenv("DD_BOTTLE_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(env.get("DD_BOTTLE_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(bottle, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"bottle": ">=0.12"}
 
 

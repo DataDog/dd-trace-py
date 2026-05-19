@@ -1,6 +1,6 @@
 import dogpile
 
-from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import tracer
 
@@ -15,10 +15,9 @@ def _wrap_lock_ctor(func, instance, args, kwargs):
     ori_backend_fetcher = instance.value_and_created_fn
 
     def wrapped_backend_fetcher():
-        pin = Pin.get_from(dogpile.cache)
-        if not pin or not pin.enabled():
+        # TODO: remove when switching to core API
+        if not is_tracing_enabled():
             return ori_backend_fetcher()
-
         hit = False
         expired = True
         try:
@@ -34,7 +33,7 @@ def _wrap_lock_ctor(func, instance, args, kwargs):
             # should be). This means ANDing all hit values and ORing all expired values.
             span = tracer.current_span()
             if span:
-                span.set_tag("hit", asbool(span.get_tag("hit") or "True") and hit)
-                span.set_tag("expired", asbool(span.get_tag("expired") or "False") or expired)
+                span.set_tag("hit", str(asbool(span.get_tag("hit") or "True") and hit))
+                span.set_tag("expired", str(asbool(span.get_tag("expired") or "False") or expired))
 
     instance.value_and_created_fn = wrapped_backend_fetcher

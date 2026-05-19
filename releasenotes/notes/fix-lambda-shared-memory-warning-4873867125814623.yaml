@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    lambda: Fixes a spurious ``Unable to create shared memory`` warning
+    on every AWS Lambda cold start.

@@ -2,6 +2,7 @@ import ctypes
 import os
 import platform
 from threading import Event
+from threading import Thread
 from time import monotonic
 from time import sleep
 
@@ -45,6 +46,110 @@ def test_periodic_double_start():
         t.start()
     t.stop()
     t.join()
+
+
+def test_periodic_join_positional_timeout_is_honored():
+    """Regression: PeriodicThread.join(timeout) passed positionally was ignored.
+
+    The native PeriodicThread_join skipped argument parsing whenever kwargs was
+    NULL — which is the normal case for positional calls — so the timeout was
+    dropped and execution fell through to the Py_None infinite-wait branch.
+    PeriodicService.join(timeout=...) forwards positionally to its worker, so
+    every user of that wrapper was silently waiting forever instead of
+    honoring the timeout. This test pins the positional form (and the kwarg
+    form) to actually return within the requested timeout.
+    """
+    t = periodic.PeriodicThread(60.0, lambda: None)
+    t.start()
+    try:
+        start = monotonic()
+        t.join(0.1)  # positional
+        elapsed_pos = monotonic() - start
+        assert elapsed_pos < 1.0, "positional join(0.1) blocked for %.2fs — timeout was ignored" % elapsed_pos
+
+        start = monotonic()
+        t.join(timeout=0.1)  # keyword
+        elapsed_kw = monotonic() - start
+        assert elapsed_kw < 1.0, "keyword join(timeout=0.1) blocked for %.2fs — timeout was ignored" % elapsed_kw
+    finally:
+        t.stop()
+        t.join()
+
+
+def test_periodic_awake_after_stop_returns_not_hangs():
+    """Regression: awake() after a completed stop() used to block forever.
+
+    Once a worker has fully stopped, there is nothing left that can serve a
+    new awake request. The native awake() path must therefore short-circuit
+    instead of waiting forever for a completion signal that will never come.
+
+    We deliberately make awake() a silent no-op (not a RuntimeError) so that
+    a racy stop()/awake() interleaving never surfaces a timing-dependent
+    exception to callers.
+    """
+    t = periodic.PeriodicThread(60.0, lambda: None)
+    t.start()
+    t.stop()
+    t.join()  # fully drained
+
+    # Must return promptly. Before the fix this hung forever.
+    t.awake()
+
+
+def test_periodic_awake_does_not_deadlock_with_stop_from_callback():
+    """Regression: stop() called from inside a periodic callback must not
+    deadlock against a concurrent awake() holding the awake mutex.
+
+    Timer._periodic uses the pattern:
+
+        def _periodic(self):
+            self.timeout()
+            self.stop()
+
+    A naive fix that has stop() acquire _awake_mutex creates this deadlock:
+
+      1. Thread A calls t.awake() — takes _awake_mutex, publishes AWAKE,
+         then waits for completion.
+      2. The worker consumes AWAKE and runs the callback.
+      3. The callback calls t.stop() on the worker thread.
+      4. stop() blocks on _awake_mutex if awake() keeps it locked while
+         waiting.
+      5. The worker cannot finish the callback and cannot reach
+         the wake-completion path — both threads wait forever.
+
+    The middle-ground fix has awake() release _awake_mutex before waiting on
+    _served, so a worker-thread stop() can take the mutex freely.
+    """
+
+    def _target():
+        # Stop ourselves from the worker thread — this is exactly the
+        # Timer._periodic pattern.
+        t.stop()
+
+    t = periodic.PeriodicThread(60.0, _target)
+    t.start()
+
+    awake_done = Event()
+
+    def _do_awake():
+        try:
+            t.awake()
+        finally:
+            awake_done.set()
+
+    awaker = Thread(target=_do_awake)
+    awaker.start()
+
+    # The awake() call should return well within a second. Before the fix this
+    # deadlocked indefinitely because the worker-thread stop() tried to take
+    # _awake_mutex while awake() was blocked waiting for completion.
+    assert awake_done.wait(timeout=5.0), (
+        "awake() did not return within 5s — stop()-from-callback deadlocked "
+        "against a concurrent awake() holding the awake mutex"
+    )
+
+    awaker.join(timeout=1.0)
+    t.join(timeout=1.0)
 
 
 def test_periodic_error():
@@ -127,7 +232,13 @@ def test_awakeable_periodic_service():
     assert queue == list(range(n + 1))
 
 
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
 def test_forksafe_awakeable_periodic_service():
+    import os
+    from threading import Event
+
+    from ddtrace.internal import periodic
+
     queue = [None]
     periodic_ran = Event()
 
@@ -150,6 +261,7 @@ def test_forksafe_awakeable_periodic_service():
         # child: check that the thread has been restarted and the state has been
         # reset
         assert not queue
+
         awake_me.awake()
         periodic_ran.wait(timeout=5)  # Wait for periodic() to complete
         assert queue
@@ -162,27 +274,120 @@ def test_forksafe_awakeable_periodic_service():
     assert exit_code == 42
 
 
-def test_periodic_after_fork_no_restart():
-    """Test that PeriodicThread.start() is safe to call after _after_fork().
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+def test_autorestart_false_service_restarts_in_parent_after_fork():
+    """A PeriodicService with autorestart=False must keep running in the parent
+    process after a fork. The flag means 'do not restart in the child', not
+    'stop permanently after any fork'.
 
-    This prevents crashes when external libraries (like uvloop) call fork and
-    try to restart threads before our forksafe handlers run.
+    The practical victim is RemoteConfigPoller (autorestart=False): after the
+    first fork in a loop, its worker is stopped by _before_fork() but never
+    restarted in the parent because _after_fork() checks __autorestart__ without
+    knowing whether it is running in the child or in the parent.
     """
+    import os
+    from threading import Event
+    from time import sleep
+
+    from ddtrace.internal import periodic
+
+    periodic_ran = Event()
+
+    class MyService(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    svc = MyService(interval=0.05, autorestart=False)
+    svc.start()
+    assert periodic_ran.wait(timeout=2), "service did not run before fork"
+    periodic_ran.clear()
+
+    pid = os.fork()
+    if pid == 0:
+        os._exit(0)
+
+    # ThreadRestartTimer fires ~100 ms after _before_fork(); wait well past that.
+    sleep(0.5)
+
+    # Nudge the worker in case it missed its next scheduled wakeup.
+    if svc._worker is not None:
+        svc._worker.awake()
+
+    ran = periodic_ran.wait(timeout=2)
+
+    os.waitpid(pid, 0)
+    svc.stop()
+    svc.join()
+
+    assert ran, (
+        "PeriodicService with autorestart=False was not restarted in the parent "
+        "after a fork. Fix: _after_fork() must always restart in the parent, "
+        "respecting __autorestart__ only in the child."
+    )
+
+
+def test_periodic_service_no_immediate_run_after_fork():
+    periodic_ran = Event()
+
+    class EveryMinute(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    # Use a long interval so periodic() can only run on an explicit wakeup.
+    service = EveryMinute(60)
+    service.start()
+
+    try:
+        assert service._worker is not None
+
+        # Simulate fork stop/restart around the worker.
+        service._worker._before_fork()
+        service._worker.join()
+        service._worker._after_fork()
+
+        # Prefork stop wakeup must not trigger a synthetic run after restart.
+        assert not periodic_ran.wait(timeout=0.5)
+
+        # A real wakeup after restart must still run periodic().
+        service._worker.awake()
+        assert periodic_ran.wait(timeout=1)
+    finally:
+        service.stop()
+        service.join()
+
+
+def test_periodic_thread_preserves_awake_during_restart_window():
+    """Ensure awake() isn't lost while a periodic thread is paused for fork.
+
+    The fork-safe runtime stops periodic threads before fork and restarts them
+    afterwards. A stop wakeup from that path should not trigger an immediate
+    periodic() run after restart, but a real awake() call made during this
+    restart window must still be honored.
+    """
+    periodic_ran = Event()
+    awake_done = Event()
 
     def _run_periodic():
-        pass
+        periodic_ran.set()
 
-    t = periodic.PeriodicThread(0.1, _run_periodic)
+    t = periodic.PeriodicThread(60, _run_periodic)
     t.start()
+    t._before_fork()
+    t.join()
 
-    # Simulate what happens in a child process after fork
+    awaker = Thread(target=lambda: (t.awake(), awake_done.set()))
+    awaker.start()
+
+    # Simulate thread restart after fork in parent.
     t._after_fork()
 
-    # This should not crash or create a new thread
-    t.start()  # Should be a no-op
+    assert awake_done.wait(timeout=1), "awake() should complete after restart"
+    assert periodic_ran.wait(timeout=1), "periodic() should run for the awake request"
 
-    # Verify thread is marked as after_fork
-    assert t._is_after_fork is True
+    t.stop()
+    t.join()
+    awaker.join(timeout=1)
 
 
 def test_timer():
@@ -271,6 +476,71 @@ def _get_native_thread_name():
         return None
 
     return None
+
+
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+def test_periodic_thread_stop_without_join_forksafe():
+    """
+    Dropping a PeriodicThread that was stop()'d without join() in a forked child
+    must not crash, even when the OS (Linux/glibc) recycles the old pthread
+    descriptor for a new thread between the stop() call and the dealloc in the
+    child.
+
+    Scenario:
+      1. Start a PeriodicThread, call stop() — *without* join().
+      2. Wait briefly so the OS thread exits and glibc marks the pthread_t
+         reusable.
+      3. Fork.
+      4. In the child: spin up many short-lived threads to encourage glibc to
+         recycle the old pthread_t, then drop the last Python reference
+         (triggering dealloc).
+      5. Assert the child exited cleanly (not killed by a signal).
+
+    Before the fix, PeriodicThread_dealloc called join() or detach() on the
+    stale handle, which on Linux causes SIGSEGV when the pthread descriptor has
+    been reused.
+    """
+    import gc
+    import os
+    import signal
+    from threading import Thread
+    from time import sleep
+
+    from ddtrace.internal import periodic
+
+    def noop():
+        pass
+
+    t = periodic.PeriodicThread(60.0, noop)
+    t.start()
+    t.stop()
+    sleep(0.3)  # let the OS thread exit so the pthread_t is eligible for recycling
+
+    pid = os.fork()
+    if pid == 0:
+        # Churn threads to encourage glibc to recycle the victim's pthread descriptor.
+        for _ in range(5):
+            batch = [Thread(target=lambda: None, daemon=True) for _ in range(20)]
+            for th in batch:
+                th.start()
+            for th in batch:
+                th.join()
+
+        # Treat a hang (futex deadlock on dead pthread) as a failure too.
+        signal.alarm(3)
+
+        del t
+        gc.collect()
+        os._exit(0)
+    else:
+        _, status = os.waitpid(pid, 0)
+        assert not os.WIFSIGNALED(status), (
+            f"child killed by signal {os.WTERMSIG(status)} — "
+            "PeriodicThread_dealloc crashed on a stale/recycled pthread handle"
+        )
+        assert os.WEXITSTATUS(status) == 0
+        # Parent still owns a reference; join to clean up properly.
+        t.join()
 
 
 def test_periodic_thread_naming():

@@ -1,0 +1,19 @@
+id: os-environ-fix-import
+message: Use ddtrace.internal.settings.env instead of importing from os
+severity: error
+language: python
+files:
+  - "ddtrace/**"
+ignores:
+  - "ddtrace/internal/settings/env.py"
+  - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
+  - "ddtrace/vendor/**"
+  - "ddtrace/testing/**"
+rule:
+  any:
+    - pattern: from os import environ
+    - pattern: from os import getenv
+fix: from ddtrace.internal.settings import env
+note: |
+  Replace `from os import environ` or `from os import getenv` with the dd_environ import.
+  Then update `environ` references to `env` and `getenv(...)` calls to `env.get(...)`.

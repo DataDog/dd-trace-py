@@ -14,14 +14,10 @@ functions and enable taint tracking and vulnerability detection.
 import functools
 from typing import Callable
 from typing import Optional
-from typing import Set
 from typing import Text
 
 from wrapt import FunctionWrapper
 
-from ddtrace.appsec._common_module_patches import try_unwrap
-from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
-from ddtrace.appsec._common_module_patches import wrap_object
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
 from ddtrace.appsec._iast.secure_marks import SecurityControl
 from ddtrace.appsec._iast.secure_marks import get_security_controls_from_env
@@ -29,13 +25,16 @@ from ddtrace.appsec._iast.secure_marks.configuration import SC_SANITIZER
 from ddtrace.appsec._iast.secure_marks.configuration import SC_VALIDATOR
 from ddtrace.appsec._iast.secure_marks.sanitizers import create_sanitizer
 from ddtrace.appsec._iast.secure_marks.validators import create_validator
+from ddtrace.appsec._patch_utils import try_unwrap
+from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
+from ddtrace.appsec._patch_utils import wrap_object
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
 
-MODULES_TO_UNPATCH: Set["IASTFunction"] = set()
+MODULES_TO_UNPATCH: set["IASTFunction"] = set()
 
 
 class IASTFunction:
@@ -121,13 +120,13 @@ class WrapFunctonsForIAST:
     and unpatching. It supports both normal operation and testing scenarios.
 
     Attributes:
-        functions (Set[IASTFunction]): Set of modules to be patched
+        functions (set[IASTFunction]): set of modules to be patched
         testing (bool): Whether the instance is being used in a testing context
     """
 
     def __init__(self) -> None:
         """Initialize a WrapFunctonsForIAST instance."""
-        self.functions: Set[IASTFunction] = set()
+        self.functions: set[IASTFunction] = set()
         self.testing: bool = asm_config._iast_is_testing
 
     def wrap_function(self, name, function, hook):

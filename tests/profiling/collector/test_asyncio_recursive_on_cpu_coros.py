@@ -9,7 +9,6 @@ import pytest
 )
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_asyncio_recursive_on_cpu_coros():
-    import asyncio
     import os
     from sys import version_info as PYVERSION
     import time
@@ -21,6 +20,7 @@ def test_asyncio_recursive_on_cpu_coros():
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.pprof_utils import StackLocation
+    from tests.profiling.collector.test_utils import async_run
 
     assert stack.is_available, stack.failure_msg
 
@@ -51,7 +51,7 @@ def test_asyncio_recursive_on_cpu_coros():
         return await outer()
 
     def main_sync():
-        asyncio.run(async_main())
+        async_run(async_main())
 
     resource = str(uuid.uuid4())
     span_type = ext.SpanTypes.WEB
@@ -69,12 +69,33 @@ def test_asyncio_recursive_on_cpu_coros():
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
     profile = pprof_utils.parse_newest_profile(output_filename)
 
-    def loc(f_name: str) -> StackLocation:
-        return pprof_utils.StackLocation(function_name=f_name, filename="", line_no=-1)
+    def loc(f_name: str, filename: str = "", line_no: int = -1) -> StackLocation:
+        return pprof_utils.StackLocation(function_name=f_name, filename=filename, line_no=line_no)
 
-    runner_prefix = "Runner." if PYVERSION >= (3, 11) else ""
-    base_event_loop_prefix = "BaseEventLoop." if PYVERSION >= (3, 11) else ""
-    handle_prefix = "Handle." if PYVERSION >= (3, 11) else ""
+    use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
+
+    # uvloop uses a C-based event loop that doesn't go through Python's BaseEventLoop methods
+    # With uvloop, the stack has: main_sync → async_run → run (uvloop) → Runner.run → async_main
+    # Without uvloop: main_sync → run → Runner.run → run_until_complete → run_forever → _run_once → _run → async_main
+    if use_uvloop:
+        runner_frames = [
+            loc("async_run"),
+            loc("run"),  # uvloop run
+        ]
+        if PYVERSION >= (3, 11):
+            runner_frames += [loc("Runner.run")]
+        event_loop_frames = []
+    else:
+        base_event_loop_prefix = "BaseEventLoop." if PYVERSION >= (3, 11) else ""
+        handle_prefix = "Handle." if PYVERSION >= (3, 11) else ""
+        runner_prefix = "Runner." if PYVERSION >= (3, 11) else ""
+        runner_frames = [loc("run")] + ([loc(f"{runner_prefix}run")] if PYVERSION >= (3, 11) else [])
+        event_loop_frames = [
+            loc(f"{base_event_loop_prefix}run_until_complete"),
+            loc(f"{base_event_loop_prefix}run_forever"),
+            loc(f"{base_event_loop_prefix}_run_once"),
+            loc(f"{handle_prefix}_run"),
+        ]
 
     pprof_utils.assert_profile_has_sample(
         profile,
@@ -88,14 +109,10 @@ def test_asyncio_recursive_on_cpu_coros():
                     [
                         loc("<module>"),
                         loc("main_sync"),
-                        loc("run"),
                     ]
-                    + ([loc(f"{runner_prefix}run")] if PYVERSION >= (3, 11) else [])
+                    + runner_frames
+                    + event_loop_frames
                     + [
-                        loc(f"{base_event_loop_prefix}run_until_complete"),
-                        loc(f"{base_event_loop_prefix}run_forever"),
-                        loc(f"{base_event_loop_prefix}_run_once"),
-                        loc(f"{handle_prefix}_run"),
                         loc("async_main"),
                         loc("outer"),
                         loc("inner1"),

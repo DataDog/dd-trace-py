@@ -50,7 +50,7 @@ class CoverageLines:
         lines_bit = 0b1000_0000 >> (line_number % 8)
         self._lines[lines_byte] |= lines_bit
 
-    def to_sorted_list(self) -> t.List[int]:
+    def to_sorted_list(self) -> list[int]:
         """Returns a sorted list of covered line numbers"""
         lines = []
         for idx, _byte in enumerate(self._lines):
@@ -74,7 +74,7 @@ class CoverageLines:
         return self._lines
 
     @classmethod
-    def from_list(cls, lines: t.List[int]) -> "CoverageLines":
+    def from_list(cls, lines: list[int]) -> "CoverageLines":
         coverage = cls()
         for line in lines:
             coverage.add(line)

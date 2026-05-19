@@ -19,6 +19,7 @@ def test_asyncio_wait() -> None:
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_utils import async_run
 
     assert stack.is_available, stack.failure_msg
 
@@ -49,15 +50,11 @@ def test_asyncio_wait() -> None:
         span_id = span.span_id
         local_root_span_id = span._local_root.span_id
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        main_task = loop.create_task(outer(), name="outer")
-        loop.run_until_complete(main_task)
+        async_run(outer())
 
     p.stop()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-
     profile = pprof_utils.parse_newest_profile(output_filename)
 
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")

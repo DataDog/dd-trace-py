@@ -10,7 +10,6 @@ implementations will cause errors unless the hookspecs are added by the original
 """
 
 from pathlib import Path
-import sys
 
 import pytest
 
@@ -73,7 +72,7 @@ class _PytestBddSubPlugin:
             child_of=feature_span,
             activate=True,
         )
-        span._set_tag_str("component", "pytest_bdd")
+        span._set_attribute("component", "pytest_bdd")
 
         span.set_tag(test.FRAMEWORK, FRAMEWORK)
         span.set_tag(test.FRAMEWORK_VERSION, self.framework_version)
@@ -99,11 +98,7 @@ class _PytestBddSubPlugin:
     def pytest_bdd_step_error(request, feature, scenario, step, step_func, step_func_args, exception):
         span = _extract_span(step_func)
         if span is not None:
-            if hasattr(exception, "__traceback__"):
-                tb = exception.__traceback__
-            else:
-                # PY2 compatibility workaround
-                _, _, tb = sys.exc_info()
+            tb = exception.__traceback__
             step_func_args_json = _get_step_func_args_json(step, step_func, step_func_args)
             if step_func_args:
                 span.set_tag(test.PARAMETERS, step_func_args_json)

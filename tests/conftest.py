@@ -11,19 +11,17 @@ import logging
 import os
 from os.path import split
 from os.path import splitext
+from pathlib import Path
 import platform
 import random
 import shutil
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
-from tempfile import gettempdir
+from tempfile import mkdtemp
 import time
 from typing import Any  # noqa:F401
-from typing import Dict
 from typing import Generator  # noqa:F401
-from typing import List
-from typing import Tuple  # noqa:F401
 from unittest import TestCase
 from unittest import mock
 from urllib import parse
@@ -32,9 +30,16 @@ import warnings
 import pytest
 
 import ddtrace
+
+
+# DEV: Consumed by detect_service() during ddtrace import above; unset now so
+# it doesn't leak into tests (e.g. unit tests that call detect_service directly).
+os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
+
 from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
@@ -157,6 +162,19 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "snapshot(*args, **kwargs): mark test to run as a snapshot test which sends traces to the test agent"
     )
+    # DEV: Propagate the inferred service name to xdist workers so detect_service()
+    # returns the same result there as on the controller, even though workers run
+    # as "python -c ..." and have sys.argv=['-c']. Workers inherit this env var at
+    # spawn time; detect_service() short-circuits on it during ddtrace's import-time
+    # calls in the worker, then conftest pops it so it never leaks into test code.
+    # Only set when xdist workers are actually being spawned (numprocesses > 0 or
+    # 'auto') and only from the controller (workers have PYTEST_XDIST_WORKER set).
+    if not os.environ.get("PYTEST_XDIST_WORKER") and getattr(config.option, "numprocesses", 0):
+        from ddtrace.internal.settings._inferred_base_service import detect_service as _detect_service
+
+        _inferred = _detect_service(sys.argv)
+        if _inferred:
+            os.environ["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -349,11 +367,14 @@ class FunctionDefFinder(ast.NodeVisitor):
             self._body = node.body
 
     def find(self, file):
-        with open(file) as f:
-            t = ast.parse(f.read())
-            self.visit(t)
-            t.body = self._body
-            return t
+        if not (path := Path(file)).exists():
+            if path.is_absolute() or not (path := Path(__file__).parents[1] / file).exists():
+                raise FileNotFoundError(f"File {file} does not exist")
+
+        t = ast.parse(path.read_text())
+        self.visit(t)
+        t.body = self._body or []
+        return t
 
 
 def is_stream_ok(stream, expected):
@@ -372,7 +393,7 @@ def is_stream_ok(stream, expected):
 
 
 def run_function_from_file(item, params=None):
-    file = item.location[0]
+    file = Path(item.location[0])
     func = item.originalname
     marker = item.get_closest_marker("subprocess")
     run_module = marker.kwargs.get("run_module", False)
@@ -410,8 +431,9 @@ def run_function_from_file(item, params=None):
     expected_err = marker.kwargs.get("err", "")
 
     # Create a temporary dir named `ddtrace_subprocess_dir` that will be used for service naming
-    # consistency
-    temp_dir = gettempdir()
+    # consistency. Use a unique parent dir so parallel xdist workers don't share the same path
+    # and race on cleanup (shutil.rmtree would delete files still in use by other workers).
+    temp_dir = mkdtemp()
     custom_temp_dir = os.path.join(temp_dir, DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME)
 
     os.makedirs(custom_temp_dir, exist_ok=True)
@@ -462,9 +484,9 @@ def run_function_from_file(item, params=None):
 
             return _subprocess_wrapper()
     finally:
-        # Clean up the temporary directory
-        if os.path.exists(custom_temp_dir):
-            shutil.rmtree(custom_temp_dir)
+        # Clean up the unique parent temp directory (contains ddtrace_subprocess_dir)
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -622,6 +644,35 @@ def remote_config_worker():
     # assert threading.active_count() == 2
 
 
+class SyncRemoteConfigPoller(RemoteConfigPoller):
+    """RemoteConfigPoller subclass with testing utilities.
+
+    This subclass adds a `poll()` method that forces the client's
+    subscriber to poll new data, allowing synchronous testing without
+    waiting for the periodic thread.
+    """
+
+    def poll(self) -> None:
+        """Force client subscriber to poll new data for testing."""
+        self._client._global_subscriber.periodic()
+
+
+@pytest.fixture
+def rc_poller():
+    """Provide a SyncRemoteConfigPoller instance for testing.
+
+    This creates an isolated poller instance that can be used synchronously
+    in tests without relying on the global singleton.
+    """
+    poller = SyncRemoteConfigPoller()
+    try:
+        yield poller
+    finally:
+        # Clean up: stop any running services and reset state
+        if poller.status == ServiceStatus.RUNNING:
+            poller.disable(join=True)
+
+
 @pytest.fixture
 def telemetry_writer():
     # Since the only difference between regular and agentless behavior are the client's URL and endpoints, and the API
@@ -650,8 +701,7 @@ class TelemetryTestSession(object):
         parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
-    def _request(self, method, url):
-        # type: (str, str) -> Tuple[int, bytes]
+    def _request(self, method: str, url: str) -> tuple[int, bytes]:
         conn = self.create_connection()
         MAX_RETRY = 9
         exp_time = 1.618034
@@ -666,6 +716,7 @@ class TelemetryTestSession(object):
                 time.sleep(pow(exp_time, try_nb))
             finally:
                 conn.close()
+        raise RuntimeError("Unreachable: loop exits via return or pytest.xfail")
 
     def clear(self):
         status, _ = self._request("GET", "/test/session/clear?test_session_token=%s" % self.token)
@@ -711,7 +762,7 @@ class TelemetryTestSession(object):
                     events.append(req_body)
         return events
 
-    def _get_request_bodies(self, req: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _get_request_bodies(self, req: dict[str, Any]) -> list[dict[str, Any]]:
         if req["body"]["request_type"] == "message-batch":
             payloads = req["body"]["payload"]
         else:
@@ -767,8 +818,7 @@ class TelemetryTestSession(object):
 
 
 @pytest.fixture
-def test_agent_session(telemetry_writer, request):
-    # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
+def test_agent_session(telemetry_writer: TelemetryWriter, request: Any) -> Generator[TelemetryTestSession, None, None]:
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token

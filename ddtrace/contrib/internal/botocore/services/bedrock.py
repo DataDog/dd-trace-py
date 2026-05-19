@@ -1,8 +1,6 @@
 import json
 import sys
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 
 from ddtrace import config
@@ -13,6 +11,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._integrations._bedrock_inference_profiles import lookup_inference_profile
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.bedrock_utils import _AI21
@@ -36,13 +35,10 @@ def traced_stream_read(traced_stream, original_read, amt=None):
         handler.chunks.append(json.loads(body))
         if traced_stream.__wrapped__.tell() == int(traced_stream.__wrapped__._content_length):
             formatted_response = _extract_text_and_response_reason(execution_ctx, handler.chunks[0])
-            core.dispatch(
-                "botocore.bedrock.process_response",
-                [execution_ctx, formatted_response],
-            )
+            core.dispatch("botocore.bedrock.process_response", (execution_ctx, formatted_response))
         return body
     except Exception:
-        core.dispatch("botocore.patched_bedrock_api_call.exception", [execution_ctx, sys.exc_info()])
+        core.dispatch("botocore.patched_bedrock_api_call.exception", (execution_ctx, sys.exc_info()))
         raise
 
 
@@ -55,13 +51,10 @@ def traced_stream_readlines(traced_stream, original_readlines):
         for line in lines:
             handler.chunks.append(json.loads(line))
         formatted_response = _extract_text_and_response_reason(execution_ctx, handler.chunks[0])
-        core.dispatch(
-            "botocore.bedrock.process_response",
-            [execution_ctx, formatted_response],
-        )
+        core.dispatch("botocore.bedrock.process_response", (execution_ctx, formatted_response))
         return lines
     except Exception:
-        core.dispatch("botocore.patched_bedrock_api_call.exception", [execution_ctx, sys.exc_info()])
+        core.dispatch("botocore.patched_bedrock_api_call.exception", (execution_ctx, sys.exc_info()))
         raise
 
 
@@ -71,7 +64,7 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
 
     def handle_exception(self, exception):
         core.dispatch(
-            "botocore.patched_bedrock_api_call.exception", [self.options.get("execution_ctx", {}), sys.exc_info()]
+            "botocore.patched_bedrock_api_call.exception", (self.options.get("execution_ctx", {}), sys.exc_info())
         )
 
     def finalize_stream(self, exception=None):
@@ -79,14 +72,11 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
             return
         execution_ctx = self.options.get("execution_ctx", {})
         formatted_response = _extract_streamed_response(execution_ctx, self.chunks)
-        core.dispatch(
-            "botocore.bedrock.process_response",
-            [execution_ctx, formatted_response],
-        )
+        core.dispatch("botocore.bedrock.process_response", (execution_ctx, formatted_response))
 
 
 class BotocoreConverseStreamHandler(StreamHandler):
-    def process_chunk(self, chunk: Dict[str, Any], iterator=None):
+    def process_chunk(self, chunk: dict[str, Any], iterator=None):
         stream_processor = self.options.get("stream_processor", None)
         if stream_processor:
             stream_processor.send(chunk)
@@ -94,14 +84,14 @@ class BotocoreConverseStreamHandler(StreamHandler):
     def handle_exception(self, exception):
         stream_processor = self.options.get("stream_processor", None)
         execution_ctx = self.options.get("execution_ctx", {})
-        core.dispatch("botocore.bedrock.process_response_converse", [execution_ctx, stream_processor])
+        core.dispatch("botocore.bedrock.process_response_converse", (execution_ctx, stream_processor))
 
     def finalize_stream(self, exception=None):
         if exception:
             return
         stream_processor = self.options.get("stream_processor", None)
         execution_ctx = self.options.get("execution_ctx", {})
-        core.dispatch("botocore.bedrock.process_response_converse", [execution_ctx, stream_processor])
+        core.dispatch("botocore.bedrock.process_response_converse", (execution_ctx, stream_processor))
 
 
 def make_botocore_streaming_body_traced_stream(streaming_body, execution_ctx):
@@ -169,7 +159,7 @@ def _set_llmobs_usage(
         ctx.set_item("llmobs.usage", llmobs_usage)
 
 
-def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, Any]:
+def _extract_request_params_for_converse(params: dict[str, Any]) -> dict[str, Any]:
     """
     Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences
         for converse and converse_stream.
@@ -192,7 +182,7 @@ def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, An
     }
 
 
-def _extract_request_params_for_invoke(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
+def _extract_request_params_for_invoke(params: dict[str, Any], provider: str) -> dict[str, Any]:
     """
     Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences
         for invoke.
@@ -259,7 +249,7 @@ def _extract_request_params_for_invoke(params: Dict[str, Any], provider: str) ->
     return {}
 
 
-def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str, Any]) -> Dict[str, List[str]]:
+def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: dict[str, Any]) -> dict[str, list[str]]:
     text, finish_reason = "", ""
     model_name = ctx["model_name"]
     provider = ctx["model_provider"]
@@ -303,7 +293,7 @@ def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str
     return {"text": text, "finish_reason": finish_reason}
 
 
-def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: list[dict[str, Any]]) -> dict[str, list[str]]:
     text, finish_reason = "", ""
     model_name = ctx["model_name"]
     provider = ctx["model_provider"]
@@ -359,8 +349,8 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[D
 
 
 def _extract_streamed_response_metadata(
-    ctx: core.ExecutionContext, streamed_body: List[Dict[str, Any]]
-) -> Dict[str, Any]:
+    ctx: core.ExecutionContext, streamed_body: list[dict[str, Any]]
+) -> dict[str, Any]:
     """
     Returns token usage metadata from streamed response, sets it in the context for LLMObs, and returns it.
     """
@@ -393,15 +383,15 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
         else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
     )
 
-    core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
+    core.dispatch("botocore.patched_bedrock_api_call.started", (ctx, request_params))
     if ctx["bedrock_integration"].llmobs_enabled:
         ctx.set_item("llmobs.request_params", request_params)
 
 
 def handle_bedrock_response(
     ctx: core.ExecutionContext,
-    result: Dict[str, Any],
-) -> Dict[str, Any]:
+    result: dict[str, Any],
+) -> dict[str, Any]:
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
 
@@ -443,7 +433,7 @@ def handle_bedrock_response(
     )
 
     if ctx["resource"] == "Converse":
-        core.dispatch("botocore.bedrock.process_response_converse", [ctx, result])
+        core.dispatch("botocore.bedrock.process_response_converse", (ctx, result))
         return result
     if ctx["resource"] == "ConverseStream":
         if "stream" in result:
@@ -455,11 +445,30 @@ def handle_bedrock_response(
     return result
 
 
+def _resolve_application_inference_profile(model_id, model_provider, model_name):
+    """If model_id is an application-inference-profile ARN whose base model is known
+    (cached by the langchain integration), return the resolved
+    (model_id, model_provider, model_name) where model_id is now the base model
+    id string instead of the opaque ARN. Otherwise return the inputs unchanged.
+
+    Overriding model_id matters because the LLM Obs annotator reads
+    ``ctx.get_item("model_id")`` first and only falls back to ``model_name``.
+    """
+    if not isinstance(model_id, str) or "application-inference-profile/" not in model_id:
+        return model_id, model_provider, model_name
+    cached_base_model_id = lookup_inference_profile(model_id)
+    if not cached_base_model_id:
+        return model_id, model_provider, model_name
+    new_provider, new_name = parse_model_id(cached_base_model_id)
+    return cached_base_model_id, new_provider, new_name
+
+
 def patched_bedrock_api_call(original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     pin = function_vars.get("pin")
     model_id = params.get("modelId")
     model_provider, model_name = parse_model_id(model_id)
+    model_id, model_provider, model_name = _resolve_application_inference_profile(model_id, model_provider, model_name)
     integration = function_vars.get("integration")
     submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
     with core.context_with_data(
@@ -476,6 +485,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         params=params,
         model_provider=model_provider,
         model_name=model_name,
+        model_id=model_id,
         instance=instance,
     ) as ctx:
         try:
@@ -484,5 +494,5 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
             result = handle_bedrock_response(ctx, result)
             return result
         except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", [ctx, sys.exc_info()])
+            core.dispatch("botocore.patched_bedrock_api_call.exception", (ctx, sys.exc_info()))
             raise

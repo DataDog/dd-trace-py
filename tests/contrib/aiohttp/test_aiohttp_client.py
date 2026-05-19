@@ -94,6 +94,17 @@ async def test_200_request_distributed_tracing(tracer):
 
 
 @pytest.mark.asyncio
+async def test_200_request_distributed_tracing_with_empty_headers():
+    async with aiohttp.ClientSession() as session:
+        async with session.get("%s/headers" % URL, headers={}) as resp:
+            assert resp.status == 200
+            data = await resp.json()
+            assert "X-Datadog-Trace-Id" in data["headers"]
+            assert "X-Datadog-Parent-Id" in data["headers"]
+            assert "X-Datadog-Sampling-Priority" in data["headers"]
+
+
+@pytest.mark.asyncio
 async def test_distributed_tracing_disabled(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
@@ -224,4 +235,20 @@ async def test_trace_multiple(snapshot_context):
             async with session.get(URL_200) as resp:
                 assert resp.status == 200
             async with session.get(URL_200) as resp:
+                assert resp.status == 200
+
+
+@pytest.mark.skipif(
+    tuple(int(x) for x in aiohttp.__version__.split(".")[:2]) < (3, 8),
+    reason="base_url parameter added in aiohttp 3.8.0",
+)
+@pytest.mark.asyncio
+async def test_base_url(snapshot_context):
+    """
+    When ClientSession is initialized with base_url
+        The full URL (base + path) is captured in the span
+    """
+    with snapshot_context():
+        async with aiohttp.ClientSession(base_url="http://{}".format(SOCKET)) as session:
+            async with session.get("/status/200") as resp:
                 assert resp.status == 200

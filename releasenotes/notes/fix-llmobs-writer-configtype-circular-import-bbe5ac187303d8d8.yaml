@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes a circular import in ``ddtrace.llmobs._writer`` when ``anthropic``, ``openai``, and ``botocore`` is installed.

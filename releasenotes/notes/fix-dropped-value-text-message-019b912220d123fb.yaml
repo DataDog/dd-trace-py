@@ -1,0 +1,5 @@
+fixes:
+  - |
+    LLM Observability: Corrected the ``DROPPED_VALUE_TEXT`` warning message to reference the actual 5MB size limit. The size
+    limit itself has not changed; only the message text was updated from an incorrect 1MB reference to the correct 5MB value.
+

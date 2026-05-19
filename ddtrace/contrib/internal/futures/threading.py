@@ -1,5 +1,4 @@
 from typing import Optional
-from typing import Tuple
 
 import ddtrace
 from ddtrace.internal import core
@@ -28,7 +27,7 @@ def _wrap_submit(func, args, kwargs):
     return func(self, _wrap_execution, (current_ctx, llmobs_ctx), fn, fn_args, kwargs)
 
 
-def _wrap_execution(ctx: Tuple[Optional[Context], Optional[Context]], fn, args, kwargs):
+def _wrap_execution(ctx: tuple[Optional[Context], Optional[Context]], fn, args, kwargs):
     """
     Intermediate target function that is executed in a new thread;
     it receives the original function with arguments and keyword

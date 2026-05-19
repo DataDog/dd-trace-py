@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from types import FrameType
 import typing as t
 
 from ddtrace.debugging._probe.model import ProbeEvalTiming
@@ -10,6 +11,7 @@ from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.metrics import Metrics
 
 
 log = get_logger(__name__)
@@ -50,11 +52,11 @@ class Trigger(LogSignal):
         # reference to the context object do the job.
         pass
 
-    def line(self, scope: t.Mapping[str, t.Any]):
+    def line(self, scope: t.Mapping[str, t.Any]) -> None:
         self._link_session()
 
     @property
-    def message(self):
+    def message(self) -> t.Optional[str]:
         return f"Condition evaluation errors for probe {self.probe.probe_id}" if self.errors else None
 
     def has_message(self) -> bool:
@@ -62,10 +64,12 @@ class Trigger(LogSignal):
 
 
 @probe_to_signal.register
-def _(probe: TriggerFunctionProbe, frame, thread, trace_context, meter):
+def _(
+    probe: TriggerFunctionProbe, frame: FrameType, thread: t.Any, trace_context: t.Any, meter: Metrics.Meter
+) -> Trigger:
     return Trigger(probe=probe, frame=frame, thread=thread, trace_context=trace_context)
 
 
 @probe_to_signal.register
-def _(probe: TriggerLineProbe, frame, thread, trace_context, meter):
+def _(probe: TriggerLineProbe, frame: FrameType, thread: t.Any, trace_context: t.Any, meter: Metrics.Meter) -> Trigger:
     return Trigger(probe=probe, frame=frame, thread=thread, trace_context=trace_context)

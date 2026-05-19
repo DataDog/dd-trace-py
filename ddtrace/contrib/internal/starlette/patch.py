@@ -1,8 +1,5 @@
 import inspect
-import os
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import starlette
@@ -23,6 +20,7 @@ from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
@@ -43,7 +41,7 @@ config._add(
         _default_service=schematize_service_name("starlette"),
         request_span_name="starlette.request",
         distributed_tracing=True,
-        obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
+        obfuscate_404_resource=env.get("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
         trace_asgi_websocket_messages=asbool(
             _get_config("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=_get_config("DD_ASGI_TRACE_WEBSOCKET", True))
         ),
@@ -58,8 +56,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(starlette, "__version__", "")
 
 
@@ -67,12 +64,12 @@ _STARLETTE_VERSION = parse_version(get_version())
 _STARLETTE_VERSION_LTE_0_33_0 = _STARLETTE_VERSION <= parse_version("0.33.0")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"starlette": ">=0.14.0"}
 
 
 def traced_init(wrapped, instance, args, kwargs):
-    mw = kwargs.pop("middleware", [])
+    mw = list(kwargs.pop("middleware", None) or [])
     mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
     kwargs.update({"middleware": mw})
 
@@ -80,23 +77,51 @@ def traced_init(wrapped, instance, args, kwargs):
 
 
 def traced_route_init(wrapped, _instance, args, kwargs):
-    route = args[0] if args else None
-    if route is not None:
-        response_body_type = getattr(kwargs.get("response_class", None), "media_type", None)
-        response_body_type = [response_body_type] if isinstance(response_body_type, str) else []
-        response_code = kwargs.get("status_code", None)
-        response_code = [response_code] if isinstance(response_code, int) else []
-        for m in kwargs.get("methods", None) or []:
-            endpoint_collection.add_endpoint(
-                m,
-                route,
-                operation_name="fastapi.request",
-                response_body_type=response_body_type,
-                response_code=response_code,
-            )
+    # Endpoint registration for the endpoint_collection is NOT done here because at
+    # Route.__init__ time, we don't know the mount prefix for sub-app routes.
+    # Instead, _collect_routes_from_app walks the full route tree on first request
+    # and registers endpoints with their complete paths (mount prefix + local route).
     handler = get_argument_value(args, kwargs, 1, "endpoint")
     core.dispatch("service_entrypoint.patch", (inspect.unwrap(handler),))
     return wrapped(*args, **kwargs)
+
+
+def _collect_routes_from_app(app, prefix=""):
+    """Walk an ASGI app's route tree and register all endpoints with their full paths.
+
+    Called once on first request via the ASGI TraceMiddleware. At that point the app
+    is fully constructed (all mounts done). Endpoint registration cannot happen at
+    Route.__init__ time because the mount prefix is unknown then (sub-apps are
+    created before being mounted).
+    """
+    routes = getattr(app, "routes", None)
+    if not routes:
+        return
+    for route in routes:
+        try:
+            if isinstance(route, starlette.routing.Mount):
+                mount_path = prefix + route.path
+                _collect_routes_from_app(route, prefix=mount_path)
+            elif hasattr(starlette.routing, "Host") and isinstance(route, starlette.routing.Host):
+                # Host-based routing: recurse into the host's app without adding a path prefix
+                _collect_routes_from_app(route, prefix=prefix)
+            elif isinstance(route, starlette.routing.Route):
+                full_path = prefix + route.path
+                response_class = getattr(route, "response_class", None)
+                media_type = getattr(response_class, "media_type", None)
+                response_body_type = [media_type] if isinstance(media_type, str) else []
+                response_code = getattr(route, "status_code", None)
+                response_code = [response_code] if isinstance(response_code, int) else []
+                for m in getattr(route, "methods", None) or []:
+                    endpoint_collection.add_endpoint(
+                        m,
+                        full_path,
+                        operation_name="fastapi.request",
+                        response_body_type=response_body_type,
+                        response_code=response_code,
+                    )
+        except Exception:
+            log.debug("failed to collect endpoint for route %r", route, exc_info=True)
 
 
 def patch():
@@ -142,7 +167,7 @@ def unpatch():
 def traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
-    scope = get_argument_value(args, kwargs, 0, "scope")  # type: Optional[Dict[str, Any]]
+    scope: Optional[dict[str, Any]] = get_argument_value(args, kwargs, 0, "scope")
     if not scope:
         return wrapped(*args, **kwargs)
 
@@ -159,8 +184,8 @@ def traced_handler(wrapped, instance, args, kwargs):
     else:
         scope["datadog"]["resource_paths"].append(instance.path)
 
-    request_spans = scope["datadog"].get("request_spans", [])  # type: List[Span]
-    resource_paths = scope["datadog"].get("resource_paths", [])  # type: List[str]
+    request_spans: list[Span] = scope["datadog"].get("request_spans", [])
+    resource_paths: list[str] = scope["datadog"].get("resource_paths", [])
 
     if len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each
@@ -177,7 +202,7 @@ def traced_handler(wrapped, instance, args, kwargs):
                 span.resource = path
             # route should only be in the root span
             if index == 0:
-                span._set_tag_str(http.ROUTE, path)
+                span._set_attribute(http.ROUTE, path)
     # at least always update the root asgi span resource name request_spans[0].resource = "".join(resource_paths)
     elif request_spans and resource_paths:
         route = "".join(resource_paths)
@@ -185,36 +210,40 @@ def traced_handler(wrapped, instance, args, kwargs):
             request_spans[0].resource = "{} {}".format(scope["method"], route)
         else:
             request_spans[0].resource = route
-        request_spans[0]._set_tag_str(http.ROUTE, route)
+        request_spans[0]._set_attribute(http.ROUTE, route)
     else:
         log.debug(
             "unable to update the request span resource name, request_spans:%r, resource_paths:%r",
             request_spans,
             resource_paths,
         )
-    request_cookies = ""
-    for name, value in scope.get("headers", []):
-        if name == b"cookie":
-            request_cookies = value.decode("utf-8", errors="ignore")
-            break
+    # Only run ASM/WAF processing on the final Route handler, not on intermediate Mount handlers.
+    # With sub-applications, traced_handler is called for each routing layer (Mount then Route).
+    # Running ASM on Mount would cause duplicate WAF triggers and incomplete path_params.
+    if isinstance(instance, starlette.routing.Route):
+        request_cookies = ""
+        for name, value in scope.get("headers", []):
+            if name == b"cookie":
+                request_cookies = value.decode("utf-8", errors="ignore")
+                break
 
-    if request_spans:
-        if asm_config._iast_enabled:
-            from ddtrace.appsec._iast._handlers import _iast_instrument_starlette_scope
+        if request_spans:
+            if asm_config._iast_enabled:
+                from ddtrace.appsec._iast._handlers import _iast_instrument_starlette_scope
 
-            _iast_instrument_starlette_scope(scope, request_spans[0].get_tag(http.ROUTE))
+                _iast_instrument_starlette_scope(scope, request_spans[0].get_tag(http.ROUTE))
 
-        trace_utils.set_http_meta(
-            request_spans[0],
-            "starlette",
-            request_path_params=scope.get("path_params"),
-            request_cookies=starlette_requests.cookie_parser(request_cookies),
-            route=request_spans[0].get_tag(http.ROUTE),
-        )
-    core.dispatch("asgi.start_request", ("starlette",))
-    blocked = get_blocked()
-    if blocked:
-        raise BlockingException(blocked)
+            trace_utils.set_http_meta(
+                request_spans[0],
+                "starlette",
+                request_path_params=scope.get("path_params"),
+                request_cookies=starlette_requests.cookie_parser(request_cookies),
+                route=request_spans[0].get_tag(http.ROUTE),
+            )
+        core.dispatch("asgi.start_request", ("starlette",))
+        blocked = get_blocked()
+        if blocked:
+            raise BlockingException(blocked)
 
     # https://github.com/encode/starlette/issues/1336
     if _STARLETTE_VERSION_LTE_0_33_0 and len(request_spans) > 1:

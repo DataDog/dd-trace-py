@@ -45,6 +45,7 @@ if pip_version < MIN_PIP_VERSION:
 supported_versions = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 supported_arches = ["aarch64", "x86_64", "i686"]
 supported_platforms = ["musllinux_1_2", "manylinux2014"]
+supported_flavors = ["", "slim"]
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
@@ -52,6 +53,12 @@ parser.add_argument(
     choices=supported_versions,
     action="append",
     required=True,
+)
+parser.add_argument(
+    "--ddtrace-flavor",
+    choices=supported_flavors,
+    default="",
+    required=False,
 )
 parser.add_argument(
     "--arch",
@@ -75,6 +82,10 @@ args = parser.parse_args()
 dl_dir = args.output_dir
 print("saving wheels to %s" % dl_dir)
 
+package_basename = "ddtrace"
+if args.ddtrace_flavor:
+    package_basename = f"ddtrace{args.ddtrace_flavor}"
+
 
 for python_version, platform in itertools.product(args.python_version, args.platform):
     for arch in args.arch:
@@ -85,10 +96,16 @@ for python_version, platform in itertools.product(args.python_version, args.plat
             abi += "m"
 
         if args.ddtrace_version:
-            ddtrace_specifier = "ddtrace==%s" % args.ddtrace_version
+            ddtrace_specifier = "%s==%s" % (package_basename, args.ddtrace_version)
         elif args.local_ddtrace:
             wheel_files = [
-                f for f in os.listdir(".") if f.endswith(".whl") and abi in f and platform in f and arch in f
+                f
+                for f in os.listdir(".")
+                if f.startswith(f"{package_basename}-")
+                and f.endswith(".whl")
+                and abi in f
+                and platform in f
+                and arch in f
             ]
 
             if len(wheel_files) > 1:
@@ -127,33 +144,36 @@ for python_version, platform in itertools.product(args.python_version, args.plat
         if not args.dry_run:
             subprocess.run(cmd, capture_output=not args.verbose, check=True)
 
-    wheel_files = [f for f in os.listdir(dl_dir) if f.endswith(".whl")]
-    for whl in wheel_files:
-        wheel_file = os.path.join(dl_dir, whl)
-        print("Unpacking %s" % wheel_file)
-        # -q for quieter output, else we get all the files being unzipped.
-        subprocess.run(
-            [
-                "unzip",
-                "-q",
-                "-o",
-                wheel_file,
-                "-d",
-                os.path.join(dl_dir, "site-packages-ddtrace-py%s-%s" % (python_version, platform)),
-            ]
-        )
-        # Remove the wheel as it has been unpacked
-        os.remove(wheel_file)
+        # FIXED: Move wheel unpacking inside the architecture loop to prevent overwrites
+        # Create architecture-specific directory name
+        arch_platform_dir = "site-packages-ddtrace-py%s-%s-%s" % (python_version, platform, arch)
+        wheel_files = [f for f in os.listdir(dl_dir) if f.endswith(".whl")]
+        for whl in wheel_files:
+            wheel_file = os.path.join(dl_dir, whl)
+            print("Unpacking %s to %s" % (wheel_file, arch_platform_dir))
+            # -q for quieter output, else we get all the files being unzipped.
+            subprocess.run(
+                [
+                    "unzip",
+                    "-q",
+                    "-o",
+                    wheel_file,
+                    "-d",
+                    os.path.join(dl_dir, arch_platform_dir),
+                ]
+            )
+            # Remove the wheel as it has been unpacked
+            os.remove(wheel_file)
 
-    sitepackages_root = Path(dl_dir) / f"site-packages-ddtrace-py{python_version}-{platform}"
-    directories_to_remove = [
-        sitepackages_root / "google" / "protobuf",
-        sitepackages_root / "google" / "_upb",
-    ]
-    directories_to_remove.extend(sitepackages_root.glob("protobuf-*"))  # dist-info directories
+        sitepackages_root = Path(dl_dir) / arch_platform_dir
+        directories_to_remove = [
+            sitepackages_root / "google" / "protobuf",
+            sitepackages_root / "google" / "_upb",
+        ]
+        directories_to_remove.extend(sitepackages_root.glob("protobuf-*"))  # dist-info directories
 
-    for directory in directories_to_remove:
-        try:
-            shutil.rmtree(directory)
-        except Exception:
-            pass
+        for directory in directories_to_remove:
+            try:
+                shutil.rmtree(directory)
+            except Exception:
+                pass

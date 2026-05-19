@@ -2,22 +2,20 @@ import pytest
 
 from ddtrace.contrib.internal.aiohttp_jinja2.patch import patch
 from ddtrace.contrib.internal.aiohttp_jinja2.patch import unpatch
-from tests.contrib.aiohttp.conftest import app_tracer  # noqa:F401
-from tests.contrib.aiohttp.conftest import patched_app_tracer  # noqa:F401
-from tests.contrib.aiohttp.conftest import untraced_app_tracer  # noqa:F401
+from tests.contrib.aiohttp.conftest import app  # noqa:F401
+from tests.contrib.aiohttp.conftest import patched_app  # noqa:F401
+from tests.contrib.aiohttp.conftest import untraced_app  # noqa:F401
 
 
 @pytest.fixture
-def patched_app_tracer_jinja(patched_app_tracer):  # noqa: F811
-    app, tracer = patched_app_tracer
+def patched_app_jinja(patched_app):  # noqa: F811
     patch()
-    yield app, tracer
+    yield patched_app
     unpatch()
 
 
 @pytest.fixture
-def untraced_app_tracer_jinja(untraced_app_tracer):  # noqa: F811
+def untraced_app_jinja(untraced_app):  # noqa: F811
     patch()
-    app, tracer = untraced_app_tracer
-    yield app, tracer
+    yield untraced_app
     unpatch()

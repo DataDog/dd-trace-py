@@ -34,14 +34,14 @@ import collections
 from dataclasses import dataclass
 from dataclasses import field
 import logging
-import os
 import time
 import traceback
 from typing import DefaultDict
-from typing import Dict
 from typing import Optional
 from typing import Tuple
 from typing import Union
+
+from ddtrace.internal.settings import env
 
 
 SECOND = 1
@@ -54,7 +54,7 @@ DAY = 24 * HOUR
 class LoggerPrefix:
     prefix: str
     level: Optional[int] = None
-    children: Dict[str, "LoggerPrefix"] = field(default_factory=dict)
+    children: dict[str, "LoggerPrefix"] = field(default_factory=dict)
 
     def lookup(self, name: str) -> Optional[int]:
         """
@@ -77,9 +77,7 @@ class LoggerPrefix:
     def build_trie(cls):
         trie = cls(prefix="ddtrace", level=None, children={})
 
-        for logger_name, level in (
-            (k, v) for k, v in os.environ.items() if k.startswith("_DD_") and k.endswith("_LOG_LEVEL")
-        ):
+        for logger_name, level in ((k, v) for k, v in env.items() if k.startswith("_DD_") and k.endswith("_LOG_LEVEL")):
             # Remove the _DD_ prefix and _LOG_LEVEL suffix
             logger_name = logger_name[4:-10]
             parts = logger_name.lower().split("_")
@@ -149,17 +147,19 @@ class LoggingBucket:
         return False
 
 
-# Dict to keep track of the current time bucket per name/level/pathname/lineno
+# dict to keep track of the current time bucket per name/level/pathname/lineno
 
 _MINF = float("-inf")
 
-key_type = Union[Tuple[str, int, str, int], str]
-_buckets: DefaultDict[key_type, LoggingBucket] = collections.defaultdict(lambda: LoggingBucket(_MINF, 0))
+# IMPORTANT: Do not change typing types to built-ins until minimum Python version is 3.11+
+# Module-level tuple[...] and defaultdict[...] in Python 3.10 affect import timing. See packages.py for details.
+key_type = Union[Tuple[str, int, str, int], str]  # noqa: UP006
+_buckets: DefaultDict[key_type, LoggingBucket] = collections.defaultdict(lambda: LoggingBucket(_MINF, 0))  # noqa: UP006
 
 # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
 # Allow configuring via `DD_TRACE_LOGGING_RATE`
 # DEV: `DD_TRACE_LOGGING_RATE=0` means to disable all rate limiting
-_rate_limit = int(os.getenv("DD_TRACE_LOGGING_RATE", default=60))
+_rate_limit = int(env.get("DD_TRACE_LOGGING_RATE", default=60))
 
 
 def log_filter(record: logging.LogRecord) -> bool:

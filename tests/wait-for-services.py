@@ -9,6 +9,7 @@ from azure.storage.blob import BlobServiceClient
 from azure.storage.queue import QueueServiceClient
 from cassandra.cluster import Cluster
 from cassandra.cluster import NoHostAvailable
+from contrib.config import AZURE_COSMOS_EMULATOR_CONFIG
 from contrib.config import AZURE_EVENT_HUBS_EMULATOR_CONFIG
 from contrib.config import AZURE_SERVICE_BUS_EMULATOR_CONFIG
 from contrib.config import AZURE_SQL_EDGE_CONFIG
@@ -20,13 +21,17 @@ from contrib.config import MOTO_CONFIG
 from contrib.config import MYSQL_CONFIG
 from contrib.config import OPENSEARCH_CONFIG
 from contrib.config import POSTGRES_CONFIG
+from contrib.config import PUBSUB_CONFIG
 from contrib.config import RABBITMQ_CONFIG
+from contrib.config import REDIS_CONFIG
+from contrib.config import SELENIUM_CONFIG
 from contrib.config import VERTICA_CONFIG
 import kombu
 import mysql.connector
 from psycopg2 import OperationalError
 from psycopg2 import connect
 import pymssql
+import redis
 import requests
 import vertica_python
 
@@ -35,7 +40,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-def try_until_timeout(exception, tries: int = 100, timeout: float = 0.2, args: t.Optional[t.Dict[str, t.Any]] = None):
+def try_until_timeout(exception, tries: int = 100, timeout: float = 0.2, args: t.Optional[dict[str, t.Any]] = None):
     """Utility decorator that tries to call a check until there is a
     timeout.  The default timeout is about 20 seconds.
 
@@ -111,6 +116,15 @@ def check_rabbitmq(url):
         conn.release()
 
 
+@try_until_timeout(Exception, args={"redis_config": REDIS_CONFIG})
+def check_redis(redis_config):
+    client = redis.Redis(**redis_config)
+    try:
+        client.ping()
+    finally:
+        client.close()
+
+
 @try_until_timeout(Exception, args={"url": os.environ.get("DD_TRACE_AGENT_URL", "http://localhost:8126")})
 def check_agent(url):
     if not url.endswith("/"):
@@ -119,6 +133,14 @@ def check_agent(url):
     res = requests.get(url)
     if res.status_code not in (404, 200):
         raise Exception("Agent not ready")
+
+
+@try_until_timeout(Exception, args={"url": "http://{host}:{port}/status".format(**SELENIUM_CONFIG)})
+def check_selenium(url):
+    resp = requests.get(url)
+    resp.raise_for_status()
+    if not resp.json().get("value", {}).get("ready"):
+        raise Exception("Selenium not ready")
 
 
 @try_until_timeout(Exception, args={"url": "http://{host}:{port}/".format(**ELASTICSEARCH_CONFIG)})
@@ -140,6 +162,16 @@ def check_httpbin(url):
 
 @try_until_timeout(Exception, tries=120, timeout=1, args={"url": "http://{host}:{port}/".format(**MOTO_CONFIG)})
 def check_moto(url):
+    requests.get(url).raise_for_status()
+
+
+@try_until_timeout(
+    Exception,
+    tries=120,
+    timeout=1,
+    args={"url": "http://{host}:{port}/alive".format(**AZURE_COSMOS_EMULATOR_CONFIG)},
+)
+def check_azurecosmosemulator(url):
     requests.get(url).raise_for_status()
 
 
@@ -172,6 +204,16 @@ def check_azuresqledge(azuresqledge_config):
         conn.close()
 
 
+@try_until_timeout(
+    Exception,
+    tries=120,
+    timeout=1,
+    args={"url": "http://{host}:{port}/v1/projects/test-project/topics".format(**PUBSUB_CONFIG)},
+)
+def check_pubsub(url):
+    requests.get(url).raise_for_status()
+
+
 @try_until_timeout(Exception, args={"azurite_config": AZURITE_CONFIG})
 def check_azurite(azurite_config):
     blob_service_client = BlobServiceClient.from_connection_string(
@@ -200,9 +242,13 @@ if __name__ == "__main__":
         "mysql": check_mysql,
         "opensearch": check_opensearch,
         "postgres": check_postgres,
+        "pubsub": check_pubsub,
         "rabbitmq": check_rabbitmq,
+        "redis": check_redis,
+        "selenium-chrome": check_selenium,
         "testagent": check_agent,
         "vertica": check_vertica,
+        "azurecosmosemulator": check_azurecosmosemulator,
         "azureeventhubsemulator": check_azureeventhubsemulator,
         "azureservicebusemulator": check_azureservicebusemulator,
         "azuresqledge": check_azuresqledge,

@@ -1,24 +1,15 @@
 from inspect import isfunction
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import NAME
-from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
 from ddtrace.llmobs._integrations.google_utils import extract_messages_from_adk_events
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
@@ -30,7 +21,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
     def _set_base_span_tags(
         self, span: Span, model: Optional[Any] = None, provider: Optional[Any] = None, **kwargs
     ) -> None:
-        span._set_tag_str(COMPONENT, self._integration_name)
+        span._set_attribute(COMPONENT, self._integration_name)
         if model:
             span.set_tag("google_adk.request.model", model)
         if provider:
@@ -39,8 +30,8 @@ class GoogleAdkIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",  # being used for span kind: one of "agent", "tool", "code_execute"
     ) -> None:
@@ -51,16 +42,15 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         elif operation == "code_execute":
             self._llmobs_set_tags_code_execute(span, args, kwargs, response)
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: operation,
-                MODEL_NAME: span.get_tag("google_adk.request.model") or "",
-                MODEL_PROVIDER: span.get_tag("google_adk.request.provider") or "",
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind=operation,
+            model_name=span.get_tag("google_adk.request.model") or "",
+            model_provider=span.get_tag("google_adk.request.provider") or "",
         )
 
     def _llmobs_set_tags_agent(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
+        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
     ) -> None:
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
@@ -74,31 +64,29 @@ class GoogleAdkIntegration(BaseLLMIntegration):
             message += extract_message_from_part_google_genai(part, new_message_role).get("content", "")
         result = extract_messages_from_adk_events(response)
 
-        span._set_ctx_items(
-            {
-                NAME: agent_name or "Google ADK Agent",
-                INPUT_VALUE: message,
-                OUTPUT_VALUE: result,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            name=agent_name or "Google ADK Agent",
+            input_value=message,
+            output_value=result,
         )
 
     def _llmobs_set_tags_tool(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
+        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool = get_argument_value(args, kwargs, 0, "tool")
         tool_args = get_argument_value(args, kwargs, 1, "args")
         tool_call_id = getattr(kwargs.get("tool_context", {}), "function_call_id", "")
 
-        span._set_ctx_item(OUTPUT_VALUE, response)
         tool_name = getattr(tool, "name", "")
         tool_description = getattr(tool, "description", "")
 
-        span._set_ctx_items(
-            {
-                NAME: tool_name,
-                METADATA: {"description": tool_description},
-                INPUT_VALUE: tool_args,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            output_value=response,
+            name=tool_name,
+            metadata={"description": tool_description},
+            input_value=tool_args,
         )
 
         if tool_call_id:
@@ -113,11 +101,11 @@ class GoogleAdkIntegration(BaseLLMIntegration):
                 ),
             )
 
-    def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
+    def _tag_agent_manifest(self, span: Span, kwargs: dict[str, Any], agent: Any) -> None:
         if not agent:
             return
 
-        manifest: Dict[str, Any] = {}
+        manifest: dict[str, Any] = {}
 
         manifest["framework"] = "Google ADK"
         manifest["name"] = getattr(agent, "name", "")
@@ -131,10 +119,10 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         }
         manifest["tools"] = self._get_agent_tools(getattr(agent, "tools", []))
 
-        span._set_ctx_item(AGENT_MANIFEST, manifest)
+        _annotate_llmobs_span_data(span, agent_manifest=manifest)
 
     def _llmobs_set_tags_code_execute(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
+        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
     ) -> None:
         stdout = getattr(response, "stdout", None)
         stderr = getattr(response, "stderr", None)
@@ -145,12 +133,11 @@ class GoogleAdkIntegration(BaseLLMIntegration):
             output += "/n" + stderr
 
         code_input = get_argument_value(args, kwargs, 1, "code_execution_input")
-        span._set_ctx_items(
-            {
-                NAME: "Google ADK Code Execute",
-                INPUT_VALUE: getattr(code_input, "code", ""),
-                OUTPUT_VALUE: output,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            name="Google ADK Code Execute",
+            input_value=getattr(code_input, "code", ""),
+            output_value=output,
         )
 
     def _get_agent_tools(self, tools):

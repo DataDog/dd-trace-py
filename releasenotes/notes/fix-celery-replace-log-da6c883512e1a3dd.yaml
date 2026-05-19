@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    celery: remove unnecessary warning log about missing span when using ``Task.replace()``.

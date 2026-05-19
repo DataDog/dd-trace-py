@@ -9,7 +9,7 @@ from ddtrace.appsec import _http_utils
         ({"Host": "Example.COM"}, {"host": "Example.COM"}),
         (
             {"X-Custom-None": "", "Content-Type": "application/json", "X-Custom-Spacing ": " trim spaces  "},
-            {"x-custom-none": None, "content-type": "application/json", "x-custom-spacing": "trim spaces"},
+            {"x-custom-none": "", "content-type": "application/json", "x-custom-spacing": "trim spaces"},
         ),
     ],
 )
@@ -81,6 +81,22 @@ def test_normalize_headers(input_headers, expected):
             "invalid_base64_and_invalid_xml",
             True,
             None,
+        ),
+        # content-type may legally carry parameters (e.g. charset)
+        ({"content-type": "application/json; charset=utf-8"}, '{"key": "value"}', False, {"key": "value"}),
+        ({"content-type": "application/json;charset=utf-8"}, '{"key": "value"}', False, {"key": "value"}),
+        ({"content-type": "  application/json ; charset=utf-8 "}, '{"key": "value"}', False, {"key": "value"}),
+        (
+            {"content-type": "application/x-www-form-urlencoded; charset=utf-8"},
+            "key=value",
+            False,
+            {"key": ["value"]},
+        ),
+        (
+            {"content-type": "application/xml; charset=utf-8"},
+            "<root><key>value</key></root>",
+            False,
+            {"root": {"key": "value"}},
         ),
     ],
 )

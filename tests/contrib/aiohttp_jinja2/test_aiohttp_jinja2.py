@@ -5,22 +5,20 @@ from ddtrace.constants import ERROR_MSG
 from tests.contrib.aiohttp.app.web import set_filesystem_loader
 from tests.contrib.aiohttp.app.web import set_package_loader
 import tests.contrib.aiohttp.conftest  # noqa:F401
-from tests.utils import TracerSpanContainer
 
 
 VERSION = tuple(map(int, aiohttp_jinja2.__version__.split(".")))
 
 
-async def test_template_rendering(untraced_app_tracer_jinja, aiohttp_client):
-    app, tracer = untraced_app_tracer_jinja
-    client = await aiohttp_client(app)
+async def test_template_rendering(untraced_app_jinja, test_spans, aiohttp_client):
+    client = await aiohttp_client(untraced_app_jinja)
     # it should trace a template rendering
     request = await client.request("GET", "/template/")
     assert 200 == request.status
     text = await request.text()
     assert "OK" == text
     # the trace is created
-    traces = TracerSpanContainer(tracer).pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     span = traces[0][0]
@@ -32,40 +30,37 @@ async def test_template_rendering(untraced_app_tracer_jinja, aiohttp_client):
     assert 0 == span.error
 
 
-async def test_template_rendering_snapshot(untraced_app_tracer_jinja, aiohttp_client, snapshot_context):
-    app, _ = untraced_app_tracer_jinja
+async def test_template_rendering_snapshot(untraced_app_jinja, aiohttp_client, snapshot_context):
     with snapshot_context():
-        client = await aiohttp_client(app)
+        client = await aiohttp_client(untraced_app_jinja)
         # it should trace a template rendering
         request = await client.request("GET", "/template/")
         assert 200 == request.status
 
 
 async def test_template_rendering_snapshot_patched_server(
-    patched_app_tracer_jinja,
+    patched_app_jinja,
     aiohttp_client,
     snapshot_context,
 ):
-    app, _ = patched_app_tracer_jinja
     # Ignore meta.http.url tag as the port is not fixed on the server
     with snapshot_context(ignores=["meta.http.url", "meta.http.useragent"]):
-        client = await aiohttp_client(app)
+        client = await aiohttp_client(patched_app_jinja)
         # it should trace a template rendering
         request = await client.request("GET", "/template/")
         assert 200 == request.status
 
 
-async def test_template_rendering_filesystem(untraced_app_tracer_jinja, aiohttp_client):
-    app, tracer = untraced_app_tracer_jinja
-    client = await aiohttp_client(app)
+async def test_template_rendering_filesystem(untraced_app_jinja, test_spans, aiohttp_client):
+    client = await aiohttp_client(untraced_app_jinja)
     # it should trace a template rendering with a FileSystemLoader
-    set_filesystem_loader(app)
+    set_filesystem_loader(untraced_app_jinja)
     request = await client.request("GET", "/template/")
     assert 200 == request.status
     text = await request.text()
     assert "OK" == text
     # the trace is created
-    traces = TracerSpanContainer(tracer).pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     span = traces[0][0]
@@ -78,17 +73,16 @@ async def test_template_rendering_filesystem(untraced_app_tracer_jinja, aiohttp_
 
 
 @pytest.mark.skipif(VERSION < (1, 5, 0), reason="Package loader doesn't work in older versions")
-async def test_template_rendering_package(untraced_app_tracer_jinja, aiohttp_client):
-    app, tracer = untraced_app_tracer_jinja
-    client = await aiohttp_client(app)
+async def test_template_rendering_package(untraced_app_jinja, test_spans, aiohttp_client):
+    client = await aiohttp_client(untraced_app_jinja)
     # it should trace a template rendering with a PackageLoader
-    set_package_loader(app)
+    set_package_loader(untraced_app_jinja)
     request = await client.request("GET", "/template/")
     assert 200 == request.status
     text = await request.text()
     assert "OK" == text
     # the trace is created
-    traces = TracerSpanContainer(tracer).pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     span = traces[0][0]
@@ -100,16 +94,15 @@ async def test_template_rendering_package(untraced_app_tracer_jinja, aiohttp_cli
     assert 0 == span.error
 
 
-async def test_template_decorator(untraced_app_tracer_jinja, aiohttp_client, loop=None):
-    app, tracer = untraced_app_tracer_jinja
-    client = await aiohttp_client(app)
+async def test_template_decorator(untraced_app_jinja, test_spans, aiohttp_client, loop=None):
+    client = await aiohttp_client(untraced_app_jinja)
     # it should trace a template rendering
     request = await client.request("GET", "/template_decorator/")
     assert 200 == request.status
     text = await request.text()
     assert "OK" == text
     # the trace is created
-    traces = TracerSpanContainer(tracer).pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     span = traces[0][0]
@@ -121,15 +114,14 @@ async def test_template_decorator(untraced_app_tracer_jinja, aiohttp_client, loo
     assert 0 == span.error
 
 
-async def test_template_error(untraced_app_tracer_jinja, aiohttp_client):
-    app, tracer = untraced_app_tracer_jinja
-    client = await aiohttp_client(app)
+async def test_template_error(untraced_app_jinja, test_spans, aiohttp_client):
+    client = await aiohttp_client(untraced_app_jinja)
     # it should trace a template rendering
     request = await client.request("GET", "/template_error/")
     assert 500 == request.status
     await request.text()
     # the trace is created
-    traces = TracerSpanContainer(tracer).pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     span = traces[0][0]

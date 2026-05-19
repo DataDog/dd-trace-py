@@ -5,6 +5,7 @@ import asyncpg
 import mock
 import pytest
 
+from ddtrace.contrib.internal.asyncpg.patch import _PROTOCOL_METHODS
 from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
 from ddtrace.contrib.internal.trace_utils import iswrapped
@@ -379,10 +380,51 @@ def test_patch_unpatch_asyncpg():
     assert not iswrapped(asyncpg.protocol.Protocol.bind_execute_many)
 
 
+def test_unpatch_removes_method_shadow():
+    # Regression: unpatch must not leave Cython descriptor shadows in Protocol.__dict__.
+    # unwrap() used setattr which placed the BaseProtocol descriptor directly into
+    # Protocol.__dict__, causing a subsequent patch() call to re-wrap the shadow instead
+    # of resolving the method naturally via MRO.
+    for method in _PROTOCOL_METHODS:
+        assert method in asyncpg.protocol.Protocol.__dict__
+
+    unpatch()
+
+    for method in _PROTOCOL_METHODS:
+        assert method not in asyncpg.protocol.Protocol.__dict__, (
+            f"Protocol.__dict__ has residual shadow for '{method}' after unpatch; "
+            "re-patching will wrap the shadow instead of the natural MRO method"
+        )
+
+
+def test_patch_unpatch_patch_cycle():
+    # Regression: patch/unpatch/patch must produce correctly wrapped Protocol methods
+    # without double-wrapping.
+    unpatch()
+    patch()
+
+    for method in _PROTOCOL_METHODS:
+        assert iswrapped(asyncpg.protocol.Protocol, method), (
+            f"Protocol.{method} not wrapped after patch/unpatch/patch cycle"
+        )
+        wrapper = asyncpg.protocol.Protocol.__dict__[method]
+        assert not iswrapped(wrapper.__wrapped__), (
+            f"Protocol.{method} is double-wrapped after patch/unpatch/patch cycle"
+        )
+
+
+@pytest.mark.asyncio
+async def test_execute_after_patch_unpatch_patch(patched_conn):
+    # Regression: executing a query must succeed after patch/unpatch/patch.
+    unpatch()
+    patch()
+    await patched_conn.execute("SELECT 1")
+
+
 class AsyncPgTestCase(AsyncioTestCase):
     conn = None
 
-    async def _get_conn_tracer(self):
+    async def _get_conn(self):
         if not self.conn:
             self.conn = await asyncpg.connect(
                 host=POSTGRES_CONFIG["host"],
@@ -392,8 +434,7 @@ class AsyncPgTestCase(AsyncioTestCase):
                 password=POSTGRES_CONFIG["password"],
             )
             assert not self.conn.is_closed()
-
-            return self.conn, self.tracer
+        return self.conn
 
     def setUp(self):
         super().setUp()
@@ -410,7 +451,7 @@ class AsyncPgTestCase(AsyncioTestCase):
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_asyncpg_dbm_propagation_enabled(self):
-        conn, _ = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         await conn.execute("SELECT 1")
         spans = self.get_spans()
@@ -433,7 +474,7 @@ class AsyncPgTestCase(AsyncioTestCase):
     async def test_asyncpg_dbm_propagation_comment_with_global_service_name_configured(self):
         """tests if dbm comment is set in postgres"""
         db_name = POSTGRES_CONFIG["dbname"]
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs
@@ -470,7 +511,7 @@ class AsyncPgTestCase(AsyncioTestCase):
     async def test_asyncpg_dbm_propagation_comment_integration_service_name_override(self):
         """tests if dbm comment is set in postgres"""
         db_name = POSTGRES_CONFIG["dbname"]
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs
@@ -507,7 +548,7 @@ class AsyncPgTestCase(AsyncioTestCase):
     async def test_asyncpg_dbm_propagation_comment_peer_service_enabled(self):
         """tests if dbm comment is set in postgres"""
         db_name = POSTGRES_CONFIG["dbname"]
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs

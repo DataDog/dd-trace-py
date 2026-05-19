@@ -1,27 +1,25 @@
 import abc
 import binascii
 from collections import defaultdict
-import functools
 import gzip
-import logging
-import os
 import sys
 import threading
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import TextIO
-import weakref
 
 from ddtrace import config
-from ddtrace.internal import forksafe
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
+from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
+from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -30,6 +28,7 @@ from ddtrace.version import __version__
 from ...constants import _KEEP_SPANS_RATE_KEY
 from .. import compat
 from .. import periodic
+from .. import process_tags
 from .. import service
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
@@ -50,14 +49,12 @@ from ..utils.http import Response
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
 from .writer_client import WRITER_CLIENTS
+from .writer_client import AgentlessWriterClient
 from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Tuple  # noqa:F401
-
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -69,6 +66,37 @@ log = get_logger(__name__)
 LOG_ERR_INTERVAL = 60
 
 
+def _safelog(log_func: Callable[..., None], msg: str, *args, **kwargs) -> None:
+    """
+    Safely log a message, handling closed I/O streams gracefully.
+
+    During interpreter shutdown or when test frameworks (like pytest) close
+    captured stdout/stderr streams, logging calls may fail with:
+        ValueError: I/O operation on closed file
+
+    This can happen when a background thread (e.g., the periodic writer thread)
+    attempts to log after the main process has started shutting down but before
+    the Python interpreter has begun finalization (Py_IsFinalizing()).
+
+    This wrapper catches such errors and attempts to print to stderr as a
+    fallback. If stderr is also closed, the message is silently dropped.
+
+    Args:
+        log_func: The logger method to call (e.g., log.debug, log.warning, log.error)
+        msg: The log message format string
+        *args: Arguments for the format string
+        **kwargs: Keyword arguments passed to the logger (e.g., exc_info, extra)
+    """
+    try:
+        log_func(msg, *args, **kwargs)
+    except ValueError:
+        try:
+            formatted_msg = msg % args if args else msg
+            print(f"[ddtrace] I/O closed, could not log: {formatted_msg}", file=sys.stderr)
+        except ValueError:
+            pass
+
+
 class NoEncodableSpansError(Exception):
     pass
 
@@ -78,29 +106,6 @@ class NoEncodableSpansError(Exception):
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
-
-
-def make_weak_method_hook(bound_method):
-    """
-    Wrap a bound method so that it is called via a weakref to its instance.
-    If the instance has been garbage-collected, the hook is a no-op.
-    """
-    if not hasattr(bound_method, "__self__") or bound_method.__self__ is None:
-        raise TypeError("make_weak_method_hook expects a bound method")
-
-    instance = bound_method.__self__
-    func = bound_method.__func__
-    instance_ref = weakref.ref(instance)
-
-    @functools.wraps(func)
-    def hook(*args, **kwargs):
-        inst = instance_ref()
-        if inst is None:
-            # The instance was garbage-collected
-            return
-        return func(inst, *args, **kwargs)
-
-    return hook
 
 
 def _human_size(nbytes: float) -> str:
@@ -126,8 +131,7 @@ class TraceWriter(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def write(self, spans=None):
-        # type: (Optional[List[Span]]) -> None
+    def write(self, spans: Optional[list["Span"]] = None) -> None:
         pass
 
     @abc.abstractmethod
@@ -155,8 +159,7 @@ class LogWriter(TraceWriter):
     def stop(self, timeout: Optional[float] = None) -> None:
         return
 
-    def write(self, spans=None):
-        # type: (Optional[List[Span]]) -> None
+    def write(self, spans: Optional[list["Span"]] = None) -> None:
         if not spans:
             return
         encoded = self.encoder.encode_traces([spans])
@@ -179,7 +182,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def __init__(
         self,
         intake_url: str,
-        clients: List[WriterClientBase],
+        clients: list[WriterClientBase],
         processing_interval: Optional[float] = None,
         # Match the payload size since there is no functionality
         # to flush dynamically.
@@ -189,7 +192,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         dogstatsd: Optional["DogStatsd"] = None,
         sync_mode: bool = False,
         reuse_connections: Optional[bool] = None,
-        headers: Optional[Dict[str, str]] = None,
+        headers: Optional[dict[str, str]] = None,
         report_metrics: bool = True,
         use_gzip: bool = False,
     ) -> None:
@@ -207,11 +210,11 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         self._clients = clients
         self.dogstatsd = dogstatsd
-        self._metrics: Dict[str, int] = defaultdict(int)
+        self._metrics: dict[str, int] = defaultdict(int)
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
-        self._conn: Optional[ConnectionType] = None
+        self._conn: Optional["ConnectionType"] = None
         # The connection has to be locked since there exists a race between
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
@@ -243,7 +246,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             return client._intake_url
         return self.intake_url
 
-    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[List] = None) -> None:
+    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
         if not self._report_metrics:
             return
         if config._health_metrics_enabled and self.dogstatsd:
@@ -257,13 +260,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # This calculation is a best effort. Due to race conditions it may result in a slight underestimate.
         dropped = max(accepted - sent - encoded, 0)  # dropped spans should never be negative
         self._drop_sma.set(dropped, accepted)
-        self._metrics["sent_traces"] = 0  # reset sent traces for the next interval
-        self._metrics["accepted_traces"] = encoded  # sets accepted traces to number of spans in encoders
+        self._metrics["sent_traces"] = 0
+        self._metrics["accepted_traces"] = encoded
 
     def _set_keep_rate(self, trace):
         if trace:
-            trace[0]._metrics[_KEEP_SPANS_RATE_KEY] = (
-                1.0 - self._drop_sma.get()
+            trace[0]._set_attribute(
+                _KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get()
             )  # PERF: avoid setting via Span.set_metric
 
     def _reset_connection(self) -> None:
@@ -272,36 +275,48 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn.close()
                 self._conn = None
 
-    def _put(self, data: bytes, headers: Dict[str, str], client: WriterClientBase, no_trace: bool) -> Response:
+    def _put(self, data: bytes, headers: dict[str, str], client: WriterClientBase, no_trace: bool) -> Response:
         sw = StopWatch()
         sw.start()
         with self._conn_lck:
             if self._conn is None:
-                log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
+                _safelog(
+                    log.debug,
+                    "creating new intake connection to %s with timeout %d",
+                    self.intake_url,
+                    self._timeout,
+                )
                 self._conn = get_connection(self._intake_url(client), self._timeout)
                 setattr(self._conn, _HTTPLIB_NO_TRACE_REQUEST, no_trace)
             try:
-                log.debug(
+                # Merge client headers with request headers
+                final_headers = {}
+                if hasattr(client, "_headers") and client._headers:
+                    final_headers.update(client._headers)
+                final_headers.update(headers)
+
+                _safelog(
+                    log.debug,
                     "Sending request: Method=%s Endpoint=%s Headers=%s PayloadSize=%s",
                     self.HTTP_METHOD,
                     client.ENDPOINT,
-                    headers,
+                    final_headers,
                     _human_size(len(data)),
                 )
                 self._conn.request(
                     self.HTTP_METHOD,
                     client.ENDPOINT,
                     data,
-                    headers,
+                    final_headers,
                 )
                 resp = self._conn.getresponse()
                 t = sw.elapsed()
                 if t >= self.interval:
-                    log_level = logging.WARNING
+                    log_func = log.warning
                 else:
-                    log_level = logging.DEBUG
-                log.log(
-                    log_level,
+                    log_func = log.debug
+                _safelog(
+                    log_func,
                     "Got response: %d %s sent %s in %.5fs to %s",
                     resp.status,
                     resp.reason,
@@ -322,9 +337,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 if not self._reuse_connections:
                     self._reset_connection()
 
-    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> Dict[str, str]:
+    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> dict[str, str]:
         headers = self._headers.copy()
-        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        headers.update({"Content-Type": client.encoder.content_type})
         if hasattr(client, "_headers"):
             headers.update(client._headers)
         return headers
@@ -344,11 +359,11 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         if response.status not in (404, 415) and response.status >= 400:
             msg = "failed to send traces to intake at %s: HTTP error status %s, reason %s"
-            log_args = (
+            log_args: tuple[Any, Any, Any] = (
                 self._intake_endpoint(client),
                 response.status,
                 response.reason,
-            )  # type: Tuple[Any, Any, Any]
+            )
             # Append the payload if requested
             if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
@@ -358,7 +373,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 else:
                     log_args += (payload,)
 
-            log.error(msg, *log_args, extra={"send_to_telemetry": False})
+            _safelog(log.error, msg, *log_args, extra={"send_to_telemetry": False})
             self._metrics_dist("http.dropped.bytes", len(payload))
             self._metrics_dist("http.dropped.traces", count)
         return response
@@ -369,8 +384,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client, spans=None):
-        # type: (WriterClientBase, Optional[List[Span]]) -> None
+    def _write_with_client(self, client: WriterClientBase, spans: Optional[list["Span"]] = None) -> None:
         if spans is None:
             return
 
@@ -391,7 +405,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             client.encoder.put(spans)
         except BufferItemTooLarge as e:
             payload_size = e.args[0]
-            log.warning(
+            _safelog(
+                log.warning,
                 "trace (%db) larger than payload buffer item limit (%db), dropping",
                 payload_size,
                 client.encoder.max_item_size,
@@ -400,7 +415,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
         except BufferFull as e:
             payload_size = e.args[0]
-            log.warning(
+            _safelog(
+                log.warning,
                 "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
                 len(client.encoder),
                 client.encoder.size,
@@ -431,7 +447,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         except Exception:
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
-            log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
+            _safelog(log.error, "failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
             return
 
@@ -451,12 +467,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 original_size = len(encoded)
                 # Replace the value to send with the gzipped the value
                 encoded = gzip.compress(encoded, compresslevel=6)
-                log.debug("Original size in bytes: %s, Compressed size: %s", original_size, len(encoded))
+                _safelog(log.debug, "Original size in bytes: %s, Compressed size: %s", original_size, len(encoded))
 
                 # And add the header
                 self._headers["Content-Encoding"] = "gzip"
             except Exception:
-                log.error("failed to compress traces with encoder %r", client.encoder, exc_info=True)
+                _safelog(log.error, "failed to compress traces with encoder %r", client.encoder, exc_info=True)
                 self._metrics_dist("encoder.dropped.traces", n_traces)
                 return
 
@@ -469,7 +485,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             if raise_exc:
                 raise
             else:
-                log.error(
+                _safelog(
+                    log.error,
                     "failed to send, dropping %d traces to intake at %s after %d retries",
                     n_traces,
                     self._intake_endpoint(client),
@@ -500,7 +517,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
 
 class AgentResponse(object):
-    def __init__(self, rate_by_service: Dict[str, float]) -> None:
+    def __init__(self, rate_by_service: dict[str, float]) -> None:
         self.rate_by_service = rate_by_service
 
 
@@ -518,101 +535,42 @@ class AgentWriterInterface(metaclass=abc.ABCMeta):
         pass
 
 
-class AgentWriter(HTTPWriter, AgentWriterInterface):
+class AgentlessTraceWriter(HTTPWriter):
     """
-    The Datadog Agent supports (at the time of writing this) receiving trace
-    payloads up to 50MB. A trace payload is just a list of traces and the agent
-    expects a trace to be complete. That is, all spans with the same trace_id
-    should be in the same trace.
+    HTTP writer for agentless JSON span intake. Used when _DD_APM_TRACING_AGENTLESS_ENABLED is true.
     """
 
-    RETRY_ATTEMPTS = 3
-    HTTP_METHOD = "PUT"
-    STATSD_NAMESPACE = "tracer"
+    HTTP_METHOD = "POST"
+    # Base URL for the agentless trace JSON intake (EvP / track_type:spans).
+    INTAKE_HOST = "public-trace-http-intake.logs"
+    # Agentless payloads must be under 15 MB.
+    MAX_BUFFER_SIZE = 15 << 20  # 15 MB
 
     def __init__(
         self,
         intake_url: str,
+        api_key: str,
         processing_interval: Optional[float] = None,
-        # Match the payload size since there is no functionality
-        # to flush dynamically.
         buffer_size: Optional[int] = None,
         max_payload_size: Optional[int] = None,
         timeout: Optional[float] = None,
         dogstatsd: Optional["DogStatsd"] = None,
         report_metrics: bool = True,
         sync_mode: bool = False,
-        api_version: Optional[str] = None,
         reuse_connections: Optional[bool] = None,
-        headers: Optional[Dict[str, str]] = None,
-        response_callback: Optional[Callable[[AgentResponse], None]] = None,
     ) -> None:
-        if processing_interval is None:
-            processing_interval = config._trace_writer_interval_seconds
-        if timeout is None:
-            timeout = agent_config.trace_agent_timeout_seconds
-        if buffer_size is not None and buffer_size <= 0:
-            raise ValueError("Writer buffer size must be positive")
-        if max_payload_size is not None and max_payload_size <= 0:
-            raise ValueError("Max payload size must be positive")
-        # Default to v0.4 if we are on Windows since there is a known compatibility issue
-        # https://github.com/DataDog/dd-trace-py/issues/4829
-        # DEV: sys.platform on windows should be `win32` or `cygwin`, but using `startswith`
-        #      as a safety precaution.
-        #      https://docs.python.org/3/library/sys.html#sys.platform
-        is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
-
-        default_api_version = "v0.5"
-        if (
-            is_windows
-            or in_gcp_function()
-            or in_azure_function()
-            or asm_config._asm_enabled
-            or asm_config._iast_enabled
-            or ai_guard_config._ai_guard_enabled
-        ):
-            default_api_version = "v0.4"
-
-        self._api_version = api_version or config._trace_api or default_api_version
-
-        if agent_config.trace_native_span_events:
-            log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
-            self._api_version = "v0.4"
-
-        if is_windows and self._api_version == "v0.5":
-            raise RuntimeError(
-                "There is a known compatibility issue with v0.5 API and Windows, "
-                "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
-            )
-
-        buffer_size = buffer_size or config._trace_writer_buffer_size
+        buffer_size = min(buffer_size or config._trace_writer_buffer_size, self.MAX_BUFFER_SIZE)
         max_payload_size = max_payload_size or config._trace_writer_payload_size
-        if self._api_version not in WRITER_CLIENTS:
-            log.warning(
-                "Unsupported api version: '%s'. The supported versions are: %r",
-                self._api_version,
-                ", ".join(sorted(WRITER_CLIENTS.keys())),
-            )
-            self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
-        client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
-
-        _headers = {
+        client = AgentlessWriterClient(buffer_size, max_payload_size)
+        headers = {
+            "Content-Type": client.encoder.content_type,
+            "dd-api-key": api_key,
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
             "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
             "Datadog-Meta-Tracer-Version": __version__,
-            "Datadog-Client-Computed-Top-Level": "yes",
         }
-        if headers:
-            _headers.update(headers)
-
-        _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
-        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
-        if additional_header_str is not None:
-            _headers.update(parse_tags_str(additional_header_str))
-        self._response_cb = response_callback
-        self._report_metrics = report_metrics
-        super(AgentWriter, self).__init__(
+        super(AgentlessTraceWriter, self).__init__(
             intake_url=intake_url,
             clients=[client],
             processing_interval=processing_interval,
@@ -622,96 +580,102 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             dogstatsd=dogstatsd,
             sync_mode=sync_mode,
             reuse_connections=reuse_connections,
-            headers=_headers,
+            headers=headers,
             report_metrics=report_metrics,
         )
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> HTTPWriter:
-        # Ensure AppSec metadata is encoded by setting the API version to v0.4.
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "AgentlessTraceWriter":
         try:
-            # Stop the writer to ensure it is not running while we reconfigure it.
             self.stop()
         except ServiceStatusError:
-            # Writers like AgentWriter may not start until the first trace is encoded.
-            # Stopping them before that will raise a ServiceStatusError.
             pass
-
-        api_version = "v0.4" if appsec_enabled else self._api_version
-
         return self.__class__(
             intake_url=self.intake_url,
+            api_key=self._headers["dd-api-key"],
             processing_interval=self._interval,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
-            api_version=api_version,
-            headers=self._headers,
+            reuse_connections=self._reuse_connections,
             report_metrics=self._report_metrics,
-            response_callback=self._response_cb,
         )
 
-    @property
-    def _agent_endpoint(self):
-        return self._intake_endpoint(client=None)
 
-    def _downgrade(self, response, client):
-        if client.ENDPOINT == "v0.5/traces":
-            self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
-            # Since we have to change the encoding in this case, the payload
-            # would need to be converted to the downgraded encoding before
-            # sending it, but we chuck it away instead.
-            log.warning(
-                "Calling endpoint '%s' but received %s; downgrading API. "
-                "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
-                "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
-                "endpoint available, or explicitly set the trace API version to, e.g., v0.4.",
-                client.ENDPOINT,
-                response.status,
-            )
-        else:
-            log.error(
-                "unsupported endpoint '%s': received response %s from intake (%s)",
-                client.ENDPOINT,
-                response.status,
-                self.intake_url,
-            )
+def _resolve_api_version(api_version: Optional[str] = None) -> str:
+    """Determine the effective trace API version given platform and product constraints.
 
-    def _send_payload(self, payload, count, client) -> Response:
-        response = super(AgentWriter, self)._send_payload(payload, count, client)
-        if response.status in [404, 415]:
-            self._downgrade(response, client)
-        elif response.status < 400:
-            if self._response_cb:
-                raw_resp = response.get_json()
-                if raw_resp and "rate_by_service" in raw_resp:
-                    self._response_cb(
-                        AgentResponse(
-                            rate_by_service=raw_resp["rate_by_service"],
-                        )
-                    )
-        return response
+    Resolution order:
+    1. ``api_version`` argument (caller-supplied explicit override).
+    2. ``DD_TRACE_API_VERSION`` / ``config._trace_api`` environment setting.
+    3. Platform / product default (``v0.4`` on Windows, GCP Functions, Azure Functions,
+       ASM, IAST, or AI Guard; ``v0.5`` otherwise).
 
-    def start(self):
-        super(AgentWriter, self).start()
-        try:
-            # appsec remote config should be enabled/started after the global tracer and configs
-            # are initialized
-            if asm_config._asm_rc_enabled:
-                from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
+    Note: when ``DD_TRACE_NATIVE_SPAN_EVENTS`` is enabled, the resolved version is
+    **unconditionally forced to ``v0.4``**, overriding even an explicit ``api_version``
+    argument — v0.5 does not support native span events.
+    """
+    is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+    default = "v0.5"
+    if (
+        is_windows
+        or in_gcp_function()
+        or in_azure_function()
+        or asm_config._asm_enabled
+        or asm_config._iast_enabled
+        or ai_guard_config._ai_guard_enabled
+    ):
+        default = "v0.4"
+    resolved = api_version or config._trace_api or default
+    if agent_config.trace_native_span_events:
+        log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
+        resolved = "v0.4"
+    return resolved
 
-                enable_appsec_rc()
-        except service.ServiceStatusError:
-            pass
 
-    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> Dict[str, str]:
-        headers = super(AgentWriter, self)._get_finalized_headers(count, client)
-        headers["X-Datadog-Trace-Count"] = str(count)
-        return headers
+def _resolve_test_session_token(token: Optional[str]) -> Optional[str]:
+    if token is not None:
+        return token
+    additional_header_str = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+    if additional_header_str is not None:
+        return parse_tags_str(additional_header_str).get("X-Datadog-Test-Session-Token")
+    return None
 
-    def set_test_session_token(self, token: Optional[str]) -> None:
-        self._headers["X-Datadog-Test-Session-Token"] = token or ""
+
+def _build_base_exporter_builder(
+    intake_url: str,
+    test_session_token: Optional[str],
+    compute_stats_enabled: bool,
+    stats_opt_out: Optional[bool],
+) -> "native.TraceExporterBuilder":
+    _, commit_sha, _ = get_git_tags()
+    builder = (
+        native.TraceExporterBuilder()
+        .set_url(intake_url)
+        .set_hostname(get_hostname())
+        .set_language("python")
+        .set_language_version(compat.PYTHON_VERSION)
+        .set_language_interpreter(compat.PYTHON_INTERPRETER)
+        .set_tracer_version(__version__)
+        .set_git_commit_sha(commit_sha)
+        .set_client_computed_top_level()
+    )
+    if config.service:
+        builder.set_service(config.service)
+    if config.env:
+        builder.set_env(config.env)
+    if config.version:
+        builder.set_app_version(config.version)
+    if test_session_token is not None:
+        builder.set_test_session_token(test_session_token)
+    if stats_opt_out:
+        builder.set_client_computed_stats()
+    elif compute_stats_enabled:
+        stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+        bucket_size_ns: int = int(stats_interval * 1e9)
+        builder.enable_stats(bucket_size_ns)
+    return builder
 
 
 class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
@@ -737,6 +701,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # Mark stats as computed, without computing them, skipping trace exporter stats computation.
         # This setting overrides the `compute_stats_enabled` parameter.
         stats_opt_out: Optional[bool] = False,
+        otlp_endpoint: Optional[str] = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -745,35 +710,15 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if max_payload_size is not None and max_payload_size <= 0:
             raise ValueError("Max payload size must be positive")
 
-        # Default to v0.4 if we are on Windows since there is a known compatibility issue
-        # https://github.com/DataDog/dd-trace-py/issues/4829
-        # DEV: sys.platform on windows should be `win32` or `cygwin`, but using `startswith`
-        #      as a safety precaution.
-        #      https://docs.python.org/3/library/sys.html#sys.platform
-        is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+        self._api_version = _resolve_api_version(api_version)
 
-        default_api_version = "v0.5"
-        if (
-            is_windows
-            or in_gcp_function()
-            or in_azure_function()
-            or asm_config._asm_enabled
-            or asm_config._iast_enabled
-            or ai_guard_config._ai_guard_enabled
-        ):
-            default_api_version = "v0.4"
-
-        self._api_version = api_version or config._trace_api or default_api_version
-
-        if agent_config.trace_native_span_events:
-            log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
-            self._api_version = "v0.4"
-
-        if is_windows and self._api_version == "v0.5":
-            raise RuntimeError(
-                "There is a known compatibility issue with v0.5 API and Windows, "
-                "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
-            )
+        # DEV: https://github.com/DataDog/dd-trace-py/issues/4829
+        if sys.platform.startswith("win") or sys.platform.startswith("cygwin"):
+            if self._api_version == "v0.5":
+                raise RuntimeError(
+                    "There is a known compatibility issue with v0.5 API and Windows, "
+                    "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
+                )
 
         buffer_size = buffer_size or config._trace_writer_buffer_size
         max_payload_size = max_payload_size or config._trace_writer_payload_size
@@ -786,27 +731,16 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
         client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
-        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
-        if test_session_token is None and additional_header_str is not None:
-            additional_header = parse_tags_str(additional_header_str)
-            if "X-Datadog-Test-Session-Token" in additional_header:
-                test_session_token = additional_header["X-Datadog-Test-Session-Token"]
-
         super(NativeWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
+        self._otlp_endpoint = otlp_endpoint
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
-        self._test_session_token = test_session_token
-
-        # Condition variable to coordinate the flushing with forking
-        self._forking_cv = threading.Condition()
-        self._disable_flush = False
-        # Number of threads currently flushing
-        self._count_flushing = 0
+        self._test_session_token = _resolve_test_session_token(test_session_token)
 
         self._clients = [client]
         self.dogstatsd = dogstatsd
-        self._metrics: Dict[str, int] = defaultdict(int)
+        self._metrics: dict[str, int] = defaultdict(int)
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
@@ -814,79 +748,52 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
 
-        try:
-            before_fork_hook = make_weak_method_hook(self._before_fork)
-            after_fork_hook = make_weak_method_hook(self._after_fork)
-
-            forksafe.register_before_fork(before_fork_hook)
-            self._before_fork_hook = before_fork_hook
-
-            forksafe.register_after_parent(after_fork_hook)
-            self._after_fork_hook = after_fork_hook
-        except TypeError:
-            log.warning("Failed to register NativeWriter fork hook")
-
         self._exporter = self._create_exporter()
 
-    def __del__(self):
-        if self._before_fork_hook:
-            forksafe.unregister_before_fork(self._before_fork_hook)
-            self._before_fork_hook = None
+    @staticmethod
+    def _parse_otlp_headers() -> list:
+        """Parse OTEL_EXPORTER_OTLP_TRACES_HEADERS (or OTEL_EXPORTER_OTLP_HEADERS) into key-value pairs.
 
-        if self._after_fork_hook:
-            forksafe.unregister_parent(self._after_fork_hook)
-            self._after_fork_hook = None
+        TODO: This parsing will move into libdatadog once header handling is supported natively.
+        The current split-on-comma approach does not handle percent-encoded commas (%2C) in header
+        values per the OTEL spec; that edge case will be handled correctly on the libdatadog side.
+        """
+        raw = otel_config.exporter.TRACES_HEADERS
+        if not raw:
+            return []
+        headers = []
+        for item in raw.split(","):
+            item = item.strip()
+            if "=" in item:
+                key, _, value = item.partition("=")
+                headers.append((key.strip(), value.strip()))
+        return headers
 
     def _create_exporter(self) -> native.TraceExporter:
-        """
-        Create a new TraceExporter with the current configuration.
-        :return: A configured TraceExporter instance.
-        """
-        _, commit_sha, _ = get_git_tags()
-
-        builder = (
-            native.TraceExporterBuilder()
-            .set_url(self.intake_url)
-            .set_hostname(get_hostname())
-            .set_language("python")
-            .set_language_version(compat.PYTHON_VERSION)
-            .set_language_interpreter(compat.PYTHON_INTERPRETER)
-            .set_tracer_version(__version__)
-            .set_git_commit_sha(commit_sha)
-            .set_client_computed_top_level()
-            .set_input_format(self._api_version)
-            .set_output_format(self._api_version)
+        builder = _build_base_exporter_builder(
+            self.intake_url,
+            self._test_session_token,
+            self._compute_stats_enabled,
+            self._stats_opt_out,
         )
-        if config.service:
-            builder.set_service(config.service)
-        if config.env:
-            builder.set_env(config.env)
-        if config.version:
-            builder.set_app_version(config.version)
-        if self._test_session_token is not None:
-            builder.set_test_session_token(self._test_session_token)
-        if self._stats_opt_out:
-            builder.set_client_computed_stats()
-        elif self._compute_stats_enabled:
-            stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
-            bucket_size_ns: int = int(stats_interval * 1e9)
-            builder.enable_stats(bucket_size_ns)
-
+        builder.set_input_format(self._api_version).set_output_format(self._api_version)
+        if self._otlp_endpoint is not None:
+            builder.set_otlp_endpoint(self._otlp_endpoint)
+            otlp_headers = self._parse_otlp_headers()
+            if otlp_headers:
+                builder.set_otlp_headers(otlp_headers)
+            builder.set_connection_timeout(otel_config.exporter.TRACES_TIMEOUT)
+        if p_tags := process_tags.process_tags:
+            builder.set_process_tags(p_tags)
         # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
         if config._telemetry_enabled and sys.platform.startswith("linux"):
             heartbeat_ms = int(
                 config._telemetry_heartbeat_interval * 1000
             )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
-            builder.enable_telemetry(heartbeat_ms, get_runtime_id())
+            builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
-
-        return builder.build()
-
-    def _after_fork(self):
-        with self._forking_cv:
-            self._disable_flush = False
-            self._forking_cv.notify_all()
+        return builder.build(get_native_runtime())
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
@@ -894,7 +801,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         :param token: The test session token to use for authentication.
         """
         self._test_session_token = token
-        self._exporter.stop_worker()
         self._exporter = self._create_exporter()
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
@@ -921,6 +827,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             response_callback=self._response_cb,
             test_session_token=self._test_session_token,
             stats_opt_out=self._stats_opt_out,
+            otlp_endpoint=self._otlp_endpoint,
         )
 
     def _downgrade(self, status, client):
@@ -932,7 +839,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
             # sending it, but we chuck it away instead.
-            log.warning(
+            _safelog(
+                log.warning,
                 "Calling endpoint '%s' but received %s; downgrading API. "
                 "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
                 "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
@@ -941,7 +849,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 status,
             )
         else:
-            log.error(
+            _safelog(
+                log.error,
                 "unsupported endpoint '%s': received response %s from intake (%s)",
                 client.ENDPOINT,
                 status,
@@ -959,7 +868,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _encoder(self):
         return self._clients[0].encoder
 
-    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[List] = None) -> None:
+    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
         if not self._report_metrics:
             return
         if config._health_metrics_enabled and self.dogstatsd:
@@ -973,21 +882,17 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # This calculation is a best effort. Due to race conditions it may result in a slight underestimate.
         dropped = max(accepted - sent - encoded, 0)  # dropped spans should never be negative
         self._drop_sma.set(dropped, accepted)
-        self._metrics["sent_traces"] = 0  # reset sent traces for the next interval
-        self._metrics["accepted_traces"] = encoded  # sets accepted traces to number of spans in encoders
+        self._metrics["sent_traces"] = 0
+        self._metrics["accepted_traces"] = encoded
 
     def _set_keep_rate(self, trace):
         if trace:
             # PERF: avoid setting via Span.set_metric
-            trace[0]._metrics[_KEEP_SPANS_RATE_KEY] = 1.0 - self._drop_sma.get()
+            trace[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:
-            with self._forking_cv:
-                # postpone flush if we are forking
-                self._forking_cv.wait_for(lambda: not self._disable_flush)
-                self._count_flushing += 1
-            response_body = self._exporter.send(payload, count)
+            response_body = self._exporter.send(payload)
         except native.RequestError as e:
             try:
                 # Request errors are formatted as "Error code: {code}, Response: {response}"
@@ -999,11 +904,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             else:
                 raise e
         finally:
-            with self._forking_cv:
-                self._count_flushing -= 1
-                if self._count_flushing == 0:
-                    # wake before_fork hook if it's waiting
-                    self._forking_cv.notify_all()
             self._metrics["sent_traces"] += count
 
         if self._response_cb:
@@ -1017,13 +917,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     )
                 )
 
-    def write(self, spans: Optional[List["Span"]] = None) -> None:
+    def write(self, spans: Optional[list["Span"]] = None) -> None:
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client: WriterClientBase, spans: Optional[List["Span"]] = None) -> None:
+    def _write_with_client(self, client: WriterClientBase, spans: Optional[list["Span"]] = None) -> None:
         if spans is None:
             return
 
@@ -1034,7 +934,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     self.start()
 
             except service.ServiceStatusError:
-                log.warning("failed to start writer service")
+                _safelog(log.warning, "failed to start writer service")
 
         self._metrics_dist("writer.accepted.traces")
         self._metrics["accepted_traces"] += 1
@@ -1044,7 +944,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             client.encoder.put(spans)
         except BufferItemTooLarge as e:
             payload_size = e.args[0]
-            log.warning(
+            _safelog(
+                log.warning,
                 "trace (%db) larger than payload buffer item limit (%db), dropping",
                 payload_size,
                 client.encoder.max_item_size,
@@ -1053,7 +954,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
         except BufferFull as e:
             payload_size = e.args[0]
-            log.warning(
+            _safelog(
+                log.warning,
                 "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
                 len(client.encoder),
                 client.encoder.size,
@@ -1083,7 +985,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 return
         except Exception:
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
-            log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
+            _safelog(log.error, "failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
             return
 
@@ -1113,7 +1015,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 msg += ", payload %s"
                 log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
 
-            log.error(msg, *log_args, extra={"send_to_telemetry": False})
+            _safelog(log.error, msg, *log_args, extra={"send_to_telemetry": False})
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
@@ -1122,27 +1024,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self,
         timeout: Optional[float] = None,
     ) -> None:
-        try:
-            # FIXME: don't join() on stop(), let the caller handle this
-            super(NativeWriter, self)._stop_service()
-            self.join(timeout=timeout)
-        # Native threads should be stopped even if the writer is not running
-        finally:
-            self._exporter.stop_worker()
-            if self._before_fork_hook:
-                forksafe.unregister_before_fork(self._before_fork_hook)
-                self._before_fork_hook = None
-            if self._after_fork_hook:
-                forksafe.unregister_parent(self._after_fork_hook)
-                self._after_fork_hook = None
-
-    def _before_fork(self) -> None:
-        # Mark the writer as forking to avoid restarting threads before the fork
-        with self._forking_cv:
-            # Prevent new flush from being started
-            self._disable_flush = True
-            self._forking_cv.wait_for(lambda: self._count_flushing == 0)
-        self._exporter.stop_worker()
+        # FIXME: don't join() on stop(), let the caller handle this
+        super(NativeWriter, self)._stop_service()
+        self.join(timeout=timeout)
 
     def on_shutdown(self):
         try:
@@ -1158,11 +1042,7 @@ def _use_log_writer() -> bool:
     The LogWriter is required by default in AWS Lambdas when the Datadog Agent extension
     is not available in the Lambda.
     """
-    if (
-        os.environ.get("DD_AGENT_HOST")
-        or os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
-        or os.environ.get("DD_TRACE_AGENT_URL")
-    ):
+    if env.get("DD_AGENT_HOST") or env.get("DATADOG_TRACE_AGENT_HOSTNAME") or env.get("DD_TRACE_AGENT_URL"):
         # If one of these variables are set, we definitely have an agent
         return False
     elif in_aws_lambda() and has_aws_lambda_agent_extension():
@@ -1196,32 +1076,37 @@ def _use_sync_mode() -> bool:
     )
 
 
-def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], None]] = None) -> TraceWriter:
+def create_trace_writer(
+    response_callback: Optional[Callable[[AgentResponse], None]] = None,
+    agentless: bool = False,
+) -> TraceWriter:
     if _use_log_writer():
         return LogWriter()
 
+    if agentless:
+        intake_url = "https://{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, config._dd_site)
+        verify_url(intake_url)
+        return AgentlessTraceWriter(
+            intake_url=intake_url,
+            api_key=config._dd_api_key,
+            dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
+            sync_mode=_use_sync_mode(),
+            report_metrics=not asm_config._apm_opt_out,
+        )
+
     verify_url(agent_config.trace_agent_url)
 
-    if config._trace_writer_native:
-        return NativeWriter(
-            intake_url=agent_config.trace_agent_url,
-            dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
-            sync_mode=_use_sync_mode(),
-            compute_stats_enabled=config._trace_compute_stats,
-            report_metrics=not asm_config._apm_opt_out,
-            response_callback=response_callback,
-            stats_opt_out=asm_config._apm_opt_out,
-        )
-    else:
-        headers: Dict[str, str] = {}
-        if config._trace_compute_stats or asm_config._apm_opt_out:
-            headers["Datadog-Client-Computed-Stats"] = "yes"
+    otlp_endpoint = (
+        otel_config.exporter.TRACES_ENDPOINT if _is_otlp_traces_exporter_enabled(otel_config.exporter) else None
+    )
 
-        return AgentWriter(
-            intake_url=agent_config.trace_agent_url,
-            dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
-            sync_mode=_use_sync_mode(),
-            headers=headers,
-            report_metrics=not asm_config._apm_opt_out,
-            response_callback=response_callback,
-        )
+    return NativeWriter(
+        intake_url=agent_config.trace_agent_url,
+        dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
+        sync_mode=_use_sync_mode(),
+        compute_stats_enabled=config._trace_compute_stats,
+        report_metrics=not asm_config._apm_opt_out,
+        response_callback=response_callback,
+        stats_opt_out=asm_config._apm_opt_out,
+        otlp_endpoint=otlp_endpoint,
+    )

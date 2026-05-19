@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    AAP: Fix multipart request body parsing to preserve all values when the same
+    field name appears multiple times. Previously, only the last value was kept
+    for duplicate keys in ``multipart/form-data`` bodies, which could allow an
+    attacker to bypass WAF inspection by hiding a malicious value among safe ones.

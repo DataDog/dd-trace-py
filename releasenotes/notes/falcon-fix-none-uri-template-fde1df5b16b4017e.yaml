@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    falcon: Fixes an issue where a ``None`` value for ``req.uri_template`` caused a ``TypeError``
+    when constructing the route in the Falcon tracing middleware.

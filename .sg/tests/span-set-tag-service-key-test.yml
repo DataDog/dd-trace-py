@@ -1,0 +1,16 @@
+id: span-set-tag-service-key
+valid:
+  # Direct assignment is the correct pattern
+  - span.service = "my-service"
+  - span.service = value
+  # set_tag with other keys is fine
+  - span.set_tag("some.other.key", "value")
+  - span.set_tag(SOME_OTHER_KEY, value)
+
+invalid:
+  # These should trigger the rule
+  - span.set_tag(SERVICE_KEY, "my-service")
+  - span.set_tag(SERVICE_KEY, service_name)
+  - |
+    s = tracer.trace("op")
+    s.set_tag(SERVICE_KEY, "local-service")

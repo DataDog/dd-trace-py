@@ -5,9 +5,7 @@ Trace queries monitoring to aws api done via botocore client
 import base64
 import json
 from typing import Any
-from typing import Dict
 from typing import Optional
-from typing import Tuple
 
 from ddtrace import config
 from ddtrace.internal import core
@@ -22,7 +20,7 @@ MAX_EVENTBRIDGE_DETAIL_SIZE = TWOFIFTYSIX_KB
 LINE_BREAK = "\n"
 
 
-def get_json_from_str(data_str: str) -> Tuple[str, Optional[Dict[str, Any]]]:
+def get_json_from_str(data_str: str) -> tuple[str, Optional[dict[str, Any]]]:
     data_obj = json.loads(data_str)
 
     if data_str.endswith(LINE_BREAK):
@@ -30,7 +28,7 @@ def get_json_from_str(data_str: str) -> Tuple[str, Optional[Dict[str, Any]]]:
     return None, data_obj
 
 
-def get_kinesis_data_object(data: str) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+def get_kinesis_data_object(data: str) -> tuple[Optional[str], Optional[dict[str, Any]]]:
     """
     :data: the data from a kinesis stream
     The data from a kinesis stream comes as a string (could be json, base64 encoded, etc.)
@@ -79,7 +77,7 @@ def update_eventbridge_detail(ctx: ExecutionContext) -> None:
                 continue
 
         detail["_datadog"] = {}
-        core.dispatch("botocore.eventbridge.update_messages", [ctx, None, None, detail["_datadog"], None])
+        core.dispatch("botocore.eventbridge.update_messages", (ctx, None, None, detail["_datadog"], None))
         detail_json = json.dumps(detail)
 
         # check if detail size will exceed max size with headers
@@ -93,7 +91,7 @@ def update_eventbridge_detail(ctx: ExecutionContext) -> None:
 
 def update_client_context(ctx: ExecutionContext) -> None:
     trace_headers = {}
-    core.dispatch("botocore.client_context.update_messages", [ctx, None, None, trace_headers, None])
+    core.dispatch("botocore.client_context.update_messages", (ctx, None, None, trace_headers, None))
     client_context_object = {}
     params = ctx["params"]
     if "ClientContext" in params:

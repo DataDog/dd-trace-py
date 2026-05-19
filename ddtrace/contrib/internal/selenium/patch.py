@@ -1,12 +1,11 @@
-import os
 import time
 import typing as t
-from typing import Dict
 
 from wrapt.importer import when_imported
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import tracer
 
@@ -31,7 +30,7 @@ _DEFAULT_FLUSH_SLEEP_MS = 500
 
 
 def _get_flush_sleep_ms() -> int:
-    env_flush_sleep_ms = os.getenv("DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS")
+    env_flush_sleep_ms = env.get("DD_CIVISIBILITY_RUM_FLUSH_WAIT_MILLIS")
     if env_flush_sleep_ms is None:
         return _DEFAULT_FLUSH_SLEEP_MS
 
@@ -157,7 +156,7 @@ def get_version() -> str:
         return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"selenium": "*"}
 
 

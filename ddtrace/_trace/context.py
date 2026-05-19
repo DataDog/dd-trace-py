@@ -1,12 +1,8 @@
 import base64
 import re
-import threading
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Text
-from typing import Tuple
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace.constants import _ORIGIN_KEY
@@ -17,16 +13,17 @@ from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
 
 
-_ContextState = Tuple[
+_ContextState = tuple[
     Optional[int],  # trace_id
     Optional[int],  # span_id
-    Dict[str, str],  # _meta
-    Dict[str, NumericType],  # _metrics
-    List[SpanLink],  #  span_links
-    Dict[str, Any],  # baggage
+    dict[str, str],  # _meta
+    dict[str, NumericType],  # _metrics
+    list[SpanLink],  #  span_links
+    dict[str, Any],  # baggage
     bool,  # is_remote
     bool,  # _reactivate
 ]
@@ -61,16 +58,16 @@ class Context(object):
         span_id: Optional[int] = None,
         dd_origin: Optional[str] = None,
         sampling_priority: Optional[float] = None,
-        meta: Optional[Dict[str, str]] = None,
-        metrics: Optional[Dict[str, NumericType]] = None,
-        lock: Optional[threading.RLock] = None,
-        span_links: Optional[List[SpanLink]] = None,
-        baggage: Optional[Dict[str, Any]] = None,
+        meta: Optional[dict[str, str]] = None,
+        metrics: Optional[dict[str, NumericType]] = None,
+        lock: Optional[RLock] = None,
+        span_links: Optional[list[SpanLink]] = None,
+        baggage: Optional[dict[str, Any]] = None,
         is_remote: bool = True,
     ):
-        self._meta: Dict[str, str] = meta if meta is not None else {}
-        self._metrics: Dict[str, NumericType] = metrics if metrics is not None else {}
-        self._baggage: Dict[str, Any] = baggage if baggage is not None else {}
+        self._meta: dict[str, str] = meta if meta is not None else {}
+        self._metrics: dict[str, NumericType] = metrics if metrics is not None else {}
+        self._baggage: dict[str, Any] = baggage if baggage is not None else {}
 
         self.trace_id: Optional[int] = trace_id
         self.span_id: Optional[int] = span_id
@@ -92,7 +89,7 @@ class Context(object):
             # DEV: A `forksafe.RLock` is not necessary here since Contexts
             # are recreated by the tracer after fork
             # https://github.com/DataDog/dd-trace-py/blob/a1932e8ddb704d259ea8a3188d30bf542f59fd8d/ddtrace/tracer.py#L489-L508
-            self._lock = threading.RLock()
+            self._lock = RLock()
 
     def __getstate__(self) -> _ContextState:
         return (
@@ -119,7 +116,7 @@ class Context(object):
             self._reactivate,
         ) = state
         # We cannot serialize and lock, so we must recreate it unless we already have one
-        self._lock = threading.RLock()
+        self._lock = RLock()
 
     def __enter__(self) -> "Context":
         self._lock.acquire()
@@ -257,7 +254,7 @@ class Context(object):
         """Gets a baggage item in this span context."""
         return self._baggage.get(key, None)
 
-    def get_all_baggage_items(self) -> Dict[str, Any]:
+    def get_all_baggage_items(self) -> dict[str, Any]:
         """Returns all baggage items in this span context."""
         return self._baggage
 

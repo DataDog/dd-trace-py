@@ -26,6 +26,18 @@ class GitTag:
     # Git Branch
     BRANCH = "git.branch"
 
+    # Git Pull Request Base Branch
+    PULL_REQUEST_BASE_BRANCH = "git.pull_request.base_branch"
+
+    # Git Pull Request Base Branch SHA
+    PULL_REQUEST_BASE_BRANCH_SHA = "git.pull_request.base_branch_sha"
+
+    # Git Pull Request Base Branch Head SHA
+    PULL_REQUEST_BASE_BRANCH_HEAD_SHA = "git.pull_request.base_branch_head_sha"
+
+    # Pull Request Number
+    PULL_REQUEST_NUMBER = "pr.number"
+
     # Git Tag
     TAG = "git.tag"
 
@@ -104,7 +116,7 @@ class Git:
         self.git_command: str = git_command
         self.cwd = cwd
 
-    def _call_git(self, args: t.List[str], input_string: t.Optional[str] = None) -> _GitSubprocessDetails:
+    def _call_git(self, args: list[str], input_string: t.Optional[str] = None) -> _GitSubprocessDetails:
         git_cmd = [self.git_command, *args]
         log.debug("Running git command: %r", git_cmd)
 
@@ -127,10 +139,10 @@ class Git:
             elapsed_seconds=sw.elapsed(),
         )
 
-    def _git_output(self, args: t.List[str], telemetry_type: t.Optional[GitTelemetry] = None) -> str:
+    def _git_output(self, args: list[str], telemetry_type: t.Optional[GitTelemetry] = None) -> str:
         result = self._call_git(args)
 
-        if telemetry_type:
+        if telemetry_type and TelemetryAPI._instance is not None:
             TelemetryAPI.get().record_git_command(telemetry_type, result.elapsed_seconds, result.return_code)
 
         if result.return_code != 0:
@@ -138,14 +150,14 @@ class Git:
             return ""
         return result.stdout
 
-    def get_git_version(self) -> t.Tuple[int, ...]:
+    def get_git_version(self) -> tuple[int, ...]:
         output = self._git_output(["--version"])  # "git version 1.2.3"
         try:
             version_string = output.split()[2]
             version_tuple = tuple(int(part) for part in version_string.split("."))
             return version_tuple
         except (IndexError, ValueError):
-            log.error("Could not parse git --version output: %s", output)
+            log.warning("Could not parse git --version output: %s", output)
             return (0, 0, 0)
 
     def get_repository_url(self) -> str:
@@ -192,13 +204,13 @@ class Git:
     def get_remote_name(self) -> str:
         return self._git_output(["config", "--default", "origin", "--get", "clone.defaultRemoteName"])
 
-    def get_latest_commits(self) -> t.List[str]:
+    def get_latest_commits(self) -> list[str]:
         output = self._git_output(
             ["log", "--format=%H", "-n", "1000", '--since="1 month ago"'], GitTelemetry.GET_LOCAL_COMMITS
         )
         return output.split("\n") if output else []
 
-    def get_filtered_revisions(self, excluded_commits: t.List[str], included_commits: t.List[str]) -> t.List[str]:
+    def get_filtered_revisions(self, excluded_commits: list[str], included_commits: list[str]) -> list[str]:
         exclusions = [f"^{sha}" for sha in excluded_commits]
         output = self._git_output(
             [
@@ -277,9 +289,14 @@ class Git:
 
         finally:
             sw.stop()
-            TelemetryAPI.get().record_git_command(GitTelemetry.UNSHALLOW, sw.elapsed(), return_code)
+            if TelemetryAPI._instance is not None:
+                TelemetryAPI.get().record_git_command(GitTelemetry.UNSHALLOW, sw.elapsed(), return_code)
 
-    def pack_objects(self, revisions: t.List[str]) -> t.Iterable[Path]:
+    def get_merge_base(self, sha1: str, sha2: str) -> str:
+        """Return the best common ancestor commit SHA of sha1 and sha2."""
+        return self._git_output(["merge-base", sha1, sha2])
+
+    def pack_objects(self, revisions: list[str]) -> t.Iterable[Path]:
         base_name = str(random.randint(1, 1000000))  # nosec: B311
         revisions_text = "\n".join(revisions)
 
@@ -294,7 +311,10 @@ class Git:
             prefix = f"{output_dir}/{base_name}"
             result = self._call_git(["pack-objects", "--compression=9", "--max-pack-size=3m", prefix], revisions_text)
 
-            TelemetryAPI.get().record_git_command(GitTelemetry.PACK_OBJECTS, result.elapsed_seconds, result.return_code)
+            if TelemetryAPI._instance is not None:
+                TelemetryAPI.get().record_git_command(
+                    GitTelemetry.PACK_OBJECTS, result.elapsed_seconds, result.return_code
+                )
 
             if result.return_code != 0:
                 log.warning("Error calling git pack-objects: %s", result.stderr)
@@ -304,14 +324,29 @@ class Git:
                 yield packfile
 
 
-def get_git_tags_from_git_command() -> t.Dict[str, t.Optional[str]]:
+def get_pr_base_commit_sha(base_branch_head_sha: str, head_sha: str) -> t.Optional[str]:
+    """Compute the true PR base commit SHA as the merge base of base_branch_head_sha and head_sha.
+
+    On GitHub Actions, pull_request.base.sha is the HEAD of the base branch, not the actual merge
+    base commit. This function uses `git merge-base` to find the common ancestor.
+    """
+    try:
+        git = Git()
+    except RuntimeError as e:
+        log.warning("Error getting git data for merge-base computation: %s", e)
+        return None
+
+    return git.get_merge_base(base_branch_head_sha, head_sha) or None
+
+
+def get_git_tags_from_git_command() -> dict[str, t.Optional[str]]:
     try:
         git = Git()
     except RuntimeError as e:
         log.warning("Error getting git data: %s", e)
         return {}
 
-    tags: t.Dict[str, t.Optional[str]] = {
+    tags: dict[str, t.Optional[str]] = {
         GitTag.REPOSITORY_URL: git.get_repository_url(),
         GitTag.COMMIT_SHA: git.get_commit_sha(),
         GitTag.BRANCH: git.get_branch(),
@@ -333,7 +368,7 @@ def get_git_tags_from_git_command() -> t.Dict[str, t.Optional[str]]:
     return tags
 
 
-def get_git_head_tags_from_git_command(head_sha: str) -> t.Dict[str, t.Optional[str]]:
+def get_git_head_tags_from_git_command(head_sha: str) -> dict[str, t.Optional[str]]:
     try:
         git = Git()
     except RuntimeError as e:
@@ -343,7 +378,7 @@ def get_git_head_tags_from_git_command(head_sha: str) -> t.Dict[str, t.Optional[
     if git.is_shallow_repository():
         git.unshallow_repository(parent_only=True)
 
-    tags: t.Dict[str, t.Optional[str]] = {
+    tags: dict[str, t.Optional[str]] = {
         GitTag.COMMIT_HEAD_MESSAGE: git.get_commit_message(head_sha),
     }
 
@@ -382,7 +417,7 @@ def is_ref_a_tag(ref: t.Optional[str]) -> bool:
     return "tags/" in ref if ref else False
 
 
-def get_git_tags_from_dd_variables(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def get_git_tags_from_dd_variables(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract git commit metadata from user-provided env vars."""
     branch = normalize_ref(env.get("DD_GIT_BRANCH"))
     tag = normalize_ref(env.get("DD_GIT_TAG"))
@@ -392,10 +427,12 @@ def get_git_tags_from_dd_variables(env: t.MutableMapping[str, str]) -> t.Dict[st
         tag = branch
         branch = None
 
-    tags: t.Dict[str, t.Optional[str]] = {
+    tags: dict[str, t.Optional[str]] = {
         GitTag.REPOSITORY_URL: env.get("_CI_DD_GIT_REPOSITORY_URL") or env.get("DD_GIT_REPOSITORY_URL"),
         GitTag.COMMIT_SHA: env.get("DD_GIT_COMMIT_SHA"),
         GitTag.BRANCH: branch,
+        GitTag.PULL_REQUEST_BASE_BRANCH: normalize_ref(env.get("DD_GIT_PULL_REQUEST_BASE_BRANCH")),
+        GitTag.PULL_REQUEST_BASE_BRANCH_SHA: env.get("DD_GIT_PULL_REQUEST_BASE_BRANCH_SHA"),
         GitTag.TAG: tag,
         GitTag.COMMIT_MESSAGE: env.get("DD_GIT_COMMIT_MESSAGE"),
         GitTag.COMMIT_AUTHOR_DATE: env.get("DD_GIT_COMMIT_AUTHOR_DATE"),

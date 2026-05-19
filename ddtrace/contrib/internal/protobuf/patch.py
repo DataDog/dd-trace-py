@@ -1,5 +1,3 @@
-from typing import Dict
-
 from google import protobuf
 from google.protobuf.internal import builder
 import wrapt
@@ -21,12 +19,11 @@ config._add(
 _WRAPPED_MESSAGE_CLASSES = []
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(protobuf, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"protobuf": "*"}
 
 
@@ -84,10 +81,10 @@ def _traced_build(func, instance, args, kwargs):
 
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
 
     try:
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
     finally:
         if config._data_streams_enabled:
             generated_message_classes = args[2]
@@ -102,12 +99,12 @@ def _traced_build(func, instance, args, kwargs):
 def _traced_deserialize_message(func, instance, args, kwargs, msg_descriptor):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
 
     active = tracer.current_span()
 
     try:
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
     finally:
         if config._data_streams_enabled and active:
             SchemaExtractor.attach_schema_on_span(msg_descriptor, active, SchemaExtractor.DESERIALIZATION)

@@ -1,0 +1,27 @@
+id: span-set-tag-service-key
+snapshots:
+  ? |
+    s = tracer.trace("op")
+    s.set_tag(SERVICE_KEY, "local-service")
+  : fixed: |
+      s = tracer.trace("op")
+      s.service = "local-service"
+    labels:
+    - source: s.set_tag(SERVICE_KEY, "local-service")
+      style: primary
+      start: 23
+      end: 62
+  span.set_tag(SERVICE_KEY, "my-service"):
+    fixed: span.service = "my-service"
+    labels:
+    - source: span.set_tag(SERVICE_KEY, "my-service")
+      style: primary
+      start: 0
+      end: 39
+  span.set_tag(SERVICE_KEY, service_name):
+    fixed: span.service = service_name
+    labels:
+    - source: span.set_tag(SERVICE_KEY, service_name)
+      style: primary
+      start: 0
+      end: 39

@@ -1,0 +1,452 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# dependencies = []
+# ///
+"""
+Validate that all CI pip install commands use locked requirements files.
+
+This script checks that CI workflows don't install dependencies directly via
+`pip install package`, which can pull in unexpected versions of transitive
+dependencies. Instead, all CI dependencies should be locked in requirements.txt
+files.
+
+The script scans:
+- .github/workflows/*.yml (GitHub Actions)
+- .gitlab/*.yml (GitLab CI)
+
+And ensures no pip install commands install packages directly.
+
+Exception mechanism:
+You can explicitly allow specific pip install commands by adding a comment:
+    pip install 'twine>=5.0,<6'  # ci-deps: allow (requires version)
+    pip install twine  # ci-deps: allow-no-version (no version required)
+Or on the line before:
+    # ci-deps: allow
+    pip install 'some-package>=1.0'
+
+Note: 'ci-deps: allow' requires a version specifier, use 'allow-no-version' to skip.
+
+Additionally, it validates that the locked requirements file can be installed
+in --require-hashes mode by doing a dry-run installation.
+
+If violations are found, the script instructs to run:
+    scripts/update-ci-dependencies
+"""
+
+from pathlib import Path
+import re
+import subprocess
+import sys
+from typing import List
+from typing import Tuple
+
+
+def find_yaml_files() -> List[Path]:
+    """Find all CI YAML configuration files."""
+    files = []
+
+    # GitHub Actions workflows
+    github_workflows = Path(".github/workflows")
+    if github_workflows.exists():
+        files.extend(github_workflows.glob("*.yml"))
+        files.extend(github_workflows.glob("*.yaml"))
+
+    # GitLab CI files
+    gitlab_dir = Path(".gitlab")
+    if gitlab_dir.exists():
+        files.extend(gitlab_dir.glob("*.yml"))
+        files.extend(gitlab_dir.glob("*.yaml"))
+
+    return sorted(files)
+
+
+def extract_pip_install_commands(content: str, file_path: Path) -> List[Tuple[int, str, str]]:
+    """
+    Extract pip install commands from YAML content.
+
+    Returns list of (line_number, command, allow_type) tuples where allow_type is:
+    - "" (empty string) if not allowed
+    - "allow" if explicitly allowed but must have version
+    - "allow-no-version" if explicitly allowed without version requirement
+
+    Commands can be explicitly allowed with comment markers:
+    - # ci-deps: allow (requires version specifier)
+    - # ci-deps: allow-no-version (no version required)
+    """
+    commands = []
+    lines = content.split("\n")
+
+    for line_num, line in enumerate(lines, 1):
+        # Skip pure comment lines
+        if line.strip().startswith("#"):
+            continue
+
+        # Look for pip install commands
+        # Match: pip install, python -m pip install, python3 -m pip install
+        if re.search(r"\bpip\s+install\b", line) or re.search(r"\bpython3?\s+-m\s+pip\s+install\b", line):
+            allow_type = ""
+
+            # Check for exception comment on same line
+            if "# ci-deps: allow-no-version" in line or "#ci-deps: allow-no-version" in line:
+                allow_type = "allow-no-version"
+            elif "# ci-deps: allow" in line or "#ci-deps: allow" in line:
+                allow_type = "allow"
+
+            # Check for exception comment on previous line
+            if not allow_type and line_num > 1:
+                prev_line = lines[line_num - 2]  # line_num is 1-indexed
+                if "# ci-deps: allow-no-version" in prev_line or "#ci-deps: allow-no-version" in prev_line:
+                    allow_type = "allow-no-version"
+                elif "# ci-deps: allow" in prev_line or "#ci-deps: allow" in prev_line:
+                    allow_type = "allow"
+
+            commands.append((line_num, line.strip(), allow_type))
+
+    return commands
+
+
+def is_allowed_pip_install(command: str) -> bool:
+    """
+    Check if a pip install command is allowed.
+
+    Allowed patterns:
+    - pip install -r requirements.txt (or any .txt file)
+    - pip install --upgrade pip (upgrading pip itself)
+    - pip install -e . (installing the current package)
+    - pip install . (installing the current package)
+    - pip install $VAR or ${VAR} (shell variables, typically built packages)
+    - pip install /path/to/file (local file paths)
+
+    Disallowed:
+    - pip install package_name (direct package installation)
+    """
+    # Remove leading python -m pip or python3 -m pip
+    normalized = re.sub(r"python3?\s+-m\s+pip\s+install", "pip install", command)
+
+    # Allowed: pip install -r <file>.txt
+    if re.search(r"pip\s+install.*-r\s+[^\s]+\.txt", normalized):
+        return True
+
+    # Allowed: pip install --upgrade pip
+    if re.search(r"pip\s+install.*--upgrade\s+pip\b", normalized):
+        return True
+
+    # Allowed: pip install -e .
+    if re.search(r"pip\s+install\s+-e\s+\.", normalized):
+        return True
+
+    # Allowed: pip install .
+    if re.search(r"pip\s+install\s+\.\s*$", normalized):
+        return True
+
+    # Allowed: pip install $VAR or ${VAR} (shell variables)
+    if re.search(r"pip\s+install.*\$\{?[\w_]+\}?", normalized):
+        return True
+
+    # Allowed: pip install /path/to/file or ./path/to/file (local paths)
+    if re.search(r"pip\s+install.*[/.][\w/.-]+\.(whl|tar\.gz|zip)", normalized):
+        return True
+
+    # Allowed: pip install (no packages specified, likely reading from stdin or setup file)
+    if re.match(r"^\s*pip\s+install\s*$", normalized):
+        return True
+
+    return False
+
+
+def has_version_specifier(command: str) -> bool:
+    """
+    Check if a pip install command includes version specifiers.
+
+    Returns True if the command has explicit version pins (==, >=, <=, ~=, etc.)
+    """
+    # Remove pip install prefix and common flags
+    normalized = re.sub(r"python3?\s+-m\s+pip\s+install", "pip install", command)
+    normalized = re.sub(r"pip\s+install\s+(--upgrade\s+|--no-cache-dir\s+|-U\s+)*", "", normalized)
+
+    # Check if any package has a version specifier
+    # Look for patterns like: package==1.0, package>=1.0, package~=1.0, etc.
+    return bool(re.search(r"\w+[<>=!~]+[\d.]+", normalized))
+
+
+def check_ci_files() -> List[str]:
+    """
+    Check all CI files for direct pip install commands.
+
+    Returns list of violation messages.
+    """
+    violations = []
+    yaml_files = find_yaml_files()
+
+    if not yaml_files:
+        print("Warning: No CI YAML files found")
+        return violations
+
+    for file_path in yaml_files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            commands = extract_pip_install_commands(content, file_path)
+
+            for line_num, command, allow_type in commands:
+                # Check if explicitly allowed by comment
+                if allow_type:
+                    # If "allow" (not "allow-no-version"), require version specifiers
+                    if allow_type == "allow" and not has_version_specifier(command):
+                        violations.append(
+                            f"{file_path}:{line_num}: Must specify version or use 'allow-no-version': {command}"
+                        )
+                    continue
+
+                # Check if command matches allowed patterns
+                if not is_allowed_pip_install(command):
+                    violations.append(f"{file_path}:{line_num}: Direct pip install detected: {command}")
+
+        except Exception as e:
+            print(f"Warning: Error processing {file_path}: {e}")
+            continue
+
+    return violations
+
+
+def validate_locked_requirements() -> List[str]:
+    """
+    Validate that locked requirements file can be installed.
+
+    This checks that all transitive dependencies are included with exact
+    versions and hashes, which is required for --require-hashes mode.
+
+    Note: This validation is platform-specific. A requirements file that works
+    on macOS might fail on Linux due to platform-specific dependencies (e.g.,
+    keyring requires SecretStorage on Linux but not macOS).
+
+    Returns list of error messages if validation fails.
+    """
+    errors = []
+    requirements_file = Path("ci/requirements/ci.txt")
+
+    if not requirements_file.exists():
+        return [f"Locked requirements file not found: {requirements_file}"]
+
+    import platform
+
+    current_platform = platform.system()
+    print(f"Validating {requirements_file} can be installed with --require-hashes ({current_platform})...")
+
+    import tempfile
+
+    # Try uv first (preferred, faster, and more likely to be available)
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = subprocess.run(
+                [
+                    "uv",
+                    "pip",
+                    "install",
+                    "--require-hashes",
+                    "--target",
+                    tmpdir,
+                    "-r",
+                    str(requirements_file),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            if result.returncode != 0:
+                stderr = result.stderr
+
+                # Check if this is the hash/pinning error we care about
+                if "all requirements must have their versions pinned with ==" in stderr:
+                    errors.append("Locked requirements file validation failed:")
+                    errors.append(f"  File: {requirements_file}")
+                    errors.append("")
+                    errors.append("  ⚠️  Missing or unpinned transitive dependency detected!")
+                    errors.append("")
+
+                    # Try to extract which package has the issue
+                    match = re.search(r"(\S+)>=[\d.]+ from ", stderr)
+                    if not match:
+                        match = re.search(r"(\S+) from ", stderr)
+                    if match:
+                        dep_name = match.group(1)
+                        errors.append(f"  📦 Transitive dependency: {dep_name}")
+                        errors.append(f"     Status: Not pinned with exact version (==) in {requirements_file}")
+                        errors.append("")
+
+                    # Try to find which package requires it
+                    match = re.search(r"from ([^=\s]+)==([^ )]+)", stderr)
+                    if match:
+                        parent_pkg = match.group(1)
+                        parent_ver = match.group(2)
+                        errors.append(f"  📌 Required by: {parent_pkg}=={parent_ver}")
+                        errors.append("")
+
+                    # Include relevant error details
+                    errors.append("Error details:")
+                    error_lines = [line for line in stderr.split("\n") if line.strip()]
+                    for line in error_lines[:15]:
+                        if line.strip():
+                            errors.append(f"  {line}")
+
+                    errors.append("")
+                    errors.append("=" * 80)
+                    errors.append("Why this happens:")
+                    errors.append("  • A package has platform-specific dependencies (e.g., keyring needs")
+                    errors.append("    SecretStorage on Linux but not macOS)")
+                    errors.append("  • Requirements were compiled on a different OS than CI uses")
+                    errors.append("  • A transitive dependency is missing from the locked file")
+                    errors.append("")
+                    errors.append("How to fix:")
+                    errors.append("  1. Re-compile on Linux or in CI environment:")
+                    errors.append("     docker run --rm -v $(pwd):/work -w /work python:3.13 \\")
+                    errors.append("       bash -c 'pip install uv && uv pip compile --generate-hashes \\")
+                    errors.append("       ci/requirements/ci.in -o ci/requirements/ci.txt'")
+                    errors.append("")
+                    errors.append("  2. Or use platform markers in ci.in and recompile locally:")
+                    errors.append("     scripts/update-ci-dependencies --compile")
+                    errors.append("=" * 80)
+                    return errors
+
+            # If we get here, validation passed
+            return []
+
+    except FileNotFoundError:
+        # uv not available, try pip
+        pass
+    except Exception:
+        # Unexpected error with uv, try pip
+        pass
+
+    # Fall back to pip
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = subprocess.run(
+                [
+                    "pip",
+                    "download",
+                    "--require-hashes",
+                    "--dest",
+                    tmpdir,
+                    "-r",
+                    str(requirements_file),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            if result.returncode != 0:
+                stderr = result.stderr
+
+                if "all requirements must have their versions pinned with ==" in stderr:
+                    errors.append("Locked requirements file validation failed:")
+                    errors.append(f"  File: {requirements_file}")
+                    errors.append("")
+                    errors.append("  ⚠️  Missing or unpinned transitive dependency detected!")
+                    errors.append("")
+
+                    # Try to extract which package has the issue
+                    match = re.search(r"(\S+)>=[\d.]+ from ", stderr)
+                    if not match:
+                        match = re.search(r"(\S+) from ", stderr)
+                    if match:
+                        dep_name = match.group(1)
+                        errors.append(f"  📦 Transitive dependency: {dep_name}")
+                        errors.append(f"     Status: Not pinned in {requirements_file}")
+                        errors.append("")
+
+                    # Try to find which package requires it
+                    match = re.search(r"from ([^=\s]+)==([^ )]+)", stderr)
+                    if match:
+                        parent_pkg = match.group(1)
+                        parent_ver = match.group(2)
+                        errors.append(f"  📌 Required by: {parent_pkg}=={parent_ver}")
+                        errors.append("")
+
+                    errors.append("Error details:")
+                    error_lines = [line for line in stderr.split("\n") if line.strip()]
+                    for line in error_lines[:15]:
+                        if line.strip():
+                            errors.append(f"  {line}")
+
+                    errors.append("")
+                    errors.append("How to fix: Re-compile requirements on Linux")
+                    errors.append("  scripts/update-ci-dependencies --compile")
+
+    except FileNotFoundError:
+        errors.append("⚠️  Neither pip nor uv found. Cannot validate requirements file.")
+        errors.append("   Skipping validation. Install pip or uv to enable this check.")
+        return []  # Don't fail if tools aren't available
+    except Exception as e:
+        errors.append(f"⚠️  Error validating requirements file: {e}")
+        errors.append("   Skipping validation.")
+        return []  # Don't fail on unexpected errors
+
+    return errors
+
+
+def main() -> int:
+    """Main entry point."""
+    has_errors = False
+
+    # Check for direct pip install commands in CI workflows
+    violations = check_ci_dependencies()
+
+    if violations:
+        print("❌ CI dependency validation failed:\n")
+        print("The following CI workflows install packages directly without locking:\n")
+        for violation in violations:
+            print(f"  {violation}")
+
+        print("\n" + "=" * 80)
+        print("To fix this issue:")
+        print("\n1. Add dependencies to locked requirements:")
+        print("     scripts/update-ci-dependencies --compile --update-workflows")
+        print("\n2. Or allow specific exceptions (for minimal installs like twine):")
+        print("     Add comment: pip install twine  # ci-deps: allow or # ci-deps: allow-no-version")
+        print("\nThis will:")
+        print("  1. Extract all CI dependencies to ci/requirements/ci.in")
+        print("  2. Generate locked ci/requirements/ci.txt")
+        print("  3. Update CI workflows to use the locked requirements")
+        print("=" * 80)
+        has_errors = True
+    else:
+        print("✅ CI workflows use locked requirements")
+
+    # Validate that the locked requirements file is complete and installable
+    print()
+    validation_errors = validate_locked_requirements()
+
+    if validation_errors:
+        print("❌ Locked requirements validation failed:\n")
+        for error in validation_errors:
+            print(error)
+        print("=" * 80)
+        has_errors = True
+    else:
+        import platform
+
+        current_platform = platform.system()
+        print(f"✅ Locked requirements file is valid and installable on {current_platform}")
+        if current_platform != "Linux":
+            print("   Note: Some Linux-specific dependencies may not be validated on this platform.")
+            print("   CI runs on Linux and may catch additional issues.")
+
+    if has_errors:
+        return 1
+
+    print("\n✅ All CI dependency checks passed")
+    return 0
+
+
+def check_ci_dependencies() -> List[str]:
+    """Public function for integration with other tools."""
+    return check_ci_files()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

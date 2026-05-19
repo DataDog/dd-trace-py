@@ -2,9 +2,7 @@ import functools
 from types import FunctionType
 from types import ModuleType
 from typing import Any
-from typing import Dict
 from typing import Optional
-from typing import Tuple
 from typing import cast
 
 # This module should only be imported after django is imported
@@ -17,6 +15,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.contrib.internal.django.compat import get_resolver
+from ddtrace.contrib.internal.django.patch import _collect_routes_once
 from ddtrace.contrib.internal.django.utils import REQUEST_DEFAULT_RESOURCE
 from ddtrace.contrib.internal.django.utils import _after_request_tags
 from ddtrace.contrib.internal.django.utils import _before_request_tags
@@ -25,6 +24,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -50,7 +50,7 @@ config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
 
 def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext):
     url: Optional[str] = None
-    metadata: Dict[str, str] = {}
+    metadata: dict[str, str] = {}
     query: str = ""
     try:
         metadata = {http.STATUS_CODE: "403", http.METHOD: request.method}
@@ -74,7 +74,7 @@ def _block_request_callable(request, request_headers, ctx: core.ExecutionContext
     raise PermissionDenied()
 
 
-def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Trace django.core.handlers.base.BaseHandler.get_response() (or other implementations).
 
     This is the main entry point for requests.
@@ -105,8 +105,6 @@ def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[
         integration_config=config_django,
         distributed_headers=request_headers,
         activate_distributed_headers=True,
-        # TODO: Migrate all tests to snapshot tests and remove this
-        tracer=config_django._tracer,
     ) as ctx:
         core.dispatch(
             "django.traced_get_response.pre",
@@ -165,11 +163,22 @@ def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[
                         set_blocked(e.args[0])
                         response = blocked_response(e.args[0])
                         return response
+                    except BaseException as exc:
+                        # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
+                        if blocking_exc := find_exception(exc, BlockingException):
+                            set_blocked(blocking_exc.args[0])
+                            response = blocked_response(blocking_exc.args[0])
+                            return response
+                        raise
 
                     if block_config := get_blocked():
                         response = blocked_response(block_config)
 
         finally:
+            # Walk the resolver tree now that middleware has run and may have
+            # set request.urlconf (e.g. per-tenant routing). The WeakSet gate
+            # keeps repeated calls O(1) for already-seen resolvers.
+            _collect_routes_once(get_resolver(getattr(request, "urlconf", None)))
             core.dispatch("django.finalize_response.pre", (ctx, utils._after_request_tags, request, response))
             if not get_blocked():
                 core.dispatch("django.finalize_response", ("Django",))
@@ -179,7 +188,7 @@ def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[
 
 
 async def traced_get_response_async(
-    func: FunctionType, instance: object, args: Tuple[Any, ...], kwargs: Dict[str, Any]
+    func: FunctionType, instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
     """Trace django.core.handlers.base.BaseHandler.get_response() (or other implementations).
 
@@ -202,6 +211,9 @@ async def traced_get_response_async(
     try:
         response = await func(*args, **kwargs)
     finally:
+        # Walk the resolver tree now that middleware has run and may have
+        # set request.urlconf (e.g. per-tenant routing). Mirrors sync path.
+        _collect_routes_once(get_resolver(getattr(request, "urlconf", None)))
         # DEV: Always set these tags, this is where `span.resource` is set
         _after_request_tags(pin, span, request, response)
     return response

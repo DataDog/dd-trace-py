@@ -3,7 +3,6 @@ import contextlib
 from zeep import Client
 from zeep.transports import Transport
 
-from ddtrace.internal.settings._config import config
 from tests.utils import TracerSpanContainer
 from tests.utils import scoped_tracer
 
@@ -34,8 +33,7 @@ def setup_django_test_spans():
     setup_django()
 
     with scoped_tracer() as tracer:
-        config.django._tracer = tracer
-        yield TracerSpanContainer(config.django._tracer)
+        yield TracerSpanContainer(tracer)
 
 
 @contextlib.contextmanager

@@ -2,9 +2,6 @@ from collections import deque
 from types import FunctionType
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
-from typing import Deque  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Tuple  # noqa:F401
 
 from bytecode import Bytecode
 
@@ -15,7 +12,7 @@ from ddtrace.internal.wrapping import set_function_code
 
 
 HookType = Callable[[Any], Any]
-HookInfoType = Tuple[HookType, int, Any]
+HookInfoType = tuple[HookType, int, Any]
 
 HOOK_ARG_PREFIX = "_hook_arg"
 
@@ -90,7 +87,7 @@ def _inject_hook(code: Bytecode, hook: HookType, lineno: int, arg: Any) -> None:
     # occurrences and inject the hook at each of them. An example of when this
     # happens is with finally blocks, which are duplicated at the end of the
     # bytecode.
-    locs: Deque[Tuple[int, str]] = deque()
+    locs: deque[tuple[int, str]] = deque()
     last_lineno = None
     instrs = set()
     for i, instr in enumerate(code):
@@ -141,7 +138,7 @@ def _eject_hook(code: Bytecode, hook: HookType, line: int, arg: Any) -> None:
     The hook is identified by its argument. This ensures that only the right
     hook is ejected.
     """
-    locs: Deque[int] = deque()
+    locs: deque[int] = deque()
     for i, instr in enumerate(code):
         try:
             # DEV: We look at the expected opcode pattern to match the injected
@@ -166,7 +163,7 @@ def _eject_hook(code: Bytecode, hook: HookType, line: int, arg: Any) -> None:
         del code[i : i + len(_INJECT_HOOK_OPCODES)]
 
 
-def inject_hooks(f: FunctionType, hooks: List[HookInfoType]) -> List[HookInfoType]:
+def inject_hooks(f: FunctionType, hooks: list[HookInfoType]) -> list[HookInfoType]:
     """Bulk-inject a list of hooks into a function.
 
     Hooks are specified via a list of tuples, where each tuple contains the hook
@@ -189,7 +186,7 @@ def inject_hooks(f: FunctionType, hooks: List[HookInfoType]) -> List[HookInfoTyp
     return failed
 
 
-def eject_hooks(f: FunctionType, hooks: List[HookInfoType]) -> List[HookInfoType]:
+def eject_hooks(f: FunctionType, hooks: list[HookInfoType]) -> list[HookInfoType]:
     """Bulk-eject a list of hooks from a function.
 
     The hooks are specified via a list of tuples, where each tuple contains the

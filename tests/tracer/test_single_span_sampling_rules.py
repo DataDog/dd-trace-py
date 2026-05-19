@@ -6,6 +6,7 @@ from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
+import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import _get_file_json
@@ -92,6 +93,34 @@ def test_rule_init_via_env_only_name():
 def test_rule_init_via_env_no_name_or_service():
     with override_global_config(dict(_sampling_rules='[{"sample_rate":1.0}]')):
         assert get_span_sampling_rules() == []
+
+
+def test_rule_init_via_env_no_name_or_service_logs_warning_and_continues(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Malformed rule (no service/name) should be skipped with a warning; subsequent valid rules
+    must still be parsed.
+    """
+    # Clear the rate-limiter bucket so a prior test hitting the same log line
+    # (e.g. test_rule_init_via_env_no_name_or_service) doesn't suppress the warning.
+    ddlogger._buckets.clear()
+    rules_json = '[{"sample_rate":1.0}, {"service":"my-service","name":"my-op","sample_rate":0.5}]'
+    with override_global_config(dict(_sampling_rules=rules_json)):
+        sampling_rules = get_span_sampling_rules()
+        sampling_records = [r for r in caplog.record_tuples if r[0] == "ddtrace.internal.sampling"]
+        assert sampling_records == [
+            (
+                "ddtrace.internal.sampling",
+                30,
+                "Sampling rules must supply at least 'service' or 'name', got {\"sample_rate\": 1.0}",
+            )
+        ]
+        assert len(sampling_rules) == 1
+        assert sampling_rules[0]._service_matcher is not None
+        assert sampling_rules[0]._service_matcher.pattern == "my-service"
+        assert sampling_rules[0]._name_matcher is not None
+        assert sampling_rules[0]._name_matcher.pattern == "my-op"
+        assert sampling_rules[0]._sample_rate == 0.5
 
 
 def test_rule_init_via_env_service_pattern_contains_unsupported_char():

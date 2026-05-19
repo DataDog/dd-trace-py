@@ -1,6 +1,4 @@
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
@@ -17,13 +15,11 @@ if TYPE_CHECKING:
 
 
 class TraceCiVisibilityFilter(TraceFilter):
-    def __init__(self, tags, service):
-        # type: (Dict[str, str], str) -> None
+    def __init__(self, tags: dict[str, str], service: str) -> None:
         self._tags = tags
         self._service = service
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: list["Span"]) -> Optional[list["Span"]]:
         if not trace:
             return trace
 
@@ -35,6 +31,6 @@ class TraceCiVisibilityFilter(TraceFilter):
         _set_sampling_tags(local_root, True, 1.0, SamplingMechanism.DEFAULT)
         for span in trace:
             span.set_tags(self._tags)
-            span._set_tag_str(ci.LIBRARY_VERSION, __version__)
+            span._set_attribute(ci.LIBRARY_VERSION, __version__)
 
         return trace

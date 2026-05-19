@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    ASM: Adds a LiteLLM proxy guardrail integration for Datadog AI Guard.
+    The ``ddtrace.appsec.ai_guard.integrations.litellm.DatadogAIGuardGuardrail`` class can be registered as a custom 
+    guardrail in the LiteLLM proxy to evaluate requests and responses against AI Guard security policies. 
+    Requires the LiteLLM proxy guardrails API v2 available since ``litellm>=1.46.1``.

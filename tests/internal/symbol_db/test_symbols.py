@@ -13,6 +13,7 @@ from ddtrace.internal.symbol_db.symbols import ScopeData
 from ddtrace.internal.symbol_db.symbols import ScopeType
 from ddtrace.internal.symbol_db.symbols import Symbol
 from ddtrace.internal.symbol_db.symbols import SymbolType
+from ddtrace.internal.symbol_db.symbols import _line_ranges
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -58,7 +59,7 @@ def test_symbols_class():
         def baz():
             pass
 
-        def gen(n: int = 10, _untyped=None) -> t.Generator[int, None, None]:
+        def gen(n: int = 10, _untyped=None) -> t.Generator[int, None, None]:  # type: ignore[misc]
             yield from range(n)
 
         async def coro(b):
@@ -202,6 +203,8 @@ def test_symbols_to_json():
             }
         ],
         "scopes": [],
+        "injectible_lines": [],
+        "has_injectible_lines": False,
         "language_specifics": {},
     }
 
@@ -258,6 +261,32 @@ def test_benchmark_module_get_from(benchmark, file_size, num_attributes):
     assert result.language_specifics["file_hash"] != ""
 
 
+@pytest.mark.parametrize(
+    "lines,expected",
+    [
+        # Empty input
+        (set(), []),
+        # Single line
+        ({5}, [{"start": 5, "end": 5}]),
+        # Single contiguous range
+        ({1, 2, 3, 4, 5}, [{"start": 1, "end": 5}]),
+        # Two disjoint ranges
+        ({1, 2, 3, 7, 8, 9}, [{"start": 1, "end": 3}, {"start": 7, "end": 9}]),
+        # Multiple single-line ranges (no contiguous pairs)
+        (
+            {1, 3, 5, 7},
+            [{"start": 1, "end": 1}, {"start": 3, "end": 3}, {"start": 5, "end": 5}, {"start": 7, "end": 7}],
+        ),
+        # Mixed: single lines and a run
+        ({10, 20, 21, 22, 30}, [{"start": 10, "end": 10}, {"start": 20, "end": 22}, {"start": 30, "end": 30}]),
+        # Range starting at line 1
+        ({1, 2, 4, 5, 6}, [{"start": 1, "end": 2}, {"start": 4, "end": 6}]),
+    ],
+)
+def test_symbols_injectible_line_ranges(lines, expected):
+    assert _line_ranges(lines) == expected
+
+
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_UPLOAD_ENABLED="1"))
 def test_symbols_upload_enabled():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -276,8 +305,7 @@ def test_symbols_force_upload():
     from ddtrace.internal.symbol_db.symbols import ScopeType
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
-    SymbolDatabaseUploader.install(shallow=False)
-    assert SymbolDatabaseUploader.shallow is False
+    SymbolDatabaseUploader.install()
 
     context = t.cast(SymbolDatabaseUploader, SymbolDatabaseUploader._instance)._context
 
@@ -308,7 +336,7 @@ def test_symbols_timeout_upload():
 
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
-    SymbolDatabaseUploader.install(shallow=False)
+    SymbolDatabaseUploader.install()
     assert SymbolDatabaseUploader.is_installed()
 
     context = t.cast(SymbolDatabaseUploader, SymbolDatabaseUploader._instance)._context

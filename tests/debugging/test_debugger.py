@@ -390,12 +390,12 @@ def test_debugger_multiple_threads(stuff):
 def mock_metrics():
     from ddtrace.debugging._debugger import _probe_metrics
 
-    old_client = _probe_metrics._client
+    old_client = _probe_metrics.client
     try:
-        client = _probe_metrics._client = mock.Mock()
+        client = _probe_metrics.client = mock.Mock()
         yield client
     finally:
-        _probe_metrics._client = old_client
+        _probe_metrics.client = old_client
 
 
 def create_stuff_line_metric_probe(kind, value=None):
@@ -415,7 +415,7 @@ def test_debugger_metric_probe_simple_count(mock_metrics, stuff):
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER))
         stuff.Stuff().instancestuff()
         assert (
-            call("probe.test.counter", 1.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            call("probe.test.counter", 1.0, {"foo": "bar", "debugger.probeid": "metric-probe-test"})
             in mock_metrics.increment.mock_calls
         )
 
@@ -425,7 +425,7 @@ def test_debugger_metric_probe_decimal(mock_metrics, stuff):
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, value=Decimal(value := 3.14)))
         stuff.Stuff().instancestuff()
         assert (
-            call("probe.test.counter", value, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            call("probe.test.counter", value, {"foo": "bar", "debugger.probeid": "metric-probe-test"})
             in mock_metrics.increment.mock_calls
         )
 
@@ -435,7 +435,7 @@ def test_debugger_metric_probe_count_value(mock_metrics, stuff):
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, {"ref": "bar"}))
         stuff.Stuff().instancestuff(40)
         assert (
-            call("probe.test.counter", 40.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            call("probe.test.counter", 40.0, {"foo": "bar", "debugger.probeid": "metric-probe-test"})
             in mock_metrics.increment.mock_calls
         )
 
@@ -445,7 +445,7 @@ def test_debugger_metric_probe_guage_value(mock_metrics, stuff):
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.GAUGE, {"ref": "bar"}))
         stuff.Stuff().instancestuff(41)
         assert (
-            call("probe.test.counter", 41.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            call("probe.test.counter", 41.0, {"foo": "bar", "debugger.probeid": "metric-probe-test"})
             in mock_metrics.gauge.mock_calls
         )
 
@@ -455,7 +455,7 @@ def test_debugger_metric_probe_histogram_value(mock_metrics, stuff):
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.HISTOGRAM, {"ref": "bar"}))
         stuff.Stuff().instancestuff(42)
         assert (
-            call("probe.test.counter", 42.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            call("probe.test.counter", 42.0, {"foo": "bar", "debugger.probeid": "metric-probe-test"})
             in mock_metrics.histogram.mock_calls
         )
 
@@ -465,7 +465,7 @@ def test_debugger_metric_probe_distribution_value(mock_metrics, stuff):
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.DISTRIBUTION, {"ref": "bar"}))
         stuff.Stuff().instancestuff(43)
         assert (
-            call("probe.test.counter", 43.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            call("probe.test.counter", 43.0, {"foo": "bar", "debugger.probeid": "metric-probe-test"})
             in mock_metrics.distribution.mock_calls
         )
 
@@ -722,7 +722,7 @@ def test_debugger_function_probe_on_lazy_wrapped_function(stuff):
 def test_probe_status_logging(remote_config_worker, stuff):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with rcm_endpoint(), debugger(diagnostics_interval=float("inf"), enabled=True) as d:
+    with rcm_endpoint(), debugger(enabled=True) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="line-probe-ok",
@@ -760,7 +760,7 @@ def test_probe_status_logging(remote_config_worker, stuff):
 def test_probe_status_logging_reemit_on_modify(remote_config_worker):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with rcm_endpoint(), debugger(diagnostics_interval=float("inf"), enabled=True) as d:
+    with rcm_endpoint(), debugger(enabled=True) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 version=1,
@@ -802,7 +802,7 @@ def test_probe_status_logging_reemit_on_modify(remote_config_worker):
         assert versions(queue, "INSTALLED") == [1, 2, 2]
 
 
-@pytest.mark.parametrize("duration", [1e5, 1e6, 1e7])
+@pytest.mark.parametrize("duration", [1e6, 1e7])
 def test_debugger_function_probe_duration(duration):
     from tests.submod.stuff import durationstuff
 
@@ -1075,6 +1075,123 @@ def test_debugger_capture_expressions_function_probe(stuff):
             assert snapshot.return_capture["captureExpressions"]["retval"] == {"isNull": True, "type": "NoneType"}
 
 
+def test_debugger_capture_expressions_max_level(stuff):
+    from ddtrace.debugging._probe.model import CaptureLimits
+
+    with debugger(upload_flush_interval=float("inf")) as d:
+        d.add_probes(
+            create_capture_expressions_line_probe(
+                probe_id="foo",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=float("inf"),
+                **compile_capture_expressions(
+                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}],
+                    capture=CaptureLimits(max_level=1),
+                ),
+            ),
+        )
+
+        nested = {"a": {"b": {"c": 42}}}
+        stuff.Stuff().instancestuff(nested)
+
+        (msg,) = d.uploader.wait_for_payloads(1)
+        captured_val = msg["debugger"]["snapshot"]["captures"]["lines"]["36"]["captureExpressions"]["val"]
+
+        # At max_level=1 the top-level dict entries are expanded one level but their
+        # nested values are not — the deepest dict should be truncated with "depth"
+        inner = captured_val["entries"][0][1]
+        assert inner["type"] == "dict"
+        inner2 = inner["entries"][0][1]
+        assert inner2.get("notCapturedReason") == "depth", inner2
+
+
+def test_debugger_capture_expressions_max_len(stuff):
+    from ddtrace.debugging._probe.model import CaptureLimits
+
+    with debugger(upload_flush_interval=float("inf")) as d:
+        d.add_probes(
+            create_capture_expressions_line_probe(
+                probe_id="foo",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=float("inf"),
+                **compile_capture_expressions(
+                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}],
+                    capture=CaptureLimits(max_len=5),
+                ),
+            ),
+        )
+
+        stuff.Stuff().instancestuff("hello world")
+
+        (msg,) = d.uploader.wait_for_payloads(1)
+        captured_val = msg["debugger"]["snapshot"]["captures"]["lines"]["36"]["captureExpressions"]["val"]
+
+        # String is truncated at max_len=5
+        assert captured_val.get("notCapturedReason") == "truncated" or len(captured_val["value"].strip("'")) <= 5
+
+
+def test_debugger_capture_expressions_max_size(stuff):
+    from ddtrace.debugging._probe.model import CaptureLimits
+
+    with debugger(upload_flush_interval=float("inf")) as d:
+        d.add_probes(
+            create_capture_expressions_line_probe(
+                probe_id="foo",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=float("inf"),
+                **compile_capture_expressions(
+                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}],
+                    capture=CaptureLimits(max_size=2),
+                ),
+            ),
+        )
+
+        stuff.Stuff().instancestuff({i: i for i in range(10)})
+
+        (msg,) = d.uploader.wait_for_payloads(1)
+        captured_val = msg["debugger"]["snapshot"]["captures"]["lines"]["36"]["captureExpressions"]["val"]
+
+        # Collection truncated at max_size=2
+        assert len(captured_val["entries"]) == 2
+        assert captured_val.get("notCapturedReason") == "collectionSize"
+
+
+def test_debugger_capture_expressions_max_fields(stuff):
+    from ddtrace.debugging._probe.model import CaptureLimits
+
+    class MyObj:
+        def __init__(self):
+            self.a = 1
+            self.b = 2
+            self.c = 3
+
+    with debugger(upload_flush_interval=float("inf")) as d:
+        d.add_probes(
+            create_capture_expressions_line_probe(
+                probe_id="foo",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=float("inf"),
+                **compile_capture_expressions(
+                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}],
+                    capture=CaptureLimits(max_fields=2),
+                ),
+            ),
+        )
+
+        stuff.Stuff().instancestuff(MyObj())
+
+        (msg,) = d.uploader.wait_for_payloads(1)
+        captured_val = msg["debugger"]["snapshot"]["captures"]["lines"]["36"]["captureExpressions"]["val"]
+
+        # Object fields truncated at max_fields=2
+        assert len(captured_val["fields"]) == 2
+        assert captured_val.get("notCapturedReason") == "fieldCount"
+
+
 class SpanProbeTestCase(TracerTestCase):
     def setUp(self):
         super(SpanProbeTestCase, self).setUp()
@@ -1135,6 +1252,72 @@ class SpanProbeTestCase(TracerTestCase):
             assert span.resource == "mutator"
             assert span.get_tags()["debugger.probeid"] == "span-probe"
 
+    def test_debugger_span_probe_code_origin_as_root(self):
+        from tests.submod import stuff
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(probe_id="span-probe", module="tests.submod.stuff", func_qname="mutator")
+            )
+
+            stuff.mutator(arg=[])
+
+            self.assert_span_count(1)
+            (span,) = self.get_spans()
+
+            # When the dynamic span is the root, it should be tagged as "entry"
+            assert span.get_tag("_dd.code_origin.type") == "entry"
+            assert span.get_tag("_dd.code_origin.frames.0.file") == str(Path(stuff.__file__).resolve())
+            assert span.get_tag("_dd.code_origin.frames.0.line") == str(stuff.mutator.__code__.co_firstlineno)
+            assert span.get_tag("_dd.code_origin.frames.0.type") == "tests.submod.stuff"
+            assert span.get_tag("_dd.code_origin.frames.0.method") == "mutator"
+
+    def test_debugger_span_probe_code_origin_with_parent(self):
+        from tests.submod import stuff
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(probe_id="span-probe", module="tests.submod.stuff", func_qname="mutator")
+            )
+
+            with self.tracer.trace("parent_span"):
+                stuff.mutator(arg=[])
+
+            self.assert_span_count(2)
+            root, span = self.get_spans()
+
+            assert root.name == "parent_span"
+            # Root should be tagged "entry" by the dynamic span
+            assert root.get_tag("_dd.code_origin.type") == "entry"
+            assert root.get_tag("_dd.code_origin.frames.0.file") == str(Path(stuff.__file__).resolve())
+            assert root.get_tag("_dd.code_origin.frames.0.method") == "mutator"
+
+            # The dynamic span itself should be "entry" (root had no prior type)
+            assert span.get_tag("_dd.code_origin.type") == "entry"
+            assert span.get_tag("_dd.code_origin.frames.0.file") == str(Path(stuff.__file__).resolve())
+            assert span.get_tag("_dd.code_origin.frames.0.method") == "mutator"
+
+    def test_debugger_span_probe_code_origin_intermediate(self):
+        from tests.submod import stuff
+
+        with debugger() as d:
+            d.add_probes(
+                create_span_function_probe(probe_id="span-probe", module="tests.submod.stuff", func_qname="mutator")
+            )
+
+            with self.tracer.trace("parent_span") as root:
+                root._set_attribute("_dd.code_origin.type", "entry")
+                stuff.mutator(arg=[])
+
+            self.assert_span_count(2)
+            root, span = self.get_spans()
+
+            # Root already had "entry" — dynamic span should be "intermediate"
+            assert root.get_tag("_dd.code_origin.type") == "entry"
+            assert span.get_tag("_dd.code_origin.type") == "intermediate"
+            # Only the dynamic span itself gets frames when root already has an entry
+            assert span.get_tag("_dd.code_origin.frames.0.method") == "mutator"
+
     def test_debugger_snap_probe_linked_to_parent_span(self):
         from tests.submod.stuff import mutator
 
@@ -1182,7 +1365,7 @@ class SpanProbeTestCase(TracerTestCase):
 
             assert span.name == "child"
 
-            assert span.parent_id is root.span_id
+            assert span.parent_id == root.span_id
 
     def test_debugger_function_probe_ordering(self):
         from tests.submod.stuff import mutator

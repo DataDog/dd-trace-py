@@ -1,66 +1,101 @@
+from __future__ import annotations
+
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+import re
+from typing import TYPE_CHECKING
 from typing import Any
-from typing import Dict
-from typing import List
+from typing import Iterator
 from typing import Optional
-from typing import Set
-from typing import Tuple
+from typing import Sequence
 from typing import Union
+from typing import cast
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import git as _git
+from ddtrace.ext.ci import _filter_sensitive_info
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
-from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
-from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
-from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
-from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
-from ddtrace.llmobs._constants import NAME
-from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
-from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
+from ddtrace.llmobs._constants import ML_APP_DEFAULT
 from ddtrace.llmobs._constants import SESSION_ID
-from ddtrace.llmobs._constants import SPAN_LINKS
-from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
+from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
+from ddtrace.llmobs.types import ToolDefinition
+from ddtrace.llmobs.types import _Meta
+from ddtrace.llmobs.types import _MetaIO
+from ddtrace.llmobs.types import _SpanField
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
 
 
+if TYPE_CHECKING:
+    from ddtrace.llmobs._writer import LLMObsSpanData
+
+
 log = get_logger(__name__)
 
-ValidatedPromptDict = Dict[str, Union[str, Dict[str, Any], List[str], List[Dict[str, str]], List[Message]]]
-
-STANDARD_INTEGRATION_SPAN_NAMES = (
-    CREWAI_APM_SPAN_NAME,
-    GEMINI_APM_SPAN_NAME,
-    LANGCHAIN_APM_SPAN_NAME,
-    VERTEXAI_APM_SPAN_NAME,
-    LITELLM_APM_SPAN_NAME,
-)
+ValidatedPromptDict = dict[str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message]]]
 
 
-def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
+def resolve_llmobs_git_metadata() -> tuple[str, str]:
+    """Return ``(repository_url, commit_sha)`` from ``DD_GIT_*`` env vars or
+    package ``Project-URL``, falling back to ``git`` against the current
+    working directory. Honors ``DD_TRACE_GIT_METADATA_ENABLED``.
+    """
+    if not gitmetadata.config.enabled:
+        return "", ""
+    repository_url, commit_sha, _ = gitmetadata.get_git_tags()
+    if repository_url and commit_sha:
+        return repository_url, commit_sha
+    if not commit_sha:
+        try:
+            commit_sha = _git.extract_commit_sha()
+        except Exception:
+            log.debug("git fallback: extract_commit_sha failed", exc_info=True)
+    if not repository_url:
+        try:
+            repository_url = _filter_sensitive_info(_git.extract_repository_url()) or ""
+        except Exception:
+            log.debug("git fallback: extract_repository_url failed", exc_info=True)
+    return repository_url, commit_sha
+
+
+def get_asyncio():
+    # asyncio must NOT be imported at module level — this module is
+    # loaded at ddtrace.auto startup and an early asyncio import corrupts the
+    # event loop on some platforms.  See test_lazyimport.py.
+    import asyncio
+
+    return asyncio
+
+
+def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
     if not isinstance(prompt, dict):
         raise TypeError(f"Prompt must be a dictionary, received {type(prompt).__name__}.")
 
-    ml_app = config._llmobs_ml_app
+    ml_app = resolve_ml_app()
     prompt_id = prompt.get("id")
     version = prompt.get("version")
+    label = prompt.get("label")
     tags = prompt.get("tags")
     variables = prompt.get("variables")
     template = prompt.get("template")
     chat_template = prompt.get("chat_template")
     ctx_variable_keys = prompt.get("rag_context_variables")
     query_variable_keys = prompt.get("rag_query_variables")
+    prompt_uuid = prompt.get("prompt_uuid")
+    version_uuid = prompt.get("prompt_version_uuid")
 
     if strict_validation:
         if prompt_id is None:
@@ -88,6 +123,8 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
 
     if version and not isinstance(version, str):
         raise TypeError(f"version: {version} must be a string, received {type(version).__name__}")
+    if label and not isinstance(label, str):
+        raise TypeError(f"label: {label} must be a string, received {type(label).__name__}")
 
     if tags:
         if not isinstance(tags, dict):
@@ -124,6 +161,11 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
         for msg in chat_template:
             final_chat_template.append(Message(role=msg["role"], content=msg["content"]))
 
+    if prompt_uuid and not isinstance(prompt_uuid, str):
+        raise TypeError(f"prompt_uuid: {prompt_uuid} must be a string, received {type(prompt_uuid).__name__}")
+    if version_uuid and not isinstance(version_uuid, str):
+        raise TypeError(f"version_uuid: {version_uuid} must be a string, received {type(version_uuid).__name__}")
+
     validated_prompt: ValidatedPromptDict = {}
     if final_prompt_id:
         validated_prompt["id"] = final_prompt_id
@@ -131,6 +173,8 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
         validated_prompt["ml_app"] = ml_app
     if version:
         validated_prompt["version"] = version
+    if label:
+        validated_prompt["label"] = label
     if variables:
         validated_prompt["variables"] = variables
     if template:
@@ -143,6 +187,10 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
         validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = final_ctx_variable_keys
     if final_query_variable_keys:
         validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = final_query_variable_keys
+    if prompt_uuid:
+        validated_prompt["prompt_uuid"] = prompt_uuid
+    if version_uuid:
+        validated_prompt["prompt_version_uuid"] = version_uuid
 
     return validated_prompt
 
@@ -182,65 +230,14 @@ def _get_nearest_llmobs_ancestor(span: Span) -> Optional[Span]:
     return None
 
 
-def _get_span_name(span: Span) -> str:
-    if span.name in STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":
-        return span.resource
-    elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
-        client_name = span.get_tag("openai.request.provider") or "OpenAI"
-        return "{}.{}".format(client_name, span.resource)
-    return span._get_ctx_item(NAME) or span.name
-
-
-def _is_evaluation_span(span: Span) -> bool:
-    """
-    Return whether or not a span is an evaluation span by checking the span's
-    nearest LLMObs span ancestor. Default to 'False'
-    """
-    is_evaluation_span = span._get_ctx_item(IS_EVALUATION_SPAN)
-    if is_evaluation_span:
-        return is_evaluation_span
-    llmobs_parent = _get_nearest_llmobs_ancestor(span)
-    while llmobs_parent:
-        is_evaluation_span = llmobs_parent._get_ctx_item(IS_EVALUATION_SPAN)
-        if is_evaluation_span:
-            return is_evaluation_span
-        llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
-    return False
-
-
-def _get_ml_app(span: Span) -> Optional[str]:
-    """
-    Return the ML app name for a given span, by checking the span's nearest LLMObs span ancestor.
-    Default to the global config LLMObs ML app name otherwise.
-    """
-    ml_app = span._get_ctx_item(ML_APP)
-    if ml_app:
-        return ml_app
-    llmobs_parent = _get_nearest_llmobs_ancestor(span)
-    while llmobs_parent:
-        ml_app = llmobs_parent._get_ctx_item(ML_APP)
-        if ml_app is not None:
-            return ml_app
-        llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
-    return ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app or config.service
-
-
-def _get_session_id(span: Span) -> Optional[str]:
-    """Return the session ID for a given span, by checking the span's nearest LLMObs span ancestor."""
-    session_id = span._get_ctx_item(SESSION_ID)
-    if session_id:
-        return session_id
-    llmobs_parent = _get_nearest_llmobs_ancestor(span)
-    while llmobs_parent:
-        session_id = llmobs_parent._get_ctx_item(SESSION_ID)
-        if session_id is not None:
-            return session_id
-        llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
-    return session_id
-
-
 def _unserializable_default_repr(obj):
     try:
+        # Pydantic v2
+        if hasattr(obj, "model_dump") and callable(obj.model_dump):
+            return obj.model_dump(mode="json")
+        # Pydantic v1
+        if hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
+            return obj.dict()
         return str(obj)
     except Exception:
         log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
@@ -251,10 +248,15 @@ def safe_json(obj, ensure_ascii=True):
     if isinstance(obj, str):
         return obj
     try:
-        # If object is a Pydantic model, convert to JSON serializable dict first using model_dump()
+        # Pydantic v2
         if hasattr(obj, "model_dump") and callable(obj.model_dump):
-            obj = obj.model_dump()
-        return json.dumps(obj, ensure_ascii=ensure_ascii, skipkeys=True, default=_unserializable_default_repr)
+            obj = obj.model_dump(mode="json")
+        # Pydantic v1
+        elif hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
+            obj = obj.dict()
+        return json.dumps(
+            obj, ensure_ascii=ensure_ascii, sort_keys=True, skipkeys=True, default=_unserializable_default_repr
+        )
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
 
@@ -303,7 +305,7 @@ def format_tool_call_arguments(tool_args: str) -> str:
 
 
 def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
-    current_span_links: List[_SpanLink] = span._get_ctx_item(SPAN_LINKS) or []
+    current_span_links: list[_SpanLink] = get_llmobs_span_links(span) or []
     current_span_links.append(
         _SpanLink(
             span_id=span_id,
@@ -311,34 +313,353 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
             attributes={"from": from_io, "to": to_io},
         )
     )
-    span._set_ctx_item(SPAN_LINKS, current_span_links)
+    _annotate_llmobs_span_data(span, span_links=current_span_links)
 
 
-def enforce_message_role(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+def _get_parent_prompt(span: Span) -> Optional[Prompt]:
+    """Check the nearest LLMObs ancestor's _store for a prompt to inherit.
+    We check span._store instead of meta_struct because span._store is guaranteed to exist on the parent,
+    while meta_struct is scrubbed at span finish time.
+    """
+    parent_span = _get_nearest_llmobs_ancestor(span)
+    if parent_span is None:
+        return None
+    return parent_span._get_ctx_item(INPUT_PROMPT)
+
+
+def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
+    """Get the llmobs data from span._meta_struct or return empty dict."""
+    return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
+
+
+def get_llmobs_span_name(span: Span) -> Optional[str]:
+    """Return the span name stored on a span's meta_struct."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.NAME)
+
+
+def resolve_ml_app(ml_app: Optional[str] = None) -> str:
+    """Resolve ML app name, falling back to global config, service name, then default."""
+    return ml_app or config._llmobs_ml_app or config.service or ML_APP_DEFAULT
+
+
+def get_llmobs_ml_app(span: Span) -> Optional[str]:
+    """Return the ML app name stored on a span's meta_struct."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP)
+
+
+def get_llmobs_session_id(span: Span) -> Optional[str]:
+    """Return the session ID stored directly on this span."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID)
+
+
+def get_llmobs_span_kind(span: Span) -> Optional[str]:
+    llmobs_data = _get_llmobs_data_metastruct(span)
+    llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
+    kind = llmobs_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
+    return kind
+
+
+def get_llmobs_parent_id(span: Span) -> Optional[str]:
+    llmobs_data = _get_llmobs_data_metastruct(span)
+    parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
+    return parent_id
+
+
+def get_llmobs_trace_id(span: Span) -> Optional[str]:
+    llmobs_data = _get_llmobs_data_metastruct(span)
+    trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
+    return trace_id
+
+
+_HEX_TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _normalize_wire_trace_id_to_hex(value: Optional[str]) -> Optional[str]:
+    """Normalize a wire-format trace_id to hexadecimal string.
+
+    A 32-char all-digit value is ambiguous between hex and a decimal serialization
+    of a 128-bit int. Leading ``"0"`` or any ``a-f`` marks it as unambiguous hex;
+    otherwise interpret as decimal (as per the wire contract). Non-numeric custom IDs pass through unmodified.
+
+    Note: In the case of trace IDs being submitted on request headers as hex strings, some rare values (~ 1/3.78 M)
+    with 32-char all-[0-9] chars and no leading zero will be incorrectly interpreted as decimal. This is only a risk
+    for hand-crafted/forwarded headers.
+
+    """
+    if value is None or value == "":
+        return None
+    if _HEX_TRACE_ID_RE.match(value.lower()) and (value[0] == "0" or not value.isdigit()):
+        return value
+    if value.isdigit():
+        try:
+            return format_trace_id(int(value))
+        except (ValueError, TypeError):
+            pass
+    log.debug("LLMObs trace_id %r is not canonical hex or a decimal integer; storing as-is.", value)
+    return value
+
+
+def _trace_id_to_wire(value: Optional[str]) -> Optional[str]:
+    """Convert stored hex trace_id to decimal for the distributed header.
+
+    Older dd-trace-py versions parse this header with ``int(x)`` (no base arg),
+    which rejects ``a-f``, so the wire must stay decimal.
+    """
+    if not value:
+        return None
+    if _HEX_TRACE_ID_RE.match(value.lower()):
+        try:
+            return str(int(value, 16))
+        except ValueError:
+            log.debug("Failed to convert hex LLMObs trace_id %r to decimal; sending as-is.", value)
+            return value
+    return value
+
+
+def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS)
+
+
+def get_llmobs_cost_tags(span: Span) -> Optional[list[str]]:
+    metadata = _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA, {})
+    metadata_dd = metadata.get(LLMOBS_STRUCT.METADATA_DD, {})
+    if not isinstance(metadata_dd, dict):
+        return None
+    return metadata_dd.get(LLMOBS_STRUCT.COST_TAGS)
+
+
+def get_llmobs_metrics(span: Span) -> Optional[dict[str, Any]]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS)
+
+
+def get_llmobs_span_links(span: Span) -> Optional[list]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SPAN_LINKS)
+
+
+def get_llmobs_input(span: Span) -> _MetaIO:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {})
+
+
+def get_llmobs_input_value(span: Span) -> Optional[str]:
+    return get_llmobs_input(span).get(LLMOBS_STRUCT.VALUE)
+
+
+def get_llmobs_input_messages(span: Span) -> Optional[list]:
+    return get_llmobs_input(span).get(LLMOBS_STRUCT.MESSAGES)
+
+
+def get_llmobs_input_documents(span: Span) -> Optional[list]:
+    return get_llmobs_input(span).get(LLMOBS_STRUCT.DOCUMENTS)
+
+
+def get_llmobs_input_prompt(span: Span) -> Optional[Any]:
+    return get_llmobs_input(span).get(LLMOBS_STRUCT.PROMPT)
+
+
+def get_llmobs_output(span: Span) -> _MetaIO:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT, {})
+
+
+def get_llmobs_output_value(span: Span) -> Optional[str]:
+    output_data = get_llmobs_output(span)
+    if not isinstance(output_data, dict):
+        return None
+    return output_data.get(LLMOBS_STRUCT.VALUE)
+
+
+def get_llmobs_output_messages(span: Span) -> Optional[list]:
+    return get_llmobs_output(span).get(LLMOBS_STRUCT.MESSAGES)
+
+
+def get_llmobs_output_documents(span: Span) -> Optional[list]:
+    return get_llmobs_output(span).get(LLMOBS_STRUCT.DOCUMENTS)
+
+
+def get_llmobs_model_name(span: Span) -> Optional[str]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_NAME)
+
+
+def get_llmobs_model_provider(span: Span) -> Optional[str]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_PROVIDER)
+
+
+def get_llmobs_metadata(span: Span) -> Optional[dict[str, Any]]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA)
+
+
+def _annotate_llmobs_span_data(
+    span: Span,
+    name: Optional[str] = None,
+    kind: Optional[str] = None,
+    ml_app: Optional[str] = None,
+    model_name: Optional[str] = None,
+    model_provider: Optional[str] = None,
+    metadata: Optional[dict[str, Any]] = None,
+    metrics: Optional[dict[str, Any]] = None,
+    tags: Optional[dict[str, str]] = None,
+    cost_tags: Optional[list[str]] = None,
+    input_messages: Optional[list[Message]] = None,
+    input_value: Optional[Any] = None,
+    input_documents: Optional[list[Document]] = None,
+    prompt: Optional[Union[Prompt, ValidatedPromptDict]] = None,
+    output_messages: Optional[list[Message]] = None,
+    output_value: Optional[Any] = None,
+    output_documents: Optional[list[Document]] = None,
+    tool_definitions: Optional[list[ToolDefinition]] = None,
+    session_id: Optional[str] = None,
+    span_links: Optional[list[_SpanLink]] = None,
+    agent_manifest: Optional[dict[str, Any]] = None,
+    config: Optional[dict[str, Any]] = None,
+    expected_output: Optional[Any] = None,
+    experiment_input: Optional[str] = None,
+    experiment_output: Optional[str] = None,
+    intent: Optional[str] = None,
+    parent_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
+    dd_scope: Optional[str] = None,
+) -> None:
+    """Annotate llmobs data on span meta_struct field.
+
+    metadata, metrics, and tags are updated on any existing metadata/metrics/tags
+    instead of being overwritten.
+    cost_tags must be pre-validated by the caller before being passed here.
+    ml_app, session_id, and input_prompt involve being propagated to children spans
+    so are additionally stored on span._store to ensure they are available at span finish time.
+    """
+    llmobs_span_data = _get_llmobs_data_metastruct(span)
+    try:
+        # Initialize nested dict structure upfront
+        meta = llmobs_span_data.setdefault(LLMOBS_STRUCT.META, _Meta())
+        meta.setdefault(LLMOBS_STRUCT.INPUT, _MetaIO())
+        meta.setdefault(LLMOBS_STRUCT.OUTPUT, _MetaIO())
+        meta.setdefault(LLMOBS_STRUCT.SPAN, _SpanField(kind=kind or ""))
+        meta.setdefault(LLMOBS_STRUCT.METADATA, {})
+        llmobs_span_data.setdefault(LLMOBS_STRUCT.TAGS, {})
+        llmobs_span_data.setdefault(LLMOBS_STRUCT.METRICS, {})
+        llmobs_span_data.setdefault(LLMOBS_STRUCT.DD, {})
+
+        if name is not None:
+            llmobs_span_data[LLMOBS_STRUCT.NAME] = name
+        if ml_app is not None:
+            llmobs_span_data[LLMOBS_STRUCT.ML_APP] = ml_app
+            llmobs_span_data[LLMOBS_STRUCT.TAGS]["ml_app"] = ml_app
+            span._set_ctx_item(ML_APP, ml_app)
+        if parent_id is not None:
+            llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = parent_id
+        if trace_id is not None:
+            llmobs_span_data[LLMOBS_STRUCT.TRACE_ID] = trace_id
+        if kind is not None:
+            meta[LLMOBS_STRUCT.SPAN][LLMOBS_STRUCT.KIND] = kind
+        if model_name is not None:
+            meta[LLMOBS_STRUCT.MODEL_NAME] = model_name
+        if model_provider is not None:
+            meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
+        if metadata is not None:
+            meta[LLMOBS_STRUCT.METADATA].update(metadata)
+        if agent_manifest is not None or cost_tags is not None:
+            # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
+            metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
+            if agent_manifest is not None:
+                metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
+            if cost_tags is not None:
+                existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
+                for cost_tag in cost_tags:
+                    if cost_tag not in existing_cost_tags:
+                        existing_cost_tags.append(cost_tag)
+        if metrics is not None:
+            llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
+        if tags is not None:
+            llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
+        if session_id is not None:
+            llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
+            llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = session_id
+            span._set_ctx_item(SESSION_ID, session_id)
+        if span_links is not None:
+            llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
+        if config is not None:
+            llmobs_span_data[LLMOBS_STRUCT.CONFIG] = config
+        # Add I/O messages to messages field only for LLM spans, otherwise add to value field
+        is_llm = meta[LLMOBS_STRUCT.SPAN].get(LLMOBS_STRUCT.KIND) == "llm"
+        if input_messages is not None:
+            if is_llm:
+                meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.MESSAGES] = input_messages
+            else:
+                meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = safe_json(input_messages, ensure_ascii=False) or ""
+        if input_value is not None:
+            meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = safe_json(input_value, ensure_ascii=False) or ""
+        if input_documents is not None:
+            meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.DOCUMENTS] = input_documents
+        if prompt is not None:
+            existing_prompt = meta[LLMOBS_STRUCT.INPUT].setdefault(LLMOBS_STRUCT.PROMPT, cast(Prompt, {}))
+            existing_prompt.update(cast(Prompt, prompt))
+            span._set_ctx_item(INPUT_PROMPT, existing_prompt)
+        if output_messages is not None:
+            if is_llm:
+                meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.MESSAGES] = output_messages
+            else:
+                meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = safe_json(output_messages, ensure_ascii=False) or ""
+        if output_value is not None:
+            meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = safe_json(output_value, ensure_ascii=False) or ""
+        if output_documents is not None:
+            meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.DOCUMENTS] = output_documents
+        if tool_definitions is not None:
+            meta[LLMOBS_STRUCT.TOOL_DEFINITIONS] = tool_definitions
+        if expected_output is not None:
+            meta[LLMOBS_STRUCT.EXPECTED_OUTPUT] = expected_output
+        if experiment_input is not None:
+            meta[LLMOBS_STRUCT.INPUT] = experiment_input  # type: ignore[typeddict-item]
+        if experiment_output is not None:
+            meta[LLMOBS_STRUCT.OUTPUT] = experiment_output  # type: ignore[typeddict-item]
+        if intent is not None:
+            meta[LLMOBS_STRUCT.INTENT] = intent
+        if dd_scope is not None:
+            llmobs_span_data[LLMOBS_STRUCT.DD][LLMOBS_STRUCT.SCOPE] = dd_scope
+    except Exception as e:
+        log.warning("Error auto-annotating llmobs data: %s", e)
+    finally:
+        span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_span_data))
+
+
+def enforce_message_role(messages: list[Message]) -> list[Message]:
     """Enforce that each message includes a role (empty "" by default) field."""
     for message in messages:
         message.setdefault("role", "")
     return messages
 
 
-def convert_tags_dict_to_list(tags: Dict[str, str]) -> List[str]:
+def validate_tags_list(tags: list[str]) -> None:
+    if not isinstance(tags, list):
+        raise TypeError("Tags must be a list of strings")
+    for tag in tags:
+        if not isinstance(tag, str):
+            raise TypeError("Each tag must be a string")
+        if ":" not in tag:
+            raise ValueError(f"Tag '{tag}' is malformed. Tags must be in 'key:value' format (e.g., 'env:prod').")
+
+
+def convert_tags_dict_to_list(tags: dict[str, str]) -> list[str]:
     if not tags:
         return []
     return [f"{key}:{value}" for key, value in tags.items()]
 
 
+def _batched(iterable: Sequence, n: int) -> Iterator[Sequence]:
+    for i in range(0, len(iterable), n):
+        yield iterable[i : i + n]
+
+
 @dataclass
 class TrackedToolCall:
     """
-    Holds information about a tool call and it's associated LLM/Tool spans
+    Holds information about a tool call and its associated LLM/Tool spans
     for span linking purposes.
     """
 
     tool_id: str
     tool_name: str
     arguments: str
-    llm_span_context: Dict[str, str]  # span/trace id of the LLM span that initiated this tool call
-    tool_span_context: Optional[Dict[str, str]] = None  # span/trace id of the tool span that executed this call
+    llm_span_context: dict[str, str]  # span/trace id of the LLM span that initiated this tool call
+    tool_span_context: Optional[dict[str, str]] = None  # span/trace id of the tool span that executed this call
     tool_kind: str = "function"  # one of "function", "handoff"
 
 
@@ -351,14 +672,14 @@ class LinkTracker:
     - Linking LLM spans to their associated guardrail spans and vice versa
     """
 
-    def __init__(self):
-        self._tool_calls: Dict[str, TrackedToolCall] = {}  # maps tool id's to tool call data
-        self._lookup_tool_id: Dict[Tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
-        self._active_guardrail_spans: Set[Span] = set()
+    def __init__(self) -> None:
+        self._tool_calls: dict[str, TrackedToolCall] = {}  # maps tool id's to tool call data
+        self._lookup_tool_id: dict[tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
+        self._active_guardrail_spans: set[Span] = set()
         self._last_llm_span: Optional[Span] = None
 
     def on_llm_tool_choice(
-        self, tool_id: str, tool_name: str, arguments: str, llm_span_context: Dict[str, str]
+        self, tool_id: str, tool_name: str, arguments: str, llm_span_context: dict[str, str]
     ) -> None:
         """
         Called when an llm span finishes. This is used to save the tool choice information generated by an LLM
@@ -385,8 +706,8 @@ class LinkTracker:
     ) -> None:
         """
         Called when a tool span finishes. This is used to link the input of the tool span to the output
-        of the LLM span responsible for generating it's input. We also save the span/trace id of the tool call
-        so that we can link to the input of an LLM span if it's output is used in an LLM call.
+        of the LLM span responsible for generating its input. We also save the span/trace id of the tool call
+        so that we can link to the input of an LLM span if its output is used in an LLM call.
 
         If possible, we use the tool_id provided to lookup the tool call; otherwise, we perform a best effort
         lookup based on the tool_name and tool_arg.

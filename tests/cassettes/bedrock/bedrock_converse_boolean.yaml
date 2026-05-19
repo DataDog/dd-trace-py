@@ -1,0 +1,21 @@
+interactions:
+- request:
+    body: '{"system":[{"text":"Judge"}],"messages":[{"role":"user","content":[{"text":"test"}]}],"inferenceConfig":{"temperature":0.5,"maxTokens":1024},"outputConfig":{"textFormat":{"type":"json_schema","structure":{"jsonSchema":{"name":"evaluation","schema":"{\"type\":\"object\",\"properties\":{\"eval\":{\"type\":\"boolean\"}},\"required\":[\"eval\"]}"}}}}}'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-3-sonnet-20240229-v1%3A0/converse
+  response:
+    body:
+      string: '{"metrics":{"latencyMs":500},"output":{"message":{"content":[{"text":"{\"eval\":
+        true}"}],"role":"assistant"}},"stopReason":"end_turn","usage":{"inputTokens":50,"outputTokens":20,"totalTokens":70}}'
+    headers:
+      Content-Type:
+      - application/json
+      x-amzn-RequestId:
+      - test-request-id-001
+    status:
+      code: 200
+      message: OK
+version: 1

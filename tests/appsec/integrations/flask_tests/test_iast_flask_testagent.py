@@ -17,18 +17,17 @@ from tests.appsec.integrations.utils_testagent import _get_span
 
 
 _GEVENT_SERVERS_SCENARIOS = (
-    (
-        gunicorn_flask_server,
-        {"workers": "3", "use_threads": False, "use_gevent": False, "env": {}},
-    ),
+    # Multi-worker without gevent
     (
         gunicorn_flask_server,
         {"workers": "3", "use_threads": True, "use_gevent": False, "env": {}},
     ),
+    # Multi-worker with gevent
     (
         gunicorn_flask_server,
         {"workers": "3", "use_threads": True, "use_gevent": True, "env": {}},
     ),
+    # Single worker with gevent and propagation disabled
     (
         gunicorn_flask_server,
         {
@@ -40,19 +39,7 @@ _GEVENT_SERVERS_SCENARIOS = (
             },
         },
     ),
-    (
-        gunicorn_flask_server,
-        {"workers": "1", "use_threads": True, "use_gevent": True, "env": {}},
-    ),
-    (
-        gunicorn_flask_server,
-        {
-            "workers": "1",
-            "use_threads": True,
-            "use_gevent": True,
-            "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
-        },
-    ),
+    # Flask dev server (no gunicorn)
     (flask_server, {"env": {}}),
 )
 

@@ -1,7 +1,5 @@
 from typing import Any
-from typing import Dict
 from typing import Optional
-from typing import Tuple
 
 from ddtrace._trace.span import Span
 from ddtrace.internal.constants import MAX_UINT_64BITS
@@ -26,7 +24,7 @@ class SamplingRule(object):
         service: Optional[str] = None,
         name: Optional[str] = None,
         resource: Optional[str] = None,
-        tags: Optional[Dict[str, Any]] = None,
+        tags: Optional[dict[str, Any]] = None,
         provenance: str = "default",
     ) -> None:
         """
@@ -78,7 +76,7 @@ class SamplingRule(object):
         self._sampling_id_threshold = sample_rate * MAX_UINT_64BITS
 
     @cachedmethod()
-    def name_match(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
+    def name_match(self, key: tuple[Optional[str], str, Optional[str]]) -> bool:
         service, name, resource = key
         for prop, pattern in ((service, self.service), (name, self.name), (resource, self.resource)):
             # perf: If a pattern is not matched we can skip the rest of the checks and return False
@@ -101,29 +99,29 @@ class SamplingRule(object):
         if not self.tags:
             return True
 
-        meta = span._meta or {}
-        metrics = span._metrics or {}
-        if not meta and not metrics:
-            return False
-
         for tag_key, pattern in self.tags.items():
-            value = meta.get(tag_key, metrics.get(tag_key))
-            if value is None:
-                # If the tag is not present, we failed the match
-                # (Metrics and meta do not support the value None)
-                return False
+            # Check first for an explicit str value
+            value = span._get_str_attribute(tag_key)
 
-            if isinstance(value, float):
-                # Floats: Convert floats that represent integers to int for matching. This is because
-                # SamplingRules only support integers for matfching or glob patterns.
-                if value.is_integer():
-                    value = int(value)
-                elif set(pattern.pattern) - {"?", "*"}:
+            # Otherwise, check for a numeric value
+            if value is None:
+                num_val = span._get_numeric_attribute(tag_key)
+                if num_val is None:
+                    # If the tag is not present as a str or float value, we failed the match
+                    return False
+
+                # SamplingRules only support integers for matching or glob patterns.
+                if isinstance(num_val, int) or num_val.is_integer():
+                    value = str(int(num_val))
+                elif not pattern.wildcards_only:
                     # Only match floats to patterns that only contain wildcards (ex: * or ?*)
                     # This is because we do not want to match floats to patterns like `23.*`.
                     return False
+                else:
+                    # A float and a wildcards-only pattern
+                    value = str(num_val)
 
-            if not pattern.match(str(value)):
+            if not pattern.match(value):
                 return False
 
         return True

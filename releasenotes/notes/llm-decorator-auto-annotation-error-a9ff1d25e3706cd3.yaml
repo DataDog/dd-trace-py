@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the ``@llm`` decorator raised a
+    ``LLMObsAnnotateSpanError`` exception when
+    a decorated function returned a value that could not be parsed as LLM messages.
+    Note that manual annotation still overrides this automatic annotation.

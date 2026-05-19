@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    Tracing: ``DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED`` is deprecated and will be removed in 5.0.0.
+    Use ``DD_TRACE_INFERRED_SPANS_ENABLED`` instead. The old environment variable continues to work
+    but emits a ``DDTraceDeprecationWarning`` when set.

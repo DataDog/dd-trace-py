@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where Anthropic LLM spans were dropped when streaming
+    responses from Anthropic beta API features with tool use, such as ``tool_search_tool_regex``.

@@ -7,7 +7,6 @@ import os
 from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import Optional
-from typing import Type
 from typing import cast
 
 from typing_extensions import Self
@@ -39,6 +38,7 @@ class MemoryCollector:
         max_nframe: Optional[int] = None,
         heap_sample_size: Optional[int] = None,
         ignore_profiler: Optional[bool] = None,
+        mem_domain_enabled: Optional[bool] = None,
     ) -> None:
         self.max_nframe = cast(int, max_nframe if max_nframe is not None else config.max_frames)
         self.heap_sample_size = cast(
@@ -46,27 +46,22 @@ class MemoryCollector:
             heap_sample_size if heap_sample_size is not None else config.heap.sample_size,  # pyright: ignore
         )
         self.ignore_profiler = cast(bool, ignore_profiler if ignore_profiler is not None else config.ignore_profiler)
+        mem_default: bool = config.memory.mem_domain_enabled
+        self.mem_domain_enabled = mem_domain_enabled if mem_domain_enabled is not None else mem_default
 
     def start(self) -> None:
         """Start collecting memory profiles."""
         if _memalloc is None:
             raise collector.CollectorUnavailable
 
-        # Ensure threading module structures are available before starting memalloc
-        # The C++ code directly accesses threading._active, threading._limbo, and
-        # ddtrace.internal._threads.periodic_threads dictionaries to get thread info.
-        # The threading module is already imported at the top of this file.
-        # We import _threads here to ensure periodic_threads dict exists.
-        import ddtrace.internal._threads  # noqa: F401
-
         try:
-            _memalloc.start(self.max_nframe, self.heap_sample_size)
+            _memalloc.start(self.max_nframe, self.heap_sample_size, self.mem_domain_enabled)
         except RuntimeError:
             # This happens on fork because we don't call the shutdown hook since
             # the thread responsible for doing so is not running in the child
             # process. Therefore we stop and restart the collector instead.
             _memalloc.stop()
-            _memalloc.start(self.max_nframe, self.heap_sample_size)
+            _memalloc.start(self.max_nframe, self.heap_sample_size, self.mem_domain_enabled)
 
     def __enter__(self) -> Self:
         self.start()
@@ -74,7 +69,7 @@ class MemoryCollector:
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
+        exc_type: Optional[type[BaseException]],
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:

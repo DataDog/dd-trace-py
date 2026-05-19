@@ -3,6 +3,7 @@ set -e
 
 rm -rf pygoat || true
 tar -xf tests/appsec/integrations/pygoat_tests/fixtures/pygoat.xz -C .
+pip --version
 pip install -r pygoat/requirements.txt
 pip install --no-cache-dir --force-reinstall pyyaml==6.0.1 --global-option='--without-libyaml'
 python3 pygoat/manage.py migrate

@@ -2,7 +2,6 @@ import copy
 from decimal import Decimal
 import json
 from typing import Any
-from typing import Dict
 from typing import Optional
 
 from ddtrace import config
@@ -73,7 +72,7 @@ class AWSPayloadTagging:
         self.request_redaction_paths = None
         self.response_redaction_paths = None
 
-    def expand_payload_as_tags(self, span: Span, result: Dict[str, Any], key: str) -> None:
+    def expand_payload_as_tags(self, span: Span, result: dict[str, Any], key: str) -> None:
         """
         Expands the JSON payload from various AWS services into tags and sets them on the Span.
         """
@@ -133,7 +132,7 @@ class AWSPayloadTagging:
 
         return True
 
-    def _redact_json(self, data: Dict[str, Any], span: Span, paths: list) -> None:
+    def _redact_json(self, data: dict[str, Any], span: Span, paths: list) -> None:
         """
         Redact sensitive data in the JSON payload based on default and user-provided JSONPath expressions
         """

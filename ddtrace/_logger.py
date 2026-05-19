@@ -133,21 +133,19 @@ def _add_file_handler(
 def _configure_ddtrace_native_logger():
     try:
         from ddtrace.internal.native._native import logger
-        from ddtrace.internal.settings._config import config
 
-        if config._trace_writer_native:
-            backend = get_config("_DD_NATIVE_LOGGING_BACKEND")
-            if not backend:
-                return
-            kwargs = {"output": backend}
-            if backend == "file":
-                kwargs["path"] = get_config("_DD_NATIVE_LOGGING_FILE_PATH", "native.log", report_telemetry=True)
-                kwargs["max_size_bytes"] = get_config(
-                    "_DD_NATIVE_LOGGING_FILE_SIZE_BYTES", 4096, int, report_telemetry=True
-                )
-                kwargs["max_files"] = get_config("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int, report_telemetry=True)
+        backend = get_config("_DD_NATIVE_LOGGING_BACKEND")
+        if not backend:
+            return
+        kwargs = {"output": backend}
+        if backend == "file":
+            kwargs["path"] = get_config("_DD_NATIVE_LOGGING_FILE_PATH", "native.log", report_telemetry=True)
+            kwargs["max_size_bytes"] = get_config(
+                "_DD_NATIVE_LOGGING_FILE_SIZE_BYTES", 4096, int, report_telemetry=True
+            )
+            kwargs["max_files"] = get_config("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int, report_telemetry=True)
 
-            logger.configure(**kwargs)
-            logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", "warning", report_telemetry=True))
+        logger.configure(**kwargs)
+        logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", "warning", report_telemetry=True))
     except Exception:
         log.warning("Failed to initialize native logger", exc_info=True)

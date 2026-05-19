@@ -1,30 +1,27 @@
 import platform
 import sys
 import sysconfig
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Iterable  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Tuple  # noqa:F401
 
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.cache import callonce
 from ddtrace.version import __version__
 
 from ..hostname import get_hostname
+from ..logger import get_logger
 
 
-def _format_version_info(vi):
-    # type: (sys._version_info) -> str
+log = get_logger(__name__)
+
+
+def _format_version_info(vi: "sys._version_info") -> str:
     """Converts sys.version_info into a string with the format x.x.x"""
     return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
 
 
-def _get_container_id():
-    # type: () -> str
+def _get_container_id() -> str:
     """Get ID from docker container"""
     container_info = get_container_info()
     if container_info:
@@ -32,8 +29,7 @@ def _get_container_id():
     return ""
 
 
-def _get_os_version():
-    # type: () -> str
+def _get_os_version() -> str:
     """Returns the os version for applications running on Mac or Windows 32-bit"""
     try:
         mver, _, _ = platform.mac_ver()
@@ -51,8 +47,7 @@ def _get_os_version():
 
 
 @cached()
-def _get_application(key):
-    # type: (Tuple[str, str, str]) -> Dict
+def _get_application(key: tuple[str, str, str]) -> dict:
     """
     This helper packs and unpacks get_application arguments to support caching.
     Cached() annotation only supports functions with one argument
@@ -76,60 +71,32 @@ def _get_application(key):
     return application
 
 
-def update_imported_dependencies(already_imported: Dict[str, str], new_modules: Iterable[str]) -> List[Dict[str, str]]:
-    deps = []
-
-    for module_name in new_modules:
-        dists = get_module_distribution_versions(module_name)
-        if not dists:
-            continue
-
-        name, version = dists
-        if name == "ddtrace":
-            continue
-
-        if name in already_imported:
-            continue
-
-        already_imported[name] = version
-        deps.append({"name": name, "version": version})
-
-    return deps
-
-
-def get_application(service, version, env):
-    # type: (str, str, str) -> Dict
+def get_application(service: str, version: str, env: str) -> dict:
     """Creates a dictionary to store application data using ddtrace configurations and the System-Specific module"""
     # We cache the application dict to reduce overhead since service, version, or env configurations
     # can change during runtime
     return _get_application((service, version, env))
 
 
-_host_info = None
-
-
-def get_host_info():
-    # type: () -> Dict
-    """Creates a dictionary to store host data using the platform module"""
-    global _host_info
-    if _host_info is None:
-        _host_info = {
-            "os": platform.system(),
-            "hostname": get_hostname(),
-            "os_version": _get_os_version(),
-            "kernel_name": platform.system(),
-            "kernel_release": platform.release(),
-            "kernel_version": platform.version(),
-            "container_id": _get_container_id(),
-        }
-    return _host_info
+@callonce
+def get_host_info() -> dict:
+    """Creates a dictionary to store host data using the platform module."""
+    return {
+        "os": platform.system(),
+        "hostname": get_hostname(),
+        "os_version": _get_os_version(),
+        "kernel_name": platform.system(),
+        "kernel_release": platform.release(),
+        "kernel_version": platform.version(),
+        "container_id": _get_container_id(),
+    }
 
 
 def _get_sysconfig_var(key: str) -> str:
     return sysconfig.get_config_var(key) or ""
 
 
-def get_python_config_vars() -> List[Tuple[str, str, str]]:
+def get_python_config_vars() -> list[tuple[str, str, str]]:
     # DEV: Use "unknown" since these aren't user or dd defined values
     return [
         ("python_soabi", _get_sysconfig_var("SOABI"), "unknown"),

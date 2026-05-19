@@ -1,5 +1,3 @@
-from typing import Dict
-
 import gevent
 import gevent.pool
 
@@ -13,12 +11,11 @@ __IMap = gevent.pool.IMap
 __IMapUnordered = gevent.pool.IMapUnordered
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(gevent, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"gevent": ">=21.1.2"}
 
 

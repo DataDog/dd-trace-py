@@ -1,11 +1,21 @@
-import os
 from typing import Optional  # noqa:F401
 
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from .http import HttpConfig
+
+
+def _integration_env_var_id(name: str) -> str:
+    """Build the env var identifier portion for an integration name.
+
+    Hyphens are not valid POSIX identifiers, so normalize them to underscores
+    so env vars are usable from shells. Used to derive ``DD_<id>_SERVICE``,
+    ``DD_TRACE_<id>_ENABLED``, etc. from an integration name.
+    """
+    return name.upper().replace("-", "_")
 
 
 class IntegrationConfig(AttrDict):
@@ -45,17 +55,9 @@ class IntegrationConfig(AttrDict):
         self.setdefault("analytics_enabled", False)
         self.setdefault("analytics_sample_rate", 1.0)
 
-        service = os.getenv(
-            "DD_%s_SERVICE" % name.upper(),
-            default=os.getenv(
-                "DD_%s_SERVICE_NAME" % name.upper(),
-                default=None,
-            ),
-        )
+        env_var_id = _integration_env_var_id(name)
+        service = env.get(f"DD_{env_var_id}_SERVICE", default=None)
         self.setdefault("service", service)
-        # TODO[v1.0]: this is required for backwards compatibility since some
-        # integrations use service_name instead of service. These should be
-        # unified.
         self.setdefault("service_name", service)
 
         object.__setattr__(
@@ -68,7 +70,7 @@ class IntegrationConfig(AttrDict):
 
     def get_http_tag_query_string(self, value):
         if self.global_config._http_tag_query_string:
-            dd_http_server_tag_query_string = value if value else os.getenv("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")
+            dd_http_server_tag_query_string = value if value else env.get("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")
             # If invalid value, will default to True
             return dd_http_server_tag_query_string.lower() not in ("false", "0")
         return False

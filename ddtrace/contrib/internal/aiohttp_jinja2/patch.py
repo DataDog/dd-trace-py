@@ -1,5 +1,3 @@
-from typing import Dict
-
 import aiohttp_jinja2
 
 from ddtrace import config
@@ -19,12 +17,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(aiohttp_jinja2, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"aiohttp_jinja2": ">=1.5.0"}
 
 
@@ -44,9 +41,9 @@ def traced_render_template(aiohttp_jinja2, pin, func, instance, args, kwargs):
     template_meta = "%s/%s" % (template_prefix, template_name)
 
     with tracer.trace("aiohttp.template", span_type=SpanTypes.TEMPLATE) as span:
-        span._set_tag_str(COMPONENT, config.aiohttp_jinja2.integration_name)
+        span._set_attribute(COMPONENT, config.aiohttp_jinja2.integration_name)
 
-        span._set_tag_str("aiohttp.template", template_meta)
+        span._set_attribute("aiohttp.template", template_meta)
         return func(*args, **kwargs)
 
 

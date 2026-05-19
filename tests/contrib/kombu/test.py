@@ -3,6 +3,7 @@ import kombu
 import mock
 import pytest
 
+from ddtrace import config
 from ddtrace.contrib.internal.kombu import utils
 from ddtrace.contrib.internal.kombu.patch import patch
 from ddtrace.contrib.internal.kombu.patch import unpatch
@@ -228,6 +229,18 @@ class TestKombuSchematization(TracerTestCase):
         assert spans[0].name == "kombu.send", "Expected kombu.send, got {}".format(spans[0].name)
         assert spans[1].name == "kombu.process", "Expected kombu.process, got {}".format(spans[1].name)
 
+    @TracerTestCase.run_in_subprocess()
+    def test_programmatic_service_config_applied_to_both_pins(self):
+        """config.kombu['service'] set before patch() is reflected in both producer and consumer pins."""
+        unpatch()
+        config.kombu["service"] = "custom-kombu"
+        patch()
+
+        spans = self._create_schematized_spans()
+        assert len(spans) == 2, f"Expected 2 spans, got {len(spans)}"
+        assert spans[0].service == "custom-kombu", f"Producer service: {spans[0].service}"
+        assert spans[1].service == "custom-kombu", f"Consumer service: {spans[1].service}"
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_producer(self):
         """
@@ -304,6 +317,27 @@ class TestKombuDsm(TracerTestCase):
         self.assertEqual(results[0], to_publish)
         return queue_name
 
+    def _assert_dsm_pathway_stats(self, pathway_stats, out_tags, in_tags):
+        def _entry_for_tags(expected_tags):
+            matching_entries = [
+                (hash_value, parent_hash, stats)
+                for (tags, hash_value, parent_hash), stats in pathway_stats.items()
+                if tags == expected_tags
+            ]
+            assert len(matching_entries) == 1
+            hash_value, parent_hash, stats = matching_entries[0]
+            return hash_value, parent_hash, stats
+
+        out_hash, out_parent_hash, out_stats = _entry_for_tags(out_tags)
+        assert out_parent_hash == 0
+        assert out_stats.full_pathway_latency.count == 1
+        assert out_stats.edge_latency.count == 1
+
+        _in_hash, in_parent_hash, in_stats = _entry_for_tags(in_tags)
+        assert in_parent_hash == out_hash
+        assert in_stats.full_pathway_latency.count == 1
+        assert in_stats.edge_latency.count == 1
+
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     @mock.patch("time.time", mock.MagicMock(return_value=1642544540))
     def test_data_streams_basic(self):
@@ -314,11 +348,7 @@ class TestKombuDsm(TracerTestCase):
 
         out_tags = ",".join(["direction:out", "exchange:dsm_tests", "has_routing_key:true", "type:rabbitmq"])
         in_tags = ",".join(["direction:in", f"topic:{queue_name}", "type:rabbitmq"])
-
-        assert first[(out_tags, 72906486983046225, 0)].full_pathway_latency.count == 1
-        assert first[(out_tags, 72906486983046225, 0)].edge_latency.count == 1
-        assert first[(in_tags, 14415630735402874533, 72906486983046225)].full_pathway_latency.count == 1
-        assert first[(in_tags, 14415630735402874533, 72906486983046225)].edge_latency.count == 1
+        self._assert_dsm_pathway_stats(first, out_tags, in_tags)
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_DATA_STREAMS_ENABLED="True", DD_KOMBU_DISTRIBUTED_TRACING="False")
@@ -352,11 +382,7 @@ class TestKombuDsm(TracerTestCase):
 
         out_tags = ",".join(["direction:out", "exchange:", "has_routing_key:true", "type:rabbitmq"])
         in_tags = ",".join(["direction:in", f"topic:{queue_name}", "type:rabbitmq"])
-
-        assert first[(out_tags, 2585352008533360777, 0)].full_pathway_latency.count == 1
-        assert first[(out_tags, 2585352008533360777, 0)].edge_latency.count == 1
-        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].full_pathway_latency.count == 1
-        assert first[(in_tags, 10011432234075651806, 2585352008533360777)].edge_latency.count == 1
+        self._assert_dsm_pathway_stats(first, out_tags, in_tags)
 
 
 @pytest.mark.snapshot(ignores=["meta.tracestate"])

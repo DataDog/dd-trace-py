@@ -10,6 +10,9 @@ import typing as t
 
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import TAG_TRUE
+from ddtrace.testing.internal.constants import ITRSkippingLevel
+from ddtrace.testing.internal.telemetry import EventType
+from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.tracer_api import Time
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import _gen_item_id
@@ -40,11 +43,6 @@ class TestStatus(Enum):
     __test__ = False
 
 
-class ITRSkippingLevel(Enum):
-    SUITE = "suite"
-    TEST = "test"
-
-
 class TestType:
     TEST = "test"
     BENCHMARK = "benchmark"
@@ -56,18 +54,18 @@ TChildClass = t.TypeVar("TChildClass", bound="TestItem[t.Any, t.Any]")
 
 class TestItem(t.Generic[TParentClass, TChildClass]):
     __test__ = False
-    ChildClass: t.Type[TChildClass]
+    ChildClass: type[TChildClass]
 
     def __init__(self, name: str, parent: TParentClass):
         self.name = name
-        self.children: t.Dict[str, TChildClass] = {}
+        self.children: dict[str, TChildClass] = {}
         self.start_ns: t.Optional[int] = None
         self.duration_ns: t.Optional[int] = None
         self.parent: TParentClass = parent
         self.item_id = _gen_item_id()
         self.status: t.Optional[TestStatus] = None
-        self.tags: t.Dict[str, str] = {}
-        self.metrics: t.Dict[str, t.Union[int, float]] = {}
+        self.tags: dict[str, str] = {}
+        self.metrics: dict[str, t.Union[int, float]] = {}
         self.service: str = DEFAULT_SERVICE_NAME
 
     def seconds_so_far(self) -> float:
@@ -108,7 +106,7 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
         self.service = service
 
     def _get_status_from_children(self) -> TestStatus:
-        status_counts: t.Dict[TestStatus, int] = defaultdict(lambda: 0)
+        status_counts: dict[TestStatus, int] = defaultdict(lambda: 0)
         total_count = 0
 
         for child in self.children.values():
@@ -128,7 +126,7 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
     def set_final_tags(self) -> None:
         pass
 
-    def get_or_create_child(self, name: str) -> t.Tuple[TChildClass, bool]:
+    def get_or_create_child(self, name: str) -> tuple[TChildClass, bool]:
         created = False
 
         if name not in self.children:
@@ -139,11 +137,15 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
 
         return self.children[name], created
 
-    def set_tags(self, tags: t.Dict[str, str]) -> None:
+    def set_tags(self, tags: dict[str, str]) -> None:
         self.tags.update(tags)
 
-    def set_metrics(self, metrics: t.Dict[str, float]) -> None:
+    def set_metrics(self, metrics: dict[str, float]) -> None:
         self.metrics.update(metrics)
+
+
+def _itr_test_skipping_enabled_tag_value(session: "TestSession") -> str:
+    return TAG_TRUE if session.itr_skipping_enabled else "false"
 
 
 class TestRun(TestItem["Test", t.NoReturn]):
@@ -200,6 +202,10 @@ class TestRun(TestItem["Test", t.NoReturn]):
         """
         self.tags[TestTag.FINAL_STATUS] = final_status.value
 
+    def set_final_tags(self) -> None:
+        super().set_final_tags()
+        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self.session)
+
 
 class Test(TestItem["TestSuite", "TestRun"]):
     __test__ = False
@@ -208,7 +214,7 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def __init__(self, name: str, parent: TestSuite) -> None:
         super().__init__(name=name, parent=parent)
 
-        self.test_runs: t.List[TestRun] = []
+        self.test_runs: list[TestRun] = []
 
         self.suite = parent
         self.module = self.suite.parent
@@ -249,7 +255,7 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def set_parameters(self, parameters: str) -> None:
         self.tags[TestTag.PARAMETERS] = parameters
 
-    def set_codeowners(self, owners: t.List[str]) -> None:
+    def set_codeowners(self, owners: list[str]) -> None:
         self.tags[TestTag.CODEOWNERS] = json.dumps(owners)
 
     def is_new(self) -> bool:
@@ -271,6 +277,9 @@ class Test(TestItem["TestSuite", "TestRun"]):
         test_run = TestRun(name=self.name, parent=self)
         test_run.attempt_number = len(self.test_runs)
         test_run.set_service(self.service)
+        config_errors = getattr(self.session, "configuration_errors", None)
+        if isinstance(config_errors, dict) and config_errors:
+            test_run.set_tags(config_errors)
         self.test_runs.append(test_run)
         return test_run
 
@@ -282,12 +291,20 @@ class Test(TestItem["TestSuite", "TestRun"]):
 
     def mark_unskippable(self) -> None:
         self.tags[TestTag.ITR_UNSKIPPABLE] = TAG_TRUE
+        try:
+            TelemetryAPI.get().record_itr_unskippable(EventType.TEST)
+        except RuntimeError:
+            pass
 
     def is_unskippable(self) -> bool:
         return self.tags.get(TestTag.ITR_UNSKIPPABLE) == TAG_TRUE
 
     def mark_forced_run(self) -> None:
         self.tags[TestTag.ITR_FORCED_RUN] = TAG_TRUE
+        try:
+            TelemetryAPI.get().record_itr_forced_run(EventType.TEST)
+        except RuntimeError:
+            pass
 
     def is_forced_run(self) -> bool:
         return self.tags.get(TestTag.ITR_FORCED_RUN) == TAG_TRUE
@@ -295,6 +312,10 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def mark_skipped_by_itr(self) -> None:
         self.tags[TestTag.SKIPPED_BY_ITR] = TAG_TRUE
         self.session.tests_skipped_by_itr += 1
+        try:
+            TelemetryAPI.get().record_itr_skipped(EventType.TEST)
+        except RuntimeError:
+            pass
 
     def is_skipped_by_itr(self) -> bool:
         return self.tags.get(TestTag.SKIPPED_BY_ITR) == TAG_TRUE
@@ -313,6 +334,12 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def is_flaky_run(self) -> bool:
         return self._is_flaky_run
 
+    def has_passed(self) -> bool:
+        return any(run.get_status() == TestStatus.PASS for run in self.test_runs)
+
+    def has_failed(self) -> bool:
+        return any(run.get_status() == TestStatus.FAIL for run in self.test_runs)
+
 
 class TestSuite(TestItem["TestModule", "Test"]):
     ChildClass = Test
@@ -325,6 +352,10 @@ class TestSuite(TestItem["TestModule", "Test"]):
 
     def __str__(self) -> str:
         return f"{self.parent.name}/{self.name}"
+
+    def set_final_tags(self) -> None:
+        super().set_final_tags()
+        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self.session)
 
 
 class TestModule(TestItem["TestSession", "TestSuite"]):
@@ -341,6 +372,10 @@ class TestModule(TestItem["TestSession", "TestSuite"]):
     def set_location(self, module_path: Path) -> None:
         self.module_path = str(module_path)
 
+    def set_final_tags(self) -> None:
+        super().set_final_tags()
+        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self.session)
+
 
 class TestSession(TestItem[t.NoReturn, "TestModule"]):
     ChildClass = TestModule
@@ -349,6 +384,10 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
     def __init__(self, name: str):
         super().__init__(name=name, parent=None)  # type: ignore
         self.tests_skipped_by_itr = 0
+        self.itr_enabled = False
+        self.itr_skipping_enabled = False
+        self.itr_skipping_level = ITRSkippingLevel.TEST
+        self.configuration_errors: dict[str, str] = {}
 
     def set_session_id(self, session_id: int) -> None:
         self.item_id = session_id
@@ -357,6 +396,11 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
         self.test_command = test_command
         self.test_framework = test_framework
         self.test_framework_version = test_framework_version
+
+    def set_itr_attributes(self, itr_enabled: bool, skipping_enabled: bool, skipping_level: ITRSkippingLevel) -> None:
+        self.itr_enabled = itr_enabled
+        self.itr_skipping_enabled = skipping_enabled
+        self.itr_skipping_level = skipping_level
 
     def set_early_flake_detection_abort_reason(self, reason: str) -> None:
         self.tags[TestTag.EFD_ABORT_REASON] = reason
@@ -367,9 +411,13 @@ class TestSession(TestItem[t.NoReturn, "TestModule"]):
     def set_final_tags(self) -> None:
         super().set_final_tags()
 
-        if self.tests_skipped_by_itr > 0:
-            self.tags[TestTag.ITR_TESTS_SKIPPED] = TAG_TRUE
-            self.tags[TestTag.ITR_TESTS_SKIPPING_TYPE] = "test"
+        self.tags[TestTag.ITR_TESTS_SKIPPING_ENABLED] = _itr_test_skipping_enabled_tag_value(self)
+
+        if self.itr_enabled:
+            has_itr_skips = self.tests_skipped_by_itr > 0
+            self.tags[TestTag.ITR_TESTS_SKIPPED] = TAG_TRUE if has_itr_skips else "false"
+            self.tags[TestTag.ITR_DD_CI_ITR_TESTS_SKIPPED] = TAG_TRUE if has_itr_skips else "false"
+            self.tags[TestTag.ITR_TESTS_SKIPPING_TYPE] = self.itr_skipping_level.value
             self.metrics[TestTag.ITR_TESTS_SKIPPING_COUNT] = self.tests_skipped_by_itr
 
 
@@ -380,6 +428,8 @@ class TestTag:
     TEST_FRAMEWORK_VERSION = "test.framework_version"
     TEST_SESSION_NAME = "test_session.name"
     TEST_NAME = "test.name"
+    TEST_ORIGINAL_NAME = "test.original_name"
+    TEST_PARAMETERIZED_NAME = "test.parameterized_name"
     TEST_SUITE = "test.suite"
 
     ENV = "env"
@@ -410,7 +460,9 @@ class TestTag:
     ITR_UNSKIPPABLE = "test.itr.unskippable"
     ITR_FORCED_RUN = "test.itr.forced_run"
     SKIPPED_BY_ITR = "test.skipped_by_itr"
+    ITR_TESTS_SKIPPING_ENABLED = "test.itr.tests_skipping.enabled"
     ITR_TESTS_SKIPPED = "test.itr.tests_skipping.tests_skipped"
+    ITR_DD_CI_ITR_TESTS_SKIPPED = "_dd.ci.itr.tests_skipped"
     ITR_TESTS_SKIPPING_TYPE = "test.itr.tests_skipping.type"
     ITR_TESTS_SKIPPING_COUNT = "test.itr.tests_skipping.count"
 
@@ -427,5 +479,11 @@ class TestTag:
     BROWSER_DRIVER = "test.browser.driver"
 
     CODE_COVERAGE_LINES_PCT = "test.code_coverage.lines_pct"
+
+    # Library configuration error tags — set when backend requests fail.
+    LIBRARY_CONFIGURATION_ERROR_SETTINGS = "_dd.ci.library_configuration_error.settings"
+    LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS = "_dd.ci.library_configuration_error.skippable_tests"
+    LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS = "_dd.ci.library_configuration_error.known_tests"
+    LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS = "_dd.ci.library_configuration_error.test_management_tests"
 
     __test__ = False

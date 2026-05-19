@@ -47,6 +47,7 @@ shift
 
 ARTIFACTS=""
 CONFIGS=""
+RUN_ID=""
 
 # Parse remaining arguments
 while [[ $# -gt 0 ]]; do
@@ -58,6 +59,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --artifacts)
             ARTIFACTS="$2"
+            shift # past argument
+            shift # past value
+            ;;
+        --run-id)
+            RUN_ID="$2"
             shift # past argument
             shift # past value
             ;;
@@ -73,21 +79,24 @@ done
 TAG="dd-trace-py/perf-${SCENARIO}"
 scripts/perf-build-scenario "${SCENARIO}" "${TAG}"
 
-CMD="docker run -it --rm --network host"
+# Use -t only when a TTY is available; AI agents and CI run without one.
+TTY_FLAG=""
+if [ -t 0 ]; then TTY_FLAG="-it"; fi
+CMD="docker run ${TTY_FLAG} --rm --network host"
 if [[ -n ${ARTIFACTS} ]]; then
    # Resolve artifacts to an absolute path
-   ARTIFACTS="$(echo $ARTIFACTS | python -c 'import os,sys; print(os.path.abspath(sys.stdin.read()))')"
+   ARTIFACTS="$(cd "$(dirname "$ARTIFACTS")" && pwd)/$(basename "$ARTIFACTS")"
    mkdir -p ${ARTIFACTS}
    CMD+=" -v ${ARTIFACTS}:/artifacts/"
 fi
 CMD+=" -v $(pwd):/src/ \
   -e PROFILE_BENCHMARKS=${PROFILE_BENCHMARKS:-0} \
-  -e DD_FAST_BUILD=1 \
-  -e CMAKE_BUILD_PARALLEL_LEVEL=12 \
-  -e CARGO_BUILD_JOBS=12 \
+  -e CMAKE_BUILD_PARALLEL_LEVEL=${CMAKE_BUILD_PARALLEL_LEVEL:-12} \
+  -e CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-12} \
   -e DDTRACE_INSTALL_V1=$(expand_git_version $DDTRACE_V1) \
   -e DDTRACE_INSTALL_V2=$(expand_git_version $DDTRACE_V2) \
   -e BENCHMARK_CONFIGS=${CONFIGS} \
+  -e RUN_ID=${RUN_ID} \
   ${TAG}"
 
 $CMD

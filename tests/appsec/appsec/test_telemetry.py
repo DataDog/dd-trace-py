@@ -7,14 +7,18 @@ import pytest
 
 import ddtrace.appsec._asm_request_context as asm_request_context
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._ddwaf import version
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 import ddtrace.appsec._ddwaf.ddwaf_types
+import ddtrace.appsec._ddwaf.waf
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import enable_asm
+from ddtrace.appsec._utils import DDWaf_result
+from ddtrace.appsec._utils import _observator
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.trace import tracer
@@ -32,6 +36,8 @@ invalid_error = """appsec.waf.error::update::rules::bad cast, expected 'array', 
 
 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False, expected_name=[]):
+    version = asm_config._ddwaf_version
+
     metric_update = 0
     # Since the appsec.enabled metric is emitted on each telemetry worker interval, it can cause random errors in
     # this function and make the tests flaky. That's why we exclude the "enabled" metric from this assert
@@ -50,17 +56,17 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
             assert f"request_blocked:{str(is_blocked_request).lower()}" in metric["tags"]
             # assert not any(tag.startswith("request_truncated") for tag in metric.["tags"])
             assert "waf_timeout:false" in metric["tags"]
-            assert f"waf_version:{version()}" in metric["tags"]
+            assert f"waf_version:{version}" in metric["tags"]
             assert any("event_rules_version:" in t for t in metric["tags"])
         elif metric_name == "waf.init":
             assert len(metric["points"]) == 1
-            assert f"waf_version:{version()}" in metric["tags"]
+            assert f"waf_version:{version}" in metric["tags"]
             assert "success:true" in metric["tags"]
             assert any("event_rules_version" in t for t in metric["tags"])
             assert len(metric["tags"]) == 3
         elif metric_name == "waf.updates":
             assert len(metric["points"]) == 1
-            assert f"waf_version:{version()}" in metric["tags"]
+            assert f"waf_version:{version}" in metric["tags"]
             assert "success:true" in metric["tags"]
             assert any("event_rules_version" in t for t in metric["tags"])
             assert len(metric["tags"]) == 3
@@ -71,22 +77,6 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
             assert len(metric["tags"]) == 1
         else:
             pytest.fail("Unexpected generate_metrics {}".format(metric_name))
-
-
-def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
-    distributions_metrics = metrics_result[TELEMETRY_EVENT_TYPE.DISTRIBUTIONS][TELEMETRY_NAMESPACE.APPSEC.value]
-
-    assert len(distributions_metrics) == 2, "Expected 2 distributions_metrics"
-    for metric in distributions_metrics:
-        if metric["metric"] in ["waf.duration", "waf.duration_ext"]:
-            assert len(metric["points"]) >= 1
-            assert isinstance(metric["points"][0], float)
-            assert f"rule_triggered:{str(is_rule_triggered).lower()}" in metric["tags"]
-            assert f"request_blocked:{str(is_blocked_request).lower()}" in metric["tags"]
-            assert f"waf_version:{version()}" in metric["tags"]
-            assert any("event_rules_version" in t for t in metric["tags"])
-        else:
-            pytest.fail("Unexpected distributions_metrics {}".format(metric["metric"]))
 
 
 def test_metrics_when_appsec_doesnt_runs(telemetry_writer, tracer):
@@ -150,7 +140,6 @@ def test_metrics_when_appsec_block_custom(telemetry_writer, tracer):
             [
                 build_payload("ASM", actions, "actions"),
             ],
-            tracer,
         )
         # using a header to trigger the block of default rules
         set_http_meta(span, rules.Config(), request_headers={"User-Agent": "dd-test-scanner-log-block"})
@@ -160,6 +149,92 @@ def test_metrics_when_appsec_block_custom(telemetry_writer, tracer):
         is_blocked_request=True,
         expected_name=["waf.init", "waf.requests", "waf.updates"],
     )
+
+
+@pytest.mark.parametrize(
+    "user_id,user_login,report_missing_login,expected_metric_names",
+    [
+        # both absent, login reporting enabled → both fire
+        (None, None, True, {"instrum.user_auth.missing_user_login", "instrum.user_auth.missing_user_id"}),
+        # both absent, login reporting disabled → only missing_user_id fires
+        (None, None, False, {"instrum.user_auth.missing_user_id"}),
+        # id present, login absent → only missing_user_login (present id suppresses missing_user_id)
+        ("123", None, True, {"instrum.user_auth.missing_user_login"}),
+        # login present, id absent → no metrics (login is a valid fallback for id)
+        (None, "fred", True, set()),
+        # both present → no metrics (happy path)
+        ("123", "fred", True, set()),
+    ],
+)
+def test_report_user_auth_missing(telemetry_writer, user_id, user_login, report_missing_login, expected_metric_names):
+    from ddtrace.appsec import _metrics
+
+    telemetry_writer._namespace.flush()
+    _metrics.report_user_auth_missing("django", "login_failure", user_id, user_login, report_missing_login)
+
+    flushed = telemetry_writer._namespace.flush()
+    metrics = flushed.get(TELEMETRY_EVENT_TYPE.METRICS, {}).get(TELEMETRY_NAMESPACE.APPSEC.value, [])
+    user_auth_metrics = [m for m in metrics if m["metric"].startswith("instrum.user_auth.")]
+    assert {m["metric"] for m in user_auth_metrics} == expected_metric_names
+    assert len(user_auth_metrics) == len(expected_metric_names), user_auth_metrics
+    for metric in user_auth_metrics:
+        assert "framework:django" in metric["tags"]
+        assert "event_type:login_failure" in metric["tags"]
+
+
+def test_waf_duration_distribution_metrics(telemetry_writer, tracer):
+    telemetry_writer._namespace.flush()
+    with asm_context(tracer=tracer, span_name="test", config=config_asm) as span:
+        set_http_meta(span, rules.Config())
+
+    distributions_metrics = telemetry_writer._namespace.flush()[TELEMETRY_EVENT_TYPE.DISTRIBUTIONS][
+        TELEMETRY_NAMESPACE.APPSEC.value
+    ]
+    waf_metrics = {metric["metric"]: metric for metric in distributions_metrics if metric["metric"].startswith("waf.")}
+
+    assert set(waf_metrics) == {"waf.duration", "waf.duration_ext"}
+    for metric in waf_metrics.values():
+        assert len(metric["points"]) >= 1
+        assert isinstance(metric["points"][0], float)
+        assert f"waf_version:{asm_config._ddwaf_version}" in metric["tags"]
+        assert any(tag.startswith("event_rules_version:") for tag in metric["tags"])
+        assert len(metric["tags"]) == 2
+
+
+def test_rasp_duration_distribution_metrics(telemetry_writer, tracer):
+    telemetry_writer._namespace.flush()
+    with asm_context(tracer=tracer, span_name="test", config=config_asm):
+        waf_result = DDWaf_result(0, [], {}, 12.5, 20.25, False, _observator(), {})
+        asm_request_context.set_waf_telemetry_results(
+            "rules_rasp",
+            False,
+            waf_result,
+            EXPLOIT_PREVENTION.TYPE.SQLI,
+            False,
+        )
+        waf_result = DDWaf_result(0, [], {}, 3.0, 4.0, False, _observator(), {})
+        asm_request_context.set_waf_telemetry_results(
+            "rules_rasp",
+            False,
+            waf_result,
+            EXPLOIT_PREVENTION.TYPE.LFI,
+            False,
+        )
+
+    distributions_metrics = telemetry_writer._namespace.flush()[TELEMETRY_EVENT_TYPE.DISTRIBUTIONS][
+        TELEMETRY_NAMESPACE.APPSEC.value
+    ]
+    rasp_metrics = {
+        metric["metric"]: metric for metric in distributions_metrics if metric["metric"].startswith("rasp.")
+    }
+
+    assert set(rasp_metrics) == {"rasp.duration", "rasp.duration_ext"}
+    assert rasp_metrics["rasp.duration"]["points"] == [15.5]
+    assert rasp_metrics["rasp.duration_ext"]["points"] == [24.25]
+    for metric in rasp_metrics.values():
+        assert f"waf_version:{asm_config._ddwaf_version}" in metric["tags"]
+        assert any(tag.startswith("event_rules_version:") for tag in metric["tags"])
+        assert len(metric["tags"]) == 2
 
 
 def test_log_metric_error_ddwaf_init(telemetry_writer):
@@ -179,7 +254,7 @@ def test_log_metric_error_ddwaf_init(telemetry_writer):
             list_metrics_logs[0]["message"] == "appsec.waf.error::init::rules::"
             """{"missing key 'conditions'": ['crs-913-110'], "missing key 'tags'": ['crs-942-100']}"""
         )
-        assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
+        assert "waf_version:{}".format(asm_config._ddwaf_version) in list_metrics_logs[0]["tags"]
 
 
 def test_log_metric_error_ddwaf_timeout(telemetry_writer, tracer):
@@ -218,7 +293,7 @@ def test_log_metric_error_ddwaf_update(telemetry_writer):
         list_metrics_logs = list(telemetry_writer._logs)
         assert len(list_metrics_logs) == 1
         assert list_metrics_logs[0]["message"] == invalid_error
-        assert "waf_version:{}".format(version()) in list_metrics_logs[0]["tags"]
+        assert "waf_version:{}".format(asm_config._ddwaf_version) in list_metrics_logs[0]["tags"]
 
 
 unpatched_run = ddtrace.appsec._ddwaf.ddwaf_types.ddwaf_run
@@ -232,6 +307,7 @@ def _wrapped_run(*args, **kwargs):
 @mock.patch.object(ddtrace.appsec._ddwaf.waf, "ddwaf_run", new=_wrapped_run)
 def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
     """Test that an internal error is logged when the WAF returns an internal error."""
+
     with override_global_config(dict(_asm_enabled=True, _asm_deduplication_enabled=False)):
         with tracer.trace("test", span_type=SpanTypes.WEB, service="test") as span:
             span_processor = AppSecSpanProcessor()
@@ -247,7 +323,7 @@ def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
             error_metrics = [m for m in list_telemetry_metrics if m["metric"] == "waf.error"]
             assert len(error_metrics) == 1, error_metrics
             assert len(error_metrics[0]["tags"]) == 3
-            assert f"waf_version:{version()}" in error_metrics[0]["tags"]
+            assert f"waf_version:{asm_config._ddwaf_version}" in error_metrics[0]["tags"]
             assert "waf_error:-3" in error_metrics[0]["tags"]
             assert any(tag.startswith("event_rules_version:") for tag in error_metrics[0]["tags"])
 
@@ -287,18 +363,17 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer)
 @pytest.mark.parametrize(
     "environment,appsec_enabled,rc_enabled,expected_result,ssi_enabled,expected_origin",
     (
-        ({}, False, False, 0, False, APPSEC.ENABLED_ORIGIN_UNKNOWN),
+        ({}, False, False, 0, False, APPSEC.ENABLED_ORIGIN_DEFAULT),
         ({APPSEC_ENV: "true"}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
-        ({APPSEC_ENV: "true", "_DD_PY_SSI_INJECT": "1"}, True, False, 1, True, APPSEC.ENABLED_ORIGIN_SSI),
-        ({}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_UNKNOWN),
-        ({}, True, True, 1, False, APPSEC.ENABLED_ORIGIN_UNKNOWN),
+        ({}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_DEFAULT),
+        ({}, True, True, 1, False, APPSEC.ENABLED_ORIGIN_DEFAULT),
         ({}, False, True, 1, False, APPSEC.ENABLED_ORIGIN_RC),
         ({"_DD_PY_SSI_INJECT": "true"}, False, True, 1, True, APPSEC.ENABLED_ORIGIN_RC),
         ({APPSEC_ENV: "true"}, True, True, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
         # 0 because RC should not change the value if env var is set
         ({APPSEC_ENV: "true"}, False, True, 0, False, APPSEC.ENABLED_ORIGIN_ENV),
         # SSI set but AppSec disabled and no RC: origin remains UNKNOWN and value 0
-        ({"_DD_PY_SSI_INJECT": "1"}, False, False, 0, True, APPSEC.ENABLED_ORIGIN_UNKNOWN),
+        ({"_DD_PY_SSI_INJECT": "1"}, False, False, 0, True, APPSEC.ENABLED_ORIGIN_DEFAULT),
         # APPSEC_ENV present with value "false" still counts as ENV origin by implementation
         ({APPSEC_ENV: "false"}, True, False, 1, False, APPSEC.ENABLED_ORIGIN_ENV),
         # APPSEC_ENV present with empty value still counts as ENV origin by implementation
@@ -312,8 +387,8 @@ def test_appsec_enabled_metric(
 ):
     """Test that an internal error is logged when the WAF returns an internal error."""
     # Restore defaults and enabling telemetry appsec service
-    with override_global_config({"_asm_enabled": True, "_lib_was_injected": False}):
-        tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_UNKNOWN)
+    with override_global_config({"_asm_enabled": True}):
+        tracer.configure(appsec_enabled=appsec_enabled)
     telemetry_writer._report_configurations()
 
     # Start the test
@@ -323,9 +398,9 @@ def test_appsec_enabled_metric(
             dict(_asm_enabled=appsec_enabled, _remote_config_enabled=rc_enabled, _lib_was_injected=ssi_enabled)
         ),
     ):
-        tracer.configure(appsec_enabled=appsec_enabled)
+        tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_DEFAULT)
         if rc_enabled:
-            enable_asm(tracer)
+            enable_asm()
 
         telemetry_writer._dispatch()
 
@@ -335,4 +410,4 @@ def test_appsec_enabled_metric(
         ]
 
         # Restore defaults
-        tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_UNKNOWN)
+        tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_DEFAULT)

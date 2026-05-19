@@ -1,15 +1,30 @@
 #pragma once
 
+#include <algorithm>
 #include <atomic>
+#include <condition_variable>
+#include <cstdint>
+#include <mutex>
+#include <random>
+#include <vector>
 
 #include "constants.hpp"
-#include "stack_renderer.hpp"
 
 #include "echion/strings.h"
+#include "echion/timing.h"
+
+#include <Python.h>
 
 class EchionSampler;
 
 namespace Datadog {
+
+enum class PauseResult : std::uint8_t
+{
+    Paused,     // sampler was running and is now paused
+    NotRunning, // sampler was not running (nothing to pause)
+    Timeout,    // sampler is running but did not pause within the timeout
+};
 
 class Sampler
 {
@@ -17,9 +32,6 @@ class Sampler
     // The underlying echion instance it manages keeps much of its state globally, so this class is a singleton in order
     // to keep it aligned with the echion state.
     std::unique_ptr<EchionSampler> echion;
-
-  private:
-    std::shared_ptr<StackRenderer> renderer_ptr;
 
     // The sampling interval is atomic because it needs to be safely propagated to the sampling thread
     std::atomic<microsecond_t> sample_interval_us{ g_default_sampling_period_us };
@@ -29,8 +41,20 @@ class Sampler
     // stopped or started in a straightforward manner without finer-grained control (locks)
     std::atomic<uint64_t> thread_seq_num{ 0 };
 
-    // Parameters
-    uint64_t echion_frame_cache_size = g_default_echion_frame_cache_size;
+    // Thread exit synchronization - allows stop() to wait for the sampling thread to exit.
+    // The mutex + condition variable pair is used to avoid the "lost wake-up" race condition
+    // where stop() could miss the notification and hang forever (or until timeout).
+    std::atomic<bool> thread_running{ false };
+    std::mutex thread_exit_mutex;
+    std::condition_variable thread_exit_cv;
+
+    // Pause synchronization — allows the faulthandler wrapper to temporarily
+    // suspend sampling so signal handlers can be safely swapped without racing
+    // with in-flight safe_memcpy calls.
+    std::atomic<bool> pause_requested_{ false };
+    std::atomic<bool> paused_{ false };
+    std::mutex pause_mutex_;
+    std::condition_variable pause_cv_;
 
     // This is a singleton, so no public constructor
     Sampler();
@@ -43,16 +67,33 @@ class Sampler
     uint64_t sampler_thread_count = 0;
 
     bool do_adaptive_sampling = true;
+    double target_overhead = g_target_overhead;
+    microsecond_t max_sampling_period_us = g_max_sampling_period_us;
+    unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
+    std::minstd_rand rng{ std::random_device{}() };
+    std::vector<PyThreadState> thread_candidates;
     void adapt_sampling_interval();
 
+    // Tracks whether the sampler was running when prefork was called,
+    // so that postfork_parent/restart_after_fork can restore it.
+    bool was_running_at_fork_{ false };
+
     void atfork_child();
-    friend void _stack_atfork_child();
+    friend void stack_atfork_prepare();
+    friend void stack_atfork_parent();
+    friend void stack_atfork_child();
 
   public:
     // Singleton instance
     static Sampler& get();
+
+    // Accessor for EchionSampler
+    EchionSampler& get_echion() { return *echion; }
+
     bool start();
     void stop();
+    PauseResult pause();
+    void resume();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
@@ -64,16 +105,33 @@ class Sampler
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
     void update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame);
+    void set_uvloop_mode(uintptr_t thread_id, bool value);
 
     // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
     // own intervals accordingly.  Rather than a preemptive measure, we assume the rate is ~fairly stable and just
     // update the next rate with the latest interval. This is not perfect because the adjustment is based on
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
+    bool is_running() const { return thread_running.load(); }
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
+    void set_target_overhead(double value) { target_overhead = value; }
+    void set_max_sampling_period(microsecond_t max_interval_us)
+    {
+        max_sampling_period_us = std::max(max_interval_us, static_cast<microsecond_t>(g_min_sampling_period_us));
+    }
+    void set_max_threads_per_sample(unsigned int value) { max_threads_per_sample = value; }
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();
+
+    // Record whether the Sampler was running before fork
+    void prefork();
+
+    // Restart the sampling thread in the parent after fork
+    void postfork_parent();
+
+    // Restart the sampler after fork if it was running
+    void restart_after_fork();
 };
 
 } // namespace Datadog

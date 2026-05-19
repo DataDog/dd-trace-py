@@ -1,4 +1,5 @@
 import sys
+from types import CodeType
 
 import bytecode as bc
 
@@ -53,7 +54,7 @@ elif PY >= (3, 14):
 
         presend:
             send                            @send
-            yield_value                     0
+            yield_value                     1
             resume                          3
             jump_backward_no_interrupt      @presend
         send:
@@ -178,7 +179,7 @@ elif PY >= (3, 13):
 
         presend:
             send                            @send
-            yield_value                     0
+            yield_value                     1
             resume                          3
             jump_backward_no_interrupt      @presend
         send:
@@ -710,15 +711,15 @@ else:
     raise RuntimeError(msg)
 
 
-def wrap_async(instrs, code, lineno):
+def wrap_async(instrs: list[bc.Instr], code: CodeType, lineno: int) -> None:
     if (bc.CompilerFlags.ASYNC_GENERATOR | bc.CompilerFlags.COROUTINE) & code.co_flags:
         if ASYNC_HEAD_ASSEMBLY is not None:
-            instrs[0:0] = ASYNC_HEAD_ASSEMBLY.bind()
+            instrs[0:0] = ASYNC_HEAD_ASSEMBLY.bind(lineno=lineno)
 
         if bc.CompilerFlags.COROUTINE & code.co_flags:
             # DEV: This is just
             # >>> return await wrapper(wrapped, args, kwargs)
-            instrs[-1:-1] = COROUTINE_ASSEMBLY.bind()
+            instrs[-1:-1] = COROUTINE_ASSEMBLY.bind(lineno=lineno)
 
         elif bc.CompilerFlags.ASYNC_GENERATOR & code.co_flags:
-            instrs[-1:] = ASYNC_GEN_ASSEMBLY.bind()
+            instrs[-1:] = ASYNC_GEN_ASSEMBLY.bind(lineno=lineno)

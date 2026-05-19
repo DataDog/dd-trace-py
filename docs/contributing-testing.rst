@@ -62,14 +62,14 @@ You can access it by running
 
     $ scripts/ddtest
 
-Some of our test suites are managed with Riot, others with Hatch.
+Some of our test suites are managed with Riot.
 
-You can run riot and hatch commands in the test runner container with commands like these:
+You can run riot commands and lint checks in the test runner container with commands like these:
 
 .. code-block:: bash
 
     $ scripts/ddtest riot run -p 3.10
-    $ scripts/ddtest hatch run lint:style
+    $ scripts/ddtest scripts/lint style
 
 
 How do I run only the tests I care about?
@@ -170,6 +170,23 @@ After setting this up, run your tests normally:
 
 The ``docker-compose.override.yml`` file is git-ignored and won't be committed, so each developer can have their own local configuration.
 
+Build issues when running tests with Riot
+-----------------------------------------
+
+If you encounter build failures, CMake errors, or stale native extension issues when running tests:
+
+- **Installing ddtrace locally** (e.g. ``pip install -e .``): See :ref:`build-failures-local-install` for the clean command.
+- **Using scripts/ddtest:** The project is mounted from the host, so run ``scripts/clean`` on the host first.
+  The container sees the cleaned project on the next run.
+
+Then run Riot **without** the ``-s`` flag so that ddtrace is rebuilt from source. The ``-s`` flag skips the base install; omitting it forces a fresh build:
+
+.. code-block:: bash
+
+    $ riot -v run --pass-env -p 3.10 <suite_name> -- -vv -k 'test_name'
+
+Once the build succeeds, you can use ``-s`` again for faster subsequent runs.
+
 Why is my CI run failing with a message about requirements files?
 -----------------------------------------------------------------
 
@@ -258,7 +275,6 @@ Next, we will need to add a new CI job to run the newly added test suite. This c
         - tests/contrib/yaaredis/*
         - tests/snapshots/tests.contrib.yaaredis.*
       pattern: yaaredis$
-      runner: riot
       services:
         - redis
       snapshot: true
@@ -285,14 +301,16 @@ environment object.
    ``for h in `riot list --hash-only "^${VENV_NAME}$"`; do rm .riot/requirements/${h}.txt; done; scripts/compile-and-prune-test-requirements``
 4. Commit the resulting changes to the ``.riot`` directory, and open a pull request against the trunk branch.
 
-Why isn't my hatch config change taking effect?
------------------------------------------------
+Why isn't my lint dependency change taking effect?
+--------------------------------------------------
 
-If you make a change to the `hatch.toml` or library dependencies, be sure to remove environments before re-running:
+If you update tool versions in the ``[dependency-groups]`` ``lint`` section of ``pyproject.toml``,
+uv will pick up the change automatically on the next run. To force a clean reinstall of the lint
+environment, clear the uv cache:
 
 .. code-block:: bash
 
-    $ scripts/ddtest hatch env remove <ENV> # or hatch env prune
+    $ uv cache clean
 
 
 What do I do when my pull request has failing tests unrelated to my changes?

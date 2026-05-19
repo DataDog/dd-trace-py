@@ -4,8 +4,10 @@ import mock
 from mock import patch as mock_patch
 import pytest
 
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
@@ -14,51 +16,44 @@ from tests.contrib.botocore.bedrock_utils import bedrock_converse_args_with_syst
 from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_mock_response_data
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import assert_llmobs_span_data
 from tests.utils import override_global_config
 
 
-@pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
-)
+BEDROCK_TAGS = {"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>", "integration": "bedrock"}
+
+
 class TestLLMObsBedrock:
-    @staticmethod
-    def expected_llmobs_span_event(
-        span, n_output, input_message=False, output_message=False, metadata=None, token_metrics=None
+    @classmethod
+    def _assert_llm_span(
+        cls,
+        span,
+        n_output,
+        model_id=None,
+        input_message=False,
+        output_message=False,
+        metadata=None,
+        metrics=None,
     ):
-        expected_input = [{"content": mock.ANY}]
-        if input_message:
-            expected_input = [{"content": mock.ANY, "role": "user"}]
-        expected_output = []
-        if output_message:
-            expected_output = [{"content": mock.ANY} for _ in range(n_output)]
+        expected_input = [{"content": mock.ANY, "role": "user"}] if input_message else [{"content": mock.ANY}]
+        expected_output = [{"content": mock.ANY} for _ in range(n_output)] if output_message else []
 
-        # Use empty dicts as defaults for _expected_llmobs_llm_span_event to avoid None issues
-        expected_parameters = metadata if metadata is not None else {}
-        expected_token_metrics = token_metrics if token_metrics is not None else None
-
-        expected_event = _expected_llmobs_llm_span_event(
-            span,
-            model_name=span.get_tag("bedrock.request.model"),
-            model_provider=span.get_tag("bedrock.request.model_provider"),
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(span),
+            span_kind="llm",
+            model_name=model_id or "",
+            model_provider="amazon_bedrock",
             input_messages=expected_input,
             output_messages=expected_output,
-            metadata=expected_parameters,
-            token_metrics=expected_token_metrics,
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            # Pass metadata only when explicitly provided so the matcher skips the
+            # subset check (mirrors the prior ``mock.ANY`` whole-value escape hatch).
+            metadata=metadata if metadata is not None else None,
+            metrics=metrics if metrics is not None else None,
+            tags=BEDROCK_TAGS,
         )
 
-        # If parameters were not explicitly provided, use mock.ANY to match anything
-        if metadata is None:
-            expected_event["meta"]["metadata"] = mock.ANY
-        if token_metrics is None:
-            expected_event["metrics"] = mock.ANY
-
-        return expected_event
-
     @classmethod
-    def _test_llmobs_invoke(cls, provider, bedrock_client, test_spans, llmobs_events, cassette_name=None, n_output=1):
+    def _test_llmobs_invoke(cls, provider, bedrock_client, test_spans, cassette_name=None, n_output=1):
         if cassette_name is None:
             cassette_name = "%s_invoke.yaml" % provider
         body = _REQUEST_BODIES[provider]
@@ -85,18 +80,19 @@ class TestLLMObsBedrock:
                 model = "us." + model
             response = bedrock_client.invoke_model(body=body, modelId=model)
             json.loads(response.get("body").read())
-        span = test_spans.pop_traces()[0][0]
-
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == cls.expected_llmobs_span_event(
-            span, n_output, input_message="message" in provider, output_message=True, metadata=expected_metadata
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        cls._assert_llm_span(
+            spans[0],
+            n_output,
+            model_id=model,
+            input_message="message" in provider,
+            output_message=True,
+            metadata=expected_metadata,
         )
-        LLMObs.disable()
 
     @classmethod
-    def _test_llmobs_invoke_stream(
-        cls, provider, bedrock_client, test_spans, llmobs_events, cassette_name=None, n_output=1
-    ):
+    def _test_llmobs_invoke_stream(cls, provider, bedrock_client, test_spans, cassette_name=None, n_output=1):
         if cassette_name is None:
             cassette_name = "%s_invoke_stream.yaml" % provider
         body = _REQUEST_BODIES[provider]
@@ -120,44 +116,45 @@ class TestLLMObsBedrock:
             response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
             for _ in response.get("body"):
                 pass
-        span = test_spans.pop_traces()[0][0]
-
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == cls.expected_llmobs_span_event(
-            span, n_output, input_message="message" in provider, output_message=True, metadata=expected_metadata
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        cls._assert_llm_span(
+            spans[0],
+            n_output,
+            model_id=model,
+            input_message="message" in provider,
+            output_message=True,
+            metadata=expected_metadata,
         )
 
-    def test_llmobs_ai21_invoke(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events):
-        self._test_llmobs_invoke("ai21", bedrock_client, test_spans, llmobs_events)
+    def test_llmobs_ai21_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
+        self._test_llmobs_invoke("ai21", bedrock_client, test_spans)
 
-    def test_llmobs_amazon_invoke(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events):
-        self._test_llmobs_invoke("amazon", bedrock_client, test_spans, llmobs_events)
+    def test_llmobs_amazon_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
+        self._test_llmobs_invoke("amazon", bedrock_client, test_spans)
 
-    def test_llmobs_anthropic_invoke(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events):
-        self._test_llmobs_invoke("anthropic", bedrock_client, test_spans, llmobs_events)
+    def test_llmobs_anthropic_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
+        self._test_llmobs_invoke("anthropic", bedrock_client, test_spans)
 
-    def test_llmobs_anthropic_message(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events):
-        self._test_llmobs_invoke("anthropic_message", bedrock_client, test_spans, llmobs_events)
+    def test_llmobs_anthropic_message(self, bedrock_client, bedrock_llmobs, test_spans):
+        self._test_llmobs_invoke("anthropic_message", bedrock_client, test_spans)
 
-    def test_llmobs_cohere_single_output_invoke(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events):
-        self._test_llmobs_invoke(
-            "cohere", bedrock_client, test_spans, llmobs_events, cassette_name="cohere_invoke_single_output.yaml"
-        )
+    def test_llmobs_cohere_single_output_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
+        self._test_llmobs_invoke("cohere", bedrock_client, test_spans, cassette_name="cohere_invoke_single_output.yaml")
 
-    def test_llmobs_cohere_multi_output_invoke(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events):
+    def test_llmobs_cohere_multi_output_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke(
             "cohere",
             bedrock_client,
             test_spans,
-            llmobs_events,
             cassette_name="cohere_invoke_multi_output.yaml",
             n_output=2,
         )
 
-    def test_llmobs_meta_invoke(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events):
-        self._test_llmobs_invoke("meta", bedrock_client, test_spans, llmobs_events)
+    def test_llmobs_meta_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
+        self._test_llmobs_invoke("meta", bedrock_client, test_spans)
 
-    def test_llmobs_cohere_rerank_invoke(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events):
+    def test_llmobs_cohere_rerank_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
         cassette_name = "cohere_rerank_invoke.yaml"
         model = "cohere.rerank-v3-5:0"
         prompt_data = "What is the capital of the United States?"
@@ -169,50 +166,40 @@ class TestLLMObsBedrock:
         with get_request_vcr().use_cassette(cassette_name):
             response = bedrock_client.invoke_model(body=body, modelId=model)
             json.loads(response.get("body").read())
-        span = test_spans.pop_traces()[0][0]
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        self._assert_llm_span(spans[0], 1, model_id=model)
 
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == self.expected_llmobs_span_event(span, 1)
-        LLMObs.disable()
+    def test_llmobs_amazon_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
+        self._test_llmobs_invoke_stream("amazon", bedrock_client, test_spans)
 
-    def test_llmobs_amazon_invoke_stream(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events):
-        self._test_llmobs_invoke_stream("amazon", bedrock_client, test_spans, llmobs_events)
+    def test_llmobs_anthropic_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
+        self._test_llmobs_invoke_stream("anthropic", bedrock_client, test_spans)
 
-    def test_llmobs_anthropic_invoke_stream(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events):
-        self._test_llmobs_invoke_stream("anthropic", bedrock_client, test_spans, llmobs_events)
+    def test_llmobs_anthropic_message_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
+        self._test_llmobs_invoke_stream("anthropic_message", bedrock_client, test_spans)
 
-    def test_llmobs_anthropic_message_invoke_stream(
-        self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events
-    ):
-        self._test_llmobs_invoke_stream("anthropic_message", bedrock_client, test_spans, llmobs_events)
-
-    def test_llmobs_cohere_single_output_invoke_stream(
-        self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events
-    ):
+    def test_llmobs_cohere_single_output_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream(
             "cohere",
             bedrock_client,
             test_spans,
-            llmobs_events,
             cassette_name="cohere_invoke_stream_single_output.yaml",
         )
 
-    def test_llmobs_cohere_multi_output_invoke_stream(
-        self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events
-    ):
+    def test_llmobs_cohere_multi_output_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream(
             "cohere",
             bedrock_client,
             test_spans,
-            llmobs_events,
             cassette_name="cohere_invoke_stream_multi_output.yaml",
             n_output=2,
         )
 
-    def test_llmobs_meta_invoke_stream(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events):
-        self._test_llmobs_invoke_stream("meta", bedrock_client, test_spans, llmobs_events)
+    def test_llmobs_meta_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
+        self._test_llmobs_invoke_stream("meta", bedrock_client, test_spans)
 
-    def test_llmobs_only_patches_bedrock(self, ddtrace_global_config, llmobs_span_writer, tracer, test_spans):
+    def test_llmobs_only_patches_bedrock(self, tracer, bedrock_llmobs, test_spans):
         llmobs_service.disable()
 
         with override_global_config(
@@ -237,7 +224,7 @@ class TestLLMObsBedrock:
 
         llmobs_service.disable()
 
-    def test_llmobs_error(self, ddtrace_global_config, bedrock_client, test_spans, llmobs_events, request_vcr):
+    def test_llmobs_error(self, bedrock_client, bedrock_llmobs, test_spans, request_vcr):
         import botocore
 
         with pytest.raises(botocore.exceptions.ClientError):
@@ -245,37 +232,36 @@ class TestLLMObsBedrock:
                 body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
                 response = bedrock_client.invoke_model(body=body, modelId=model)
                 json.loads(response.get("body").read())
-        span = test_spans.pop_traces()[0][0]
-
-        metadata = mock.ANY
-
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
-            model_name=span.get_tag("bedrock.request.model"),
-            model_provider=span.get_tag("bedrock.request.model_provider"),
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            model_name=model,
+            model_provider="amazon_bedrock",
             input_messages=[{"content": mock.ANY}],
-            metadata=metadata,
             output_messages=[{"content": ""}],
-            error=span.get_tag("error.type"),
-            error_message=span.get_tag("error.message"),
-            error_stack=span.get_tag("error.stack"),
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            error={
+                "type": spans[0].get_tag("error.type"),
+                "message": spans[0].get_tag("error.message"),
+                "stack": spans[0].get_tag("error.stack"),
+            },
+            tags=BEDROCK_TAGS,
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse(cls, bedrock_client, request_vcr, test_spans, llmobs_events):
+    def test_llmobs_converse(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         request_params = create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool)
         with request_vcr.use_cassette("bedrock_converse.yaml"):
             response = bedrock_client.converse(**request_params)
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
-            model_name="claude-3-sonnet-20240229-v1:0",
-            model_provider="anthropic",
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            model_name="anthropic.claude-3-sonnet-20240229-v1:0",
+            model_provider="amazon_bedrock",
             input_messages=[
                 {"role": "system", "content": request_params.get("system")[0]["text"]},
                 {"role": "user", "content": request_params.get("messages")[0].get("content")[0].get("text")},
@@ -299,17 +285,17 @@ class TestLLMObsBedrock:
                 "temperature": request_params.get("inferenceConfig", {}).get("temperature"),
                 "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens"),
             },
-            token_metrics={
+            metrics={
                 "input_tokens": response["usage"]["inputTokens"],
                 "output_tokens": response["usage"]["outputTokens"],
                 "total_tokens": response["usage"]["totalTokens"],
             },
             tool_definitions=[FETCH_CONCEPT_TOOL_DEFINITION],
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags=BEDROCK_TAGS,
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_error(self, bedrock_client, request_vcr, test_spans, llmobs_events):
+    def test_llmobs_converse_error(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         """Test error handling for the Bedrock Converse API."""
         import botocore
 
@@ -320,26 +306,29 @@ class TestLLMObsBedrock:
             with request_vcr.use_cassette("bedrock_converse_error.yaml"):
                 bedrock_client.converse(**request_params)
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
-            model_name="claude-3-sonnet-20240229-v1:0",
-            model_provider="anthropic",
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            model_name="anthropic.claude-3-sonnet-20240229-v1:0",
+            model_provider="amazon_bedrock",
             input_messages=[{"role": "user", "content": "Explain the concept of distributed tracing in a simple way"}],
             output_messages=[{"content": ""}],
             metadata={
                 "temperature": request_params.get("inferenceConfig", {}).get("temperature", 0.0),
                 "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens", 0),
             },
-            error=span.get_tag("error.type"),
-            error_message=span.get_tag("error.message"),
-            error_stack=span.get_tag("error.stack"),
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            error={
+                "type": spans[0].get_tag("error.type"),
+                "message": spans[0].get_tag("error.message"),
+                "stack": spans[0].get_tag("error.stack"),
+            },
+            tags=BEDROCK_TAGS,
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_stream(cls, bedrock_client, request_vcr, test_spans, llmobs_events):
+    def test_llmobs_converse_stream(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         output_msg = ""
         request_params = create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool)
         with request_vcr.use_cassette("bedrock_converse_stream.yaml"):
@@ -349,13 +338,13 @@ class TestLLMObsBedrock:
                     if "text" in chunk["contentBlockDelta"]["delta"]:
                         output_msg += chunk["contentBlockDelta"]["delta"]["text"]
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
-            model_name="claude-3-sonnet-20240229-v1:0",
-            model_provider="anthropic",
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            model_name="anthropic.claude-3-sonnet-20240229-v1:0",
+            model_provider="amazon_bedrock",
             input_messages=[
                 {"role": "system", "content": request_params.get("system")[0]["text"]},
                 {"role": "user", "content": request_params.get("messages")[0].get("content")[0].get("text")},
@@ -378,17 +367,17 @@ class TestLLMObsBedrock:
                 "temperature": request_params.get("inferenceConfig", {}).get("temperature"),
                 "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens"),
             },
-            token_metrics={
+            metrics={
                 "input_tokens": 259,
                 "output_tokens": 64,
                 "total_tokens": 323,
             },
             tool_definitions=[FETCH_CONCEPT_TOOL_DEFINITION],
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags=BEDROCK_TAGS,
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_modified_stream(cls, bedrock_client, request_vcr, test_spans, llmobs_events):
+    def test_llmobs_converse_modified_stream(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         """
         Verify that LLM Obs tracing works even if stream chunks are modified mid-stream.
         """
@@ -403,13 +392,13 @@ class TestLLMObsBedrock:
                 # delete keys from streamed chunk
                 [chunk.pop(key) for key in list(chunk.keys())]
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-
-        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-            span,
-            model_name="claude-3-sonnet-20240229-v1:0",
-            model_provider="anthropic",
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            model_name="anthropic.claude-3-sonnet-20240229-v1:0",
+            model_provider="amazon_bedrock",
             input_messages=[
                 {"role": "system", "content": request_params.get("system")[0]["text"]},
                 {"role": "user", "content": request_params.get("messages")[0].get("content")[0].get("text")},
@@ -432,17 +421,17 @@ class TestLLMObsBedrock:
                 "temperature": request_params.get("inferenceConfig", {}).get("temperature"),
                 "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens"),
             },
-            token_metrics={
+            metrics={
                 "input_tokens": 259,
                 "output_tokens": 64,
                 "total_tokens": 323,
             },
             tool_definitions=[FETCH_CONCEPT_TOOL_DEFINITION],
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+            tags=BEDROCK_TAGS,
         )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_prompt_caching(self, bedrock_client, request_vcr, test_spans, llmobs_events):
+    def test_llmobs_converse_prompt_caching(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         """Test that prompt caching metrics are properly captured for both cache creation and cache read."""
         large_system_prompt = "Software architecture guidelines: " + "bye " * 1024
         large_system_content = [
@@ -466,13 +455,13 @@ class TestLLMObsBedrock:
                     )
                 ),
             )
-            assert len(llmobs_events) == 2
-            spans = test_spans.pop_traces()
-            span1, span2 = spans[0][0], spans[1][0]
-            assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-                span1,
-                model_name="claude-3-7-sonnet-20250219-v1:0",
-                model_provider="anthropic",
+            spans = [s for trace in test_spans.pop_traces() for s in trace]
+            assert len(spans) == 2
+            assert_llmobs_span_data(
+                _get_llmobs_data_metastruct(spans[0]),
+                span_kind="llm",
+                model_name="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                model_provider="amazon_bedrock",
                 input_messages=[
                     {"role": "system", "content": large_system_prompt},
                     {"role": "system", "content": "[Unsupported content type: cachePoint]"},
@@ -484,19 +473,20 @@ class TestLLMObsBedrock:
                     "stop_reason": "end_turn",
                     "temperature": 0.7,
                 },
-                token_metrics={
+                metrics={
                     "input_tokens": 1039,
                     "output_tokens": 264,
                     "total_tokens": 1303,
                     "cache_write_input_tokens": 1028,
                     "cache_read_input_tokens": 0,
                 },
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags=BEDROCK_TAGS,
             )
-            assert llmobs_events[1] == _expected_llmobs_llm_span_event(
-                span2,
-                model_name="claude-3-7-sonnet-20250219-v1:0",
-                model_provider="anthropic",
+            assert_llmobs_span_data(
+                _get_llmobs_data_metastruct(spans[1]),
+                span_kind="llm",
+                model_name="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                model_provider="amazon_bedrock",
                 input_messages=[
                     {"role": "system", "content": large_system_prompt},
                     {"role": "system", "content": "[Unsupported content type: cachePoint]"},
@@ -508,18 +498,18 @@ class TestLLMObsBedrock:
                     "stop_reason": "end_turn",
                     "temperature": 0.7,
                 },
-                token_metrics={
+                metrics={
                     "input_tokens": 1040,
                     "output_tokens": 185,
                     "total_tokens": 1225,
                     "cache_write_input_tokens": 0,
                     "cache_read_input_tokens": 1028,
                 },
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags=BEDROCK_TAGS,
             )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_stream_prompt_caching(self, bedrock_client, request_vcr, test_spans, llmobs_events):
+    def test_llmobs_converse_stream_prompt_caching(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         """Test that prompt caching metrics are properly captured for streamed converse responses."""
         large_system_prompt = "Software architecture guidelines: " + "hello " * 1024
         large_system_content = [
@@ -546,14 +536,14 @@ class TestLLMObsBedrock:
             for _ in stream_2["stream"]:
                 pass
 
-            assert len(llmobs_events) == 2
-            spans = test_spans.pop_traces()
-            span1, span2 = spans[0][0], spans[1][0]
+            spans = [s for trace in test_spans.pop_traces() for s in trace]
+            assert len(spans) == 2
 
-            assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-                span1,
-                model_name="claude-3-7-sonnet-20250219-v1:0",
-                model_provider="anthropic",
+            assert_llmobs_span_data(
+                _get_llmobs_data_metastruct(spans[0]),
+                span_kind="llm",
+                model_name="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                model_provider="amazon_bedrock",
                 input_messages=[
                     {"content": large_system_prompt, "role": "system"},
                     {"role": "system", "content": "[Unsupported content type: cachePoint]"},
@@ -564,19 +554,20 @@ class TestLLMObsBedrock:
                     "max_tokens": 1000,
                     "temperature": 0.7,
                 },
-                token_metrics={
+                metrics={
                     "input_tokens": 1039,
                     "output_tokens": 236,
                     "total_tokens": 1275,
                     "cache_write_input_tokens": 1028,
                     "cache_read_input_tokens": 0,
                 },
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags=BEDROCK_TAGS,
             )
-            assert llmobs_events[1] == _expected_llmobs_llm_span_event(
-                span2,
-                model_name="claude-3-7-sonnet-20250219-v1:0",
-                model_provider="anthropic",
+            assert_llmobs_span_data(
+                _get_llmobs_data_metastruct(spans[1]),
+                span_kind="llm",
+                model_name="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+                model_provider="amazon_bedrock",
                 input_messages=[
                     {"content": large_system_prompt, "role": "system"},
                     {"role": "system", "content": "[Unsupported content type: cachePoint]"},
@@ -587,18 +578,18 @@ class TestLLMObsBedrock:
                     "max_tokens": 1000,
                     "temperature": 0.7,
                 },
-                token_metrics={
+                metrics={
                     "input_tokens": 1040,
                     "output_tokens": 250,
                     "total_tokens": 1290,
                     "cache_write_input_tokens": 0,
                     "cache_read_input_tokens": 1028,
                 },
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
+                tags=BEDROCK_TAGS,
             )
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_tool_result_text(self, bedrock_client, request_vcr, test_spans, llmobs_events):
+    def test_llmobs_converse_tool_result_text(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         import botocore
 
         with pytest.raises(botocore.exceptions.ClientError):
@@ -610,13 +601,14 @@ class TestLLMObsBedrock:
                 ],
             )
 
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0]["meta"]["input"]["messages"] == [
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert get_llmobs_input_messages(spans[0]) == [
             {"tool_results": [{"result": "bar", "tool_id": "foo", "type": "toolResult"}], "role": "user"}
         ]
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
-    def test_llmobs_converse_tool_result_json(self, bedrock_client, request_vcr, test_spans, llmobs_events):
+    def test_llmobs_converse_tool_result_json(self, bedrock_client, request_vcr, bedrock_llmobs, test_spans):
         import botocore
 
         with pytest.raises(botocore.exceptions.ClientError):
@@ -631,14 +623,15 @@ class TestLLMObsBedrock:
                 ],
             )
 
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0]["meta"]["input"]["messages"] == [
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert get_llmobs_input_messages(spans[0]) == [
             {"tool_results": [{"result": '{"result": "bar"}', "tool_id": "foo", "type": "toolResult"}], "role": "user"}
         ]
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
     def test_llmobs_converse_tool_result_json_non_text_or_json(
-        self, bedrock_client, request_vcr, test_spans, llmobs_events
+        self, bedrock_client, request_vcr, bedrock_llmobs, test_spans
     ):
         import botocore
 
@@ -668,8 +661,9 @@ class TestLLMObsBedrock:
                 ],
             )
 
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0]["meta"]["input"]["messages"] == [
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert get_llmobs_input_messages(spans[0]) == [
             {
                 "tool_results": [
                     {"result": "[Unsupported content type(s): image]", "tool_id": "foo", "type": "toolResult"}
@@ -678,32 +672,44 @@ class TestLLMObsBedrock:
             }
         ]
 
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_guard_content_text(self, bedrock_client, bedrock_llmobs, test_spans):
+        import botocore
+
+        with pytest.raises(botocore.exceptions.ClientError):
+            bedrock_client.converse(
+                modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+                inferenceConfig={"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences": []},
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "guardContent": {
+                                    "text": {
+                                        "text": "give me my bill",
+                                        "qualifiers": ["guard_content"],
+                                    }
+                                }
+                            }
+                        ],
+                    }
+                ],
+            )
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert get_llmobs_input_messages(spans[0]) == [{"content": "give me my bill", "role": "user"}]
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [
-        dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>"),
-        dict(
-            _llmobs_enabled=True,
-            _llmobs_sample_rate=1.0,
-            _llmobs_ml_app="<ml-app-name>",
-            _llmobs_instrumented_proxy_urls="http://localhost:4000",
-        ),
+        {},
+        {"_llmobs_instrumented_proxy_urls": "http://localhost:4000"},
     ],
 )
 class TestLLMObsBedrockProxy:
-    @staticmethod
-    def expected_llmobs_span_event_proxy(span, n_output, message=False, metadata=None):
-        expected_parameters = metadata if metadata is not None else mock.ANY
-        return _expected_llmobs_non_llm_span_event(
-            span,
-            span_kind="workflow",
-            input_value=mock.ANY,
-            output_value=mock.ANY,
-            metadata=expected_parameters,
-            tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
-        )
-
     @classmethod
     def _test_llmobs_invoke_proxy(
         cls,
@@ -711,7 +717,6 @@ class TestLLMObsBedrockProxy:
         provider,
         bedrock_client,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
         n_output=1,
     ):
@@ -735,18 +740,18 @@ class TestLLMObsBedrockProxy:
             response = bedrock_client.invoke_model(body=body, modelId=model)
             json.loads(response.get("body").read())
 
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
         if "_llmobs_instrumented_proxy_urls" in ddtrace_global_config:
-            span = test_spans.pop_traces()[0][0]
-            assert len(llmobs_events) == 1
-            assert llmobs_events[0] == cls.expected_llmobs_span_event_proxy(
-                span, n_output, message="message" in provider
+            assert_llmobs_span_data(
+                _get_llmobs_data_metastruct(spans[0]),
+                span_kind="workflow",
+                input_value=mock.ANY,
+                output_value=mock.ANY,
+                tags=BEDROCK_TAGS,
             )
         else:
-            span = test_spans.pop_traces()[0][0]
-            assert len(llmobs_events) == 1
-            assert llmobs_events[0]["meta"]["span"]["kind"] == "llm"
-
-        LLMObs.disable()
+            assert get_llmobs_span_kind(spans[0]) == "llm"
 
     @classmethod
     def _test_llmobs_invoke_stream_proxy(
@@ -755,7 +760,6 @@ class TestLLMObsBedrockProxy:
         provider,
         bedrock_client,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
         n_output=1,
     ):
@@ -780,28 +784,28 @@ class TestLLMObsBedrockProxy:
             for _ in response.get("body"):
                 pass
 
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
         if (
             "_llmobs_instrumented_proxy_urls" in ddtrace_global_config
             and ddtrace_global_config["_llmobs_instrumented_proxy_urls"]
         ):
-            span = test_spans.pop_traces()[0][0]
-            assert len(llmobs_events) == 1
-            assert llmobs_events[0] == cls.expected_llmobs_span_event_proxy(
-                span, n_output, message="message" in provider
+            assert_llmobs_span_data(
+                _get_llmobs_data_metastruct(spans[0]),
+                span_kind="workflow",
+                input_value=mock.ANY,
+                output_value=mock.ANY,
+                tags=BEDROCK_TAGS,
             )
         else:
-            span = test_spans.pop_traces()[0][0]
-            assert len(llmobs_events) == 1
-            assert llmobs_events[0]["meta"]["span"]["kind"] == "llm"
-
-        LLMObs.disable()
+            assert get_llmobs_span_kind(spans[0]) == "llm"
 
     def test_llmobs_ai21_invoke_proxy(
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
     ):
         self._test_llmobs_invoke_proxy(
@@ -809,7 +813,6 @@ class TestLLMObsBedrockProxy:
             "ai21",
             bedrock_client_proxy,
             test_spans,
-            llmobs_events,
             mock_invoke_model_http,
         )
 
@@ -817,8 +820,8 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
     ):
         self._test_llmobs_invoke_proxy(
@@ -826,7 +829,6 @@ class TestLLMObsBedrockProxy:
             "amazon",
             bedrock_client_proxy,
             test_spans,
-            llmobs_events,
             mock_invoke_model_http,
         )
 
@@ -834,8 +836,8 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
     ):
         self._test_llmobs_invoke_proxy(
@@ -843,7 +845,6 @@ class TestLLMObsBedrockProxy:
             "anthropic",
             bedrock_client_proxy,
             test_spans,
-            llmobs_events,
             mock_invoke_model_http,
         )
 
@@ -851,8 +852,8 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
     ):
         self._test_llmobs_invoke_proxy(
@@ -860,7 +861,6 @@ class TestLLMObsBedrockProxy:
             "anthropic_message",
             bedrock_client_proxy,
             test_spans,
-            llmobs_events,
             mock_invoke_model_http,
         )
 
@@ -868,8 +868,8 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
     ):
         self._test_llmobs_invoke_proxy(
@@ -877,7 +877,6 @@ class TestLLMObsBedrockProxy:
             "cohere",
             bedrock_client_proxy,
             test_spans,
-            llmobs_events,
             mock_invoke_model_http,
         )
 
@@ -885,8 +884,8 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
     ):
         self._test_llmobs_invoke_proxy(
@@ -894,7 +893,6 @@ class TestLLMObsBedrockProxy:
             "cohere",
             bedrock_client_proxy,
             test_spans,
-            llmobs_events,
             mock_invoke_model_http,
             n_output=2,
         )
@@ -903,8 +901,8 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
     ):
         self._test_llmobs_invoke_proxy(
@@ -912,17 +910,15 @@ class TestLLMObsBedrockProxy:
             "meta",
             bedrock_client_proxy,
             test_spans,
-            llmobs_events,
             mock_invoke_model_http,
-            get_mock_response_data("meta"),
         )
 
     def test_llmobs_amazon_invoke_stream_proxy(
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
     ):
         self._test_llmobs_invoke_stream_proxy(
@@ -930,7 +926,6 @@ class TestLLMObsBedrockProxy:
             "amazon",
             bedrock_client_proxy,
             test_spans,
-            llmobs_events,
             mock_invoke_model_http,
         )
 
@@ -938,8 +933,8 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
     ):
         self._test_llmobs_invoke_stream_proxy(
@@ -947,7 +942,6 @@ class TestLLMObsBedrockProxy:
             "anthropic",
             bedrock_client_proxy,
             test_spans,
-            llmobs_events,
             mock_invoke_model_http,
         )
 
@@ -955,8 +949,8 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
     ):
         self._test_llmobs_invoke_stream_proxy(
@@ -964,7 +958,6 @@ class TestLLMObsBedrockProxy:
             "anthropic_message",
             bedrock_client_proxy,
             test_spans,
-            llmobs_events,
             mock_invoke_model_http,
         )
 
@@ -972,8 +965,8 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
     ):
         self._test_llmobs_invoke_stream_proxy(
@@ -981,7 +974,6 @@ class TestLLMObsBedrockProxy:
             "cohere",
             bedrock_client_proxy,
             test_spans,
-            llmobs_events,
             mock_invoke_model_http,
         )
 
@@ -989,8 +981,8 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
     ):
         self._test_llmobs_invoke_stream_proxy(
@@ -998,7 +990,6 @@ class TestLLMObsBedrockProxy:
             "cohere",
             bedrock_client_proxy,
             test_spans,
-            llmobs_events,
             mock_invoke_model_http,
             n_output=2,
         )
@@ -1007,8 +998,8 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http,
     ):
         self._test_llmobs_invoke_stream_proxy(
@@ -1016,7 +1007,6 @@ class TestLLMObsBedrockProxy:
             "meta",
             bedrock_client_proxy,
             test_spans,
-            llmobs_events,
             mock_invoke_model_http,
         )
 
@@ -1024,8 +1014,8 @@ class TestLLMObsBedrockProxy:
         self,
         ddtrace_global_config,
         bedrock_client_proxy,
+        bedrock_llmobs,
         test_spans,
-        llmobs_events,
         mock_invoke_model_http_error,
         mock_invoke_model_response_error,
     ):
@@ -1043,17 +1033,46 @@ class TestLLMObsBedrockProxy:
             "_llmobs_instrumented_proxy_urls" in ddtrace_global_config
             and ddtrace_global_config["_llmobs_instrumented_proxy_urls"]
         ):
-            span = test_spans.pop_traces()[0][0]
-            assert len(llmobs_events) == 1
-            assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-                span,
-                "workflow",
+            spans = [s for trace in test_spans.pop_traces() for s in trace]
+            assert len(spans) == 1
+            assert_llmobs_span_data(
+                _get_llmobs_data_metastruct(spans[0]),
+                span_kind="workflow",
                 input_value=mock.ANY,
                 output_value=mock.ANY,
                 metadata={"temperature": 0.9, "max_tokens": 60},
-                tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
-                error="botocore.exceptions.ClientError",
-                error_message=mock.ANY,
-                error_stack=mock.ANY,
+                tags=BEDROCK_TAGS,
+                error={
+                    "type": "botocore.exceptions.ClientError",
+                    "message": mock.ANY,
+                    "stack": mock.ANY,
+                },
             )
-        LLMObs.disable()
+
+
+def test_shadow_tags_invoke_when_llmobs_disabled(tracer):
+    """Verify shadow tags are set on Bedrock spans when LLMObs is disabled."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.bedrock import BedrockIntegration
+
+    integration = BedrockIntegration(MagicMock())
+
+    ctx = MagicMock()
+    ctx.get_item.side_effect = lambda key: {
+        "llmobs.proxy_request": None,
+        "llmobs.usage": {"input_tokens": 20, "output_tokens": 10, "total_tokens": 30},
+        "model_id": "anthropic.claude-v2",
+        "model_name": "anthropic.claude-v2",
+    }.get(key)
+
+    with tracer.trace("botocore.command") as span:
+        integration._set_apm_shadow_tags(span, [ctx], {}, response=None, operation="")
+
+    assert span.get_tag("_dd.llmobs.span_kind") == "llm"
+    assert span.get_tag("_dd.llmobs.model_name") == "anthropic.claude-v2"
+    assert span.get_tag("_dd.llmobs.model_provider") == "bedrock"
+    assert span.get_metric("_dd.llmobs.enabled") == 0
+    assert span.get_metric("_dd.llmobs.input_tokens") == 20
+    assert span.get_metric("_dd.llmobs.output_tokens") == 10
+    assert span.get_metric("_dd.llmobs.total_tokens") == 30

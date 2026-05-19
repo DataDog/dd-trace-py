@@ -1,12 +1,11 @@
-import os
-from typing import Dict
-
 import tornado
 from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
 from ddtrace.contrib.internal.tornado.stack_context import context_provider
+from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -21,13 +20,13 @@ from . import template
 config._add(
     "tornado",
     dict(
-        distributed_tracing=asbool(os.getenv("DD_TORNADO_DISTRIBUTED_TRACING", default=True)),
+        _default_service=schematize_service_name(config._get_service("tornado-web")),
+        distributed_tracing=asbool(env.get("DD_TORNADO_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(tornado, "version", "0.0.0")
 
 
@@ -43,7 +42,7 @@ if VERSION_TUPLE < (6, 1, 0):
     )
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"tornado": ">=6.1"}
 
 
@@ -86,5 +85,6 @@ def unpatch():
     _u(tornado.web.RequestHandler, "_execute")
     _u(tornado.web.RequestHandler, "on_finish")
     _u(tornado.web.RequestHandler, "log_exception")
+    _u(tornado.web.RequestHandler, "flush")
     _u(tornado.web.Application, "__init__")
     _u(tornado.template.Template, "generate")

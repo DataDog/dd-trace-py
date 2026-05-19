@@ -1,8 +1,6 @@
 import functools
 import http.client as httplib
-import os
 import sys
-from typing import Dict
 from urllib import parse
 
 import wrapt
@@ -19,6 +17,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
@@ -30,22 +29,20 @@ span_name = schematize_url_operation(span_name, protocol="http", direction=SpanD
 
 log = get_logger(__name__)
 
-
 config._add(
     "httplib",
     {
-        "distributed_tracing": asbool(os.getenv("DD_HTTPLIB_DISTRIBUTED_TRACING", default=True)),
+        "distributed_tracing": asbool(env.get("DD_HTTPLIB_DISTRIBUTED_TRACING", default=True)),
         "default_http_tag_query_string": config._http_client_tag_query_string,
     },
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"http.client": "*"}
 
 
@@ -103,10 +100,10 @@ def _wrap_request(func, instance, args, kwargs):
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
         span = tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
-        span._set_tag_str(COMPONENT, config.httplib.integration_name)
+        span._set_attribute(COMPONENT, config.httplib.integration_name)
 
         # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         instance._datadog_span = span
 
@@ -148,10 +145,10 @@ def _wrap_putrequest(func, instance, args, kwargs):
             # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
             span = tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
-            span._set_tag_str(COMPONENT, config.httplib.integration_name)
+            span._set_attribute(COMPONENT, config.httplib.integration_name)
 
             # set span.kind to the type of operation being performed
-            span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
             instance._datadog_span = span
 

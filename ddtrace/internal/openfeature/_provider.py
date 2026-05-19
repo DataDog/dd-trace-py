@@ -8,6 +8,7 @@ and forwards the raw bytes to the native FFE processor.
 from collections import OrderedDict
 from collections.abc import MutableMapping
 from importlib.metadata import version
+import threading
 import typing
 
 from openfeature.evaluation_context import EvaluationContext
@@ -22,6 +23,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._exposure import build_exposure_event
+from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
+from ddtrace.internal.openfeature._flageval_metrics import FlagEvalHook
+from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature.writer import get_exposure_writer
@@ -87,18 +91,27 @@ class DataDogProvider(AbstractProvider):
     Feature Flags and Experimentation (FFE) product.
     """
 
-    def __init__(self, *args: typing.Any, **kwargs: typing.Any):
+    def __init__(self, *args: typing.Any, initialization_timeout: typing.Optional[float] = None, **kwargs: typing.Any):
         super().__init__(*args, **kwargs)
         self._metadata = Metadata(name="Datadog")
         self._status = ProviderStatus.NOT_READY
-        self._config_received = False
+
+        # Initialization timeout: constructor arg takes priority, then env var
+        if initialization_timeout is not None:
+            self._initialization_timeout = initialization_timeout
+        else:
+            self._initialization_timeout = ffe_config.initialization_timeout_ms / 1000.0
+
+        # Event used to block initialize() until config arrives.
+        # Also serves as the "config received" flag via is_set().
+        self._config_received = threading.Event()
 
         # Cache for reported exposures to prevent duplicates
         # Stores mapping of (flag_key, subject_id) -> (allocation_key, variant_key)
         # Using LRU cache with maxsize of 65536 to prevent unbounded memory growth
-        self._exposure_cache: LRUCache[
-            typing.Tuple[str, str], typing.Tuple[typing.Optional[str], typing.Optional[str]]
-        ] = LRUCache(maxsize=65536)
+        self._exposure_cache: LRUCache[tuple[str, str], tuple[typing.Optional[str], typing.Optional[str]]] = LRUCache(
+            maxsize=65536
+        )
 
         # Check if experimental flagging provider is enabled
         self._enabled = ffe_config.experimental_flagging_provider_enabled
@@ -108,30 +121,51 @@ class DataDogProvider(AbstractProvider):
                 "please set DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED=true to enable it",
             )
 
-        # Register this provider instance for status updates
-        _register_provider(self)
+        # Initialize flag evaluation metrics tracking
+        # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true
+        self._flag_eval_metrics: typing.Optional[FlagEvalMetrics] = None
+        self._flag_eval_hook: typing.Optional[FlagEvalHook] = None
+        if self._enabled:
+            self._flag_eval_metrics = FlagEvalMetrics()
+            self._flag_eval_hook = FlagEvalHook(self._flag_eval_metrics)
 
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
         return self._metadata
 
+    def get_provider_hooks(self) -> list[typing.Any]:
+        """
+        Returns provider-level hooks.
+
+        The flag evaluation hook is registered here to track metrics for
+        every flag evaluation via the finally_after hook stage.
+        """
+        hooks: list[typing.Any] = []
+        if self._flag_eval_hook is not None:
+            hooks.append(self._flag_eval_hook)
+        return hooks
+
     def initialize(self, evaluation_context: EvaluationContext) -> None:
         """
         Initialize the provider.
 
-        Called by the OpenFeature SDK when the provider is set.
-        Provider Creation → NOT_READY
-                                 ↓
-                   First Remote Config Payload
-                                 ↓
-                            READY (emits PROVIDER_READY event)
-                                 ↓
-                           Shutdown
-                                 ↓
-                          NOT_READY
+        Blocks until Remote Config delivers the first FFE configuration or
+        the initialization timeout expires.
+
+        The timeout is configurable via:
+        - Constructor: DataDogProvider(initialization_timeout=10.0)  # seconds
+        - Env var: DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS=10000
+
+        Provider lifecycle:
+            NOT_READY -> initialize() blocks -> config arrives -> READY
+            NOT_READY -> initialize() blocks -> timeout -> raises ProviderNotReadyError
         """
         if not self._enabled:
             return
+
+        # Register for RC config callbacks (in initialize, not __init__, so
+        # re-initialization after shutdown re-registers the provider)
+        _register_provider(self)
 
         try:
             # Start the exposure writer for reporting
@@ -139,12 +173,28 @@ class DataDogProvider(AbstractProvider):
         except ServiceStatusError:
             logger.debug("Exposure writer is already running", exc_info=True)
 
-        # If configuration was already received before initialization, emit ready now
+        # Fast path: config already available (RC delivered before set_provider)
         config = _get_ffe_config()
-        if config is not None and not self._config_received:
-            self._config_received = True
+        if config is not None:
+            logger.debug("FFE configuration already available, provider is READY")
+            self._config_received.set()
             self._status = ProviderStatus.READY
-            self._emit_ready_event()
+            return  # SDK will dispatch PROVIDER_READY
+
+        # Block until config arrives or timeout expires
+        logger.debug(
+            "Waiting up to %.1fs for initial FFE configuration from Remote Config", self._initialization_timeout
+        )
+        if not self._config_received.wait(timeout=self._initialization_timeout):
+            # Timeout expired without receiving config
+            from openfeature.exception import ProviderNotReadyError
+
+            raise ProviderNotReadyError(
+                f"Provider timed out after {self._initialization_timeout:.1f}s waiting for "
+                "initial configuration from Remote Config"
+            )
+
+        # Config received during wait -- on_configuration_received() already set status
 
     def shutdown(self) -> None:
         """
@@ -161,13 +211,19 @@ class DataDogProvider(AbstractProvider):
         except ServiceStatusError:
             logger.debug("Exposure writer has already stopped", exc_info=True)
 
+        # Shutdown flag evaluation metrics
+        if self._flag_eval_metrics is not None:
+            self._flag_eval_metrics.shutdown()
+            self._flag_eval_metrics = None
+            self._flag_eval_hook = None
+
         # Clear exposure cache
         self.clear_exposure_cache()
 
         # Unregister provider
         _unregister_provider(self)
         self._status = ProviderStatus.NOT_READY
-        self._config_received = False
+        self._config_received.clear()
 
     def resolve_boolean_details(
         self,
@@ -221,8 +277,10 @@ class DataDogProvider(AbstractProvider):
 
         Follows OpenFeature spec:
         - Returns flag value with reason and variant on success
-        - Returns default value with DEFAULT reason when flag not found
-        - Returns error with error_code and error_message on errors
+        - Returns default value with DEFAULT reason when no configuration is available
+        - Returns default value with ERROR reason and FLAG_NOT_FOUND error_code when
+          flag is not found in the configuration
+        - Returns error with error_code and error_message on other errors
         """
         # If provider is not enabled, return default value
         if not self._enabled:
@@ -244,13 +302,14 @@ class DataDogProvider(AbstractProvider):
                 expected_type=variation_type,
             )
 
-            # No configuration available - return default
+            # No configuration available - return error with PROVIDER_NOT_READY code
             # Note: No exposure logging when configuration is missing
             if details is None:
                 return FlagResolutionDetails(
                     value=default_value,
-                    reason=Reason.DEFAULT,
-                    variant=None,
+                    reason=Reason.ERROR,
+                    error_code=ErrorCode.PROVIDER_NOT_READY,
+                    error_message="No FFE configuration loaded",
                 )
 
             # Handle errors from native evaluation
@@ -258,7 +317,7 @@ class DataDogProvider(AbstractProvider):
                 # Map native error code to OpenFeature error code
                 openfeature_error_code = self._map_error_code_to_openfeature(details.error_code)
 
-                # Flag not found - return default with DEFAULT reason
+                # Flag not found - return default with ERROR reason and error_code
                 if details.error_code == ffe.ErrorCode.FlagNotFound:
                     # Only report exposure if do_log is explicitly True
                     if details.do_log:
@@ -270,8 +329,9 @@ class DataDogProvider(AbstractProvider):
                         )
                     return FlagResolutionDetails(
                         value=default_value,
-                        reason=Reason.DEFAULT,
-                        variant=None,
+                        reason=Reason.ERROR,
+                        error_code=openfeature_error_code,
+                        error_message="Flag not found",
                     )
 
                 # Other errors - return default with ERROR reason
@@ -294,6 +354,11 @@ class DataDogProvider(AbstractProvider):
                     evaluation_context=evaluation_context,
                 )
 
+            # Build flag_metadata with allocation_key if present
+            flag_metadata: dict[str, typing.Any] = {}
+            if details.allocation_key:
+                flag_metadata[METADATA_ALLOCATION_KEY] = details.allocation_key
+
             # Check if variant is None/empty to determine if we should use default value.
             # For JSON flags, value can be null which is valid, so we check variant instead.
             # We preserve the reason from evaluation (could be DEFAULT, DISABLED, etc.)
@@ -302,6 +367,7 @@ class DataDogProvider(AbstractProvider):
                     value=default_value,
                     reason=reason,
                     variant=None,
+                    flag_metadata=flag_metadata,
                 )
 
             # Success - return resolved value (which may be None for JSON flags)
@@ -309,6 +375,7 @@ class DataDogProvider(AbstractProvider):
                 value=details.value,
                 reason=reason,
                 variant=details.variant,
+                flag_metadata=flag_metadata,
             )
 
         except Exception as e:
@@ -423,13 +490,17 @@ class DataDogProvider(AbstractProvider):
         """
         Called when a Remote Configuration payload is received and processed.
 
-        Emits PROVIDER_READY event on first configuration.
+        Updates status first, then signals the event to unblock initialize().
+        Emits PROVIDER_READY for late arrivals (config received after initialize() timed out).
         """
-        if not self._config_received:
-            self._config_received = True
+        if not self._config_received.is_set():
             self._status = ProviderStatus.READY
             logger.debug("First FFE configuration received, provider is now READY")
+            # Emit READY for late recovery: config arrived after init timed out
             self._emit_ready_event()
+
+        # Signal the event last to unblock initialize() after status is updated
+        self._config_received.set()
 
     def _emit_ready_event(self) -> None:
         """
@@ -454,7 +525,7 @@ class DataDogProvider(AbstractProvider):
 
 
 # Module-level registry for active provider instances
-_provider_instances: typing.List[DataDogProvider] = []
+_provider_instances: list[DataDogProvider] = []
 
 
 def _register_provider(provider: DataDogProvider) -> None:

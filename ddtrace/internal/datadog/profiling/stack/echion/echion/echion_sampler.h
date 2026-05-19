@@ -5,7 +5,15 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include <echion/cache.h>
+#include <echion/frame.h>
+#include <echion/strings.h>
 #include <echion/threads.h>
+
+#include "stack_renderer.hpp"
+
+// Forward declaration
+class Frame;
 
 class EchionSampler
 {
@@ -29,12 +37,31 @@ class EchionSampler
     PyObject* asyncio_eager_tasks_ = nullptr;
 
     // Task unwinding state
-    std::optional<Frame::Key> frame_cache_key_;
+    std::optional<Frame::Key> asyncio_frame_cache_key_;
+    std::optional<Frame::Key> uvloop_frame_cache_key_;
     std::unordered_set<PyObject*> previous_task_objects_;
 
+    // Accumulated asyncio task count across sampled threads in the current sampling cycle.
+    // When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), this only
+    // reflects tasks from the sampled subset, not all threads in the process.
+    // Only accessed from the sampling thread, so no lock/atomic is needed.
+    size_t asyncio_task_count_ = 0;
+
+    // Caches
+    StringTable string_table_;
+    LRUCache<uintptr_t, Frame> frame_cache_;
+
+    // Stack renderer for outputting samples
+    Datadog::StackRenderer renderer_;
+
   public:
-    EchionSampler() = default;
+    EchionSampler(size_t frame_cache_capacity = 1024)
+      : frame_cache_(frame_cache_capacity)
+    {
+    }
     ~EchionSampler() = default;
+
+    Datadog::StackRenderer& renderer() { return renderer_; }
 
     std::unordered_map<uintptr_t, ThreadInfo::Ptr>& thread_info_map() { return thread_info_map_; }
     std::mutex& thread_info_map_lock() { return thread_info_map_lock_; }
@@ -57,8 +84,20 @@ class EchionSampler
         asyncio_eager_tasks_ = (eager_tasks != Py_None) ? eager_tasks : nullptr;
     }
 
-    std::optional<Frame::Key>& frame_cache_key() { return frame_cache_key_; }
+    std::optional<Frame::Key>& asyncio_frame_cache_key() { return asyncio_frame_cache_key_; }
+    std::optional<Frame::Key>& uvloop_frame_cache_key() { return uvloop_frame_cache_key_; }
     std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
+
+    void reset_asyncio_task_count() { asyncio_task_count_ = 0; }
+    void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
+    size_t asyncio_task_count() const { return asyncio_task_count_; }
+
+    // Accessor for StringTable operations
+    StringTable& string_table() { return string_table_; }
+    const StringTable& string_table() const { return string_table_; }
+
+    // Accessor for frame cache operations
+    LRUCache<uintptr_t, Frame>& frame_cache() { return frame_cache_; }
 
     void postfork_child()
     {
@@ -67,6 +106,14 @@ class EchionSampler
         new (&task_link_map_lock_) std::mutex;
         new (&greenlet_info_map_lock_) std::mutex;
 
+        // Reset string_table mutex
+        string_table_.postfork_child();
+
+        // Reset frame cache. Use postfork_child (placement new) instead of std::list::clear
+        // because the Sampling Thread may have been modifying the cache when fork
+        // took its snapshot. Traversing a corrupted list to free nodes would crash.
+        frame_cache_.postfork_child();
+
         // Clear stale entries from parent process.
         // No lock needed: only one thread exists in child immediately after fork.
         task_link_map_.clear();
@@ -74,5 +121,9 @@ class EchionSampler
         greenlet_info_map_.clear();
         greenlet_parent_map_.clear();
         greenlet_thread_map_.clear();
+
+        // Clear renderer caches to avoid using stale interned IDs from the
+        // parent's Profiles Dictionary
+        renderer_.postfork_child();
     }
 };

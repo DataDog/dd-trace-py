@@ -22,10 +22,25 @@ class TestTornadoPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, tornado):
-        pass
+        self.assert_wrapped(tornado.web.Application.__init__)
+        self.assert_wrapped(tornado.web.RequestHandler._execute)
+        self.assert_wrapped(tornado.web.RequestHandler.on_finish)
+        self.assert_wrapped(tornado.web.RequestHandler.log_exception)
+        self.assert_wrapped(tornado.web.RequestHandler.flush)
+        self.assert_wrapped(tornado.template.Template.generate)
 
     def assert_not_module_patched(self, tornado):
-        pass
+        self.assert_not_wrapped(tornado.web.Application.__init__)
+        self.assert_not_wrapped(tornado.web.RequestHandler._execute)
+        self.assert_not_wrapped(tornado.web.RequestHandler.on_finish)
+        self.assert_not_wrapped(tornado.web.RequestHandler.log_exception)
+        self.assert_not_wrapped(tornado.web.RequestHandler.flush)
+        self.assert_not_wrapped(tornado.template.Template.generate)
 
     def assert_not_module_double_patched(self, tornado):
-        pass
+        self.assert_not_double_wrapped(tornado.web.Application.__init__)
+        self.assert_not_double_wrapped(tornado.web.RequestHandler._execute)
+        self.assert_not_double_wrapped(tornado.web.RequestHandler.on_finish)
+        self.assert_not_double_wrapped(tornado.web.RequestHandler.log_exception)
+        self.assert_not_double_wrapped(tornado.web.RequestHandler.flush)
+        self.assert_not_double_wrapped(tornado.template.Template.generate)

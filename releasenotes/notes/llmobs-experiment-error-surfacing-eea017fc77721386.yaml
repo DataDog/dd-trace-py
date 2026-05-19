@@ -1,0 +1,4 @@
+features:
+  - |
+    LLM Observability: adds experiment summary logging after ``run()`` with
+    row count, run count, per-evaluator stats, and error counts.

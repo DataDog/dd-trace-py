@@ -14,8 +14,8 @@
         "TopLevelHits": 30,
         "Duration": 29999999970,
         "Errors": 0,
-        "OkSummary": 1046,
-        "ErrorSummary": 15
+        "OkSummary": 37,
+        "ErrorSummary": 24
       },
       {
         "Name": "parent",
@@ -28,8 +28,8 @@
         "TopLevelHits": 30,
         "Duration": 29999999970,
         "Errors": 0,
-        "OkSummary": 1046,
-        "ErrorSummary": 15
+        "OkSummary": 37,
+        "ErrorSummary": 24
       }
     ]
   }

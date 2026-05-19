@@ -54,7 +54,6 @@ Automatic instrumentation is not available for the server, instead
 the provided ``trace_app`` function must be used::
 
     from aiohttp import web
-    from ddtrace.trace import tracer, patch
     from ddtrace.contrib.aiohttp import trace_app
 
     # create your application
@@ -62,7 +61,7 @@ the provided ``trace_app`` function must be used::
     app.router.add_get('/', home_handler)
 
     # trace your application handlers
-    trace_app(app, tracer, service='async-api')
+    trace_app(app, service='async-api')
     web.run_app(app, port=8000)
 
 Integration settings are attached to your application under the ``datadog_trace``
@@ -73,8 +72,6 @@ namespace. You can read or update them as follows::
 
 Available settings are:
 
-* ``tracer`` (default: ``ddtrace.tracer``): set the default tracer instance that is used to
-  trace `aiohttp` internals. By default the `ddtrace` tracer is used.
 * ``service`` (default: ``aiohttp-web``): set the service name used by the tracer. Usually
   this configuration must be updated with a meaningful name.
 * ``distributed_tracing_enabled`` (default: ``True``): enable distributed tracing during

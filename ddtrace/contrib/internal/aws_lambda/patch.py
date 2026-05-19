@@ -1,6 +1,5 @@
 from importlib import import_module
 import signal
-from typing import Dict
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -15,12 +14,11 @@ from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import tracer
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"datadog_lambda": "*"}
 
 
@@ -97,8 +95,8 @@ class TimeoutChannel:
         root_span = tracer.current_root_span()
         if root_span is not None:
             root_span.error = 1
-            root_span._set_tag_str(ERROR_MSG, "Datadog detected an Impending Timeout")
-            root_span._set_tag_str(ERROR_TYPE, "Impending Timeout")
+            root_span._set_attribute(ERROR_MSG, "Datadog detected an Impending Timeout")
+            root_span._set_attribute(ERROR_TYPE, "Impending Timeout")
         else:
             log.warning("An impending timeout was reached, but no root span was found. No error will be tagged.")
 

@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 from typing import Callable
 from typing import Optional
 
@@ -22,6 +20,23 @@ class uWSGIConfigDeprecationWarning(DeprecationWarning):
 
 class uWSGIMasterProcess(Exception):
     """The process is uWSGI master process."""
+
+
+def should_register_atexit() -> bool:
+    """Check if Python atexit handlers should be registered under uwsgi.
+
+    Returns False if running under uwsgi with --skip-atexit, True otherwise.
+    This respects the user's explicit request to skip atexit handlers, which
+    is important because running complex operations (like HTTP uploads) during
+    atexit can cause heap corruption during process shutdown.
+    """
+    try:
+        import uwsgi
+
+        return not uwsgi.opt.get("skip-atexit")
+    except (ImportError, AttributeError):
+        # Not running under uwsgi or uwsgi.opt not available
+        return True
 
 
 def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Callable] = None) -> None:

@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from dataclasses import field
+from pathlib import Path
+from types import FrameType
 import typing as t
 
 import ddtrace
@@ -18,6 +20,7 @@ from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.safety import _isinstance
 from ddtrace.trace import Span
 
@@ -51,15 +54,31 @@ class DynamicSpan(Signal):
         span = self._span_cm.__enter__()
 
         span.set_tags(probe.tags)
-        span._set_tag_str(PROBE_ID_TAG_NAME, probe.probe_id)
-        span._set_tag_str(_ORIGIN_KEY, "di")
+        span._set_attribute(PROBE_ID_TAG_NAME, probe.probe_id)
+        span._set_attribute(_ORIGIN_KEY, "di")
+
+        # Set Code Origin tags
+        root = span._local_root
+        root_co_type = root.get_tag("_dd.code_origin.type")
+        span._set_attribute("_dd.code_origin.type", "intermediate" if root_co_type == "entry" else "entry")
+
+        if root_co_type is None:
+            root._set_attribute("_dd.code_origin.type", "entry")
+
+        frame = self.frame
+        code = frame.f_code
+        for s in (root, span) if root_co_type is None else (span,):
+            s._set_attribute("_dd.code_origin.frames.0.file", str(Path(code.co_filename).resolve()))
+            s._set_attribute("_dd.code_origin.frames.0.line", str(frame.f_lineno))
+            s._set_attribute("_dd.code_origin.frames.0.type", probe.module)
+            s._set_attribute("_dd.code_origin.frames.0.method", probe.func_qname)
 
     def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float, scope: t.Mapping[str, t.Any]) -> None:
         if self._span_cm is not None:
             # Condition evaluated to true so we created a span. Finish it.
             self._span_cm.__exit__(*exc_info)
 
-    def line(self, scope):
+    def line(self, scope: t.Mapping[str, t.Any]) -> None:
         raise NotImplementedError("Dynamic line spans are not supported in Python")
 
 
@@ -93,12 +112,14 @@ class SpanDecoration(LogSignal):
                     try:
                         tag_value = tag.value.render(scope, serialize)
                     except DDExpressionEvaluationError as e:
-                        span._set_tag_str(
+                        span._set_attribute(
                             "_dd.di.%s.evaluation_error" % tag.name, ", ".join([serialize(v) for v in e.args])
                         )
                     else:
-                        span._set_tag_str(tag.name, tag_value if _isinstance(tag_value, str) else serialize(tag_value))
-                        span._set_tag_str("_dd.di.%s.probe_id" % tag.name, t.cast(Probe, probe).probe_id)
+                        span._set_attribute(
+                            tag.name, tag_value if _isinstance(tag_value, str) else serialize(tag_value)
+                        )
+                        span._set_attribute("_dd.di.%s.probe_id" % tag.name, t.cast(Probe, probe).probe_id)
 
     def enter(self, scope: t.Mapping[str, t.Any]) -> None:
         self._decorate_span(scope)
@@ -106,11 +127,11 @@ class SpanDecoration(LogSignal):
     def exit(self, retval: t.Any, exc_info: ExcInfoType, duration: float, scope: t.Mapping[str, t.Any]) -> None:
         self._decorate_span(scope)
 
-    def line(self, scope: t.Mapping[str, t.Any]):
+    def line(self, scope: t.Mapping[str, t.Any]) -> None:
         self._decorate_span(scope)
 
     @property
-    def message(self):
+    def message(self) -> t.Optional[str]:
         return f"Condition evaluation errors for probe {self.probe.probe_id}" if self.errors else None
 
     def has_message(self) -> bool:
@@ -118,15 +139,21 @@ class SpanDecoration(LogSignal):
 
 
 @probe_to_signal.register
-def _(probe: SpanFunctionProbe, frame, thread, trace_context, meter):
+def _(
+    probe: SpanFunctionProbe, frame: FrameType, thread: t.Any, trace_context: t.Any, meter: Metrics.Meter
+) -> DynamicSpan:
     return DynamicSpan(probe=probe, frame=frame, thread=thread, trace_context=trace_context)
 
 
 @probe_to_signal.register
-def _(probe: SpanDecorationFunctionProbe, frame, thread, trace_context, meter):
+def _(
+    probe: SpanDecorationFunctionProbe, frame: FrameType, thread: t.Any, trace_context: t.Any, meter: Metrics.Meter
+) -> SpanDecoration:
     return SpanDecoration(probe=probe, frame=frame, thread=thread)
 
 
 @probe_to_signal.register
-def _(probe: SpanDecorationLineProbe, frame, thread, trace_context, meter):
+def _(
+    probe: SpanDecorationLineProbe, frame: FrameType, thread: t.Any, trace_context: t.Any, meter: Metrics.Meter
+) -> SpanDecoration:
     return SpanDecoration(probe=probe, frame=frame, thread=thread)

@@ -2,10 +2,8 @@
 
 
 from typing import Any
-from typing import Dict
 from typing import Optional
 from typing import Sequence
-from typing import Tuple
 from typing import TypeVar  # noqa:F401
 
 
@@ -19,7 +17,7 @@ MySequenceType = Sequence[int]
 
 
 # function with positional-only argument
-def bar(arg: Dict[str, Sequence[Any]], /) -> Tuple[str, ...]:
+def bar(arg: dict[str, Sequence[Any]], /) -> tuple[str, ...]:
     return tuple(arg.keys())
 
 
@@ -31,5 +29,5 @@ def greet(name: Optional[str] = "World", /, endline: Optional[str] = "!", *, gre
 class Client(Sequence[_T_co]):
     my_attr: Optional[str]
 
-    def init(self, *myargs: Optional[Sequence[Any]], **mykwargs: Optional[Dict[str, Any]]) -> Optional[None]:
+    def init(self, *myargs: Optional[Sequence[Any]], **mykwargs: Optional[dict[str, Any]]) -> Optional[None]:
         super().__init__(*myargs, **mykwargs)

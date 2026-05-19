@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: Fixes an ``AttributeError`` crash that occurred when the lock
+    profiler or stack profiler encountered ``_DummyThread`` instances.
+    ``_DummyThread`` lacks the ``_native_id`` attribute, so accessing
+    ``native_id`` raises ``AttributeError``. The profiler now falls back to
+    using the thread identifier when ``native_id`` is unavailable.

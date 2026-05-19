@@ -1,5 +1,3 @@
-import os
-from typing import Dict
 from urllib.parse import urlencode
 
 import molten
@@ -15,9 +13,9 @@ from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.trace import tracer
 
 from .wrappers import WrapperComponent
 from .wrappers import WrapperMiddleware
@@ -29,7 +27,7 @@ config._add(
     "molten",
     dict(
         _default_service=schematize_service_name("molten"),
-        distributed_tracing=asbool(os.getenv("DD_MOLTEN_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(env.get("DD_MOLTEN_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 
@@ -38,7 +36,7 @@ def get_version() -> str:
     return getattr(molten, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"molten": ">=1.0"}
 
 
@@ -88,7 +86,6 @@ def patch_app_call(wrapped, instance, args, kwargs):
             service=trace_utils.int_service(pin, config.molten),
             resource=resource,
             tags={},
-            tracer=tracer,
             distributed_headers=dict(request.headers),  # request.headers is type Iterable[Tuple[str, str]]
             integration_config=config.molten,
             allow_default_resource=True,

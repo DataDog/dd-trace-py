@@ -1,9 +1,6 @@
 import json
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.llmobs._constants import BILLABLE_CHARACTER_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
@@ -11,6 +8,8 @@ from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
@@ -48,8 +47,8 @@ KNOWN_MODEL_PREFIX_TO_PROVIDER = {
 
 
 def extract_provider_and_model_name(
-    kwargs: Optional[Dict[str, Any]] = None, instance: Any = None, model_name_attr: Optional[str] = None
-) -> Tuple[str, str]:
+    kwargs: Optional[dict[str, Any]] = None, instance: Any = None, model_name_attr: Optional[str] = None
+) -> tuple[str, str]:
     """
     Function to extract provider and model name from either kwargs or instance attributes.
     Args:
@@ -58,7 +57,7 @@ def extract_provider_and_model_name(
         model_name_attr: Attribute name to extract from instance (e.g., "_model_name", "model_name", used for vertexai)
 
     Returns:
-        Tuple of (provider_name, model_name)
+        tuple of (provider_name, model_name)
     """
     model_path = ""
     if kwargs is not None:
@@ -67,7 +66,7 @@ def extract_provider_and_model_name(
         model_path = _get_attr(instance, model_name_attr, "")
 
     if not model_path or not isinstance(model_path, str):
-        return "custom", "custom"
+        return UNKNOWN_MODEL_PROVIDER, UNKNOWN_MODEL_NAME
 
     model_name = model_path.split("/")[-1] if "/" in model_path else model_path
 
@@ -75,10 +74,10 @@ def extract_provider_and_model_name(
         if model_name.lower().startswith(prefix):
             provider_name = KNOWN_MODEL_PREFIX_TO_PROVIDER[prefix]
             return provider_name, model_name
-    return "custom", model_name if model_name else "custom"
+    return UNKNOWN_MODEL_PROVIDER, model_name if model_name else UNKNOWN_MODEL_NAME
 
 
-def normalize_contents_google_genai(contents) -> List[Dict[str, Any]]:
+def normalize_contents_google_genai(contents) -> list[dict[str, Any]]:
     """
     contents has a complex union type structure:
     - contents: Union[ContentListUnion, ContentListUnionDict]
@@ -113,7 +112,7 @@ def normalize_contents_google_genai(contents) -> List[Dict[str, Any]]:
     return [extract_content(contents)]
 
 
-def extract_generation_metrics_google_genai(response) -> Dict[str, Any]:
+def extract_generation_metrics_google_genai(response) -> dict[str, Any]:
     """
     Extract usage metrics from Google GenAI response or Google ADK Event object.
 
@@ -157,7 +156,7 @@ def extract_generation_metrics_google_genai(response) -> Dict[str, Any]:
     return usage
 
 
-def extract_embedding_metrics_google_genai(response) -> Dict[str, Any]:
+def extract_embedding_metrics_google_genai(response) -> dict[str, Any]:
     if not response:
         return {}
     usage = {}
@@ -326,15 +325,15 @@ def get_system_instructions_vertexai(model_instance):
     return system_instructions
 
 
-def extract_messages_from_adk_events(events) -> List[Message]:
+def extract_messages_from_adk_events(events) -> list[Message]:
     """
     Extract messages from Google ADK Event objects.
 
     Args:
-        events: List of ADK Event objects or single Event object
+        events: list of ADK Event objects or single Event object
 
     Returns:
-        List of message dictionaries with format {"role": role, "content": content, ...}
+        list of message dictionaries with format {"role": role, "content": content, ...}
     """
     messages = []
 

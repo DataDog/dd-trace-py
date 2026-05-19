@@ -16,8 +16,6 @@ All types and methods for interacting with the API are provided and documented i
 from enum import Enum
 from pathlib import Path
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 
 from ddtrace._trace.context import Context
@@ -43,7 +41,7 @@ def _set_item_tag(item_id: TestVisibilityItemId, tag_name: str, tag_value: Any) 
     require_ci_visibility_service().get_item_by_id(item_id).set_tag(tag_name, tag_value)
 
 
-def _set_item_tags(item_id: TestVisibilityItemId, tags: Dict[str, Any]) -> None:
+def _set_item_tags(item_id: TestVisibilityItemId, tags: dict[str, Any]) -> None:
     require_ci_visibility_service().get_item_by_id(item_id).set_tags(tags)
 
 
@@ -51,7 +49,7 @@ def _delete_item_tag(item_id: TestVisibilityItemId, tag_name: str) -> None:
     require_ci_visibility_service().get_item_by_id(item_id).delete_tag(tag_name)
 
 
-def _delete_item_tags(item_id: TestVisibilityItemId, tag_names: List[str]) -> None:
+def _delete_item_tags(item_id: TestVisibilityItemId, tag_names: list[str]) -> None:
     require_ci_visibility_service().get_item_by_id(item_id).delete_tags(tag_names)
 
 
@@ -113,7 +111,7 @@ class TestBase(_TestVisibilityAPIBase):
         _set_item_tag(item_id, tag_name, tag_value)
 
     @staticmethod
-    def set_tags(item_id: TestVisibilityItemId, tags: Dict[str, Any]):
+    def set_tags(item_id: TestVisibilityItemId, tags: dict[str, Any]):
         _set_item_tags(item_id, tags)
 
     @staticmethod
@@ -121,7 +119,7 @@ class TestBase(_TestVisibilityAPIBase):
         _delete_item_tag(item_id, tag_name)
 
     @staticmethod
-    def delete_tags(item_id: TestVisibilityItemId, tag_names: List[str]):
+    def delete_tags(item_id: TestVisibilityItemId, tag_names: list[str]):
         _delete_item_tags(item_id, tag_names)
 
     @staticmethod
@@ -191,7 +189,7 @@ class TestSession(_TestVisibilityAPIBase):
         _set_item_tag(TestSessionId(), tag_name, tag_value)
 
     @staticmethod
-    def set_tags(tags: Dict[str, Any]):
+    def set_tags(tags: dict[str, Any]):
         _set_item_tags(TestSessionId(), tags)
 
     @staticmethod
@@ -199,7 +197,7 @@ class TestSession(_TestVisibilityAPIBase):
         _delete_item_tag(TestSessionId(), tag_name)
 
     @staticmethod
-    def delete_tags(tag_names: List[str]):
+    def delete_tags(tag_names: list[str]):
         _delete_item_tags(TestSessionId(), tag_names)
 
 
@@ -252,7 +250,7 @@ class TestSuite(TestBase):
     @_catch_and_log_exceptions
     def discover(
         item_id: TestSuiteId,
-        codeowners: Optional[List[str]] = None,
+        codeowners: Optional[list[str]] = None,
         source_file_info: Optional[TestSourceFileInfo] = None,
     ):
         """Registers a test suite with the Test Visibility service."""
@@ -302,7 +300,7 @@ class Test(TestBase):
     @_catch_and_log_exceptions
     def discover(
         item_id: TestId,
-        codeowners: Optional[List[str]] = None,
+        codeowners: Optional[list[str]] = None,
         source_file_info: Optional[TestSourceFileInfo] = None,
         resource: Optional[str] = None,
     ):

@@ -3,6 +3,7 @@ from collections import defaultdict
 from importlib._bootstrap import _init_module_attrs
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
+from importlib.util import spec_from_loader
 from pathlib import Path
 import sys
 from types import CodeType
@@ -33,11 +34,11 @@ log = get_logger(__name__)
 
 
 _run_code = None
-_run_module_transformers: t.List[TransformerType] = []
-_post_run_module_hooks: t.List[ModuleHookType] = []
+_run_module_transformers: list[TransformerType] = []
+_post_run_module_hooks: list[ModuleHookType] = []
 
 
-def _wrapped_run_code(*args: t.Any, **kwargs: t.Any) -> t.Dict[str, t.Any]:
+def _wrapped_run_code(*args: t.Any, **kwargs: t.Any) -> dict[str, t.Any]:
     # DEV: If we are calling this wrapper then _run_code must have been set to
     # the original runpy._run_code.
     assert _run_code is not None
@@ -172,10 +173,10 @@ class _ImportHookChainedLoader:
         self.loader = loader
         self.spec = spec
 
-        self.callbacks: t.Dict[t.Any, t.Callable[[ModuleType], None]] = {}
-        self.import_exception_callbacks: t.Dict[t.Any, t.Callable[[ModuleType], None]] = {}
+        self.callbacks: dict[t.Any, t.Callable[[ModuleType], None]] = {}
+        self.import_exception_callbacks: dict[t.Any, t.Callable[[ModuleType], None]] = {}
 
-        self.transformers: t.Dict[t.Any, TransformerType] = {}
+        self.transformers: dict[t.Any, TransformerType] = {}
 
         # A missing loader is generally an indication of a namespace package.
         if loader is None or hasattr(loader, "create_module"):
@@ -338,7 +339,7 @@ class BaseModuleWatchdog(abc.ABC):
     _instance: t.Optional["BaseModuleWatchdog"] = None
 
     def __init__(self) -> None:
-        self._finding: t.Set[str] = set()
+        self._finding: set[str] = set()
 
         # DEV: pkg_resources support to prevent errors such as
         # NotImplementedError: Can't perform this operation for unregistered
@@ -422,11 +423,26 @@ class BaseModuleWatchdog(abc.ABC):
         self._finding.add(fullname)
 
         try:
-            try:
-                # Best effort
-                spec = find_spec(fullname)
-            except Exception:
-                return None
+            # Iterate sys.meta_path directly to avoid re-entering the import machinery
+            # and acquiring per-module locks (A-B deadlock risk when a background thread
+            # calls importlib.files() during module __init__).
+            spec = None
+            for finder in sys.meta_path:
+                if finder is self:
+                    continue
+                _find_spec = getattr(finder, "find_spec", None)
+                if _find_spec is not None:
+                    spec = _find_spec(fullname, path, target)
+                else:
+                    # Fallback for legacy finders that only implement find_module()
+                    # (deprecated in 3.4, removed in 3.12) — mirrors CPython _find_spec().
+                    _find_module = getattr(finder, "find_module", None)
+                    if _find_module is None:
+                        continue
+                    loader = _find_module(fullname, path)
+                    spec = spec_from_loader(fullname, loader) if loader is not None else None
+                if spec is not None:
+                    break
 
             if spec is None:
                 return None
@@ -489,15 +505,15 @@ class ModuleWatchdog(BaseModuleWatchdog):
     def __init__(self) -> None:
         super().__init__()
 
-        self._hook_map: t.DefaultDict[str, t.List[ModuleHookType]] = defaultdict(list)
+        self._hook_map: defaultdict[str, list[ModuleHookType]] = defaultdict(list)
         # DEV: It would make more sense to make this a mapping of Path to ModuleType
         # but the WeakValueDictionary causes an ignored exception on shutdown
         # because the pathlib module is being garbage collected.
         self._om: t.Optional[t.MutableMapping[str, ModuleType]] = None
         # _pre_exec_module_hooks is a set of tuples (condition, hook) instead
         # of a list to ensure that no hook is duplicated
-        self._pre_exec_module_hooks: t.Set[t.Tuple[PreExecHookCond, PreExecHookType]] = set()
-        self._import_exception_hooks: t.Set[t.Tuple[ImportExceptionHookCond, ImportExceptionHookType]] = set()
+        self._pre_exec_module_hooks: set[tuple[PreExecHookCond, PreExecHookType]] = set()
+        self._import_exception_hooks: set[tuple[ImportExceptionHookCond, ImportExceptionHookType]] = set()
 
     @property
     def _origin_map(self) -> t.MutableMapping[str, ModuleType]:
@@ -702,7 +718,7 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
     @classmethod
     def register_pre_exec_module_hook(
-        cls: t.Type["ModuleWatchdog"], cond: PreExecHookCond, hook: PreExecHookType
+        cls: type["ModuleWatchdog"], cond: PreExecHookCond, hook: PreExecHookType
     ) -> None:
         """Register a hook to execute before/instead of exec_module.
 
@@ -718,16 +734,14 @@ class ModuleWatchdog(BaseModuleWatchdog):
         instance._pre_exec_module_hooks.add((cond, hook))
 
     @classmethod
-    def remove_pre_exec_module_hook(
-        cls: t.Type["ModuleWatchdog"], cond: PreExecHookCond, hook: PreExecHookType
-    ) -> None:
+    def remove_pre_exec_module_hook(cls: type["ModuleWatchdog"], cond: PreExecHookCond, hook: PreExecHookType) -> None:
         """Register a hook to execute before/instead of exec_module. Only for testing proposes"""
         instance = t.cast(ModuleWatchdog, cls._instance)
         instance._pre_exec_module_hooks.remove((cond, hook))
 
     @classmethod
     def register_import_exception_hook(
-        cls: t.Type["ModuleWatchdog"], cond: ImportExceptionHookCond, hook: ImportExceptionHookType
+        cls: type["ModuleWatchdog"], cond: ImportExceptionHookCond, hook: ImportExceptionHookType
     ):
         cls.install()
 

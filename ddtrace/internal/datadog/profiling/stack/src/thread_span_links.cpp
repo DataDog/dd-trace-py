@@ -13,11 +13,11 @@ ThreadSpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_
 
     auto it = thread_id_to_span.find(thread_id);
     if (it == thread_id_to_span.end()) {
-        thread_id_to_span[thread_id] = std::make_unique<Span>(span_id, local_root_span_id, span_type);
+        thread_id_to_span[thread_id] = std::make_unique<Span>(span_id, local_root_span_id, std::move(span_type));
     } else {
         it->second->span_id = span_id;
         it->second->local_root_span_id = local_root_span_id;
-        it->second->span_type = span_type;
+        it->second->span_type = std::move(span_type);
     }
 }
 

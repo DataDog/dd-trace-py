@@ -1,6 +1,3 @@
-import os
-from typing import Dict
-
 # 3p
 import kombu
 import wrapt
@@ -12,6 +9,7 @@ from ddtrace.constants import SPAN_KIND
 
 # project
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import kombu as kombux
@@ -20,6 +18,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
@@ -34,8 +33,7 @@ from .utils import get_exchange_from_args
 from .utils import get_routing_key_from_args
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return str(kombu.__version__)
 
 
@@ -44,15 +42,15 @@ def get_version():
 config._add(
     "kombu",
     {
-        "distributed_tracing_enabled": asbool(os.getenv("DD_KOMBU_DISTRIBUTED_TRACING", default=True)),
-        "service_name": config.service or os.getenv("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE),
+        "distributed_tracing_enabled": asbool(env.get("DD_KOMBU_DISTRIBUTED_TRACING", default=True)),
+        "service_name": config.service or env.get("DD_KOMBU_SERVICE", default=DEFAULT_SERVICE),
     },
 )
 
 propagator = HTTPPropagator
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"kombu": ">=4.6.6"}
 
 
@@ -81,13 +79,15 @@ def patch():
         prod_service = None
     # DEV: backwards-compatibility for users who set a kombu service
     else:
-        prod_service = os.getenv("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE)
+        prod_service = config.kombu.service or DEFAULT_SERVICE
 
     Pin(
         service=schematize_service_name(prod_service),
     ).onto(kombu.messaging.Producer)
 
-    Pin(service=schematize_service_name(config.kombu["service_name"])).onto(kombu.messaging.Consumer)
+    Pin(service=schematize_service_name(config.kombu.service or config.kombu["service_name"])).onto(
+        kombu.messaging.Consumer
+    )
 
 
 def unpatch():
@@ -114,25 +114,24 @@ def traced_receive(func, instance, args, kwargs):
 
     with tracer.trace(
         schematize_messaging_operation(kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING),
-        service=pin.service,
         span_type=SpanTypes.WORKER,
     ) as s:
-        s._set_tag_str(COMPONENT, config.kombu.integration_name)
+        set_service_and_source(s, pin.service, config.kombu)
+        s._set_attribute(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed
-        s._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+        s._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
 
-        # PERF: avoid setting via Span.set_tag
-        s.set_metric(_SPAN_MEASURED_KEY, 1)
+        s._set_attribute(_SPAN_MEASURED_KEY, 1)
         # run the command
         exchange = message.delivery_info["exchange"]
         s.resource = exchange
-        s._set_tag_str(kombux.EXCHANGE, exchange)
+        s._set_attribute(kombux.EXCHANGE, exchange)
 
         s.set_tags(extract_conn_tags(message.channel.connection))
-        s._set_tag_str(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
+        s._set_attribute(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
         result = func(*args, **kwargs)
-        core.dispatch("kombu.amqp.receive.post", [instance, message, s])
+        core.dispatch("kombu.amqp.receive.post", (instance, message, s))
         return result
 
 
@@ -143,28 +142,27 @@ def traced_publish(func, instance, args, kwargs):
 
     with tracer.trace(
         schematize_messaging_operation(kombux.PUBLISH_NAME, provider="kombu", direction=SpanDirection.OUTBOUND),
-        service=pin.service,
         span_type=SpanTypes.WORKER,
     ) as s:
-        s._set_tag_str(COMPONENT, config.kombu.integration_name)
+        set_service_and_source(s, pin.service, config.kombu)
+        s._set_attribute(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed
-        s._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+        s._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
 
-        # PERF: avoid setting via Span.set_tag
-        s.set_metric(_SPAN_MEASURED_KEY, 1)
+        s._set_attribute(_SPAN_MEASURED_KEY, 1)
         exchange_name = get_exchange_from_args(args)
         s.resource = exchange_name
-        s._set_tag_str(kombux.EXCHANGE, exchange_name)
+        s._set_attribute(kombux.EXCHANGE, exchange_name)
         if pin.tags:
             s.set_tags(pin.tags)
-        s._set_tag_str(kombux.ROUTING_KEY, get_routing_key_from_args(args))
+        s._set_attribute(kombux.ROUTING_KEY, get_routing_key_from_args(args))
         s.set_tags(extract_conn_tags(instance.channel.connection))
-        s.set_metric(kombux.BODY_LEN, get_body_length_from_args(args))
+        s._set_attribute(kombux.BODY_LEN, get_body_length_from_args(args))
         # run the command
         if config.kombu.distributed_tracing_enabled:
             propagator.inject(s.context, args[HEADER_POS])
         core.dispatch(
-            "kombu.amqp.publish.pre", [args, kwargs, s]
+            "kombu.amqp.publish.pre", (args, kwargs, s)
         )  # Has to happen after trace injection for actual payload size
         return func(*args, **kwargs)

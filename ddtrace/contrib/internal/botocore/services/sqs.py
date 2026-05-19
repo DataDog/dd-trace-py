@@ -1,6 +1,5 @@
 import json
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import botocore.client  # noqa: F401
@@ -37,7 +36,7 @@ def _encode_data(data):
 
 
 def add_dd_attributes_to_message(
-    data_to_add: Dict[str, str], entry: Dict[str, Any], endpoint_service: Optional[str] = None
+    data_to_add: dict[str, str], entry: dict[str, Any], endpoint_service: Optional[str] = None
 ) -> None:
     entry.setdefault("MessageAttributes", {})
     if len(entry["MessageAttributes"]) >= MAX_INJECTION_DATA_ATTRIBUTES:
@@ -105,12 +104,12 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
 
         try:
             func_has_run = True
-            core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
+            core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", (params,))
             # run the function to extract possible parent context before creating ExecutionContext
             result = original_func(*args, **kwargs)
             core.dispatch(
                 f"botocore.{endpoint_name}.{operation}.post",
-                [parent_ctx, params, result, config.botocore.propagation_enabled, extract_DD_json],
+                (parent_ctx, params, result, config.botocore.propagation_enabled, extract_DD_json),
             )
         except Exception as e:
             func_run_err = e
@@ -158,21 +157,22 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
                 operation=operation,
                 call_trace=False,
                 pin=pin,
+                integration_config=config.botocore,
             ) as ctx,
             ctx.span,
         ):
-            core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
+            core.dispatch("botocore.patched_sqs_api_call.started", (ctx,))
 
             if should_update_messages:
                 update_messages(ctx, endpoint_service=endpoint_name)
 
             try:
                 if not func_has_run:
-                    core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", [params])
+                    core.dispatch(f"botocore.{endpoint_name}.{operation}.pre", (params,))
                     result = original_func(*args, **kwargs)
-                    core.dispatch(f"botocore.{endpoint_name}.{operation}.post", [params, result])
+                    core.dispatch(f"botocore.{endpoint_name}.{operation}.post", (params, result))
 
-                core.dispatch("botocore.patched_sqs_api_call.success", [ctx, result])
+                core.dispatch("botocore.patched_sqs_api_call.success", (ctx, result))
 
                 if func_run_err:
                     raise func_run_err
@@ -180,12 +180,12 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
             except botocore.exceptions.ClientError as e:
                 core.dispatch(
                     "botocore.patched_sqs_api_call.exception",
-                    [
+                    (
                         ctx,
                         e.response,
                         botocore.exceptions.ClientError,
                         config.botocore.operations[ctx.span.resource].is_error_code,
-                    ],
+                    ),
                 )
                 raise
     elif func_has_run:

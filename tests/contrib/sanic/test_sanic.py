@@ -79,6 +79,10 @@ def app(tracer, patch_sanic):
     # with the same name if register is True.
     DEFAULT_CONFIG["REGISTER"] = False
     DEFAULT_CONFIG["RESPONSE_TIMEOUT"] = 1.0
+    # Sanic 21.x+ no longer respects DEFAULT_CONFIG["REGISTER"] to skip
+    # registration, so use test_mode which bypasses the duplicate name check.
+    if hasattr(Sanic, "test_mode"):
+        Sanic.test_mode = True
     app = Sanic("sanic")
 
     @tracer.wrap()
@@ -142,7 +146,7 @@ def app(tracer, patch_sanic):
 if sanic_version >= (21, 9, 0):
 
     @pytest.fixture
-    def client(app):
+    async def client(app):
         from sanic_testing.testing import SanicASGITestClient
 
         # Create a test client compatible with pytest-sanic test client
@@ -151,7 +155,9 @@ if sanic_version >= (21, 9, 0):
                 request, response = await super(TestClient, self).request(*args, **kwargs)
                 return response
 
-        return TestClient(app)
+        test_client = TestClient(app)
+        yield test_client
+        await test_client.aclose()
 
 else:
 

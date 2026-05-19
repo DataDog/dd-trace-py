@@ -1,0 +1,7 @@
+features:
+  - |
+    LLM Observability: ``LLMObs.create_dataset`` supports a ``bulk_upload`` parameter to control data uploading behavior.
+    Both ``LLMObs.create_dataset`` and ``LLMObs.create_dataset_from_csv`` supports users specifying the ``deduplicate`` parameter.
+fixes:
+  - |
+    LLM Observability: Fix data duplication issue when uploading > 5MB datasets via ``LLMObs.create_dataset``.

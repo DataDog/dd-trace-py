@@ -6,7 +6,7 @@
 extern "C"
 {
 #endif
-    void code_provenance_set_json_str(std::string_view json_str);
+    void code_provenance_set_file_path(std::string_view file_path);
 #ifdef __cplusplus
 } // extern "C"
 #endif
