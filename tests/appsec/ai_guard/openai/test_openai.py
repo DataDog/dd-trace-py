@@ -489,24 +489,32 @@ def test_block_error_class_identity_across_consecutive_blocks(mock_execute_reque
 def test_block_error_class_identity_under_concurrent_lazy_import():
     """Concurrent cold imports MUST all observe the same class object.
 
-    The OpenAI-compatible abort class now lives in ``_openai_errors`` and is
-    imported lazily only when a block needs SDK-hierarchy compatibility. This
-    test removes that module from ``sys.modules`` and races N threads through
-    the helper, asserting Python's import lock gives every caller the same
-    class object.
+    The OpenAI-compatible abort class lives in ``_openai_errors`` and is
+    imported lazily only when ``_wrap_abort_error`` needs SDK-hierarchy
+    compatibility. This test removes that module from ``sys.modules`` and
+    races N threads through the wrapper, asserting Python's import lock
+    gives every caller the same class object.
     """
     import sys
 
     import ddtrace.appsec._ai_guard as _ai_guard_pkg
     import ddtrace.appsec._ai_guard._openai as _openai_mod
 
-    # Sanity: the openai SDK must be importable for this test to be meaningful;
-    # if it's not, the helper falls back to bare ``AIGuardAbortError`` and there
-    # is no OpenAI-compatible class identity to compare.
-    if _openai_mod._get_openai_abort_error_cls() is AIGuardAbortError:
-        pytest.skip("openai SDK not importable")
+    def _resolve_cls() -> type:
+        # ``_wrap_abort_error`` triggers the lazy ``_openai_errors`` import
+        # and returns an instance of either the OpenAI-compatible subclass
+        # (when openai is importable) or bare ``AIGuardAbortError``.
+        return type(_openai_mod._wrap_abort_error(AIGuardAbortError("DENY", "test")))
 
     module_name = "ddtrace.appsec._ai_guard._openai_errors"
+
+    # Sanity: the openai SDK must be importable for this test to be meaningful;
+    # if it's not, the wrapper returns bare ``AIGuardAbortError`` and there is
+    # no OpenAI-compatible class identity to compare. Evict the module after
+    # the probe so the concurrent race below exercises a true cold import.
+    if _resolve_cls() is AIGuardAbortError:
+        pytest.skip("openai SDK not importable")
+
     sys.modules.pop(module_name, None)
     if hasattr(_ai_guard_pkg, "_openai_errors"):
         delattr(_ai_guard_pkg, "_openai_errors")
@@ -518,7 +526,7 @@ def test_block_error_class_identity_under_concurrent_lazy_import():
     def _race(idx: int) -> None:
         # Force all threads to enter the lazy import at the same moment.
         barrier.wait()
-        results[idx] = _openai_mod._get_openai_abort_error_cls()
+        results[idx] = _resolve_cls()
 
     threads = [threading.Thread(target=_race, args=(i,)) for i in range(n)]
     for t in threads:
@@ -530,7 +538,7 @@ def test_block_error_class_identity_under_concurrent_lazy_import():
     assert first is not None
     distinct_ids = {id(cls) for cls in results}
     assert len(distinct_ids) == 1, (
-        f"concurrent _get_openai_abort_error_cls() returned {len(distinct_ids)} distinct class "
+        f"concurrent _wrap_abort_error() resolved {len(distinct_ids)} distinct class "
         f"objects; the lazy provider import is not thread-safe"
     )
 

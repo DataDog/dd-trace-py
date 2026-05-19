@@ -29,8 +29,11 @@ def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:
     UnprocessableEntityError`` is a convenience for users who already speak
     the SDK's error vocabulary).
     """
-    exception_class = AIGuardAbortError
+    exception_class: type[AIGuardAbortError] = AIGuardAbortError
     try:
+        # AIDEV-NOTE: ``_openai_errors`` imports the optional OpenAI SDK, so keep
+        # this import lazy. Python's import lock gives a single class object under
+        # concurrent cold imports without a custom cache or lock in ``_common``.
         from ddtrace.appsec._ai_guard._openai_errors import OpenAIAIGuardAbortError
 
         exception_class = OpenAIAIGuardAbortError
