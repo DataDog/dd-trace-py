@@ -5565,6 +5565,14 @@
         "internal": true
       }
     ],
+    "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": null,
+        "internal": true
+      }
+    ],
     "_DD_CIVISIBILITY_RESPONSE_CACHE_ENABLED": [
       {
         "implementation": "A",
