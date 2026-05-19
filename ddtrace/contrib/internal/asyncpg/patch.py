@@ -10,6 +10,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import iswrapped
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -33,6 +34,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 DBMS_NAME = "postgresql"
+
+_PROTOCOL_METHODS = ("execute", "bind_execute", "query", "bind_execute_many")
 
 
 config._add(
@@ -156,7 +159,7 @@ async def _traced_protocol_execute(asyncpg, pin, func, instance, args, kwargs):
 
 def _patch(asyncpg: ModuleType) -> None:
     wrap(asyncpg, "connect", _traced_connect(asyncpg))
-    for method in ("execute", "bind_execute", "query", "bind_execute_many"):
+    for method in _PROTOCOL_METHODS:
         wrap(asyncpg.protocol, "Protocol.%s" % method, _traced_protocol_execute(asyncpg))
 
 
@@ -174,8 +177,13 @@ def patch() -> None:
 
 def _unpatch(asyncpg: ModuleType) -> None:
     unwrap(asyncpg, "connect")
-    for method in ("execute", "bind_execute", "query", "bind_execute_many"):
-        unwrap(asyncpg.protocol.Protocol, method)
+    for method in _PROTOCOL_METHODS:
+        # DEV: Use delattr rather than unwrap()/setattr to avoid leaving a Cython descriptor
+        # shadow in Protocol.__dict__. unwrap() calls setattr which places the BaseProtocol
+        # descriptor directly into Protocol.__dict__; a subsequent patch() call then re-wraps
+        # that shadow instead of resolving the method naturally via MRO from BaseProtocol.
+        if iswrapped(asyncpg.protocol.Protocol, method):
+            delattr(asyncpg.protocol.Protocol, method)
 
 
 def unpatch() -> None:
