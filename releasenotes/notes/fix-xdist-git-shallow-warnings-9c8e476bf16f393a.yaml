@@ -1,9 +1,7 @@
 ---
 fixes:
   - |
-    Testing: Fixes spurious ``git`` warnings in multi-process (pytest-xdist) environments.
-    When running tests with xdist workers, two issues caused repeated warning log lines:
-    simultaneous ``git fetch --update-shallow`` calls competed for ``.git/shallow.lock``
-    (fixed by retrying with exponential back-off), and ``git merge-base`` was invoked
-    before the repository was unshallowed so the required commits were not yet available
-    locally (fixed by deferring the call to after unshallowing completes).
+    CI Visibility: Fixes spurious ``git`` warnings when running tests with pytest-xdist.
+    Simultaneous ``git fetch --update-shallow`` calls now retry with exponential back-off
+    on ``.git/shallow.lock`` contention, and ``git merge-base`` is deferred until after
+    unshallowing so the required commits are available locally.
