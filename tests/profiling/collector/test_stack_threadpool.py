@@ -37,13 +37,12 @@ def patch_futures():
         futures_unpatch()
 
 
-def test_link_span_plain_context_without_local_root_metadata() -> None:
-    """Context activation must not pass None as local_root_span_id to native link_span."""
+def test_link_span_plain_context_uses_span_id_as_local_root() -> None:
+    """Context activation without propagated root metadata must link using span_id."""
     if not stack_module.is_available:
         pytest.skip("stack profiler not available")
 
     ctx = Context(trace_id=123, span_id=456)
-    assert ctx._local_root_span_id is None
     stack_module.link_span(ctx)
 
 
@@ -167,14 +166,9 @@ def test_threadpool_worker_context_propagated_not_linked_to_profiler(tmp_path: P
         s for s in all_worker_samples if pprof_utils.get_label_with_key(profile.string_table, s, "span id") is not None
     ]
     assert worker_samples_with_span_id, (
-        "Worker thread samples have no 'span id' label — the profiler did not link "
-        "the worker thread to the parent span even though the futures integration "
-        "propagated the trace Context via tracer._activate_context()."
+        "Worker thread samples have no 'span id' label. The profiler did not link the worker thread to the parent."
     )
 
-    # _wrap_submit attaches _local_root_span_id and _span_type
-    # to the Context, so the worker gets the full parent span info including
-    # trace_type.
     pprof_utils.assert_profile_has_sample(
         profile,
         samples=worker_samples_with_span_id,

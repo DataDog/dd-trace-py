@@ -49,8 +49,6 @@ class Context(object):
         "_baggage",
         "_is_remote",
         "_reactivate",
-        "_local_root_span_id",
-        "_span_type",
         "__weakref__",
     ]
 
@@ -75,8 +73,6 @@ class Context(object):
         self.span_id: Optional[int] = span_id
         self._is_remote: bool = is_remote
         self._reactivate: bool = False
-        self._local_root_span_id: Optional[int] = None
-        self._span_type: Optional[str] = None
 
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[_ORIGIN_KEY] = dd_origin

@@ -442,21 +442,19 @@ def test_concurrent_futures_with_gevent():
 
 
 def test_submit_does_not_mutate_parent_span_context(tracer):
-    """Executor submit must not attach profiler fields to the parent span's live context."""
+    """Executor submit must not mutate the parent span's live context object."""
 
     def worker():
         pass
 
     with tracer.trace("parent") as parent:
         parent_ctx = parent.context
-        assert parent_ctx._local_root_span_id is None
-        assert parent_ctx._span_type is None
+        meta_before = dict(parent_ctx._meta)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             executor.submit(worker).result()
 
-        assert parent_ctx._local_root_span_id is None
-        assert parent_ctx._span_type is None
+        assert parent_ctx._meta == meta_before
 
 
 def test_submit_does_not_mutate_thread_local_context(tracer):
@@ -472,19 +470,18 @@ def test_submit_does_not_mutate_thread_local_context(tracer):
     tracer.context_provider.activate(ctx)
     try:
         assert tracer.current_trace_context() is ctx
-        assert ctx._local_root_span_id is None
+        meta_before = dict(ctx._meta)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             executor.submit(worker).result()
 
-        assert ctx._local_root_span_id is None
-        assert ctx._span_type is None
+        assert ctx._meta == meta_before
     finally:
         tracer.context_provider.activate(None)
 
 
-def test_submit_propagates_context_copy_with_profiler_metadata(tracer):
-    """Worker receives a copied context carrying local-root metadata for linking."""
+def test_submit_propagates_shallow_context_copy(tracer):
+    """Worker receives a shallow Context copy; parent context object is unchanged."""
 
     propagated = []
 
@@ -501,9 +498,7 @@ def test_submit_propagates_context_copy_with_profiler_metadata(tracer):
     assert worker_ctx is not parent_ctx
     assert worker_ctx.trace_id == parent.trace_id
     assert worker_ctx.span_id == parent.span_id
-    assert parent_ctx._local_root_span_id is None
-    assert worker_ctx._local_root_span_id == parent._local_root.span_id
-    assert worker_ctx._span_type == parent._local_root.span_type
+    assert worker_ctx._meta is parent_ctx._meta
 
 
 def test_submit_no_wait(tracer, test_spans):
