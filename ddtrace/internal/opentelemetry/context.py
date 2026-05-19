@@ -43,7 +43,7 @@ class DDRuntimeContext:
         if ddcontext:
             ddcontext.remove_all_baggage_items()
             if otel_baggage:
-                for key, value in otel_baggage.items():
+                for key, value in list(otel_baggage.items()):
                     ddcontext._baggage[key] = value  # potentially convert to json
 
         # A return value with the type `object` is required by the otel api to remove/deactivate spans.
@@ -85,7 +85,7 @@ class DDRuntimeContext:
         else:
             dd_baggage = {}
 
-        for key, value in dd_baggage.items():
+        for key, value in list(dd_baggage.items()):
             context = set_baggage(key, value, context)
 
         return context

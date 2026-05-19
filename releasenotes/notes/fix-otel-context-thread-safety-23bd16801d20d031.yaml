@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    opentelemetry: Fixes ``RuntimeError: dictionary changed size during iteration`` in
+    ``DDRuntimeContext.get_current()`` and ``DDRuntimeContext.attach()`` when multiple
+    threads concurrently read and mutate baggage dicts
