@@ -1749,7 +1749,7 @@ setup(
             "ddtrace.internal.datadog.profiling.ddup.test*",
         ]
     ),
-    install_requires=install_requires,
+    install_requires=requirements.install_requires,
     include_package_data=False,
     package_data={
         # Type stubs and markers for all packages
