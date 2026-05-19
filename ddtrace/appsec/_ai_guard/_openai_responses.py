@@ -270,6 +270,7 @@ def _flatten_prompt_variables(prompt: Any) -> Optional[str]:
         if value is None:
             continue
         key_text = str(key)
+        text: Optional[str]
         if _is_prompt_variable_redacted_field(key_text):
             text = _PROMPT_VARIABLE_REDACTION
         else:
