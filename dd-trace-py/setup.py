@@ -1722,6 +1722,8 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
 
 if os.getenv("CI_COMMIT_TAG") is not None:
     ddtrace_internal_spec = f""
+elif CURRENT_OS == "Windows":
+    ddtrace_internal_spec = f" @ file://{HERE}/pywheels/ddtrace_internal-0.0.0-py3-none-any.whl"
 else:
     ddtrace_internal_spec = f" @ file://{HERE / '..'}/pywheels/ddtrace_internal-0.0.0-py3-none-any.whl"
 
