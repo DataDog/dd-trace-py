@@ -167,7 +167,7 @@ variables:
 
 "build macos arm64":
   extends: .build_macos_base
-  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-763f5d24-114077451"
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-45b9a656-114084518"
   tags: [ "macos:sonoma-tart" ]
   variables:
     ARCH_TAG: "arm64"
