@@ -9,5 +9,5 @@ fixes:
   - |
     Fixed a bug in the kombu integration where programmatically setting
     ``config.kombu["service"]`` before patching was applied to producer spans
-    but not consumer spans. Both pins now read from the same service config
+    but not consumer spans. Both now read from the same service config
     source.
