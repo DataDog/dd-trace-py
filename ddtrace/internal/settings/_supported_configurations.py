@@ -925,10 +925,13 @@ CONFIGURATION_ALIASES: dict[str, list[str]] = {
     "DD_YAAREDIS_SERVICE": ["DD_YAAREDIS_SERVICE_NAME"],
 }
 
-DEPRECATED_CONFIGURATIONS: frozenset[str] = frozenset(
-    {
-        "DATADOG_TAGS",
-        "DATADOG_TRACE_AGENT_HOSTNAME",
-        "DD_COMPILE_DEBUG",
-    }
-)
+# DEPRECATED_CONFIGURATIONS values may contain: removal_version, extra_message, replaced_by
+DEPRECATED_CONFIGURATIONS: dict[str, dict[str, str]] = {
+    "DATADOG_TAGS": {},
+    "DATADOG_TRACE_AGENT_HOSTNAME": {},
+    "DD_ASGI_TRACE_WEBSOCKET": {"replaced_by": "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED"},
+    "DD_COMPILE_DEBUG": {},
+    "DD_PYTEST_USE_NEW_PLUGIN_BETA": {"extra_message": "The new pytest plugin is now the default. No configuration is required.", "removal_version": "3.0.0"},
+    "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": {"extra_message": "128-bit trace ID generation will become mandatory in version 5.0.0.", "removal_version": "5.0.0"},
+    "DD_TRACE_INFERRED_SPANS_ENABLED": {"removal_version": "5.0.0", "replaced_by": "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED"},
+}

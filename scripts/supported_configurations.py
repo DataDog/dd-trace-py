@@ -44,7 +44,23 @@ def generate_module(data: dict) -> str:
     # Schema v2: each value is a single-element array
     entries = {name: configs[name][0] for name in all_names}
     aliases = {name: e["aliases"] for name, e in entries.items() if e.get("aliases")}
-    deprecated = sorted(name for name, e in entries.items() if e.get("deprecated"))
+
+    # Build deprecation mapping: canonical name (if entry is deprecated) plus each deprecated alias.
+    # Each value is a dict with optional keys: removal_version, extra_message, replaced_by.
+    # Entry-level metadata comes from entry["deprecation"]; per-alias metadata from
+    # entry["deprecation"]["aliases"]. The boolean entry["deprecated"] is the headline signal.
+    deprecation_map: dict[str, dict[str, str]] = {}
+    _META_KEYS = ("removal_version", "extra_message", "replaced_by")
+    for name, entry in entries.items():
+        block = entry.get("deprecation") or {}
+        if entry.get("deprecated"):
+            deprecation_map[name] = {k: block[k] for k in _META_KEYS if k in block}
+        elif any(k in block for k in _META_KEYS):
+            raise ValueError(
+                f"{name}: entry-level deprecation metadata present but 'deprecated: true' missing"
+            )
+        for alias, alias_info in (block.get("aliases") or {}).items():
+            deprecation_map[alias] = {k: alias_info[k] for k in _META_KEYS if k in alias_info}
 
     supported = "\n".join(f'        "{n}",' for n in all_names)
 
@@ -61,12 +77,21 @@ def generate_module(data: dict) -> str:
         if aliases
         else "CONFIGURATION_ALIASES: dict[str, list[str]] = {}"
     )
-    deprecated_lines = "\n".join(f'        "{n}",' for n in deprecated)
-    deprecated_block = (
-        f"DEPRECATED_CONFIGURATIONS: frozenset[str] = frozenset(\n    {{\n{deprecated_lines}\n    }}\n)"
-        if deprecated
-        else "DEPRECATED_CONFIGURATIONS: frozenset[str] = frozenset()"
-    )
+
+    def _format_deprecation(name: str, info: dict[str, str]) -> str:
+        if not info:
+            return f'    "{name}": {{}},'
+        kv = ", ".join(f'"{k}": "{v}"' for k, v in sorted(info.items()))
+        return f'    "{name}": {{{kv}}},'
+
+    if deprecation_map:
+        deprecation_lines = "\n".join(_format_deprecation(n, deprecation_map[n]) for n in sorted(deprecation_map))
+        deprecated_block = (
+            f"# DEPRECATED_CONFIGURATIONS values may contain: removal_version, extra_message, replaced_by\n"
+            f"DEPRECATED_CONFIGURATIONS: dict[str, dict[str, str]] = {{\n{deprecation_lines}\n}}"
+        )
+    else:
+        deprecated_block = "DEPRECATED_CONFIGURATIONS: dict[str, dict[str, str]] = {}"
 
     return f"""\
 {HEADER}
