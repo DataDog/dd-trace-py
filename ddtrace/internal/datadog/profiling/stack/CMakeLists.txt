@@ -60,6 +60,7 @@ add_library(
     src/echion/danger.cc
     src/echion/frame.cc
     src/echion/greenlets.cc
+    src/echion/idle_frames.cc
     src/echion/interp.cc
     src/echion/long.cc
     src/echion/mirrors.cc

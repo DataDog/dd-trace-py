@@ -3,6 +3,7 @@
 #include <echion/threads.h>
 
 #include <echion/echion_sampler.h>
+#include <echion/idle_frames.h>
 
 #include <algorithm>
 #include <optional>
@@ -686,10 +687,32 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
     if (!update_cpu_time_success) {
         return ErrorKind::CpuTimeError;
     }
-
-    renderer.render_cpu_time(cpu_time - previous_cpu_time);
+    microsecond_t cpu_delta = cpu_time - previous_cpu_time;
 
     this->unwind(echion, tstate);
+
+    // Mitigate sampling bias toward idle frames. When the leaf Python frame is
+    // a well-known blocking call (time.sleep, Event.wait, ...), the CPU time
+    // we measured since the previous sample was almost certainly not consumed
+    // inside that call. We defer attributing it: accumulate it on the thread
+    // and fold it into the next sample whose leaf frame is not idle. Because
+    // sampling is uniform in time, that next non-idle frame is, in
+    // expectation, observed in proportion to how often it actually runs.
+    // python_stack is empty when the thread has no live Python frame (e.g.
+    // waiting on the GIL or executing a pure C extension that does not appear
+    // in the native-call registry); we leave attribution unchanged in that
+    // case to avoid mis-crediting native CPU work.
+    microsecond_t reported_cpu_time;
+    bool leaf_idle = !python_stack.empty() && is_idle_python_frame(echion, python_stack.front());
+    if (leaf_idle) {
+        accumulated_cpu_time += cpu_delta;
+        reported_cpu_time = 0;
+    } else {
+        reported_cpu_time = cpu_delta + accumulated_cpu_time;
+        accumulated_cpu_time = 0;
+    }
+
+    renderer.render_cpu_time(reported_cpu_time);
 
     // Render in this order of priority
     // 1. asyncio Tasks stacks (if any)

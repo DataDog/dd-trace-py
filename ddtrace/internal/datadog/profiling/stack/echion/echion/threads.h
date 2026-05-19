@@ -54,6 +54,13 @@ class ThreadInfo
 #endif
     microsecond_t cpu_time;
 
+    // CPU time delta that has been observed on this thread but deliberately
+    // *not* attributed to the sample where it was measured because the leaf
+    // Python frame was known to be off-CPU (see is_idle_python_frame). The
+    // accumulator is folded into the CPU time of the next sample whose leaf
+    // frame is not idle, and then reset. See ThreadInfo::sample.
+    microsecond_t accumulated_cpu_time = 0;
+
     uintptr_t asyncio_loop = 0;
     uintptr_t tstate_addr = 0; // Remote address of PyThreadState for accessing asyncio_tasks_head
     bool using_uvloop = false; // Whether this thread is using uvloop instead of asyncio
