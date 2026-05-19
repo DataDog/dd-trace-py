@@ -83,6 +83,8 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
         """Set suite-level tags based on ITR enablement status"""
         super()._set_itr_tags(itr_enabled)
 
+        self.set_tag(test.ITR_TEST_SKIPPING_ENABLED, self._session_settings.itr_test_skipping_enabled)
+
         # Only set correlation ID on suites when in suite-level skipping mode
         if (
             itr_enabled

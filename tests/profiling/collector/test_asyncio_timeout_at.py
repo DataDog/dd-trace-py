@@ -34,7 +34,7 @@ def test_asyncio_timeout_at() -> None:
     async def task_with_timeout_at(delay: float) -> float:
         # Set timeout far in the future
         when = time.time() + 10.0
-        async with asyncio.timeout_at(when):
+        async with asyncio.timeout_at(when):  # type: ignore[attr-defined]
             return await wait_and_return_delay(delay)
 
     async def main() -> None:
@@ -108,7 +108,7 @@ def test_asyncio_timeout_at() -> None:
 
     if len(exceptions) > 0:
         pprof_utils.print_all_samples(profile)
-        for e in exceptions:
-            print(e)
+        for exc in exceptions:
+            print(exc)
 
         raise exceptions[0]

@@ -1,4 +1,19 @@
+from enum import Enum
 from typing import Final
+
+
+class LLMObsExportMode(str, Enum):
+    """How LLMObs span data is submitted to Datadog.
+
+    LLMOBS_DIRECT  — span events go through LLMObsSpanWriter directly.
+                     Used when DD_APM_TRACING_ENABLED=false.
+    APM_AGENTLESS  — span data rides the APM trace; APM writer switches to agentless.
+    APM_AGENT_PROXY  — span data rides the APM trace; APM writer stays agent-based.
+    """
+
+    LLMOBS_DIRECT = "llmobs_direct"
+    APM_AGENTLESS = "apm_agentless"
+    APM_AGENT_PROXY = "apm_agent"
 
 
 SESSION_ID = "_ml_obs.session_id"
@@ -42,6 +57,8 @@ CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
 LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.input_tokens"
 LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY = "_dd.llmobs.output_tokens"
 LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY = "_dd.llmobs.total_tokens"
+LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.cache_read_input_tokens"
+LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.cache_write_input_tokens"
 LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY = "_dd.llmobs.span_kind"
 LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
 LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"

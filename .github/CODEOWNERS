@@ -42,7 +42,7 @@ static-analysis.datadog.yml         @DataDog/python-guild
 .gitlab/                            @DataDog/python-guild  @DataDog/apm-core-python
 .readthedocs.yml                    @DataDog/python-guild  @DataDog/apm-core-python
 README.md                           @DataDog/python-guild  @DataDog/apm-core-python
-hatch.toml                          @DataDog/python-guild
+scripts/lint                        @DataDog/python-guild
 mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-python
 pyproject.toml                      @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
@@ -330,6 +330,12 @@ tests/**/*appsec*                       @DataDog/asm-python
 tests/**/*iast*                         @DataDog/asm-python
 tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @DataDog/asm-python
 
+# AI Guard (order matters — overrides ASM)
+ddtrace/appsec/ai_guard/                  @DataDog/k9-ai-guard
+ddtrace/appsec/_ai_guard/                 @DataDog/k9-ai-guard
+tests/appsec/ai_guard/                    @DataDog/k9-ai-guard
+tests/appsec/integrations/langchain_tests @DataDog/k9-ai-guard
+
 # Fuzzing
 .gitlab/fuzz.yml                  @DataDog/chaos-engineering @DataDog/profiling-python
 .gitlab/scripts/fuzz_infra.py     @DataDog/chaos-engineering @DataDog/profiling-python
@@ -339,3 +345,7 @@ docker/Dockerfile.fuzz            @DataDog/chaos-engineering @DataDog/profiling-
 supported_versions_table.csv                    @DataDog/apm-core-python @DataDog/apm-idm-python
 supported_versions_output.json                  @DataDog/apm-core-python @DataDog/apm-idm-python
 scripts/integration_registry/registry.yaml      @DataDog/apm-core-python @DataDog/apm-idm-python
+
+# Tested versions
+tested_versions.json            @DataDog/apm-core-python @DataDog/apm-idm-python
+scripts/tested_versions/*       @DataDog/apm-core-python @DataDog/apm-idm-python

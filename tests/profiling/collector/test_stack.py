@@ -1065,3 +1065,74 @@ def test_stress_trace_collection(tracer_and_collector: tuple[Tracer, stack.Stack
 
     for t in threads:
         t.join()
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="fork test only on linux")
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env=dict(
+        DD_PROFILING_ENABLED="true",
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_span_id_in_profile_after_fork_ddtrace_run",
+    ),
+    err=None,
+)
+def test_span_id_in_profile_after_fork() -> None:
+    """Same as test_span_id_in_profile_after_fork but exercising the real user path:
+    ddtrace-run with DD_PROFILING_ENABLED=true.  The profiler and tracer are both
+    bootstrapped automatically; no manual ddup/StackCollector setup is needed.
+    """
+    import os
+    import time
+
+    import ddtrace
+    import ddtrace.profiling.bootstrap as bootstrap
+    from tests.profiling.collector import pprof_utils
+
+    tracer = ddtrace.tracer
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+
+    with tracer.trace("job", resource="delancie-job") as root_span:
+        span_id = root_span.span_id
+        local_root_span_id = root_span._local_root.span_id
+
+        pid = os.fork()
+        if pid == 0:
+            # child
+            # Give some time for the sampler to capture samples
+            end = time.monotonic() + 2
+            while time.monotonic() < end:
+                time.sleep(0.05)
+
+            bootstrap.profiler._profiler._scheduler.flush()  # type: ignore[attr-defined]
+
+            child_output = pprof_prefix + "." + str(os.getpid())
+            profile = pprof_utils.parse_newest_profile(child_output)
+            samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
+
+            try:
+                pprof_utils.assert_profile_has_sample(
+                    profile,
+                    samples=samples_with_span_id,
+                    expected_sample=pprof_utils.StackEvent(
+                        span_id=span_id,
+                        local_root_span_id=local_root_span_id,
+                    ),
+                    print_samples_on_failure=True,
+                )
+            except AssertionError as e:
+                print(
+                    f"FAIL: no profile sample in child carries span_id={span_id} / "
+                    f"local_root_span_id={local_root_span_id}.\n"
+                    "ThreadSpanLinks was not repopulated after fork.\n"
+                    f"AssertionError: {e}"
+                )
+                os._exit(1)
+            os._exit(0)
+        else:
+            # parent process
+            _, status = os.waitpid(pid, 0)
+            exit_code = os.waitstatus_to_exitcode(status)
+            assert exit_code == 0, (
+                "Child process failed: profile samples after fork did not contain the expected span_id. "
+                "The Trace to Profile link is broken for forked processes."
+            )

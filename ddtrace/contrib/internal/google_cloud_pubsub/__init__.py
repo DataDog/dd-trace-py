@@ -22,6 +22,9 @@ Push subscriptions are also supported. When a push subscription delivers a messa
 via HTTP to your web server, the integration creates an inferred ``gcp.pubsub.receive``
 span that captures subscription and message metadata.
 
+The inferred span is only emitted when ``DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED`` is
+set to ``true`` (default: ``false``).
+
 For push subscription instrumentation to work, the subscription must be configured with:
 
 - **Enable payload unwrapping** (``--push-no-wrapper``): delivers the raw message data
