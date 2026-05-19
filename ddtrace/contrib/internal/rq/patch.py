@@ -205,7 +205,8 @@ def patch():
     # Patch rq.job.Job
     Pin().onto(rq.job.Job)
     trace_utils.wrap(rq.job, "Job.perform", traced_job_perform(rq.job.Job))
-    trace_utils.wrap(rq.job, "Job.fetch_many", traced_job_fetch_many(rq.job.Job))
+    if hasattr(rq.job.Job, "fetch_many"):
+        trace_utils.wrap(rq.job, "Job.fetch_many", traced_job_fetch_many(rq.job.Job))
 
     # Patch rq.queue.Queue
     Pin().onto(rq.queue.Queue)
@@ -230,7 +231,8 @@ def unpatch():
     # Unpatch rq.job.Job
     Pin().remove_from(rq.job.Job)
     trace_utils.unwrap(rq.job.Job, "perform")
-    trace_utils.unwrap(rq.job.Job, "fetch_many")
+    if hasattr(rq.job.Job, "fetch_many"):
+        trace_utils.unwrap(rq.job.Job, "fetch_many")
 
     # Unpatch rq.queue.Queue
     Pin().remove_from(rq.queue.Queue)

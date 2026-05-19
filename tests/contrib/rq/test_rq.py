@@ -170,6 +170,16 @@ def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
             time.sleep(0.5)
 
 
+@pytest.mark.skipif(not hasattr(rq.job.Job, "fetch_many"), reason="Job.fetch_many not available in this rq version")
+@snapshot(ignores=snapshot_ignores)
+def test_job_fetch_many(queue, connection):
+    job1 = queue.enqueue(job_add1, 1)
+    job2 = queue.enqueue(job_add1, 2)
+    jobs = rq.job.Job.fetch_many([job1.id, job2.id], connection=connection)
+    assert len(jobs) == 2
+    assert all(j is not None for j in jobs)
+
+
 @pytest.mark.snapshot(
     ignores=snapshot_ignores + ["meta.error.message", "meta.error.type"],
     variants={
