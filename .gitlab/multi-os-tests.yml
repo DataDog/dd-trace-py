@@ -48,6 +48,9 @@ os tests macos:
     FF_SCRIPT_SECTIONS: "true"
   script:
     - |
+      # SSHd starts bash non-interactively so neither .bash_profile nor
+      # .bashrc (missing) is sourced. Set up brew on PATH manually.
+      [ -x /opt/homebrew/bin/brew ] && eval "$(/opt/homebrew/bin/brew shellenv)"
       for PYTHON_VERSION in 3.10 3.12 3.14; do
         export PYTHON_VERSION
         bash .gitlab/scripts/multi-os-tests.sh
