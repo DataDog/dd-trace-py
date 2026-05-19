@@ -167,23 +167,21 @@ class Git:
         with exponential back-off so callers never need to handle the retry
         logic themselves.
         """
-        for attempt in range(_LOCK_MAX_RETRIES + 1):
+        result = self._call_git(args, input_string)
+        for attempt in range(_LOCK_MAX_RETRIES):
+            if result.return_code == 0 or not _LOCK_ERROR_RE.search(result.stderr):
+                break
+            delay = _LOCK_BASE_DELAY_SECONDS * (2**attempt) + random.uniform(0, 1)  # nosec: B311
+            log.debug(
+                "Git lock contention (attempt %d/%d), retrying in %.1fs: %s",
+                attempt + 1,
+                _LOCK_MAX_RETRIES,
+                delay,
+                result.stderr,
+            )
+            time.sleep(delay)
             result = self._call_git(args, input_string)
-            if result.return_code == 0:
-                return result
-            if attempt < _LOCK_MAX_RETRIES and _LOCK_ERROR_RE.search(result.stderr):
-                delay = _LOCK_BASE_DELAY_SECONDS * (2**attempt) + random.uniform(0, 1)  # nosec: B311
-                log.debug(
-                    "Git lock contention (attempt %d/%d), retrying in %.1fs: %s",
-                    attempt + 1,
-                    _LOCK_MAX_RETRIES,
-                    delay,
-                    result.stderr,
-                )
-                time.sleep(delay)
-            else:
-                return result
-        return result  # unreachable, but satisfies type checkers
+        return result
 
     def get_git_version(self) -> tuple[int, ...]:
         output = self._git_output(["--version"])  # "git version 1.2.3"
