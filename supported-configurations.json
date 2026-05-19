@@ -896,7 +896,7 @@
     ],
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": [
       {
-        "implementation": "B",
+        "implementation": "A",
         "type": "boolean",
         "default": "true"
       }
