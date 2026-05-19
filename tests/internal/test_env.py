@@ -19,10 +19,8 @@ ENV_LOGGER = env_module.__name__
 @pytest.fixture(autouse=True)
 def reset_warned_keys():
     env_module._warned_keys.clear()
-    env_module._deprecation_warned.clear()
     yield
     env_module._warned_keys.clear()
-    env_module._deprecation_warned.clear()
 
 
 def test_registered_key_no_warning(caplog):
@@ -234,22 +232,6 @@ def test_reading_deprecated_alias_emits_ddtrace_deprecation_warning(monkeypatch)
     assert any("DD_TRACE_INFERRED_SPANS_ENABLED" in m for m in messages)
 
 
-def test_deprecation_warning_fires_only_once_per_key(monkeypatch):
-    monkeypatch.setenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "false")
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always", DDTraceDeprecationWarning)
-        env_module.dd_environ.get("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED")
-        env_module.dd_environ.get("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED")
-        env_module.dd_environ["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"]
-    messages = [
-        str(w.message)
-        for w in caught
-        if issubclass(w.category, DDTraceDeprecationWarning)
-        and "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in str(w.message)
-    ]
-    assert len(messages) == 1
-
-
 def test_contains_check_does_not_fire_deprecation_warning(monkeypatch):
     monkeypatch.delenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", raising=False)
     with warnings.catch_warnings(record=True) as caught:
@@ -259,7 +241,6 @@ def test_contains_check_does_not_fire_deprecation_warning(monkeypatch):
     assert relevant == []
 
     monkeypatch.setenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "false")
-    env_module._deprecation_warned.clear()
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always", DDTraceDeprecationWarning)
         _ = "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in env_module.dd_environ
@@ -276,19 +257,13 @@ def test_deprecated_unset_var_does_not_fire_warning(monkeypatch):
     assert relevant == []
 
 
-def test_loading_config_with_deprecated_var_fires_warning_exactly_once(monkeypatch):
-    """Config() construction reads DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED.
-
-    With the manual deprecate() removed from _config.py, the warning must come
-    from env.py — and must fire exactly once even though _config.py reads the
-    var through ``env`` containment and again through ``_get_config``.
-    """
+def test_loading_config_with_deprecated_var_fires_warning(monkeypatch):
+    """Config() construction with a deprecated env var set must fire DDTraceDeprecationWarning."""
     monkeypatch.setenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "false")
-    env_module._deprecation_warned.clear()
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always", DDTraceDeprecationWarning)
-        from ddtrace.internal.settings._config import Config  # local import to avoid early-side-effect
+        from ddtrace.internal.settings._config import Config
 
         Config()
 
@@ -298,7 +273,7 @@ def test_loading_config_with_deprecated_var_fires_warning_exactly_once(monkeypat
         if issubclass(w.category, DDTraceDeprecationWarning)
         and "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in str(w.message)
     ]
-    assert len(relevant) == 1, relevant
+    assert relevant, relevant
 
 
 def test_warn_deprecated_set_vars_fires_for_unread_deprecated_var(monkeypatch):

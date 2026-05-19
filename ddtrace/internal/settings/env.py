@@ -45,10 +45,6 @@ logger = logging.getLogger(__name__)
 
 _ALIAS_TARGETS: frozenset[str] = frozenset(alias for aliases in CONFIGURATION_ALIASES.values() for alias in aliases)
 _warned_keys: set[str] = set()
-# Values are unique sentinel objects; see _emit_deprecation_warning for the
-# setdefault-based check-and-set pattern that makes the once-only gate atomic
-# under the GIL.
-_deprecation_warned: dict[str, object] = {}
 
 
 def _validate_key(key: str) -> None:
@@ -72,15 +68,13 @@ def _validate_key(key: str) -> None:
 
 
 def _emit_deprecation_warning(key: str) -> None:
-    """Fire a once-per-process DDTraceDeprecationWarning for a deprecated env var the user actually set."""
+    """Fire a DDTraceDeprecationWarning for a deprecated env var the user actually set.
+
+    Dedup is delegated to the standard ``warnings`` filter (the default filter
+    emits each (message, category, module, lineno) tuple once per process).
+    """
     info = DEPRECATED_CONFIGURATIONS.get(key)
     if info is None:
-        return
-    # Atomic check-and-set: setdefault inserts and returns our fresh sentinel
-    # iff key was absent; otherwise it returns whatever sentinel another caller
-    # stored. Comparing by identity tells us if we won the race.
-    sentinel = object()
-    if _deprecation_warned.setdefault(key, sentinel) is not sentinel:
         return
 
     prefix = f"{key} is deprecated and will be removed in version '{info['removal_version']}'"
@@ -100,7 +94,7 @@ def warn_deprecated_set_vars() -> None:
     Intended to be called once at ddtrace bootstrap (e.g., from ``Config.__init__``)
     so registry-only deprecations — entries marked ``deprecated: true`` in
     ``supported-configurations.json`` but never read by any code path — still surface
-    a warning when the user has set the var. Idempotent via ``_deprecation_warned``.
+    a warning when the user has set the var.
     """
     for key in DEPRECATED_CONFIGURATIONS:
         if key in os.environ:
