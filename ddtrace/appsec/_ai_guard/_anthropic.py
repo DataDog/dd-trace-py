@@ -10,133 +10,27 @@ non-streaming + streaming. For streaming responses only the
 """
 
 import json
-import threading
 
+from ddtrace.appsec._ai_guard._common import _get
+from ddtrace.appsec._ai_guard._common import build_compound_abort_error_cls
+from ddtrace.appsec._ai_guard._common import evaluate_messages
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
-from ddtrace.appsec._ai_guard._openai import _get
-from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
 from ddtrace.appsec.ai_guard._api_client import Function
 from ddtrace.appsec.ai_guard._api_client import Message
-from ddtrace.appsec.ai_guard._api_client import Options
 from ddtrace.appsec.ai_guard._api_client import ToolCall
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.settings.asm import ai_guard_config
 
 
 logger = ddlogger.get_logger(__name__)
 
 
-# AIDEV-NOTE: The compound ``AnthropicAIGuardAbortError`` class is built lazily
-# on first block. ``_anthropic.py`` is imported unconditionally by the AI Guard
-# listener (see ``_listener.py``), but the Anthropic SDK is an optional runtime
-# dependency — eagerly importing ``anthropic`` here would break AI Guard
-# initialization in environments that only use a different provider.
-_anthropic_abort_error_cls = None
-
-# The lazy build uses double-checked locking: the unsynchronised check-then-act
-# pattern would let two threads simultaneously enter the build branch and each
-# create their own class, so callers that captured ``type(err)`` from one block
-# would silently stop matching errors from a concurrent block.
-_anthropic_abort_error_cls_lock = threading.Lock()
-
-
 def _get_anthropic_abort_error_cls():
-    """Return ``AnthropicAIGuardAbortError`` (cached), or ``None`` if anthropic is not importable.
-
-    The class inherits from ``anthropic.UnprocessableEntityError`` (status 422
-    — the "policy rejection" semantics used by AI Gateway) and from
-    ``AIGuardAbortError`` so existing Datadog-specific handlers keep working.
-    """
-    global _anthropic_abort_error_cls
-    # Fast path: already cached, no lock needed (assignment to a module
-    # attribute is atomic under the GIL).
-    if _anthropic_abort_error_cls is not None:
-        return _anthropic_abort_error_cls
-
-    with _anthropic_abort_error_cls_lock:
-        # Re-check inside the lock: another thread may have built the class
-        # while we were blocked on acquisition.
-        if _anthropic_abort_error_cls is not None:
-            return _anthropic_abort_error_cls
-
-        try:
-            import anthropic
-        except ImportError:
-            return None
-
-        class AnthropicAIGuardAbortError(anthropic.UnprocessableEntityError, AIGuardAbortError):
-            """AI Guard abort error compatible with the Anthropic SDK error hierarchy.
-
-            Catchable as either ``anthropic.APIError`` /
-            ``anthropic.UnprocessableEntityError`` (idiomatic Anthropic error
-            handling, no retry on 422) or ``AIGuardAbortError``
-            (Datadog-specific, exposes ``action`` / ``reason``).
-
-            AIDEV-NOTE: catchability asymmetry vs plain ``AIGuardAbortError``.
-            ``AIGuardAbortError`` derives from ``DDBlockException(BaseException)``
-            so a generic ``except Exception:`` does NOT catch it (by design — a
-            block decision must not be silently swallowed). However,
-            ``AnthropicAIGuardAbortError`` *also* inherits from
-            ``anthropic.UnprocessableEntityError``, which is ``Exception``-derived,
-            so via MRO this subclass IS catchable by ``except Exception:``.
-            That asymmetry is intentional: the Anthropic contrib must keep
-            ``except anthropic.APIError:`` blocks working unchanged for users
-            migrating from non-AI-Guard error handling. Code that wants
-            uniform block detection across providers should branch on
-            ``isinstance(e, AIGuardAbortError)``.
-            """
-
-            def __init__(self, action, reason, tags=None, sds=None, tag_probs=None):
-                self.action = action
-                self.reason = reason
-                self.tags = tags
-                self.sds = sds or []
-                self.tag_probs = tag_probs
-
-                message = f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')"
-                # AIDEV-NOTE: We can't call ``anthropic.UnprocessableEntityError.__init__``
-                # here — its MRO super() chain ends up at ``AIGuardAbortError.__init__``
-                # (which requires ``(action, reason)``), not ``Exception.__init__``,
-                # so the ``super().__init__(message)`` deep in ``APIError`` raises
-                # ``TypeError: missing 'reason'``. Initialize the Anthropic-side
-                # attributes directly instead. The block originates from AI Guard,
-                # not an Anthropic HTTP call, so ``response`` / ``request`` /
-                # ``request_id`` are ``None``; only ``status_code`` (422) and
-                # ``body`` (the AI Guard decision payload) carry semantic meaning.
-                self.message = message
-                self.request = None
-                self.body = {"action": action, "reason": reason, "source": "datadog_ai_guard"}
-                self.code = "ai_guard_block"
-                self.param = None
-                self.type = "ai_guard_abort"
-                self.response = None
-                self.status_code = 422
-                self.request_id = None
-                Exception.__init__(self, message)
-
-        _anthropic_abort_error_cls = AnthropicAIGuardAbortError
-        return _anthropic_abort_error_cls
-
-
-def _wrap_abort_error(cause):
-    """Wrap an ``AIGuardAbortError`` into the Anthropic-compatible variant.
-
-    Falls back to returning the original ``cause`` when the Anthropic SDK is not
-    importable — the listener still surfaces a block, just without Anthropic
-    exception-hierarchy compatibility.
-    """
-    cls = _get_anthropic_abort_error_cls()
-    if cls is None:
-        return cause
-    wrapped = cls(
-        action=cause.action,
-        reason=cause.reason,
-        tags=cause.tags,
-        sds=cause.sds,
-        tag_probs=cause.tag_probs,
-    )
-    wrapped.__cause__ = cause
-    return wrapped
+    """Return the Anthropic-compatible compound abort error class, or ``None`` if anthropic is not importable."""
+    try:
+        import anthropic
+    except ImportError:
+        return None
+    return build_compound_abort_error_cls("Anthropic", anthropic.UnprocessableEntityError)
 
 
 def _tool_call_from_block(block):
@@ -344,21 +238,19 @@ def _anthropic_messages_create_before(client, kwargs):
         logger.debug("AI Guard anthropic before-hook skipped: no convertible messages")
         return None
 
+    # AIDEV-NOTE: Anthropic supports final assistant turns as response prefill
+    # input; unlike OpenAI, those are still pre-model request content and must
+    # be evaluated before calling the SDK.
     last_role = ai_guard_messages[-1].get("role")
-    if last_role not in ("user", "tool"):
+    if last_role not in ("user", "tool", "assistant"):
         logger.debug(
-            "AI Guard anthropic before-hook skipped: last message role is %r, expected 'user' or 'tool'",
+            "AI Guard anthropic before-hook skipped: last message role is %r, expected 'user', 'tool', or 'assistant'",
             last_role,
         )
         return None
 
     logger.debug("AI Guard anthropic before-hook evaluating %d message(s)", len(ai_guard_messages))
-    try:
-        client.evaluate(ai_guard_messages, Options(block=ai_guard_config._ai_guard_block))
-    except AIGuardAbortError as e:
-        raise _wrap_abort_error(e)
-    except Exception:
-        logger.debug("Failed to evaluate Anthropic messages request", exc_info=True)
+    evaluate_messages(client, ai_guard_messages, _get_anthropic_abort_error_cls(), "Anthropic messages request")
     return None
 
 
@@ -378,18 +270,14 @@ def _anthropic_messages_create_after(client, kwargs, resp):
         logger.debug("AI Guard anthropic after-hook skipped: framework context active (e.g. LangChain)")
         return None
 
-    request_messages = _convert_anthropic_messages(kwargs.get("system"), kwargs.get("messages", []))
+    # Convert response first: if the model produced nothing convertible
+    # (e.g. an empty content list), skip request-side conversion entirely.
     response_messages = _convert_anthropic_response(resp)
     if not response_messages:
         logger.debug("AI Guard anthropic after-hook skipped: no convertible response messages")
         return None
 
+    request_messages = _convert_anthropic_messages(kwargs.get("system"), kwargs.get("messages", []))
     all_messages = request_messages + response_messages
-
-    try:
-        client.evaluate(all_messages, Options(block=ai_guard_config._ai_guard_block))
-    except AIGuardAbortError as e:
-        raise _wrap_abort_error(e)
-    except Exception:
-        logger.debug("Failed to evaluate Anthropic messages response", exc_info=True)
+    evaluate_messages(client, all_messages, _get_anthropic_abort_error_cls(), "Anthropic messages response")
     return None

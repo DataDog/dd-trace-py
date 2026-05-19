@@ -308,6 +308,31 @@ def test_before_hook_materializes_iterator_messages():
     assert client.evaluated and client.evaluated[0]["role"] == "user"
 
 
+def test_before_hook_evaluates_final_assistant_prefill():
+    """Anthropic treats a final assistant message as response prefill, so it is request input."""
+
+    class _RecordingClient:
+        def __init__(self):
+            self.evaluated = None
+
+        def evaluate(self, messages, options):
+            self.evaluated = list(messages)
+            return None
+
+    client = _RecordingClient()
+    kwargs = {
+        "messages": [
+            {"role": "user", "content": "Pick A or B"},
+            {"role": "assistant", "content": "The answer is ("},
+        ]
+    }
+    result = _anthropic_messages_create_before(client, kwargs)
+    assert result is None
+    assert client.evaluated is not None
+    assert [msg["role"] for msg in client.evaluated] == ["user", "assistant"]
+    assert client.evaluated[-1]["content"] == "The answer is ("
+
+
 # ---------------------------------------------------------------------------
 # Messages.create (sync) — before/after allow / block
 # ---------------------------------------------------------------------------

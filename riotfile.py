@@ -4457,8 +4457,15 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "pytest-asyncio": "==0.23.7",
-                "anthropic": ["==0.28.0", latest],
             },
+            venvs=[
+                Venv(
+                    pkgs={"anthropic": "==0.28.0", "httpx": "~=0.27.0"},
+                ),
+                Venv(
+                    pkgs={"anthropic": latest, "httpx": "<0.28.0"},
+                ),
+            ],
         ),
         Venv(
             name="claude_agent_sdk",
