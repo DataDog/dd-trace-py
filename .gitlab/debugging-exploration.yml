@@ -38,6 +38,9 @@
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp314-cp314"
             IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp315-cp315"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
 
 ".debugging/exploration":
   stage: tests
