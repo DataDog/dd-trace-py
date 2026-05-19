@@ -13,6 +13,7 @@ from ddtrace.testing.internal.git import get_git_head_tags_from_git_command
 from ddtrace.testing.internal.git import get_git_tags_from_git_command
 from ddtrace.testing.internal.telemetry import GitTelemetry
 
+
 _LOCK_STDERR = "fatal: Unable to create '/repo/.git/shallow.lock': File exists."
 
 

@@ -447,8 +447,6 @@ class TestUpdatePrMergeBase:
         mock_git.get_merge_base.assert_not_called()
 
     def test_skips_when_shas_missing(self) -> None:
-        from ddtrace.testing.internal.git import GitTag
-
         sm = self._make_session_manager({})
         mock_git = Mock()
         sm._update_pr_merge_base(mock_git)
