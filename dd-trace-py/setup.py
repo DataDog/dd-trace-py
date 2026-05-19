@@ -1721,9 +1721,10 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
         )
 
 if os.getenv("CI_COMMIT_TAG") is not None:
-    ddtrace_internal_spec = f""
+    ddtrace_internal_spec = ""
 else:
-    ddtrace_internal_spec = f" @ file://{HERE.parent}/pywheels/ddtrace_internal-0.0.0-py3-none-any.whl"
+    root = os.getenv("CI_PROJECT_ROOT", HERE.parent)
+    ddtrace_internal_spec = f" @ file://{root}/pywheels/ddtrace_internal-0.0.0-py3-none-any.whl"
 
 PACKAGE_NAME = f"ddtrace{WHEEL_FLAVOR}"
 if PACKAGE_NAME != "ddtrace":
