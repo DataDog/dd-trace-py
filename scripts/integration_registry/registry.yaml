@@ -305,7 +305,7 @@ integrations:
   tested_versions_by_dependency:
     django:
       min: 2.2.28
-      max: 5.2.13
+      max: 5.2.14
 
 - integration_name: dogpile_cache
   is_external_package: true
