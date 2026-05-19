@@ -455,6 +455,7 @@ def test_chat_sync_block_is_openai_compatible_exception(mock_execute_request, op
     assert isinstance(err, openai.APIError)
     assert isinstance(err, openai.UnprocessableEntityError)
     assert isinstance(err, AIGuardAbortError)
+    assert type(err).__module__ == "ddtrace.appsec._ai_guard._openai"
     assert err.status_code == 422
     assert err.action == "DENY"
     # ``reason`` is mirrored from the AI Guard response (may be empty in mocks).

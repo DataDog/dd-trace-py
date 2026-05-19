@@ -26,7 +26,7 @@ def _get_openai_abort_error_cls():
         import openai
     except ImportError:
         return None
-    return build_compound_abort_error_cls("OpenAI", openai.UnprocessableEntityError)
+    return build_compound_abort_error_cls("OpenAI", openai.UnprocessableEntityError, __name__)
 
 
 def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:

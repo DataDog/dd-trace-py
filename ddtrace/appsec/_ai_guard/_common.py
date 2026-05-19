@@ -5,29 +5,25 @@ module belong here. Provider-specific schema handling stays in the
 respective ``_openai`` / ``_anthropic`` modules.
 """
 
+from collections.abc import Mapping
 import threading
 from typing import Any
 from typing import Optional
 
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
-from ddtrace.appsec.ai_guard._api_client import AIGuardClient
-from ddtrace.appsec.ai_guard._api_client import Message
-from ddtrace.appsec.ai_guard._api_client import Options
-import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.settings.asm import ai_guard_config
-
-
-logger = ddlogger.get_logger(__name__)
 
 
 def _get(obj: Any, key: str, default: Any = None) -> Any:
-    """Read *key* from a dict or object attribute.
+    """Read *key* from a mapping or object attribute.
 
-    Provider SDKs deliver request-side payloads as user-supplied dicts and
-    response-side payloads as SDK model objects with attributes. This helper
-    abstracts over both shapes so converters can stay agnostic.
+    Provider SDKs deliver request-side payloads as user-supplied dicts /
+    mapping wrappers (``MappingProxyType``, ``UserDict``, Pydantic models
+    exposing mapping protocol) and response-side payloads as SDK model
+    objects with attributes. ``Mapping`` (not just ``dict``) is accepted on
+    the mapping branch so typed content parts wrapped in any of those
+    shapes resolve correctly — strict ``dict`` would silently drop them.
     """
-    if isinstance(obj, dict):
+    if isinstance(obj, Mapping):
         return obj.get(key, default)
     return getattr(obj, key, default)
 
@@ -46,7 +42,11 @@ _compound_abort_error_cache: dict[str, type[AIGuardAbortError]] = {}
 _compound_abort_error_lock = threading.Lock()
 
 
-def build_compound_abort_error_cls(provider_name: str, sdk_error_cls: type[Exception]) -> type[AIGuardAbortError]:
+def build_compound_abort_error_cls(
+    provider_name: str,
+    sdk_error_cls: type[Exception],
+    provider_module: Optional[str] = None,
+) -> type[AIGuardAbortError]:
     """Return a cached compound abort-error class for *provider_name*.
 
     The class subclasses both *sdk_error_cls* (the provider SDK's 422
@@ -65,6 +65,10 @@ def build_compound_abort_error_cls(provider_name: str, sdk_error_cls: type[Excep
     for users migrating from non-AI-Guard error handling. Code that wants
     uniform block detection across providers should branch on
     ``isinstance(e, AIGuardAbortError)``.
+
+    ``provider_module`` preserves the historical module name for telemetry
+    fields derived from ``exc_type.__module__`` (notably span ``error.type``)
+    after moving the implementation into this shared helper.
     """
     cached = _compound_abort_error_cache.get(provider_name)
     if cached is not None:
@@ -113,6 +117,8 @@ def build_compound_abort_error_cls(provider_name: str, sdk_error_cls: type[Excep
 
         CompoundAIGuardAbortError.__name__ = f"{provider_name}AIGuardAbortError"
         CompoundAIGuardAbortError.__qualname__ = CompoundAIGuardAbortError.__name__
+        if provider_module is not None:
+            CompoundAIGuardAbortError.__module__ = provider_module
         _compound_abort_error_cache[provider_name] = CompoundAIGuardAbortError
         return CompoundAIGuardAbortError
 
@@ -135,23 +141,3 @@ def wrap_abort_error(cause: AIGuardAbortError, compound_cls: Optional[type[AIGua
     )
     wrapped.__cause__ = cause
     return wrapped
-
-
-def evaluate_messages(
-    client: AIGuardClient,
-    messages: list[Message],
-    compound_cls: Optional[type[AIGuardAbortError]],
-    error_log_label: str,
-) -> None:
-    """Run AI Guard evaluation on *messages*, raising the provider-specific
-    compound abort error on block decisions.
-
-    Non-abort exceptions are logged at debug level and swallowed — AI Guard
-    fails open so backend transport errors never break the user's SDK call.
-    """
-    try:
-        client.evaluate(messages, Options(block=ai_guard_config._ai_guard_block))
-    except AIGuardAbortError as e:
-        raise wrap_abort_error(e, compound_cls)
-    except Exception:
-        logger.debug("Failed to evaluate %s", error_log_label, exc_info=True)
