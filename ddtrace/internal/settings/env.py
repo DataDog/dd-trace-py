@@ -83,7 +83,7 @@ def _emit_deprecation_warning(key: str) -> None:
 
     from ddtrace.vendor.debtcollector import deprecate
 
-    deprecate(
+    deprecate(  # type: ignore[no-untyped-call]
         f"{key} is deprecated",
         message=message,
         removal_version=info.get("removal_version"),
