@@ -169,7 +169,6 @@ variables:
   tags: [ "macos:sonoma-tart" ]
   variables:
     ARCH_TAG: "arm64"
-    # The script section wrapper doesn't play nicely with zsh `setopt shwordsplit`
     FF_SCRIPT_SECTIONS: "false"
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
     SCCACHE_REGION: "us-east-1"

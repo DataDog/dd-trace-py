@@ -42,6 +42,7 @@ os tests macos:
   variables:
     WHEEL_PATTERN: "macosx*arm64.whl"
     PLATFORM: "macOS"
+    FF_SCRIPT_SECTIONS: "false"
   script:
     - |
       for PYTHON_VERSION in 3.10 3.12 3.14; do
