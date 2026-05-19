@@ -179,6 +179,7 @@ Subcommands:
   suitespec-check           Check suitespec coverage
   profiling-native-check    Check profiling native coverage
   error-log-check           Check constant log messages
+  supported-config-check    Check supported-configurations.json is in sync and complete
   ci-deps-check             scripts/check-ci-dependencies
 
   sg [paths]                ast-grep scan
