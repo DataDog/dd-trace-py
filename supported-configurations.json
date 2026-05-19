@@ -1571,7 +1571,7 @@
       {
         "implementation": "A",
         "type": "int",
-        "default": "30000",
+        "default": "10000",
         "experimental": true
       }
     ],
