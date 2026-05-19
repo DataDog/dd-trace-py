@@ -15,6 +15,7 @@ import wrapt
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+
 # AIDEV-NOTE: Cross-module import of a leading-underscore private symbol.
 # This is intentional: _http_propagation_suppressed is the shared coordination
 # primitive between this integration (which wants urllib3 to skip its own

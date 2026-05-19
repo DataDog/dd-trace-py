@@ -196,7 +196,8 @@ def test_before_sign_handler_injects_when_span_active(patched_botocore):
     The handler is NOT responsible for the urllib3-suppression contextvar —
     that's owned exclusively by patched_api_call. The handler must inject
     cleanly without touching contextvar state, so we explicitly assert the
-    contextvar is unchanged after the handler runs."""
+    contextvar is unchanged after the handler runs.
+    """
     from botocore.awsrequest import AWSRequest
 
     from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
@@ -486,7 +487,8 @@ def test_pin_disabled_does_not_leak_suppression_to_subsequent_calls(s3_client):
 
     Today this leaks: handler flips contextvar to True, no reset, and
     every subsequent non-AWS HTTP call in this task silently loses trace
-    header injection."""
+    header injection.
+    """
     from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 
     # Disable the tracer so pin.enabled() returns False and patched_api_call
@@ -509,8 +511,7 @@ def test_pin_disabled_does_not_leak_suppression_to_subsequent_calls(s3_client):
         # The contextvar must be False after the call — the handler must
         # not leak True into the rest of this task.
         assert _http_propagation_suppressed.get() is False, (
-            "before-sign handler leaked _http_propagation_suppressed=True "
-            "outside patched_api_call's managed scope"
+            "before-sign handler leaked _http_propagation_suppressed=True outside patched_api_call's managed scope"
         )
     finally:
         ddtrace.tracer.enabled = original_enabled
@@ -519,7 +520,8 @@ def test_pin_disabled_does_not_leak_suppression_to_subsequent_calls(s3_client):
 def test_submodule_excluded_does_not_leak_suppression(s3_client):
     """If _PATCHED_SUBMODULES excludes the endpoint, patched_api_call early-returns
     before its try/finally, but the before-sign handler still fires. Same leak
-    shape as the pin-disabled case."""
+    shape as the pin-disabled case.
+    """
     from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
     from ddtrace.contrib.internal.botocore.patch import _PATCHED_SUBMODULES
 
@@ -555,7 +557,8 @@ def test_aiobotocore_patch_also_registers_before_sign_handler():
     Session.__init__ — but a user who only enables the aiobotocore
     integration (not the botocore integration) never sees that wrap. This
     test pins that aiobotocore's patch() installs the same wrap so the
-    SigV4 fix applies to aiobotocore-only setups too."""
+    SigV4 fix applies to aiobotocore-only setups too.
+    """
     pytest.importorskip("aiobotocore")
     from botocore.awsrequest import AWSRequest
 
@@ -579,8 +582,7 @@ def test_aiobotocore_patch_also_registers_before_sign_handler():
                 operation_name="GetObject",
             )
         assert "x-datadog-trace-id" in request.headers, (
-            "aiobotocore.patch() did not install the before-sign handler — "
-            "aiobotocore-only users get no SigV4 fix"
+            "aiobotocore.patch() did not install the before-sign handler — aiobotocore-only users get no SigV4 fix"
         )
     finally:
         unpatch_aiobotocore()
