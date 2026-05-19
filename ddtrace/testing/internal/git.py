@@ -157,9 +157,7 @@ class Git:
             return ""
         return result.stdout
 
-    def _call_git_with_lock_retry(
-        self, args: list[str], input_string: t.Optional[str] = None
-    ) -> _GitSubprocessDetails:
+    def _call_git_with_lock_retry(self, args: list[str], input_string: t.Optional[str] = None) -> _GitSubprocessDetails:
         """Call git with automatic retry on lock-file contention errors.
 
         In multi-process test environments several workers may issue git
