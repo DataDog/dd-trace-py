@@ -448,7 +448,11 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "true"
+        "default": "true",
+        "deprecated": true,
+        "deprecation": {
+          "replaced_by": "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED"
+        }
       }
     ],
     "DD_ASYNCIO_SERVICE": [
@@ -3078,7 +3082,12 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "deprecated": true,
+        "deprecation": {
+          "removal_version": "3.0.0",
+          "extra_message": "The new pytest plugin is now the default. No configuration is required."
+        }
       }
     ],
     "DD_RAY_SERVICE": [
@@ -3580,7 +3589,12 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "true"
+        "default": "true",
+        "deprecated": true,
+        "deprecation": {
+          "removal_version": "5.0.0",
+          "extra_message": "128-bit trace ID generation will become mandatory in version 5.0.0."
+        }
       }
     ],
     "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED": [
@@ -4181,7 +4195,15 @@
         "default": "false",
         "aliases": [
           "DD_TRACE_INFERRED_SPANS_ENABLED"
-        ]
+        ],
+        "deprecation": {
+          "aliases": {
+            "DD_TRACE_INFERRED_SPANS_ENABLED": {
+              "removal_version": "5.0.0",
+              "replaced_by": "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED"
+            }
+          }
+        }
       }
     ],
     "DD_TRACE_JINJA2_ENABLED": [
