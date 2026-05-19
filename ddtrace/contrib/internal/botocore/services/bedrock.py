@@ -11,6 +11,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._integrations._bedrock_inference_profiles import lookup_inference_profile
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.bedrock_utils import _AI21
@@ -444,11 +445,30 @@ def handle_bedrock_response(
     return result
 
 
+def _resolve_application_inference_profile(model_id, model_provider, model_name):
+    """If model_id is an application-inference-profile ARN whose base model is known
+    (cached by the langchain integration), return the resolved
+    (model_id, model_provider, model_name) where model_id is now the base model
+    id string instead of the opaque ARN. Otherwise return the inputs unchanged.
+
+    Overriding model_id matters because the LLM Obs annotator reads
+    ``ctx.get_item("model_id")`` first and only falls back to ``model_name``.
+    """
+    if not isinstance(model_id, str) or "application-inference-profile/" not in model_id:
+        return model_id, model_provider, model_name
+    cached_base_model_id = lookup_inference_profile(model_id)
+    if not cached_base_model_id:
+        return model_id, model_provider, model_name
+    new_provider, new_name = parse_model_id(cached_base_model_id)
+    return cached_base_model_id, new_provider, new_name
+
+
 def patched_bedrock_api_call(original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     pin = function_vars.get("pin")
     model_id = params.get("modelId")
     model_provider, model_name = parse_model_id(model_id)
+    model_id, model_provider, model_name = _resolve_application_inference_profile(model_id, model_provider, model_name)
     integration = function_vars.get("integration")
     submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
     with core.context_with_data(
