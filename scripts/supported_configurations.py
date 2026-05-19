@@ -4,7 +4,8 @@
 Reads the JSON registry and produces a Python module with:
 - SUPPORTED_CONFIGURATIONS: frozenset of all registered env var names
 - CONFIGURATION_ALIASES: dict mapping env var name to list of aliases
-- DEPRECATED_CONFIGURATIONS: frozenset of deprecated env var names
+- DEPRECATED_CONFIGURATIONS: dict mapping deprecated env var names to optional
+  metadata (removal_version, extra_message, replaced_by)
 
 Also verifies that every DD_*/_DD_*/OTEL_*/DATADOG_* var accessed in ddtrace/ is registered.
 
