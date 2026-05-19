@@ -175,7 +175,15 @@ test_wheel() {
   echo "=== Testing direct import ==="
   "${VENV_PATH}/bin/python" -c "import ddtrace; print('✓ ddtrace import successful')" || echo "✗ ddtrace import failed"
 
-  echo "=== Running smoke test ==="
-  "${VENV_PATH}/bin/python" "${PROJECT_DIR}/tests/smoke_test.py"
+  PY_MINOR=$("${VENV_PATH}/bin/python" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+  if [[ "${PY_MINOR}" == "3.15" ]]; then
+    # TODO(py-315): drop this skip once #17849 ports the bytecode wrapping path to sys.monitoring.
+    # Until then, `import ddtrace` raises NotImplementedError on 3.15 from
+    # ddtrace/internal/wrapping/{asyncs,generators}.py — so the smoke test cannot pass.
+    echo "=== Skipping smoke test on Python ${PY_MINOR} (pending #17849) ==="
+  else
+    echo "=== Running smoke test ==="
+    "${VENV_PATH}/bin/python" "${PROJECT_DIR}/tests/smoke_test.py"
+  fi
   section_end "test_wheel"
 }
