@@ -32,6 +32,8 @@ variables:
   needs:
     - job: "ddtrace-internal build linux"
       artifacts: true
+    - job: "ddtrace-internal build macos"
+      artifacts: true
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"
@@ -86,8 +88,7 @@ variables:
     SCCACHE_S3_KEY_PREFIX: "sccache"
     SCCACHE_REGION: "us-east-1"
   script:
-    - cd dd-trace-py
-    - .gitlab/scripts/build-sdist.sh
+    - dd-trace-py/.gitlab/scripts/build-sdist.sh
 
 "build linux":
   extends: .build_base
