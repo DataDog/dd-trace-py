@@ -146,7 +146,7 @@ def generate_posargs(code: CodeType) -> Generator[Instr, None, None]:
 
     if nargs:  # posargs [+ varargs]
         yield from (
-            Instr("LOAD_DEREF", bc.CellVar(argname), lineno=lineno)
+            Instr("LOAD_DEREF", bc.CellVar(argname), lineno=lineno)  # type: ignore[attr-defined]
             if PY >= (3, 11) and argname in code.co_cellvars
             else Instr("LOAD_FAST", argname, lineno=lineno)
             for argname in varnames[:nargs]
@@ -185,10 +185,10 @@ def generate_kwargs(code: CodeType) -> Generator[Instr, None, None]:
 
     if kwonlyargs:
         for arg in varnames[nargs : nargs + kwonlyargs]:  # kwargs [+ varkwargs]
-            yield from PAIR.bind({"arg": arg}, lineno=lineno)
+            yield from cast(list[Instr], PAIR.bind({"arg": arg}, lineno=lineno))
         yield Instr("BUILD_MAP", kwonlyargs, lineno=lineno)
         if varkwargs:
-            yield from UPDATE_MAP.bind({"varkwargsname": varkwargsname}, lineno=lineno)
+            yield from cast(list[Instr], UPDATE_MAP.bind({"varkwargsname": varkwargsname}, lineno=lineno))
 
     elif varkwargs:  # varkwargs
         yield Instr("LOAD_FAST", varkwargsname, lineno=lineno)
@@ -230,7 +230,7 @@ def wrap_bytecode(wrapper: Wrapper, wrapped: FunctionType) -> bc.Bytecode:
     # Include code for handling free/cell variables, if needed
     if PY >= (3, 11):
         if code.co_cellvars:
-            instrs[0:0] = [Instr("MAKE_CELL", bc.CellVar(_), lineno=lineno) for _ in code.co_cellvars]
+            instrs[0:0] = [Instr("MAKE_CELL", bc.CellVar(_), lineno=lineno) for _ in code.co_cellvars]  # type: ignore[attr-defined]
 
         if code.co_freevars:
             instrs.insert(0, Instr("COPY_FREE_VARS", len(code.co_freevars), lineno=lineno))
@@ -282,15 +282,15 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
 
     # Copy over the code attributes
     wrapped_code.argcount = argcount
-    wrapped_code.argnames = code.co_varnames[:nargs]
+    wrapped_code.argnames = list(code.co_varnames[:nargs])
     wrapped_code.filename = code.co_filename
-    wrapped_code.freevars = code.co_freevars
-    wrapped_code.flags = flags
+    wrapped_code.freevars = list(code.co_freevars)
+    wrapped_code.flags = bc.CompilerFlags(flags)
     wrapped_code.kwonlyargcount = kwonlycount
     wrapped_code.name = code.co_name
     wrapped_code.posonlyargcount = code.co_posonlyargcount
     if PY >= (3, 11):
-        wrapped_code.cellvars = code.co_cellvars
+        wrapped_code.cellvars = list(code.co_cellvars)
 
     # Replace the function code with the trampoline bytecode
     f.__code__ = wrapped_code.to_code()
