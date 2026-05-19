@@ -36,15 +36,15 @@
 
 os tests macos:
   extends: .multi_os_test_base
-  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-763f5d24-114077451"
   tags: ["macos:sonoma-tart"]
   needs: [ "build macos arm64" ]
   variables:
     WHEEL_PATTERN: "macosx*arm64.whl"
     PLATFORM: "macOS"
-    # AIDEV-NOTE: this test PR disables one-pipeline.locked.yml (which
-    # normally sets FF_SCRIPT_SECTIONS=true globally), so set it here to
-    # reproduce the same runtime environment as PR #17501.
+    # AIDEV-NOTE: pinned to the bash-login-shell VM image
+    # (ci-platform-machine-images PR #732) and FF_SCRIPT_SECTIONS=true
+    # set here to verify the wrapper now runs cleanly under bash.
     FF_SCRIPT_SECTIONS: "true"
   script:
     - |
