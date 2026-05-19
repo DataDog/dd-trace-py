@@ -8,7 +8,7 @@ import pytest
 # Acquire the env submodule via sys.modules because
 # ddtrace.internal.settings.__init__ re-exports dd_environ as `env`, which
 # shadows the submodule name for normal `import ... as ...` forms.
-from ddtrace.internal.settings.env import dd_environ  # noqa: I100
+from ddtrace.internal.settings.env import dd_environ
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 
@@ -244,8 +244,10 @@ def test_deprecation_warning_fires_only_once_per_key(monkeypatch):
         env_module.dd_environ.get("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED")
         env_module.dd_environ["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"]
     messages = [
-        str(w.message) for w in caught
-        if issubclass(w.category, DDTraceDeprecationWarning) and "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in str(w.message)
+        str(w.message)
+        for w in caught
+        if issubclass(w.category, DDTraceDeprecationWarning)
+        and "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in str(w.message)
     ]
     assert len(messages) == 1
 
@@ -283,10 +285,12 @@ def test_loading_config_with_deprecated_var_fires_warning_exactly_once(monkeypat
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always", DDTraceDeprecationWarning)
         from ddtrace.internal.settings._config import Config  # local import to avoid early-side-effect
+
         Config()
 
     relevant = [
-        str(w.message) for w in caught
+        str(w.message)
+        for w in caught
         if issubclass(w.category, DDTraceDeprecationWarning)
         and "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in str(w.message)
     ]

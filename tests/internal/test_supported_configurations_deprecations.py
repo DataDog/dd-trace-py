@@ -1,4 +1,5 @@
 """Tests for the deprecation metadata exposed by _supported_configurations."""
+
 from ddtrace.internal.settings import _supported_configurations as sc
 
 

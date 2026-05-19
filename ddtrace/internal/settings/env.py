@@ -19,6 +19,7 @@ once per process. Mere existence probes (``__contains__``) do not fire the
 warning. To add a new deprecation, edit ``supported-configurations.json`` —
 no code change is required.
 """
+
 from __future__ import annotations
 
 from collections.abc import MutableMapping

@@ -57,9 +57,7 @@ def generate_module(data: dict) -> str:
         if entry.get("deprecated"):
             deprecation_map[name] = {k: block[k] for k in _META_KEYS if k in block}
         elif any(k in block for k in _META_KEYS):
-            raise ValueError(
-                f"{name}: entry-level deprecation metadata present but 'deprecated: true' missing"
-            )
+            raise ValueError(f"{name}: entry-level deprecation metadata present but 'deprecated: true' missing")
         for alias, alias_info in (block.get("aliases") or {}).items():
             deprecation_map[alias] = {k: alias_info[k] for k in _META_KEYS if k in alias_info}
 
@@ -79,11 +77,15 @@ def generate_module(data: dict) -> str:
         else "CONFIGURATION_ALIASES: dict[str, list[str]] = {}"
     )
 
-    def _format_deprecation(name: str, info: dict[str, str]) -> str:
+    def _format_deprecation(name: str, info: dict[str, str], max_len: int = 120) -> str:
         if not info:
             return f'    "{name}": {{}},'
-        kv = ", ".join(f'"{k}": "{v}"' for k, v in sorted(info.items()))
-        return f'    "{name}": {{{kv}}},'
+        items = sorted(info.items())
+        single = '    "{}": {{{}}},'.format(name, ", ".join(f'"{k}": "{v}"' for k, v in items))
+        if len(single) <= max_len:
+            return single
+        body = "\n".join(f'        "{k}": "{v}",' for k, v in items)
+        return f'    "{name}": {{\n{body}\n    }},'
 
     if deprecation_map:
         deprecation_lines = "\n".join(_format_deprecation(n, deprecation_map[n]) for n in sorted(deprecation_map))
