@@ -75,5 +75,6 @@ jobs:
       desired_execution_time: 900
       scenarios_groups: tracer-release
       skip_empty_scenarios: ${{github.event_name == 'pull_request'}}
+      excluded_scenarios: FEATURE_FLAGGING_AND_EXPERIMENTATION  # incident-54756
       push_to_test_optimization: true
 
