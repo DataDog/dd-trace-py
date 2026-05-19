@@ -101,16 +101,16 @@ class _StopBeforeWire(Exception):
 def _reset_http_propagation_suppressed():
     """Reset the _http_propagation_suppressed contextvar around every test.
 
-    Several tests in this file trigger the before-sign handler, which sets
-    the contextvar to True. Without this fixture, pytest-randomly can order
-    tests such that a leaked True value causes
-    test_subscriber_injects_when_propagation_not_suppressed (and similar) to
-    take the early-return path in on_started and silently fail.
+    Tests in this file set the contextvar directly or call into
+    patched_api_call, which sets it to True for the duration of an AWS
+    call. Without this fixture, pytest-randomly can order tests such that
+    a leaked True value causes test_subscriber_injects_when_propagation_not_suppressed
+    (and similar) to take the early-return path in on_started and silently
+    fail.
 
-    The Task 5 contextvar guard inside patched_api_call also resets the
-    contextvar in production code, but several tests in this file invoke the
-    handler directly (bypassing patched_api_call), so per-test reset here is
-    still necessary.
+    patched_api_call's own Token reset handles its scope correctly, but
+    tests that set the contextvar manually (or bypass patched_api_call
+    entirely) still need a per-test reset, which this fixture provides.
     """
     from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 
@@ -191,9 +191,12 @@ def test_subscriber_injects_when_propagation_not_suppressed():
 
 
 def test_before_sign_handler_injects_when_span_active(patched_botocore):
-    """The handler must inject propagation headers into the AWSRequest and
-    set the suppression contextvar.
-    """
+    """The handler must inject propagation headers into the AWSRequest.
+
+    The handler is NOT responsible for the urllib3-suppression contextvar —
+    that's owned exclusively by patched_api_call. The handler must inject
+    cleanly without touching contextvar state, so we explicitly assert the
+    contextvar is unchanged after the handler runs."""
     from botocore.awsrequest import AWSRequest
 
     from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
@@ -208,7 +211,10 @@ def test_before_sign_handler_injects_when_span_active(patched_botocore):
         with ddtrace.tracer.trace("test.span"):
             _inject_trace_headers_handler(request=request)
         assert "x-datadog-trace-id" in request.headers
-        assert _http_propagation_suppressed.get() is True
+        # Contextvar must stay at the value we set — the handler must not
+        # touch it. patched_api_call (not exercised in this unit test) is
+        # the sole owner.
+        assert _http_propagation_suppressed.get() is False
     finally:
         _http_propagation_suppressed.reset(token)
 

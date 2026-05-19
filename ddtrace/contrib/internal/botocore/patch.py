@@ -113,8 +113,13 @@ def _inject_trace_headers_handler(request, **kwargs):
     extra headers appear between signing and the wire — historically
     dd-trace-py injected in the urllib3 layer, which is too late.
 
-    After injecting, sets ``_http_propagation_suppressed`` so the shared HTTP
-    subscriber skips its own injection for the rest of this in-flight call.
+    This handler does NOT touch ``_http_propagation_suppressed`` — that
+    contextvar is owned exclusively by ``patched_api_call``, which sets and
+    resets it via Token in a ``try/finally``. The handler intentionally stays
+    out of the suppression-state lifecycle so that early-return paths in
+    ``patched_api_call`` (pin disabled, submodule excluded) and out-of-scope
+    callers (presigned URL generation) cannot leak suppression into
+    subsequent unrelated HTTP calls in the same task.
     """
     if not config.botocore["distributed_tracing"]:
         return
@@ -135,8 +140,6 @@ def _inject_trace_headers_handler(request, **kwargs):
         if header_name in request.headers:
             continue
         request.headers[header_name] = header_value
-
-    _http_propagation_suppressed.set(True)
 
 
 def _wrap_session_init(wrapped, instance, args, kwargs):
@@ -279,21 +282,23 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         if supported_operations is None or operation in supported_operations:
             patching_fn = patched_endpoint[PATCHING_FN_KEY]
 
-    # Initialize the propagation-suppression contextvar for this AWS call.
+    # Suppress the urllib3-layer injection for AWS calls that go through this
+    # managed scope. Two cases collapse cleanly:
     #
-    # If distributed_tracing is disabled for botocore, suppress urllib3-layer
-    # injection entirely for this call — the user explicitly opted out, so AWS
-    # must see no Datadog/W3C trace headers at any layer.
+    # 1) distributed_tracing on  → before-sign handler injects pre-signing;
+    #    urllib3 must not inject after signing (would either no-op overwrite
+    #    or, if a propagator's output drifted between the two points, break
+    #    the SigV4 signature).
+    # 2) distributed_tracing off → handler bails without injecting; urllib3
+    #    must also bail so the user's opt-out actually keeps trace headers
+    #    off the wire at every layer (closes a latent leak on main where the
+    #    urllib3 integration ignored DD_BOTOCORE_DISTRIBUTED_TRACING=false).
     #
-    # Otherwise initialize to False; the before-sign handler will flip it to
-    # True if and when it actually injects. If the handler never fires (e.g.,
-    # anonymous/unsigned requests, or unusual signing flows), the contextvar
-    # stays False and the urllib3 subscriber falls back to today's behavior —
-    # so we never regress existing AWS-via-ddtrace setups.
-    #
-    # Reset on exit so nothing leaks to subsequent unrelated HTTP calls in
-    # the same task/thread.
-    token = _http_propagation_suppressed.set(not config.botocore["distributed_tracing"])
+    # Setting True unconditionally also keeps the contextvar fully owned by
+    # this function — the handler never touches it, so early-return paths
+    # (pin disabled, submodule excluded, presigned URLs) can't leak
+    # suppression into subsequent non-AWS HTTP calls.
+    token = _http_propagation_suppressed.set(True)
     try:
         return patching_fn(
             original_func=original_func,
