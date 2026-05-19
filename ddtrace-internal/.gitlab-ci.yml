@@ -57,6 +57,7 @@
 "ddtrace-internal build macos":
   extends: .build_base
   needs: []
+  stage: "ddtrace-internal:package"
   tags: [ "macos:sonoma-$ARCH_TAG", "specific:true" ]
   parallel:
     matrix:
