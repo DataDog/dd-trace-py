@@ -96,7 +96,7 @@ class DataDogProvider(AbstractProvider):
         self._metadata = Metadata(name="Datadog")
         self._status = ProviderStatus.NOT_READY
 
-        # Initialization timeout: constructor arg takes priority, then env var (default 30s)
+        # Initialization timeout: constructor arg takes priority, then env var
         if initialization_timeout is not None:
             self._initialization_timeout = initialization_timeout
         else:
