@@ -976,9 +976,9 @@
     ],
     "DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false"
+        "default": "true"
       }
     ],
     "DD_CRASHTRACKING_MAX_THREADS": [
@@ -5562,6 +5562,14 @@
         "implementation": "A",
         "type": "int",
         "default": "10000",
+        "internal": true
+      }
+    ],
+    "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": null,
         "internal": true
       }
     ],
