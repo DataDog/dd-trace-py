@@ -586,6 +586,8 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
         writer = self.tracer._span_aggregator.writer
         if hasattr(writer, "pop"):
             writer.pop()
+        if hasattr(writer, "pop_traces"):
+            writer.pop_traces()
 
     def trace(self, *args, **kwargs):
         """Wrapper for self.tracer.trace that returns a TestSpan"""

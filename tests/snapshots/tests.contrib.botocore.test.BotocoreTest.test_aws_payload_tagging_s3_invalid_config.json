@@ -35,10 +35,7 @@
     },
     "duration": 258360186,
     "start": 1730995845585860675
-  }],
-[
-  {
-    "name": "sqs.command",
+  }]]
     "service": "aws.sqs",
     "resource": "sqs.listqueues",
     "trace_id": 1,
