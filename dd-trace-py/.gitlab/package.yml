@@ -88,7 +88,8 @@ variables:
     SCCACHE_S3_KEY_PREFIX: "sccache"
     SCCACHE_REGION: "us-east-1"
   script:
-    - dd-trace-py/.gitlab/scripts/build-sdist.sh
+    - cd dd-trace-py
+    - .gitlab/scripts/build-sdist.sh
 
 "build linux":
   extends: .build_base
