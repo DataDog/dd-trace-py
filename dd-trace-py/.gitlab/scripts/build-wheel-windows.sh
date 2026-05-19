@@ -26,7 +26,7 @@ IMAGE="${WINDOWS_BUILD_IMAGE:?WINDOWS_BUILD_IMAGE is required}"
 setup_env
 
 # Git Bash path → Windows path (required for docker -v flag on Windows)
-PROJECT_DIR_WIN=$(cygpath -w "${PROJECT_DIR}/dd-trace-py")
+PROJECT_DIR_WIN=$(cygpath -w "${PROJECT_DIR}")
 
 section_start "docker_pull" "Pulling Windows build image"
 docker pull "${IMAGE}"
@@ -42,7 +42,7 @@ docker run --rm \
   -w 'C:\workspace' \
   "${IMAGE}" \
   powershell -NoProfile -NonInteractive \
-    -File 'C:\workspace\.gitlab\scripts\windows-docker-build.ps1' \
+    -File 'C:\workspace\dd-trace-py\.gitlab\scripts\windows-docker-build.ps1' \
     -VcArch "${VC_ARCH}"
 
 export BUILT_WHEEL_FILE
@@ -60,6 +60,6 @@ docker run --rm \
   -w 'C:\workspace' \
   "${IMAGE}" \
   powershell -NoProfile -NonInteractive \
-    -File 'C:\workspace\.gitlab\scripts\windows-docker-test.ps1' \
+    -File 'C:\workspace\dd-trace-py\.gitlab\scripts\windows-docker-test.ps1' \
     -UvPython "${UV_PYTHON}"
 section_end "test_wheel"

@@ -20,13 +20,13 @@ Write-Host "=== Creating venv ==="
 if ($LASTEXITCODE -ne 0) { Write-Error "uv venv failed"; exit 1 }
 
 Write-Host "=== Installing wheel ==="
-Get-ChildItem C:\workspace\dist\*.whl | ForEach-Object {
+Get-ChildItem C:\workspace\dd-trace-py\dist\*.whl | ForEach-Object {
     & uv pip install --python C:\testvenv\Scripts\python.exe $_.FullName
     if ($LASTEXITCODE -ne 0) { Write-Error "wheel install failed"; exit 1 }
 }
 
 Write-Host "=== Running smoke test ==="
-& C:\testvenv\Scripts\python.exe C:\workspace\tests\smoke_test.py
+& C:\testvenv\Scripts\python.exe C:\workspace\dd-trace-py\tests\smoke_test.py
 if ($LASTEXITCODE -ne 0) { Write-Error "smoke test failed"; exit 1 }
 
 Write-Host "=== Smoke test passed ==="
