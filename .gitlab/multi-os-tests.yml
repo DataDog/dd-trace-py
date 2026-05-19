@@ -42,6 +42,10 @@ os tests macos:
   variables:
     WHEEL_PATTERN: "macosx*arm64.whl"
     PLATFORM: "macOS"
+    # AIDEV-NOTE: this test PR disables one-pipeline.locked.yml (which
+    # normally sets FF_SCRIPT_SECTIONS=true globally), so set it here to
+    # reproduce the same runtime environment as PR #17501.
+    FF_SCRIPT_SECTIONS: "true"
   script:
     - |
       for PYTHON_VERSION in 3.10 3.12 3.14; do
