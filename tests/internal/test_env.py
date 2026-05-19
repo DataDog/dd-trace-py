@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import warnings
 
 import pytest
 
@@ -8,6 +9,7 @@ import pytest
 # ddtrace.internal.settings.__init__ re-exports dd_environ as `env`, which
 # shadows the submodule name for normal `import ... as ...` forms.
 from ddtrace.internal.settings.env import dd_environ  # noqa: I100
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 
 env_module = sys.modules["ddtrace.internal.settings.env"]
@@ -17,8 +19,12 @@ ENV_LOGGER = env_module.__name__
 @pytest.fixture(autouse=True)
 def reset_warned_keys():
     env_module._warned_keys.clear()
+    if hasattr(env_module, "_deprecation_warned"):
+        env_module._deprecation_warned.clear()
     yield
     env_module._warned_keys.clear()
+    if hasattr(env_module, "_deprecation_warned"):
+        env_module._deprecation_warned.clear()
 
 
 def test_registered_key_no_warning(caplog):
@@ -208,3 +214,57 @@ def test_get_config_falls_back_to_alias_in_fleet_config(monkeypatch):
 
     val = telemetry_mod.get_config(canonical, default=None, report_telemetry=False)
     assert val == "from-fleet"
+
+
+def test_reading_deprecated_set_var_emits_ddtrace_deprecation_warning(monkeypatch):
+    monkeypatch.setenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "false")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DDTraceDeprecationWarning)
+        env_module.dd_environ.get("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED")
+    messages = [str(w.message) for w in caught if issubclass(w.category, DDTraceDeprecationWarning)]
+    assert any("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in m for m in messages)
+    assert any("5.0.0" in m for m in messages)
+
+
+def test_reading_deprecated_alias_emits_ddtrace_deprecation_warning(monkeypatch):
+    monkeypatch.setenv("DD_TRACE_INFERRED_SPANS_ENABLED", "true")
+    monkeypatch.delenv("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", raising=False)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DDTraceDeprecationWarning)
+        env_module.dd_environ.get("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED")
+    messages = [str(w.message) for w in caught if issubclass(w.category, DDTraceDeprecationWarning)]
+    assert any("DD_TRACE_INFERRED_SPANS_ENABLED" in m for m in messages)
+
+
+def test_deprecation_warning_fires_only_once_per_key(monkeypatch):
+    monkeypatch.setenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "false")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DDTraceDeprecationWarning)
+        env_module.dd_environ.get("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED")
+        env_module.dd_environ.get("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED")
+        env_module.dd_environ["DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED"]
+    messages = [
+        str(w.message) for w in caught
+        if issubclass(w.category, DDTraceDeprecationWarning) and "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in str(w.message)
+    ]
+    assert len(messages) == 1
+
+
+def test_contains_check_does_not_fire_deprecation_warning(monkeypatch):
+    # __contains__ probes existence — should not fire a user-facing deprecation warning.
+    monkeypatch.delenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", raising=False)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DDTraceDeprecationWarning)
+        _ = "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in env_module.dd_environ
+    relevant = [w for w in caught if "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in str(w.message)]
+    assert relevant == []
+
+
+def test_deprecated_unset_var_does_not_fire_warning(monkeypatch):
+    # A deprecated var that the user did not set should not fire a warning on read.
+    monkeypatch.delenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", raising=False)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DDTraceDeprecationWarning)
+        env_module.dd_environ.get("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "true")
+    relevant = [w for w in caught if "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in str(w.message)]
+    assert relevant == []
