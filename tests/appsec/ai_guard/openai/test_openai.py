@@ -489,14 +489,15 @@ def test_block_error_class_identity_under_thread_race():
     """Concurrent threads racing through the cold cache MUST all observe the
     same class object.
 
-    Without ``_openai_abort_error_cls_lock``, the unsynchronised check-then-act
+    Without ``_compound_abort_error_lock``, the unsynchronised check-then-act
     pattern lets two threads pass the ``is None`` check, build their own class
     each, and leave the cache pointing at whichever assignment ran last — the
     other thread keeps a stale class that's never returned again, so a caller's
     ``isinstance(e, cached_cls)`` will start failing intermittently. This test
-    resets the cache and races N threads through the helper, asserting all
-    returns are ``is``-equal.
+    resets the shared compound-class cache and races N threads through the
+    helper, asserting all returns are ``is``-equal.
     """
+    import ddtrace.appsec._ai_guard._common as _common
     import ddtrace.appsec._ai_guard._openai as _openai_mod
 
     # Sanity: the openai SDK must be importable for this test to be meaningful;
@@ -505,8 +506,7 @@ def test_block_error_class_identity_under_thread_race():
     if _openai_mod._get_openai_abort_error_cls() is None:
         pytest.skip("openai SDK not importable")
 
-    saved_cls = _openai_mod._openai_abort_error_cls
-    _openai_mod._openai_abort_error_cls = None
+    saved_cls = _common._compound_abort_error_cache.pop("OpenAI", None)
 
     n = 32
     barrier = threading.Barrier(n)
@@ -525,7 +525,8 @@ def test_block_error_class_identity_under_thread_race():
         for t in threads:
             t.join()
     finally:
-        _openai_mod._openai_abort_error_cls = saved_cls
+        if saved_cls is not None:
+            _common._compound_abort_error_cache["OpenAI"] = saved_cls
 
     first = results[0]
     assert first is not None
