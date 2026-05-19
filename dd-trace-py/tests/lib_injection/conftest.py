@@ -1,3 +1,4 @@
+import importlib
 import os
 import platform
 import shutil
@@ -12,24 +13,19 @@ except ImportError:
     import tomli as tomllib
 
 import pytest
-
 from ddtrace import __version__
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+
+spec = importlib.util.spec_from_file_location("requirements", PROJECT_ROOT / "requirements.py")
+reqs = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(reqs)
+DDTRACE_CORE_DEPENDENCIES = reqs.install_requires
 
 
 HOST_DDTRACE_VERSION = __version__
 LIBS_INJECTION_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../lib-injection"))
 LIBS_INJECTION_SRC_DIR = os.path.join(LIBS_INJECTION_DIR, "sources")
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-
-
-def _get_ddtrace_core_dependencies():
-    """Reads core dependencies from pyproject.toml."""
-    with open(os.path.join(PROJECT_ROOT, "pyproject.toml"), "rb") as f:
-        pyproject = tomllib.load(f)
-    return pyproject["project"]["dependencies"]
-
-
-DDTRACE_CORE_DEPENDENCIES = _get_ddtrace_core_dependencies()
 
 
 def get_platform_details():
