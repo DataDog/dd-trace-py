@@ -19,12 +19,10 @@ ENV_LOGGER = env_module.__name__
 @pytest.fixture(autouse=True)
 def reset_warned_keys():
     env_module._warned_keys.clear()
-    if hasattr(env_module, "_deprecation_warned"):
-        env_module._deprecation_warned.clear()
+    env_module._deprecation_warned.clear()
     yield
     env_module._warned_keys.clear()
-    if hasattr(env_module, "_deprecation_warned"):
-        env_module._deprecation_warned.clear()
+    env_module._deprecation_warned.clear()
 
 
 def test_registered_key_no_warning(caplog):
@@ -253,8 +251,17 @@ def test_deprecation_warning_fires_only_once_per_key(monkeypatch):
 
 
 def test_contains_check_does_not_fire_deprecation_warning(monkeypatch):
-    # __contains__ probes existence — should not fire a user-facing deprecation warning.
+    # __contains__ probes existence — should not fire a user-facing deprecation warning,
+    # whether the deprecated var is set or unset.
     monkeypatch.delenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", raising=False)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DDTraceDeprecationWarning)
+        _ = "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in env_module.dd_environ
+    relevant = [w for w in caught if "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in str(w.message)]
+    assert relevant == []
+
+    monkeypatch.setenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "false")
+    env_module._deprecation_warned.clear()
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always", DDTraceDeprecationWarning)
         _ = "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in env_module.dd_environ
@@ -293,5 +300,23 @@ def test_loading_config_with_deprecated_var_fires_warning_exactly_once(monkeypat
         for w in caught
         if issubclass(w.category, DDTraceDeprecationWarning)
         and "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in str(w.message)
+    ]
+    assert len(relevant) == 1, relevant
+
+
+def test_warn_deprecated_set_vars_fires_for_unread_deprecated_var(monkeypatch):
+    """Registry-only deprecations (no code reads the var) still surface via the sweep.
+
+    DD_PYTEST_USE_NEW_PLUGIN_BETA has no active read site after the manual
+    deprecate() block was removed from the pytest plugin. The sweep must catch it.
+    """
+    monkeypatch.setenv("DD_PYTEST_USE_NEW_PLUGIN_BETA", "1")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DDTraceDeprecationWarning)
+        env_module.warn_deprecated_set_vars()
+    relevant = [
+        str(w.message)
+        for w in caught
+        if issubclass(w.category, DDTraceDeprecationWarning) and "DD_PYTEST_USE_NEW_PLUGIN_BETA" in str(w.message)
     ]
     assert len(relevant) == 1, relevant

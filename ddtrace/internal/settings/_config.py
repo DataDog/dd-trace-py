@@ -446,6 +446,12 @@ class Config(object):
             return False
 
     def __init__(self) -> None:
+        # Surface a DDTraceDeprecationWarning for any deprecated env vars the user has set,
+        # even if no code path reads them. See ddtrace/internal/settings/env.py for details.
+        from ddtrace.internal.settings.env import warn_deprecated_set_vars
+
+        warn_deprecated_set_vars()
+
         # Must validate Otel configurations before creating the config object.
         validate_otel_envs()
 

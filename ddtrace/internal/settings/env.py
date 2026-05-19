@@ -92,16 +92,23 @@ def _emit_deprecation_warning(key: str) -> None:
     )
 
 
-def _maybe_warn_deprecated_read(key: str, source_key: str | None) -> None:
-    """Emit a deprecation warning if ``source_key`` (the actual env var found) is deprecated.
-
-    ``key`` is what the caller asked for; ``source_key`` is the env name we resolved the value
-    from (could be ``key`` itself, or one of its registered aliases). Either may be deprecated.
-    """
-    if source_key is not None and source_key in DEPRECATED_CONFIGURATIONS:
+def _maybe_warn_deprecated_read(source_key: str) -> None:
+    """Emit a deprecation warning if ``source_key`` (the actual env var found) is deprecated."""
+    if source_key in DEPRECATED_CONFIGURATIONS:
         _emit_deprecation_warning(source_key)
-    if key != source_key and key in DEPRECATED_CONFIGURATIONS and key in os.environ:
-        _emit_deprecation_warning(key)
+
+
+def warn_deprecated_set_vars() -> None:
+    """Emit a DDTraceDeprecationWarning for each deprecated env var the user has set.
+
+    Intended to be called once at ddtrace bootstrap (e.g., from ``Config.__init__``)
+    so registry-only deprecations — entries marked ``deprecated: true`` in
+    ``supported-configurations.json`` but never read by any code path — still surface
+    a warning when the user has set the var. Idempotent via ``_deprecation_warned``.
+    """
+    for key in DEPRECATED_CONFIGURATIONS:
+        if key in os.environ:
+            _emit_deprecation_warning(key)
 
 
 class EnvConfig(MutableMapping):
@@ -120,11 +127,11 @@ class EnvConfig(MutableMapping):
     def __getitem__(self, key: str) -> str:
         _validate_key(key)
         if (value := os.environ.get(key)) is not None:
-            _maybe_warn_deprecated_read(key, key)
+            _maybe_warn_deprecated_read(key)
             return value
         for alias in CONFIGURATION_ALIASES.get(key, ()):
             if (value := os.environ.get(alias)) is not None:
-                _maybe_warn_deprecated_read(key, alias)
+                _maybe_warn_deprecated_read(alias)
                 return value
         raise KeyError(key)
 

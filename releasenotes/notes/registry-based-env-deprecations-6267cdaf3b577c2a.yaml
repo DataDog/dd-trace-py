@@ -1,10 +1,14 @@
 ---
 features:
   - |
-    Environment variable deprecations are now driven by the
+    tracing: Environment variable deprecations are now driven by the
     ``supported-configurations.json`` registry. Each deprecated env var declares
     its ``removal_version``, ``replaced_by``, and ``extra_message`` in a single
     place; ``ddtrace.internal.settings.env`` emits one ``DDTraceDeprecationWarning``
-    per deprecated env var that the user has actually set. ``DD_ASGI_TRACE_WEBSOCKET``,
-    previously only logged via ``log.warning``, now fires through the standard
-    Python warnings pipeline like other deprecated configurations.
+    per deprecated env var the user has set, at config initialization.
+deprecations:
+  - |
+    tracing: ``DD_ASGI_TRACE_WEBSOCKET`` is deprecated; use
+    ``DD_TRACE_WEBSOCKET_MESSAGES_ENABLED`` instead. Previously only a
+    ``log.warning`` was emitted; the variable now fires a
+    ``DDTraceDeprecationWarning`` through the standard Python warnings pipeline.
