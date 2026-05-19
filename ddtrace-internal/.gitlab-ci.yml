@@ -56,6 +56,7 @@
     - .gitlab/scripts/build-wheel.sh
 "ddtrace-internal build macos":
   extends: .build_base
+  needs: []
   tags: [ "macos:sonoma-$ARCH_TAG", "specific:true" ]
   parallel:
     matrix:
