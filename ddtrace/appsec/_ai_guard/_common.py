@@ -6,8 +6,12 @@ respective ``_openai`` / ``_anthropic`` modules.
 """
 
 import threading
+from typing import Any
+from typing import Optional
 
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
+from ddtrace.appsec.ai_guard._api_client import AIGuardClient
+from ddtrace.appsec.ai_guard._api_client import Message
 from ddtrace.appsec.ai_guard._api_client import Options
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import ai_guard_config
@@ -16,7 +20,7 @@ from ddtrace.internal.settings.asm import ai_guard_config
 logger = ddlogger.get_logger(__name__)
 
 
-def _get(obj, key, default=None):
+def _get(obj: Any, key: str, default: Any = None) -> Any:
     """Read *key* from a dict or object attribute.
 
     Provider SDKs deliver request-side payloads as user-supplied dicts and
@@ -38,11 +42,11 @@ def _get(obj, key, default=None):
 # pattern would let two threads simultaneously enter the build branch and
 # each create their own class, so callers that captured ``type(err)`` from
 # one block would silently stop matching errors from a concurrent block.
-_compound_abort_error_cache: dict = {}
+_compound_abort_error_cache: dict[str, type[AIGuardAbortError]] = {}
 _compound_abort_error_lock = threading.Lock()
 
 
-def build_compound_abort_error_cls(provider_name, sdk_error_cls):
+def build_compound_abort_error_cls(provider_name: str, sdk_error_cls: type[Exception]) -> type[AIGuardAbortError]:
     """Return a cached compound abort-error class for *provider_name*.
 
     The class subclasses both *sdk_error_cls* (the provider SDK's 422
@@ -71,8 +75,15 @@ def build_compound_abort_error_cls(provider_name, sdk_error_cls):
         if cached is not None:
             return cached
 
-        class CompoundAIGuardAbortError(sdk_error_cls, AIGuardAbortError):
-            def __init__(self, action, reason, tags=None, sds=None, tag_probs=None):
+        class CompoundAIGuardAbortError(sdk_error_cls, AIGuardAbortError):  # type: ignore[misc,valid-type]
+            def __init__(
+                self,
+                action: str,
+                reason: str,
+                tags: Any = None,
+                sds: Any = None,
+                tag_probs: Any = None,
+            ) -> None:
                 self.action = action
                 self.reason = reason
                 self.tags = tags
@@ -106,7 +117,7 @@ def build_compound_abort_error_cls(provider_name, sdk_error_cls):
         return CompoundAIGuardAbortError
 
 
-def wrap_abort_error(cause, compound_cls):
+def wrap_abort_error(cause: AIGuardAbortError, compound_cls: Optional[type[AIGuardAbortError]]) -> AIGuardAbortError:
     """Wrap *cause* into the provider-specific compound abort error class.
 
     Returns *cause* unchanged when *compound_cls* is ``None`` (provider SDK
@@ -126,7 +137,12 @@ def wrap_abort_error(cause, compound_cls):
     return wrapped
 
 
-def evaluate_messages(client, messages, compound_cls, error_log_label):
+def evaluate_messages(
+    client: AIGuardClient,
+    messages: list[Message],
+    compound_cls: Optional[type[AIGuardAbortError]],
+    error_log_label: str,
+) -> None:
     """Run AI Guard evaluation on *messages*, raising the provider-specific
     compound abort error on block decisions.
 
