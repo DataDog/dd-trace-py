@@ -167,6 +167,10 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh DEFAULT
 
+      - name: Run FEATURE_FLAGGING_AND_EXPERIMENTATION
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
+        run: ./run.sh FEATURE_FLAGGING_AND_EXPERIMENTATION
+
       - name: Run SAMPLING
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
         run: ./run.sh SAMPLING
