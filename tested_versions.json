@@ -1,5 +1,5 @@
 {
-  "tracer_version": "4.9.0",
+  "tracer_version": "4.10.0",
   "entries": [
     {
       "dependency_name": "aiobotocore",
@@ -1153,7 +1153,7 @@
           "python_version": "3.10"
         },
         {
-          "version": "5.2.13",
+          "version": "5.2.14",
           "python_version": "3.10"
         },
         {
@@ -1169,7 +1169,7 @@
           "python_version": "3.11"
         },
         {
-          "version": "5.2.13",
+          "version": "5.2.14",
           "python_version": "3.11"
         },
         {
@@ -1189,7 +1189,7 @@
           "python_version": "3.12"
         },
         {
-          "version": "5.2.13",
+          "version": "5.2.14",
           "python_version": "3.12"
         },
         {
@@ -1205,7 +1205,7 @@
           "python_version": "3.13"
         },
         {
-          "version": "5.2.13",
+          "version": "5.2.14",
           "python_version": "3.13"
         }
       ]
