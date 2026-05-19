@@ -83,7 +83,7 @@
       echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
     done
     sccache --show-stats
-"build windows":
+"ddtrace-internal build windows":
   needs: []
   stage: "ddtrace-internal:package"
   tags: ["windows-v2:2022"]
