@@ -411,6 +411,20 @@ class SessionManager:
 
         return self.session.test_command
 
+    def _update_pr_merge_base(self, git: Git) -> None:
+        """Compute PULL_REQUEST_BASE_BRANCH_SHA via git merge-base if not already set.
+
+        Called from upload_git_data() after any unshallowing so the commits are
+        guaranteed to be present in the local history.
+        """
+        if self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA):
+            return
+        base_sha = self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA)
+        head_sha = self.env_tags.get(GitTag.COMMIT_HEAD_SHA)
+        if base_sha and head_sha:
+            if merge_base := git.get_merge_base(base_sha, head_sha):
+                self.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] = merge_base
+
     def upload_git_data(self) -> None:
         # NOTE: In manifest mode (Bazel sandbox), git commands are unavailable
         # and the external tool has already uploaded git pack data before the sandbox
@@ -457,6 +471,11 @@ class SessionManager:
                 commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
             else:
                 log.warning("Failed to unshallow repository, continuing to send pack data")
+
+        # Compute the true PR merge-base now that the repo has been unshallowed (if needed).
+        # This is done here rather than at env_tags collection time because on shallow clones the
+        # required commits are only available after the fetch above completes.
+        self._update_pr_merge_base(git)
 
         revisions_to_send = git.get_filtered_revisions(
             excluded_commits=backend_commits, included_commits=commits_not_in_backend

@@ -13,6 +13,8 @@ from ddtrace.testing.internal.git import get_git_head_tags_from_git_command
 from ddtrace.testing.internal.git import get_git_tags_from_git_command
 from ddtrace.testing.internal.telemetry import GitTelemetry
 
+_LOCK_STDERR = "fatal: Unable to create '/repo/.git/shallow.lock': File exists."
+
 
 class TestGitTag:
     """Tests for GitTag constants."""
@@ -359,7 +361,8 @@ class TestGitUnshallow:
 
         assert result.return_code == return_code
 
-        [([git_command], _)] = call_git_mock.call_args_list
+        assert call_git_mock.call_count == 1
+        git_command = call_git_mock.call_args[0][0]
         assert git_command == [
             "fetch",
             '--shallow-since="1 month ago"',
@@ -384,7 +387,8 @@ class TestGitUnshallow:
 
         assert result.return_code == return_code
 
-        [([git_command], _)] = call_git_mock.call_args_list
+        assert call_git_mock.call_count == 1
+        git_command = call_git_mock.call_args[0][0]
         assert git_command == [
             "fetch",
             "--deepen=1",
@@ -409,7 +413,8 @@ class TestGitUnshallow:
 
         assert result.return_code == return_code
 
-        [([git_command], _)] = call_git_mock.call_args_list
+        assert call_git_mock.call_count == 1
+        git_command = call_git_mock.call_args[0][0]
         assert git_command == [
             "fetch",
             '--shallow-since="1 month ago"',
@@ -440,7 +445,8 @@ class TestGitUnshallow:
 
         assert result.return_code == return_code
 
-        [([git_command], _)] = call_git_mock.call_args_list
+        assert call_git_mock.call_count == 1
+        git_command = call_git_mock.call_args[0][0]
         assert git_command == [
             "fetch",
             '--shallow-since="1 month ago"',
@@ -472,7 +478,7 @@ class TestGitUnshallow:
 
         assert result
 
-        git_commands = [git_command for ([git_command], _) in call_git_mock.call_args_list]
+        git_commands = [call_args[0][0] for call_args in call_git_mock.call_args_list]
         assert git_commands == [
             [
                 "fetch",
@@ -507,7 +513,7 @@ class TestGitUnshallow:
 
         assert result
 
-        git_commands = [git_command for ([git_command], _) in call_git_mock.call_args_list]
+        git_commands = [call_args[0][0] for call_args in call_git_mock.call_args_list]
         assert git_commands == [
             [
                 "fetch",
@@ -553,7 +559,7 @@ class TestGitUnshallow:
 
         assert result
 
-        git_commands = [git_command for ([git_command], _) in call_git_mock.call_args_list]
+        git_commands = [call_args[0][0] for call_args in call_git_mock.call_args_list]
         assert git_commands == [
             [
                 "fetch",
@@ -608,7 +614,7 @@ class TestGitUnshallow:
 
         assert not result
 
-        git_commands = [git_command for ([git_command], _) in call_git_mock.call_args_list]
+        git_commands = [call_args[0][0] for call_args in call_git_mock.call_args_list]
         assert git_commands == [
             [
                 "fetch",
@@ -640,3 +646,127 @@ class TestGitUnshallow:
                 "some-remote",
             ],
         ]
+
+
+class TestGitLockRetry:
+    """Tests for _call_git_with_lock_retry and the commands that use it."""
+
+    @patch("shutil.which")
+    def test_no_retry_on_success(self, mock_which: Mock) -> None:
+        """A successful first call returns immediately without retrying."""
+        mock_which.return_value = "/usr/bin/git"
+        success = _GitSubprocessDetails(stdout="abc123", stderr="", return_code=0, elapsed_seconds=0.0)
+
+        with (
+            patch("ddtrace.testing.internal.git.Git._call_git", return_value=success) as mock_call,
+            patch("time.sleep") as mock_sleep,
+        ):
+            result = Git()._call_git_with_lock_retry(["merge-base", "sha1", "sha2"])
+
+        assert result.return_code == 0
+        assert result.stdout == "abc123"
+        mock_call.assert_called_once()
+        mock_sleep.assert_not_called()
+
+    @patch("shutil.which")
+    def test_no_retry_on_non_lock_error(self, mock_which: Mock) -> None:
+        """A non-lock error is returned immediately without retrying."""
+        mock_which.return_value = "/usr/bin/git"
+        failure = _GitSubprocessDetails(
+            stdout="", stderr="fatal: not a git repository", return_code=128, elapsed_seconds=0.0
+        )
+
+        with (
+            patch("ddtrace.testing.internal.git.Git._call_git", return_value=failure) as mock_call,
+            patch("time.sleep") as mock_sleep,
+        ):
+            result = Git()._call_git_with_lock_retry(["rev-parse", "HEAD"])
+
+        assert result.return_code == 128
+        mock_call.assert_called_once()
+        mock_sleep.assert_not_called()
+
+    @patch("shutil.which")
+    def test_retry_on_lock_error_then_succeed(self, mock_which: Mock) -> None:
+        """A lock-contention failure is retried and succeeds on the next attempt."""
+        mock_which.return_value = "/usr/bin/git"
+        lock_failure = _GitSubprocessDetails(stdout="", stderr=_LOCK_STDERR, return_code=128, elapsed_seconds=0.0)
+        success = _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
+
+        with (
+            patch("ddtrace.testing.internal.git.Git._call_git", side_effect=[lock_failure, success]) as mock_call,
+            patch("time.sleep") as mock_sleep,
+        ):
+            result = Git()._call_git_with_lock_retry(["fetch", "--update-shallow"])
+
+        assert result.return_code == 0
+        assert mock_call.call_count == 2
+        mock_sleep.assert_called_once()
+
+    @patch("shutil.which")
+    def test_retry_exhausted_returns_last_failure(self, mock_which: Mock) -> None:
+        """After _LOCK_MAX_RETRIES attempts the final failure result is returned."""
+        mock_which.return_value = "/usr/bin/git"
+        lock_failure = _GitSubprocessDetails(stdout="", stderr=_LOCK_STDERR, return_code=128, elapsed_seconds=0.0)
+
+        import ddtrace.testing.internal.git as git_module
+
+        with (
+            patch(
+                "ddtrace.testing.internal.git.Git._call_git",
+                side_effect=[lock_failure] * (git_module._LOCK_MAX_RETRIES + 1),
+            ) as mock_call,
+            patch("time.sleep"),
+        ):
+            result = Git()._call_git_with_lock_retry(["fetch", "--update-shallow"])
+
+        assert result.return_code == 128
+        assert mock_call.call_count == git_module._LOCK_MAX_RETRIES + 1
+
+    @patch("shutil.which")
+    def test_unshallow_repository_retries_on_lock(self, mock_which: Mock) -> None:
+        """unshallow_repository retries when git reports a shallow.lock contention."""
+        mock_which.return_value = "/usr/bin/git"
+        lock_failure = _GitSubprocessDetails(stdout="", stderr=_LOCK_STDERR, return_code=128, elapsed_seconds=0.0)
+        success = _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
+
+        with (
+            patch("ddtrace.testing.internal.git.Git._call_git", side_effect=[lock_failure, success]) as mock_call,
+            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="origin"),
+            patch("time.sleep"),
+        ):
+            result = Git().unshallow_repository("some-sha")
+
+        assert result.return_code == 0
+        assert mock_call.call_count == 2
+
+    @patch("shutil.which")
+    def test_get_merge_base_success(self, mock_which: Mock) -> None:
+        """get_merge_base returns the common ancestor SHA on success."""
+        mock_which.return_value = "/usr/bin/git"
+        success = _GitSubprocessDetails(stdout="deadbeef", stderr="", return_code=0, elapsed_seconds=0.0)
+
+        with patch("ddtrace.testing.internal.git.Git._call_git", return_value=success):
+            result = Git().get_merge_base("sha1", "sha2")
+
+        assert result == "deadbeef"
+
+    @patch("shutil.which")
+    def test_get_merge_base_logs_warning_on_failure(self, mock_which: Mock) -> None:
+        """get_merge_base logs a warning including both SHAs when it fails."""
+        mock_which.return_value = "/usr/bin/git"
+        failure = _GitSubprocessDetails(
+            stdout="", stderr="fatal: Not a valid object name sha1", return_code=128, elapsed_seconds=0.0
+        )
+
+        with (
+            patch("ddtrace.testing.internal.git.Git._call_git", return_value=failure),
+            patch("ddtrace.testing.internal.git.log") as mock_log,
+        ):
+            result = Git().get_merge_base("sha1", "sha2")
+
+        assert result == ""
+        mock_log.warning.assert_called_once()
+        warning_args = mock_log.warning.call_args[0]
+        assert "sha1" in warning_args
+        assert "sha2" in warning_args

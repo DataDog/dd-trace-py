@@ -422,3 +422,129 @@ class TestSessionManagerGitHandling:
         session_manager.api_client.send_git_pack_file.assert_not_called()
         mock_log.warning.assert_called_with("search_commits failed after unshallow, aborting git metadata upload")
         mock_telemetry.get.return_value.record_git_pack_data.assert_called_once_with(0, 0)
+
+
+class TestUpdatePrMergeBase:
+    """Tests for SessionManager._update_pr_merge_base and its integration in upload_git_data."""
+
+    def _make_session_manager(self, env_tags: dict) -> SessionManager:
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = env_tags
+        return sm
+
+    def test_skips_when_already_set(self) -> None:
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_session_manager(
+            {
+                GitTag.PULL_REQUEST_BASE_BRANCH_SHA: "existing",
+                GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: "base",
+                GitTag.COMMIT_HEAD_SHA: "head",
+            }
+        )
+        mock_git = Mock()
+        sm._update_pr_merge_base(mock_git)
+        mock_git.get_merge_base.assert_not_called()
+
+    def test_skips_when_shas_missing(self) -> None:
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_session_manager({})
+        mock_git = Mock()
+        sm._update_pr_merge_base(mock_git)
+        mock_git.get_merge_base.assert_not_called()
+
+    def test_sets_merge_base_when_both_shas_present(self) -> None:
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_session_manager(
+            {
+                GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: "base-sha",
+                GitTag.COMMIT_HEAD_SHA: "head-sha",
+            }
+        )
+        mock_git = Mock()
+        mock_git.get_merge_base.return_value = "merge-base-sha"
+        sm._update_pr_merge_base(mock_git)
+        mock_git.get_merge_base.assert_called_once_with("base-sha", "head-sha")
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "merge-base-sha"
+
+    def test_skips_update_when_merge_base_empty(self) -> None:
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_session_manager(
+            {
+                GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: "base-sha",
+                GitTag.COMMIT_HEAD_SHA: "head-sha",
+            }
+        )
+        mock_git = Mock()
+        mock_git.get_merge_base.return_value = ""
+        sm._update_pr_merge_base(mock_git)
+        assert GitTag.PULL_REQUEST_BASE_BRANCH_SHA not in sm.env_tags
+
+    def test_upload_git_data_computes_merge_base_after_unshallow(self) -> None:
+        """merge-base is computed after unshallow succeeds on a shallow repo."""
+        from ddtrace.testing.internal.git import GitTag
+
+        base_sha = "base-sha"
+        head_sha = "head-sha"
+        expected_merge_base = "merge-base-sha"
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {
+            GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: base_sha,
+            GitTag.COMMIT_HEAD_SHA: head_sha,
+        }
+        sm.api_client = Mock()
+        sm.api_client.get_known_commits.side_effect = [["commit-1"], ["commit-1"]]
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
+        mock_git.is_shallow_repository.return_value = True
+        mock_git.get_git_version.return_value = (2, 27, 0)
+        mock_git.try_all_unshallow_repository_methods.return_value = True
+        mock_git.get_merge_base.return_value = expected_merge_base
+        mock_git.get_filtered_revisions.return_value = []
+        mock_git.pack_objects.return_value = iter([])
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git.get_merge_base.assert_called_once_with(base_sha, head_sha)
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
+
+    def test_upload_git_data_computes_merge_base_on_non_shallow_repo(self) -> None:
+        """merge-base is computed even when the repo is not shallow."""
+        from ddtrace.testing.internal.git import GitTag
+
+        base_sha = "base-sha"
+        head_sha = "head-sha"
+        expected_merge_base = "merge-base-sha"
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {
+            GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: base_sha,
+            GitTag.COMMIT_HEAD_SHA: head_sha,
+        }
+        sm.api_client = Mock()
+        sm.api_client.get_known_commits.return_value = []
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
+        mock_git.is_shallow_repository.return_value = False
+        mock_git.get_merge_base.return_value = expected_merge_base
+        mock_git.get_filtered_revisions.return_value = []
+        mock_git.pack_objects.return_value = iter([])
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git.get_merge_base.assert_called_once_with(base_sha, head_sha)
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
