@@ -267,7 +267,10 @@ class TestLLMIOProcessing:
             with LLMObs.embedding(model_name="test_model") as emb_span:
                 LLMObs.annotate(emb_span, input_data=[{"text": "sensitive doc", "name": "doc.pdf"}])
             with LLMObs.retrieval() as ret_span:
-                LLMObs.annotate(ret_span, output_data=[{"text": "sensitive result", "name": "result.pdf", "score": 0.9}])
+                LLMObs.annotate(
+                    ret_span,
+                    output_data=[{"text": "sensitive result", "name": "result.pdf", "score": 0.9}],
+                )
             """
             ),
             env=env,
