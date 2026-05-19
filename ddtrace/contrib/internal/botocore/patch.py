@@ -222,7 +222,17 @@ def unpatch():
         botocore.client._datadog_patch = False
         unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
-        unwrap(botocore.session.Session, "__init__")
+        # Symmetric guard with aiobotocore.unpatch(): only unwrap
+        # Session.__init__ if aiobotocore isn't also patched. When both are
+        # patched there are two stacked wrapt layers on Session.__init__;
+        # whichever integration's unpatch() runs last is responsible for the
+        # final unwrap. Use sys.modules.get to avoid forcing an aiobotocore
+        # import here.
+        import sys
+
+        aiobotocore_client = sys.modules.get("aiobotocore.client")
+        if aiobotocore_client is None or not getattr(aiobotocore_client, "_datadog_patch", False):
+            unwrap(botocore.session.Session, "__init__")
 
 
 def patch_submodules(submodules: Union[list[str], bool]) -> None:

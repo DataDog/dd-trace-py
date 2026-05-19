@@ -1,8 +1,11 @@
 import aiobotocore.client
+import botocore.client
+import botocore.session
 import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.botocore.patch import _wrap_session_init
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
@@ -60,6 +63,13 @@ def patch():
     aiobotocore.client._datadog_patch = True
 
     wrapt.wrap_function_wrapper("aiobotocore.client", "AioBaseClient._make_api_call", _wrapped_api_call)
+    # aiobotocore.AioSession subclasses botocore.session.Session and calls
+    # super().__init__(), so wrapping botocore's Session.__init__ here is
+    # what installs the before-sign trace-header injection handler on every
+    # AioSession too. This is the same wrap as the botocore integration uses;
+    # the handler's unique_id makes the registration idempotent if the user
+    # enables both integrations.
+    wrapt.wrap_function_wrapper("botocore.session", "Session.__init__", _wrap_session_init)
     Pin().onto(aiobotocore.client.AioBaseClient)
 
 
@@ -67,6 +77,12 @@ def unpatch():
     if getattr(aiobotocore.client, "_datadog_patch", False):
         aiobotocore.client._datadog_patch = False
         unwrap(aiobotocore.client.AioBaseClient, "_make_api_call")
+        # Only unwrap Session.__init__ if the botocore integration isn't
+        # also patched. If both are patched, the botocore integration owns
+        # its own unwrap on its own unpatch() — undoing it from here would
+        # strip the handler out from under botocore users.
+        if not getattr(botocore.client, "_datadog_patch", False):
+            unwrap(botocore.session.Session, "__init__")
 
 
 class WrappedClientResponseContentProxy(wrapt.ObjectProxy):

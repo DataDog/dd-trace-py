@@ -1,11 +1,13 @@
 ---
 fixes:
   - |
-    botocore: Resolves an issue where distributed-tracing headers
+    botocore, aiobotocore: Resolves an issue where distributed-tracing headers
     (``traceparent``, ``tracestate``, ``x-datadog-*``) were injected into
     outbound AWS SDK requests *after* botocore signed the request with
     SigV4. Trace headers are now injected via a ``before-sign`` event
     handler so they are part of the canonical signed request, preventing
     AWS strict-signature endpoints (e.g. AppSync, API Gateway with IAM
     authorization) from rejecting the request with ``The request signature
-    we calculated does not match the signature you provided``.
+    we calculated does not match the signature you provided``. This fix
+    now applies to both the ``botocore`` and ``aiobotocore`` integrations,
+    including setups that only enable ``aiobotocore``.
