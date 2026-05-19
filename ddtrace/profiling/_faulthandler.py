@@ -20,6 +20,7 @@ faulthandler is imported (before or after ddtrace).
 
 from __future__ import annotations
 
+import threading
 from types import ModuleType
 import typing
 from typing import Callable
@@ -35,40 +36,54 @@ def _(faulthandler: ModuleType) -> None:
 
     _original_enable: Callable[..., None] = faulthandler.enable
     _original_disable: Callable[[], None] = faulthandler.disable
+    _enable_lock: threading.Lock = threading.Lock()
 
     def _patched_enable(*args: typing.Any, **kwargs: typing.Any) -> None:
-        was_paused: bool = stack.pause_sampling()
-        try:
+        with _enable_lock:
+            # pause_sampling returns:
+            #   True  — sampler paused (safe to swap handlers)
+            #   False — sampler not running (safe to swap; no racing thread)
+            #   None  — timed out: sampler IS running but didn't pause in time;
+            #           skip the uninstall process to avoid racing with safe_memcpy
+            #           (This means there will be a fault handler cycle, but this is about
+            #           the only thing we can do.)
+            pause_result: bool | None = stack.pause_sampling()
+            safe_to_swap: bool = pause_result is not None
             try:
-                stack.uninstall_segv_handler()
-            except Exception:  # nosec: B110
-                pass
+                if safe_to_swap:
+                    try:
+                        stack.uninstall_segv_handler()
+                    except Exception:  # nosec: B110
+                        pass
 
-            # Disable faulthandler before re-enabling so it does a fresh
-            # sigaction install.  Without this, Python may reinstall the
-            # handler while it is already the current handler, saving itself as
-            # its own ``previous`` and creating an infinite handler loop.
-            try:
-                _original_disable()
-            except Exception:  # nosec: B110
-                pass
+                    # Disable faulthandler before re-enabling so it does a fresh
+                    # sigaction install.  Without this, Python may reinstall the
+                    # handler while it is already the current handler, saving itself as
+                    # its own ``previous`` and creating an infinite handler loop.
+                    try:
+                        _original_disable()
+                    except Exception:  # nosec: B110
+                        pass
 
-            try:
-                _original_enable(*args, **kwargs)
-            except Exception:
+                try:
+                    _original_enable(*args, **kwargs)
+                except Exception:
+                    if safe_to_swap:
+                        try:
+                            stack.reinstall_segv_handler()
+                        except Exception:  # nosec: B110
+                            pass
+
+                    # Re-raise so callers see the same exception as without our wrapper.
+                    raise
+
                 try:
                     stack.reinstall_segv_handler()
                 except Exception:  # nosec: B110
                     pass
-                raise
-
-            try:
-                stack.reinstall_segv_handler()
-            except Exception:  # nosec: B110
-                pass
-        finally:
-            if was_paused:
-                stack.resume_sampling()
+            finally:
+                if pause_result is True:
+                    stack.resume_sampling()
 
     faulthandler.enable = _patched_enable  # type: ignore[attr-defined]
 

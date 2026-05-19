@@ -668,11 +668,11 @@ Sampler::stop()
     }
 }
 
-bool
+PauseResult
 Sampler::pause()
 {
     if (!thread_running.load()) {
-        return false;
+        return PauseResult::NotRunning;
     }
 
     pause_requested_.store(true, std::memory_order_release);
@@ -687,8 +687,9 @@ Sampler::pause()
     if (!ok) {
         // Timed out -- clear the request so the sampling thread isn't stuck.
         pause_requested_.store(false, std::memory_order_release);
+        return PauseResult::Timeout;
     }
-    return ok;
+    return PauseResult::Paused;
 }
 
 void

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <random>
 #include <vector>
@@ -17,6 +18,13 @@
 class EchionSampler;
 
 namespace Datadog {
+
+enum class PauseResult : std::uint8_t
+{
+    Paused,     // sampler was running and is now paused
+    NotRunning, // sampler was not running (nothing to pause)
+    Timeout,    // sampler is running but did not pause within the timeout
+};
 
 class Sampler
 {
@@ -84,7 +92,7 @@ class Sampler
 
     bool start();
     void stop();
-    bool pause();
+    PauseResult pause();
     void resume();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);

@@ -44,10 +44,14 @@ def reinstall_segv_handler() -> None:
     ...
 
 # Pause/resume sampling
-def pause_sampling() -> bool:
+def pause_sampling() -> bool | None:
     """Pause the sampling thread and wait for any in-flight sample to complete.
 
-    Returns True if the sampler was paused, False if it wasn't running.
+    Returns True  if the sampler was paused successfully.
+    Returns False if the sampler was not running (nothing to pause).
+    Returns None  if the sampler is running but timed out waiting for it to
+                  reach a safe pause point; the caller must NOT swap signal
+                  handlers in this case to avoid a race with safe_memcpy.
     """
     ...
 

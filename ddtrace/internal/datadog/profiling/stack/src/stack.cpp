@@ -685,11 +685,20 @@ static PyObject*
 stack_pause_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     // Pause the sampling thread and wait for any in-flight sample to complete.
-    // Returns True if the sampler was paused, False if it wasn't running.
-    if (Sampler::get().pause()) {
-        Py_RETURN_TRUE;
+    // Returns True  if the sampler was paused successfully.
+    // Returns False if the sampler was not running (nothing to pause).
+    // Returns None  if the sampler is running but timed out waiting for it to
+    //               reach a safe pause point; the caller must NOT swap signal
+    //               handlers in this case to avoid a race with safe_memcpy.
+    switch (Sampler::get().pause()) {
+        case PauseResult::Paused:
+            Py_RETURN_TRUE;
+        case PauseResult::NotRunning:
+            Py_RETURN_FALSE;
+        case PauseResult::Timeout:
+        default:
+            Py_RETURN_NONE;
     }
-    Py_RETURN_FALSE;
 }
 
 static PyObject*

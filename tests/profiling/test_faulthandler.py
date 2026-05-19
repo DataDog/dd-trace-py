@@ -316,6 +316,97 @@ def test_faulthandler_with_fork() -> None:
 @pytest.mark.subprocess(
     env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
+def test_uninstall_not_called_on_pause_timeout() -> None:
+    """When pause_sampling times out (returns None), uninstall_segv_handler must not be called.
+
+    This guards against the race where the sampling thread is still running
+    (pause timed out) but we proceed to uninstall the SIGSEGV handler anyway,
+    leaving safe_memcpy without its recovery handler during the swap window.
+    """
+    import faulthandler
+    from unittest.mock import MagicMock
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import stack
+
+    assert stack.is_available
+
+    # Import _faulthandler to patch faulthandler.enable. No sampler started.
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    mock_uninstall = MagicMock()
+    mock_reinstall = MagicMock()
+    mock_resume = MagicMock()
+
+    with (
+        patch.object(stack, "pause_sampling", return_value=None),
+        patch.object(stack, "uninstall_segv_handler", mock_uninstall),
+        patch.object(stack, "reinstall_segv_handler", mock_reinstall),
+        patch.object(stack, "resume_sampling", mock_resume),
+    ):
+        faulthandler.enable()
+
+    mock_uninstall.assert_not_called()
+    mock_resume.assert_not_called()
+    # reinstall is still attempted as a best-effort even after a timeout
+    mock_reinstall.assert_called_once()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
+def test_faulthandler_enable_concurrent_threads() -> None:
+    """Calling faulthandler.enable from two threads simultaneously must not deadlock or crash.
+
+    The threading.Lock inside _patched_enable serialises concurrent calls;
+    this test fires them in parallel via a Barrier to maximise contention.
+    """
+    import faulthandler
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    assert stack.is_available
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    stack.start()
+    try:
+        errors: list[BaseException] = []
+        n_threads = 4
+        barrier = threading.Barrier(n_threads)
+
+        def _enable() -> None:
+            try:
+                barrier.wait(timeout=5)
+                for _ in range(20):
+                    faulthandler.enable()
+            except BaseException as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=_enable) for _ in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        still_alive = [t for t in threads if t.is_alive()]
+        assert not still_alive, f"{len(still_alive)} thread(s) deadlocked"
+        assert not errors, f"Thread errors: {errors}"
+        assert faulthandler.is_enabled()
+        time.sleep(0.05)
+    finally:
+        stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
 def test_faulthandler_real_profiler_instance() -> None:
     import threading
 
