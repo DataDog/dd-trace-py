@@ -340,7 +340,7 @@ def _build_llmobs_span(
     span_kind: str,
     llmobs_input: _MetaIO,
     llmobs_output: _MetaIO,
-) -> tuple[LLMObsSpan, Literal["value", "messages", ""], Literal["value", "messages", ""]]:
+) -> tuple[LLMObsSpan, Literal["value", "messages", "documents", ""], Literal["value", "messages", "documents", ""]]:
     """Build an LLMObsSpan populated for the user span processor.
 
     Routes input/output to messages or value depending on span kind.
@@ -387,6 +387,19 @@ def _build_llmobs_span(
         llmobs_span.output = [Message(content=doc.get("text", ""), role="") for doc in output_documents]
 
     return llmobs_span, input_type, output_type
+
+
+def _reconstruct_documents(meta_io: _MetaIO, messages: list[Message]) -> None:
+    """Merge processor-modified message content back into documents, preserving metadata."""
+    original_docs = meta_io.get(LLMOBS_STRUCT.DOCUMENTS) or []
+    if messages:
+        meta_io[LLMOBS_STRUCT.DOCUMENTS] = [
+            {**original_docs[i], "text": msg.get("content", "")}
+            for i, msg in enumerate(messages)
+            if i < len(original_docs)
+        ]
+    else:
+        meta_io.pop(LLMOBS_STRUCT.DOCUMENTS, None)
 
 
 def _normalize_llmobs_meta(
@@ -446,15 +459,7 @@ def _normalize_llmobs_meta(
     elif input_type == "value" and llmobs_span.input:
         meta_input[LLMOBS_STRUCT.VALUE] = llmobs_span.input[0].get("content", "")
     elif input_type == "documents":
-        original_docs = meta_input.get(LLMOBS_STRUCT.DOCUMENTS) or []
-        if llmobs_span.input:
-            meta_input[LLMOBS_STRUCT.DOCUMENTS] = [
-                {**original_docs[i], "text": msg.get("content", "")}
-                for i, msg in enumerate(llmobs_span.input)
-                if i < len(original_docs)
-            ]
-        else:
-            meta_input.pop(LLMOBS_STRUCT.DOCUMENTS, None)
+        _reconstruct_documents(meta_input, llmobs_span.input)
     if meta_input:
         llmobs_meta[LLMOBS_STRUCT.INPUT] = meta_input
     else:
@@ -465,15 +470,7 @@ def _normalize_llmobs_meta(
     elif output_type == "value" and llmobs_span.output:
         meta_output[LLMOBS_STRUCT.VALUE] = llmobs_span.output[0].get("content", "")
     elif output_type == "documents":
-        original_docs = meta_output.get(LLMOBS_STRUCT.DOCUMENTS) or []
-        if llmobs_span.output:
-            meta_output[LLMOBS_STRUCT.DOCUMENTS] = [
-                {**original_docs[i], "text": msg.get("content", "")}
-                for i, msg in enumerate(llmobs_span.output)
-                if i < len(original_docs)
-            ]
-        else:
-            meta_output.pop(LLMOBS_STRUCT.DOCUMENTS, None)
+        _reconstruct_documents(meta_output, llmobs_span.output)
     if meta_output:
         llmobs_meta[LLMOBS_STRUCT.OUTPUT] = meta_output
     else:
