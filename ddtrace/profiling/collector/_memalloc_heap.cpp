@@ -150,7 +150,6 @@ class heap_tracker_t
         std::unique_ptr<traceback_t> owner; // set for REMOVE, null for ADD
         Kind kind;
         bool tombstone_applied = false; // REMOVE only; true after heap_space is negated
-        bool collapsed = false;         // ADD only; true when a matching REMOVE canceled this event
         uint8_t failed_attempts = 0;    // export retries counter; events exceeding MAX are dropped
     };
 
@@ -297,10 +296,27 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
      * allocation was tracked AND freed within this snapshot interval — both
      * events would aggregate to a zero bucket on the backend anyway, so skip
      * both and reclaim the traceback immediately. Eliminates the dominant
-     * libdatadog cost in alloc-then-free hot loops. */
+     * libdatadog cost in alloc-then-free hot loops.
+     *
+     * Swap-and-pop keeps pending_changes compact instead of leaving the ADD
+     * marked dead in place: the last element moves into the freed slot, and
+     * if it's also a tracked ADD, its index entry in pending_add_idx is
+     * rewritten to point at the new position. Avoids paying the export-time
+     * iteration cost over a buffer that fills up with skipped entries under
+     * sustained alloc/free churn. */
     auto it = pending_add_idx.find(ptr);
     if (it != pending_add_idx.end()) {
-        pending_changes[it->second].collapsed = true;
+        const size_t add_idx = it->second;
+        const size_t last_idx = pending_changes.size() - 1;
+        if (add_idx != last_idx) {
+            pending_changes[add_idx] = std::move(pending_changes[last_idx]);
+            // The moved element kept its own pending_add_idx entry pointing at
+            // last_idx; rewrite it if the moved element was an indexed ADD.
+            if (pending_changes[add_idx].kind == change_event::ADD) {
+                pending_add_idx[pending_changes[add_idx].ptr] = add_idx;
+            }
+        }
+        pending_changes.pop_back();
         pending_add_idx.erase(it);
         pool_put_no_cpython(std::move(owner));
         return;
@@ -390,11 +406,6 @@ heap_tracker_t::export_heap_no_cpython()
      * out of scope for v1; see heap-export-delta-tracking-design.md. */
     std::vector<change_event> retained;
     for (auto& evt : pending_changes) {
-        // Skip ADDs that were canceled by a matching REMOVE within this
-        // snapshot interval — neither half reaches libdatadog.
-        if (evt.collapsed) {
-            continue;
-        }
         if (evt.kind == change_event::REMOVE && !evt.tombstone_applied) {
             evt.tb->sample.negate_heap_space();
             evt.tombstone_applied = true;
