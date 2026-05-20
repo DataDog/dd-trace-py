@@ -102,7 +102,7 @@ def _setup() -> int:
         if _tool_id is not None:
             return _tool_id
 
-        for tid in range(6):
+        for tid in range(5, -1, -1):
             try:
                 sys.monitoring.use_tool_id(tid, "ddtrace")
                 _tool_id = tid
