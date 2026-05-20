@@ -1543,7 +1543,7 @@ except EnvironmentError as e:
 def get_exts_for(name):
     try:
         mod = load_module_from_project_file(
-            "ddtrace.vendor.{}.setup".format(name), "ddtrace/vendor/{}/setup.py".format(name)
+            "ddtrace.vendor.{}.setup".format(name), HERE / "ddtrace/vendor/{}/setup.py".format(name)
         )
         return mod.get_extensions()
     except Exception as e:
