@@ -273,9 +273,11 @@ git checkout -B "$BRANCH"
 echo "Merging origin/main into ${BRANCH} ..."
 git fetch origin main
 if ! git merge --no-edit origin/main; then
-  # requirements.in/.txt are managed by this script + bzl repin — for those,
-  # keep the smoke branch's version; the repin below rewrites requirements.txt
-  # from requirements.in anyway. Abort on conflicts in any other file.
+  # Only auto-resolve known-regenerable files; abort on anything else so a human
+  # can inspect. requirements.in: keep --ours (the smoke branch's ddtrace edits).
+  # requirements.txt: discard both sides — bzl repin below rewrites it from
+  # the merged requirements.in. Taking either side here would preserve stale
+  # conflict markers from prior incomplete merges and break the repin parser.
   UNRESOLVED=$(git diff --name-only --diff-filter=U | grep -vE '^requirements\.(in|txt)$' || true)
   if [[ -n "$UNRESOLVED" ]]; then
     git merge --abort
@@ -285,12 +287,31 @@ if ! git merge --no-edit origin/main; then
     exit 1
   fi
   CONFLICTED=$(git diff --name-only --diff-filter=U)
-  if [[ -n "$CONFLICTED" ]]; then
-    echo "Auto-resolving requirements.in/.txt conflicts with --ours (repin will rewrite requirements.txt)."
-    echo "$CONFLICTED" | xargs git checkout --ours --
-    echo "$CONFLICTED" | xargs git add --
+  if echo "$CONFLICTED" | grep -qx 'requirements.in'; then
+    echo "Auto-resolving requirements.in with --ours (smoke branch wins)."
+    git checkout --ours -- requirements.in
+    git add -- requirements.in
+  fi
+  if echo "$CONFLICTED" | grep -qx 'requirements.txt'; then
+    echo "Truncating requirements.txt (bzl repin will regenerate it)."
+    : > requirements.txt
+    git add -- requirements.txt
   fi
   git -c core.editor=true commit --no-edit
+fi
+
+# Defensive: requirements.txt is a generated lockfile. If it contains any
+# git conflict markers (from a previously broken merge committed upstream, or
+# a 3-way merge that silently inherited a marker line), wipe it so the bzl
+# repin below regenerates from scratch. Without this, repin chokes parsing
+# the marker line as a requirement specifier.
+if grep -qE '^(<<<<<<<|=======|>>>>>>>)' requirements.txt 2>/dev/null; then
+  echo "Detected conflict markers in requirements.txt; truncating (bzl repin will regenerate)."
+  : > requirements.txt
+  if ! git diff --quiet -- requirements.txt; then
+    git add requirements.txt
+    git -c core.editor=true commit -m "[requirements] truncate stale conflict-marked lockfile"
+  fi
 fi
 
 echo "Fetching wheel listing from ${INDEX_URL} ..."
@@ -448,8 +469,16 @@ fi
 git commit -m "$COMMIT_MSG" > /dev/null 2>&1
 
 if [[ "$PUSH" == "true" ]]; then
-  git push > /dev/null 2>&1
-  echo "Changes pushed to ${BRANCH}."
+  echo "Pushing ${BRANCH} to origin ..."
+  if git push; then
+    echo "Changes pushed to ${BRANCH}."
+  else
+    echo "ERROR: git push failed (see output above). Common causes:" >&2
+    echo "  - gazelle pre-push hook timing out: run 'bzl run //:gazelle' then retry." >&2
+    echo "  - non-fast-forward: someone else pushed. Run 'git pull --rebase' then retry." >&2
+    echo "Commits are still on local ${BRANCH}; rerun script or 'git push' manually." >&2
+    exit 1
+  fi
 else
   echo "Changes committed locally on ${BRANCH} but NOT pushed (--no-push)."
   echo "To push: git push origin ${BRANCH}"
