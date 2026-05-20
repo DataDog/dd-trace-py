@@ -79,7 +79,7 @@ def load_module_from_project_file(mod_name, fname):
 
 requirements_file = HERE / "requirements.py"
 if os.path.isfile(requirements_file):
-    requirements = load_module_from_project_file("requirements", HERE / "requirements.py")
+    requirements = load_module_from_project_file("requirements", "requirements.py")
     install_requires = requirements.install_requires
 else:
     install_requires = []
@@ -1543,11 +1543,8 @@ except EnvironmentError as e:
 
 
 def get_exts_for(name):
-    path = Path("ddtrace/vendor/{}/setup.py".format(name))
-    if CURRENT_OS != "Windows":
-        path = HERE / path
     try:
-        mod = load_module_from_project_file("ddtrace.vendor.{}.setup".format(name), path)
+        mod = load_module_from_project_file("ddtrace.vendor.{}.setup".format(name), ("ddtrace/vendor/{}/setup.py".format(name)))
         return mod.get_extensions()
     except Exception as e:
         print("WARNING: Failed to load %s extensions, skipping: %s" % (name, e))
