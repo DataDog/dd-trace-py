@@ -10,9 +10,8 @@ def fib(n: int) -> int:
 
 
 def app(environ: dict[str, str], start_response: Callable[[str, list[tuple[str, str]]], None]) -> list[bytes]:
-    response_body = f"fib(35) is {fib(35)} at pid {os.getpid()} tid {threading.get_ident()}"
-
-    response_body = response_body.encode("utf-8")
+    response_str = f"fib(35) is {fib(35)} at pid {os.getpid()} tid {threading.get_ident()}"
+    response_body = response_str.encode("utf-8")
 
     status = "200 OK" if response_body else "404 Not Found"
     headers = [("Content-type", "text/plain")]

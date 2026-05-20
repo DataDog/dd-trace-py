@@ -715,14 +715,36 @@ PeriodicThread_awake(PeriodicThread* self, PyObject* Py_UNUSED(args))
         return NULL;
     }
 
+    // GIL-fast-path: if the worker is permanently stopped (not fork-paused),
+    // awake() is a best-effort no-op. Surfacing a RuntimeError here would
+    // make a timing-dependent race (stop() vs in-flight awake()) visible
+    // to callers, which is worse than silently doing nothing.
+    if (self->_stopping && !self->_skip_shutdown)
+        Py_RETURN_NONE;
+
+    bool stopped = false;
     {
         AllowThreads _(self->_state);
-        std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
-        self->_served->clear();
-        self->_request->set(REQUEST_REASON_AWAKE);
+        // Set up the wait under _awake_mutex. stop() also takes this mutex,
+        // so either we observe its _stopping write here, or our set(AWAKE)
+        // is ordered before its set(STOP) and the worker's cleanup
+        // _served->set() (loop exit) wakes us.
+        {
+            std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
-        self->_served->wait();
+            if (self->_stopping && !self->_skip_shutdown) {
+                stopped = true;
+            } else {
+                self->_served->clear();
+                self->_request->set(REQUEST_REASON_AWAKE);
+            }
+        }
+
+        // Wait *outside* the mutex so a periodic callback that calls
+        // stop() on itself (Timer._periodic) does not deadlock against us.
+        if (!stopped)
+            self->_served->wait();
     }
 
     Py_RETURN_NONE;
@@ -737,8 +759,16 @@ PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
         return NULL;
     }
 
-    self->_stopping = true;
-    self->_request->set(REQUEST_REASON_STOP);
+    // Order _stopping + set(STOP) against awake()'s setup of (clear _served,
+    // set AWAKE). Without this, awake() could clear _served after the worker
+    // has already exited and set it on cleanup, then wait forever.
+    {
+        AllowThreads _(self->_state);
+        std::lock_guard<std::mutex> lock(*self->_awake_mutex);
+
+        self->_stopping = true;
+        self->_request->set(REQUEST_REASON_STOP);
+    }
 
     Py_RETURN_NONE;
 }
