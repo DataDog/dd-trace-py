@@ -76,7 +76,25 @@ jobs:
         run: |
           curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
+      - name: Compute supply-chain cooldown cutoff
+        id: cooldown
+        run: |
+          # TEST-CD (APMLP-1362): forward a cutoff 48h in the past to riot's
+          # uv pip compile backend so transitive deps younger than the
+          # cooldown can't be pulled into a regenerated lockfile.
+          CUTOFF=$(date -u -d "2 days ago" "+%Y-%m-%dT%H:%M:%SZ" 2>/dev/null \
+                   || python -c "import datetime as dt; print((dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%SZ'))")
+          echo "cutoff=${CUTOFF}" >> "$GITHUB_OUTPUT"
+          echo "Using exclude-newer cutoff: ${CUTOFF}"
+
       - name: Run regenerate-riot-latest
+        env:
+          # Opt riot's `requirements` compile step into `uv pip compile` so
+          # that --exclude-newer can be forwarded for the cooldown. Older
+          # riot versions ignore both variables silently, so this is safe
+          # to set before the riot upgrade lands.
+          RIOT_PIP_COMPILE_BACKEND: "uv"
+          RIOT_PIP_COMPILE_EXCLUDE_NEWER: ${{ steps.cooldown.outputs.cutoff }}
         run: scripts/regenerate-riot-latest.sh
 
       - name: Run integration registry update
