@@ -13,7 +13,10 @@ from __future__ import annotations
 import json
 import logging
 import socket
+import typing as t
 
+from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
+from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
 from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import Subdomain
@@ -70,6 +73,61 @@ class LogsWriter(BaseWriter):
                     return False
             _log.debug("Submitted %d log event(s) to Datadog logs intake", len(chunk))
         return True
+
+
+class LogInjectionPatch:
+    """Prepend ``[dd:trace_id,span_id]`` to every log message emitted during tests.
+
+    Installed when ``_DD_CIVISIBILITY_LOG_INJECTION`` is set (and not superseded
+    by ``DD_LOGS_INJECTION`` or ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED``) so that
+    log output can be visually correlated with the test span without requiring
+    full agentless log submission.
+
+    A ``logging.Filter`` on the root logger is NOT sufficient because Python's
+    ``callHandlers()`` propagates records to parent-logger *handlers* directly,
+    bypassing parent-logger *filters*.  We therefore wrap
+    ``logging.Logger.makeRecord`` — the same hook used by ddtrace's own logging
+    patch — so that every record from every logger carries the prefix regardless
+    of where in the hierarchy it was created.
+    """
+
+    def __init__(self) -> None:
+        self._installed = False
+
+    def install(self) -> None:
+        if self._installed:
+            return
+        from wrapt import wrap_function_wrapper as _w
+
+        _w(logging.Logger, "makeRecord", self._w_makeRecord)
+        self._installed = True
+
+    def uninstall(self) -> None:
+        if not self._installed:
+            return
+        from ddtrace.internal.utils.wrappers import unwrap as _u
+
+        _u(logging.Logger, "makeRecord")
+        self._installed = False
+
+    @staticmethod
+    def _w_makeRecord(
+        func: t.Callable[..., logging.LogRecord],
+        instance: logging.Logger,
+        args: t.Any,
+        kwargs: t.Any,
+    ) -> logging.LogRecord:
+        record: logging.LogRecord = func(*args, **kwargs)
+        try:
+            import ddtrace
+
+            ctx = ddtrace.tracer.get_log_correlation_context()
+            trace_id = ctx.get(LOG_ATTR_TRACE_ID, LOG_ATTR_VALUE_ZERO)
+            span_id = ctx.get(LOG_ATTR_SPAN_ID, LOG_ATTR_VALUE_ZERO)
+            record.msg = f"[dd:{trace_id},{span_id}] {record.msg}"
+        except Exception:  # nosec B110 - never let instrumentation break logging
+            pass
+        return record
 
 
 class LogsHandler(logging.Handler):

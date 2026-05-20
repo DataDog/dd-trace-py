@@ -251,8 +251,21 @@ class TestOptPlugin:
             asbool(env.get("DD_LOGS_INJECTION")) and not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER"))
         )
 
+        # CI visibility log injection: prepend [dd:trace_id,span_id] to every log message emitted during tests.
+        # Only active when _DD_CIVISIBILITY_LOG_INJECTION is set and not superseded by DD_LOGS_INJECTION or
+        # DD_AGENTLESS_LOG_SUBMISSION_ENABLED (both of which already provide richer log correlation).
+        self.enable_ci_log_injection = (
+            asbool(env.get("_DD_CIVISIBILITY_LOG_INJECTION"))
+            and not asbool(env.get("DD_LOGS_INJECTION"))
+            and not asbool(env.get("DD_AGENTLESS_LOG_SUBMISSION_ENABLED"))
+        )
+        if self.enable_ci_log_injection and not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+            # A real ddtrace test span must be active during tests so the logging patch can read trace/span IDs.
+            self.enable_ddtrace_trace_filter = True
+
         self._logs_writer: t.Optional[t.Any] = None
         self._logs_handler: t.Optional[t.Any] = None
+        self._log_injection_patch: t.Optional[t.Any] = None
 
         self.enable_all_ddtrace_integrations = False
         self.reports_by_nodeid: dict[str, _ReportGroup] = defaultdict(lambda: {})
@@ -300,6 +313,12 @@ class TestOptPlugin:
                         log.warning(
                             "Could not import ddtrace logging patch; log records will not carry trace/span IDs."
                         )
+
+        if self.enable_ci_log_injection:
+            from ddtrace.testing.internal.logs import LogInjectionPatch
+
+            self._log_injection_patch = LogInjectionPatch()
+            self._log_injection_patch.install()
 
         if self.enable_log_submission:
             from ddtrace.testing.internal.logs import LogsHandler
@@ -374,6 +393,10 @@ class TestOptPlugin:
         if not self.is_xdist_worker:
             # When running with xdist, only the main process writes the session event.
             self.manager.writer.put_item(self.session)
+
+        if self._log_injection_patch is not None:
+            self._log_injection_patch.uninstall()
+            self._log_injection_patch = None
 
         if self._logs_handler is not None:
             logging.getLogger().removeHandler(self._logs_handler)
