@@ -48,6 +48,12 @@ class Profiler(object):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._profiler: "_ProfilerInstance" = _ProfilerInstance(*args, **kwargs)
+        # Per-instance shutdown coordination. Both `stop()` (atexit, explicit call) and
+        # `_stop_on_signal` (SIGTERM/SIGINT) funnel through the same idempotency guard so
+        # the last profile is flushed exactly once, regardless of which exit path fires
+        # first or whether several paths race. Mirrors the pattern in `Tracer.shutdown`.
+        self._shutdown_lock = Lock()
+        self._did_shutdown: bool = False
 
     def start(self) -> None:
         """Start the profiler."""
@@ -94,51 +100,80 @@ class Profiler(object):
         """Stop the profiler.
 
         :param flush: Flush last profile.
+
+        Idempotent: subsequent calls (including races with the SIGTERM/SIGINT handler and
+        atexit) are no-ops. For backward API compatibility, `stop()` previously allowed
+        repeated calls via a ServiceStatusError catch; the per-instance shutdown guard
+        here is strictly stronger and also dedupes against the exit-signal path added in
+        #18041.
         """
-        atexit.unregister(self.stop)
+        if not self._shutdown_lock.acquire(blocking=True):
+            return
         try:
-            with Profiler._active_lock:
-                self._profiler.stop(flush)
-                if Profiler._active_instance is self:
-                    Profiler._active_instance = None
-            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
-        except service.ServiceStatusError:
-            # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
-            pass
+            if self._did_shutdown:
+                return
+            self._did_shutdown = True
+            atexit.unregister(self.stop)
+            try:
+                with Profiler._active_lock:
+                    self._profiler.stop(flush)
+                    if Profiler._active_instance is self:
+                        Profiler._active_instance = None
+                telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
+            except service.ServiceStatusError:
+                # Underlying profiler instance is already stopped (e.g. user called
+                # _profiler.stop directly). Treat as success.
+                pass
+        finally:
+            self._shutdown_lock.release()
 
     def _stop_on_signal(self) -> None:
         """Flush and stop the profiler when an exit signal (SIGTERM/SIGINT) is received.
 
-        Signal handlers run in the main thread between bytecodes. If the main thread already
-        holds _active_lock (e.g. SIGTERM races with start or stop), a blocking acquire
-        would deadlock. We use non-blocking acquire and bail out when the lock is unavailable:
-        in that case start/stop is already in progress and will handle cleanup itself.
+        Signal handlers run in the main thread between bytecodes. To stay deadlock-free,
+        we use *non-blocking* lock acquires throughout:
 
-        This mirrors the pattern used by the tracer's shutdown method.
+        * `_shutdown_lock` (instance-level): dedup against `stop()` running on another
+          thread. If we can't grab it, shutdown is in progress and will complete the flush;
+          we bail out so we don't double-flush.
+        * `_active_lock` (class-level): same concern, plus avoids re-entrant deadlock if
+          SIGTERM arrives while the main thread is inside `start()`/`stop()` and already
+          holds the lock.
+
+        The combined `_shutdown_lock` + `_did_shutdown` flag is the source of truth for
+        "flush happened once"; it dedupes between atexit (`stop`) and signal
+        (`_stop_on_signal`) regardless of which path wins the race, fixing the
+        double-flush observed when uvicorn worker shutdown exercises both paths.
         """
-        atexit.unregister(self.stop)
-
-        if not Profiler._active_lock.acquire(blocking=False):
-            # If the lock is unavailable, stop is already running on the main thread
-            # (signal handlers are delivered between bytecodes of the main thread, so the main
-            # thread itself holds the lock). A blocking acquire here would deadlock. We bail out
-            # and rely on the in-progress stop to complete the flush. The narrow race where
-            # _raise_default terminates the process before stop finishes is a known
-            # limitation: there is no safe way to wait for a lock held by the
-            # current thread from within a signal handler.
+        if not self._shutdown_lock.acquire(blocking=False):
+            # Shutdown is already running on another thread (or this same thread held
+            # the lock when the signal fired). The in-progress shutdown will flush.
             return
-
         try:
-            self._profiler.stop(flush=True)
-        except service.ServiceStatusError:
-            pass
-        except Exception:
-            LOG.debug("Exception while stopping profiler on exit signal", exc_info=True)
+            if self._did_shutdown:
+                return
+            if not Profiler._active_lock.acquire(blocking=False):
+                # `start()`/`stop()` is in progress on the main thread between bytecodes.
+                # We're now running in that same thread via the signal handler; a blocking
+                # acquire would deadlock. The narrow race where `_raise_default`
+                # terminates the process before the in-progress stop completes is an
+                # accepted limitation (same as the pre-fix code).
+                return
+            self._did_shutdown = True
+            atexit.unregister(self.stop)
+            try:
+                self._profiler.stop(flush=True)
+            except service.ServiceStatusError:
+                pass
+            except Exception:
+                LOG.debug("Exception while stopping profiler on exit signal", exc_info=True)
+            finally:
+                if Profiler._active_instance is self:
+                    Profiler._active_instance = None
+                telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
+                Profiler._active_lock.release()
         finally:
-            if Profiler._active_instance is self:
-                Profiler._active_instance = None
-            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
-            Profiler._active_lock.release()
+            self._shutdown_lock.release()
 
     def _start_on_fork(self) -> None:
         """Start a fresh profiler in child process after fork. This is needed for uWSGI support."""

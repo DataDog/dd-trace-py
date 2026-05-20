@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    profiling: fix double profile upload during process shutdown introduced in
+    #18041. The exit-signal path (``_stop_on_signal``) and the ``atexit`` path
+    (``stop``) could both run during the same shutdown — e.g. uvicorn workers
+    where a SIGTERM-driven graceful shutdown ends with a normal Python exit
+    that triggers ``atexit`` — producing a redundant flush and uploading
+    duplicate profiles. Both exit paths now coordinate through a per-instance
+    ``_shutdown_lock`` + ``_did_shutdown`` flag (mirroring
+    :meth:`Tracer.shutdown`), guaranteeing the last profile is uploaded
+    exactly once regardless of which path fires first.
