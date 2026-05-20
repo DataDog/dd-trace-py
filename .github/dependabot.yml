@@ -2,9 +2,18 @@
 # package ecosystems to update and where the package manifests are located.
 # Please see the documentation for all configuration options:
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Supply-chain hardening notes:
+# - Every ecosystem entry below sets a `cooldown` of at least 48h so that
+#   Dependabot does not propose updates to versions that have been published
+#   for less than two days. This is the mitigation for the supply-chain
+#   "compromised release" attack pattern (see APMLP-1343).
+# - `github-actions` updates also pin to SHA via the existing
+#   "Pin GitHub Actions" policy enforced in CI.
 
 version: 2
 updates:
+  # GitHub Actions ------------------------------------------------------------
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -16,3 +25,48 @@ updates:
     ignore:
       - dependency-name: "DataDog/commit-headless:*"
         update-types: ["version-update:semver-major"]
+    cooldown:
+      default-days: 2
+      semver-major-days: 7
+      semver-minor-days: 2
+      semver-patch-days: 2
+
+  # Docker base images --------------------------------------------------------
+  # Tracks `FROM <image>:<tag>` (and digest) references in all Dockerfiles in
+  # the repo. Dependabot will keep the SHA256 digest fresh and apply the
+  # cooldown before opening a PR.
+  - package-ecosystem: "docker"
+    directories:
+      - "/docker"
+      - "/benchmarks"
+      - "/lib-injection"
+    schedule:
+      interval: "weekly"
+    groups:
+      docker-images:
+        patterns:
+          - "*"
+    cooldown:
+      default-days: 2
+      semver-major-days: 7
+      semver-minor-days: 2
+      semver-patch-days: 2
+
+  # Docker Compose ------------------------------------------------------------
+  # Tracks `image:` references in docker-compose.* files used for tests and
+  # local development. Same 48h cooldown applies.
+  - package-ecosystem: "docker-compose"
+    directories:
+      - "/"
+      - "/lib-injection"
+    schedule:
+      interval: "weekly"
+    groups:
+      docker-compose-images:
+        patterns:
+          - "*"
+    cooldown:
+      default-days: 2
+      semver-major-days: 7
+      semver-minor-days: 2
+      semver-patch-days: 2
