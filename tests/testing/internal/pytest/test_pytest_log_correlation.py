@@ -371,3 +371,213 @@ class TestAgentlessLogSubmission:
 
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
+
+
+# ---------------------------------------------------------------------------
+# _DD_CIVISIBILITY_LOG_INJECTION test file strings
+# ---------------------------------------------------------------------------
+
+# caplog.text is the fully-formatted output — LogInjectionPatch wraps
+# Formatter.format, so the prefix lands at the very start of each line,
+# before any timestamp or level fields that the format string may include.
+_TEST_CI_PREFIX_PRESENT = """\
+import logging
+import re
+import pytest
+
+_PREFIX_RE = re.compile(r"^\\[dd:(\\d+),(\\d+)\\]")
+log = logging.getLogger(__name__)
+
+
+def test_prefix_in_formatted_output(caplog):
+    with caplog.at_level(logging.INFO):
+        log.info("check prefix")
+
+    assert caplog.text.strip(), "No log output captured"
+    for line in caplog.text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        m = _PREFIX_RE.match(line)
+        assert m is not None, f"Expected [dd:...] prefix at start, got: {line!r}"
+        assert m.group(1) != "0", f"trace_id should be non-zero inside a test span: {line!r}"
+        assert m.group(2) != "0", f"span_id should be non-zero inside a test span: {line!r}"
+"""
+
+_TEST_CI_TRACE_ID_64BIT = """\
+import logging
+import re
+import ddtrace
+import pytest
+
+_PREFIX_RE = re.compile(r"^\\[dd:(\\d+),(\\d+)\\]")
+log = logging.getLogger(__name__)
+
+
+def test_trace_id_is_64bit_truncated(caplog):
+    active = ddtrace.tracer.context_provider.active()
+    assert active is not None, "No active span during test"
+    expected_trace_id = str(active.trace_id % (1 << 64))
+    expected_span_id = str(active.span_id)
+
+    with caplog.at_level(logging.INFO):
+        log.info("trace id check")
+
+    lines = [line.strip() for line in caplog.text.splitlines() if line.strip()]
+    assert lines, "No log output captured"
+    m = _PREFIX_RE.match(lines[0])
+    assert m is not None, f"No prefix found on first line: {lines[0]!r}"
+    assert m.group(1) == expected_trace_id, (
+        f"trace_id mismatch: prefix has {m.group(1)!r}, expected {expected_trace_id!r} "
+        f"(raw span trace_id={active.trace_id})"
+    )
+    assert m.group(2) == expected_span_id, (
+        f"span_id mismatch: prefix has {m.group(2)!r}, expected {expected_span_id!r}"
+    )
+"""
+
+_TEST_CI_IDS_CONSISTENT = """\
+import logging
+import re
+import pytest
+
+_PREFIX_RE = re.compile(r"^\\[dd:(\\d+),(\\d+)\\]")
+log = logging.getLogger(__name__)
+
+
+def test_ids_consistent_within_test(caplog):
+    with caplog.at_level(logging.DEBUG):
+        log.debug("first")
+        log.info("second")
+        log.warning("third")
+
+    lines = [line.strip() for line in caplog.text.splitlines() if line.strip()]
+    assert len(lines) >= 3, f"Expected at least 3 log lines, got: {lines}"
+
+    ids = []
+    for line in lines:
+        m = _PREFIX_RE.match(line)
+        assert m is not None, f"No prefix on line: {line!r}"
+        ids.append((m.group(1), m.group(2)))
+
+    trace_ids = {t for t, _ in ids}
+    span_ids = {s for _, s in ids}
+    assert len(trace_ids) == 1, f"Expected one trace_id across all lines, got: {trace_ids}"
+    assert len(span_ids) == 1, f"Expected one span_id across all lines, got: {span_ids}"
+"""
+
+_TEST_CI_NO_PREFIX = """\
+import logging
+import re
+import pytest
+
+_PREFIX_RE = re.compile(r"^\\[dd:(\\d+),(\\d+)\\]")
+log = logging.getLogger(__name__)
+
+
+def test_no_ci_prefix(caplog):
+    with caplog.at_level(logging.INFO):
+        log.info("should not have ci prefix")
+
+    assert caplog.text.strip(), "No log output captured"
+    for line in caplog.text.splitlines():
+        line = line.strip()
+        if line:
+            assert not _PREFIX_RE.match(line), (
+                f"LogInjectionPatch should be inactive, but prefix found: {line!r}"
+            )
+"""
+
+
+class TestCILogInjection:
+    """End-to-end tests for _DD_CIVISIBILITY_LOG_INJECTION.
+
+    Every test runs a subprocess pytest session so that:
+    - the env var is present during ddtrace plugin initialisation (required for
+      LogInjectionPatch.install() to be called in pytest_sessionstart), and
+    - the Formatter.format wrapper is confined to the subprocess process, with
+      no risk of leaking into the outer test runner's logging.
+    """
+
+    def test_prefix_present_in_formatted_output(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
+        """Every formatted log line must start with [dd:trace_id,span_id] when the flag is set."""
+        monkeypatch.setenv("_DD_CIVISIBILITY_LOG_INJECTION", "true")
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_CI_PREFIX_PRESENT)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
+    def test_trace_id_is_64bit_truncated(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
+        """The trace_id in the prefix must equal span.trace_id % (1 << 64).
+
+        get_log_correlation_context() returns the full 128-bit trace_id as a 32-char hex string
+        for high-bit IDs, but the backend stores the test span's 64-bit integer.  LogInjectionPatch
+        must use the truncated value so the log prefix matches the test event payload.
+        """
+        monkeypatch.setenv("_DD_CIVISIBILITY_LOG_INJECTION", "true")
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_CI_TRACE_ID_64BIT)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
+    def test_ids_consistent_within_test(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
+        """All log lines within one test must share the same trace_id and span_id."""
+        monkeypatch.setenv("_DD_CIVISIBILITY_LOG_INJECTION", "true")
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_CI_IDS_CONSISTENT)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
+    def test_not_installed_without_flag(self, pytester: Pytester, subprocess_env: None) -> None:
+        """Without _DD_CIVISIBILITY_LOG_INJECTION, formatted lines must not carry the prefix."""
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_CI_NO_PREFIX)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
+    def test_superseded_by_dd_logs_injection(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
+        """When DD_LOGS_INJECTION=true, LogInjectionPatch must not be installed.
+
+        DD_LOGS_INJECTION already injects trace/span IDs via the ddtrace logging patch, so
+        adding the [dd:...] prefix on top would double-instrument the formatter.
+        """
+        monkeypatch.setenv("_DD_CIVISIBILITY_LOG_INJECTION", "true")
+        monkeypatch.setenv("DD_LOGS_INJECTION", "true")
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_CI_NO_PREFIX)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
+    def test_superseded_by_agentless_log_submission(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
+        """When DD_AGENTLESS_LOG_SUBMISSION_ENABLED=true, LogInjectionPatch must not be installed.
+
+        Agentless log submission forwards records to the Datadog logs intake with trace/span IDs
+        already attached to the event payload, making the visual prefix redundant.
+        """
+        monkeypatch.setenv("_DD_CIVISIBILITY_LOG_INJECTION", "true")
+        monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", "true")
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_CI_NO_PREFIX)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
