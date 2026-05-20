@@ -15,6 +15,9 @@ from typing import cast
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import git as _git
+from ddtrace.ext.ci import _filter_sensitive_info
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
@@ -43,6 +46,29 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 ValidatedPromptDict = dict[str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message]]]
+
+
+def resolve_llmobs_git_metadata() -> tuple[str, str]:
+    """Return ``(repository_url, commit_sha)`` from ``DD_GIT_*`` env vars or
+    package ``Project-URL``, falling back to ``git`` against the current
+    working directory. Honors ``DD_TRACE_GIT_METADATA_ENABLED``.
+    """
+    if not gitmetadata.config.enabled:
+        return "", ""
+    repository_url, commit_sha, _ = gitmetadata.get_git_tags()
+    if repository_url and commit_sha:
+        return repository_url, commit_sha
+    if not commit_sha:
+        try:
+            commit_sha = _git.extract_commit_sha()
+        except Exception:
+            log.debug("git fallback: extract_commit_sha failed", exc_info=True)
+    if not repository_url:
+        try:
+            repository_url = _filter_sensitive_info(_git.extract_repository_url()) or ""
+        except Exception:
+            log.debug("git fallback: extract_repository_url failed", exc_info=True)
+    return repository_url, commit_sha
 
 
 def get_asyncio():
