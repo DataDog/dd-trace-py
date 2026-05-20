@@ -185,24 +185,29 @@ class PromptAPIError(Exception):
 
 class PromptAuthError(PromptAPIError):
     """Raised on 401 Unauthorized or 403 Forbidden."""
+
     pass
 
 
 class PromptValidationError(PromptAPIError):
     """Raised on 400 Bad Request."""
+
     pass
 
 
 class PromptNotFoundError(PromptAPIError):
     """Raised on 404 Not Found."""
+
     pass
 
 
 class PromptConflictError(PromptAPIError):
     """Raised on 409 Conflict."""
+
     pass
 
 
 class PromptServerError(PromptAPIError):
     """Raised on 5xx server errors."""
+
     pass
