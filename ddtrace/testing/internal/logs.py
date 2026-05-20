@@ -75,20 +75,35 @@ class LogsWriter(BaseWriter):
         return True
 
 
+_DD_CI_TRACE_ID_ATTR = "dd_ci_trace_id"
+_DD_CI_SPAN_ID_ATTR = "dd_ci_span_id"
+
+
 class LogInjectionPatch:
-    """Prepend ``[dd:trace_id,span_id]`` to every log message emitted during tests.
+    """Prepend ``[dd:trace_id,span_id]`` to the beginning of every formatted log line.
 
     Installed when ``_DD_CIVISIBILITY_LOG_INJECTION`` is set (and not superseded
     by ``DD_LOGS_INJECTION`` or ``DD_AGENTLESS_LOG_SUBMISSION_ENABLED``) so that
     log output can be visually correlated with the test span without requiring
     full agentless log submission.
 
+    Two hooks are used together:
+
+    1. ``logging.Logger.makeRecord`` — captures the active trace/span IDs at
+       *record-creation* time and stores them as record attributes
+       (``dd_ci_trace_id`` / ``dd_ci_span_id``).  This is necessary because by
+       the time a handler formats the record the test span may already be
+       finished (teardown phase).
+
+    2. ``logging.Formatter.format`` — prepends ``[dd:trace_id,span_id]`` to the
+       *fully-formatted* output string so that the prefix appears at the very
+       beginning of the line, before any timestamp or level fields that the
+       user's format string may include.  Modifying only ``record.msg`` would
+       place the prefix inside ``%(message)s``, i.e. after the timestamp.
+
     A ``logging.Filter`` on the root logger is NOT sufficient because Python's
     ``callHandlers()`` propagates records to parent-logger *handlers* directly,
-    bypassing parent-logger *filters*.  We therefore wrap
-    ``logging.Logger.makeRecord`` — the same hook used by ddtrace's own logging
-    patch — so that every record from every logger carries the prefix regardless
-    of where in the hierarchy it was created.
+    bypassing parent-logger *filters*.
     """
 
     def __init__(self) -> None:
@@ -100,6 +115,7 @@ class LogInjectionPatch:
         from wrapt import wrap_function_wrapper as _w
 
         _w(logging.Logger, "makeRecord", self._w_makeRecord)
+        _w(logging.Formatter, "format", self._w_formatter_format)
         self._installed = True
 
     def uninstall(self) -> None:
@@ -108,6 +124,7 @@ class LogInjectionPatch:
         from ddtrace.internal.utils.wrappers import unwrap as _u
 
         _u(logging.Logger, "makeRecord")
+        _u(logging.Formatter, "format")
         self._installed = False
 
     @staticmethod
@@ -122,12 +139,29 @@ class LogInjectionPatch:
             import ddtrace
 
             ctx = ddtrace.tracer.get_log_correlation_context()
-            trace_id = ctx.get(LOG_ATTR_TRACE_ID, LOG_ATTR_VALUE_ZERO)
-            span_id = ctx.get(LOG_ATTR_SPAN_ID, LOG_ATTR_VALUE_ZERO)
-            record.msg = f"[dd:{trace_id},{span_id}] {record.msg}"
+            setattr(record, _DD_CI_TRACE_ID_ATTR, ctx.get(LOG_ATTR_TRACE_ID, LOG_ATTR_VALUE_ZERO))
+            setattr(record, _DD_CI_SPAN_ID_ATTR, ctx.get(LOG_ATTR_SPAN_ID, LOG_ATTR_VALUE_ZERO))
         except Exception:  # nosec B110 - never let instrumentation break logging
             pass
         return record
+
+    @staticmethod
+    def _w_formatter_format(
+        func: t.Callable[..., str],
+        instance: logging.Formatter,
+        args: t.Any,
+        kwargs: t.Any,
+    ) -> str:
+        result: str = func(*args, **kwargs)
+        try:
+            record: logging.LogRecord = args[0]
+            trace_id = getattr(record, _DD_CI_TRACE_ID_ATTR, None)
+            span_id = getattr(record, _DD_CI_SPAN_ID_ATTR, None)
+            if trace_id is not None and span_id is not None:
+                result = f"[dd:{trace_id},{span_id}] {result}"
+        except Exception:  # nosec B110 - never let instrumentation break logging
+            pass
+        return result
 
 
 class LogsHandler(logging.Handler):
