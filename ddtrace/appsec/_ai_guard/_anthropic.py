@@ -12,25 +12,45 @@ non-streaming + streaming. For streaming responses only the
 import json
 
 from ddtrace.appsec._ai_guard._common import _get
-from ddtrace.appsec._ai_guard._common import build_compound_abort_error_cls
-from ddtrace.appsec._ai_guard._common import evaluate_messages
+from ddtrace.appsec._ai_guard._common import wrap_abort_error
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
+from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
 from ddtrace.appsec.ai_guard._api_client import Function
 from ddtrace.appsec.ai_guard._api_client import Message
+from ddtrace.appsec.ai_guard._api_client import Options
 from ddtrace.appsec.ai_guard._api_client import ToolCall
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.settings.asm import ai_guard_config
 
 
 logger = ddlogger.get_logger(__name__)
 
+__all__ = ["_wrap_abort_error"]
 
-def _get_anthropic_abort_error_cls():
-    """Return the Anthropic-compatible compound abort error class, or ``None`` if anthropic is not importable."""
+
+def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:
+    """Wrap *cause* so it satisfies both ``except AIGuardAbortError`` and
+    ``except anthropic.UnprocessableEntityError``.
+
+    Falls back to *cause* unchanged when the Anthropic SDK is not importable;
+    catch-by-``AIGuardAbortError`` still works either way.
+    """
+    exception_class: type[AIGuardAbortError] = AIGuardAbortError
     try:
-        import anthropic
+        # AIDEV-NOTE: import lazily -- ``_anthropic_errors`` pulls in the optional
+        # Anthropic SDK at import time. Python's import lock guarantees all
+        # concurrent cold imports observe the same class object.
+        from ddtrace.appsec._ai_guard._anthropic_errors import AnthropicAIGuardAbortError
+
+        exception_class = AnthropicAIGuardAbortError
     except ImportError:
-        return None
-    return build_compound_abort_error_cls("Anthropic", anthropic.UnprocessableEntityError)
+        logger.warning(
+            "AI Guard: failed to import the Anthropic SDK; falling back to bare "
+            "AIGuardAbortError. Install ``anthropic`` to get SDK-hierarchy "
+            "compatibility (``except anthropic.UnprocessableEntityError``)."
+        )
+
+    return wrap_abort_error(cause, exception_class)
 
 
 def _tool_call_from_block(block):
@@ -250,7 +270,12 @@ def _anthropic_messages_create_before(client, kwargs):
         return None
 
     logger.debug("AI Guard anthropic before-hook evaluating %d message(s)", len(ai_guard_messages))
-    evaluate_messages(client, ai_guard_messages, _get_anthropic_abort_error_cls(), "Anthropic messages request")
+    try:
+        client.evaluate(ai_guard_messages, Options(block=ai_guard_config._ai_guard_block))
+    except AIGuardAbortError as e:
+        raise _wrap_abort_error(e)
+    except Exception:
+        logger.debug("Failed to evaluate Anthropic messages request", exc_info=True)
     return None
 
 
@@ -279,5 +304,11 @@ def _anthropic_messages_create_after(client, kwargs, resp):
 
     request_messages = _convert_anthropic_messages(kwargs.get("system"), kwargs.get("messages", []))
     all_messages = request_messages + response_messages
-    evaluate_messages(client, all_messages, _get_anthropic_abort_error_cls(), "Anthropic messages response")
+
+    try:
+        client.evaluate(all_messages, Options(block=ai_guard_config._ai_guard_block))
+    except AIGuardAbortError as e:
+        raise _wrap_abort_error(e)
+    except Exception:
+        logger.debug("Failed to evaluate Anthropic messages response", exc_info=True)
     return None

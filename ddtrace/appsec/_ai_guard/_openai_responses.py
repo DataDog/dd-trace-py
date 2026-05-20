@@ -24,8 +24,8 @@ from collections.abc import Mapping
 from typing import Any
 from typing import Optional
 
+from ddtrace.appsec._ai_guard._common import _get
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
-from ddtrace.appsec._ai_guard._openai import _get
 from ddtrace.appsec._ai_guard._openai import _wrap_abort_error
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
 from ddtrace.appsec.ai_guard._api_client import AIGuardClient
@@ -64,6 +64,8 @@ _RESPONSE_SKIPPED_ITEM_TYPES = ("reasoning", "mcp_list_tools")
 
 _IMAGE_MARKER = "[image]"
 _FILE_MARKER = "[file]"
+_PROMPT_VARIABLE_REDACTION = "[redacted]"
+_PROMPT_VARIABLE_REDACTED_FIELDS = frozenset(("file_data", "file_id", "file_url", "image_url"))
 
 
 def _extract_text_content(content: Any) -> Optional[str]:
@@ -127,6 +129,54 @@ def _flatten_tool_output(output: Any) -> Optional[str]:
     if isinstance(output, (list, tuple)):
         return None
     return str(output)
+
+
+def _is_prompt_variable_redacted_field(key: Any) -> bool:
+    return str(key).lower() in _PROMPT_VARIABLE_REDACTED_FIELDS
+
+
+def _render_prompt_variable_value(value: Any) -> Optional[str]:
+    """Render a prompt-template variable value without leaking file/image locators."""
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        return value
+
+    if isinstance(value, (list, tuple)):
+        text = _extract_text_content(value)
+        if text is not None:
+            return text
+        parts = []
+        for item in value:
+            text = _render_prompt_variable_value(item)
+            if text:
+                parts.append(text)
+        return "\n".join(parts) if parts else None
+
+    if isinstance(value, Mapping):
+        text = _extract_text_content([value])
+        if text is not None:
+            return text
+
+        # AIDEV-NOTE: Prompt-template variables are user-controlled input.
+        # Render unknown mappings recursively so object-valued text cannot
+        # bypass AI Guard, but redact OpenAI file/image locator fields instead
+        # of raw ``str(mapping)`` to avoid leaking signed URLs or opaque ids.
+        parts = []
+        for key, nested_value in value.items():
+            if nested_value is None:
+                continue
+            key_text = str(key)
+            if _is_prompt_variable_redacted_field(key_text):
+                parts.append(f"{key_text}: {_PROMPT_VARIABLE_REDACTION}")
+                continue
+            text = _render_prompt_variable_value(nested_value)
+            if text:
+                parts.append(f"{key_text}: {text}")
+        return "\n".join(parts) if parts else None
+
+    return str(value)
 
 
 def _function_tool_call_from_item(item: Any) -> ToolCall:
@@ -194,16 +244,14 @@ def _flatten_prompt_variables(prompt: Any) -> Optional[str]:
 
     Value handling:
       - ``str`` → as-is.
-      - ``list`` / ``tuple`` → flattened via :func:`_extract_text_content`
-        (typed content parts only).
-      - ``Mapping`` (including ``dict``) → routed through
-        :func:`_extract_text_content` as a single-part list so typed
-        content-part dicts (``{"type": "input_text", ...}``) render. Any
-        mapping shape not recognised by the typed-part allowlist (e.g.
-        ``{"image_url": "https://signed-url..."}``, ``{"file_id": "file-abc"}``)
-        is **dropped** rather than ``str()``'d — those payloads can carry
-        signed URLs / opaque ids that must not leak into the AI Guard
-        evaluation request, and they carry no evaluable signal anyway.
+      - ``list`` / ``tuple`` → flattened as typed content parts when possible,
+        otherwise recursively rendered.
+      - ``Mapping`` (including ``dict``) → flattened as a typed content part
+        when recognised (``{"type": "input_text", ...}``), otherwise
+        recursively rendered. Known OpenAI file/image locator fields
+        (``image_url``, ``file_url``, ``file_id``, ``file_data``) are redacted
+        instead of raw-stringified so signed URLs / opaque ids do not leak
+        into the AI Guard evaluation request.
       - Other scalars (``int``, ``float``, ``bool``) → stringified; these
         are user input with no secret-leak surface and would otherwise
         silently bypass the evaluator.
@@ -221,17 +269,14 @@ def _flatten_prompt_variables(prompt: Any) -> Optional[str]:
     for key, value in variables.items():
         if value is None:
             continue
+        key_text = str(key)
         text: Optional[str]
-        if isinstance(value, str):
-            text = value
-        elif isinstance(value, (list, tuple)):
-            text = _extract_text_content(value)
-        elif isinstance(value, Mapping):
-            text = _extract_text_content([value])
+        if _is_prompt_variable_redacted_field(key_text):
+            text = _PROMPT_VARIABLE_REDACTION
         else:
-            text = str(value)
+            text = _render_prompt_variable_value(value)
         if text:
-            parts.append(f"{key}: {text}")
+            parts.append(f"{key_text}: {text}")
     return "\n".join(parts) if parts else None
 
 
