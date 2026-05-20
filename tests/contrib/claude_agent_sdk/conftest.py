@@ -12,6 +12,7 @@ from ddtrace.llmobs import LLMObs
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_CLIENT_RAW_MESSAGES
+from tests.contrib.claude_agent_sdk.utils import MOCK_DOUBLE_ASSISTANT_NO_TOOLS_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_QUERY_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE
@@ -74,6 +75,12 @@ def _create_mock_internal_client(response_sequence):
 @pytest.fixture
 def mock_internal_client(claude_agent_sdk):
     with _create_mock_internal_client(MOCK_QUERY_RESPONSE_SEQUENCE):
+        yield
+
+
+@pytest.fixture
+def mock_internal_client_double_assistant_no_tools(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_DOUBLE_ASSISTANT_NO_TOOLS_SEQUENCE):
         yield
 
 

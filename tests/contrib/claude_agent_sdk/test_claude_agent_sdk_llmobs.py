@@ -20,6 +20,7 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_READ_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_ERROR_MESSAGE
 from tests.contrib.claude_agent_sdk.utils import expected_agent_manifest
+from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import assert_llmobs_span_data
 
 
@@ -76,6 +77,9 @@ class TestLLMObsClaudeAgentSdk:
             metrics=EXPECTED_QUERY_USAGE,
             tags=COMMON_TAGS,
         )
+        _assert_span_link(llm_span, agent_span, "output", "output")
+        _assert_span_link(agent_span, step_span, "input", "input")
+        _assert_span_link(step_span, agent_span, "output", "output")
 
     async def test_llmobs_query_with_options(
         self, claude_agent_sdk, mock_internal_client, claude_agent_sdk_llmobs, test_spans
@@ -225,6 +229,9 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
             error={"type": "builtins.ValueError", "message": "Connection failed", "stack": ANY},
         )
+        _assert_span_link(llm_span, agent_span, "output", "output")
+        _assert_span_link(agent_span, step_span, "input", "input")
+        _assert_span_link(step_span, agent_span, "output", "output")
 
     async def test_llmobs_assistant_message_error_marks_llm_span_as_error(
         self, claude_agent_sdk, mock_internal_client_assistant_message_error, claude_agent_sdk_llmobs, test_spans
@@ -274,6 +281,9 @@ class TestLLMObsClaudeAgentSdk:
             error={"type": MOCK_ASSISTANT_MESSAGE_ERROR, "message": MOCK_ASSISTANT_MESSAGE_ERROR, "stack": ANY},
             tags=COMMON_TAGS,
         )
+        _assert_span_link(llm_span, agent_span, "output", "output")
+        _assert_span_link(agent_span, step_span, "input", "input")
+        _assert_span_link(step_span, agent_span, "output", "output")
 
     async def test_llmobs_client_query_captures_prompt(self, mock_client, claude_agent_sdk_llmobs, test_spans):
         prompt = "Hello from client!"
@@ -411,6 +421,10 @@ class TestLLMObsClaudeAgentSdk:
             metrics=EXPECTED_QUERY_USAGE,
             tags=COMMON_TAGS,
         )
+        _assert_span_link(llm_span, tool_span, "output", "input")
+        _assert_span_link(llm_span, agent_span, "output", "output")
+        _assert_span_link(agent_span, step_span, "input", "input")
+        _assert_span_link(step_span, agent_span, "output", "output")
 
     async def test_llmobs_query_with_bash_tool_use(
         self, claude_agent_sdk, mock_internal_client_bash_tool, claude_agent_sdk_llmobs, test_spans
@@ -808,6 +822,13 @@ class TestLLMObsClaudeAgentSdk:
         # agent span
         assert_llmobs_span_data(_get_llmobs_data_metastruct(agent_span), span_kind="agent")
 
+        _assert_span_link(llm_spans[0], tool_span, "output", "input")
+        _assert_span_link(tool_span, llm_spans[1], "output", "input")
+        _assert_span_link(llm_spans[1], agent_span, "output", "output")
+        _assert_span_link(agent_span, step_spans[0], "input", "input")
+        _assert_span_link(step_spans[0], step_spans[1], "output", "input")
+        _assert_span_link(step_spans[1], agent_span, "output", "output")
+
     async def test_llmobs_llm_span_includes_token_usage(
         self, claude_agent_sdk, mock_internal_client_with_usage, claude_agent_sdk_llmobs, test_spans
     ):
@@ -852,6 +873,9 @@ class TestLLMObsClaudeAgentSdk:
             pass
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
+        agent_span = spans[0]
+        llm_spans = [s for s in spans if s.name == "claude_agent_sdk.llm"]
+        step_spans = [s for s in spans if s.name == "claude_agent_sdk.step"]
         tool_span = next(s for s in spans if "tool" in s.name)
 
         assert tool_span.error == 1
@@ -865,6 +889,47 @@ class TestLLMObsClaudeAgentSdk:
             error={"type": "ToolError", "message": MOCK_TOOL_ERROR_MESSAGE, "stack": ANY},
             tags=COMMON_TAGS,
         )
+        _assert_span_link(llm_spans[0], tool_span, "output", "input")
+        _assert_span_link(tool_span, llm_spans[-1], "output", "input")
+        _assert_span_link(llm_spans[-1], agent_span, "output", "output")
+        _assert_span_link(agent_span, step_spans[0], "input", "input")
+        if len(step_spans) > 1:
+            _assert_span_link(step_spans[0], step_spans[1], "output", "input")
+        _assert_span_link(step_spans[-1], agent_span, "output", "output")
+
+    async def test_llmobs_back_to_back_assistant_messages_link_llm_to_llm_directly(
+        self,
+        claude_agent_sdk,
+        mock_internal_client_double_assistant_no_tools,
+        claude_agent_sdk_llmobs,
+        test_spans,
+    ):
+        """Two text-only AssistantMessages back-to-back keep the leaf chain connected.
+
+        Normal multi-turn flow has a tool span between consecutive llm spans, so the
+        leaf chain is ``llm#1 → tool → llm#2``. If a step has no tools (e.g. two
+        AssistantMessages with only text), there's nothing to link through, so the
+        integration links ``llm#1 → llm#2`` directly to preserve the leaf chain.
+        """
+        prompt = "Test back-to-back assistant messages."
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        agent_span = spans[0]
+        llm_spans = [s for s in spans if s.name == "claude_agent_sdk.llm"]
+        step_spans = [s for s in spans if s.name == "claude_agent_sdk.step"]
+
+        assert len(llm_spans) == 2
+        assert len(step_spans) == 2
+
+        # Direct leaf-level link bridges the no-tool gap.
+        _assert_span_link(llm_spans[0], llm_spans[1], "output", "input")
+        # Step-level chain stays intact in parallel.
+        _assert_span_link(agent_span, step_spans[0], "input", "input")
+        _assert_span_link(step_spans[0], step_spans[1], "output", "input")
+        _assert_span_link(step_spans[1], agent_span, "output", "output")
+        _assert_span_link(llm_spans[1], agent_span, "output", "output")
 
     async def test_llmobs_client_sequential_queries(self, mock_client, claude_agent_sdk_llmobs, test_spans):
         """Two sequential ClaudeSDKClient.query() + receive_response() calls produce two

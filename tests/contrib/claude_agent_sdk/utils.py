@@ -158,6 +158,19 @@ MOCK_ASSISTANT_RESPONSE_WITH_USAGE = create_mock_assistant_message("4", usage=MO
 MOCK_RESULT_MESSAGE = create_mock_result_message()
 
 
+MOCK_ASSISTANT_RESPONSE_TWO = create_mock_assistant_message("8")
+
+# AIDEV-NOTE: Two text-only AssistantMessages back-to-back — exercises the
+# no-tool leaf-chain bridge in ClaudeAgentSdkAsyncStreamHandler._create_step_span.
+# Without this fixture, that branch has no test coverage.
+MOCK_DOUBLE_ASSISTANT_NO_TOOLS_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_ASSISTANT_RESPONSE,
+    MOCK_ASSISTANT_RESPONSE_TWO,
+    MOCK_RESULT_MESSAGE,
+]
+
+
 MOCK_QUERY_RESPONSE_SEQUENCE = [
     MOCK_SYSTEM_MESSAGE,
     MOCK_ASSISTANT_RESPONSE,

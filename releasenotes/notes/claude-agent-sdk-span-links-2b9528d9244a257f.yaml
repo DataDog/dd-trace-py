@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    LLM Observability: Span links are now emitted by the Claude Agent SDK integration,
+    enabling the Execution Graph visualization for traces produced by ``claude_agent_sdk``.
+    Links are emitted at two layers: a step-level chain connecting consecutive turn
+    spans for the high-level execution flow, and a leaf-level chain connecting agent,
+    LLM, and tool spans for the detailed data flow.
+  - |
+    claude_agent_sdk: Adds span links between agent, step, LLM, and tool spans so the
+    LLM Observability Execution Graph renders both the high-level turn flow and the
+    detailed data flow for ``claude_agent_sdk`` traces.
