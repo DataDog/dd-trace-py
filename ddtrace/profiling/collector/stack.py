@@ -46,6 +46,12 @@ class StackCollector(collector.Collector):
     def _init(self) -> None:
         _task.initialize_gevent_support()
 
+        # Import _faulthandler BEFORE starting the sampler. This ensures that if
+        # faulthandler.enable was already called (e.g., by pytest), we reinstall
+        # our SIGSEGV handler before sampling begins. Our handler chains to
+        # faulthandler's for non-recovery faults.
+        from ddtrace.profiling import _faulthandler  # noqa: F401
+
         # Start the native stack sampler first. This ensures one_time_setup() runs
         # (which handles any fork that happened since library load) before we
         # register threads and asyncio loops - otherwise those registrations would
