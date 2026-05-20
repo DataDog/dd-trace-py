@@ -34,6 +34,7 @@ os tests ubuntu:
     - apt-get update && apt-get install -y curl
     - bash .gitlab/scripts/multi-os-tests.sh
 
+# Tart VMs default to using zsh instead of bash
 os tests macos:
   extends: .multi_os_test_base
   image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
@@ -42,6 +43,7 @@ os tests macos:
   variables:
     WHEEL_PATTERN: "macosx*arm64.whl"
     PLATFORM: "macOS"
+    # Disables collapsable sections in multi-line scripts due to incompatibility with zsh
     FF_SCRIPT_SECTIONS: "false"
   script:
     - |
