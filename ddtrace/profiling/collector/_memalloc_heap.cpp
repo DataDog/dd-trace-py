@@ -403,9 +403,15 @@ heap_tracker_t::export_heap_no_cpython()
      * the next profiler restart (which clears allocs_m and pending_changes).
      * Adding a resync requires either backend-side reset signaling or
      * emitting compensating negative+positive pairs for every live entry —
-     * out of scope for v1; see heap-export-delta-tracking-design.md. */
-    std::vector<change_event> retained;
-    for (auto& evt : pending_changes) {
+     * both are out of scope for v1. */
+
+    /* In-place compaction with a write index. Moving into a fresh vector and
+     * swapping would discard the constructor-side reserve (PENDING_CHANGES_RESERVE)
+     * on every export, forcing the hook path to re-grow the buffer on the next
+     * churn burst. Keeping the same storage preserves capacity. */
+    size_t write_idx = 0;
+    for (size_t read_idx = 0; read_idx < pending_changes.size(); ++read_idx) {
+        auto& evt = pending_changes[read_idx];
         if (evt.kind == change_event::REMOVE && !evt.tombstone_applied) {
             evt.tb->sample.negate_heap_space();
             evt.tombstone_applied = true;
@@ -426,16 +432,19 @@ heap_tracker_t::export_heap_no_cpython()
             continue;
         }
         ++evt.failed_attempts;
-        retained.push_back(std::move(evt));
+        if (write_idx != read_idx) {
+            pending_changes[write_idx] = std::move(evt);
+        }
+        ++write_idx;
     }
-    pending_changes = std::move(retained);
-    /* Rebuild the side map for the new pending_changes vector. The old map's
-     * indices referenced positions in the just-discarded vector; without
-     * rebuilding, retained ADDs would lose their pair-collapse capability on
-     * the next snapshot (a REMOVE arriving for one of these ptrs would queue
-     * a tombstone instead of canceling the still-unsuccessful ADD). The cost
-     * is O(retained.size()), which is bounded — retained events only appear
-     * on libdatadog rejection and are capped at MAX_EXPORT_RETRIES per event. */
+    pending_changes.resize(write_idx);
+    /* Rebuild the side map for the compacted pending_changes vector. The old
+     * map's indices referenced positions before compaction; without rebuilding,
+     * retained ADDs would lose their pair-collapse capability on the next
+     * snapshot (a REMOVE arriving for one of these ptrs would queue a tombstone
+     * instead of canceling the still-unsuccessful ADD). The cost is O(write_idx),
+     * which is bounded — retained events only appear on libdatadog rejection
+     * and are capped at MAX_EXPORT_RETRIES per event. */
     pending_add_idx.clear();
     for (size_t i = 0; i < pending_changes.size(); ++i) {
         if (pending_changes[i].kind == change_event::ADD) {

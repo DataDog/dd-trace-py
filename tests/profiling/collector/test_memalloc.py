@@ -1234,24 +1234,34 @@ def test_delta_export_net_heap_is_zero_across_snapshots(tmp_path: Path) -> None:
     """
     mc = memalloc.MemoryCollector(heap_sample_size=256)
 
+    def accumulate_heap_space(profile) -> int:
+        idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+        return sum(
+            s.value[idx] for s in profile.sample if has_function_in_profile_sample(profile, s, _alloc_in_named_function)
+        )
+
     total_heap_space_for_allocator = 0
     with mc:
         live = _alloc_in_named_function(5_000, 512)
+
+        # Snapshot while allocations are live so ADD positives reach the
+        # backend. Without this the alloc+free pair below would pair-collapse
+        # before any snapshot ran, and the net-zero assertion would pass
+        # trivially without exercising the ADD/REMOVE round trip.
+        output_filename = _setup_profiling_prelude(tmp_path, "test_delta_net_zero_pre")
+        profile = mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
+        total_heap_space_for_allocator += accumulate_heap_space(profile)
+
         del live
         gc.collect()
 
-        # Three snapshots: first drains the initial ADD+REMOVE batch; any
+        # Three more snapshots: first drains the queued REMOVE tombstones; any
         # retained events from rejection get retried on the next two passes
         # (bounded by MAX_EXPORT_RETRIES = 2 in C++).
         for i in range(3):
             output_filename = _setup_profiling_prelude(tmp_path, f"test_delta_net_zero_{i}")
             profile = mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
-            heap_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
-            total_heap_space_for_allocator += sum(
-                s.value[heap_idx]
-                for s in profile.sample
-                if has_function_in_profile_sample(profile, s, _alloc_in_named_function)
-            )
+            total_heap_space_for_allocator += accumulate_heap_space(profile)
 
     assert total_heap_space_for_allocator == 0, (
         f"net heap-space across all snapshots should be 0 (positives + tombstones cancel), "
@@ -1260,14 +1270,19 @@ def test_delta_export_net_heap_is_zero_across_snapshots(tmp_path: Path) -> None:
 
 
 def test_delta_export_heavy_churn_stays_consistent(tmp_path: Path) -> None:
-    """Under sustained alloc/free churn between snapshots, the delta path must
-    not crash, hang, or corrupt state. Hook-side push_backs into pending_changes
-    can grow the buffer past its initial reserve under bursty workloads — the
-    reallocation goes through system malloc (operator new), NOT through
-    PyMem_Malloc, so it does not reenter untrack_no_cpython. This test exercises
-    that growth path and verifies the visible invariants: the profiler does not
-    crash, snapshots succeed, and a second snapshot drains cleanly with no
-    residual positive samples from the same allocator stack.
+    """Under sustained allocation pressure the delta path must not crash, hang,
+    or corrupt state. Hook-side push_backs into pending_changes can grow the
+    buffer past its initial reserve when many live allocations accumulate
+    between snapshots — the reallocation goes through system malloc (operator
+    new), NOT through PyMem_Malloc, so it does not reenter untrack_no_cpython.
+
+    This test exercises that growth path by holding ~5000 live allocations
+    (above PENDING_CHANGES_RESERVE = 4096 in C++) before the first snapshot,
+    so every ADD sits in the buffer until export drains it. Pair-collapse
+    cannot fire because nothing is freed yet. It then verifies the visible
+    invariants: the profiler does not crash, snapshots succeed, freeing the
+    batch queues REMOVE tombstones that the next snapshot drains, and a final
+    no-op snapshot stays empty.
     """
     output_filename = _setup_profiling_prelude(tmp_path, "test_delta_export_heavy_churn_stays_consistent")
     # Aggressive sampling so most allocations register as events, exercising
@@ -1275,36 +1290,39 @@ def test_delta_export_heavy_churn_stays_consistent(tmp_path: Path) -> None:
     mc = memalloc.MemoryCollector(heap_sample_size=64)
 
     with mc:
-        # ~50K event-equivalents (100 iters * 250 allocs * 2 [alloc + free]).
-        # Below the PENDING_CHANGES_RESERVE bound — picked to exercise the new
-        # paths without piling so many same-stack samples that downstream
-        # libdatadog limits become the dominant signal.
-        for _ in range(100):
-            batch = _alloc_in_named_function(250, 256)
-            del batch
-        gc.collect()
+        # Keep ~5000 live allocations alive so pending_changes grows past
+        # PENDING_CHANGES_RESERVE before the first snapshot drains it.
+        live = _alloc_in_named_function(5_000, 256)
         profile = mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
-        # Second snapshot exercises the post-drain path: pending_changes has
-        # been cleared by the first snapshot; this one should be empty (no
-        # additional churn between calls) and emit nothing under the delta path.
+
+        # Free everything; this queues a wave of REMOVEs into the now-drained
+        # pending_changes. The second snapshot drains those tombstones.
+        del live
+        gc.collect()
         profile2 = mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
+
+        # Third snapshot exercises the post-drain steady state: pending_changes
+        # was cleared by the second snapshot and no new churn occurred, so this
+        # one should emit nothing under the delta path.
+        profile3 = mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
 
     # Profiler survived and produced parseable profiles.
     assert profile is not None
     assert profile2 is not None
+    assert profile3 is not None
 
-    # The second snapshot must not re-emit positive allocator samples; the
-    # first one drained any pending ADDs and nothing new was tracked between
-    # snapshots, so any positive samples there would indicate a stuck buffer
-    # or a sneak resync re-emission.
-    heap_space_idx_2 = pprof_utils.get_sample_type_index(profile2, "heap-space")
+    # The third snapshot must not re-emit positive allocator samples; the
+    # first two drained any pending events and nothing new was tracked between
+    # the second and third snapshots, so any positive samples there would
+    # indicate a stuck buffer or a sneak resync re-emission.
+    heap_space_idx_3 = pprof_utils.get_sample_type_index(profile3, "heap-space")
     re_emitted = [
         s
-        for s in profile2.sample
-        if s.value[heap_space_idx_2] > 0 and has_function_in_profile_sample(profile2, s, _alloc_in_named_function)
+        for s in profile3.sample
+        if s.value[heap_space_idx_3] > 0 and has_function_in_profile_sample(profile3, s, _alloc_in_named_function)
     ]
     assert len(re_emitted) == 0, (
-        f"second snapshot leaked positive samples from the allocator stack: got {len(re_emitted)}"
+        f"third snapshot leaked positive samples from the allocator stack: got {len(re_emitted)}"
     )
 
 

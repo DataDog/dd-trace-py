@@ -184,10 +184,12 @@ class Sample
     bool export_sample();
 
     // Flip the sign on the heap_space value so this sample is emitted as a
-    // tombstone (negative delta) by a subsequent export_sample() call. Idempotent
-    // when called twice — but heap-tracker callers should call this exactly once
-    // at REMOVE-event creation time so retries on transient libdatadog rejection
-    // emit a stable negative value instead of toggling sign on every attempt.
+    // tombstone (negative delta) by a subsequent export_sample() call.
+    // NOT idempotent: each call toggles the sign, so calling twice returns the
+    // original positive value. Heap-tracker callers must apply this exactly
+    // once per REMOVE event (see the tombstone_applied guard in
+    // _memalloc_heap.cpp) so retries on transient libdatadog rejection emit a
+    // stable negative value instead of toggling sign on every attempt.
     void negate_heap_space();
 
     static ProfileBorrow profile_borrow();
