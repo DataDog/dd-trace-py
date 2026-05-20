@@ -26,6 +26,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import git
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
@@ -146,6 +147,7 @@ from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
+from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
 from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsAPIClient
@@ -338,7 +340,7 @@ def _build_llmobs_span(
     span_kind: str,
     llmobs_input: _MetaIO,
     llmobs_output: _MetaIO,
-) -> tuple[LLMObsSpan, Literal["value", "messages", ""], Literal["value", "messages", ""]]:
+) -> tuple[LLMObsSpan, Literal["value", "messages", "documents", ""], Literal["value", "messages", "documents", ""]]:
     """Build an LLMObsSpan populated for the user span processor.
 
     Routes input/output to messages or value depending on span kind.
@@ -351,8 +353,8 @@ def _build_llmobs_span(
         llmobs_output = _MetaIO()
 
     llmobs_span = LLMObsSpan()
-    input_type: Literal["value", "messages", ""] = ""
-    output_type: Literal["value", "messages", ""] = ""
+    input_type: Literal["value", "messages", "documents", ""] = ""
+    output_type: Literal["value", "messages", "documents", ""] = ""
 
     input_value = llmobs_input.get(LLMOBS_STRUCT.VALUE)
     if input_value is not None:
@@ -364,6 +366,11 @@ def _build_llmobs_span(
         input_type = "messages"
         llmobs_span.input = enforce_message_role(input_messages)
 
+    input_documents = llmobs_input.get(LLMOBS_STRUCT.DOCUMENTS)
+    if input_documents is not None:
+        input_type = "documents"
+        llmobs_span.input = [Message(content=doc.get("text", ""), role="") for doc in input_documents]
+
     output_value = llmobs_output.get(LLMOBS_STRUCT.VALUE)
     if output_value is not None:
         output_type = "value"
@@ -374,7 +381,25 @@ def _build_llmobs_span(
         output_type = "messages"
         llmobs_span.output = enforce_message_role(output_messages)
 
+    output_documents = llmobs_output.get(LLMOBS_STRUCT.DOCUMENTS)
+    if output_documents is not None:
+        output_type = "documents"
+        llmobs_span.output = [Message(content=doc.get("text", ""), role="") for doc in output_documents]
+
     return llmobs_span, input_type, output_type
+
+
+def _reconstruct_documents(meta_io: _MetaIO, messages: list[Message]) -> None:
+    """Merge processor-modified message content back into documents, preserving metadata."""
+    original_docs = meta_io.get(LLMOBS_STRUCT.DOCUMENTS) or []
+    if messages:
+        meta_io[LLMOBS_STRUCT.DOCUMENTS] = [
+            {**original_docs[i], "text": msg.get("content", "")}
+            for i, msg in enumerate(messages)
+            if i < len(original_docs)
+        ]
+    else:
+        meta_io.pop(LLMOBS_STRUCT.DOCUMENTS, None)
 
 
 def _normalize_llmobs_meta(
@@ -382,8 +407,8 @@ def _normalize_llmobs_meta(
     llmobs_span: LLMObsSpan,
     llmobs_meta: _Meta,
     span_kind: str,
-    input_type: Literal["value", "messages", ""],
-    output_type: Literal["value", "messages", ""],
+    input_type: Literal["value", "messages", "documents", ""],
+    output_type: Literal["value", "messages", "documents", ""],
     export_to_llmobs: bool,
 ) -> None:
     """Normalize the llmobs meta dict in place so `_llmobs_span_event()` can read it directly.
@@ -433,6 +458,8 @@ def _normalize_llmobs_meta(
         meta_input[LLMOBS_STRUCT.MESSAGES] = llmobs_span.input
     elif input_type == "value" and llmobs_span.input:
         meta_input[LLMOBS_STRUCT.VALUE] = llmobs_span.input[0].get("content", "")
+    elif input_type == "documents":
+        _reconstruct_documents(meta_input, llmobs_span.input)
     if meta_input:
         llmobs_meta[LLMOBS_STRUCT.INPUT] = meta_input
     else:
@@ -442,6 +469,8 @@ def _normalize_llmobs_meta(
         meta_output[LLMOBS_STRUCT.MESSAGES] = llmobs_span.output
     elif output_type == "value" and llmobs_span.output:
         meta_output[LLMOBS_STRUCT.VALUE] = llmobs_span.output[0].get("content", "")
+    elif output_type == "documents":
+        _reconstruct_documents(meta_output, llmobs_span.output)
     if meta_output:
         llmobs_meta[LLMOBS_STRUCT.OUTPUT] = meta_output
     else:
@@ -453,6 +482,8 @@ class LLMObs(Service):
     enabled = False
     _app_key: str = _env.get("DD_APP_KEY", "")
     _project_name: str = _env.get("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
+    _git_repository_url: str = ""
+    _git_commit_sha: str = ""
 
     def __init__(
         self,
@@ -562,6 +593,7 @@ class LLMObs(Service):
         error = False
         try:
             llmobs_span._tags = get_llmobs_tags(span) or {}
+            llmobs_span._tags["span.kind"] = get_llmobs_span_kind(span) or ""
             result = self._user_span_processor(llmobs_span)
             if result is None:
                 return None
@@ -819,6 +851,7 @@ class LLMObs(Service):
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
         cls._project_name = project_name or cls._project_name or DEFAULT_PROJECT_NAME
+        cls._git_repository_url, cls._git_commit_sha = resolve_llmobs_git_metadata()
         config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
@@ -1967,6 +2000,10 @@ class LLMObs(Service):
             "ddtrace.version": __version__,
             "language": "python",
         }
+        if self._git_repository_url:
+            initial_tags[git.REPOSITORY_URL] = self._git_repository_url
+        if self._git_commit_sha:
+            initial_tags[git.COMMIT_SHA] = self._git_commit_sha
         if session_id:
             initial_tags["session_id"] = session_id
         for baggage_key, tag_key in (
