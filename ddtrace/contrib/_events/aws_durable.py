@@ -58,7 +58,7 @@ class AwsDurableOperationEvent(TracingEvent):
     name: Optional[str] = event_field(default=None)
     id: Optional[str] = event_field(default=None)
     replayed: Optional[bool] = event_field(default=None)
-    operation_retry_attempt: Optional[int] = event_field(default=None)
+    operation_attempt: Optional[int] = event_field(default=None)
     suspend_cause_exc_info: Optional[tuple[type, BaseException, TracebackType]] = event_field(default=None)
 
     def __post_init__(self) -> None:

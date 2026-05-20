@@ -80,5 +80,5 @@ class AwsDurableOperationSubscriber(TracingSubscriber):
             ctx.span._set_attribute(aws_durable.TAG_REPLAYED, "true" if event.replayed else "false")
         if event.id is not None:
             ctx.span._set_attribute(aws_durable.TAG_ID, event.id)
-        if event.operation_retry_attempt is not None:
-            ctx.span._set_attribute(aws_durable.TAG_OPERATION_RETRY_ATTEMPT, event.operation_retry_attempt)
+        if event.operation_attempt is not None:
+            ctx.span._set_attribute(aws_durable.TAG_OPERATION_ATTEMPT, event.operation_attempt)

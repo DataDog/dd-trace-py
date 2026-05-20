@@ -1,6 +1,6 @@
 ---
 features:
   - |
-    aws_durable_execution_sdk_python: Add ``aws.durable.operation_retry_attempt`` tag to
-    ``aws.durable.step`` and ``aws.durable.wait_for_condition`` spans. The tag is ``0`` for the original
-    attempt and ``1``, ``2``, ``3``, etc. for each subsequent retry.
+    aws_durable_execution_sdk_python: Add ``aws.durable.operation_attempt`` tag to
+    ``aws.durable.step`` and ``aws.durable.wait_for_condition`` spans. The tag is ``0`` for the
+    original attempt and ``1``, ``2``, ``3``, etc. for each subsequent retry.
