@@ -1,6 +1,6 @@
 variables:
   IMAGE_BASE_URL: "registry.ddbuild.io/dd-trace-py"
-  MANYLINUX_AMD64_IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+  MANYLINUX_AMD64_IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
   ALPINE_BUILD_IMAGE_TAG: "v103339769-be1888c-alpine_build"
 
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
@@ -10,6 +10,7 @@ variables:
   - "3.12"
   - "3.13"
   - "3.14"
+  - "3.15"
 
 .PYTHON_TAGS: &PYTHON_TAGS
   - "cp39-cp39"
@@ -18,14 +19,15 @@ variables:
   - "cp312-cp312"
   - "cp313-cp313"
   - "cp314-cp314"
+  - "cp315-cp315"
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
-  - "v85383414-751efc0-manylinux2014_aarch64"
-  - "v85383359-751efc0-musllinux_1_2_aarch64"
+  - "v113741357-d2b8243-manylinux2014_aarch64"
+  - "v113741589-d2b8243-musllinux_1_2_aarch64"
 
 .X86_64_IMAGES: &X86_64_IMAGES
-  - "v85383392-751efc0-manylinux2014_x86_64"
-  - "v85383325-751efc0-musllinux_1_2_x86_64"
+  - "v113741238-d2b8243-manylinux2014_x86_64"
+  - "v113741491-d2b8243-musllinux_1_2_x86_64"
 
 .build_base:
   stage: package
@@ -101,6 +103,12 @@ variables:
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
+  # TODO(py-315): drop the cp315 allow_failure rule once #17849 ports the bytecode
+  # wrapping path to sys.monitoring (currently raises NotImplementedError on 3.15).
+  rules:
+    - if: $PYTHON_TAG == "cp315-cp315"
+      allow_failure: true
+    - when: on_success
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
@@ -170,7 +178,7 @@ variables:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014_x86_64"
@@ -185,10 +193,10 @@ variables:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
           - ARCH_TAG: "arm64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v85383414-751efc0-manylinux2014_aarch64"
+            IMAGE_TAG: "v113741357-d2b8243-manylinux2014_aarch64"
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014"
