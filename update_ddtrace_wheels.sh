@@ -266,6 +266,33 @@ git fetch origin "$BRANCH"
 git checkout "origin/${BRANCH}"
 git checkout -B "$BRANCH"
 
+# Merge latest origin/main so this commit regenerates requirements.txt against
+# main's current dep set. Without this step the smoke branch drifts behind main
+# and bzl repin produces a lockfile inconsistent with main, leaving stale
+# conflict markers behind when a human attempts the merge later.
+echo "Merging origin/main into ${BRANCH} ..."
+git fetch origin main
+if ! git merge --no-edit origin/main; then
+  # requirements.in/.txt are managed by this script + bzl repin — for those,
+  # keep the smoke branch's version; the repin below rewrites requirements.txt
+  # from requirements.in anyway. Abort on conflicts in any other file.
+  UNRESOLVED=$(git diff --name-only --diff-filter=U | grep -vE '^requirements\.(in|txt)$' || true)
+  if [[ -n "$UNRESOLVED" ]]; then
+    git merge --abort
+    echo "ERROR: merge conflicts in non-regenerable files:" >&2
+    echo "$UNRESOLVED" >&2
+    echo "Resolve manually on ${BRANCH}, push, then rerun." >&2
+    exit 1
+  fi
+  CONFLICTED=$(git diff --name-only --diff-filter=U)
+  if [[ -n "$CONFLICTED" ]]; then
+    echo "Auto-resolving requirements.in/.txt conflicts with --ours (repin will rewrite requirements.txt)."
+    echo "$CONFLICTED" | xargs git checkout --ours --
+    echo "$CONFLICTED" | xargs git add --
+  fi
+  git -c core.editor=true commit --no-edit
+fi
+
 echo "Fetching wheel listing from ${INDEX_URL} ..."
 LISTING=$(curl -fsSL "${INDEX_URL}")
 
