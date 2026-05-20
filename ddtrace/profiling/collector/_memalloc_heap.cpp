@@ -429,11 +429,19 @@ heap_tracker_t::export_heap_no_cpython()
         retained.push_back(std::move(evt));
     }
     pending_changes = std::move(retained);
-    /* The side map's indices reference positions in the now-discarded vector;
-     * any retained ADDs lose their collapse capability on the next snapshot.
-     * Rebuilding the map here would preserve it, but retained events are rare
-     * (only on libdatadog rejection) — clearing keeps the export path simple. */
+    /* Rebuild the side map for the new pending_changes vector. The old map's
+     * indices referenced positions in the just-discarded vector; without
+     * rebuilding, retained ADDs would lose their pair-collapse capability on
+     * the next snapshot (a REMOVE arriving for one of these ptrs would queue
+     * a tombstone instead of canceling the still-unsuccessful ADD). The cost
+     * is O(retained.size()), which is bounded — retained events only appear
+     * on libdatadog rejection and are capped at MAX_EXPORT_RETRIES per event. */
     pending_add_idx.clear();
+    for (size_t i = 0; i < pending_changes.size(); ++i) {
+        if (pending_changes[i].kind == change_event::ADD) {
+            pending_add_idx[pending_changes[i].ptr] = i;
+        }
+    }
 
     Datadog::Sample::profile_borrow().stats().set_heap_tracker_size(allocs_m.size());
 }
