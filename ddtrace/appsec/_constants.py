@@ -305,6 +305,7 @@ class API_SECURITY(metaclass=Constant_Class):
     """constants related to API Security"""
 
     ENABLED: Literal["_dd.appsec.api_security.enabled"] = "_dd.appsec.api_security.enabled"
+    NORMALIZED_ROUTE: Literal["_dd.appsec.normalized_route"] = "_dd.appsec.normalized_route"
     ENV_VAR_ENABLED: Literal["DD_API_SECURITY_ENABLED"] = "DD_API_SECURITY_ENABLED"
     PARSE_RESPONSE_BODY: Literal["DD_API_SECURITY_PARSE_RESPONSE_BODY"] = "DD_API_SECURITY_PARSE_RESPONSE_BODY"
     REQUEST_HEADERS_NO_COOKIES: Literal["_dd.appsec.s.req.headers"] = "_dd.appsec.s.req.headers"

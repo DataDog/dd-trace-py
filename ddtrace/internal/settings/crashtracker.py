@@ -53,6 +53,14 @@ class CrashtrackingConfig(DDConfig):
 
     enabled = DDConfig.d(bool, _derive_crashtracking_enabled)
 
+    errors_intake_enabled = DDConfig.v(
+        bool,
+        "errors_intake_enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to send crash reports to the errors intake.",
+    )
+
     debug_url = DDConfig.v(
         t.Optional[str],
         "debug_url",

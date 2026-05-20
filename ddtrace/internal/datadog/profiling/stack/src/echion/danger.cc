@@ -117,6 +117,23 @@ init_segv_catcher()
     return 0;
 }
 
+void
+uninstall_segv_handler()
+{
+    // Restore the saved previous handlers, removing our handler from the chain.
+    // This is used before letting another component (e.g., faulthandler) install
+    // its own handler, so it saves the correct previous handler rather than ours.
+    // After the other component installs, call init_segv_catcher to reinstall
+    // ours on top, creating the correct non-cyclic chain.
+    struct sigaction current;
+    if (sigaction(SIGSEGV, nullptr, &current) == 0 && current.sa_sigaction == segv_handler) {
+        sigaction(SIGSEGV, &g_old_segv, nullptr);
+    }
+    if (sigaction(SIGBUS, nullptr, &current) == 0 && current.sa_sigaction == segv_handler) {
+        sigaction(SIGBUS, &g_old_bus, nullptr);
+    }
+}
+
 #if defined PL_LINUX
 using safe_memcpy_return_t = ssize_t;
 #elif defined PL_DARWIN
