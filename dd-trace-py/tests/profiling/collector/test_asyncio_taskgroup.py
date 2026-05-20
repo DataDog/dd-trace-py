@@ -31,9 +31,9 @@ def test_asyncio_taskgroup() -> None:
         return t
 
     async def task_with_taskgroup(delay: float) -> float:
-        async with asyncio.TaskGroup() as tg:
+        async with asyncio.TaskGroup() as tg:  # type: ignore[attr-defined]
             task = tg.create_task(wait_and_return_delay(delay))
-            return await task
+            return await task  # type: ignore[no-any-return]
 
     async def main() -> None:
         # Create tasks that will use TaskGroup
@@ -107,7 +107,7 @@ def test_asyncio_taskgroup() -> None:
 
     if len(exceptions) > 0:
         pprof_utils.print_all_samples(profile)
-        for e in exceptions:
-            print(e)
+        for exc in exceptions:
+            print(exc)
 
         raise exceptions[0]

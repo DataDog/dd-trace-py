@@ -376,6 +376,43 @@ def test_wrap_arg_args_kwarg_kwargs():
     assert f(1, path="bar", foo="baz") == (1, (), "bar", {"foo": "baz"})
 
 
+def test_wrap_kwargs_captured_by_closure():
+    """Regression: **kwargs captured as a cell var by an inner closure must be
+    loaded via LOAD_DEREF (not LOAD_FAST) on Python 3.11+, otherwise the call
+    site receives a raw cell object instead of the dict.
+    """
+
+    def outer(a, b, **kwargs):
+        def inner():
+            return kwargs
+
+        return inner()
+
+    def wrapper(f, args, kwgs):
+        return f(*args, **kwgs)
+
+    wrap(outer, wrapper)
+
+    assert outer(1, 2, x=3, y=4) == {"x": 3, "y": 4}
+
+
+def test_wrap_kwonly_captured_by_closure():
+    """Regression: keyword-only args captured as cell vars must also use LOAD_DEREF."""
+
+    def outer(a, *, key=None, **kwargs):
+        def inner():
+            return (key, kwargs)
+
+        return inner()
+
+    def wrapper(f, args, kwgs):
+        return f(*args, **kwgs)
+
+    wrap(outer, wrapper)
+
+    assert outer(1, key="k", x=3) == ("k", {"x": 3})
+
+
 @pytest.mark.asyncio
 async def test_async_generator():
     async def stream():

@@ -455,6 +455,7 @@ def test_chat_sync_block_is_openai_compatible_exception(mock_execute_request, op
     assert isinstance(err, openai.APIError)
     assert isinstance(err, openai.UnprocessableEntityError)
     assert isinstance(err, AIGuardAbortError)
+    assert type(err).__module__ == "ddtrace.appsec._ai_guard._openai"
     assert err.status_code == 422
     assert err.action == "DENY"
     # ``reason`` is mirrored from the AI Guard response (may be empty in mocks).
@@ -485,54 +486,60 @@ def test_block_error_class_identity_across_consecutive_blocks(mock_execute_reque
     assert type(exc_first.value).__name__ == "OpenAIAIGuardAbortError"
 
 
-def test_block_error_class_identity_under_thread_race():
-    """Concurrent threads racing through the cold cache MUST all observe the
-    same class object.
+def test_block_error_class_identity_under_concurrent_lazy_import():
+    """Concurrent cold imports MUST all observe the same class object.
 
-    Without ``_openai_abort_error_cls_lock``, the unsynchronised check-then-act
-    pattern lets two threads pass the ``is None`` check, build their own class
-    each, and leave the cache pointing at whichever assignment ran last — the
-    other thread keeps a stale class that's never returned again, so a caller's
-    ``isinstance(e, cached_cls)`` will start failing intermittently. This test
-    resets the cache and races N threads through the helper, asserting all
-    returns are ``is``-equal.
+    The OpenAI-compatible abort class lives in ``_openai_errors`` and is
+    imported lazily only when ``_wrap_abort_error`` needs SDK-hierarchy
+    compatibility. This test removes that module from ``sys.modules`` and
+    races N threads through the wrapper, asserting Python's import lock
+    gives every caller the same class object.
     """
+    import sys
+
+    import ddtrace.appsec._ai_guard as _ai_guard_pkg
     import ddtrace.appsec._ai_guard._openai as _openai_mod
 
+    def _resolve_cls() -> type:
+        # ``_wrap_abort_error`` triggers the lazy ``_openai_errors`` import
+        # and returns an instance of either the OpenAI-compatible subclass
+        # (when openai is importable) or bare ``AIGuardAbortError``.
+        return type(_openai_mod._wrap_abort_error(AIGuardAbortError("DENY", "test")))
+
+    module_name = "ddtrace.appsec._ai_guard._openai_errors"
+
     # Sanity: the openai SDK must be importable for this test to be meaningful;
-    # if it's not, the helper returns None and there is no class identity to
-    # compare.
-    if _openai_mod._get_openai_abort_error_cls() is None:
+    # if it's not, the wrapper returns bare ``AIGuardAbortError`` and there is
+    # no OpenAI-compatible class identity to compare. Evict the module after
+    # the probe so the concurrent race below exercises a true cold import.
+    if _resolve_cls() is AIGuardAbortError:
         pytest.skip("openai SDK not importable")
 
-    saved_cls = _openai_mod._openai_abort_error_cls
-    _openai_mod._openai_abort_error_cls = None
+    sys.modules.pop(module_name, None)
+    if hasattr(_ai_guard_pkg, "_openai_errors"):
+        delattr(_ai_guard_pkg, "_openai_errors")
 
     n = 32
     barrier = threading.Barrier(n)
     results: list = [None] * n
 
     def _race(idx: int) -> None:
-        # Force all threads to enter the helper at the same moment so the
-        # check-then-act window is genuinely contended.
+        # Force all threads to enter the lazy import at the same moment.
         barrier.wait()
-        results[idx] = _openai_mod._get_openai_abort_error_cls()
+        results[idx] = _resolve_cls()
 
-    try:
-        threads = [threading.Thread(target=_race, args=(i,)) for i in range(n)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-    finally:
-        _openai_mod._openai_abort_error_cls = saved_cls
+    threads = [threading.Thread(target=_race, args=(i,)) for i in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
 
     first = results[0]
     assert first is not None
     distinct_ids = {id(cls) for cls in results}
     assert len(distinct_ids) == 1, (
-        f"concurrent _get_openai_abort_error_cls() returned {len(distinct_ids)} distinct class "
-        f"objects; the lazy cache build is not thread-safe"
+        f"concurrent _wrap_abort_error() resolved {len(distinct_ids)} distinct class "
+        f"objects; the lazy provider import is not thread-safe"
     )
 
 

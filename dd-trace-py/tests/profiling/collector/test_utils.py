@@ -39,7 +39,7 @@ def async_run(coro: Coroutine[Any, Any, T]) -> T:
     if use_uvloop:
         import uvloop
 
-        return uvloop.run(coro)
+        return uvloop.run(coro)  # type: ignore[no-any-return]
     else:
         return asyncio.run(coro)
 
