@@ -89,6 +89,8 @@ class Profiler(object):
         # We register _stop_on_signal (not stop) to avoid deadlocking when SIGTERM arrives while
         # _active_lock is already held by the main thread (e.g. during start or stop).
         atexit.register_on_exit_signal(self._stop_on_signal)
+        import os as _os, sys as _sys  # DEBUG
+        print(f"[DD-DEBUG] pid={_os.getpid()} Profiler.start() REGISTERED id(self)={id(self)}", file=_sys.stderr, flush=True)  # DEBUG
 
         # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
         # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
@@ -107,15 +109,20 @@ class Profiler(object):
         here is strictly stronger and also dedupes against the exit-signal path added in
         #18041.
         """
+        import os, sys  # DEBUG
+        print(f"[DD-DEBUG] pid={os.getpid()} Profiler.stop() ENTRY id(self)={id(self)} flush={flush}", file=sys.stderr, flush=True)  # DEBUG
         if not self._shutdown_lock.acquire(blocking=True):
+            print(f"[DD-DEBUG] pid={os.getpid()} Profiler.stop() lock-fail", file=sys.stderr, flush=True)  # DEBUG
             return
         try:
             if self._did_shutdown:
+                print(f"[DD-DEBUG] pid={os.getpid()} Profiler.stop() ALREADY-SHUTDOWN id(self)={id(self)}", file=sys.stderr, flush=True)  # DEBUG
                 return
             self._did_shutdown = True
             atexit.unregister(self.stop)
             try:
                 with Profiler._active_lock:
+                    print(f"[DD-DEBUG] pid={os.getpid()} Profiler.stop() FLUSHING id(self)={id(self)}", file=sys.stderr, flush=True)  # DEBUG
                     self._profiler.stop(flush)
                     if Profiler._active_instance is self:
                         Profiler._active_instance = None
@@ -123,6 +130,7 @@ class Profiler(object):
             except service.ServiceStatusError:
                 # Underlying profiler instance is already stopped (e.g. user called
                 # _profiler.stop directly). Treat as success.
+                print(f"[DD-DEBUG] pid={os.getpid()} Profiler.stop() ServiceStatusError id(self)={id(self)}", file=sys.stderr, flush=True)  # DEBUG
                 pass
         finally:
             self._shutdown_lock.release()
@@ -145,14 +153,19 @@ class Profiler(object):
         (`_stop_on_signal`) regardless of which path wins the race, fixing the
         double-flush observed when uvicorn worker shutdown exercises both paths.
         """
+        import os, sys  # DEBUG
+        print(f"[DD-DEBUG] pid={os.getpid()} _stop_on_signal() ENTRY id(self)={id(self)}", file=sys.stderr, flush=True)  # DEBUG
         if not self._shutdown_lock.acquire(blocking=False):
             # Shutdown is already running on another thread (or this same thread held
             # the lock when the signal fired). The in-progress shutdown will flush.
+            print(f"[DD-DEBUG] pid={os.getpid()} _stop_on_signal() lock-fail", file=sys.stderr, flush=True)  # DEBUG
             return
         try:
             if self._did_shutdown:
+                print(f"[DD-DEBUG] pid={os.getpid()} _stop_on_signal() ALREADY-SHUTDOWN id(self)={id(self)}", file=sys.stderr, flush=True)  # DEBUG
                 return
             if not Profiler._active_lock.acquire(blocking=False):
+                print(f"[DD-DEBUG] pid={os.getpid()} _stop_on_signal() active-lock-fail", file=sys.stderr, flush=True)  # DEBUG
                 # `start()`/`stop()` is in progress on the main thread between bytecodes.
                 # We're now running in that same thread via the signal handler; a blocking
                 # acquire would deadlock. The narrow race where `_raise_default`
@@ -162,8 +175,10 @@ class Profiler(object):
             self._did_shutdown = True
             atexit.unregister(self.stop)
             try:
+                print(f"[DD-DEBUG] pid={os.getpid()} _stop_on_signal() FLUSHING id(self)={id(self)}", file=sys.stderr, flush=True)  # DEBUG
                 self._profiler.stop(flush=True)
             except service.ServiceStatusError:
+                print(f"[DD-DEBUG] pid={os.getpid()} _stop_on_signal() ServiceStatusError id(self)={id(self)}", file=sys.stderr, flush=True)  # DEBUG
                 pass
             except Exception:
                 LOG.debug("Exception while stopping profiler on exit signal", exc_info=True)
