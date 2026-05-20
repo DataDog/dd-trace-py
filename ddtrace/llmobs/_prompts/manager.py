@@ -287,7 +287,7 @@ class PromptManager:
         body: Optional[dict[str, Any]] = None,
         timeout: Optional[float] = None,
         require_app_key: bool = True,
-    ) -> dict[str, Any]:
+    ) -> Any:
         if not self._headers.get("DD-API-KEY"):
             raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
         if require_app_key and not self._app_key:
@@ -345,7 +345,8 @@ class PromptManager:
             body["user_version"] = user_version
         if labels is not None:
             body["labels"] = labels
-        return self._request("POST", PROMPTS_ENDPOINT, body=body)
+        result: PromptResponse = self._request("POST", PROMPTS_ENDPOINT, body=body)
+        return result
 
     def create_prompt_version(
         self,
@@ -364,7 +365,8 @@ class PromptManager:
             body["user_version"] = user_version
         if labels is not None:
             body["labels"] = labels
-        return self._request("POST", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", body=body)
+        result: PromptVersionResponse = self._request("POST", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", body=body)
+        return result
 
     def update_prompt(
         self,
@@ -381,7 +383,8 @@ class PromptManager:
             body["title"] = title
         if description is not None:
             body["description"] = description
-        return self._request("PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}", body=body)
+        result: PromptResponse = self._request("PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}", body=body)
+        return result
 
     def update_prompt_version(
         self,
@@ -399,11 +402,14 @@ class PromptManager:
             body["labels"] = labels
         if description is not None:
             body["description"] = description
-        return self._request("PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions/{version}", body=body)
+        result: PromptVersionResponse = self._request(
+            "PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions/{version}", body=body
+        )
+        return result
 
     def delete_prompt(self, prompt_id: str) -> DeletedPromptResponse:
         escaped_id = quote(prompt_id, safe="")
-        result = self._request("DELETE", f"{PROMPTS_ENDPOINT}/{escaped_id}")
+        result: DeletedPromptResponse = self._request("DELETE", f"{PROMPTS_ENDPOINT}/{escaped_id}")
         self._hot_cache.evict_prompt(prompt_id)
         self._warm_cache.evict_prompt(prompt_id)
         return result
