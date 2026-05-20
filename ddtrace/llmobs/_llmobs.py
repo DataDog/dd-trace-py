@@ -158,10 +158,15 @@ from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
 from ddtrace.llmobs._writer import should_use_agentless
+from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
+from ddtrace.llmobs.types import PromptLabel
+from ddtrace.llmobs.types import PromptResponse
+from ddtrace.llmobs.types import PromptVersionResponse
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
@@ -1760,7 +1765,7 @@ class LLMObs(Service):
     def get_prompt(
         cls,
         prompt_id: str,
-        label: Optional[Literal["development", "production"]] = None,
+        label: Optional[PromptLabel] = None,
         fallback: PromptFallback = None,
     ) -> ManagedPrompt:
         """
@@ -1820,7 +1825,7 @@ class LLMObs(Service):
     def refresh_prompt(
         cls,
         prompt_id: str,
-        label: Optional[Literal["development", "production"]] = None,
+        label: Optional[PromptLabel] = None,
     ) -> Optional[ManagedPrompt]:
         """Force refresh a specific prompt from the registry.
 
@@ -1835,6 +1840,185 @@ class LLMObs(Service):
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.refresh_prompt(prompt_id, label)
+
+    @classmethod
+    def create_prompt(
+        cls,
+        prompt_id: str,
+        template: list[ChatMessage],
+        *,
+        title: str = "",
+        description: str = "",
+        user_version: str = "",
+        labels: Optional[list[PromptLabel]] = None,
+    ) -> PromptResponse:
+        """Create a new prompt in the registry.
+
+        Args:
+            prompt_id: Unique identifier for the prompt.
+            template: List of chat messages defining the prompt template.
+            title: Optional human-readable title.
+            description: Optional description of the prompt.
+            user_version: Optional user-defined version string.
+            labels: Optional list of labels ("development" and/or "production").
+
+        Returns:
+            The created prompt.
+
+        Raises:
+            PromptAuthError: Invalid or missing API/app key.
+            PromptValidationError: Invalid request (bad template, missing fields).
+            PromptConflictError: A prompt with this prompt_id already exists.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.create_prompt(
+            prompt_id, template, title=title, description=description, user_version=user_version, labels=labels
+        )
+
+    @classmethod
+    def create_prompt_version(
+        cls,
+        prompt_id: str,
+        template: list[ChatMessage],
+        *,
+        description: str = "",
+        user_version: str = "",
+        labels: Optional[list[PromptLabel]] = None,
+    ) -> PromptVersionResponse:
+        """Create a new version of an existing prompt.
+
+        Args:
+            prompt_id: The prompt identifier.
+            template: List of chat messages defining the new version's template.
+            description: Optional description of this version.
+            user_version: Optional user-defined version string.
+            labels: Optional list of labels ("development" and/or "production").
+
+        Returns:
+            The created prompt version.
+
+        Raises:
+            PromptAuthError: Invalid or missing API/app key.
+            PromptValidationError: Invalid request.
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.create_prompt_version(
+            prompt_id, template, description=description, user_version=user_version, labels=labels
+        )
+
+    @classmethod
+    def update_prompt(
+        cls,
+        prompt_id: str,
+        *,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> PromptResponse:
+        """Update prompt metadata (title and/or description).
+
+        Args:
+            prompt_id: The prompt identifier.
+            title: New title for the prompt.
+            description: New description for the prompt.
+
+        Returns:
+            The updated prompt.
+
+        Raises:
+            PromptAuthError: Invalid or missing API/app key.
+            PromptValidationError: No fields provided, or invalid values.
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.update_prompt(prompt_id, title=title, description=description)
+
+    @classmethod
+    def update_prompt_version(
+        cls,
+        prompt_id: str,
+        version: str,
+        *,
+        labels: Optional[list[PromptLabel]] = None,
+        description: Optional[str] = None,
+    ) -> PromptVersionResponse:
+        """Update a specific prompt version's metadata.
+
+        Args:
+            prompt_id: The prompt identifier.
+            version: The version string to update.
+            labels: New labels for the version.
+            description: New description for the version.
+
+        Returns:
+            The updated prompt version.
+
+        Raises:
+            PromptAuthError: Invalid or missing API/app key.
+            PromptValidationError: No fields provided, or invalid values.
+            PromptNotFoundError: Prompt or version does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.update_prompt_version(prompt_id, version, labels=labels, description=description)
+
+    @classmethod
+    def delete_prompt(cls, prompt_id: str) -> DeletedPromptResponse:
+        """Delete a prompt and all its versions from the registry.
+
+        Also evicts the prompt from local caches.
+
+        Args:
+            prompt_id: The prompt identifier to delete.
+
+        Returns:
+            Confirmation with prompt_id and deleted_at timestamp.
+
+        Raises:
+            PromptAuthError: Invalid or missing API/app key.
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.delete_prompt(prompt_id)
+
+    @classmethod
+    def list_prompts(cls, *, ml_app: Optional[str] = None) -> list[PromptResponse]:
+        """List all prompts, optionally filtered by ml_app.
+
+        Args:
+            ml_app: Optional ml_app name to filter by.
+
+        Returns:
+            A list of prompts.
+
+        Raises:
+            PromptAuthError: Invalid or missing API/app key.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.list_prompts(ml_app=ml_app)
+
+    @classmethod
+    def list_prompt_versions(cls, prompt_id: str) -> list[PromptVersionResponse]:
+        """List all versions of a prompt.
+
+        Args:
+            prompt_id: The prompt identifier.
+
+        Returns:
+            A list of prompt versions.
+
+        Raises:
+            PromptAuthError: Invalid or missing API/app key.
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.list_prompt_versions(prompt_id)
 
     @classmethod
     def _initialize_prompt_manager(cls) -> PromptManager:
@@ -1853,6 +2037,7 @@ class LLMObs(Service):
         return PromptManager(
             api_key=api_key,
             base_url=base_url,
+            app_key=cls._app_key,
             cache_ttl=cache_ttl,
             file_cache_enabled=file_cache_enabled,
             cache_dir=cache_dir,

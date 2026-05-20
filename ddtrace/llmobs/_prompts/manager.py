@@ -1,6 +1,7 @@
 import atexit
 import json
 import threading
+from typing import Any
 from typing import Optional
 from typing import Union
 from urllib.parse import quote
@@ -18,7 +19,18 @@ from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs._prompts.utils import cache_key
 from ddtrace.llmobs._prompts.utils import extract_error_detail
 from ddtrace.llmobs._prompts.utils import extract_template
+from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import DeletedPromptResponse
+from ddtrace.llmobs.types import PromptAPIError
+from ddtrace.llmobs.types import PromptAuthError
+from ddtrace.llmobs.types import PromptConflictError
 from ddtrace.llmobs.types import PromptFallback
+from ddtrace.llmobs.types import PromptLabel
+from ddtrace.llmobs.types import PromptNotFoundError
+from ddtrace.llmobs.types import PromptResponse
+from ddtrace.llmobs.types import PromptServerError
+from ddtrace.llmobs.types import PromptValidationError
+from ddtrace.llmobs.types import PromptVersionResponse
 
 
 log = get_logger(__name__)
@@ -31,6 +43,7 @@ class PromptManager:
         self,
         api_key: str,
         base_url: str,
+        app_key: str = "",
         cache_ttl: float = DEFAULT_PROMPTS_CACHE_TTL,
         timeout: float = DEFAULT_PROMPTS_TIMEOUT,
         file_cache_enabled: bool = True,
@@ -38,6 +51,7 @@ class PromptManager:
     ) -> None:
         self._base_url = base_url if "://" in base_url else "https://" + base_url
         self._timeout = timeout
+        self._app_key = app_key
         self._headers: dict[str, str] = {
             "DD-API-KEY": api_key,
             "X-Datadog-SDK-Language": "python",
@@ -261,3 +275,143 @@ class PromptManager:
             raise ValueError(message)
         log.debug("Using user-provided fallback for prompt %s", prompt_id)
         return ManagedPrompt.from_fallback(prompt_id, fallback)
+
+    # --- Prompt management (write) methods ---
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        body: Optional[dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+    ) -> dict[str, Any]:
+        if not self._app_key:
+            raise PromptAPIError(0, "DD_APP_KEY is required for prompt management operations")
+
+        headers = {
+            **self._headers,
+            "DD-APPLICATION-KEY": self._app_key,
+            "Content-Type": "application/json",
+        }
+        conn = None
+        try:
+            conn = get_connection(self._base_url, timeout=timeout or self._timeout)
+            encoded_body = json.dumps(body).encode("utf-8") if body else None
+            conn.request(method, path, body=encoded_body, headers=headers)
+            response = conn.getresponse()
+            response_body = response.read().decode("utf-8")
+
+            if 200 <= response.status < 300:
+                return json.loads(response_body) if response_body else {}
+
+            detail = extract_error_detail(response_body)
+            if response.status in (401, 403):
+                raise PromptAuthError(response.status, detail)
+            if response.status == 400:
+                raise PromptValidationError(response.status, detail)
+            if response.status == 404:
+                raise PromptNotFoundError(response.status, detail)
+            if response.status == 409:
+                raise PromptConflictError(response.status, detail)
+            if response.status >= 500:
+                raise PromptServerError(response.status, detail)
+            raise PromptAPIError(response.status, detail)
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def create_prompt(
+        self,
+        prompt_id: str,
+        template: list[ChatMessage],
+        *,
+        title: str = "",
+        description: str = "",
+        user_version: str = "",
+        labels: Optional[list[PromptLabel]] = None,
+    ) -> PromptResponse:
+        body: dict[str, Any] = {"prompt_id": prompt_id, "template": template}
+        if title:
+            body["title"] = title
+        if description:
+            body["description"] = description
+        if user_version:
+            body["user_version"] = user_version
+        if labels is not None:
+            body["labels"] = labels
+        return self._request("POST", PROMPTS_ENDPOINT, body=body)
+
+    def create_prompt_version(
+        self,
+        prompt_id: str,
+        template: list[ChatMessage],
+        *,
+        description: str = "",
+        user_version: str = "",
+        labels: Optional[list[PromptLabel]] = None,
+    ) -> PromptVersionResponse:
+        escaped_id = quote(prompt_id, safe="")
+        body: dict[str, Any] = {"template": template}
+        if description:
+            body["description"] = description
+        if user_version:
+            body["user_version"] = user_version
+        if labels is not None:
+            body["labels"] = labels
+        return self._request("POST", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", body=body)
+
+    def update_prompt(
+        self,
+        prompt_id: str,
+        *,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> PromptResponse:
+        if title is None and description is None:
+            raise PromptValidationError(0, "At least one of title or description must be provided")
+        escaped_id = quote(prompt_id, safe="")
+        body: dict[str, Any] = {}
+        if title is not None:
+            body["title"] = title
+        if description is not None:
+            body["description"] = description
+        return self._request("PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}", body=body)
+
+    def update_prompt_version(
+        self,
+        prompt_id: str,
+        version: str,
+        *,
+        labels: Optional[list[PromptLabel]] = None,
+        description: Optional[str] = None,
+    ) -> PromptVersionResponse:
+        if labels is None and description is None:
+            raise PromptValidationError(0, "At least one of labels or description must be provided")
+        escaped_id = quote(prompt_id, safe="")
+        body: dict[str, Any] = {}
+        if labels is not None:
+            body["labels"] = labels
+        if description is not None:
+            body["description"] = description
+        return self._request("PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions/{version}", body=body)
+
+    def delete_prompt(self, prompt_id: str) -> DeletedPromptResponse:
+        escaped_id = quote(prompt_id, safe="")
+        result = self._request("DELETE", f"{PROMPTS_ENDPOINT}/{escaped_id}")
+        self._hot_cache.evict_prompt(prompt_id)
+        self._warm_cache.evict_prompt(prompt_id)
+        return result
+
+    def list_prompts(self, *, ml_app: Optional[str] = None) -> list[PromptResponse]:
+        path = PROMPTS_ENDPOINT
+        if ml_app:
+            path = f"{PROMPTS_ENDPOINT}?{urlencode({'ml_app': ml_app})}"
+        result = self._request("GET", path)
+        data: list[PromptResponse] = result.get("data", [])
+        return data
+
+    def list_prompt_versions(self, prompt_id: str) -> list[PromptVersionResponse]:
+        escaped_id = quote(prompt_id, safe="")
+        result = self._request("GET", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions")
+        data: list[PromptVersionResponse] = result.get("data", [])
+        return data

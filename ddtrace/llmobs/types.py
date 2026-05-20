@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Callable
+from typing import Literal
 from typing import Optional
 from typing import TypedDict
 from typing import Union
@@ -40,6 +41,54 @@ class ToolDefinition(TypedDict, total=False):
     description: str
     schema: dict[str, Any]
     version: str
+
+
+PromptLabel = Literal["development", "production"]
+
+
+class ChatMessage(TypedDict):
+    """A single message in a chat prompt template."""
+
+    role: str
+    content: str
+
+
+class PromptResponse(TypedDict, total=False):
+    id: str
+    prompt_id: str
+    title: str
+    description: str
+    created_at: str
+    source: str
+    num_versions: int
+    in_registry: bool
+    created_from: str
+    author: str
+    ml_app: str
+    ml_apps: list[str]
+    last_version_created_at: str
+    extracted_from: str
+
+
+class PromptVersionResponse(TypedDict, total=False):
+    id: str
+    prompt_uuid: str
+    prompt_id: str
+    template: Union[str, list[ChatMessage]]
+    version: int
+    user_version: str
+    labels: list[str]
+    created_at: str
+    version_created_at: str
+    author: str
+    description: str
+    ml_app: str
+
+
+class DeletedPromptResponse(TypedDict, total=False):
+    id: str
+    prompt_id: str
+    deleted_at: str
 
 
 class Message(TypedDict, total=False):
@@ -123,3 +172,37 @@ class _SpanLink(TypedDict):
 
 
 PromptFallback = Optional[Union[str, list[Message], Prompt, Callable[[], Union[str, list[Message], Prompt]]]]
+
+
+class PromptAPIError(Exception):
+    """Base exception for prompt management API errors."""
+
+    def __init__(self, status: int, detail: str) -> None:
+        self.status = status
+        self.detail = detail
+        super().__init__(f"Prompt API error ({status}): {detail}")
+
+
+class PromptAuthError(PromptAPIError):
+    """Raised on 401 Unauthorized or 403 Forbidden."""
+    pass
+
+
+class PromptValidationError(PromptAPIError):
+    """Raised on 400 Bad Request."""
+    pass
+
+
+class PromptNotFoundError(PromptAPIError):
+    """Raised on 404 Not Found."""
+    pass
+
+
+class PromptConflictError(PromptAPIError):
+    """Raised on 409 Conflict."""
+    pass
+
+
+class PromptServerError(PromptAPIError):
+    """Raised on 5xx server errors."""
+    pass

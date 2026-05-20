@@ -10,6 +10,11 @@ from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
+from ddtrace.llmobs.types import PromptAuthError
+from ddtrace.llmobs.types import PromptConflictError
+from ddtrace.llmobs.types import PromptNotFoundError
+from ddtrace.llmobs.types import PromptServerError
+from ddtrace.llmobs.types import PromptValidationError
 from tests.utils import override_global_config
 
 
@@ -353,3 +358,56 @@ class TestPrompts:
                 manager._trigger_background_refresh("greeting:production", "greeting", "production")
 
         assert refresh_mock.call_count == 2
+
+
+def _make_manager(app_key="test-app-key"):
+    return PromptManager(
+        api_key="test-key",
+        base_url="https://api.datadoghq.com",
+        app_key=app_key,
+        file_cache_enabled=False,
+    )
+
+
+def _mock_write_api(status=200, body=None):
+    """Create a mock API that captures request details."""
+    conn = MockHTTPConnection(MockHTTPResponse(status, body))
+    return conn, patch("ddtrace.llmobs._prompts.manager.get_connection", lambda *a, **k: conn)
+
+
+class TestPromptManagement:
+    """Tests for prompt management (write) operations."""
+
+    @pytest.mark.parametrize(
+        "status,exc_type",
+        [
+            (400, PromptValidationError),
+            (401, PromptAuthError),
+            (403, PromptAuthError),
+            (404, PromptNotFoundError),
+            (409, PromptConflictError),
+            (500, PromptServerError),
+            (503, PromptServerError),
+        ],
+    )
+    def test_request_error_status_codes(self, status, exc_type):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(status, {"detail": "something went wrong"})
+        with mock_patch:
+            with pytest.raises(exc_type) as exc_info:
+                manager.list_prompts()
+            assert exc_info.value.status == status
+
+    def test_delete_prompt_evicts_cache(self):
+        manager = _make_manager()
+        manager._hot_cache.set(
+            "my-prompt:production",
+            ManagedPrompt(id="my-prompt", version="v1", label="production", source="registry", template=[]),
+        )
+        assert len(manager._hot_cache) == 1
+
+        conn, mock_patch = _mock_write_api(200, {})
+        with mock_patch:
+            manager.delete_prompt("my-prompt")
+
+        assert len(manager._hot_cache) == 0

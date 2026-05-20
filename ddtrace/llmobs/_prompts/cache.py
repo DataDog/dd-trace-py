@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
 from threading import RLock
 from time import time
@@ -77,6 +78,13 @@ class HotCache:
         with self._lock:
             self._cache.clear()
 
+    def evict_prompt(self, prompt_id: str) -> None:
+        prefix = f"{prompt_id}:"
+        with self._lock:
+            keys_to_remove = [k for k in self._cache if k.startswith(prefix)]
+            for k in keys_to_remove:
+                del self._cache[k]
+
     def __len__(self) -> int:
         with self._lock:
             return len(self._cache)
@@ -128,8 +136,10 @@ class WarmCache:
             self._enabled = False
 
     def _key_to_path(self, key: str) -> Path:
-        safe_key = key.replace(":", "_").replace("/", "_").replace("\\", "_")
-        return self._cache_dir / f"{safe_key}.json"
+        prompt_id, _, label = key.partition(":")
+        safe_id = prompt_id.replace("/", "_").replace("\\", "_")
+        safe_label = label.replace("/", "_").replace("\\", "_") if label else "_default"
+        return self._cache_dir / safe_id / f"{safe_label}.json"
 
     def get(self, key: str) -> Optional[tuple[ManagedPrompt, bool]]:
         """Load a prompt from file cache.
@@ -163,6 +173,7 @@ class WarmCache:
         data = entry._serialize()
         try:
             with self._lock:
+                path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(data, f)
                 os.chmod(path, 0o600)
@@ -182,14 +193,25 @@ class WarmCache:
             except OSError as e:
                 log.debug("Failed to delete prompt from cache: %s", e)
 
+    def evict_prompt(self, prompt_id: str) -> None:
+        if not self._enabled or not self._cache_dir:
+            return
+        safe_id = prompt_id.replace("/", "_").replace("\\", "_")
+        prompt_dir = self._cache_dir / safe_id
+        with self._lock:
+            shutil.rmtree(prompt_dir, ignore_errors=True)
+
     def clear(self) -> None:
         """Clear all cached prompts."""
         if not self._enabled:
             return
 
         with self._lock:
-            for path in self._cache_dir.glob("*.json"):
+            for item in self._cache_dir.iterdir():
                 try:
-                    path.unlink()
+                    if item.is_dir():
+                        shutil.rmtree(item)
+                    else:
+                        item.unlink()
                 except OSError as e:
-                    log.debug("Failed to delete cached prompt %s: %s", path, e)
+                    log.debug("Failed to delete cached prompt %s: %s", item, e)
