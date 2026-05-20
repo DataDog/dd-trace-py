@@ -73,6 +73,8 @@ class PromptManager:
         fallback: PromptFallback = None,
     ) -> ManagedPrompt:
         """Retrieve a prompt template from the registry."""
+        if not self._headers.get("DD-API-KEY"):
+            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
         key = cache_key(prompt_id, label)
 
         if self._cache_enabled:
