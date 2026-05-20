@@ -150,6 +150,7 @@ class heap_tracker_t
         std::unique_ptr<traceback_t> owner; // set for REMOVE, null for ADD
         Kind kind;
         bool tombstone_applied = false; // REMOVE only; true after heap_space is negated
+        bool collapsed = false;         // ADD only; true when a matching REMOVE canceled this event
         uint8_t failed_attempts = 0;    // export retries counter; events exceeding MAX are dropped
     };
 
@@ -205,6 +206,16 @@ class heap_tracker_t
      * option. */
     static constexpr size_t PENDING_CHANGES_RESERVE = 4096;
     std::vector<change_event> pending_changes;
+
+    /* Pair-collapse side map: ptr -> index of its pending ADD event in
+     * pending_changes. When untrack arrives for a ptr that has a still-pending
+     * ADD (i.e., the allocation was tracked and freed within the same snapshot
+     * interval), both events are canceled before reaching libdatadog — the ADD
+     * is marked `collapsed`, no REMOVE is queued, and the traceback returns to
+     * the pool immediately. Saves ~2 Profile_add2 calls per churn pair, which
+     * dominates CPU on alloc-then-free hot loops (see PR #18125 review). */
+    static constexpr size_t PENDING_ADD_IDX_RESERVE = 1024;
+    HeapMapType<void*, size_t> pending_add_idx;
 };
 
 // Pool implementation
@@ -268,6 +279,7 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
     // Pre-allocate map capacity to avoid rehashing during ramp-up.
     allocs_m.reserve(INITAL_ALLOC_MAP_CAPACITY);
     pending_changes.reserve(PENDING_CHANGES_RESERVE);
+    pending_add_idx.reserve(PENDING_ADD_IDX_RESERVE);
 }
 
 void
@@ -276,16 +288,31 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     auto node = allocs_m.extract(ptr);
-    if (!node.empty()) {
-        /* Move the traceback into a REMOVE event so it stays alive until the
-         * next export emits its tombstone. heap_space negation is deferred to
-         * emit time so any earlier ADD event aliasing this traceback (same ptr
-         * tracked and freed within the same snapshot) still emits its original
-         * positive value before the REMOVE flips the sign. */
-        auto owner = std::move(node.mapped());
-        auto* raw = owner.get();
-        pending_changes.push_back({ ptr, raw, std::move(owner), change_event::REMOVE });
+    if (node.empty()) {
+        return;
     }
+    auto owner = std::move(node.mapped());
+
+    /* Pair-collapse: if a still-pending ADD targets this same ptr, the
+     * allocation was tracked AND freed within this snapshot interval — both
+     * events would aggregate to a zero bucket on the backend anyway, so skip
+     * both and reclaim the traceback immediately. Eliminates the dominant
+     * libdatadog cost in alloc-then-free hot loops. */
+    auto it = pending_add_idx.find(ptr);
+    if (it != pending_add_idx.end()) {
+        pending_changes[it->second].collapsed = true;
+        pending_add_idx.erase(it);
+        pool_put_no_cpython(std::move(owner));
+        return;
+    }
+
+    /* No pending ADD — the allocation was tracked in an earlier snapshot
+     * interval and the backend already integrated its positive contribution.
+     * Queue a REMOVE so the next export emits a negative tombstone. heap_space
+     * negation is deferred to emit time so any same-snapshot raw-ptr aliasing
+     * sees the original positive value first. */
+    auto* raw = owner.get();
+    pending_changes.push_back({ ptr, raw, std::move(owner), change_event::REMOVE });
 }
 
 bool
@@ -325,8 +352,10 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     /* Record ADD event referencing the live traceback. The raw pointer remains
      * valid until export: either the entry stays in allocs_m, or a subsequent
      * untrack moves ownership into a REMOVE event in pending_changes — both
-     * are cleared in the same export pass. */
+     * are cleared in the same export pass. Index this event in pending_add_idx
+     * so a same-snapshot-interval free can find and collapse it. */
     pending_changes.push_back({ ptr, it->second.get(), nullptr, change_event::ADD });
+    pending_add_idx[ptr] = pending_changes.size() - 1;
 
     // Get ready for the next sample
     reset_sampling_state_no_cpython();
@@ -361,6 +390,11 @@ heap_tracker_t::export_heap_no_cpython()
      * out of scope for v1; see heap-export-delta-tracking-design.md. */
     std::vector<change_event> retained;
     for (auto& evt : pending_changes) {
+        // Skip ADDs that were canceled by a matching REMOVE within this
+        // snapshot interval — neither half reaches libdatadog.
+        if (evt.collapsed) {
+            continue;
+        }
         if (evt.kind == change_event::REMOVE && !evt.tombstone_applied) {
             evt.tb->sample.negate_heap_space();
             evt.tombstone_applied = true;
@@ -384,6 +418,11 @@ heap_tracker_t::export_heap_no_cpython()
         retained.push_back(std::move(evt));
     }
     pending_changes = std::move(retained);
+    /* The side map's indices reference positions in the now-discarded vector;
+     * any retained ADDs lose their collapse capability on the next snapshot.
+     * Rebuilding the map here would preserve it, but retained events are rare
+     * (only on libdatadog rejection) — clearing keeps the export path simple. */
+    pending_add_idx.clear();
 
     Datadog::Sample::profile_borrow().stats().set_heap_tracker_size(allocs_m.size());
 }
@@ -411,8 +450,9 @@ heap_tracker_t::postfork_child()
 
     // Pending delta events may contain raw pointers into allocs_m and owned
     // tracebacks; clear before dropping allocs_m so the raw pointers in any
-    // ADD events do not get stranded.
+    // ADD events do not get stranded. Side map indices alias these events.
     pending_changes.clear();
+    pending_add_idx.clear();
 
     // Allocations map may contain data from the parent process, and also
     // traceback_t objects may reference invalid Profile state.
