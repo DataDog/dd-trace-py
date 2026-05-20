@@ -1996,7 +1996,7 @@ class LLMObs(Service):
             A list of prompts.
 
         Raises:
-            PromptAuthError: Invalid or missing API/app key.
+            PromptAuthError: Invalid API key.
             PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
@@ -2013,7 +2013,7 @@ class LLMObs(Service):
             A list of prompt versions.
 
         Raises:
-            PromptAuthError: Invalid or missing API/app key.
+            PromptAuthError: Invalid API key.
             PromptNotFoundError: Prompt does not exist.
             PromptServerError: Server-side error.
         """

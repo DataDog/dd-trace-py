@@ -284,15 +284,17 @@ class PromptManager:
         path: str,
         body: Optional[dict[str, Any]] = None,
         timeout: Optional[float] = None,
+        require_app_key: bool = True,
     ) -> dict[str, Any]:
-        if not self._app_key:
-            raise PromptAPIError(0, "DD_APP_KEY is required for prompt management operations")
+        if require_app_key and not self._app_key:
+            raise PromptAPIError(0, "DD_APP_KEY is required for prompt write operations")
 
         headers = {
             **self._headers,
-            "DD-APPLICATION-KEY": self._app_key,
             "Content-Type": "application/json",
         }
+        if self._app_key:
+            headers["DD-APPLICATION-KEY"] = self._app_key
         conn = None
         try:
             conn = get_connection(self._base_url, timeout=timeout or self._timeout)
@@ -406,12 +408,12 @@ class PromptManager:
         path = PROMPTS_ENDPOINT
         if ml_app:
             path = f"{PROMPTS_ENDPOINT}?{urlencode({'ml_app': ml_app})}"
-        result = self._request("GET", path)
+        result = self._request("GET", path, require_app_key=False)
         data: list[PromptResponse] = result.get("data", [])
         return data
 
     def list_prompt_versions(self, prompt_id: str) -> list[PromptVersionResponse]:
         escaped_id = quote(prompt_id, safe="")
-        result = self._request("GET", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions")
+        result = self._request("GET", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", require_app_key=False)
         data: list[PromptVersionResponse] = result.get("data", [])
         return data
