@@ -5,7 +5,6 @@ Python's faulthandler module installs a SIGSEGV handler that can interfere with
 the stack profiler's safe_memcpy recovery mechanism. This module wraps
 faulthandler.enable and faulthandler.disable to reinstall our handler on top,
 ensuring both systems coexist correctly:
-
 - Our handler recovers from expected faults during safe_memcpy (siglongjmp)
 - For unexpected faults, we chain to faulthandler's handler for traceback output
 
