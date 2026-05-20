@@ -1543,10 +1543,11 @@ except EnvironmentError as e:
 
 
 def get_exts_for(name):
+    path = Path("ddtrace/vendor/{}/setup.py".format(name))
+    if CURRENT_OS != "Windows":
+        path = HERE / path
     try:
-        mod = load_module_from_project_file(
-            "ddtrace.vendor.{}.setup".format(name), HERE / "ddtrace/vendor/{}/setup.py".format(name)
-        )
+        mod = load_module_from_project_file("ddtrace.vendor.{}.setup".format(name), path)
         return mod.get_extensions()
     except Exception as e:
         print("WARNING: Failed to load %s extensions, skipping: %s" % (name, e))
