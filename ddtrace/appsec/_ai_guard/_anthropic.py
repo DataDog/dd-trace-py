@@ -10,11 +10,13 @@ non-streaming + streaming. For streaming responses only the
 """
 
 import json
+from typing import Any
 
 from ddtrace.appsec._ai_guard._common import _get
 from ddtrace.appsec._ai_guard._common import wrap_abort_error
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
+from ddtrace.appsec.ai_guard._api_client import AIGuardClient
 from ddtrace.appsec.ai_guard._api_client import Function
 from ddtrace.appsec.ai_guard._api_client import Message
 from ddtrace.appsec.ai_guard._api_client import Options
@@ -53,7 +55,7 @@ def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:
     return wrap_abort_error(cause, exception_class)
 
 
-def _tool_call_from_block(block):
+def _tool_call_from_block(block: Any) -> ToolCall:
     """Convert a single Anthropic ``tool_use`` content block to an AI Guard ``ToolCall``.
 
     Anthropic delivers ``input`` as a parsed dict; AI Guard's schema is
@@ -72,7 +74,7 @@ def _tool_call_from_block(block):
     )
 
 
-def _flatten_text_blocks(value):
+def _flatten_text_blocks(value: Any) -> str:
     """Join ``text`` fields from a list of Anthropic content blocks (str or list).
 
     - ``str`` → returned as-is.
@@ -96,7 +98,7 @@ def _flatten_text_blocks(value):
     return str(value)
 
 
-def _convert_anthropic_messages(system, messages):
+def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
     """Convert Anthropic messages + ``system`` prompt to AI Guard ``Message`` format.
 
     Anthropic exposes ``system`` as a separate top-level kwarg (``str`` or a
@@ -185,7 +187,7 @@ def _convert_anthropic_messages(system, messages):
     return result
 
 
-def _convert_anthropic_response(resp):
+def _convert_anthropic_response(resp: Any) -> list[Message]:
     """Convert a non-streaming Anthropic ``Message`` response to AI Guard ``Message`` list.
 
     Anthropic responses expose ``role`` (always ``"assistant"``) and a
@@ -226,7 +228,7 @@ def _convert_anthropic_response(resp):
         return []
 
 
-def _anthropic_messages_create_before(client, kwargs):
+def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:
     """Listener for ``anthropic.messages.create.before``.
 
     Evaluates the request inputs before the Anthropic SDK is called. Fires for
@@ -279,7 +281,7 @@ def _anthropic_messages_create_before(client, kwargs):
     return None
 
 
-def _anthropic_messages_create_after(client, kwargs, resp):
+def _anthropic_messages_create_after(client: AIGuardClient, kwargs: dict[str, Any], resp: Any) -> None:
     """Listener for ``anthropic.messages.create.after``.
 
     Evaluates the full conversation (request + response) after the model
