@@ -167,7 +167,7 @@ variables:
 
 "build macos arm64":
   extends: .build_macos_base
-  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-45b9a656-114084518"
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-622a3e14-114108746"
   tags: [ "macos:sonoma-tart" ]
   variables:
     ARCH_TAG: "arm64"
@@ -184,13 +184,6 @@ variables:
     # Forces word splitting in zsh
     setopt shwordsplit 2>/dev/null || true
     set -euo pipefail
-    # DEBUG: probe shell + bash_profile state on the tart VM
-    echo "--- debug ---"; echo "SHELL=${SHELL:-<unset>}"; echo "BASH_VERSION=${BASH_VERSION:-<unset>}"
-    echo "argv0=$0"; echo "PATH=$PATH"
-    ls -la "$HOME/.bash_profile" "$HOME/.bashrc" "$HOME/.profile" 2>&1 || true
-    [ -f "$HOME/.bash_profile" ] && { echo "--- .bash_profile ---"; cat "$HOME/.bash_profile"; echo "--- end ---"; }
-    # Safety net: ensure brew is on PATH even if .bash_profile wasn't sourced.
-    [ -x /opt/homebrew/bin/brew ] && eval "$(/opt/homebrew/bin/brew shellenv)"
     if ! command -v sccache &> /dev/null; then
       brew install sccache
     fi

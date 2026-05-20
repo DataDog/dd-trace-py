@@ -36,7 +36,7 @@
 
 os tests macos:
   extends: .multi_os_test_base
-  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-45b9a656-114084518"
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-622a3e14-114108746"
   tags: ["macos:sonoma-tart"]
   needs: [ "build macos arm64" ]
   variables:
@@ -48,9 +48,6 @@ os tests macos:
     FF_SCRIPT_SECTIONS: "true"
   script:
     - |
-      # SSHd starts bash non-interactively so neither .bash_profile nor
-      # .bashrc (missing) is sourced. Set up brew on PATH manually.
-      [ -x /opt/homebrew/bin/brew ] && eval "$(/opt/homebrew/bin/brew shellenv)"
       for PYTHON_VERSION in 3.10 3.12 3.14; do
         export PYTHON_VERSION
         bash .gitlab/scripts/multi-os-tests.sh
