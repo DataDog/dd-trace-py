@@ -104,7 +104,7 @@ class Flare:
         finally:
             self.clean_up_files()
 
-    def revert_configs(self):
+    def revert_configs(self) -> None:
         ddlogger = get_logger("ddtrace")
         if self.file_handler:
             ddlogger.removeHandler(self.file_handler)
@@ -172,7 +172,7 @@ class Flare:
         valid_original_level = 100 if self.original_log_level == 0 else self.original_log_level
         return min(valid_original_level, flare_log_level)
 
-    def clean_up_files(self):
+    def clean_up_files(self) -> None:
         """Clean up the flare directory using Python's shutil."""
         flare_lock = self.flare_dir / TRACER_FLARE_LOCK
         if flare_lock.exists():
