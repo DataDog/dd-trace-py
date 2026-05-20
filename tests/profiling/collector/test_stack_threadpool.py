@@ -38,11 +38,23 @@ def patch_futures():
 
 
 def test_link_span_plain_context_uses_span_id_as_local_root() -> None:
-    """Context activation without propagated root metadata must link using span_id."""
+    """Context activation without profiler _meta must link using span_id as local root."""
     if not stack_module.is_available:
         pytest.skip("stack profiler not available")
 
     ctx = Context(trace_id=123, span_id=456)
+    stack_module.link_span(ctx)
+
+
+def test_link_span_context_reads_profiler_meta() -> None:
+    """Context._meta profiler keys supply full local root and span type linkage."""
+    from ddtrace.internal.datadog.profiling import context_meta
+
+    if not stack_module.is_available:
+        pytest.skip("stack profiler not available")
+
+    ctx = Context(trace_id=123, span_id=456)
+    context_meta.attach_profiler_link(ctx, local_root_span_id=789, span_type="web")
     stack_module.link_span(ctx)
 
 

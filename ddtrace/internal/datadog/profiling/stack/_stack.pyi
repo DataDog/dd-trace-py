@@ -1,7 +1,5 @@
 """Type stubs for the native `_stack` C extension module."""
 
-# pylint: disable=unused-argument
-
 import asyncio
 from types import FrameType
 from typing import Any

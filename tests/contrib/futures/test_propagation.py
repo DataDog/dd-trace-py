@@ -480,8 +480,10 @@ def test_submit_does_not_mutate_thread_local_context(tracer):
         tracer.context_provider.activate(None)
 
 
-def test_submit_propagates_shallow_context_copy(tracer):
-    """Worker receives a shallow Context copy; parent context object is unchanged."""
+def test_submit_propagates_context_copy_with_profiler_meta(tracer):
+    """Worker receives a Context copy with profiler linkage in _meta; parent context is unchanged."""
+
+    from ddtrace.internal.datadog.profiling import context_meta
 
     propagated = []
 
@@ -498,7 +500,11 @@ def test_submit_propagates_shallow_context_copy(tracer):
     assert worker_ctx is not parent_ctx
     assert worker_ctx.trace_id == parent.trace_id
     assert worker_ctx.span_id == parent.span_id
-    assert worker_ctx._meta is parent_ctx._meta
+    assert worker_ctx._meta is not parent_ctx._meta
+    assert context_meta.PROFILING_LOCAL_ROOT_SPAN_ID_KEY in worker_ctx._meta
+    assert int(worker_ctx._meta[context_meta.PROFILING_LOCAL_ROOT_SPAN_ID_KEY], 16) == parent._local_root.span_id
+    assert worker_ctx._meta.get(context_meta.PROFILING_SPAN_TYPE_KEY) == parent._local_root.span_type
+    assert context_meta.PROFILING_LOCAL_ROOT_SPAN_ID_KEY not in parent_ctx._meta
 
 
 def test_submit_no_wait(tracer, test_spans):

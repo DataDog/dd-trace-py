@@ -10,19 +10,16 @@ try:
 
     from ddtrace._trace import context
     from ddtrace._trace import span as ddspan
+    from ddtrace.internal.datadog.profiling import context_meta
 
     from . import _stack
     from ._stack import *  # noqa: F403, F401  # type: ignore[assignment]
 
     is_available = True
 
-    # Thread-local storage for local-root span info propagated across threads
+    # Thread-local storage for local-root span info read from Context._meta on activation.
+    # Child Spans created on the worker from a propagated Context use this value.
     _propagated_root: threading.local = threading.local()
-
-    def set_propagated_root(local_root_span_id: int, span_type: typing.Optional[str] = None) -> None:
-        """Stash local-root linkage for the current worker thread before Context activation."""
-        _propagated_root.span_id = local_root_span_id
-        _propagated_root.span_type = span_type
 
     def link_span(span: typing.Optional[typing.Union[context.Context, ddspan.Span]]):
         if isinstance(span, ddspan.Span):
@@ -39,11 +36,9 @@ try:
                 local_root_span_type = span._local_root.span_type
             _stack.link_span(span_id, local_root_span_id, local_root_span_type)
         elif isinstance(span, context.Context) and span.span_id is not None:
-            # Context only carries the active span_id (parent). Use thread-local
-            # local-root info when the futures integration provided it; otherwise
-            # fall back to span_id for both linkage fields. span_type is best-effort.
-            local_root_span_id = getattr(_propagated_root, "span_id", None) or span.span_id
-            span_type = getattr(_propagated_root, "span_type", None)
+            local_root_span_id, span_type = context_meta.read_profiler_link(span)
+            _propagated_root.span_id = local_root_span_id
+            _propagated_root.span_type = span_type
             _stack.link_span(span.span_id, local_root_span_id, span_type)
 
 except Exception as e:
