@@ -136,6 +136,20 @@ variables:
     SYSTEM_VERSION_COMPAT: "0"
     MACOSX_DEPLOYMENT_TARGET: "14.7"
     DD_USE_SCCACHE: "1"
+  script: |
+    set -euo pipefail
+    if ! command -v sccache &> /dev/null; then
+      brew install sccache
+    fi
+    for python_version in ${PYTHON_VERSIONS}; do
+      echo -e "\e[0Ksection_start:`date +%s`:build_macos_${python_version}\r\e[0KBuilding macOS wheel for Python ${python_version}"
+
+      export UV_PYTHON="${python_version}"
+      .gitlab/scripts/build-wheel.sh
+
+      echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
+    done
+    sccache --show-stats
 
 # "build macos amd64":
 #   extends: .build_macos_base
@@ -177,7 +191,10 @@ variables:
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
     SCCACHE_REGION: "us-east-1"
     FF_SCRIPT_SECTIONS: "false"
-  script: |
+  before_script: |
+    # Tart VMs default to zsh; the shared build loop has a space-separated
+    # for-loop that needs explicit word splitting under zsh (no-op in bash).
+    setopt shwordsplit 2>/dev/null || true
     set -euo pipefail
     # sccache's reqsign credential loader hardcodes the IMDS IP
     # (169.254.169.254) and ignores $AWS_EC2_METADATA_SERVICE_ENDPOINT,
@@ -188,7 +205,6 @@ variables:
     export AWS_ACCESS_KEY_ID=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["AccessKeyId"])' <<<"$creds")
     export AWS_SECRET_ACCESS_KEY=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["SecretAccessKey"])' <<<"$creds")
     export AWS_SESSION_TOKEN=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["Token"])' <<<"$creds")
-    bash .gitlab/scripts/build-macos-wheels.sh
 
 # "upload manylinux2014_x86_64":
 #   extends: .upload_wheels_base
