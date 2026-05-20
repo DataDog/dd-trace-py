@@ -15,8 +15,6 @@ import logging
 import socket
 import typing as t
 
-from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
-from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
 from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import Subdomain
@@ -91,7 +89,14 @@ class LogInjectionPatch:
 
     ``Formatter.format`` is called synchronously inside the same stack frame as
     the original ``logger.info(...)`` call, so the test span is always still
-    active when we read ``get_log_correlation_context()``.
+    active when we read from the tracer context.
+
+    The trace_id is read directly from the active span and truncated to 64 bits
+    (``span.trace_id % (1 << 64)``) to match the value stored in
+    ``DDTraceTestContext`` and serialised into the test event payload.  Using
+    ``get_log_correlation_context()`` instead would return the full 128-bit
+    trace_id formatted as a 32-char hex string, which does not match the 64-bit
+    integer the backend receives for the test span.
 
     A ``logging.Filter`` on the root logger is NOT sufficient because Python's
     ``callHandlers()`` propagates records to parent-logger *handlers* directly,
@@ -128,9 +133,18 @@ class LogInjectionPatch:
         try:
             import ddtrace
 
-            ctx = ddtrace.tracer.get_log_correlation_context()
-            trace_id = ctx.get(LOG_ATTR_TRACE_ID, LOG_ATTR_VALUE_ZERO)
-            span_id = ctx.get(LOG_ATTR_SPAN_ID, LOG_ATTR_VALUE_ZERO)
+            active = ddtrace.tracer.context_provider.active()
+            trace_id_raw = getattr(active, "trace_id", None)
+            span_id_raw = getattr(active, "span_id", None)
+            if trace_id_raw:
+                # Truncate to 64 bits to match DDTraceTestContext and the test event payload.
+                # get_log_correlation_context() would return the full 128-bit trace_id as a
+                # 32-char hex string, which does not match the 64-bit integer the backend
+                # stores for the test span.
+                trace_id = str(trace_id_raw % (1 << 64))
+                span_id = str(span_id_raw) if span_id_raw else LOG_ATTR_VALUE_ZERO
+            else:
+                trace_id = span_id = LOG_ATTR_VALUE_ZERO
             result = f"[dd:{trace_id},{span_id}] {result}"
         except Exception:  # nosec B110 - never let instrumentation break logging
             pass
