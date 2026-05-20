@@ -72,7 +72,8 @@
             "span.kind": "internal"
           },
           "metrics": {
-            "_dd.measured": 1.0
+            "_dd.measured": 1.0,
+            "aws.durable.operation_retry_attempt": 0
           },
           "duration": 107436542,
           "start": 1777446909595367168
@@ -95,7 +96,8 @@
             "span.kind": "internal"
           },
           "metrics": {
-            "_dd.measured": 1.0
+            "_dd.measured": 1.0,
+            "aws.durable.operation_retry_attempt": 0
           },
           "duration": 106661792,
           "start": 1777446909595732251

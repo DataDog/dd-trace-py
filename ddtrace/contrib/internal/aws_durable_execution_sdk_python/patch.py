@@ -36,6 +36,9 @@ config._add("aws_durable_execution_sdk_python", {})
 # Children of map/parallel can have unbounded names, increasing cardinality.
 _DYNAMIC_PARENT_OPERATIONS = frozenset({"aws.durable.map", "aws.durable.parallel"})
 
+# Operations that use the SDK's retry mechanism (StepDetails.attempt).
+_RETRYABLE_OPERATIONS = frozenset({"aws.durable.step", "aws.durable.wait_for_condition"})
+
 
 def get_version() -> str:
     return getattr(aws_durable_execution_sdk_python, "__version__", "")
@@ -143,6 +146,15 @@ def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict)
             checkpoint = instance.state.get_checkpoint_result(operation_id)
             event.replayed = checkpoint.is_succeeded()
             event.id = operation_id
+            # step_details.attempt is the count of completed attempts before the
+            # current one: 0 for the original attempt, 1 for the first retry, etc.
+            # When no checkpoint exists yet (the original attempt), step_details is None.
+            if isinstance(event, AwsDurableOperationEvent) and event.operation in _RETRYABLE_OPERATIONS:
+                operation = checkpoint.operation
+                if operation is not None and operation.step_details is not None:
+                    event.operation_retry_attempt = operation.step_details.attempt
+                else:
+                    event.operation_retry_attempt = 0
     return wrapped(*args, **kwargs)
 
 
