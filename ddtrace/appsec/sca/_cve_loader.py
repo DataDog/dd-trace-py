@@ -134,10 +134,6 @@ def load_cve_targets(installed_packages: dict[str, str]) -> list[dict[str, Any]]
             # Package not installed — skip
             continue
 
-        # AIDEV-NOTE: The advisory id reported in telemetry is the top-level
-        # entry "id" (e.g. "GHSA-..."), not the inner "vulnerability.id"
-        # (which carries the CVE number). The wire contract requires the
-        # advisory id so consumers can dedupe across CVE mappings.
         advisory_id = entry.get("id", "")
         constraints = entry.get("package_versions", [])
         if not _any_version_matches(installed_ver, constraints):
