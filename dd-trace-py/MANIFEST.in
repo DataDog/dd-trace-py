@@ -1,6 +1,7 @@
 graft cmake
 graft ddtrace
 graft src
+graft requirements.py
 
 recursive-exclude * **/__pycache__/*
 prune .riot/
