@@ -6,7 +6,7 @@ FROM debian:trixie-slim@sha256:4ffb3a1511099754cddc70eb1b12e50ffdb67619aa0ab6c13
 
 ARG TARGETARCH
 ARG RIOT_VERSION=0.21.0
-ARG UV_VERSION=0.9.0
+ARG UV_VERSION=0.11.14
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
@@ -120,7 +120,7 @@ COPY .python-version /home/bits/
 RUN npm install -g @datadog/datadog-ci
 
 # Install pyenv and necessary Python versions
-RUN git clone --depth 1 --branch "v2.6.17" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+RUN git clone --depth 1 --branch "v2.6.31" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 

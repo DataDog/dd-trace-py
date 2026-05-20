@@ -669,28 +669,32 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_BYTECODE_INJECTION_INCLUDE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_BYTECODE_INJECTION_OUTPUT_FILE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_BYTECODE_INJECTION_STATUS_MESSAGES": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_CARGO_ARGS": [
@@ -976,9 +980,9 @@
     ],
     "DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false"
+        "default": "true"
       }
     ],
     "DD_CRASHTRACKING_MAX_THREADS": [
@@ -1120,91 +1124,104 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_CONSERVATIVE": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_COVERAGE_DELETE_LINE_PROBES": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_COVERAGE_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_COVERAGE_INSTRUMENTATION_RATE": [
       {
         "implementation": "A",
         "type": "decimal",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_ELUSIVE": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_ENCODE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_INCLUDE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_OUTPUT_FILE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_PROFILER_DELETE_FUNCTION_PROBES": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_PROFILER_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_PROFILER_INSTRUMENTATION_RATE": [
       {
         "implementation": "A",
         "type": "decimal",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_STATUS_MESSAGES": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DISABLE_VPA": [
@@ -1554,7 +1571,7 @@
       {
         "implementation": "A",
         "type": "int",
-        "default": "30000",
+        "default": "10000",
         "experimental": true
       }
     ],
@@ -3951,16 +3968,6 @@
         "default": null
       }
     ],
-    "DD_TRACE_COMPUTE_STATS": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true",
-        "aliases": [
-          "DD_TRACE_STATS_COMPUTATION_ENABLED"
-        ]
-      }
-    ],
     "DD_TRACE_CONSUL_ENABLED": [
       {
         "implementation": "A",
@@ -4848,6 +4855,16 @@
         "default": "false"
       }
     ],
+    "DD_TRACE_STATS_COMPUTATION_ENABLED": [
+      {
+        "implementation": "C",
+        "type": "boolean",
+        "default": "true",
+        "aliases": [
+          "DD_TRACE_COMPUTE_STATS"
+        ]
+      }
+    ],
     "DD_TRACE_STRUCTLOG_ENABLED": [
       {
         "implementation": "A",
@@ -5562,6 +5579,14 @@
         "implementation": "A",
         "type": "int",
         "default": "10000",
+        "internal": true
+      }
+    ],
+    "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": null,
         "internal": true
       }
     ],
