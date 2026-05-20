@@ -36,16 +36,13 @@
 
 os tests macos:
   extends: .multi_os_test_base
-  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-622a3e14-114108746"
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
   tags: ["macos:sonoma-tart"]
   needs: [ "build macos arm64" ]
   variables:
     WHEEL_PATTERN: "macosx*arm64.whl"
     PLATFORM: "macOS"
-    # AIDEV-NOTE: pinned to the bash-login-shell VM image
-    # (ci-platform-machine-images PR #732) and FF_SCRIPT_SECTIONS=true
-    # set here to verify the wrapper now runs cleanly under bash.
-    FF_SCRIPT_SECTIONS: "true"
+    FF_SCRIPT_SECTIONS: "false"
   script:
     - |
       for PYTHON_VERSION in 3.10 3.12 3.14; do

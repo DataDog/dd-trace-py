@@ -167,7 +167,7 @@ variables:
 
 "build macos arm64":
   extends: .build_macos_base
-  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-622a3e14-114108746"
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
   tags: [ "macos:sonoma-tart" ]
   variables:
     ARCH_TAG: "arm64"
@@ -176,10 +176,7 @@ variables:
     # IAM role has access to so the arm64 job gets cross-job cache reuse.
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
     SCCACHE_REGION: "us-east-1"
-    # AIDEV-NOTE: pinned to the bash-login-shell VM image
-    # (ci-platform-machine-images PR #732) and FF_SCRIPT_SECTIONS=true
-    # set here to verify the wrapper now runs cleanly under bash.
-    FF_SCRIPT_SECTIONS: "true"
+    FF_SCRIPT_SECTIONS: "false"
   script: |
     set -euo pipefail
     # sccache's reqsign credential loader hardcodes the IMDS IP
