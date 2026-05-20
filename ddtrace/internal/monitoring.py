@@ -81,7 +81,7 @@ def _events_for_handler(handler: MonitoringEventHandler) -> int:
 
 def _events_for(entries: dict) -> int:
     events = 0
-    for e in entries.values():
+    for e in list(entries.values()):
         events |= e.events
     return events
 
@@ -129,7 +129,7 @@ def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     entries = _registry.get(code)
     if not entries:
         return _DISABLE
-    for e in entries.values():
+    for e in list(entries.values()):
         if e.events & _E.PY_START:
             e.handler.on_py_start(code, instruction_offset)
     return None
@@ -139,7 +139,7 @@ def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Op
     entries = _registry.get(code)
     if not entries:
         return _DISABLE
-    for e in entries.values():
+    for e in list(entries.values()):
         if e.events & _E.PY_RETURN:
             e.handler.on_py_return(code, instruction_offset, retval)
     return None
@@ -149,7 +149,7 @@ def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseExcept
     entries = _registry.get(code)
     if not entries:
         return _DISABLE
-    for e in entries.values():
+    for e in list(entries.values()):
         if e.events & _E.PY_UNWIND:
             e.handler.on_py_unwind(code, instruction_offset, exception)
     return None
@@ -160,7 +160,7 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
     if not entries:
         return _DISABLE
     disable = True
-    for e in entries.values():
+    for e in list(entries.values()):
         if e.events & _E.LINE:
             if e.handler.on_py_line(code, line_number) is not _DISABLE:
                 disable = False
