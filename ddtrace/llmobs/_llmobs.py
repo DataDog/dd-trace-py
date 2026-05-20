@@ -1866,7 +1866,7 @@ class LLMObs(Service):
             The created prompt.
 
         Raises:
-            PromptAuthError: Invalid or missing API/app key.
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
             PromptValidationError: Invalid request (bad template, missing fields).
             PromptConflictError: A prompt with this prompt_id already exists.
             PromptServerError: Server-side error.
@@ -1899,7 +1899,7 @@ class LLMObs(Service):
             The created prompt version.
 
         Raises:
-            PromptAuthError: Invalid or missing API/app key.
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
             PromptValidationError: Invalid request.
             PromptNotFoundError: Prompt does not exist.
             PromptServerError: Server-side error.
@@ -1928,7 +1928,7 @@ class LLMObs(Service):
             The updated prompt.
 
         Raises:
-            PromptAuthError: Invalid or missing API/app key.
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
             PromptValidationError: No fields provided, or invalid values.
             PromptNotFoundError: Prompt does not exist.
             PromptServerError: Server-side error.
@@ -1957,7 +1957,7 @@ class LLMObs(Service):
             The updated prompt version.
 
         Raises:
-            PromptAuthError: Invalid or missing API/app key.
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
             PromptValidationError: No fields provided, or invalid values.
             PromptNotFoundError: Prompt or version does not exist.
             PromptServerError: Server-side error.
@@ -1978,7 +1978,7 @@ class LLMObs(Service):
             Confirmation with prompt_id and deleted_at timestamp.
 
         Raises:
-            PromptAuthError: Invalid or missing API/app key.
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
             PromptNotFoundError: Prompt does not exist.
             PromptServerError: Server-side error.
         """
@@ -1996,7 +1996,7 @@ class LLMObs(Service):
             A list of prompts.
 
         Raises:
-            PromptAuthError: Invalid API key.
+            PromptAuthError: Authentication failed (check DD_API_KEY).
             PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
@@ -2013,7 +2013,7 @@ class LLMObs(Service):
             A list of prompt versions.
 
         Raises:
-            PromptAuthError: Invalid API key.
+            PromptAuthError: Authentication failed (check DD_API_KEY).
             PromptNotFoundError: Prompt does not exist.
             PromptServerError: Server-side error.
         """

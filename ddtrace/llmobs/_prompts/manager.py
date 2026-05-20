@@ -286,8 +286,10 @@ class PromptManager:
         timeout: Optional[float] = None,
         require_app_key: bool = True,
     ) -> dict[str, Any]:
+        if not self._headers.get("DD-API-KEY"):
+            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
         if require_app_key and not self._app_key:
-            raise PromptAPIError(0, "DD_APP_KEY is required for prompt write operations")
+            raise PromptAuthError(0, "DD_APP_KEY is required for prompt write operations")
 
         headers = {
             **self._headers,
