@@ -489,12 +489,14 @@ def test_debugger_multiple_function_probes_on_same_function(stuff):
         stuff.Stuff().instancestuff(42)
 
         d.collector.wait(
-            lambda q: Counter(s.probe.probe_id for s in q)
-            == {
-                "probe-instance-method-0": 1,
-                "probe-instance-method-1": 1,
-                "probe-instance-method-2": 1,
-            }
+            lambda q: (
+                Counter(s.probe.probe_id for s in q)
+                == {
+                    "probe-instance-method-0": 1,
+                    "probe-instance-method-1": 1,
+                    "probe-instance-method-2": 1,
+                }
+            )
         )
 
         d.remove_probes(probes[1])
@@ -504,12 +506,14 @@ def test_debugger_multiple_function_probes_on_same_function(stuff):
         stuff.Stuff().instancestuff(42)
 
         d.collector.wait(
-            lambda q: Counter(s.probe.probe_id for s in q)
-            == {
-                "probe-instance-method-0": 2,
-                "probe-instance-method-2": 2,
-                "probe-instance-method-1": 1,
-            }
+            lambda q: (
+                Counter(s.probe.probe_id for s in q)
+                == {
+                    "probe-instance-method-0": 2,
+                    "probe-instance-method-2": 2,
+                    "probe-instance-method-1": 1,
+                }
+            )
         )
 
         d.remove_probes(probes[0], probes[2])
@@ -1076,8 +1080,6 @@ def test_debugger_capture_expressions_function_probe(stuff):
 
 
 def test_debugger_capture_expressions_max_level(stuff):
-    from ddtrace.debugging._probe.model import CaptureLimits
-
     with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_capture_expressions_line_probe(
@@ -1086,8 +1088,13 @@ def test_debugger_capture_expressions_max_level(stuff):
                 line=36,
                 rate=float("inf"),
                 **compile_capture_expressions(
-                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}],
-                    capture=CaptureLimits(max_level=1),
+                    [
+                        {
+                            "name": "val",
+                            "expr": {"dsl": "bar", "json": {"ref": "bar"}},
+                            "capture": {"maxReferenceDepth": 1},
+                        }
+                    ]
                 ),
             ),
         )
@@ -1107,8 +1114,6 @@ def test_debugger_capture_expressions_max_level(stuff):
 
 
 def test_debugger_capture_expressions_max_len(stuff):
-    from ddtrace.debugging._probe.model import CaptureLimits
-
     with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_capture_expressions_line_probe(
@@ -1117,8 +1122,7 @@ def test_debugger_capture_expressions_max_len(stuff):
                 line=36,
                 rate=float("inf"),
                 **compile_capture_expressions(
-                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}],
-                    capture=CaptureLimits(max_len=5),
+                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}, "capture": {"maxLength": 5}}]
                 ),
             ),
         )
@@ -1133,8 +1137,6 @@ def test_debugger_capture_expressions_max_len(stuff):
 
 
 def test_debugger_capture_expressions_max_size(stuff):
-    from ddtrace.debugging._probe.model import CaptureLimits
-
     with debugger(upload_flush_interval=float("inf")) as d:
         d.add_probes(
             create_capture_expressions_line_probe(
@@ -1143,8 +1145,13 @@ def test_debugger_capture_expressions_max_size(stuff):
                 line=36,
                 rate=float("inf"),
                 **compile_capture_expressions(
-                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}],
-                    capture=CaptureLimits(max_size=2),
+                    [
+                        {
+                            "name": "val",
+                            "expr": {"dsl": "bar", "json": {"ref": "bar"}},
+                            "capture": {"maxCollectionSize": 2},
+                        }
+                    ]
                 ),
             ),
         )
@@ -1160,8 +1167,6 @@ def test_debugger_capture_expressions_max_size(stuff):
 
 
 def test_debugger_capture_expressions_max_fields(stuff):
-    from ddtrace.debugging._probe.model import CaptureLimits
-
     class MyObj:
         def __init__(self):
             self.a = 1
@@ -1176,8 +1181,7 @@ def test_debugger_capture_expressions_max_fields(stuff):
                 line=36,
                 rate=float("inf"),
                 **compile_capture_expressions(
-                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}],
-                    capture=CaptureLimits(max_fields=2),
+                    [{"name": "val", "expr": {"dsl": "bar", "json": {"ref": "bar"}}, "capture": {"maxFieldCount": 2}}]
                 ),
             ),
         )
