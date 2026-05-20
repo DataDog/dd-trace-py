@@ -50,7 +50,7 @@
        },
        "metrics": {
          "_dd.measured": 1.0,
-         "aws.durable.operation_attempt": 0
+         "aws.durable.operation_attempt": 1
        },
        "duration": 106939042,
        "start": 1777293126497979425
@@ -110,7 +110,7 @@
        },
        "metrics": {
          "_dd.measured": 1.0,
-         "aws.durable.operation_attempt": 0
+         "aws.durable.operation_attempt": 1
        },
        "duration": 111976584,
        "start": 1777293125270140966
