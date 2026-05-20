@@ -414,6 +414,8 @@ suites:
       - azurecosmosemulator
   azure_eventhubs:
     parallelism: 4
+    env:
+      CI_DEBUG_SERVICES: true
     paths:
       - '@bootstrap'
       - '@core'
