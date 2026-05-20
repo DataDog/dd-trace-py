@@ -1,4 +1,4 @@
- Build a wheel inside the Windows Docker image.
+# Build a wheel inside the Windows Docker image.
 # Usage: windows-docker-build.ps1 -VcArch <arch>
 #   VcArch: "amd64" or "x64_x86" (for x86 cross-compile)
 #

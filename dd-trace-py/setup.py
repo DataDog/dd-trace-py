@@ -1544,7 +1544,9 @@ except EnvironmentError as e:
 
 def get_exts_for(name):
     try:
-        mod = load_module_from_project_file("ddtrace.vendor.{}.setup".format(name), ("ddtrace/vendor/{}/setup.py".format(name)))
+        mod = load_module_from_project_file(
+            "ddtrace.vendor.{}.setup".format(name), ("ddtrace/vendor/{}/setup.py".format(name))
+        )
         return mod.get_extensions()
     except Exception as e:
         print("WARNING: Failed to load %s extensions, skipping: %s" % (name, e))
