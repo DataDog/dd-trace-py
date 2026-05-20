@@ -136,6 +136,11 @@ variables:
     SYSTEM_VERSION_COMPAT: "0"
     MACOSX_DEPLOYMENT_TARGET: "14.7"
     DD_USE_SCCACHE: "1"
+  parallel:
+    matrix:
+      - PYTHON_VERSIONS:
+          - "3.9 3.10 3.11"
+          - "3.12 3.13 3.14"
   script: |
     set -euo pipefail
     if ! command -v sccache &> /dev/null; then
@@ -156,12 +161,6 @@ variables:
   tags: [ "macos:sonoma-amd64", "specific:true" ]
   variables:
     ARCH_TAG: "amd64"
-  parallel:
-    matrix:
-      # amd64 runners are slower
-      - PYTHON_VERSIONS:
-          - "3.9 3.10 3.11"
-          - "3.12 3.13 3.14"
 
 # Tart VMs default to using zsh instead of bash
 "build macos arm64":
@@ -174,11 +173,6 @@ variables:
     FF_SCRIPT_SECTIONS: "false"
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
     SCCACHE_REGION: "us-east-1"
-  parallel:
-    matrix:
-      - PYTHON_VERSIONS:
-          - "3.9 3.10 3.11"
-          - "3.12 3.13 3.14"
   before_script: |
     setopt shwordsplit 2>/dev/null || true
     set -euo pipefail
