@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Agent connection error logs are no longer logged when using agentless and not running a Datadog agent.

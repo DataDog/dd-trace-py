@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from dataclasses import field
 import inspect
 import json
+import logging
 import math
 import sys
 import time
@@ -204,6 +205,22 @@ _SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
     "expected_outputs",
     "evaluators_results",
 )
+
+
+class _AgentConnectionFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not record.getMessage().startswith("failed to send, dropping")
+
+
+def _suppress_agent_connection_errors() -> None:
+    writer_logger = logging.getLogger("ddtrace.internal.writer.writer")
+    if not any(isinstance(f, _AgentConnectionFilter) for f in writer_logger.filters):
+        writer_logger.addFilter(_AgentConnectionFilter())
+
+
+def _restore_agent_connection_errors() -> None:
+    writer_logger = logging.getLogger("ddtrace.internal.writer.writer")
+    writer_logger.filters = [f for f in writer_logger.filters if not isinstance(f, _AgentConnectionFilter)]
 
 
 def _validate_task_signature(task: Callable, is_async: bool) -> None:
@@ -833,6 +850,10 @@ class LLMObs(Service):
                 # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
                 # we need to force telemetry to use agentless configuration
                 telemetry_writer.enable_agentless_client(True)
+
+                # Suppress agent connection error logs from the trace writer in agentless mode — the
+                # agent is not expected to be running, so these errors are noise.
+                _suppress_agent_connection_errors()
 
             if integrations_enabled:
                 cls._patch_integrations()
@@ -1571,6 +1592,7 @@ class LLMObs(Service):
 
         cls._instance.stop()
         cls.enabled = False
+        _restore_agent_connection_errors()
         # Align config._llmobs_enabled with effective state for user-initiated calls.
         # When _auto=True, the caller (RC handler) has already written _rc_value;
         # stamping "code" here would mask env/code state when _rc_value later clears.
