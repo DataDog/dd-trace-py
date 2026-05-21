@@ -3,6 +3,7 @@ import logging
 import os
 import random
 import time
+from typing import Any
 
 import confluent_kafka
 from confluent_kafka import TopicPartition
@@ -732,3 +733,118 @@ def test_cluster_id_success_caching(kafka_tracer, producer, kafka_topic):
     result2 = _get_cluster_id(producer, kafka_topic)
     assert result2 == result1
     assert call_count == 1  # Should still be 1 (used cache)
+
+
+def test_cluster_id_lookup_skipped_in_delivery_callback(monkeypatch: pytest.MonkeyPatch) -> None:
+    from ddtrace._trace.pin import Pin
+    from ddtrace.contrib.internal.kafka import patch as kafka_patch
+
+    class NoClusterMetadata(object):
+        cluster_id = None
+
+    class DummyProducer(object):
+        _dd_bootstrap_servers = None
+
+        def __init__(self):
+            self.list_topics_calls = 0
+
+        def list_topics(self, *args: Any, **kwargs: Any) -> NoClusterMetadata:
+            self.list_topics_calls += 1
+            return NoClusterMetadata()
+
+    producer = DummyProducer()
+    Pin(service="test").onto(producer)
+
+    monkeypatch.setattr(kafka_patch.core, "dispatch", lambda *args, **kwargs: None)
+
+    def nested_func(*args: Any, **kwargs: Any) -> str:
+        return "nested"
+
+    def user_callback(_err: Any, _msg: Any) -> None:
+        kafka_patch.traced_produce(nested_func, producer, ("nested-topic", b"payload"), {})
+
+    def outer_func(*args: Any, **kwargs: Any) -> str:
+        callback = kwargs.get("callback") or kwargs.get("on_delivery")
+        assert callback is not None
+        callback(None, None)
+        return "outer"
+
+    result = kafka_patch.traced_produce(
+        outer_func,
+        producer,
+        ("outer-topic", b"payload"),
+        {"callback": user_callback},
+    )
+
+    assert result == "outer"
+    assert producer.list_topics_calls == 1
+
+
+def test_delivery_callback_wrap_positional_slot() -> None:
+    from ddtrace.contrib.internal.kafka import patch as kafka_patch
+
+    def user_callback(_err: Any, _msg: Any) -> None:
+        pass
+
+    args = ("topic", b"payload", b"key", 0, user_callback, 12345)
+    wrapped_args, _ = kafka_patch._wrap_delivery_callback_in_args(args, {}, is_serializing=False)
+
+    assert wrapped_args[4] is not user_callback
+    assert callable(wrapped_args[4])
+    assert wrapped_args[5] == 12345
+
+    args_without_callback = ("topic", b"payload", b"key", 0, None, 999)
+    unchanged_args, _ = kafka_patch._wrap_delivery_callback_in_args(args_without_callback, {}, is_serializing=False)
+    assert unchanged_args[5] == 999
+    assert unchanged_args[4] is None
+
+
+def test_cluster_id_lookup_skipped_in_config_delivery_callback(monkeypatch: pytest.MonkeyPatch) -> None:
+    from ddtrace._trace.pin import Pin
+    from ddtrace.contrib.internal.kafka import patch as kafka_patch
+
+    class NoClusterMetadata(object):
+        cluster_id = None
+
+    class DummyProducer(object):
+        _dd_bootstrap_servers = None
+
+        def __init__(self):
+            self.list_topics_calls = 0
+
+        def list_topics(self, *args: Any, **kwargs: Any) -> NoClusterMetadata:
+            self.list_topics_calls += 1
+            return NoClusterMetadata()
+
+    producer = DummyProducer()
+    Pin(service="test").onto(producer)
+    monkeypatch.setattr(kafka_patch.core, "dispatch", lambda *args, **kwargs: None)
+
+    def nested_func(*args: Any, **kwargs: Any) -> str:
+        return "nested"
+
+    def user_callback(_err: Any, _msg: Any) -> None:
+        kafka_patch.traced_produce(nested_func, producer, ("nested-topic", b"payload"), {})
+
+    config: dict[str, Any] = {"on_delivery": user_callback}
+    kafka_patch._wrap_config_on_delivery(config)
+    config["on_delivery"](None, None)
+
+    assert producer.list_topics_calls == 0
+
+
+def test_config_on_delivery_wraps_callback() -> None:
+    from ddtrace.contrib.internal.kafka import patch as kafka_patch
+
+    state: dict[str, bool] = {}
+
+    def user_callback(_err: Any, _msg: Any) -> None:
+        state["in_callback"] = kafka_patch._in_kafka_delivery_callback()
+
+    config: dict[str, Any] = {"on_delivery": user_callback}
+    kafka_patch._wrap_config_on_delivery(config)
+    assert config["on_delivery"] is not user_callback
+
+    config["on_delivery"](None, None)
+    assert state["in_callback"] is True
+    assert kafka_patch._in_kafka_delivery_callback() is False
