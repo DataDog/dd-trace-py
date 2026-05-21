@@ -727,10 +727,7 @@ def test_gevent_cpu_time_total_accuracy() -> None:
     # TEMP DATA COLLECTION: always fail with ratio in message, so each CI run
     # dumps the observed ratio via captured stderr. Revert to bounded assert
     # below before merging.
-    assert False, (
-        f"COLLECT_RATIO={ratio:.4f} profile={profile_cpu_ns / 1e9:.3f}s "
-        f"actual={actual_cpu_ns / 1e9:.3f}s"
-    )
+    assert False, f"COLLECT_RATIO={ratio:.4f} profile={profile_cpu_ns / 1e9:.3f}s actual={actual_cpu_ns / 1e9:.3f}s"
 
     # Reject the ~1.6x over-count this test exists to catch. 1.25x gives ~25pp
     # of slack above the expected 1.0x for noise.
