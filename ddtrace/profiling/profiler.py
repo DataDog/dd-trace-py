@@ -158,7 +158,7 @@ class Profiler(object):
 
 
 class _ProfilerInstance(service.Service):
-    """A instance of the profiler.
+    """An instance of the profiler.
 
     Each process must manage its own instance.
 

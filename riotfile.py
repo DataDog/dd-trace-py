@@ -411,6 +411,7 @@ venv = Venv(
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
             },
             venvs=[
                 Venv(pys=select_pys()),
@@ -3503,7 +3504,7 @@ venv = Venv(
             name="integration_registry",
             command="pytest {cmdargs} tests/contrib/integration_registry",
             pkgs={
-                "riot": "==0.21.0",
+                "riot": "==0.22.0",
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.23.7",
                 "PyYAML": latest,
