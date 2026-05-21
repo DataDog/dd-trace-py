@@ -19,7 +19,7 @@ from ddtrace import __version__
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
-spec = importlib.util.spec_from_file_location("requirements", PROJECT_ROOT / "requirements.py")
+spec = importlib.util.spec_from_file_location("requirements", f"{PROJECT_ROOT}/requirements.py")
 reqs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(reqs)
 DDTRACE_CORE_DEPENDENCIES = reqs.install_requires

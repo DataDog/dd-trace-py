@@ -294,8 +294,8 @@ requirements_json_test:
   rules:
     - when: on_success
   variables:
-    REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
-    REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
+    REQUIREMENTS_BLOCK_JSON_PATH: "dd-trace-py/.gitlab/requirements_block.json"
+    REQUIREMENTS_ALLOW_JSON_PATH: "dd-trace-py/.gitlab/requirements_allow.json"
 
 check_requirements_lockfiles:
   stage: tests
