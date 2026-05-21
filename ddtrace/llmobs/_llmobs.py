@@ -214,7 +214,13 @@ class _AgentConnectionFilter(logging.Filter):
 
 def _suppress_agent_connection_errors() -> None:
     writer_logger = logging.getLogger("ddtrace.internal.writer.writer")
-    writer_logger.addFilter(_AgentConnectionFilter())
+    if not any(isinstance(f, _AgentConnectionFilter) for f in writer_logger.filters):
+        writer_logger.addFilter(_AgentConnectionFilter())
+
+
+def _restore_agent_connection_errors() -> None:
+    writer_logger = logging.getLogger("ddtrace.internal.writer.writer")
+    writer_logger.filters = [f for f in writer_logger.filters if not isinstance(f, _AgentConnectionFilter)]
 
 
 def _validate_task_signature(task: Callable, is_async: bool) -> None:
@@ -812,7 +818,6 @@ class LLMObs(Service):
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
-        config._llmobs_enabled = True
 
         error = None
         start_ns = time.time_ns()
@@ -1587,6 +1592,7 @@ class LLMObs(Service):
 
         cls._instance.stop()
         cls.enabled = False
+        _restore_agent_connection_errors()
         # Align config._llmobs_enabled with effective state for user-initiated calls.
         # When _auto=True, the caller (RC handler) has already written _rc_value;
         # stamping "code" here would mask env/code state when _rc_value later clears.
