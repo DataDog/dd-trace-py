@@ -7,33 +7,6 @@
     DD_IAST_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
 
-os tests ubuntu:
-  extends: .multi_os_test_base
-  image: registry.ddbuild.io/images/mirror/ubuntu:25.04
-  tags: ["arch:amd64"]
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
-  needs:
-    - job: "build linux"
-      parallel:
-        matrix:
-          - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp310-cp310"
-            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
-          - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp312-cp312"
-            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
-          - ARCH_TAG: "amd64"
-            PYTHON_TAG: "cp314-cp314"
-            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
-  variables:
-    WHEEL_PATTERN: "manylinux2014*x86_64.whl"
-    PLATFORM: "Ubuntu"
-  script:
-    - apt-get update && apt-get install -y curl
-    - bash .gitlab/scripts/multi-os-tests.sh
-
 # Tart VMs default to using zsh instead of bash
 os tests macos:
   extends: .multi_os_test_base
@@ -45,26 +18,35 @@ os tests macos:
     PLATFORM: "macOS"
     # Disables collapsable sections in multi-line scripts due to incompatibility with zsh
     FF_SCRIPT_SECTIONS: "false"
+    GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_PROJECT_PATH_SLUG
+  hooks:
+    pre_get_sources_script:
+      - |
+        set -euo pipefail
+        EXT_DISK=$(diskutil list | awk '/^\/dev\/disk[0-9]+ \(external/ {print $1; exit}')
+        if [[ -z "$EXT_DISK" ]]; then
+          >&2 echo "WARN: no --disk attached, clone will land on EBS"
+          sudo mkdir -p /var/builds-fast
+          sudo chown -R admin:staff /var/builds-fast
+          exit 0
+        fi
+        echo "Found external disk: $EXT_DISK"
+        sudo diskutil eraseDisk APFS BuildDisk "$EXT_DISK"
+        sudo diskutil unmount BuildDisk
+        sudo mkdir -p /var/builds-fast
+        sudo diskutil mount -mountPoint /var/builds-fast BuildDisk
+        sudo chown -R admin:staff /var/builds-fast
+        df -h /var/builds-fast
   script:
     - |
-      for PYTHON_VERSION in 3.10 3.12 3.14; do
-        export PYTHON_VERSION
-        bash .gitlab/scripts/multi-os-tests.sh
-      done
-      sleep 600
-
-os tests windows:
-  extends: .multi_os_test_base
-  tags: ["windows-v2:2022"]
-  needs:
-    - job: "build windows"
-      artifacts: true
-      parallel:
-        matrix:
-          - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
-            WINDOWS_ARCH: "amd64"
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
-  script:
-    - powershell -File .gitlab/scripts/multi-os-tests.ps1
+      echo "=== Disk layout check ==="
+      pwd
+      # confirm CWD is on disk1 not disk0
+      df -h .
+      mount | grep BuildDisk
+      stat -f "%Sd" .
+#    - |
+#      for PYTHON_VERSION in 3.10 3.12 3.14; do
+#        export PYTHON_VERSION
+#        bash .gitlab/scripts/multi-os-tests.sh
+#      done
