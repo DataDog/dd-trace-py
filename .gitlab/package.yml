@@ -177,25 +177,21 @@ variables:
       - sleep 120
       - |
         set -euo pipefail
-        echo "=== diskutil list ==="
-        diskutil list
-
-        if mount | grep -q "on /Volumes/BuildDisk"; then
-          echo "BuildDisk auto-mounted; resetting for clean state"
-          sudo diskutil eraseVolume APFS BuildDisk BuildDisk
+        if diskutil info BuildDisk >/dev/null 2>&1; then
+          echo "BuildDisk found, resetting (case-sensitive APFS) and mounting at /var/tmp/builds"
+          sudo diskutil unmount BuildDisk 2>/dev/null || true
+          sudo diskutil eraseVolume "Case-sensitive APFS" BuildDisk BuildDisk
           sudo diskutil unmount BuildDisk
           sudo mkdir -p /var/tmp/builds
           sudo diskutil mount -mountPoint /var/tmp/builds BuildDisk
           sudo chown -R admin:staff /var/tmp/builds
         else
-          echo "WARN: BuildDisk not auto-mounted, clone will land on EBS"
+          echo "WARN: no BuildDisk volume found, clone will land on EBS"
           sudo mkdir -p /var/tmp/builds
           sudo chown -R admin:staff /var/tmp/builds
         fi
-
         df -h /var/tmp/builds
-        echo "hello from VM $(date)" | tee /var/tmp/builds/test.txt
-        stat -f "%Sd %N" /var/tmp/builds/test.txt
+        diskutil info BuildDisk | grep -i "case-sensitive\|file system"
 
   script:
     - |
