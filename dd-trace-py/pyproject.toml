@@ -94,7 +94,7 @@ lint = [
     "ddapm-test-agent==1.43.0",
     "packaging==23.1",
     "pygments==2.16.1",
-    "riot==0.22.0",
+    "riot==0.21.0",
     "ruff==0.14.10",
     "clang-format==18.1.5",
     "cmake-format==0.6.13",
