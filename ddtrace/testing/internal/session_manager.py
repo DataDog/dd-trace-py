@@ -452,7 +452,7 @@ class SessionManager:
 
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
-        if git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0):
+        if len(commits_not_in_backend) > 0 and git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0):
             log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
             unshallow_successful = git.try_all_unshallow_repository_methods()
             if unshallow_successful:
