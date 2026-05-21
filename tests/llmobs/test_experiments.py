@@ -119,6 +119,23 @@ def dummy_summary_evaluator_using_missing_eval_results(inputs, outputs, expected
     return len(inputs) + len(outputs) + len(expected_outputs) + len(evaluators_results["non_existent_evaluator"])
 
 
+def dummy_summary_evaluator_multi(inputs, outputs, expected_outputs, evaluators_results):
+    return MultiEvaluatorResult(
+        {
+            "precision": EvaluatorResult(value=0.9, reasoning="summary precision", assessment="pass"),
+            "recall": 0.7,
+        }
+    )
+
+
+def dummy_summary_evaluator_collision_a(inputs, outputs, expected_outputs, evaluators_results):
+    return MultiEvaluatorResult({"shared": 1}, prefix=False)
+
+
+def dummy_summary_evaluator_collision_b(inputs, outputs, expected_outputs, evaluators_results):
+    return MultiEvaluatorResult({"shared": 2}, prefix=False)
+
+
 DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
 
 # Timestamp in nanoseconds for mocked experiment runs.
@@ -1819,7 +1836,7 @@ def test_experiment_generate_metrics_multi_value(llmobs, test_dataset_one_record
         "dummy_evaluator_multi_with_inner_result-precision",
         "dummy_evaluator_multi_with_inner_result-recall",
     ]
-    precision_metric = next(m for m in metrics if m["label"].endswith(".precision"))
+    precision_metric = next(m for m in metrics if m["label"].endswith("-precision"))
     assert precision_metric["score_value"] == 0.9
     assert precision_metric["reasoning"] == "close match"
     assert precision_metric["assessment"] == "pass"
@@ -1900,6 +1917,81 @@ def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
         "idx": 0,
         "evaluations": {"dummy_summary_evaluator": {"value": 4, "error": None}},
     }
+
+
+def test_experiment_run_summary_evaluators_multi_value(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+        summary_evaluators=[dummy_summary_evaluator_multi],
+    )
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    summary_eval_results = asyncio.run(
+        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    )
+    assert summary_eval_results[0] == {
+        "idx": 0,
+        "evaluations": {
+            "dummy_summary_evaluator_multi-precision": {
+                "value": 0.9,
+                "error": None,
+                "reasoning": "summary precision",
+                "assessment": "pass",
+            },
+            "dummy_summary_evaluator_multi-recall": {"value": 0.7, "error": None},
+        },
+    }
+
+
+def test_experiment_generate_metrics_summary_multi_value(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+        summary_evaluators=[dummy_summary_evaluator_multi],
+    )
+    run_info = run_info_with_stable_id(0)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    summary_eval_results = asyncio.run(
+        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    )
+    run_result = exp._experiment._merge_results(run_info, task_results, eval_results, summary_eval_results)
+    metrics = exp._experiment._generate_metrics_from_exp_results(run_result)
+
+    summary_labels = sorted(m["label"] for m in metrics if m["label"].startswith("dummy_summary_evaluator_multi-"))
+    assert summary_labels == [
+        "dummy_summary_evaluator_multi-precision",
+        "dummy_summary_evaluator_multi-recall",
+    ]
+    precision_metric = next(m for m in metrics if m["label"] == "dummy_summary_evaluator_multi-precision")
+    assert precision_metric["score_value"] == 0.9
+    assert precision_metric["reasoning"] == "summary precision"
+    assert precision_metric["assessment"] == "pass"
+
+
+def test_experiment_run_summary_evaluators_label_collision_warns(llmobs, test_dataset_one_record, caplog):
+    import logging
+
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+        summary_evaluators=[dummy_summary_evaluator_collision_a, dummy_summary_evaluator_collision_b],
+    )
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    with caplog.at_level(logging.WARNING, logger="ddtrace.llmobs._experiment"):
+        summary_eval_results = asyncio.run(
+            exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+        )
+    assert any("Summary evaluator label collision" in r.message and "shared" in r.message for r in caplog.records)
+    assert summary_eval_results[-1]["evaluations"]["shared"]["value"] in (1, 2)
 
 
 def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):

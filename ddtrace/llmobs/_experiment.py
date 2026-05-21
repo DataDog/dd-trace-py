@@ -394,14 +394,16 @@ class BaseSummaryEvaluator(ABC):
         self.name = name
 
     @abstractmethod
-    def evaluate(self, context: SummaryEvaluatorContext) -> JSONType:
+    def evaluate(self, context: SummaryEvaluatorContext) -> Union[JSONType, EvaluatorResult, "MultiEvaluatorResult"]:
         """Perform summary evaluation on aggregated experiment results.
 
         This method must be implemented by all subclasses.
 
         :param context: The summary evaluation context containing all inputs, outputs,
                         expected outputs, and per-row evaluation results
-        :return: Evaluation result as a JSON-serializable value (dict, primitive, list, None)
+        :return: Evaluation result as a JSON-serializable value (dict, primitive, list, None),
+                 an EvaluatorResult object containing the value plus additional metadata, or a
+                 MultiEvaluatorResult to emit multiple named values from one summary evaluator.
         """
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
@@ -530,7 +532,7 @@ class BaseAsyncEvaluator(ABC):
         self.name = name
 
     @abstractmethod
-    async def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
+    async def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult, MultiEvaluatorResult]:
         """Perform async evaluation."""
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
@@ -554,7 +556,9 @@ class BaseAsyncSummaryEvaluator(ABC):
         self.name = name
 
     @abstractmethod
-    async def evaluate(self, context: SummaryEvaluatorContext) -> JSONType:
+    async def evaluate(
+        self, context: SummaryEvaluatorContext
+    ) -> Union[JSONType, EvaluatorResult, MultiEvaluatorResult]:
         """Perform async summary evaluation on aggregated experiment results."""
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
@@ -565,7 +569,7 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
     EvaluatorType: TypeAlias = Union[
         Callable[
             [JSONType, JSONType, JSONType],
-            Union[JSONType, "EvaluatorResult"],
+            Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"],
         ],
         BaseEvaluator,
         _DeepEvalListType,
@@ -573,7 +577,7 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
     AsyncEvaluatorType: TypeAlias = Union[
         Callable[
             [JSONType, JSONType, JSONType],
-            Awaitable[Union[JSONType, "EvaluatorResult"]],
+            Awaitable[Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"]],
         ],
         BaseAsyncEvaluator,
         _DeepEvalListType,
@@ -582,14 +586,14 @@ else:
     EvaluatorType: TypeAlias = Union[  # type: ignore[no-redef,misc]
         Callable[
             [JSONType, JSONType, JSONType],
-            Union[JSONType, "EvaluatorResult"],
+            Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"],
         ],
         BaseEvaluator,
     ]
     AsyncEvaluatorType: TypeAlias = Union[  # type: ignore[no-redef,misc]
         Callable[
             [JSONType, JSONType, JSONType],
-            Awaitable[Union[JSONType, "EvaluatorResult"]],
+            Awaitable[Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"]],
         ],
         BaseAsyncEvaluator,
     ]
@@ -607,7 +611,7 @@ if PydanticReportEvaluator is not None:
                 Sequence[JSONType],
                 dict[str, Sequence[JSONType]],
             ],
-            JSONType,
+            Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"],
         ],
         BaseSummaryEvaluator,
         PydanticReportEvaluator,
@@ -620,7 +624,7 @@ if PydanticReportEvaluator is not None:
                 Sequence[JSONType],
                 dict[str, Sequence[JSONType]],
             ],
-            Awaitable[JSONType],
+            Awaitable[Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"]],
         ],
         BaseAsyncSummaryEvaluator,
         PydanticReportEvaluator,
@@ -634,7 +638,7 @@ else:
                 Sequence[JSONType],
                 dict[str, Sequence[JSONType]],
             ],
-            JSONType,
+            Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"],
         ],
         BaseSummaryEvaluator,
     ]
@@ -646,7 +650,7 @@ else:
                 Sequence[JSONType],
                 dict[str, Sequence[JSONType]],
             ],
-            Awaitable[JSONType],
+            Awaitable[Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"]],
         ],
         BaseAsyncSummaryEvaluator,
     ]
@@ -2486,7 +2490,11 @@ class Experiment:
                             eval_result = await evaluator.evaluate(context)
                         elif asyncio.iscoroutinefunction(evaluator):
                             evaluator_name = evaluator.__name__  # type: ignore[union-attr]
-                            eval_result = await evaluator(input_data, output_data, expected_output)  # type: ignore[misc, operator]
+                            eval_result = await evaluator(
+                                input_data,
+                                output_data,
+                                expected_output,
+                            )  # type: ignore[misc, operator]
                         elif _is_class_evaluator(evaluator):
                             evaluator_name = evaluator.name  # type: ignore[union-attr]
                             combined_metadata = {
