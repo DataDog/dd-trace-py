@@ -326,7 +326,7 @@ heap_tracker_t* heap_tracker_t::instance = nullptr;
 bool
 memalloc_heap_tracker_init_no_cpython(uint32_t sample_size)
 {
-    // TODO(dsn): what should we do it this was already initialized?
+    // TODO(dsn): what should we do if this was already initialized?
     if (!heap_tracker_t::instance) {
         heap_tracker_t::instance = new heap_tracker_t(sample_size);
         return true;
