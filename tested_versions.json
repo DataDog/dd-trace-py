@@ -4345,10 +4345,6 @@
           "python_version": "3.9"
         },
         {
-          "version": "1.15.1",
-          "python_version": "3.9"
-        },
-        {
           "version": "1.8.1",
           "python_version": "3.9"
         },
@@ -4357,19 +4353,23 @@
           "python_version": "3.9"
         },
         {
-          "version": "1.15.1",
+          "version": "2.8.0",
+          "python_version": "3.9"
+        },
+        {
+          "version": "2.9.0",
           "python_version": "3.10"
         },
         {
-          "version": "1.15.1",
+          "version": "2.9.0",
           "python_version": "3.11"
         },
         {
-          "version": "1.15.1",
+          "version": "2.9.0",
           "python_version": "3.12"
         },
         {
-          "version": "1.16.2",
+          "version": "2.9.0",
           "python_version": "3.13"
         }
       ]
