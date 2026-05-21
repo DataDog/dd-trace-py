@@ -106,22 +106,45 @@ class SharedStringFile:
         if self.filename is not None:
             Path(self.filename).touch(exist_ok=True)
 
-    def put_unlocked(self, f: typing.BinaryIO, data: str) -> None:
+    def put_unlocked(self, f: typing.BinaryIO, data: str) -> bool:
         f.seek(0, os.SEEK_END)
         dt = (data + "\x00").encode()
         if f.tell() + len(dt) <= MAX_FILE_SIZE:
             f.write(dt)
+            return True
+        return False
 
-    def put(self, data: str) -> None:
-        """Put a string into the file."""
+    def put(self, data: str) -> bool:
+        """Put a string into the shared file.
+
+        Returns:
+            True if ``data`` was successfully written, False if the write was
+            dropped because the file is full or an I/O error occurred.
+        """
         if self.filename is None:
-            return
+            return False
 
         try:
             with self.lock_exclusive() as f:
-                self.put_unlocked(f, data)
+                written = self.put_unlocked(f, data)
+                if not written:
+                    # ``put_unlocked`` seeked to EOF, so ``f.tell()`` is the file size.
+                    log.warning(
+                        "SharedStringFile.put: write to %s skipped, file full "
+                        "(size=%d, attempted=%d, max=%d)",
+                        self.filename,
+                        f.tell(),
+                        len(data) + 1,
+                        MAX_FILE_SIZE,
+                    )
+                return written
         except Exception:  # nosec
-            pass
+            log.warning(
+                "SharedStringFile.put to %s failed",
+                self.filename,
+                exc_info=True,
+            )
+            return False
 
     def peekall_unlocked(self, f: typing.BinaryIO) -> list[str]:
         f.seek(0)
@@ -136,6 +159,7 @@ class SharedStringFile:
             with self.lock_shared() as f:
                 return self.peekall_unlocked(f)
         except Exception:  # nosec
+            log.warning("SharedStringFile.peekall from %s failed", self.filename, exc_info=True)
             return []
 
     def snatchall(self) -> list[str]:
@@ -150,6 +174,11 @@ class SharedStringFile:
                 finally:
                     self.clear_unlocked(f)
         except Exception:  # nosec
+            log.warning(
+                "SharedStringFile.snatchall from %s failed",
+                self.filename,
+                exc_info=True,
+            )
             return []
 
     def clear_unlocked(self, f: typing.BinaryIO) -> None:
@@ -165,7 +194,7 @@ class SharedStringFile:
             with self.lock_exclusive() as f:
                 self.clear_unlocked(f)
         except Exception:  # nosec
-            pass
+            log.warning("SharedStringFile.clear of %s failed", self.filename, exc_info=True)
 
     @contextmanager
     def lock_shared(self):

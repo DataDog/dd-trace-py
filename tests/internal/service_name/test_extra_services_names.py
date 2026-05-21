@@ -95,6 +95,29 @@ assert len(extra_services) == 0
     assert status == 0, (stdout, stderr, status)
 
 
+def test_config_extra_service_names_retry_on_failed_put(run_python_code_in_subprocess):
+    """A failed queue write must not mark the service as sent (so it can retry)."""
+    code = """
+import ddtrace.auto
+import ddtrace
+
+queue = ddtrace.config._extra_services_queue
+real_put, queue.put = queue.put, lambda data: False
+
+ddtrace.config._add_extra_service("retry_me")
+assert "retry_me" not in ddtrace.config._extra_services_sent
+
+queue.put = real_put
+ddtrace.config._add_extra_service("retry_me")
+assert "retry_me" in ddtrace.config._get_extra_services()
+"""
+
+    env = os.environ.copy()
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (stdout, stderr, status)
+
+
 def test_config_extra_service_names_customer_changes(run_python_code_in_subprocess):
     code = """
 import ddtrace.auto

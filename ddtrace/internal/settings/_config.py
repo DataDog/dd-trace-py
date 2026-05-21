@@ -777,13 +777,24 @@ class Config(object):
         if service_name == self.service or service_name in self._extra_services_sent:
             return
 
-        self._extra_services_queue.put(service_name)
-        self._extra_services_sent.add(service_name)
+        # Only mark as sent on a successful queue write; otherwise allow retry.
+        if self._extra_services_queue.put(service_name):
+            self._extra_services_sent.add(service_name)
+            log.debug("_add_extra_service: queued %r for Remote Config", service_name)
+        else:
+            log.warning("_add_extra_service: failed to enqueue %r, will retry", service_name)
 
     def _get_extra_services(self) -> set[str]:
         if self._extra_services_queue is None:
             return set()
-        self._extra_services.update(set(self._extra_services_queue.snatchall()) - {""})
+        snatched = set(self._extra_services_queue.snatchall()) - {""}
+        if snatched:
+            self._extra_services.update(snatched)
+            log.debug(
+                "_get_extra_services: merged %d new entries (total=%d)",
+                len(snatched),
+                len(self._extra_services),
+            )
         while len(self._extra_services) > 64:
             self._extra_services.pop()
         return self._extra_services

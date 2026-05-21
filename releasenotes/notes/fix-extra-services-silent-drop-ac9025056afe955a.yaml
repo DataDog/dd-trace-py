@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    remote_config: fix a latent bug in ``ddtrace.config._add_extra_service``
+    where a service name could be marked as "already sent" even when the
+    underlying ``SharedStringFile.put`` call silently dropped the write (file
+    full or I/O error). Once the name was added to ``_extra_services_sent`` it
+    could never be re-enqueued, preventing the service from ever being reported
+    via Remote Configuration for the lifetime of the process. The name is now
+    only marked as sent when the write succeeds, and silent failures in the
+    underlying ``SharedStringFile`` are now logged at warning level.
