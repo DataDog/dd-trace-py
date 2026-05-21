@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from collections.abc import Sequence
 from functools import partial
 from typing import Any
 from typing import Optional
@@ -85,7 +86,7 @@ def _on_set_http_meta_for_ai_guard(
     request_headers: Optional[Mapping[str, str]],
     request_cookies: Optional[dict[str, str]],
     parsed_query: Optional[Mapping[str, Any]],
-    request_path_params: Optional[Mapping[str, Any]],
+    request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]],
     request_body: Any,
     status_code: Optional[Union[int, str]],
     response_headers: Optional[Mapping[str, str]],

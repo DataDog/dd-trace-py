@@ -138,6 +138,8 @@ class Test_Django(_Test_Django_Base, utils.Contrib_TestClass_For_Threats):
             path = path[:-2]
         path = re.sub(r"<int:[a-z_]+>", "123", path)
         path = re.sub(r"<str:[a-z_]+>", "abczx", path)
+        # `<path:name>` matches one or more URL segments; substitute a non-empty multi-segment value so it resolves.
+        path = re.sub(r"<path:[a-z_]+>", "a/b/c", path)
         return path if path.startswith("/") else ("/" + path)
 
 

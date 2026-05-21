@@ -537,19 +537,16 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ("/", "/"),
             # Multi-param-in-segment: rule 5 combines names with `+`.
             ("/multi-param/john.doe/", "/multi-param/{first+last}/"),
-            # `:path` catch-all: rule 5 catch-all exception emits a single
-            # tail atomic element regardless of how many slashes the param matches.
+            # `:path` catch-all: rule 5 catch-all exception emits a single tail element regardless of slashes matched.
             ("/files/some/deep/path", "/files/{file_path}"),
         ],
     )
-    @pytest.mark.xfail_interface("django", "flask", "tornado", skip=True)
+    @pytest.mark.xfail_interface("flask", "tornado", skip=True)
     def test_normalized_route(self, interface: Interface, get_entry_span_tag, asm_enabled, uri, expected):
-        # RFC-1103: when API Security is active, every request span carrying
-        # http.route also carries `_dd.appsec.normalized_route`. The tag is
-        # gated on `asm_config._api_security_feature_active`, which combines
-        # ASM enablement, libddwaf availability, and `_api_security_enabled`;
-        # with ASM disabled (this test) the feature is inactive and the tag
-        # must be absent.
+        # RFC-1103: when API Security is active, every request span carrying http.route also carries
+        # `_dd.appsec.normalized_route`. The tag is gated on `asm_config._api_security_feature_active`, which combines
+        # ASM enablement, libddwaf availability, and `_api_security_enabled`. With ASM disabled (this test) the
+        # feature is inactive and the tag must be absent.
         with override_global_config(dict(_asm_enabled=asm_enabled)):
             self.update_tracer(interface)
             response = interface.client.get(uri)
@@ -560,11 +557,10 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             else:
                 assert tag is None, f"normalized_route should be unset when ASM is disabled, got {tag!r}"
 
-    @pytest.mark.xfail_interface("django", "flask", "tornado", skip=True)
+    @pytest.mark.xfail_interface("flask", "tornado", skip=True)
     def test_normalized_route_disabled_when_api_security_off(self, interface: Interface, get_entry_span_tag):
-        # _api_security_feature_active also requires _api_security_enabled. ASM
-        # may be on while the API Security feature is independently disabled —
-        # in that configuration the normalized route tag must still be absent.
+        # _api_security_feature_active also requires _api_security_enabled. ASM may be on while the API Security
+        # feature is independently disabled — in that configuration the normalized route tag must still be absent.
         with override_global_config(dict(_asm_enabled=True, _api_security_enabled=False)):
             self.update_tracer(interface)
             response = interface.client.get("/asm/137/abc/")
@@ -576,11 +572,13 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
     def test_normalized_route_survives_request_span_name_override(
         self, interface: Interface, entry_span, get_entry_span_tag
     ):
-        # Regression: framework scoping must not depend on the default span
-        # name. Customers can override `request_span_name` via integration
-        # config; with the gate keyed on IntegrationConfig.integration_name
-        # (read from the request execution context), the tag must still be
-        # emitted even when the span is renamed.
+        # Regression: framework scoping must not depend on the default span name. Customers can override
+        # `request_span_name` via integration config; with the gate keyed on IntegrationConfig.integration_name (read
+        # from the request execution context), the tag must still be emitted even when the span is renamed.
+        #
+        # Skipped on Django: the integration doesn't honor a `request_span_name` override (span name fixed by
+        # ``schematize_url_operation("django.request", ...)``). The gating is still exercised by
+        # ``test_normalized_route`` against the regular span name.
         custom_name = "custom.framework.request"
         with (
             override_global_config(dict(_asm_enabled=True)),
@@ -589,8 +587,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             self.update_tracer(interface)
             response = interface.client.get("/asm/137/abc/")
             assert self.status(response) == 200
-            # Verify the override actually took effect — otherwise this test
-            # would silently pass even if the gating hadn't been fixed.
+            # Verify the override actually took effect — otherwise this test would silently pass even if the gating
+            # hadn't been fixed.
             assert entry_span().name == custom_name, f"span was not renamed: {entry_span().name!r}"
             tag = get_entry_span_tag(asm_constants.API_SECURITY.NORMALIZED_ROUTE)
             assert tag == "/asm/{param_int}/{param_str}/", (
