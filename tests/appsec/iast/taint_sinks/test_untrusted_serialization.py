@@ -147,6 +147,33 @@ def test_untrusted_serialization__pickle_unpickler_load(iast_context_defaults):
     _assert_no_untrusted_vuln()
 
 
+def test_pickle_unpickler_load_class_access_does_not_raise():
+    """Regression for the 4.9 CI failure of
+    test_django_untrusted_serialization_dill_smoke[py3.9].
+
+    Wrapping ``_pickle.Unpickler.load`` (a C method_descriptor on an immutable
+    type) via the forbiddenfruit fallback in ``apply_patch`` causes
+    ``_pickle.Unpickler.load`` class-level attribute access to raise
+    ``TypeError: descriptor 'load' for '_pickle.Unpickler' objects doesn't
+    apply to a 'NoneType' object``. That in turn breaks ``import dill``,
+    because dill's class body executes
+    ``load.__doc__ = StockUnpickler.load.__doc__`` at module import time.
+    """
+    import _pickle
+
+    # Class-level attribute access must not raise.
+    assert _pickle.Unpickler.load is not None
+    _ = _pickle.Unpickler.load.__doc__
+
+    # Subclassing _pickle.Unpickler the same way dill does must not raise
+    # at class-definition time.
+    class _DillLike(_pickle.Unpickler):
+        def load(self):  # noqa: D401
+            return _pickle.Unpickler.load(self)
+
+        load.__doc__ = _pickle.Unpickler.load.__doc__
+
+
 def test_untrusted_serialization_dill_load(iast_context_defaults):
     dill = pytest.importorskip("dill")
     import pickle
