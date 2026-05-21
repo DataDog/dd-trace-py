@@ -429,9 +429,6 @@ venv = Venv(
                     env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
-                    venvs=[
-                        Venv(pys=select_pys()),
-                    ],
                 ),
                 Venv(
                     name="tracer-legacy-attrs",
