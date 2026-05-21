@@ -8,7 +8,7 @@ HERE = Path(__file__).resolve().parent.parent
 ddtrace_internal_wheels = list(HERE.rglob("**/ddtrace_internal*.whl"))
 internal_wheel_path = None
 if ddtrace_internal_wheels:
-    internal_wheel_path = str(ddtrace_internal_wheels[0])
+    internal_wheel_path = str(ddtrace_internal_wheels[-1])
 
 
 if internal_wheel_path is None or os.getenv("CI_COMMIT_TAG") is not None:
