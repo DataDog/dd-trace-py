@@ -3,7 +3,7 @@ from types import CodeType
 from types import FunctionType
 from typing import Any
 from typing import Callable
-from typing import Generator
+from typing import Iterator
 from typing import Optional
 from typing import Protocol
 from typing import cast
@@ -70,9 +70,10 @@ else:
     )
 
 
-UPDATE_MAP = Assembly()
+_UPDATE_MAP_FAST = Assembly()
+_UPDATE_MAP_DEREF = Assembly()
 if PY >= (3, 12):
-    UPDATE_MAP.parse(
+    _UPDATE_MAP_FAST.parse(
         r"""
             copy                1
             load_method         $update
@@ -81,9 +82,17 @@ if PY >= (3, 12):
             pop_top
         """
     )
-
+    _UPDATE_MAP_DEREF.parse(
+        r"""
+            copy                1
+            load_method         $update
+            load_deref          {varkwargsname}
+            call                1
+            pop_top
+        """
+    )
 elif PY >= (3, 11):
-    UPDATE_MAP.parse(
+    _UPDATE_MAP_FAST.parse(
         r"""
             copy                1
             load_method         $update
@@ -93,9 +102,18 @@ elif PY >= (3, 11):
             pop_top
         """
     )
-
+    _UPDATE_MAP_DEREF.parse(
+        r"""
+            copy                1
+            load_method         $update
+            load_deref          {varkwargsname}
+            precall             1
+            call                1
+            pop_top
+        """
+    )
 else:
-    UPDATE_MAP.parse(
+    _UPDATE_MAP_FAST.parse(
         r"""
             dup_top
             load_attr           $update
@@ -104,6 +122,23 @@ else:
             pop_top
         """
     )
+    _UPDATE_MAP_DEREF.parse(
+        r"""
+            dup_top
+            load_attr           $update
+            load_deref          {varkwargsname}
+            call_function       1
+            pop_top
+        """
+    )
+
+
+def _generate_update_map(name: str, code: CodeType, lineno: int) -> Iterator[Any]:
+    """Yield opcodes to call ``dict.update(name)`` where ``name`` may be a cell var."""
+    if PY >= (3, 11) and name in code.co_cellvars:
+        yield from _UPDATE_MAP_DEREF.bind({"varkwargsname": bc.CellVar(name)}, lineno=lineno)
+    else:
+        yield from _UPDATE_MAP_FAST.bind({"varkwargsname": name}, lineno=lineno)
 
 
 CALL_RETURN = Assembly()
@@ -136,43 +171,41 @@ else:
 FIRSTLINENO_OFFSET = int(PY >= (3, 11))
 
 
-def generate_posargs(code: CodeType) -> Generator[Instr, None, None]:
+def _load_var(name: str, code: CodeType, lineno: int) -> Instr:
+    """Return the correct load instruction for a function parameter.
+
+    On Python 3.11+, parameters captured by inner closures become cell
+    variables and must be loaded with LOAD_DEREF instead of LOAD_FAST.
+    """
+    if PY >= (3, 11) and name in code.co_cellvars:
+        return Instr("LOAD_DEREF", bc.CellVar(name), lineno=lineno)
+    return Instr("LOAD_FAST", name, lineno=lineno)
+
+
+def generate_posargs(code: CodeType) -> Iterator[Any]:
     """Generate the opcodes for building the positional arguments tuple."""
     varnames = code.co_varnames
     lineno = code.co_firstlineno + FIRSTLINENO_OFFSET
     varargs = bool(code.co_flags & bc.CompilerFlags.VARARGS)
     nargs = code.co_argcount
-    varargsname = varnames[nargs + code.co_kwonlyargcount] if varargs else None
+    varargsname: Optional[str] = varnames[nargs + code.co_kwonlyargcount] if varargs else None
 
     if nargs:  # posargs [+ varargs]
-        yield from (
-            Instr("LOAD_DEREF", bc.CellVar(argname), lineno=lineno)
-            if PY >= (3, 11) and argname in code.co_cellvars
-            else Instr("LOAD_FAST", argname, lineno=lineno)
-            for argname in varnames[:nargs]
-        )
+        yield from (_load_var(argname, code, lineno) for argname in varnames[:nargs])
 
         yield Instr("BUILD_TUPLE", nargs, lineno=lineno)
-        if varargs:
-            yield Instr("LOAD_FAST", varargsname, lineno=lineno)
+        if varargsname is not None:
+            yield _load_var(varargsname, code, lineno)
             yield _add(lineno)
 
-    elif varargs:  # varargs
-        yield Instr("LOAD_FAST", varargsname, lineno=lineno)
+    elif varargsname is not None:  # varargs
+        yield _load_var(varargsname, code, lineno)
 
     else:  # ()
         yield Instr("BUILD_TUPLE", 0, lineno=lineno)
 
 
-(PAIR := Assembly()).parse(
-    r"""
-        load_const          {arg}
-        load_fast           {arg}
-    """
-)
-
-
-def generate_kwargs(code: CodeType) -> Generator[Instr, None, None]:
+def generate_kwargs(code: CodeType) -> Iterator[Any]:
     """Generate the opcodes for building the keyword arguments dictionary."""
     flags = code.co_flags
     varnames = code.co_varnames
@@ -181,17 +214,18 @@ def generate_kwargs(code: CodeType) -> Generator[Instr, None, None]:
     varkwargs = bool(flags & bc.CompilerFlags.VARKEYWORDS)
     nargs = code.co_argcount
     kwonlyargs = code.co_kwonlyargcount
-    varkwargsname = varnames[nargs + kwonlyargs + varargs] if varkwargs else None
+    varkwargsname: Optional[str] = varnames[nargs + kwonlyargs + varargs] if varkwargs else None
 
     if kwonlyargs:
         for arg in varnames[nargs : nargs + kwonlyargs]:  # kwargs [+ varkwargs]
-            yield from PAIR.bind({"arg": arg}, lineno=lineno)
+            yield Instr("LOAD_CONST", arg, lineno=lineno)
+            yield _load_var(arg, code, lineno)
         yield Instr("BUILD_MAP", kwonlyargs, lineno=lineno)
-        if varkwargs:
-            yield from UPDATE_MAP.bind({"varkwargsname": varkwargsname}, lineno=lineno)
+        if varkwargsname is not None:
+            yield from _generate_update_map(varkwargsname, code, lineno)
 
-    elif varkwargs:  # varkwargs
-        yield Instr("LOAD_FAST", varkwargsname, lineno=lineno)
+    elif varkwargsname is not None:  # varkwargs
+        yield _load_var(varkwargsname, code, lineno)
 
     else:  # {}
         yield Instr("BUILD_MAP", 0, lineno=lineno)
