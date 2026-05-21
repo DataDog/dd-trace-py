@@ -6,7 +6,7 @@ from pathlib import Path  # isort: skip
 
 HERE = Path(__file__).resolve().parent.parent
 ddtrace_internal_wheels = list(HERE.rglob("**/ddtrace_internal*.whl"))
-internal_wheel_path = None 
+internal_wheel_path = None
 if ddtrace_internal_wheels:
     internal_wheel_path = str(ddtrace_internal_wheels[0])
 
