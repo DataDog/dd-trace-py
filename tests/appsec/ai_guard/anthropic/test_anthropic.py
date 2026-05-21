@@ -1,5 +1,7 @@
 """Integration and unit tests for the AI Guard + Anthropic integration."""
 
+import json
+import os
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +14,11 @@ from ddtrace.appsec._ai_guard._anthropic import _convert_anthropic_response
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import override_ai_guard_config
+
+
+_ANTHROPIC_CASSETTES_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "..", "..", "contrib", "anthropic", "cassettes"
+)
 
 
 CHAT_MODEL = "claude-3-opus-20240229"
@@ -619,3 +626,266 @@ def test_fail_open_on_transport_error(mock_execute_request, anthropic_client_moc
     # AIGuardClient may internally retry on transport errors, so we only
     # require that before + after were both attempted at least once.
     assert mock_execute_request.call_count >= 2
+
+
+# ---------------------------------------------------------------------------
+# Cassette smoke test
+#
+# Re-feed every recorded Anthropic ``messages`` request body (captured by the
+# anthropic contrib VCR suite) through the converter to guard against schema
+# drift. The converter must never raise on a real-world payload, and every
+# non-empty request must produce at least one AI Guard ``Message``.
+# ---------------------------------------------------------------------------
+
+
+def _iter_anthropic_request_bodies():
+    """Yield ``(cassette_name, parsed_json_body)`` for every recorded request."""
+    yaml = pytest.importorskip("yaml")
+    if not os.path.isdir(_ANTHROPIC_CASSETTES_DIR):
+        pytest.skip("anthropic cassettes directory not available")
+    for name in sorted(os.listdir(_ANTHROPIC_CASSETTES_DIR)):
+        if not name.endswith(".yaml"):
+            continue
+        path = os.path.join(_ANTHROPIC_CASSETTES_DIR, name)
+        with open(path) as fh:
+            doc = yaml.safe_load(fh)
+        if not doc or "interactions" not in doc:
+            continue
+        for interaction in doc["interactions"]:
+            body = (interaction.get("request") or {}).get("body")
+            if not body:
+                continue
+            try:
+                parsed = json.loads(body)
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(parsed, dict) or "messages" not in parsed:
+                continue
+            yield name, parsed
+
+
+def test_cassettes_convert_without_error():
+    """Smoke test: every recorded Anthropic request body parses cleanly.
+
+    Mirrors the reviewer ask in PR #18130 -- if Anthropic ever ships a new
+    content-block shape, the cassette corpus is our cheapest canary.
+    """
+    seen = 0
+    converted = 0
+    for cassette_name, body in _iter_anthropic_request_bodies():
+        system = body.get("system")
+        messages = body.get("messages") or []
+        # The contrib suite includes intentionally-malformed cassettes
+        # (e.g. ``anthropic_completion_error.yaml``) that exercise the SDK's
+        # error path with non-dict messages. Skip those; the converter is
+        # expected to drop them without raising.
+        if not all(isinstance(m, dict) and m.get("role") for m in messages):
+            _convert_anthropic_messages(system, messages)  # must not raise
+            seen += 1
+            continue
+        result = _convert_anthropic_messages(system, messages)
+        assert result, f"converter produced no messages for {cassette_name}: {body!r}"
+        # Every emitted message must carry a role that AI Guard understands.
+        for msg in result:
+            assert msg.get("role") in {"system", "user", "assistant", "tool"}, (
+                f"unexpected role {msg.get('role')!r} from {cassette_name}"
+            )
+        converted += 1
+        seen += 1
+    assert seen > 0, "expected at least one cassette to provide a messages payload"
+    assert converted > 0, "expected at least one cassette to convert successfully"
+
+
+# ---------------------------------------------------------------------------
+# Response-side cassette smoke test
+#
+# Decode the recorded Anthropic ``Message`` response bodies and feed them
+# through ``_convert_anthropic_response``. Guards the after-hook conversion
+# against schema drift the same way the request-side smoke test guards the
+# before-hook.
+# ---------------------------------------------------------------------------
+
+
+def _decode_cassette_response_body(raw):
+    """Decode an httpx/VCR response body to a parsed JSON ``Message``.
+
+    Cassettes store the response as raw bytes (gzip-compressed JSON for the
+    bodies returned by ``api.anthropic.com``). Returns ``None`` for entries
+    that do not look like a non-streaming ``Message`` payload (streams,
+    plaintext error pages, etc.).
+    """
+    import gzip
+
+    if not raw:
+        return None
+    if isinstance(raw, str):
+        raw = raw.encode()
+    try:
+        data = gzip.decompress(raw)
+    except (OSError, gzip.BadGzipFile):
+        data = raw
+    try:
+        parsed = json.loads(data)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    if parsed.get("type") != "message" or not isinstance(parsed.get("content"), list):
+        return None
+    return parsed
+
+
+def _iter_anthropic_response_bodies():
+    """Yield ``(cassette_name, parsed_response)`` for every decodable response."""
+    yaml = pytest.importorskip("yaml")
+    if not os.path.isdir(_ANTHROPIC_CASSETTES_DIR):
+        pytest.skip("anthropic cassettes directory not available")
+    for name in sorted(os.listdir(_ANTHROPIC_CASSETTES_DIR)):
+        if not name.endswith(".yaml"):
+            continue
+        path = os.path.join(_ANTHROPIC_CASSETTES_DIR, name)
+        with open(path) as fh:
+            doc = yaml.safe_load(fh)
+        if not doc or "interactions" not in doc:
+            continue
+        for interaction in doc["interactions"]:
+            raw = ((interaction.get("response") or {}).get("body") or {}).get("string")
+            parsed = _decode_cassette_response_body(raw)
+            if parsed is None:
+                continue
+            yield name, parsed
+
+
+def test_cassette_responses_convert_without_error():
+    """Smoke test: every decodable Anthropic response body converts cleanly.
+
+    Counterpart of ``test_cassettes_convert_without_error`` for the after-hook
+    converter. Streaming and error cassettes are filtered out by the decoder.
+    """
+    seen = 0
+    with_tool_use = 0
+    for cassette_name, response in _iter_anthropic_response_bodies():
+        result = _convert_anthropic_response(response)
+        # A valid ``Message`` response must always produce an assistant turn.
+        assert result, f"empty conversion for {cassette_name}: {response!r}"
+        assert result[0]["role"] == "assistant", (
+            f"expected assistant role from {cassette_name}, got {result[0]['role']!r}"
+        )
+        # Either content or tool_calls (or both) must be present.
+        assert "content" in result[0] or "tool_calls" in result[0], (
+            f"{cassette_name}: response converted to message with no content nor tool_calls"
+        )
+        # When the response includes ``tool_use`` blocks, the converter must
+        # surface them as ``tool_calls``.
+        block_types = {block.get("type") for block in response["content"] if isinstance(block, dict)}
+        if "tool_use" in block_types:
+            assert result[0].get("tool_calls"), (
+                f"{cassette_name}: tool_use block present but tool_calls missing from converted message"
+            )
+            with_tool_use += 1
+        seen += 1
+    assert seen > 0, "expected at least one decodable Anthropic response cassette"
+    assert with_tool_use > 0, "expected at least one cassette to exercise tool_use response conversion"
+
+
+# ---------------------------------------------------------------------------
+# End-to-end cassette replay
+#
+# Drive the full ``messages.create`` path against an httpx transport that
+# replays a recorded Anthropic response. Verifies that AI Guard's before +
+# after listeners both fire on real-world request shapes and that the SDK
+# response materialises correctly.
+# ---------------------------------------------------------------------------
+
+
+# A small curated subset of cassettes that exercise distinct request shapes
+# while staying inside the non-streaming, plain-JSON envelope the SDK expects.
+# Each cassette is referenced by basename; missing files cause the test to
+# skip rather than fail, so the suite is resilient to fixture renames.
+_E2E_REPLAY_CASSETTES = [
+    "anthropic_completion.yaml",
+    "anthropic_completion_multi_prompt.yaml",
+    "anthropic_completion_multi_prompt_with_chat_history.yaml",
+    "anthropic_completion_multi_system_prompt.yaml",
+    "anthropic_completion_tools.yaml",
+    "anthropic_completion_tools_call_with_tool_result.yaml",
+]
+
+
+def _load_cassette_replay(cassette_name):
+    """Return ``(request_kwargs, response_bytes)`` for the first interaction.
+
+    Skips if the cassette is missing, has no JSON request body, or has no
+    non-streaming JSON response that the Anthropic SDK can parse.
+    """
+    yaml = pytest.importorskip("yaml")
+    path = os.path.join(_ANTHROPIC_CASSETTES_DIR, cassette_name)
+    if not os.path.isfile(path):
+        pytest.skip(f"cassette {cassette_name} not present")
+    with open(path) as fh:
+        doc = yaml.safe_load(fh)
+    if not doc or "interactions" not in doc:
+        pytest.skip(f"cassette {cassette_name} has no interactions")
+    interaction = doc["interactions"][0]
+    try:
+        request = json.loads(interaction["request"]["body"])
+    except (KeyError, TypeError, ValueError):
+        pytest.skip(f"cassette {cassette_name} has no JSON request body")
+    raw = ((interaction.get("response") or {}).get("body") or {}).get("string")
+    parsed = _decode_cassette_response_body(raw)
+    if parsed is None:
+        pytest.skip(f"cassette {cassette_name} has no decodable response body")
+    # Re-serialise as plain JSON so the SDK does not have to negotiate gzip.
+    return request, json.dumps(parsed).encode()
+
+
+@pytest.fixture
+def anthropic_client_replay(anthropic_sdk):
+    """Build an Anthropic client whose transport replays a per-test response body.
+
+    Yields the Anthropic SDK module *and* a callable that wires a fresh
+    client to a given response payload. The httpx transport returns the same
+    response for every request, which is sufficient for single-call cassette
+    replays.
+    """
+    import httpx
+
+    def _factory(response_bytes):
+        class _ReplayTransport(httpx.BaseTransport):
+            def handle_request(self, request):
+                return httpx.Response(
+                    status_code=200,
+                    headers={"content-type": "application/json"},
+                    content=response_bytes,
+                )
+
+        return anthropic_sdk.Anthropic(
+            api_key="<not-a-real-key>",
+            http_client=httpx.Client(transport=_ReplayTransport()),
+        )
+
+    yield _factory
+
+
+@pytest.mark.parametrize("cassette_name", _E2E_REPLAY_CASSETTES)
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_cassette_replay_end_to_end(mock_execute_request, cassette_name, anthropic_client_replay):
+    """Replay a recorded Anthropic exchange end-to-end through the SDK.
+
+    With AI Guard configured to ALLOW, the SDK must return the cassette
+    response and AI Guard's before + after listeners must both fire. Failures
+    here indicate a regression in either the dispatch glue, the converter, or
+    the contrib patching layer -- catching them per-cassette pinpoints the
+    failing payload shape.
+    """
+    request_kwargs, response_bytes = _load_cassette_replay(cassette_name)
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    client = anthropic_client_replay(response_bytes)
+    resp = client.messages.create(**request_kwargs)
+
+    assert resp is not None
+    # Before + after evaluations both fire for non-streaming responses.
+    assert mock_execute_request.call_count == 2, (
+        f"{cassette_name}: expected before+after to both fire, got {mock_execute_request.call_count} calls"
+    )

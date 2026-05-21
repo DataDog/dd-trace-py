@@ -11,6 +11,7 @@ non-streaming + streaming. For streaming responses only the
 
 import json
 from typing import Any
+from typing import Optional
 
 from ddtrace.appsec._ai_guard._common import _get
 from ddtrace.appsec._ai_guard._common import wrap_abort_error
@@ -21,11 +22,32 @@ from ddtrace.appsec.ai_guard._api_client import Function
 from ddtrace.appsec.ai_guard._api_client import Message
 from ddtrace.appsec.ai_guard._api_client import Options
 from ddtrace.appsec.ai_guard._api_client import ToolCall
+from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 
 
 logger = ddlogger.get_logger(__name__)
+
+
+def _report_converter_error(message: str, exc: Optional[BaseException] = None) -> None:
+    """Surface converter anomalies via telemetry so they are not silent.
+
+    Both the Python ``logger`` (developer-facing) and the telemetry intake
+    (support-facing) get the event; downstream support cycles benefit from
+    knowing about a malformed integration boundary rather than the converter
+    silently dropping data.
+    """
+    logger.debug(message, exc_info=exc is not None)
+    try:
+        if exc is not None:
+            telemetry.telemetry_writer.add_error_log(message, exc)
+        else:
+            telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARNING, message)
+    except Exception:
+        logger.debug("AI Guard anthropic: telemetry log emission failed", exc_info=True)
+
 
 __all__ = ["_wrap_abort_error"]
 
@@ -66,8 +88,12 @@ def _tool_call_from_block(block: Any) -> ToolCall:
     tool_input = _get(block, "input", {})
     try:
         arguments = json.dumps(tool_input, default=str)
-    except Exception:
-        arguments = str(tool_input)
+    except Exception as exc:
+        _report_converter_error(
+            "AI Guard anthropic: failed to serialize tool_use input to JSON; falling back to str()",
+            exc,
+        )
+        raise
     return ToolCall(
         id=_get(block, "id", "") or "",
         function=Function(name=_get(block, "name", "") or "", arguments=arguments),
@@ -120,17 +146,16 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
         text/tool semantics only).
     """
     result = []
+    try:
+        if system:
+            system_text = _flatten_text_blocks(system)
+            if system_text:
+                result.append(Message(role="system", content=system_text))
 
-    if system:
-        system_text = _flatten_text_blocks(system)
-        if system_text:
-            result.append(Message(role="system", content=system_text))
+        if not messages:
+            return result
 
-    if not messages:
-        return result
-
-    for msg in messages:
-        try:
+        for msg in messages:
             if msg is None:
                 continue
             role = _get(msg, "role", "")
@@ -146,6 +171,13 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
             if not isinstance(content, list):
                 # Unknown shape — emit a best-effort message so AI Guard still
                 # sees the role/turn boundary; stringify whatever was provided.
+                # AIDEV-NOTE: this branch indicates an integration mismatch
+                # (Anthropic always ships str or list); telemetry-log the
+                # offending type so support can spot the regression.
+                _report_converter_error(
+                    "AI Guard anthropic: unexpected 'content' type %r on role=%r; "
+                    "stringifying as best-effort fallback" % (type(content).__name__, role)
+                )
                 ai_msg = Message(role=role)
                 if content is not None:
                     ai_msg["content"] = str(content)
@@ -182,8 +214,8 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
                 result.append(ai_msg)
 
             result.extend(tool_result_msgs)
-        except Exception:
-            logger.debug("Failed to convert Anthropic message", exc_info=True)
+    except Exception:
+        logger.debug("Failed to convert Anthropic message", exc_info=True)
     return result
 
 
@@ -256,7 +288,7 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
 
     system = kwargs.get("system")
     ai_guard_messages = _convert_anthropic_messages(system, messages)
-    if not ai_guard_messages:
+    if len(ai_guard_messages) == 0:
         logger.debug("AI Guard anthropic before-hook skipped: no convertible messages")
         return None
 

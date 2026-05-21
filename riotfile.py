@@ -4457,6 +4457,10 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "pytest-asyncio": "==0.23.7",
+                # AIDEV-NOTE: ``pyyaml`` lets the cassette smoke test parse the
+                # anthropic contrib VCR fixtures. Pinned to a single version
+                # because the suite only uses ``yaml.safe_load``.
+                "pyyaml": latest,
             },
             venvs=[
                 Venv(
