@@ -644,6 +644,98 @@ def test_collect_gevent_task_started_before_profiler() -> None:
     )
 
 
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_gevent_cpu_time_total_accuracy",
+        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+    ),
+    err=None,
+)
+def test_gevent_cpu_time_total_accuracy() -> None:
+    """Verify that the sum of cpu-time across all profile samples roughly matches
+    the actual process CPU time consumed by gevent workers.
+
+    Without the on-CPU swap in unwind_greenlets, when the running greenlet is
+    not the first entry in current_greenlets, render_task_begin starts a new
+    sample for it and pushes thread_state.cpu_time_ns a second time (the first
+    push already happened on the sample inherited from render_thread_begin).
+    For M=4 workers, the over-count converges to ~1.5-1.6x of the real CPU
+    consumed by the process. With the swap in place, the on-CPU greenlet
+    always reuses the first sample and the duplicate push is avoided.
+
+    Adaptive sampling is disabled to mirror the experimental measurement cell
+    that gave the cleanest 1.6x signal; this also keeps the sample interval
+    deterministic across the timed region.
+    """
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import os
+    import time
+
+    import gevent
+
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    DURATION_S = 3.0
+    CPU_BURN_S = 0.01
+    SLEEP_S = 0.05
+    NUM_WORKERS = 4
+
+    def worker() -> None:
+        deadline = time.monotonic() + DURATION_S
+        while time.monotonic() < deadline:
+            burn_until = time.process_time_ns() + int(CPU_BURN_S * 1e9)
+            while time.process_time_ns() < burn_until:
+                pass
+            gevent.sleep(SLEEP_S)
+
+    p = profiler.Profiler()
+    p.start()
+    try:
+        # Stagger workers by CPU_BURN_S so their bursts interleave instead of
+        # clumping; matches the layout used in the experimental measurement.
+        workers = []
+        cpu_start_ns = time.process_time_ns()
+        for i in range(NUM_WORKERS):
+            if i > 0:
+                gevent.sleep(CPU_BURN_S)
+            workers.append(gevent.spawn(worker))
+        gevent.joinall(workers, timeout=DURATION_S + 10)
+        cpu_end_ns = time.process_time_ns()
+    finally:
+        p.stop()
+
+    assert all(g.dead for g in workers), "gevent workers did not finish within timeout"
+
+    actual_cpu_ns = cpu_end_ns - cpu_start_ns
+    assert actual_cpu_ns > 0, "process_time_ns did not advance"
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
+    profile_cpu_ns = sum(sample.value[cpu_time_index] for sample in profile.sample)
+
+    ratio = profile_cpu_ns / actual_cpu_ns
+
+    # Reject the ~1.6x over-count this test exists to catch. 1.25x gives ~25pp
+    # of slack above the expected 1.0x for noise.
+    # Lower bound guards against a regression that drops real CPU (e.g.
+    # reintroducing the is_running() gate from before PR #16273) and would
+    # report ~0x.
+    assert 0.7 <= ratio <= 1.25, (
+        f"profile cpu-time total ({profile_cpu_ns / 1e9:.3f}s) does not match "
+        f"actual process CPU time ({actual_cpu_ns / 1e9:.3f}s); ratio={ratio:.2f} "
+        f"(expected ~1.0, bug produces ~1.6)"
+    )
+
+
 def test_repr() -> None:
     test_collector._test_repr(
         stack.StackCollector,
