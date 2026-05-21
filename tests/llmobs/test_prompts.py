@@ -85,7 +85,7 @@ class MockHTTPConnection:
     def __init__(self, response: MockHTTPResponse):
         self._response = response
 
-    def request(self, method: str, path: str, headers: Optional[dict] = None):
+    def request(self, method: str, path: str, body=None, headers: Optional[dict] = None):
         pass
 
     def getresponse(self):
