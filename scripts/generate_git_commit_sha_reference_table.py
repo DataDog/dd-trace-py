@@ -1,20 +1,22 @@
-#!/usr/bin/env python3
+#!/usr/bin/env scripts/uv-run-script
+"""Generate a CSV mapping tracer versions to git commit SHAs."""
 
 import argparse
 import csv
 from pathlib import Path
-import re
 import subprocess
 import sys
+from typing import NamedTuple
 from typing import Optional
 
+from packaging.version import InvalidVersion
+from packaging.version import Version
 
-# Matches:
-#   v4.5.0
-#   v4.5.0rc4
-#   4.5.0
-#   4.5.0rc4
-VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?(rc(\d+))?$")
+
+class ParsedTag(NamedTuple):
+    tag: str
+    version_str: str
+    version: Version
 
 
 def run_git(repo_path: Path, *args: str) -> str:
@@ -45,47 +47,18 @@ def normalize_repo_url(url: str) -> str:
     return url
 
 
-def parse_version(tag: str, tag_prefix: str) -> Optional[tuple]:
+def parse_version(tag: str, tag_prefix: str) -> Optional[ParsedTag]:
     if tag_prefix and tag.startswith(tag_prefix):
-        version = tag[len(tag_prefix) :]
+        version_str = tag[len(tag_prefix) :]
     else:
-        version = tag
+        version_str = tag
 
-    # Match against the stripped version string (not the original tag)
-    match = VERSION_RE.fullmatch(version)
-    if not match:
+    try:
+        version = Version(version_str)
+    except InvalidVersion:
         return None
 
-    major, minor, patch, revision, rc_full, rc_num = match.groups()
-
-    major = int(major)
-    minor = int(minor)
-    patch = int(patch)
-    revision = int(revision) if revision else 0
-
-    is_rc = rc_full is not None
-    rc_number = int(rc_num) if rc_num else None
-
-    return (
-        tag,  # original tag
-        version,  # raw version (no normalization)
-        major,
-        minor,
-        patch,
-        revision,
-        is_rc,
-        rc_number,
-    )
-
-
-def version_sort_key(parsed):
-    _, _, major, minor, patch, revision, is_rc, rc_number = parsed
-
-    # RCs come before stable
-    release_rank = 0 if is_rc else 1
-    rc_rank = rc_number if rc_number is not None else sys.maxsize
-
-    return (major, minor, patch, revision, release_rank, rc_rank)
+    return ParsedTag(tag, version_str, version)
 
 
 def validate_repo(repo_path: Path):
@@ -124,7 +97,7 @@ def main():
         tags_output = run_git(repo_path, "tag", "-l", f"{args.tag_prefix}*")
         all_tags = [t.strip() for t in tags_output.splitlines() if t.strip()]
 
-        parsed_versions = []
+        parsed_versions: list[ParsedTag] = []
         skipped = []
 
         for tag in all_tags:
@@ -134,21 +107,19 @@ def main():
                 continue
             parsed_versions.append(parsed)
 
-        parsed_versions.sort(key=version_sort_key)
+        parsed_versions.sort(key=lambda p: p.version)
 
         with open(output_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(["tracer_version", "git_repository_url", "git_commit_sha"])
 
             for parsed in parsed_versions:
-                tag, version, *_ = parsed
-
-                commit = run_git(repo_path, "rev-list", "-n", "1", tag)
+                commit = run_git(repo_path, "rev-list", "-n", "1", parsed.tag)
                 if not commit:
-                    print(f"WARNING: skipping {tag}", file=sys.stderr)
+                    print(f"WARNING: skipping {parsed.tag}", file=sys.stderr)
                     continue
 
-                writer.writerow([version, repo_url, commit])
+                writer.writerow([str(parsed.version), repo_url, commit])
 
         print(f"Output written to: {output_path}")
         print(f"Total tags processed: {len(parsed_versions)}")
