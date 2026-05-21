@@ -1856,6 +1856,26 @@ def test_experiment_run_evaluators_multi_value_class_based(llmobs, test_dataset_
     }
 
 
+def test_experiment_run_evaluators_label_collision_warns(llmobs, test_dataset_one_record, caplog):
+    """Two evaluators emitting the same label on the same row should log a warning."""
+    import logging
+
+    def evaluator_a(input_data, output_data, expected_output):
+        return MultiEvaluatorResult({"shared": 1}, prefix=False)
+
+    def evaluator_b(input_data, output_data, expected_output):
+        return MultiEvaluatorResult({"shared": 2}, prefix=False)
+
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [evaluator_a, evaluator_b])
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    with caplog.at_level(logging.WARNING, logger="ddtrace.llmobs._experiment"):
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    assert any("Evaluator label collision" in r.message and "shared" in r.message for r in caplog.records)
+    # Last writer wins — deterministic for the same gather order is not guaranteed, so just assert
+    # the surviving value is one of the two emitted values.
+    assert eval_results[0]["evaluations"]["shared"]["value"] in (1, 2)
+
+
 def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
     exp = llmobs.experiment(
         "test_experiment",

@@ -2571,6 +2571,14 @@ class Experiment:
                     raise r
                 continue
             for name, result in r:
+                if name in row_results:
+                    logger.warning(
+                        "Evaluator label collision on row %d: '%s' is emitted by multiple evaluators; "
+                        "the later value will overwrite the earlier one. "
+                        "Use unique sub-metric keys or set prefix=True on MultiEvaluatorResult to disambiguate.",
+                        idx,
+                        name,
+                    )
                 row_results[name] = result
         return {"idx": idx, "evaluations": row_results}
 
@@ -2781,6 +2789,13 @@ class Experiment:
                 continue
             entries = cast(list[tuple[str, dict[str, JSONType]]], result)
             for evaluator_name, eval_data in entries:
+                if evaluator_name in evals_dict:
+                    logger.warning(
+                        "Summary evaluator label collision: '%s' is emitted by multiple summary evaluators; "
+                        "the later value will overwrite the earlier one. "
+                        "Use unique sub-metric keys or set prefix=True on MultiEvaluatorResult to disambiguate.",
+                        evaluator_name,
+                    )
                 evals_dict[evaluator_name] = eval_data
             evaluations.append({"idx": idx, "evaluations": evals_dict})
 
