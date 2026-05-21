@@ -4,14 +4,15 @@ import os
 from pathlib import Path  # isort: skip
 
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent.parent
+ddtrace_internal_wheels = list(HERE.rglob("**/ddtrace_internal*.whl"))
+internal_wheel_path = str(ddtrace_internal_wheels[0])
 
 
 if os.getenv("CI_COMMIT_TAG") is not None:
     ddtrace_internal_spec = ""
 else:
-    root = os.getenv("CI_PROJECT_DIR", HERE.parent)
-    ddtrace_internal_spec = f" @ file://{root}/pywheels/ddtrace_internal-0.0.0-py3-none-any.whl"
+    ddtrace_internal_spec = f" @ file://{internal_wheel_path}"
 
 install_requires = [
     "bytecode>=0.17.0,<1; python_version>='3.14.0'",
