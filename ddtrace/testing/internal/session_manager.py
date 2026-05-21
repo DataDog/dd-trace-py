@@ -452,7 +452,7 @@ class SessionManager:
 
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
-        if git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0):
+        if len(commits_not_in_backend) > 0 and git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0):
             log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
             unshallow_successful = git.try_all_unshallow_repository_methods()
             if unshallow_successful:
@@ -471,6 +471,8 @@ class SessionManager:
         # Compute the true PR merge-base now that the repo has been unshallowed (if needed).
         # This is done here rather than at env_tags collection time because on shallow clones the
         # required commits are only available after the fetch above completes.
+        # Must run before the early-return below so sessions where all commits are already
+        # known to the backend still populate git.pull_request.base_branch_sha.
         self._update_pr_merge_base(git)
 
         if len(commits_not_in_backend) == 0:
