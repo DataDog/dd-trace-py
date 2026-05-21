@@ -1036,8 +1036,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 msg += ", payload %s"
                 log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
 
-            if not (config._llmobs_enabled and config._llmobs_agentless_enabled):
-                _safelog(log.error, msg, *log_args, extra={"send_to_telemetry": False})
+            _safelog(log.error, msg, *log_args, extra={"send_to_telemetry": False})
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
