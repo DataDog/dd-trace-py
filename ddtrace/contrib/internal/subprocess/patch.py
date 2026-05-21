@@ -229,7 +229,7 @@ class SubprocessCmdLine:
         "*credentials*",
         "stripetoken",
     ]
-    _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
+    _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_][A-Z0-9_]*=\w+")
 
     def __init__(self, shell_args: Union[str, list[str]], shell: bool = False) -> None:
         """
@@ -284,7 +284,7 @@ class SubprocessCmdLine:
         """
         for idx, token in enumerate(tokens):
             if re.match(self._COMPILED_ENV_VAR_REGEXP, token):
-                var, value = token.split("=")
+                var, _ = token.split("=", 1)
                 if var in self.ENV_VARS_ALLOWLIST:
                     self.env_vars.append(token)
                 else:
