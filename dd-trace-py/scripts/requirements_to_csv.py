@@ -5,6 +5,7 @@ import re
 
 import toml
 
+
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 spec = importlib.util.spec_from_file_location("requirements", f"{PROJECT_ROOT}/requirements.py")
