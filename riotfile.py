@@ -411,6 +411,7 @@ venv = Venv(
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
             },
             venvs=[
                 Venv(pys=select_pys()),

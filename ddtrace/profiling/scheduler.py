@@ -85,7 +85,7 @@ class ServerlessScheduler(Scheduler):
             try:
                 super(ServerlessScheduler, self).periodic()
             finally:
-                # Override interval so it's always back to the value we n
+                # Override interval so it's always back to the value we need
                 self.interval = self.FORCED_INTERVAL
                 self._profiled_intervals = 0
         else:

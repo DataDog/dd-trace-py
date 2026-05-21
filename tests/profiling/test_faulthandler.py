@@ -407,6 +407,193 @@ def test_faulthandler_enable_concurrent_threads() -> None:
 @pytest.mark.subprocess(
     env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
+def test_faulthandler_disable_reinstalls_ddtrace_handler() -> None:
+    """After faulthandler.disable, ddtrace's SIGSEGV handler must be reinstalled.
+
+    This is the core regression test for the bug: faulthandler.disable restores
+    its saved previous handler (which is not ddtrace's) and without the wrapper
+    would remove ddtrace's SIGSEGV/SIGBUS handler, breaking safe_memcpy recovery.
+    """
+    import faulthandler
+    from unittest.mock import MagicMock
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import stack
+
+    assert stack.is_available
+
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    mock_reinstall = MagicMock()
+
+    with patch.object(stack, "reinstall_segv_handler", mock_reinstall):
+        faulthandler.enable()
+        mock_reinstall.reset_mock()
+        faulthandler.disable()
+
+    # reinstall must have been called by the disable wrapper
+    mock_reinstall.assert_called_once()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
+def test_faulthandler_disable_pauses_sampler_when_running() -> None:
+    """faulthandler.disable must pause the sampler before swapping handlers."""
+    import faulthandler
+    import time
+    from unittest.mock import MagicMock
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    assert stack.is_available
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    stack.start()
+    try:
+        time.sleep(0.05)
+        mock_pause = MagicMock(return_value=True)
+        mock_resume = MagicMock()
+
+        with (
+            patch.object(stack, "pause_sampling", mock_pause),
+            patch.object(stack, "resume_sampling", mock_resume),
+        ):
+            faulthandler.enable()
+            mock_pause.reset_mock()
+            mock_resume.reset_mock()
+            faulthandler.disable()
+
+        mock_pause.assert_called_once()
+        mock_resume.assert_called_once()
+    finally:
+        stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
+def test_faulthandler_disable_when_sampler_not_running() -> None:
+    """faulthandler.disable when sampler is not running must still reinstall handler."""
+    import faulthandler
+    from unittest.mock import MagicMock
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import stack
+
+    assert stack.is_available
+
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    mock_reinstall = MagicMock()
+    mock_resume = MagicMock()
+
+    # pause_sampling returns False when sampler is not running
+    with (
+        patch.object(stack, "pause_sampling", return_value=False),
+        patch.object(stack, "reinstall_segv_handler", mock_reinstall),
+        patch.object(stack, "resume_sampling", mock_resume),
+    ):
+        faulthandler.enable()
+        mock_reinstall.reset_mock()
+        faulthandler.disable()
+
+    mock_reinstall.assert_called_once()
+    # resume must not be called when pause returned False
+    mock_resume.assert_not_called()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
+def test_faulthandler_enable_disable_cycle_during_sampling() -> None:
+    """Repeated enable/disable cycles while sampling must not crash or deadlock."""
+    import faulthandler
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    assert stack.is_available
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    stack.start()
+    try:
+        time.sleep(0.05)
+        for _ in range(5):
+            faulthandler.enable()
+            faulthandler.disable()
+            assert not faulthandler.is_enabled()
+        # After all cycles, re-enable and confirm it still works
+        faulthandler.enable()
+        assert faulthandler.is_enabled()
+        time.sleep(0.05)
+    finally:
+        stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
+def test_faulthandler_disable_concurrent_with_enable() -> None:
+    """Concurrent enable and disable calls must not deadlock or crash."""
+    import faulthandler
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    assert stack.is_available
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    stack.start()
+    try:
+        errors: list[BaseException] = []
+        n_threads = 4
+        barrier = threading.Barrier(n_threads)
+
+        def _toggle() -> None:
+            try:
+                barrier.wait(timeout=5)
+                for _ in range(10):
+                    faulthandler.enable()
+                    faulthandler.disable()
+            except BaseException as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=_toggle) for _ in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            # 80 serialized calls through _enable_lock; each pause_sampling()
+            # can block up to 3 s on timeout, so give generous headroom.
+            t.join(timeout=30)
+
+        still_alive = [t for t in threads if t.is_alive()]
+        assert not still_alive, f"{len(still_alive)} thread(s) deadlocked"
+        assert not errors, f"Thread errors: {errors}"
+        time.sleep(0.05)
+    finally:
+        stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
 def test_faulthandler_real_profiler_instance() -> None:
     import threading
 
