@@ -701,7 +701,7 @@ def gen_cached_testrunner() -> None:
         f.write(
             template(
                 "cached-testrunner",
-                current_month=datetime.datetime.now().month,
+                current_week=datetime.datetime.now().isocalendar().week,
                 testrunner_image_hash=TESTRUNNER_IMAGE_HASH,
             )
         )
