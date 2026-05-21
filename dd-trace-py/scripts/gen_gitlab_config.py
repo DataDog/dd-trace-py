@@ -670,7 +670,7 @@ prechecks:
   stage: setup
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: "ddtrace-internal build linux: [amd64, cp314-cp314, v85383392-751efc0-manylinux2014_x86_64]"
+      job: "ddtrace-internal build linux: [amd64, cp314-cp314, v113741238-d2b8243-manylinux2014_x86_64]"
       artifacts: true
   variables:
     PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'
