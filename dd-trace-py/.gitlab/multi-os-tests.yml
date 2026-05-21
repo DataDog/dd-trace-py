@@ -20,13 +20,13 @@ os tests ubuntu:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp310-cp310"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp312-cp312"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp314-cp314"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
   variables:
     WHEEL_PATTERN: "manylinux2014*x86_64.whl"
     PLATFORM: "Ubuntu"
@@ -35,13 +35,17 @@ os tests ubuntu:
     - cd dd-trace-py
     - bash .gitlab/scripts/multi-os-tests.sh
 
+# Tart VMs default to using zsh instead of bash
 os tests macos:
   extends: .multi_os_test_base
-  tags: ["macos:sonoma-amd64", "specific:true"]
-  needs: [ "build macos" ]
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
+  tags: ["macos:sonoma-tart"]
+  needs: [ "build macos arm64" ]
   variables:
-    WHEEL_PATTERN: "macosx*x86_64.whl"
+    WHEEL_PATTERN: "macosx*arm64.whl"
     PLATFORM: "macOS"
+    # Disables collapsable sections in multi-line scripts due to incompatibility with zsh
+    FF_SCRIPT_SECTIONS: "false"
   script:
     - |
       cd dd-trace-py
