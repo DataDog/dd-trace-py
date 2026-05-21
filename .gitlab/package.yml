@@ -172,26 +172,36 @@ variables:
     PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
     SCCACHE_REGION: "us-east-1"
-    GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_PROJECT_PATH_SLUG
   hooks:
     pre_get_sources_script:
       - sleep 60
       - |
         set -euo pipefail
-        EXT_DISK=$(diskutil list | awk '/^\/dev\/disk[0-9]+ \(external/ {print $1; exit}')
+        echo "=== diskutil list ==="
+        diskutil list
+
+        # Find the slot disk: a whole disk with no partition scheme.
+        # The "0:" line for a partitionless disk has the size in field 2 starting with '*'.
+        EXT_DISK=$(diskutil list | awk '
+          /^\/dev\/disk[0-9]+ \(/ { dev=$1; next }
+          /^   0:/ && $2 ~ /^\*/  { print dev; exit }
+        ')
+        echo "Slot disk candidate: ${EXT_DISK:-<none>}"
+
         if [[ -z "$EXT_DISK" ]]; then
-          >&2 echo "WARN: no --disk attached, clone will land on EBS"
-          sudo mkdir -p /var/builds-fast
-          sudo chown -R admin:staff /var/builds-fast
+          echo "WARN: no slot disk found"
+          sudo mkdir -p /var/tmp/builds
+          sudo chown -R admin:staff /var/tmp/builds
           exit 0
         fi
-        echo "Found external disk: $EXT_DISK"
+
+        echo "Formatting $EXT_DISK as APFS"
         sudo diskutil eraseDisk APFS BuildDisk "$EXT_DISK"
         sudo diskutil unmount BuildDisk
-        sudo mkdir -p /var/builds-fast
-        sudo diskutil mount -mountPoint /var/builds-fast BuildDisk
-        sudo chown -R admin:staff /var/builds-fast
-        df -h /var/builds-fast
+        sudo mkdir -p /var/tmp/builds
+        sudo diskutil mount -mountPoint /var/tmp/builds BuildDisk
+        sudo chown -R admin:staff /var/tmp/builds
+        df -h /var/tmp/builds
   script:
     - |
       echo "=== Disk layout check ==="
