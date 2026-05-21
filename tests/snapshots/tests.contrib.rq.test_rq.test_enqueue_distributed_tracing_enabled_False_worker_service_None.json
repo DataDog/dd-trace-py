@@ -1,7 +1,7 @@
 [[
   {
-    "name": "rq.queue.enqueue_job",
-    "service": "rq",
+    "name": "rq.worker.perform_job",
+    "service": "rq-worker",
     "resource": "tests.contrib.rq.jobs.job_add1",
     "trace_id": 0,
     "span_id": 1,
@@ -9,66 +9,33 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "tests.contrib.rq",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "69ebafb000000000",
-      "_dd.svc_src": "rq",
-      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
-      "component": "rq",
-      "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "65328477-88cd-4c6d-a5b3-d34e76e30dff",
-      "language": "python",
-      "queue.name": "q",
-      "runtime-id": "c291c5d77b15483685e620c76193a901",
-      "span.kind": "producer"
-    },
-    "metrics": {
-      "_dd.top_level": 1.0,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 45019.0
-    },
-    "duration": 1005000,
-    "start": 1777053616880594675
-  }],
-[
-  {
-    "name": "rq.worker.perform_job",
-    "service": "rq-worker",
-    "resource": "tests.contrib.rq.jobs.job_add1",
-    "trace_id": 1,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "worker",
-    "error": 0,
-    "meta": {
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69ebafb100000000",
+      "_dd.p.tid": "6a0f3e8d00000000",
       "_dd.svc_src": "rq_worker",
       "_dd.tags.process": "entrypoint.name:rq,entrypoint.type:script,entrypoint.workdir:project,svc.auto:rq",
       "component": "rq",
-      "job.id": "65328477-88cd-4c6d-a5b3-d34e76e30dff",
+      "job.id": "8018285e-f8ba-4412-b0bd-dbf48cef937a",
       "job.origin": "q",
       "job.status": "finished",
       "language": "python",
-      "runtime-id": "5d8f810d553e49919c0500e52670a300",
+      "runtime-id": "401336807b3d49a28f8dcf72fe64a421",
       "span.kind": "consumer"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 45173.0
+      "process_id": 738.0
     },
-    "duration": 10336583,
-    "start": 1777053617410441884
+    "duration": 8019836,
+    "start": 1779383949686884075
   },
      {
        "name": "rq.job.perform",
        "service": "rq-worker",
        "resource": "tests.contrib.rq.jobs.job_add1",
-       "trace_id": 1,
+       "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "",
@@ -77,8 +44,59 @@
          "_dd.base_service": "",
          "_dd.svc_src": "rq",
          "component": "rq",
-         "job.id": "65328477-88cd-4c6d-a5b3-d34e76e30dff"
+         "job.id": "8018285e-f8ba-4412-b0bd-dbf48cef937a"
        },
-       "duration": 4209167,
-       "start": 1777053617414509925
-     }]]
+       "duration": 4267062,
+       "start": 1779383949688968649
+     },
+     {
+       "name": "rq.job.fetch_many",
+       "service": "rq-worker",
+       "resource": "rq.job.fetch_many",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "",
+         "_dd.svc_src": "rq_worker",
+         "component": "rq",
+         "job.id": "[]"
+       },
+       "duration": 36917,
+       "start": 1779383949693747875
+     }],
+[
+  {
+    "name": "rq.queue.enqueue_job",
+    "service": "rq",
+    "resource": "tests.contrib.rq.jobs.job_add1",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.rq",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a0f3e8d00000000",
+      "_dd.svc_src": "rq",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.rq",
+      "component": "rq",
+      "job.func_name": "tests.contrib.rq.jobs.job_add1",
+      "job.id": "8018285e-f8ba-4412-b0bd-dbf48cef937a",
+      "language": "python",
+      "queue.name": "q",
+      "runtime-id": "37737552af864a458be2088900967661",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 557.0
+    },
+    "duration": 1487201,
+    "start": 1779383949002011960
+  }]]
