@@ -18,25 +18,6 @@ os tests macos:
     PLATFORM: "macOS"
     # Disables collapsable sections in multi-line scripts due to incompatibility with zsh
     FF_SCRIPT_SECTIONS: "false"
-    GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_PROJECT_PATH_SLUG
-  hooks:
-    pre_get_sources_script:
-      - |
-        set -euo pipefail
-        EXT_DISK=$(diskutil list | awk '/^\/dev\/disk[0-9]+ \(external/ {print $1; exit}')
-        if [[ -z "$EXT_DISK" ]]; then
-          >&2 echo "WARN: no --disk attached, clone will land on EBS"
-          sudo mkdir -p /var/builds-fast
-          sudo chown -R admin:staff /var/builds-fast
-          exit 0
-        fi
-        echo "Found external disk: $EXT_DISK"
-        sudo diskutil eraseDisk APFS BuildDisk "$EXT_DISK"
-        sudo diskutil unmount BuildDisk
-        sudo mkdir -p /var/builds-fast
-        sudo diskutil mount -mountPoint /var/builds-fast BuildDisk
-        sudo chown -R admin:staff /var/builds-fast
-        df -h /var/builds-fast
   script:
     - |
       echo "=== Disk layout check ==="
