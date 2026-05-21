@@ -179,19 +179,33 @@ variables:
         set -euo pipefail
         if diskutil info BuildDisk >/dev/null 2>&1; then
           echo "BuildDisk found, resetting (case-sensitive APFS) and mounting at /var/tmp/builds"
+
+          # Preserve files the runner has already written into $CI_BUILDS_DIR
+          # (CI_SERVER_TLS_CA_FILE, gitlab_runner_env, etc.) — they get hidden
+          # by our mount otherwise.
+          sudo rsync -az /var/tmp/builds/ /tmp/builds-preserve/ 2>/dev/null || true
+
           sudo diskutil unmount BuildDisk 2>/dev/null || true
           sudo diskutil eraseVolume "Case-sensitive APFS" BuildDisk BuildDisk
           sudo diskutil unmount BuildDisk
           sudo mkdir -p /var/tmp/builds
           sudo diskutil mount -mountPoint /var/tmp/builds BuildDisk
           sudo chown -R admin:staff /var/tmp/builds
+
+          # Restore the runner-managed files onto the freshly-mounted volume
+          if [[ -d /tmp/builds-preserve ]]; then
+            sudo rsync -az /tmp/builds-preserve/ /var/tmp/builds/
+            sudo rm -rf /tmp/builds-preserve
+          fi
         else
           echo "WARN: no BuildDisk volume found, clone will land on EBS"
           sudo mkdir -p /var/tmp/builds
           sudo chown -R admin:staff /var/tmp/builds
         fi
+
         df -h /var/tmp/builds
-        diskutil info BuildDisk | grep -i "case-sensitive\|file system"
+        ls -la /var/tmp/builds | head
+        stat -f "%Sd" /var/tmp/builds
 
   script:
     - |
