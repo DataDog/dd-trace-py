@@ -927,67 +927,67 @@ experiments:
           - name: sethttpmeta-all-disabled
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-all-enabled
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-collectipvariant_exists
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-no-collectipvariant
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-no-useragentvariant
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-obfuscation-no-query
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-obfuscation-regular-case-explicit-query
             thresholds:
               - execution_time < 0.09 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-obfuscation-regular-case-implicit-query
             thresholds:
               - execution_time < 0.09 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-obfuscation-send-querystring-disabled
             thresholds:
               - execution_time < 0.17 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-obfuscation-worst-case-explicit-query
             thresholds:
               - execution_time < 0.16 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-obfuscation-worst-case-implicit-query
             thresholds:
               - execution_time < 0.17 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-useragentvariant_exists_1
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-useragentvariant_exists_2
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-useragentvariant_exists_3
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-useragentvariant_not_exists_1
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
           - name: sethttpmeta-useragentvariant_not_exists_2
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 42.00 MB
+              - max_rss_usage < 38.75 MB
 
           # span
           - name: span-add-event
