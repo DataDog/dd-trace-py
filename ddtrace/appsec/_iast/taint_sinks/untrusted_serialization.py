@@ -29,6 +29,16 @@ def get_version() -> Text:
 
 _IS_PATCHED = False
 
+# NOTE: Do NOT add ("_pickle", "Unpickler.load") here. _pickle.Unpickler is an
+# immutable C type; wrapping its load method_descriptor via the forbiddenfruit
+# fallback in apply_patch poisons class-level attribute access because
+# wrapt.FunctionWrapper.__get__(None, owner) ends up invoking
+# method_descriptor.__get__(descr, Py_None, owner), which CPython rejects with the
+# "descriptor 'load' for '_pickle.Unpickler' objects doesn't apply to a
+# 'NoneType' object" error message. That breaks dill's class body (dill/_dill.py:
+# `load.__doc__ = StockUnpickler.load.__doc__`) and any other code that accesses the load
+# attribute on the class. Top-level _pickle.load/loads and dill.load/loads
+# already provide the necessary instrumentation entry points.
 _MODULES = {
     ("pickle", "load"),  # maps to pickle._load/_pickle.load
     ("pickle", "loads"),  # maps to pickle.loads/_pickle.loads
@@ -37,7 +47,6 @@ _MODULES = {
     ("pickle", "_Unpickler.load"),
     ("_pickle", "load"),
     ("_pickle", "loads"),
-    ("_pickle", "Unpickler.load"),
     ("dill", "load"),
     ("dill", "loads"),
     ("yaml", "load"),
