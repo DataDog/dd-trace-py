@@ -321,6 +321,13 @@ check_ci_dependencies:
   script:
     - scripts/check-ci-dependencies
 
+check_benchmark_dependencies:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  script:
+    - scripts/check-benchmark-dependencies
+
 codeowners:
   stage: tests
   needs: []

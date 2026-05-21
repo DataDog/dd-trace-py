@@ -1,0 +1,37 @@
+# Many dependencies to stress package-scanning benchmarks.
+# Top-level packages only — transitives are resolved by uv pip compile.
+ai21
+anthropic
+boto3
+cohere
+coverage[toml]
+hypothesis
+langchain
+langchain-anthropic
+langchain-aws
+langchain-cohere
+langchain-community
+langchain-experimental
+langchain-openai
+langchain-pinecone
+langchain-text-splitters
+mock
+openai
+opentracing
+parameterized
+psutil
+pydantic-settings
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock
+pytest-randomly
+sentencepiece
+sqlalchemy
+tabulate
+tiktoken
+tokenizers
+tomli
+types-requests
+types-urllib3
+vcrpy
