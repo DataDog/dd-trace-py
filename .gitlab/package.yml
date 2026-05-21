@@ -175,6 +175,7 @@ variables:
     GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_PROJECT_PATH_SLUG
   hooks:
     pre_get_sources_script:
+      - sleep 60
       - |
         set -euo pipefail
         EXT_DISK=$(diskutil list | awk '/^\/dev\/disk[0-9]+ \(external/ {print $1; exit}')
