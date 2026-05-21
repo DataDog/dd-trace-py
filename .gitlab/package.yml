@@ -172,6 +172,7 @@ variables:
     PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
     SCCACHE_REGION: "us-east-1"
+    TMPDIR: /var/tmp/builds/.tmp
   hooks:
     pre_get_sources_script:
       - |
@@ -205,6 +206,7 @@ variables:
         df -h /var/tmp/builds
         ls -la /var/tmp/builds | head
         stat -f "%Sd" /var/tmp/builds
+        mkdir -p "$TMPDIR"
 
   script:
     - |
@@ -221,6 +223,7 @@ variables:
       if ! command -v sccache &> /dev/null; then
         brew install sccache
       fi
+
       # sccache's reqsign credential loader dials the hardcoded IMDS IP instead
       # of $AWS_EC2_METADATA_SERVICE_ENDPOINT, so resolve creds from the tart
       # iam-proxy once and export them as static AWS_* env vars for the build.
