@@ -408,9 +408,9 @@ def test_patch_unpatch_patch_cycle():
             f"Protocol.{method} not wrapped after patch/unpatch/patch cycle"
         )
         wrapper = asyncpg.protocol.Protocol.__dict__[method]
-        assert not iswrapped(wrapper.__wrapped__), (
-            f"Protocol.{method} is double-wrapped after patch/unpatch/patch cycle"
-        )
+        wrapped = getattr(wrapper, "__wrapped__", getattr(wrapper, "__dd_wrapped__", None))
+        assert wrapped is not None
+        assert not iswrapped(wrapped), f"Protocol.{method} is double-wrapped after patch/unpatch/patch cycle"
 
 
 @pytest.mark.asyncio
