@@ -85,6 +85,10 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_response_chunk: Any = None  # deferred AssistantMessage for steps with tool calls
         self._step_input_snapshot: Optional[list[Message]] = None  # input captured before llm extension
         self._accumulated_input_messages: Optional[list[Message]] = None
+        # Register on the instance so the PreCompact hook can find the
+        # currently-active step span to stamp compaction events onto.
+        if self.instance is not None:
+            self.instance._dd_streaming_handler = self
         self._create_step_span()
 
     async def process_chunk(self, chunk, iterator=None):
@@ -145,6 +149,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         except Exception:
             log.warning("Error processing claude_agent_sdk stream response.", exc_info=True)
         finally:
+            if self.instance is not None and getattr(self.instance, "_dd_streaming_handler", None) is self:
+                self.instance._dd_streaming_handler = None
             self.primary_span.finish()
 
     def _create_step_span(self) -> None:

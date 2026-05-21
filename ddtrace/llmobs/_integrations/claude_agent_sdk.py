@@ -88,6 +88,14 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 span.set_tag(ERROR_TYPE, error)
                 span.set_tag(ERROR_MSG, error)
         input_messages: list[Message] = (kwargs or {}).get("input_messages") or []
+
+        # Per-span compactions (stamped by the PreCompact hook when this span
+        # was the currently-active step). Read off the span's context bag.
+        metadata: dict[str, Any] = {}
+        span_compactions = span._get_ctx_item("_dd_compactions") if span else None
+        if span_compactions:
+            metadata.setdefault("_dd", {})["compactions"] = span_compactions
+
         _annotate_llmobs_span_data(
             span,
             kind=kind,
@@ -96,6 +104,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             input_messages=input_messages or None,
             output_messages=output_messages or [Message(content="")],
             metrics=metrics or None,
+            metadata=metadata or None,
         )
 
     def _llmobs_set_tool_tags(self, span: Span, kwargs: dict[str, Any]) -> None:
@@ -308,7 +317,14 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             if hasattr(options, key) and getattr(options, key):
                 metadata[key] = getattr(options, key)
         self._format_context(metadata, kwargs)
+        self._format_compactions(metadata, kwargs)
         return metadata
+
+    def _format_compactions(self, metadata: dict[str, Any], kwargs: dict[str, Any]) -> None:
+        compactions = kwargs.get("_dd_compactions")
+        if not compactions:
+            return
+        metadata.setdefault("_dd", {})["compactions"] = compactions
 
     def _format_context(self, metadata: dict[str, Any], kwargs: dict[str, Any]) -> None:
         after_context = kwargs.get("_dd_context")
