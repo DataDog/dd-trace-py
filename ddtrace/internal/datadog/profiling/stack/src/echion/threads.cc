@@ -672,6 +672,21 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
 
         current_greenlets.push_back(std::move(stack_info));
     }
+
+    // Make sure the on-CPU greenlet is first. render_task_begin reuses the
+    // sample created by render_thread_begin for the first task it renders;
+    // that sample already received push_cputime via render_cpu_time. Tasks
+    // rendered after the first start a new sample and, if on_cpu is true,
+    // push thread_state.cpu_time_ns again, double-counting CPU time.
+    // unwind_tasks performs the same swap on leaf_tasks above.
+    for (size_t i = 0; i < current_greenlets.size(); i++) {
+        if (current_greenlets[i]->on_cpu) {
+            if (i > 0) {
+                std::swap(current_greenlets[i], current_greenlets[0]);
+            }
+            break;
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
