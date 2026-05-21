@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    LLM Observability: experiment evaluators and summary evaluators can now
+    return a ``MultiEvaluatorResult`` to emit multiple named evaluation
+    metrics from a single evaluator call. Each sub-value may itself be an
+    ``EvaluatorResult`` carrying its own reasoning, assessment, metadata, and
+    tags. By default emitted metric labels are prefixed with the evaluator's
+    name (``"<evaluator_name>.<key>"``); pass ``prefix=False`` to emit raw
+    keys.

@@ -41,6 +41,7 @@ from ddtrace.llmobs._experiment import DatasetRecordNew
 from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentRun
+from ddtrace.llmobs._experiment import MultiEvaluatorResult
 from ddtrace.llmobs._experiment import RemoteEvaluator
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import SyncExperiment
@@ -76,6 +77,29 @@ def dummy_evaluator_with_extra_return_values(input_data, output_data, expected_o
         assessment="pass" if expected_output == output_data else "fail",
         metadata={"difficulty": "easy"},
         tags={"task": "question_answering"},
+    )
+
+
+def dummy_evaluator_multi(input_data, output_data, expected_output):
+    matches = output_data == expected_output
+    return MultiEvaluatorResult(
+        {
+            "precision": 0.9 if matches else 0.1,
+            "recall": 0.8 if matches else 0.2,
+        }
+    )
+
+
+def dummy_evaluator_multi_no_prefix(input_data, output_data, expected_output):
+    return MultiEvaluatorResult({"precision": 0.5, "recall": 0.6}, prefix=False)
+
+
+def dummy_evaluator_multi_with_inner_result(input_data, output_data, expected_output):
+    return MultiEvaluatorResult(
+        {
+            "precision": EvaluatorResult(value=0.9, reasoning="close match", assessment="pass"),
+            "recall": 0.7,
+        }
     )
 
 
@@ -1728,6 +1752,110 @@ def test_experiment_run_evaluators_with_extra_return_values(llmobs, test_dataset
     }
 
 
+def test_experiment_run_evaluators_multi_value(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator_multi])
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    assert len(task_results) == 1
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    assert len(eval_results) == 1
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {
+            "dummy_evaluator_multi.precision": {"value": 0.1, "error": None},
+            "dummy_evaluator_multi.recall": {"value": 0.2, "error": None},
+        },
+    }
+
+
+def test_experiment_run_evaluators_multi_value_no_prefix(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator_multi_no_prefix])
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {
+            "precision": {"value": 0.5, "error": None},
+            "recall": {"value": 0.6, "error": None},
+        },
+    }
+
+
+def test_experiment_run_evaluators_multi_value_with_inner_result(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator_multi_with_inner_result],
+    )
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {
+            "dummy_evaluator_multi_with_inner_result.precision": {
+                "value": 0.9,
+                "error": None,
+                "reasoning": "close match",
+                "assessment": "pass",
+            },
+            "dummy_evaluator_multi_with_inner_result.recall": {"value": 0.7, "error": None},
+        },
+    }
+
+
+def test_experiment_generate_metrics_multi_value(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator_multi_with_inner_result],
+    )
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    metrics = exp._experiment._generate_metrics_for_record(task_results[0], eval_results[0])
+    assert len(metrics) == 2
+    labels = sorted(m["label"] for m in metrics)
+    assert labels == [
+        "dummy_evaluator_multi_with_inner_result.precision",
+        "dummy_evaluator_multi_with_inner_result.recall",
+    ]
+    precision_metric = next(m for m in metrics if m["label"].endswith(".precision"))
+    assert precision_metric["score_value"] == 0.9
+    assert precision_metric["reasoning"] == "close match"
+    assert precision_metric["assessment"] == "pass"
+
+
+def test_multi_evaluator_result_validation():
+    with pytest.raises(ValueError):
+        MultiEvaluatorResult({})
+    with pytest.raises(TypeError):
+        MultiEvaluatorResult("not a dict")
+    with pytest.raises(ValueError):
+        MultiEvaluatorResult({"invalid name!": 1})
+
+
+def test_experiment_run_evaluators_multi_value_class_based(llmobs, test_dataset_one_record):
+    from ddtrace.llmobs._experiment import BaseEvaluator
+
+    class MultiClassEvaluator(BaseEvaluator):
+        def __init__(self):
+            super().__init__(name="multi_class_evaluator")
+
+        def evaluate(self, context):
+            return MultiEvaluatorResult({"a": 1, "b": EvaluatorResult(value=2, reasoning="r")})
+
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [MultiClassEvaluator()])
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {
+            "multi_class_evaluator.a": {"value": 1, "error": None},
+            "multi_class_evaluator.b": {"value": 2, "error": None, "reasoning": "r"},
+        },
+    }
+
+
 def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
     exp = llmobs.experiment(
         "test_experiment",
@@ -2774,6 +2902,16 @@ async def async_dummy_evaluator(input_data, output_data, expected_output):
     return int(output_data == expected_output)
 
 
+async def async_dummy_evaluator_multi(input_data, output_data, expected_output):
+    """Async multi-value evaluator."""
+    return MultiEvaluatorResult(
+        {
+            "precision": EvaluatorResult(value=0.9, reasoning="async match"),
+            "recall": 0.7,
+        }
+    )
+
+
 async def async_faulty_evaluator(input_data, output_data, expected_output):
     """Async faulty evaluator."""
     raise ValueError("This is an async test error in evaluator")
@@ -3038,6 +3176,30 @@ async def test_async_experiment_run_evaluators_async(llmobs, test_dataset_one_re
     assert eval_results[0] == {
         "idx": 0,
         "evaluations": {"async_dummy_evaluator": {"value": False, "error": None}},
+    }
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_evaluators_multi_value(llmobs, test_dataset_one_record):
+    """AsyncExperiment._run_evaluators with an async MultiEvaluatorResult evaluator."""
+    exp = llmobs.async_experiment(
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [async_dummy_evaluator_multi],
+    )
+    task_results = await exp._run_task(10, run=run_info_with_stable_id(0), raise_errors=False)
+    eval_results = await exp._run_evaluators(task_results, raise_errors=False)
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {
+            "async_dummy_evaluator_multi.precision": {
+                "value": 0.9,
+                "error": None,
+                "reasoning": "async match",
+            },
+            "async_dummy_evaluator_multi.recall": {"value": 0.7, "error": None},
+        },
     }
 
 

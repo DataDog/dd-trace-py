@@ -134,6 +134,45 @@ class RemoteEvaluatorResult(EvaluatorResult):
         self.status = status
 
 
+class MultiEvaluatorResult:
+    """Container that lets one evaluator emit multiple named evaluation values.
+
+    Each entry of ``values`` may be either a bare JSON-serializable value or an
+    :class:`EvaluatorResult` carrying its own reasoning/assessment/metadata/tags.
+    Each entry is emitted as its own backend metric.
+
+    By default, emitted metric labels are prefixed with the evaluator's name
+    (e.g. ``"my_evaluator.precision"``). Set ``prefix=False`` to use raw keys.
+
+    Example::
+
+        def precision_recall(input_data, output_data, expected_output):
+            return MultiEvaluatorResult({
+                "precision": 0.9,
+                "recall": EvaluatorResult(value=0.8, reasoning="missed two items"),
+            })
+
+    :param values: Non-empty mapping of sub-metric name to value or EvaluatorResult.
+                   Keys must be valid evaluator names (alphanumeric, ``_``, ``-``).
+    :param prefix: If True (default), sub-metric labels become
+                   ``"<evaluator_name>.<key>"``. If False, the raw key is used.
+    """
+
+    def __init__(
+        self,
+        values: dict[str, Union[JSONType, EvaluatorResult]],
+        prefix: bool = True,
+    ) -> None:
+        if not isinstance(values, dict):
+            raise TypeError("MultiEvaluatorResult.values must be a dict")
+        if not values:
+            raise ValueError("MultiEvaluatorResult.values must be a non-empty dict")
+        for key in values:
+            _validate_evaluator_name(key)
+        self.values = values
+        self.prefix = prefix
+
+
 def _validate_evaluator_name(name: str) -> None:
     """Validate that evaluator name is valid.
 
@@ -262,6 +301,20 @@ class BaseEvaluator(ABC):
                     tags={"type": "semantic"}
                 )
 
+    Example (emitting multiple named values from one evaluator)::
+
+        class PrecisionRecallEvaluator(BaseEvaluator):
+            def __init__(self):
+                super().__init__(name="quality")
+
+            def evaluate(self, context: EvaluatorContext):
+                precision, recall = compute_pr(context.output_data, context.expected_output)
+                return MultiEvaluatorResult({
+                    "precision": precision,
+                    "recall": EvaluatorResult(value=recall, reasoning="missed two items"),
+                })
+                # Emits metrics labeled "quality.precision" and "quality.recall".
+
     Note: The ``evaluate`` method may be called concurrently from multiple threads.
     Avoid modifying instance attributes inside ``evaluate()``; use local variables instead.
     """
@@ -282,14 +335,15 @@ class BaseEvaluator(ABC):
         self.name = name
 
     @abstractmethod
-    def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
+    def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult, "MultiEvaluatorResult"]:
         """Perform evaluation.
 
         This method must be implemented by all subclasses.
 
         :param context: The evaluation context containing input, output, and metadata
-        :return: Evaluation results - can be a JSONType value (dict, primitive, list, None)
-                 or an EvaluatorResult object containing the value plus additional metadata
+        :return: Evaluation results - can be a JSONType value (dict, primitive, list, None),
+                 an EvaluatorResult object containing the value plus additional metadata, or a
+                 MultiEvaluatorResult to emit multiple named values from one evaluator.
         """
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
@@ -1894,6 +1948,18 @@ class Experiment:
                 "",
                 latest_timestamp,
                 source="summary",
+                reasoning=str(summary_eval_data.get("reasoning"))
+                if isinstance(summary_eval_data.get("reasoning"), str)
+                else None,
+                assessment=str(summary_eval_data.get("assessment"))
+                if isinstance(summary_eval_data.get("assessment"), str)
+                else None,
+                metadata=cast(dict[str, JSONType], summary_eval_data.get("metadata"))
+                if isinstance(summary_eval_data.get("metadata"), dict)
+                else None,
+                tags=cast(dict[str, str], summary_eval_data.get("tags"))
+                if isinstance(summary_eval_data.get("tags"), dict)
+                else None,
             )
             eval_metrics.append(eval_metric)
         return eval_metrics
@@ -1952,8 +2018,9 @@ class Experiment:
             )
         return self._dataset
 
-    def _extract_evaluator_result(
-        self, eval_result: Union[JSONType, EvaluatorResult]
+    @staticmethod
+    def _extract_single_evaluator_result(
+        eval_result: Union[JSONType, EvaluatorResult],
     ) -> tuple[JSONType, dict[str, JSONType]]:
         extra_return_values: dict[str, JSONType] = {}
         if isinstance(eval_result, EvaluatorResult):
@@ -1969,6 +2036,27 @@ class Experiment:
                 extra_return_values["status"] = eval_result.status
             return eval_result.value, extra_return_values
         return eval_result, extra_return_values
+
+    def _extract_evaluator_result(
+        self,
+        eval_result: Union[JSONType, EvaluatorResult, MultiEvaluatorResult],
+        evaluator_name: str,
+    ) -> list[tuple[str, JSONType, dict[str, JSONType]]]:
+        """Extract one or more ``(label, value, extra_return_values)`` triples.
+
+        For a bare ``JSONType`` or ``EvaluatorResult`` returns a single triple keyed
+        by ``evaluator_name``. For a ``MultiEvaluatorResult`` returns one triple per
+        sub-value, with labels built from the container's ``prefix`` flag.
+        """
+        if isinstance(eval_result, MultiEvaluatorResult):
+            triples: list[tuple[str, JSONType, dict[str, JSONType]]] = []
+            for sub_key, sub_result in eval_result.values.items():
+                value, extras = self._extract_single_evaluator_result(sub_result)
+                label = f"{evaluator_name}.{sub_key}" if eval_result.prefix else sub_key
+                triples.append((label, value, extras))
+            return triples
+        value, extras = self._extract_single_evaluator_result(eval_result)
+        return [(evaluator_name, value, extras)]
 
     def _build_evaluator_error(self, exc: Exception) -> dict[str, Any]:
         if isinstance(exc, RemoteEvaluatorError) and exc.backend_error:
@@ -2370,15 +2458,15 @@ class Experiment:
 
         async def _run_single_evaluator(
             evaluator: Union[EvaluatorType, AsyncEvaluatorType],
-        ) -> tuple[str, dict[str, JSONType]]:
+        ) -> list[tuple[str, dict[str, JSONType]]]:
             async with semaphore:
-                eval_result_value: JSONType = None
+                eval_result: Union[JSONType, EvaluatorResult, MultiEvaluatorResult] = None
                 eval_err: JSONType = None
-                extra_return_values: dict[str, JSONType] = {}
+                error_extras: dict[str, JSONType] = {}
                 evaluator_name = ""
+                success = False
 
                 for attempt in range(1 + max_retries):
-                    eval_result_value = None
                     eval_err = None
                     try:
                         if isinstance(evaluator, BaseAsyncEvaluator):
@@ -2433,11 +2521,10 @@ class Experiment:
                             evaluator_name = str(evaluator)
                             eval_result = None
 
-                        eval_result_value, extra_return_values = self._extract_evaluator_result(eval_result)
+                        success = True
                         break
 
                     except Exception as e:
-                        extra_return_values = {}
                         eval_err = self._build_evaluator_error(e)
                         if attempt < max_retries:
                             self._retries.append(
@@ -2451,16 +2538,27 @@ class Experiment:
                             finally:
                                 await semaphore.acquire()
                             continue
-                        extra_return_values = {"status": self._build_evaluator_status(e)}
+                        error_extras = {"status": self._build_evaluator_status(e)}
                         self._has_errors = True
                         if raise_errors:
                             raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
 
-                return evaluator_name, {
-                    "value": eval_result_value,
-                    "error": eval_err,
-                    **extra_return_values,
-                }
+                if not success:
+                    return [
+                        (
+                            evaluator_name,
+                            {"value": None, "error": eval_err, **error_extras},
+                        )
+                    ]
+
+                triples = self._extract_evaluator_result(eval_result, evaluator_name)
+                return [
+                    (
+                        label,
+                        {"value": value, "error": None, **extras},
+                    )
+                    for label, value, extras in triples
+                ]
 
         results = await asyncio.gather(
             *[_run_single_evaluator(ev) for ev in self._evaluators],
@@ -2472,8 +2570,8 @@ class Experiment:
                 if raise_errors:
                     raise r
                 continue
-            name, result = r
-            row_results[name] = result
+            for name, result in r:
+                row_results[name] = result
         return {"idx": idx, "evaluations": row_results}
 
     async def _run_evaluators(
@@ -2595,11 +2693,12 @@ class Experiment:
 
         async def _evaluate_summary_single(
             summary_evaluator: Any,
-        ) -> tuple[str, dict[str, JSONType]]:
+        ) -> list[tuple[str, dict[str, JSONType]]]:
             async with semaphore:
-                eval_result_value: JSONType = None
+                eval_result: Union[JSONType, EvaluatorResult, MultiEvaluatorResult] = None
                 eval_err: JSONType = None
                 evaluator_name = ""
+                success = False
 
                 try:
                     if isinstance(summary_evaluator, BaseAsyncSummaryEvaluator):
@@ -2658,20 +2757,18 @@ class Experiment:
                                 expected_outputs,
                                 eval_results_by_name,
                             )
-                    eval_result_value = eval_result
+                    success = True
                 except Exception as e:
                     self._has_errors = True
                     eval_err = self._build_evaluator_error(e)
                     if raise_errors:
                         raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
 
-                return (
-                    evaluator_name,
-                    {
-                        "value": eval_result_value,
-                        "error": eval_err,
-                    },
-                )
+                if not success:
+                    return [(evaluator_name, {"value": None, "error": eval_err})]
+
+                triples = self._extract_evaluator_result(eval_result, evaluator_name)
+                return [(label, {"value": value, "error": None, **extras}) for label, value, extras in triples]
 
         coros = [_evaluate_summary_single(summary_evaluator) for summary_evaluator in self._summary_evaluators]
         results = await asyncio.gather(*coros, return_exceptions=not raise_errors)
@@ -2682,8 +2779,9 @@ class Experiment:
         for idx, result in enumerate(results):
             if isinstance(result, BaseException):
                 continue
-            evaluator_name, eval_data = cast(tuple[str, dict[str, JSONType]], result)
-            evals_dict[evaluator_name] = eval_data
+            entries = cast(list[tuple[str, dict[str, JSONType]]], result)
+            for evaluator_name, eval_data in entries:
+                evals_dict[evaluator_name] = eval_data
             evaluations.append({"idx": idx, "evaluations": evals_dict})
 
         if evals_dict and self._id and self._llmobs_instance:
@@ -2704,6 +2802,18 @@ class Experiment:
                         "",
                         latest_timestamp,
                         source="summary",
+                        reasoning=str(summary_eval_data.get("reasoning"))
+                        if isinstance(summary_eval_data.get("reasoning"), str)
+                        else None,
+                        assessment=str(summary_eval_data.get("assessment"))
+                        if isinstance(summary_eval_data.get("assessment"), str)
+                        else None,
+                        metadata=cast(dict[str, JSONType], summary_eval_data.get("metadata"))
+                        if isinstance(summary_eval_data.get("metadata"), dict)
+                        else None,
+                        tags=cast(dict[str, str], summary_eval_data.get("tags"))
+                        if isinstance(summary_eval_data.get("tags"), dict)
+                        else None,
                     )
                 )
             if metrics:
