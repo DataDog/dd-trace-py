@@ -13,6 +13,7 @@ reqs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(reqs)
 DDTRACE_CORE_DEPENDENCIES = reqs.install_requires
 
+
 def requirements_to_csv():
     """
     Reads dependencies from pyproject.toml and writes them to a CSV file
