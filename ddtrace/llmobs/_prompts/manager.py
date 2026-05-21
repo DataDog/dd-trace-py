@@ -417,7 +417,7 @@ class PromptManager:
     def list_prompts(self, *, ml_app: Optional[str] = None) -> list[PromptResponse]:
         path = PROMPTS_ENDPOINT
         if ml_app:
-            path = f"{PROMPTS_ENDPOINT}?{urlencode({'ml_app': ml_app})}"
+            path = f"{PROMPTS_ENDPOINT}?{urlencode({'filter[ml_app]': ml_app})}"
         result = self._request("GET", path, require_app_key=False)
         data: list[PromptResponse] = result.get("data", [])
         return data
