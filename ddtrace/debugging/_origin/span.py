@@ -21,7 +21,7 @@ from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 
 
@@ -183,7 +183,7 @@ class SpanCodeOriginProcessorEntry:
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
 
     _pending: list = []
-    _lock = Lock()
+    _lock = RLock()
 
     @classmethod
     def instrument_view(cls, f: t.Union[FunctionType, MethodType]) -> None:
