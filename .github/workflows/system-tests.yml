@@ -99,6 +99,7 @@ jobs:
     secrets: inherit
     with:
       library: python_lambda
+      ref: 9777e7b43d6bca435236d9e231bf9bd42a6b6bb5
       binaries_artifact: serverless_system_tests_binaries
       scenarios_groups: lambda_end_to_end
       skip_empty_scenarios: true
@@ -129,6 +130,7 @@ jobs:
     secrets: inherit
     with:
       library: python
+      ref: 9777e7b43d6bca435236d9e231bf9bd42a6b6bb5
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: integration-frameworks-wheels
       push_to_test_optimization: true
