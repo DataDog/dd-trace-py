@@ -459,6 +459,13 @@ download_dependency_wheels:
     - dd-trace-py/.gitlab/validate-ddtrace-package.py pywheels
 
 "ddtrace package serverless":
-  extends: ."ddtrace package"
+  extends: .package_base
+  needs:
+    - "build linux"
+    - "build macos amd64"
+    - "build macos arm64"
+    - "build sdist"
+    - "collect windows wheels"
+    - "package version"
   script:
     - dd-trace-py/.gitlab/validate-ddtrace-package.py pywheels --mode=serverless
