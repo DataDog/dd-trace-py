@@ -1761,8 +1761,8 @@ def test_experiment_run_evaluators_multi_value(llmobs, test_dataset_one_record):
     assert eval_results[0] == {
         "idx": 0,
         "evaluations": {
-            "dummy_evaluator_multi.precision": {"value": 0.1, "error": None},
-            "dummy_evaluator_multi.recall": {"value": 0.2, "error": None},
+            "dummy_evaluator_multi-precision": {"value": 0.1, "error": None},
+            "dummy_evaluator_multi-recall": {"value": 0.2, "error": None},
         },
     }
 
@@ -1792,13 +1792,13 @@ def test_experiment_run_evaluators_multi_value_with_inner_result(llmobs, test_da
     assert eval_results[0] == {
         "idx": 0,
         "evaluations": {
-            "dummy_evaluator_multi_with_inner_result.precision": {
+            "dummy_evaluator_multi_with_inner_result-precision": {
                 "value": 0.9,
                 "error": None,
                 "reasoning": "close match",
                 "assessment": "pass",
             },
-            "dummy_evaluator_multi_with_inner_result.recall": {"value": 0.7, "error": None},
+            "dummy_evaluator_multi_with_inner_result-recall": {"value": 0.7, "error": None},
         },
     }
 
@@ -1816,8 +1816,8 @@ def test_experiment_generate_metrics_multi_value(llmobs, test_dataset_one_record
     assert len(metrics) == 2
     labels = sorted(m["label"] for m in metrics)
     assert labels == [
-        "dummy_evaluator_multi_with_inner_result.precision",
-        "dummy_evaluator_multi_with_inner_result.recall",
+        "dummy_evaluator_multi_with_inner_result-precision",
+        "dummy_evaluator_multi_with_inner_result-recall",
     ]
     precision_metric = next(m for m in metrics if m["label"].endswith(".precision"))
     assert precision_metric["score_value"] == 0.9
@@ -1850,8 +1850,8 @@ def test_experiment_run_evaluators_multi_value_class_based(llmobs, test_dataset_
     assert eval_results[0] == {
         "idx": 0,
         "evaluations": {
-            "multi_class_evaluator.a": {"value": 1, "error": None},
-            "multi_class_evaluator.b": {"value": 2, "error": None, "reasoning": "r"},
+            "multi_class_evaluator-a": {"value": 1, "error": None},
+            "multi_class_evaluator-b": {"value": 2, "error": None, "reasoning": "r"},
         },
     }
 
@@ -3193,12 +3193,12 @@ async def test_async_experiment_run_evaluators_multi_value(llmobs, test_dataset_
     assert eval_results[0] == {
         "idx": 0,
         "evaluations": {
-            "async_dummy_evaluator_multi.precision": {
+            "async_dummy_evaluator_multi-precision": {
                 "value": 0.9,
                 "error": None,
                 "reasoning": "async match",
             },
-            "async_dummy_evaluator_multi.recall": {"value": 0.7, "error": None},
+            "async_dummy_evaluator_multi-recall": {"value": 0.7, "error": None},
         },
     }
 

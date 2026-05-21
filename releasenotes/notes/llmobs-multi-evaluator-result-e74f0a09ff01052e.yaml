@@ -6,5 +6,5 @@ features:
     metrics from a single evaluator call. Each sub-value may itself be an
     ``EvaluatorResult`` carrying its own reasoning, assessment, metadata, and
     tags. By default emitted metric labels are prefixed with the evaluator's
-    name (``"<evaluator_name>.<key>"``); pass ``prefix=False`` to emit raw
+    name (``"<evaluator_name>-<key>"``); pass ``prefix=False`` to emit raw
     keys.

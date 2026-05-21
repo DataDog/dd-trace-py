@@ -142,7 +142,7 @@ class MultiEvaluatorResult:
     Each entry is emitted as its own backend metric.
 
     By default, emitted metric labels are prefixed with the evaluator's name
-    (e.g. ``"my_evaluator.precision"``). Set ``prefix=False`` to use raw keys.
+    (e.g. ``"my_evaluator-precision"``). Set ``prefix=False`` to use raw keys.
 
     Example::
 
@@ -155,7 +155,7 @@ class MultiEvaluatorResult:
     :param values: Non-empty mapping of sub-metric name to value or EvaluatorResult.
                    Keys must be valid evaluator names (alphanumeric, ``_``, ``-``).
     :param prefix: If True (default), sub-metric labels become
-                   ``"<evaluator_name>.<key>"``. If False, the raw key is used.
+                   ``"<evaluator_name>-<key>"``. If False, the raw key is used.
     """
 
     def __init__(
@@ -313,7 +313,7 @@ class BaseEvaluator(ABC):
                     "precision": precision,
                     "recall": EvaluatorResult(value=recall, reasoning="missed two items"),
                 })
-                # Emits metrics labeled "quality.precision" and "quality.recall".
+                # Emits metrics labeled "quality-precision" and "quality-recall".
 
     Note: The ``evaluate`` method may be called concurrently from multiple threads.
     Avoid modifying instance attributes inside ``evaluate()``; use local variables instead.
@@ -2052,7 +2052,7 @@ class Experiment:
             triples: list[tuple[str, JSONType, dict[str, JSONType]]] = []
             for sub_key, sub_result in eval_result.values.items():
                 value, extras = self._extract_single_evaluator_result(sub_result)
-                label = f"{evaluator_name}.{sub_key}" if eval_result.prefix else sub_key
+                label = f"{evaluator_name}-{sub_key}" if eval_result.prefix else sub_key
                 triples.append((label, value, extras))
             return triples
         value, extras = self._extract_single_evaluator_result(eval_result)
