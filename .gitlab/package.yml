@@ -174,7 +174,7 @@ variables:
     SCCACHE_REGION: "us-east-1"
   hooks:
     pre_get_sources_script:
-      - sleep 60
+      - sleep 120
       - |
         set -euo pipefail
         echo "=== diskutil list ==="
@@ -194,9 +194,8 @@ variables:
         fi
 
         df -h /var/tmp/builds
-        echo "hello from VM $(date)" | sudo tee /var/tmp/builds
-        cat /var/tmp/builds/test.txt
-        ls -la /var/tmp/builds
+        echo "hello from VM $(date)" | tee /var/tmp/builds/test.txt
+        stat -f "%Sd %N" /var/tmp/builds/test.txt
 
   script:
     - |
