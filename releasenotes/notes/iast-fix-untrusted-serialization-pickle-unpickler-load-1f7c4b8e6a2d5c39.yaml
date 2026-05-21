@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security: This fix resolves an ``ImportError`` when ``dill`` is imported after IAST patches are applied (e.g. inside a request handler).
+    This issue surfaced with ``TypeError: descriptor 'load' for '_pickle.Unpickler' objects doesn't apply to a 'NoneType' object`` error message.
