@@ -174,7 +174,6 @@ variables:
     SCCACHE_REGION: "us-east-1"
   hooks:
     pre_get_sources_script:
-      - sleep 120
       - |
         set -euo pipefail
         if diskutil info BuildDisk >/dev/null 2>&1; then
@@ -213,39 +212,39 @@ variables:
       pwd
       # confirm CWD is on disk1 not disk0
       df -h .
-      mount | grep BuildDisk
-      stat -f "%Sd" .
-    #- |
-    ## Tart VMs default to zsh which doesn't word-split variable expansions
-    #setopt shwordsplit 2>/dev/null || true
-    #set -euo pipefail
-    #if ! command -v sccache &> /dev/null; then
-    #  brew install sccache
-    #fi
-    ## sccache's reqsign credential loader dials the hardcoded IMDS IP instead
-    ## of $AWS_EC2_METADATA_SERVICE_ENDPOINT, so resolve creds from the tart
-    ## iam-proxy once and export them as static AWS_* env vars for the build.
-    #echo "IMDS endpoint: ${AWS_EC2_METADATA_SERVICE_ENDPOINT:-<unset>}"
-    #role_resp=$(curl -sS -w '\nHTTP_STATUS:%{http_code}' "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/")
-    #echo "role list response:"
-    #echo "${role_resp}"
-    #role=$(echo "${role_resp}" | sed '/^HTTP_STATUS:/d')
-    #creds_resp=$(curl -sS -w '\nHTTP_STATUS:%{http_code}' "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}")
-    #echo "credentials response:"
-    #echo "${creds_resp}"
-    #creds=$(echo "${creds_resp}" | sed '/^HTTP_STATUS:/d')
-    #export AWS_ACCESS_KEY_ID=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["AccessKeyId"])' <<<"$creds")
-    #export AWS_SECRET_ACCESS_KEY=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["SecretAccessKey"])' <<<"$creds")
-    #export AWS_SESSION_TOKEN=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["Token"])' <<<"$creds")
-    #for python_version in ${PYTHON_VERSIONS}; do
-    #  echo -e "\e[0Ksection_start:`date +%s`:build_macos_${python_version}\r\e[0KBuilding macOS wheel for Python ${python_version}"
+      mount | grep -E "BuildDisk|disk6s1|var/tmp/builds" || true
+      mount | grep -E "$(stat -f "%Sd" .)" || true
+    - |
+      # Tart VMs default to zsh which doesn't word-split variable expansions
+      setopt shwordsplit 2>/dev/null || true
+      set -euo pipefail
+      if ! command -v sccache &> /dev/null; then
+        brew install sccache
+      fi
+      # sccache's reqsign credential loader dials the hardcoded IMDS IP instead
+      # of $AWS_EC2_METADATA_SERVICE_ENDPOINT, so resolve creds from the tart
+      # iam-proxy once and export them as static AWS_* env vars for the build.
+      echo "IMDS endpoint: ${AWS_EC2_METADATA_SERVICE_ENDPOINT:-<unset>}"
+      role_resp=$(curl -sS -w '\nHTTP_STATUS:%{http_code}' "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/")
+      echo "role list response:"
+      echo "${role_resp}"
+      role=$(echo "${role_resp}" | sed '/^HTTP_STATUS:/d')
+      creds_resp=$(curl -sS -w '\nHTTP_STATUS:%{http_code}' "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}")
+      echo "credentials response:"
+      echo "${creds_resp}"
+      creds=$(echo "${creds_resp}" | sed '/^HTTP_STATUS:/d')
+      export AWS_ACCESS_KEY_ID=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["AccessKeyId"])' <<<"$creds")
+      export AWS_SECRET_ACCESS_KEY=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["SecretAccessKey"])' <<<"$creds")
+      export AWS_SESSION_TOKEN=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["Token"])' <<<"$creds")
+      for python_version in ${PYTHON_VERSIONS}; do
+        echo -e "\e[0Ksection_start:`date +%s`:build_macos_${python_version}\r\e[0KBuilding macOS wheel for Python ${python_version}"
 
-    #  export UV_PYTHON="${python_version}"
-    #  .gitlab/scripts/build-wheel.sh
+        export UV_PYTHON="${python_version}"
+        .gitlab/scripts/build-wheel.sh
 
-    #  echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
-    #done
-    #sccache --show-stats
+        echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
+      done
+      sccache --show-stats
 
 # "upload manylinux2014_x86_64":
 #   extends: .upload_wheels_base
