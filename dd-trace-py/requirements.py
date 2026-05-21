@@ -6,10 +6,12 @@ from pathlib import Path  # isort: skip
 
 HERE = Path(__file__).resolve().parent.parent
 ddtrace_internal_wheels = list(HERE.rglob("**/ddtrace_internal*.whl"))
-internal_wheel_path = str(ddtrace_internal_wheels[0])
+internal_wheel_path = None 
+if ddtrace_internal_wheels:
+    internal_wheel_path = str(ddtrace_internal_wheels[0])
 
 
-if os.getenv("CI_COMMIT_TAG") is not None:
+if internal_wheel_path is None or os.getenv("CI_COMMIT_TAG") is not None:
     ddtrace_internal_spec = ""
 else:
     ddtrace_internal_spec = f" @ file://{internal_wheel_path}"
