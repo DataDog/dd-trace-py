@@ -418,12 +418,12 @@ class PromptManager:
         path = PROMPTS_ENDPOINT
         if ml_app:
             path = f"{PROMPTS_ENDPOINT}?{urlencode({'filter[ml_app]': ml_app})}"
-        result = self._request("GET", path, require_app_key=False)
-        data: list[PromptResponse] = result.get("data", [])
-        return data
+        result: list[PromptResponse] = self._request("GET", path, require_app_key=False)
+        return result
 
     def list_prompt_versions(self, prompt_id: str) -> list[PromptVersionResponse]:
         escaped_id = quote(prompt_id, safe="")
-        result = self._request("GET", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", require_app_key=False)
-        data: list[PromptVersionResponse] = result.get("data", [])
-        return data
+        result: list[PromptVersionResponse] = self._request(
+            "GET", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", require_app_key=False
+        )
+        return result
