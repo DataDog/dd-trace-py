@@ -152,8 +152,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     // TODO(dsn): With Python free-threading, allocators must be thread-safe even for non-RAW domains.
     // We may need to add synchronization here in the future to avoid races between realloc and untrack.
     if (ptr2) {
-        memalloc_heap_untrack_no_cpython(ptr);
-        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+        memalloc_heap_retrack_invokes_cpython(memalloc_ctx->max_nframe, ptr, ptr2, new_size, memalloc_ctx->domain);
     } else if (new_size == 0 && ptr != NULL) {
         // realloc(ptr, 0) is implementation-defined: some allocators (including
         // glibc) free ptr and return NULL.  In that case ptr is gone and must be
@@ -248,8 +247,7 @@ memalloc_realloc_mem(void* ctx, void* ptr, size_t new_size)
         return nullptr;
     void* ptr2 = alloc.realloc(alloc.ctx, ptr, new_size);
     if (ptr2) {
-        memalloc_heap_untrack_no_cpython(ptr);
-        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+        memalloc_heap_retrack_invokes_cpython(memalloc_ctx->max_nframe, ptr, ptr2, new_size, memalloc_ctx->domain);
     } else if (new_size == 0 && ptr != NULL) {
         memalloc_heap_untrack_no_cpython(ptr);
     }

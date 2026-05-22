@@ -127,6 +127,10 @@ class heap_tracker_t
     /* Reset the heap tracker state after fork in child process */
     void postfork_child();
 
+    /* Remove old_ptr from allocs_m and, if new_tb is non-null, insert it at new_ptr.
+     * Both operations occur under a single gil_guard scope. */
+    void retrack_no_cpython(void* old_ptr, void* new_ptr, std::unique_ptr<traceback_t> new_tb);
+
   private:
     uint32_t next_sample_size_no_cpython(uint32_t sample_size);
 
@@ -233,6 +237,24 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     auto node = allocs_m.extract(ptr);
     if (!node.empty()) {
         pool_put_no_cpython(std::move(node.mapped()));
+    }
+}
+
+void
+heap_tracker_t::retrack_no_cpython(void* old_ptr, void* new_ptr, std::unique_ptr<traceback_t> new_tb)
+{
+    memalloc_gil_debug_guard_t guard(gil_guard);
+
+    // Remove old entry (if tracked) and return its traceback to the pool
+    auto node = allocs_m.extract(old_ptr);
+    if (!node.empty()) {
+        pool_put_no_cpython(std::move(node.mapped()));
+    }
+
+    // Insert new entry only when we decided to sample new_ptr
+    if (new_tb) {
+        allocs_m.insert_or_assign(new_ptr, std::move(new_tb));
+        reset_sampling_state_no_cpython();
     }
 }
 
@@ -350,6 +372,52 @@ memalloc_heap_untrack_no_cpython(void* ptr)
     if (heap_tracker_t::instance) {
         heap_tracker_t::instance->untrack_no_cpython(ptr);
     }
+}
+
+/* Retrack a reallocated pointer: remove old_ptr and, if the new allocation is sampled */
+void
+memalloc_heap_retrack_invokes_cpython(uint16_t max_nframe,
+                                      void* old_ptr,
+                                      void* new_ptr,
+                                      size_t new_size,
+                                      PyMemAllocatorDomain domain)
+{
+    (void)domain; // Parameter kept for API consistency but not currently used
+    if (!heap_tracker_t::instance)
+        return;
+
+    uint64_t allocated_memory_val = 0;
+    if (!heap_tracker_t::instance->should_sample_no_cpython(new_size, &allocated_memory_val)) {
+        heap_tracker_t::instance->untrack_no_cpython(old_ptr);
+        return;
+    }
+
+    memalloc_reentrant_guard_t guard;
+    if (!guard) {
+        // Can't capture traceback; still must remove old_ptr
+        heap_tracker_t::instance->untrack_no_cpython(old_ptr);
+        return;
+    }
+
+#if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
+    pygc_temp_disable_guard_t gc_guard;
+#endif
+
+    if (!heap_tracker_t::instance) {
+        return;
+    }
+
+    auto tb =
+      heap_tracker_t::instance->pool_get_with_alloc_data_invokes_cpython(new_size, allocated_memory_val, max_nframe);
+
+    tb->sample.export_sample();
+    tb->sample.reset_alloc();
+    tb->sample.push_heap(allocated_memory_val);
+
+    if (heap_tracker_t::instance) {
+        heap_tracker_t::instance->retrack_no_cpython(old_ptr, new_ptr, std::move(tb));
+    }
+    // If instance is gone, tb's unique_ptr automatically deletes the traceback
 }
 
 /* Track a memory allocation in the heap profiler. */
