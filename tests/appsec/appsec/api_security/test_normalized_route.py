@@ -315,6 +315,37 @@ def test_normalize_route_django_rejects_brace_quantifier_on_regex_routes(route):
     assert normalize_route_django(route) is None
 
 
+@pytest.mark.parametrize(
+    ("route", "expected"),
+    [
+        # ``path("foo/?", view)`` is a valid Django route — ``?`` is escaped to a literal by ``_route_to_regex``, so
+        # ``resolver_match.route`` arrives as ``"foo/?"`` and must NOT collapse to ``/foo`` (which would alias it with
+        # the distinct ``path("foo", ...)`` declaration). Only ``re_path``-shaped routes treat ``/?`` as optional.
+        ("foo/?", "/foo/%3F"),
+        # re_path optional-slash still works as before.
+        ("^foo/?$", "/foo"),
+    ],
+)
+def test_normalize_route_django_literal_question_mark_in_path_route(route, expected):
+    assert normalize_route_django(route) == expected
+
+
+@pytest.mark.parametrize(
+    ("route", "args_tuple", "expected"),
+    [
+        # Python ``re`` treats a leading ``]`` inside ``[...]`` as a literal class member, not the closer. The body
+        # ``[](a)]+`` is one char class (containing ``]``, ``a``, ``)``) with ``+`` quantifier — the ``(a)`` inside
+        # the class is NOT a capture. The outer ``(...)`` is the only group in the body, so the next sibling lands
+        # at ``args_index == 1``, not 2.
+        (r"^([](a)]+)/(\d+)$", (")))", "42"), "/{param1}/{param2}"),
+        # Same rule with ``[^...]`` negated class: the ``]`` after ``^`` is a literal class member.
+        (r"^([^]a)]+)/(\d+)$", ("x", "42"), "/{param1}/{param2}"),
+    ],
+)
+def test_normalize_route_django_char_class_leading_bracket_literal(route, args_tuple, expected):
+    assert normalize_route_django(route, args_tuple) == expected
+
+
 def test_normalize_route_django_brace_inside_named_group_body_is_balanced_through():
     # ``{3,4}`` inside ``(?P<x>...)`` is part of the regex body — balancing scans through it and only the outer named
     # group emits an atom.

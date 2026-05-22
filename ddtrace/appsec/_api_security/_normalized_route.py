@@ -223,8 +223,15 @@ def _balance_group_body(segment: str, start: int, capture_idx_in: int) -> tuple[
             j += 2
             continue
         if cc == "[":
-            # Character class: ``(``/``)`` inside it are literal; ``\]`` is too.
+            # Character class: ``(``/``)`` inside it are literal; ``\]`` is too. Python ``re`` also treats a leading
+            # ``]`` (optionally after a leading ``^`` for a negated class) as a literal class member, not the closer,
+            # so ``[]a)b]`` is a valid class of ``]a)b`` and ``[^]a)b]`` excludes those four chars. Skip past either
+            # form before searching for the real ``]``.
             j += 1
+            if j < n and segment[j] == "^":
+                j += 1
+            if j < n and segment[j] == "]":
+                j += 1
             while j < n and segment[j] != "]":
                 if segment[j] == "\\" and j + 1 < n:
                     j += 2
@@ -405,8 +412,10 @@ def _parse_django_route(route: str) -> Optional[_ParsedRoute]:
         body = body[1:]
     if body.endswith("$"):
         body = body[:-1]
-    # ``/?`` declares an optional trailing slash. Per RFC-1103 rule 1 that is not "declared with a trailing slash".
-    if body.endswith("/?"):
+    # ``/?`` declares an optional trailing slash on regex routes. Per RFC-1103 rule 1 that is not "declared with a
+    # trailing slash". Only strip on ``is_regex`` — ``path("foo/?", view)`` produces ``resolver_match.route == "foo/?"``
+    # with a literal ``?`` (Django escapes via ``re.escape`` in ``path()``), so the same suffix must stay intact.
+    if is_regex and body.endswith("/?"):
         body = body[:-2]
     # Django routes never start with a slash — the leading slash is implicit. Strip if present (e.g. ``^/`` regex
     # anchor) so the segment split is consistent.
