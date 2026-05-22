@@ -76,7 +76,7 @@ jobs:
           platforms: all
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
+        uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
           only: ${{ matrix.only }}
 
@@ -97,12 +97,12 @@ jobs:
         run: |
           chcp 65001 #set code page to utf-8
           echo "ARTIFACT_NAME=${{ matrix.only }}"  >> $env:GITHUB_ENV
-      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-${{ env.ARTIFACT_NAME }}
           path: ./wheelhouse/*.whl
 
-      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: runner.os != 'Windows'
         with:
           name: debug-symbols-${{ env.ARTIFACT_NAME }}
