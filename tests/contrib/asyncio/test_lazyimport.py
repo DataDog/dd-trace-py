@@ -1,7 +1,7 @@
 import pytest  # noqa: I001
 
 
-pytest.skip("PGB-123")
+pytest.skip(reason="PGB-123", allow_module_level=True)
 
 
 @pytest.mark.subprocess()
