@@ -418,20 +418,17 @@ venv = Venv(
                 # This test variant ensures tracer tests are compatible with both 64bit trace ids.
                 # 128bit trace ids are tested by the default case above.
                 Venv(
-                    name="tracer-128-bit-traceid-disabled",
                     pys=MAX_PYTHON_VERSION,
                     env={
-                        # "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "false",
+                        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "false",
                     },
                 ),
                 Venv(
-                    name="tracer-python-optimize",
-                    env={"PYTHONOPTIMIZE": "0"},
+                    env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
                 ),
                 Venv(
-                    name="tracer-legacy-attrs",
                     pkgs={"cattrs": "<23.2.0", "attrs": "==22.1.0"},
                     # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
                     pys=MIN_PYTHON_VERSION,
