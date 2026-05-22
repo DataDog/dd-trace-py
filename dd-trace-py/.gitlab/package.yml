@@ -91,7 +91,8 @@ variables:
     paths:
       - "pywheels/*.whl"  # passthrough dependency wheels
   script:
-    - dd-trace-py/.gitlab/scripts/build-sdist.sh
+    - cd dd-trace-py
+    - .gitlab/scripts/build-sdist.sh
 
 "build linux":
   extends: .build_base
