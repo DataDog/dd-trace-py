@@ -280,6 +280,7 @@ variables:
     - job: "build sdist"
       artifacts: true
   script:
+    - ls ${CI_PROJECT_DIR}/pywheels
     - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
     - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
     - mv ${CI_PROJECT_DIR}/pywheels/ddtrace_internal*.tar.gz .
