@@ -355,6 +355,20 @@ def _get_cluster_id(instance, topic):
     if instance and getattr(instance, "_dd_cluster_id", None):
         return instance._dd_cluster_id
 
+    # Do not call list_topics on Consumer instances.  Calling the metadata API
+    # on a Consumer handle causes librdkafka to create internal topic handles
+    # (rd_kafka_topic_t) and background metadata-refresh tasks that persist
+    # even after partitions are revoked during a rebalance.  Those dangling
+    # internal references can be accessed concurrently with the consumer's own
+    # queue operations, producing a use-after-free inside
+    # rd_kafka_q_serve_rkmessages (librdkafka issue #4214).
+    # Producers are not affected by consumer-group rebalancing, so the call is
+    # safe for them.
+    if isinstance(instance, _Consumer) or (
+        _DeserializingConsumer is not None and isinstance(instance, _DeserializingConsumer)
+    ):
+        return ""
+
     # Check failure cache - skip for 5 minutes if we fail
     last_failure = getattr(instance, "_dd_cluster_id_failure_time", 0)
     if time() - last_failure < 300:
