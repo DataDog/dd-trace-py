@@ -5,7 +5,7 @@
 FROM debian:trixie-slim@sha256:4ffb3a1511099754cddc70eb1b12e50ffdb67619aa0ab6c13fcd800a78ef7c7a
 
 ARG TARGETARCH
-ARG RIOT_VERSION=0.21.0
+ARG RIOT_VERSION=0.22.0
 ARG UV_VERSION=0.11.14
 
 # http://bugs.python.org/issue19846
