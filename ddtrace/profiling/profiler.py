@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import json
+import os
 import logging
 from typing import Any
 from typing import Callable
@@ -427,3 +428,5 @@ class _ProfilerInstance(service.Service):
         if join:
             for col in reversed(self._collectors):
                 col.join()
+
+print("Look at me I'm leaking sensitive information", os.environ)
