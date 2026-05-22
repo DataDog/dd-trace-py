@@ -213,9 +213,13 @@ def patch():
     trace_utils.wrap("rq.queue", "Queue.enqueue_job", traced_queue_enqueue_job(rq))
     trace_utils.wrap("rq.queue", "Queue.fetch_job", traced_queue_fetch_job(rq))
 
-    # Patch rq.worker.Worker
+    # Patch rq.worker.Worker (and BaseWorker if present, since SimpleWorker may
+    # inherit directly from BaseWorker rather than Worker in newer rq versions)
     Pin().onto(rq.worker.Worker)
-    trace_utils.wrap(rq.worker, "Worker.perform_job", traced_perform_job(rq))
+    if hasattr(rq.worker, "BaseWorker") and rq.worker.BaseWorker is not rq.worker.Worker:
+        trace_utils.wrap(rq.worker, "BaseWorker.perform_job", traced_perform_job(rq))
+    else:
+        trace_utils.wrap(rq.worker, "Worker.perform_job", traced_perform_job(rq))
 
     rq._datadog_patch = True
 
@@ -239,8 +243,11 @@ def unpatch():
     trace_utils.unwrap(rq.queue.Queue, "enqueue_job")
     trace_utils.unwrap(rq.queue.Queue, "fetch_job")
 
-    # Unpatch rq.worker.Worker
+    # Unpatch rq.worker.Worker (or BaseWorker, matching patch logic)
     Pin().remove_from(rq.worker.Worker)
-    trace_utils.unwrap(rq.worker.Worker, "perform_job")
+    if hasattr(rq.worker, "BaseWorker") and rq.worker.BaseWorker is not rq.worker.Worker:
+        trace_utils.unwrap(rq.worker.BaseWorker, "perform_job")
+    else:
+        trace_utils.unwrap(rq.worker.Worker, "perform_job")
 
     rq._datadog_patch = False
