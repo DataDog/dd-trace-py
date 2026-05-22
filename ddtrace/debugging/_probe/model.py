@@ -11,6 +11,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.debugging._expressions import DDExpression
+from ddtrace.debugging._redaction import DDRedactedExpression
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import _resolve
@@ -51,12 +52,24 @@ MAXLEN = 255
 MAXFIELDS = 20
 
 
+_CAPTURE_LIMITS_KEY_MAP = {
+    "maxReferenceDepth": "max_level",
+    "maxCollectionSize": "max_size",
+    "maxLength": "max_len",
+    "maxFieldCount": "max_fields",
+}
+
+
 @dataclass
 class CaptureLimits:
     max_level: int = MAXLEVEL
     max_size: int = MAXSIZE
     max_len: int = MAXLEN
     max_fields: int = MAXFIELDS
+
+    @classmethod
+    def parse(cls, data: dict[str, Any]) -> "CaptureLimits":
+        return cls(**{_CAPTURE_LIMITS_KEY_MAP.get(k, k): v for k, v in data.items()})
 
 
 DEFAULT_CAPTURE_LIMITS = CaptureLimits()
@@ -245,6 +258,14 @@ class CaptureExpression:
     name: str
     expr: DDExpression
     capture: CaptureLimits = field(compare=False)
+
+    @classmethod
+    def parse(cls, data: dict[str, Any]) -> "CaptureExpression":
+        return cls(
+            name=data["name"],
+            expr=DDRedactedExpression.compile(data["expr"]),
+            capture=CaptureLimits.parse(data["capture"]) if "capture" in data else DEFAULT_CAPTURE_LIMITS,
+        )
 
 
 @dataclass
