@@ -430,30 +430,45 @@ class SessionManager:
             return None
         return Path(workspace_path) / ".git" / _UPLOAD_SENTINEL_FILENAME
 
-    def _is_upload_already_done(self) -> bool:
-        """Return True if a sibling worker already completed upload_git_data for our HEAD.
+    def _read_upload_sentinel(self) -> t.Optional[dict]:
+        """Return the sentinel payload if it is fresh and matches our HEAD, else None.
 
-        Matches require the sentinel to be present, well-formed, written within the
-        last ``_UPLOAD_SENTINEL_TTL_SECONDS`` seconds, and to reference the same commit
-        SHA we are about to upload for.
+        Matches require the sentinel to be present, well-formed JSON, written within
+        the last ``_UPLOAD_SENTINEL_TTL_SECONDS`` seconds, and to reference the same
+        commit SHA we are about to upload for. Anything else is treated as no match,
+        so the worker falls through to the normal upload path.
         """
         env_tags = getattr(self, "env_tags", None) or {}
         head_sha = env_tags.get(GitTag.COMMIT_SHA)
         if not head_sha:
-            return False
+            return None
         sentinel = self._upload_sentinel_path()
         if sentinel is None:
-            return False
+            return None
         try:
             data = json.loads(sentinel.read_text())
         except (OSError, ValueError):
-            return False
+            return None
         if not isinstance(data, dict) or data.get("head_sha") != head_sha:
-            return False
+            return None
         timestamp = data.get("timestamp")
         if not isinstance(timestamp, (int, float)):
-            return False
-        return time.time() - timestamp <= _UPLOAD_SENTINEL_TTL_SECONDS
+            return None
+        if time.time() - timestamp > _UPLOAD_SENTINEL_TTL_SECONDS:
+            return None
+        return data
+
+    def _apply_upload_sentinel(self, data: dict) -> None:
+        """Recover state from a sibling worker's sentinel into our own env_tags.
+
+        Currently this carries the PR merge-base SHA: a worker that skips its own
+        ``upload_git_data`` would otherwise never call ``_update_pr_merge_base``, so
+        its events would be missing ``git.pull_request.base_branch_sha``.
+        Pre-existing values (e.g. user-supplied env vars) take precedence.
+        """
+        merge_base = data.get("merge_base_sha")
+        if isinstance(merge_base, str) and merge_base and not self.env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA):
+            self.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] = merge_base
 
     def _mark_upload_done(self) -> None:
         """Persist a sentinel so sibling xdist workers can skip upload_git_data."""
@@ -464,10 +479,13 @@ class SessionManager:
         sentinel = self._upload_sentinel_path()
         if sentinel is None:
             return
-        payload = json.dumps({"head_sha": head_sha, "timestamp": time.time()})
+        payload_data: dict[str, t.Any] = {"head_sha": head_sha, "timestamp": time.time()}
+        merge_base = env_tags.get(GitTag.PULL_REQUEST_BASE_BRANCH_SHA)
+        if merge_base:
+            payload_data["merge_base_sha"] = merge_base
         tmp = sentinel.with_suffix(sentinel.suffix + ".tmp")
         try:
-            tmp.write_text(payload)
+            tmp.write_text(json.dumps(payload_data))
             tmp.replace(sentinel)
         except OSError as e:
             log.debug("Could not write git upload sentinel %s: %s", sentinel, e)
@@ -496,9 +514,11 @@ class SessionManager:
             return
 
         # If a sibling xdist worker already uploaded for this HEAD, skip the whole flow
-        # (git probe, search_commits round trip, pack-objects, pack upload).
-        if self._is_upload_already_done():
+        # (git probe, search_commits round trip, pack-objects, pack upload) and recover
+        # whatever state the sibling left for us (e.g. PR merge-base SHA).
+        if (sentinel_data := self._read_upload_sentinel()) is not None:
             log.debug("Git data upload already completed by another worker for this HEAD, skipping")
+            self._apply_upload_sentinel(sentinel_data)
             return
 
         # Missing `git` in minimal containers should not abort pytest startup.

@@ -602,14 +602,14 @@ class TestUploadSentinel:
     def test_no_sentinel_returns_false(self, tmp_path) -> None:
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        assert not sm._is_upload_already_done()
+        assert sm._read_upload_sentinel() is None
 
     def test_fresh_matching_sentinel_returns_true(self, tmp_path) -> None:
         import time as _time
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         self._write_sentinel(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
-        assert sm._is_upload_already_done()
+        assert sm._read_upload_sentinel() is not None
 
     def test_stale_sentinel_returns_false(self, tmp_path) -> None:
         import time as _time
@@ -617,20 +617,20 @@ class TestUploadSentinel:
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         # 1 hour in the past — well beyond the 5-minute TTL.
         self._write_sentinel(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time() - 3600})
-        assert not sm._is_upload_already_done()
+        assert sm._read_upload_sentinel() is None
 
     def test_different_head_sentinel_returns_false(self, tmp_path) -> None:
         import time as _time
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         self._write_sentinel(tmp_path, {"head_sha": "other-sha", "timestamp": _time.time()})
-        assert not sm._is_upload_already_done()
+        assert sm._read_upload_sentinel() is None
 
     def test_malformed_sentinel_returns_false(self, tmp_path) -> None:
         (tmp_path / ".git").mkdir()
         (tmp_path / ".git" / "dd-trace-py.upload-done").write_text("not json{{")
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        assert not sm._is_upload_already_done()
+        assert sm._read_upload_sentinel() is None
 
     def test_missing_head_sha_skips_check(self, tmp_path) -> None:
         import time as _time
@@ -639,7 +639,7 @@ class TestUploadSentinel:
         # because we don't know what HEAD to validate against.
         sm = self._make_sm(tmp_path, head_sha=None)
         self._write_sentinel(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
-        assert not sm._is_upload_already_done()
+        assert sm._read_upload_sentinel() is None
 
     def test_missing_workspace_path_attribute_returns_false(self) -> None:
         from ddtrace.testing.internal.git import GitTag
@@ -647,7 +647,7 @@ class TestUploadSentinel:
         # Some tests build SessionManager via __new__ without setting workspace_path.
         sm = SessionManager.__new__(SessionManager)
         sm.env_tags = {GitTag.COMMIT_SHA: "head-sha"}
-        assert not sm._is_upload_already_done()
+        assert sm._read_upload_sentinel() is None
 
     def test_mark_writes_expected_payload(self, tmp_path) -> None:
         import json as _json
@@ -743,3 +743,69 @@ class TestUploadSentinel:
             sm.upload_git_data()
 
         assert not (tmp_path / ".git" / "dd-trace-py.upload-done").exists()
+
+    def test_mark_includes_merge_base_when_set(self, tmp_path) -> None:
+        """The sentinel encodes merge_base_sha so peers can recover it on skip."""
+        import json as _json
+
+        from ddtrace.testing.internal.git import GitTag
+
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] = "merge-base-sha"
+        sm._mark_upload_done()
+        data = _json.loads((tmp_path / ".git" / "dd-trace-py.upload-done").read_text())
+        assert data["merge_base_sha"] == "merge-base-sha"
+
+    def test_mark_omits_merge_base_when_unset(self, tmp_path) -> None:
+        """If env_tags has no merge-base, the sentinel doesn't include the key."""
+        import json as _json
+
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm._mark_upload_done()
+        data = _json.loads((tmp_path / ".git" / "dd-trace-py.upload-done").read_text())
+        assert "merge_base_sha" not in data
+
+    def test_apply_sentinel_populates_merge_base(self, tmp_path) -> None:
+        """A peer that skips uploads recovers the merge-base SHA from the sentinel."""
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm._apply_upload_sentinel({"head_sha": "head-sha", "merge_base_sha": "recovered-sha"})
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "recovered-sha"
+
+    def test_apply_sentinel_does_not_overwrite_existing_merge_base(self, tmp_path) -> None:
+        """User-supplied PR base SHA takes precedence over the sentinel's value."""
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] = "existing-sha"
+        sm._apply_upload_sentinel({"head_sha": "head-sha", "merge_base_sha": "sentinel-sha"})
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "existing-sha"
+
+    def test_apply_sentinel_skips_when_merge_base_absent(self, tmp_path) -> None:
+        """Sentinel without merge_base_sha leaves env_tags untouched."""
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm._apply_upload_sentinel({"head_sha": "head-sha"})
+        assert GitTag.PULL_REQUEST_BASE_BRANCH_SHA not in sm.env_tags
+
+    def test_upload_git_data_skip_applies_sentinel_merge_base(self, tmp_path) -> None:
+        """End-to-end: a peer skipping upload recovers the merge-base from the sentinel."""
+        import time as _time
+
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        self._write_sentinel(
+            tmp_path,
+            {"head_sha": "head-sha", "timestamp": _time.time(), "merge_base_sha": "peer-merge-base"},
+        )
+
+        with patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls:
+            sm.upload_git_data()
+
+        mock_git_cls.assert_not_called()
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "peer-merge-base"
