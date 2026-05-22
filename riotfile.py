@@ -647,7 +647,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/gevent",
             pkgs={
                 "elasticsearch": latest,
-                "pynamodb": "<6.0",
+                "pynamodb": latest,
                 "pytest-randomly": latest,
             },
             venvs=[
@@ -1531,16 +1531,27 @@ venv = Venv(
         Venv(
             name="pynamodb",
             command="pytest -n 8 {cmdargs} tests/contrib/pynamodb",
-            # TODO: Py312 requires changes to test code
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
-                "pynamodb": ["~=5.3", "<6.0"],
-                "moto": ">=1.0,<2.0",
-                "cfn-lint": "~=0.53.1",
-                "Jinja2": "~=2.10.0",
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
             },
+            venvs=[
+                Venv(
+                    pkgs={
+                        "pynamodb": ["~=5.3", "<6.0"],
+                        "moto": ">=1.0,<2.0",
+                        "cfn-lint": "~=0.53.1",
+                        "Jinja2": "~=2.10.0",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "pynamodb": ["~=6.0", latest],
+                        "moto[dynamodb]": ">=4.0,<5.0",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="starlette",

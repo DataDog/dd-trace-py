@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    pynamodb: Adds support for pynamodb 6.x. Previously, the integration was pinned to ``<6.0``
+    due to breaking changes introduced in pynamodb 6.0 (January 2025). The integration now
+    supports pynamodb 5.3+ through 6.x. Users running pynamodb 6.x will now have their
+    DynamoDB calls traced automatically without any code changes required.
