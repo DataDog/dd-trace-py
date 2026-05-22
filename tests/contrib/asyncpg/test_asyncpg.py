@@ -414,11 +414,22 @@ def test_patch_unpatch_patch_cycle():
 
 
 @pytest.mark.asyncio
-async def test_execute_after_patch_unpatch_patch(patched_conn):
+async def test_execute_after_patch_unpatch_patch():
     # Regression: executing a query must succeed after patch/unpatch/patch.
     unpatch()
     patch()
-    await patched_conn.execute("SELECT 1")
+
+    conn = await asyncpg.connect(
+        host=POSTGRES_CONFIG["host"],
+        port=POSTGRES_CONFIG["port"],
+        user=POSTGRES_CONFIG["user"],
+        database=POSTGRES_CONFIG["dbname"],
+        password=POSTGRES_CONFIG["password"],
+    )
+    try:
+        await conn.execute("SELECT 1")
+    finally:
+        await conn.close()
 
 
 class AsyncPgTestCase(AsyncioTestCase):
