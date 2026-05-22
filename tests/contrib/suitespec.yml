@@ -703,10 +703,10 @@ suites:
       - '@tracing'
       - '@contrib'
       - '@elasticsearch'
+      - tests/contrib/elasticsearch/__init__.py
       - tests/contrib/elasticsearch/test_elasticsearch.py
       - tests/contrib/elasticsearch/test_elasticsearch_multi.py
       - tests/contrib/elasticsearch/test_async.py
-      - tests/snapshots/tests.contrib.elasticsearch.test_elasticsearch.*
       - tests/snapshots/tests.contrib.elasticsearch.test_elasticsearch_multi.*
       - tests/snapshots/tests.contrib.elasticsearch.test_async.test_elasticsearch.*
       - tests/snapshots/tests.contrib.elasticsearch.test_async.test_elasticsearch7.*
@@ -724,6 +724,7 @@ suites:
       - '@tracing'
       - '@contrib'
       - '@elasticsearch'
+      - tests/contrib/elasticsearch/__init__.py
       - tests/contrib/elasticsearch/test_opensearch.py
       - tests/snapshots/tests.contrib.elasticsearch.test_async.test_opensearch.*
     services:
