@@ -7,7 +7,7 @@
   needs: []
   stage: "ddtrace-internal:package"
   image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
-  tags: ["arch:${ARCH_TAG}"]
+  tags: [ "arch:${ARCH_TAG}" ]
   variables:
     DD_CYTHONIZE: "0"
     ARCH_TAG: "amd64"
