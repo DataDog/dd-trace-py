@@ -169,53 +169,16 @@ variables:
   tags: [ "macos:unsafe" ]
   variables:
     ARCH_TAG: "arm64"
-    PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
+    PYTHON_VERSIONS: "3.9 3.10 3.11"
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
     SCCACHE_REGION: "us-east-1"
-    TMPDIR: /var/tmp/builds/.tmp
-  hooks:
-    pre_get_sources_script:
-      - |
-        set -euo pipefail
-        if diskutil info BuildDisk >/dev/null 2>&1; then
-          echo "BuildDisk found, resetting (case-sensitive APFS) and mounting at /var/tmp/builds"
-
-          # Preserve files the runner has already written into $CI_BUILDS_DIR
-          # (CI_SERVER_TLS_CA_FILE, gitlab_runner_env, etc.) — they get hidden
-          # by our mount otherwise.
-          sudo rsync -az /var/tmp/builds/ /tmp/builds-preserve/ 2>/dev/null || true
-
-          sudo diskutil unmount BuildDisk 2>/dev/null || true
-          sudo diskutil eraseVolume "Case-sensitive APFS" BuildDisk BuildDisk
-          sudo diskutil unmount BuildDisk
-          sudo mkdir -p /var/tmp/builds
-          sudo diskutil mount -mountPoint /var/tmp/builds BuildDisk
-          sudo chown -R admin:staff /var/tmp/builds
-
-          # Restore the runner-managed files onto the freshly-mounted volume
-          if [[ -d /tmp/builds-preserve ]]; then
-            sudo rsync -az /tmp/builds-preserve/ /var/tmp/builds/
-            sudo rm -rf /tmp/builds-preserve
-          fi
-        else
-          echo "WARN: no BuildDisk volume found, clone will land on EBS"
-          sudo mkdir -p /var/tmp/builds
-          sudo chown -R admin:staff /var/tmp/builds
-        fi
-
-        df -h /var/tmp/builds
-        ls -la /var/tmp/builds | head
-        stat -f "%Sd" /var/tmp/builds
-        mkdir -p "$TMPDIR"
-
   script:
     - |
       echo "=== Disk layout check ==="
       pwd
-      # confirm CWD is on disk1 not disk0
       df -h .
-      mount | grep -E "BuildDisk|disk6s1|var/tmp/builds" || true
-      mount | grep -E "$(stat -f "%Sd" .)" || true
+      mount
+      diskutil list
     - |
       # Tart VMs default to zsh which doesn't word-split variable expansions
       setopt shwordsplit 2>/dev/null || true
