@@ -6,6 +6,7 @@ import os
 import re
 import socket
 import sys
+import threading
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -21,6 +22,7 @@ from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.propagation.http import _TraceContext
 
@@ -38,6 +40,9 @@ from ..constants import RAY_TASK_ID
 from ..constants import RAY_WORKER_ID
 from ..constants import REDACTED_PATH
 from ..constants import REDACTED_VALUE
+
+
+log = get_logger(__name__)
 
 
 # The job name regex serves to convert a submission ID in the format job:train_my_model,run:1758573287
@@ -129,6 +134,73 @@ def _set_runtime_context_attributes(span: Span, submission_id: Optional[str] = N
         actor_id = runtime_context.get_actor_id()
         if actor_id is not None:
             span._set_attribute(RAY_ACTOR_ID, actor_id)
+
+    # Publish ray.submission_id onto DD_NCCL_EXTRA_TAGS so the NCCL profiler
+    # plugin (loaded in NCCL's C++ profiler thread, no Python access) can tag
+    # nccl.collective.* metrics + spans with it. Idempotent + no-op when the
+    # NCCL plugin is not loaded in this pod.
+    _publish_ray_context_to_nccl_plugin()
+
+
+_nccl_bridge_lock = threading.Lock()
+_nccl_bridge_done = False
+
+
+def _publish_ray_context_to_nccl_plugin() -> None:
+    """Mirror ray.submission_id onto DD_NCCL_EXTRA_TAGS so the NCCL profiler
+    plugin (running in NCCL's profiler thread, C++ code, no Python access)
+    can tag nccl.collective.* metrics + spans with it.
+
+    Auto-gated on NCCL_PROFILER_PLUGIN env var (set by the admission webhook
+    when the plugin is loaded in this pod). No-op otherwise.
+
+    Idempotent: writes once per process. submission_id is actor/driver-scoped
+    and doesn't change.
+
+    Multi-source fallback because Ray exposes submission_id in different places
+    depending on Ray version and process role (driver vs actor):
+
+        1. _RAY_SUBMISSION_ID env var - set on driver by Ray Jobs CLI
+        2. RAY_SUBMISSION_ID_FROM_DRIVER env var - convention for actor
+           processes when the driver propagates via runtime_env.env_vars
+        3. RAY_JOB_CONFIG_JSON_ENV_VAR - Ray 2.49.x driver-mode env var with
+           JSON containing metadata.job_submission_id
+        4. ray.runtime_context.get_job_submission_id() - Ray >= 2.50 only
+    """
+    global _nccl_bridge_done
+    if _nccl_bridge_done:
+        return
+    with _nccl_bridge_lock:
+        if _nccl_bridge_done:
+            return
+        if not env.get("NCCL_PROFILER_PLUGIN"):
+            _nccl_bridge_done = True
+            return
+
+        sid = env.get(RAY_SUBMISSION_ID)
+        if not sid:
+            sid = env.get("RAY_SUBMISSION_ID_FROM_DRIVER")
+        if not sid:
+            raw = env.get("RAY_JOB_CONFIG_JSON_ENV_VAR") or ""
+            if raw:
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError:
+                    log.debug("RAY_JOB_CONFIG_JSON_ENV_VAR is not valid JSON", exc_info=True)
+                    payload = None
+                if isinstance(payload, dict):
+                    metadata = payload.get("metadata")
+                    if isinstance(metadata, dict):
+                        sid = metadata.get("job_submission_id")
+        if not sid and ray.is_initialized():
+            try:
+                sid = get_runtime_context().get_job_submission_id()
+            except AttributeError:
+                log.debug("ray.runtime_context.get_job_submission_id is not available on this Ray version")
+
+        if sid:
+            env["DD_NCCL_EXTRA_TAGS"] = "ray.submission_id:" + sid
+            _nccl_bridge_done = True
 
 
 def set_tag_or_truncate(span: Span, tag_name: str, tag_value: Any = None) -> None:
