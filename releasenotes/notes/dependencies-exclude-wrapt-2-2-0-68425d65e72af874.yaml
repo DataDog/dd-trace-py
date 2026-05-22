@@ -1,8 +1,4 @@
 ---
 fixes:
   - |
-    tracing: Exclude ``wrapt==2.2.0`` from the supported dependency range. ``wrapt`` 2.2.0 introduced a regression in
-    ``FunctionWrapper.__get__`` that breaks class-level access to wrapped C ``method_descriptor`` objects (for example
-    ``_pickle.Unpickler.load`` and ``asyncpg.protocol.protocol.BaseProtocol.execute``) with
-    ``TypeError: descriptor '<name>' for '<type>' objects doesn't apply to a 'NoneType' object``. The pin can be relaxed
-    once an upstream fix is released.
+    tracing: Exclude ``wrapt==2.2.0`` from the supported dependency range to avoid a regression that breaks wrapped C descriptors.
