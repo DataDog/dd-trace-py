@@ -1,7 +1,9 @@
 import atexit
+import json
 import logging
 from pathlib import Path
 import re
+import time
 import typing as t
 
 from ddtrace.internal.settings import env
@@ -41,6 +43,12 @@ from ddtrace.testing.internal.writer import TestOptWriter
 
 
 log = logging.getLogger(__name__)
+
+
+# Sentinel written after a successful upload_git_data() so sibling xdist workers
+# can skip re-running the same git probe + pack-objects + upload work.
+_UPLOAD_SENTINEL_FILENAME = "dd-trace-py.upload-done"
+_UPLOAD_SENTINEL_TTL_SECONDS = 300
 
 
 def _parse_line_number(value: str) -> t.Optional[int]:
@@ -411,6 +419,59 @@ class SessionManager:
 
         return self.session.test_command
 
+    def _upload_sentinel_path(self) -> t.Optional[Path]:
+        """Return the path to the upload-completion sentinel, or None if unavailable.
+
+        The sentinel lives inside ``.git/`` so it is naturally scoped to one repo
+        checkout and shared between xdist workers running against the same workspace.
+        """
+        workspace_path = getattr(self, "workspace_path", None)
+        if workspace_path is None:
+            return None
+        return Path(workspace_path) / ".git" / _UPLOAD_SENTINEL_FILENAME
+
+    def _is_upload_already_done(self) -> bool:
+        """Return True if a sibling worker already completed upload_git_data for our HEAD.
+
+        Matches require the sentinel to be present, well-formed, written within the
+        last ``_UPLOAD_SENTINEL_TTL_SECONDS`` seconds, and to reference the same commit
+        SHA we are about to upload for.
+        """
+        env_tags = getattr(self, "env_tags", None) or {}
+        head_sha = env_tags.get(GitTag.COMMIT_SHA)
+        if not head_sha:
+            return False
+        sentinel = self._upload_sentinel_path()
+        if sentinel is None:
+            return False
+        try:
+            data = json.loads(sentinel.read_text())
+        except (OSError, ValueError):
+            return False
+        if not isinstance(data, dict) or data.get("head_sha") != head_sha:
+            return False
+        timestamp = data.get("timestamp")
+        if not isinstance(timestamp, (int, float)):
+            return False
+        return time.time() - timestamp <= _UPLOAD_SENTINEL_TTL_SECONDS
+
+    def _mark_upload_done(self) -> None:
+        """Persist a sentinel so sibling xdist workers can skip upload_git_data."""
+        env_tags = getattr(self, "env_tags", None) or {}
+        head_sha = env_tags.get(GitTag.COMMIT_SHA)
+        if not head_sha:
+            return
+        sentinel = self._upload_sentinel_path()
+        if sentinel is None:
+            return
+        payload = json.dumps({"head_sha": head_sha, "timestamp": time.time()})
+        tmp = sentinel.with_suffix(sentinel.suffix + ".tmp")
+        try:
+            tmp.write_text(payload)
+            tmp.replace(sentinel)
+        except OSError as e:
+            log.debug("Could not write git upload sentinel %s: %s", sentinel, e)
+
     def _update_pr_merge_base(self, git: Git) -> None:
         """Compute PULL_REQUEST_BASE_BRANCH_SHA via git merge-base if not already set.
 
@@ -432,6 +493,12 @@ class SessionManager:
         offline = get_offline_mode()
         if offline.manifest_enabled or offline.payload_files_enabled:
             log.debug("Skipping git data upload in offline/payload-files mode")
+            return
+
+        # If a sibling xdist worker already uploaded for this HEAD, skip the whole flow
+        # (git probe, search_commits round trip, pack-objects, pack upload).
+        if self._is_upload_already_done():
+            log.debug("Git data upload already completed by another worker for this HEAD, skipping")
             return
 
         # Missing `git` in minimal containers should not abort pytest startup.
@@ -478,6 +545,7 @@ class SessionManager:
 
         if len(commits_not_in_backend) == 0:
             log.debug("All latest commits found in backend, skipping metadata upload")
+            self._mark_upload_done()
             return
 
         revisions_to_send = git.get_filtered_revisions(
@@ -494,6 +562,7 @@ class SessionManager:
                 uploaded_files += 1
 
         TelemetryAPI.get().record_git_pack_data(uploaded_files, uploaded_bytes)
+        self._mark_upload_done()
 
     def is_skippable_test(self, test_ref: TestRef) -> bool:
         if not self.settings.skipping_enabled:
