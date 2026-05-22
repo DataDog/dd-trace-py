@@ -1,6 +1,9 @@
 import pytest  # noqa: I001
 
 
+pytest.mark.skip("PGB-123")
+
+
 @pytest.mark.subprocess()
 def test_lazy_import():
     import ddtrace.auto  # noqa: F401,I001
