@@ -276,7 +276,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             interface.client.get("/")
             collection = endpoint_collection.endpoints
             assert collection, f"no collection {collection}"
-            for ep in collection:
+            # Iterate over a snapshot: the requests issued in the loop can
+            # register new endpoints, mutating the live set mid-iteration.
+            for ep in list(collection):
                 assert ep.method
                 # path could be empty, but must be a string
                 assert isinstance(ep.path, str)
