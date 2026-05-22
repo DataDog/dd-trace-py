@@ -635,7 +635,9 @@ class Config(object):
         _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
 
         trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
-        self._trace_compute_stats = _get_config("DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool)
+        self._trace_compute_stats = _get_config(
+            "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
+        )
         self._client_side_stats_obfuscation = _get_config(
             "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", False, asbool
         )
