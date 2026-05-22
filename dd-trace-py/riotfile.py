@@ -413,27 +413,82 @@ venv = Venv(
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
             },
-            venvs=[
-                Venv(pys=select_pys()),
-                # This test variant ensures tracer tests are compatible with both 64bit trace ids.
-                # 128bit trace ids are tested by the default case above.
-                Venv(
-                    pys=MAX_PYTHON_VERSION,
-                    env={
-                        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "false",
-                    },
-                ),
-                Venv(
-                    env={"PYTHONOPTIMIZE": "1"},
-                    # Test with the latest version of Python only
-                    pys=MAX_PYTHON_VERSION,
-                ),
-                Venv(
-                    pkgs={"cattrs": "<23.2.0", "attrs": "==22.1.0"},
-                    # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
-                    pys=MIN_PYTHON_VERSION,
-                ),
-            ],
+            pys=select_pys(),
+        ),
+        Venv(
+            name="tracer-attrs",
+            command="pytest -v {cmdargs} tests/tracer/",
+            pkgs={
+                "msgpack": latest,
+                "coverage": latest,
+                "structlog": latest,
+                "httpretty": latest,
+                "wheel": latest,
+                "fastapi": latest,
+                "httpx": "<0.28.0",
+                "pytest-randomly": latest,
+                "setuptools": latest,
+                "boto3": latest,
+                "freezegun": latest,
+                "cattrs": "<23.2.0",
+                "attrs": "==22.1.0",
+            },
+            pys=MIN_PYTHON_VERSION,
+            env={
+                "DD_CIVISIBILITY_LOG_LEVEL": "none",
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
+            },
+        ),
+        Venv(
+            name="tracer-128bit-false",
+            command="pytest -v {cmdargs} tests/tracer/",
+            pkgs={
+                "msgpack": latest,
+                "coverage": latest,
+                "attrs": latest,
+                "structlog": latest,
+                "httpretty": latest,
+                "wheel": latest,
+                "fastapi": latest,
+                "httpx": "<0.28.0",
+                "pytest-randomly": latest,
+                "setuptools": latest,
+                "boto3": latest,
+                "freezegun": latest,
+            },
+            pys=MAX_PYTHON_VERSION,
+            env={
+                "DD_CIVISIBILITY_LOG_LEVEL": "none",
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
+                "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "false",
+            },
+        ),
+        Venv(
+            name="tracer-python-optimize",
+            command="pytest -v {cmdargs} tests/tracer/",
+            pkgs={
+                "msgpack": latest,
+                "coverage": latest,
+                "attrs": latest,
+                "structlog": latest,
+                "httpretty": latest,
+                "wheel": latest,
+                "fastapi": latest,
+                "httpx": "<0.28.0",
+                "pytest-randomly": latest,
+                "setuptools": latest,
+                "boto3": latest,
+                "freezegun": latest,
+            },
+            pys=MAX_PYTHON_VERSION,
+            env={
+                "DD_CIVISIBILITY_LOG_LEVEL": "none",
+                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
+                "PYTHONOPTIMIZE": "1",
+            },
         ),
         Venv(
             name="telemetry",
