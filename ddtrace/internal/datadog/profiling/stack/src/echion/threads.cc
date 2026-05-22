@@ -691,11 +691,9 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
     // render_task_begin's push_cputime branch, so order does not matter and
     // this loop falls through harmlessly. Empty current_greenlets is also
     // safe (loop body never executes).
-    for (size_t i = 0; i < current_greenlets.size(); i++) {
+    for (size_t i = 1; i < current_greenlets.size(); i++) {
         if (current_greenlets[i]->on_cpu) {
-            if (i > 0) {
-                std::swap(current_greenlets[i], current_greenlets[0]);
-            }
+            std::swap(current_greenlets[i], current_greenlets[0]);
             break;
         }
     }
