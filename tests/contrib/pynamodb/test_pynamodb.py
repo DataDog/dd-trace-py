@@ -10,6 +10,7 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
+
 try:
     # moto 1.x: direct backend API (no HTTP; works with pynamodb 5.x)
     from moto.dynamodb import dynamodb_backend as _moto_dynamodb_backend
