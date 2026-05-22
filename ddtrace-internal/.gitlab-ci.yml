@@ -19,7 +19,8 @@
     SCCACHE_S3_KEY_PREFIX: "sccache"
     SCCACHE_REGION: "us-east-1"
   script:
-    - ddtrace-internal/.gitlab/scripts/build-sdist.sh
+    - cd ddtrace-internal
+    - .gitlab/scripts/build-sdist.sh
   artifacts:
     paths:
       - "pywheels/"
