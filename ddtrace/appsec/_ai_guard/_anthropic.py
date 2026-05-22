@@ -104,14 +104,22 @@ def _flatten_text_blocks(value: Any) -> str:
     """Join ``text`` fields from a list of Anthropic content blocks (str or list).
 
     - ``str`` → returned as-is.
-    - ``list[block]`` → text fields from ``{"type": "text", "text": ...}``
-      blocks are concatenated.
+    - ``list[block]`` / ``Iterable[block]`` → text fields from
+      ``{"type": "text", "text": ...}`` blocks are concatenated.
     - Anything else → ``str(value)``.
     """
     if value is None:
         return ""
     if isinstance(value, str):
         return value
+    # Anthropic declares system as Union[str, Iterable[TextBlockParam]].
+    # Materialise generators/tuples so the block-iteration path handles them;
+    # bytes/bytearray are excluded (Iterable[int], not valid here).
+    if not isinstance(value, (list, bytes, bytearray)):
+        try:
+            value = list(value)
+        except TypeError:
+            pass
     if isinstance(value, list):
         parts = []
         for block in value:
@@ -168,12 +176,29 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
                 result.append(ai_msg)
                 continue
 
+            # MessageParam.content is typed Iterable[...] not list[...].
+            # Materialise generators/tuples; without this a generator stringifies
+            # to "<generator object ...>" and bypasses AI Guard evaluation while
+            # the SDK still sends the real blocks. Write back so the SDK does not
+            # receive an exhausted generator. bytes/bytearray/dict are not valid
+            # content shapes — leave them for the stringify fallback below.
+            if not isinstance(content, (list, bytes, bytearray, dict)):
+                try:
+                    content = list(content)
+                except TypeError:
+                    pass
+                else:
+                    try:
+                        msg["content"] = content
+                    except (TypeError, AttributeError):
+                        pass
+
             if not isinstance(content, list):
                 # Unknown shape — emit a best-effort message so AI Guard still
                 # sees the role/turn boundary; stringify whatever was provided.
                 # AIDEV-NOTE: this branch indicates an integration mismatch
-                # (Anthropic always ships str or list); telemetry-log the
-                # offending type so support can spot the regression.
+                # (bytes, bytearray, dict, or other non-iterable); telemetry-log
+                # the offending type so support can spot the regression.
                 _report_converter_error(
                     "AI Guard anthropic: unexpected 'content' type %r on role=%r; "
                     "stringifying as best-effort fallback" % (type(content).__name__, role)

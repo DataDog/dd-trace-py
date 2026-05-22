@@ -223,6 +223,77 @@ class TestConvertAnthropicMessages:
         assert result[0]["content"] == "Look:"
         assert "tool_calls" not in result[0]
 
+    # ---------------------------------------------------------------------------
+    # Regression: non-list Iterable content (generator/tuple bypass fix)
+    # ---------------------------------------------------------------------------
+
+    def test_content_as_generator_extracted(self):
+        """Generator content is materialised and written back; not stringified."""
+
+        def _blocks():
+            yield {"type": "text", "text": "secret prompt"}
+
+        msg = {"role": "user", "content": _blocks()}
+        result = _convert_anthropic_messages(None, [msg])
+        assert result[0]["content"] == "secret prompt"
+        # Write-back: SDK must not receive an exhausted generator.
+        assert msg["content"] == [{"type": "text", "text": "secret prompt"}]
+
+    def test_content_as_tuple_extracted(self):
+        """Tuple of content blocks is handled like a list, and written back as list."""
+        content = (
+            {"type": "text", "text": "hello "},
+            {"type": "text", "text": "world"},
+        )
+        msg = {"role": "user", "content": content}
+        result = _convert_anthropic_messages(None, [msg])
+        assert result[0]["content"] == "hello world"
+        assert isinstance(msg["content"], list)
+
+    def test_content_as_generator_with_tool_use(self):
+        """Generator yielding tool_use blocks is materialised and converted."""
+
+        def _blocks():
+            yield {"type": "text", "text": "calling tool"}
+            yield {"type": "tool_use", "id": "toolu_g", "name": "fn", "input": {"x": 1}}
+
+        messages = [{"role": "assistant", "content": _blocks()}]
+        result = _convert_anthropic_messages(None, messages)
+        assert result[0]["content"] == "calling tool"
+        assert result[0]["tool_calls"][0]["id"] == "toolu_g"
+
+    def test_content_as_bytes_stringified(self):
+        """bytes content is not a valid Anthropic shape; falls to stringify."""
+        messages = [{"role": "user", "content": b"raw bytes"}]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        assert result[0].get("content") == "b'raw bytes'"
+
+    def test_content_as_dict_stringified(self):
+        """A bare dict (single block, not in a list) is not iterated — falls to stringify."""
+        messages = [{"role": "user", "content": {"type": "text", "text": "hi"}}]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        assert isinstance(result[0].get("content"), str)
+        assert "hi" in result[0].get("content", "")
+
+    def test_system_as_generator_extracted(self):
+        """Generator system prompt is materialised by _flatten_text_blocks."""
+
+        def _sys_blocks():
+            yield {"type": "text", "text": "Be concise."}
+
+        result = _convert_anthropic_messages(_sys_blocks(), [{"role": "user", "content": "Hi"}])
+        assert result[0]["role"] == "system"
+        assert result[0]["content"] == "Be concise."
+
+    def test_system_as_tuple_extracted(self):
+        """Tuple system prompt is handled like a list."""
+        system = ({"type": "text", "text": "First."}, {"type": "text", "text": " Second."})
+        result = _convert_anthropic_messages(system, [{"role": "user", "content": "Hi"}])
+        assert result[0]["role"] == "system"
+        assert result[0]["content"] == "First. Second."
+
     def test_malformed_entry_tolerated(self):
         messages = [None, {"role": "user", "content": "Valid"}]
         result = _convert_anthropic_messages(None, messages)
