@@ -30,7 +30,7 @@ from ddtrace.testing.internal.telemetry import TelemetryAPIRequestMetrics
 from ddtrace.testing.internal.utils import asbool
 
 
-DEFAULT_TIMEOUT_SECONDS = 15.0
+DEFAULT_TIMEOUT_SECONDS = float(env.get("_DD_CIVISIBILITY_BACKEND_REQUEST_TIMEOUT") or 15.0)
 MAX_ATTEMPTS = 5
 MAX_RETRY_AFTER_SECONDS = 120.0
 

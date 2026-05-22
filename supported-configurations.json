@@ -5542,6 +5542,14 @@
         "internal": true
       }
     ],
+    "_DD_CIVISIBILITY_BACKEND_REQUEST_TIMEOUT": [
+      {
+        "implementation": "A",
+        "type": "float",
+        "default": "15.0",
+        "internal": true
+      }
+    ],
     "_DD_CIVISIBILITY_DISABLE_EVP_PROXY": [
       {
         "implementation": "A",
