@@ -95,7 +95,7 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@a61cb324321ec0cb2111cdc7f51e6005dd9ec25f
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@6b3152ec85b1274ebd2425a038ce2a1721313373
     secrets: inherit
     with:
       library: python_lambda
@@ -125,7 +125,7 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@a61cb324321ec0cb2111cdc7f51e6005dd9ec25f
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@6b3152ec85b1274ebd2425a038ce2a1721313373
     secrets: inherit
     with:
       library: python
@@ -136,10 +136,10 @@ jobs:
   tracer-release:
     needs:
       - download-s3-wheels
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@a61cb324321ec0cb2111cdc7f51e6005dd9ec25f
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@6b3152ec85b1274ebd2425a038ce2a1721313373
     with:
       library: python
-      ref: a61cb324321ec0cb2111cdc7f51e6005dd9ec25f
+      ref: 6b3152ec85b1274ebd2425a038ce2a1721313373
       binaries_artifact: wheels-manylinux_x86_64
       desired_execution_time: 900
       scenarios_groups: tracer-release
