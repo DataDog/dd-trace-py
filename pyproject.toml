@@ -40,7 +40,7 @@ dependencies = [
     "bytecode>=0.13.0,<1; python_version<'3.11'",
     "envier~=0.6.1",
     "opentelemetry-api>=1,<2",
-    # AIDEV-TODO: lift the `!=2.2.0` exclusion once wrapt ships a release that
+    # TODO: lift the `!=2.2.0` exclusion once wrapt ships a release that
     # reverts/fixes the descriptor regression introduced in
     # https://github.com/GrahamDumpleton/wrapt/commit/ae93dd71c378161ff3643c9a1f708f66f97f3b5d
     # wrapt 2.2.0's `FunctionWrapper.__get__(None, owner)` calls `tp_descr_get`
