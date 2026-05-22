@@ -787,14 +787,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.set_connection_timeout(otel_config.exporter.TRACES_TIMEOUT)
         if p_tags := process_tags.process_tags:
             builder.set_process_tags(p_tags)
-        if self._test_session_token is not None:
-            builder.set_test_session_token(self._test_session_token)
-        if self._stats_opt_out:
-            builder.set_client_computed_stats()
-        elif self._compute_stats_enabled:
-            stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
-            bucket_size_ns: int = int(stats_interval * 1e9)
-            builder.enable_stats(bucket_size_ns)
 
         if self._client_side_stats_obfuscation:
             builder.enable_client_side_stats_obfuscation()
