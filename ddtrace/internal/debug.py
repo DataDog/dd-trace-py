@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 import platform
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
@@ -45,10 +46,19 @@ def collect() -> dict[str, Any]:
     """Collect system and library information into a serializable dict."""
 
     # Inline expensive imports to avoid unnecessary overhead on startup.
+    from ddtrace.internal import agent
     from ddtrace.internal import gitmetadata
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.internal.settings.crashtracker import config as crashtracker_config
     from ddtrace.trace import tracer
+
+    logger.debug(
+        "DDTRACE_FORK_FLUSH_DEBUG debug.collect.start pid=%s ppid=%s writer_class=%s writer_id=%s",
+        os.getpid(),
+        os.getppid(),
+        tracer._span_aggregator.writer.__class__.__name__,
+        id(tracer._span_aggregator.writer),
+    )
 
     if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"
@@ -57,7 +67,14 @@ def collect() -> dict[str, Any]:
         writer = tracer._span_aggregator.writer
         agent_url = writer.intake_url
         try:
-            writer.write([])
+            logger.debug(
+                "DDTRACE_FORK_FLUSH_DEBUG debug.collect.agent_probe pid=%s ppid=%s writer_id=%s agent_url=%s",
+                os.getpid(),
+                os.getppid(),
+                id(writer),
+                agent_url,
+            )
+            agent.info(agent_url)
             writer.flush_queue(raise_exc=True)
         except Exception as e:
             agent_error = "Agent not reachable at %s. Exception raised: %s" % (agent_url, str(e))
@@ -102,6 +119,13 @@ def collect() -> dict[str, Any]:
 
     pip_version = packages_available.get("pip", "N/A")
     git_repository_url, git_commit_sha, git_main_package = gitmetadata.get_git_tags()
+    platform_architecture = architecture()[0]
+    logger.debug(
+        "DDTRACE_FORK_FLUSH_DEBUG debug.collect.architecture pid=%s ppid=%s architecture=%s",
+        os.getpid(),
+        os.getppid(),
+        platform_architecture,
+    )
 
     return dict(
         # Timestamp UTC ISO 8601 with the trailing +00:00 removed
@@ -111,7 +135,7 @@ def collect() -> dict[str, Any]:
         # eg. 12.5.0
         os_version=platform.release(),
         is_64_bit=sys.maxsize > 2**32,
-        architecture=architecture()[0],
+        architecture=platform_architecture,
         vm=platform.python_implementation(),
         version=__version__,
         lang="python",

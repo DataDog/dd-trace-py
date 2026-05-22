@@ -396,9 +396,25 @@ class Tracer(object):
                     self._log_compat(logging.WARNING, msg)
 
     def _child_after_fork(self):
+        log.debug(
+            "DDTRACE_FORK_FLUSH_DEBUG tracer.child_after_fork.start pid=%s ppid=%s old_tracer_pid=%s "
+            "writer_class=%s writer_id=%s",
+            getpid(),
+            os.getppid(),
+            self._pid,
+            self._span_aggregator.writer.__class__.__name__,
+            id(self._span_aggregator.writer),
+        )
         self._pid = getpid()
         self._recreate(reset_buffer=True)
         self._new_process = True
+        log.debug(
+            "DDTRACE_FORK_FLUSH_DEBUG tracer.child_after_fork.done pid=%s ppid=%s writer_class=%s writer_id=%s",
+            getpid(),
+            os.getppid(),
+            self._span_aggregator.writer.__class__.__name__,
+            id(self._span_aggregator.writer),
+        )
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
         active = self.context_provider.active()
         if active is not None:

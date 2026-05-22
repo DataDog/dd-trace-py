@@ -262,7 +262,7 @@ def test_custom_writer():
     from ddtrace.trace import tracer
 
     class CustomWriter(TraceWriter):
-        def recreate(self) -> TraceWriter:
+        def recreate(self, appsec_enabled: Optional[bool] = None, flush: bool = True) -> TraceWriter:
             return self
 
         def stop(self, timeout: Optional[float] = None) -> None:
@@ -278,6 +278,52 @@ def test_custom_writer():
     info = debug.collect()
 
     assert info.get("agent_url") == "CUSTOM"
+
+
+@pytest.mark.subprocess()
+def test_agent_writer_collect_does_not_write_empty_trace():
+    from typing import Optional
+
+    import mock
+
+    from ddtrace.internal import debug
+    from ddtrace.internal.writer import AgentWriterInterface
+    from ddtrace.internal.writer import TraceWriter
+    from ddtrace.trace import Span
+    from ddtrace.trace import tracer
+
+    class CustomAgentWriter(TraceWriter, AgentWriterInterface):
+        intake_url = "http://localhost:8126"
+        _api_version = "v0.4"
+        _sync_mode = False
+
+        def __init__(self) -> None:
+            self.writes = []
+            self.flushed = False
+
+        def recreate(self, appsec_enabled: Optional[bool] = None, flush: bool = True) -> TraceWriter:
+            return self
+
+        def stop(self, timeout: Optional[float] = None) -> None:
+            pass
+
+        def write(self, spans: Optional[list[Span]] = None) -> None:
+            self.writes.append(spans)
+
+        def flush_queue(self, raise_exc: bool = False) -> None:
+            self.flushed = True
+
+        def set_test_session_token(self, token: Optional[str]) -> None:
+            pass
+
+    writer = CustomAgentWriter()
+    tracer._span_aggregator.writer = writer
+    with mock.patch("ddtrace.internal.agent.info", return_value={}):
+        info = debug.collect()
+
+    assert info.get("agent_url") == writer.intake_url
+    assert writer.writes == []
+    assert writer.flushed is True
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": '[{"sample_rate":1.0}]'})

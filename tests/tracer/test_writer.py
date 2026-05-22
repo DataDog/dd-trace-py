@@ -882,6 +882,26 @@ def test_flush_queue_raise(writer_class):
             writer.flush_queue(raise_exc=True)
 
 
+def test_native_writer_recreate_without_flush_drops_buffered_traces():
+    writer = NativeWriter("http://localhost:8126", processing_interval=1000)
+    writer._send_payload = mock.Mock()
+    writer.write([Span(name="name", trace_id=1, span_id=1)])
+
+    writer.recreate(flush=False)
+
+    writer._send_payload.assert_not_called()
+
+
+def test_native_writer_recreate_flushes_buffered_traces_by_default():
+    writer = NativeWriter("http://localhost:8126", processing_interval=1000)
+    writer._send_payload = mock.Mock()
+    writer.write([Span(name="name", trace_id=1, span_id=1)])
+
+    writer.recreate()
+
+    writer._send_payload.assert_called_once()
+
+
 def test_racing_start():
     with managed_writer(NativeWriter, "http://dne:1234") as writer:
 

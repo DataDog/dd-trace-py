@@ -2,6 +2,7 @@ import abc
 from collections import defaultdict
 from itertools import chain
 import logging
+import os
 from threading import RLock
 from typing import Optional
 
@@ -541,12 +542,32 @@ class SpanAggregator(SpanProcessor):
         This method is typically used after a process fork or during runtime reconfiguration.
         Arguments that are None will not override existing values.
         """
+        log.debug(
+            "DDTRACE_FORK_FLUSH_DEBUG span_aggregator.reset pid=%s ppid=%s reset_buffer=%s "
+            "appsec_enabled=%s writer_class=%s writer_id=%s",
+            os.getpid(),
+            os.getppid(),
+            reset_buffer,
+            appsec_enabled,
+            self.writer.__class__.__name__,
+            id(self.writer),
+        )
         if not reset_buffer:
             # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
             # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
-        # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
+        # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version).
+        # After a fork, inherited encoded payloads must be dropped rather than flushed by writer shutdown.
+        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, flush=not reset_buffer)
+        log.debug(
+            "DDTRACE_FORK_FLUSH_DEBUG span_aggregator.reset.done pid=%s ppid=%s reset_buffer=%s "
+            "writer_class=%s writer_id=%s",
+            os.getpid(),
+            os.getppid(),
+            reset_buffer,
+            self.writer.__class__.__name__,
+            id(self.writer),
+        )
 
         if compute_stats is not None:
             self.sampling_processor._compute_stats_enabled = compute_stats

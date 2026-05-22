@@ -228,7 +228,7 @@ class CIVisibilityWriter(HTTPWriter):
         if self.status != service.ServiceStatus.STOPPED:
             super(CIVisibilityWriter, self).stop(timeout=timeout)
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "CIVisibilityWriter":
+    def recreate(self, appsec_enabled: Optional[bool] = None, flush: bool = True) -> "CIVisibilityWriter":
         return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,

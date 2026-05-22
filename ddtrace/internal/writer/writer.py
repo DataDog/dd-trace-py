@@ -2,6 +2,7 @@ import abc
 import binascii
 from collections import defaultdict
 import gzip
+import os
 import sys
 import threading
 from typing import TYPE_CHECKING
@@ -66,6 +67,17 @@ log = get_logger(__name__)
 LOG_ERR_INTERVAL = 60
 
 
+def _writer_debug_client_state(clients):
+    return [
+        (
+            client.ENDPOINT,
+            len(client.encoder),
+            getattr(client.encoder, "size", None),
+        )
+        for client in clients
+    ]
+
+
 def _safelog(log_func: Callable[..., None], msg: str, *args, **kwargs) -> None:
     """
     Safely log a message, handling closed I/O streams gracefully.
@@ -123,7 +135,7 @@ class TraceWriter(metaclass=abc.ABCMeta):
     # TODO: `appsec_enabled` is used by ASM to dynamically enable ASM at runtime.
     #       Find an alternative way to do this without having to pass the parameter/recreating the writer
     @abc.abstractmethod
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "TraceWriter":
+    def recreate(self, appsec_enabled: Optional[bool] = None, flush: bool = True) -> "TraceWriter":
         pass
 
     @abc.abstractmethod
@@ -147,7 +159,7 @@ class LogWriter(TraceWriter):
         self.encoder = JSONEncoderV2()
         self.out = out
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "LogWriter":
+    def recreate(self, appsec_enabled: Optional[bool] = None, flush: bool = True) -> "LogWriter":
         """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
         :rtype: :class:`LogWriter`
@@ -207,6 +219,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._max_payload_size = max_payload_size
         self._headers = headers or {}
         self._timeout = timeout
+        self._flush_on_shutdown = True
 
         self._clients = clients
         self.dogstatsd = dogstatsd
@@ -511,7 +524,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def on_shutdown(self):
         try:
-            self.periodic()
+            if self._flush_on_shutdown:
+                self.periodic()
         finally:
             self._reset_connection()
 
@@ -584,8 +598,9 @@ class AgentlessTraceWriter(HTTPWriter):
             report_metrics=report_metrics,
         )
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "AgentlessTraceWriter":
+    def recreate(self, appsec_enabled: Optional[bool] = None, flush: bool = True) -> "AgentlessTraceWriter":
         try:
+            self._flush_on_shutdown = flush
             self.stop()
         except ServiceStatusError:
             pass
@@ -747,6 +762,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._compute_stats_enabled = compute_stats_enabled
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
+        self._flush_on_shutdown = True
 
         self._exporter = self._create_exporter()
 
@@ -803,18 +819,43 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._test_session_token = token
         self._exporter = self._create_exporter()
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
+    def recreate(self, appsec_enabled: Optional[bool] = None, flush: bool = True) -> "NativeWriter":
         # Ensure AppSec metadata is encoded by setting the API version to v0.4.
         try:
             # Stop the writer to ensure it is not running while we reconfigure it.
+            _safelog(
+                log.debug,
+                "DDTRACE_FORK_FLUSH_DEBUG native_writer.recreate pid=%s ppid=%s writer_id=%s flush=%s "
+                "status=%s buffered=%r api_version=%s appsec_enabled=%s",
+                os.getpid(),
+                os.getppid(),
+                id(self),
+                flush,
+                self.status,
+                _writer_debug_client_state(self._clients),
+                self._api_version,
+                appsec_enabled,
+            )
+            self._flush_on_shutdown = flush
             self.stop()
         except ServiceStatusError:
             # Writers like AgentWriter may not start until the first trace is encoded.
             # Stopping them before that will raise a ServiceStatusError.
+            _safelog(
+                log.debug,
+                "DDTRACE_FORK_FLUSH_DEBUG native_writer.recreate.stop_skipped pid=%s ppid=%s writer_id=%s "
+                "flush=%s status=%s buffered=%r",
+                os.getpid(),
+                os.getppid(),
+                id(self),
+                flush,
+                self.status,
+                _writer_debug_client_state(self._clients),
+            )
             pass
 
         api_version = "v0.4" if appsec_enabled else self._api_version
-        return self.__class__(
+        writer = self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
             compute_stats_enabled=self._compute_stats_enabled,
@@ -829,6 +870,18 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             stats_opt_out=self._stats_opt_out,
             otlp_endpoint=self._otlp_endpoint,
         )
+        _safelog(
+            log.debug,
+            "DDTRACE_FORK_FLUSH_DEBUG native_writer.recreate.done pid=%s ppid=%s old_writer_id=%s "
+            "new_writer_id=%s flush=%s api_version=%s",
+            os.getpid(),
+            os.getppid(),
+            id(self),
+            id(writer),
+            flush,
+            api_version,
+        )
+        return writer
 
     def _downgrade(self, status, client):
         if client.ENDPOINT == "v0.5/traces":
@@ -891,6 +944,19 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             trace[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
+        _safelog(
+            log.debug,
+            "DDTRACE_FORK_FLUSH_DEBUG native_writer.send_payload pid=%s ppid=%s writer_id=%s "
+            "endpoint=%s trace_count=%s payload_bytes=%s flush_on_shutdown=%s buffered=%r",
+            os.getpid(),
+            os.getppid(),
+            id(self),
+            self._intake_endpoint(client),
+            count,
+            len(payload),
+            self._flush_on_shutdown,
+            _writer_debug_client_state(self._clients),
+        )
         try:
             response_body = self._exporter.send(payload)
         except native.RequestError as e:
@@ -972,6 +1038,19 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._metrics_dist("buffer.accepted.spans", len(spans))
 
     def flush_queue(self, raise_exc: bool = False):
+        buffered = _writer_debug_client_state(self._clients)
+        if raise_exc or any(count for _, count, _ in buffered):
+            _safelog(
+                log.debug,
+                "DDTRACE_FORK_FLUSH_DEBUG native_writer.flush_queue.start pid=%s ppid=%s writer_id=%s "
+                "raise_exc=%s flush_on_shutdown=%s buffered=%r",
+                os.getpid(),
+                os.getppid(),
+                id(self),
+                raise_exc,
+                self._flush_on_shutdown,
+                buffered,
+            )
         try:
             for client in self._clients:
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
@@ -982,6 +1061,18 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         n_traces = len(client.encoder)
         try:
             if not (encoded_traces := client.encoder.encode()):
+                if n_traces:
+                    _safelog(
+                        log.debug,
+                        "DDTRACE_FORK_FLUSH_DEBUG native_writer.flush_queue.empty_encode pid=%s ppid=%s "
+                        "writer_id=%s endpoint=%s buffered_before=%s raise_exc=%s",
+                        os.getpid(),
+                        os.getppid(),
+                        id(self),
+                        self._intake_endpoint(client),
+                        n_traces,
+                        raise_exc,
+                    )
                 return
         except Exception:
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
@@ -989,6 +1080,19 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._metrics_dist("encoder.dropped.traces", n_traces)
             return
 
+        _safelog(
+            log.debug,
+            "DDTRACE_FORK_FLUSH_DEBUG native_writer.flush_queue.encoded pid=%s ppid=%s writer_id=%s "
+            "endpoint=%s buffered_before=%s payloads=%s payload_trace_counts=%r raise_exc=%s",
+            os.getpid(),
+            os.getppid(),
+            id(self),
+            self._intake_endpoint(client),
+            n_traces,
+            len(encoded_traces),
+            [payload_trace_count for _, payload_trace_count in encoded_traces],
+            raise_exc,
+        )
         for payload in encoded_traces:
             encoded_data, n_traces = payload
             self._flush_single_payload(encoded_data, n_traces, client=client, raise_exc=raise_exc)
@@ -1029,8 +1133,20 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self.join(timeout=timeout)
 
     def on_shutdown(self):
+        _safelog(
+            log.debug,
+            "DDTRACE_FORK_FLUSH_DEBUG native_writer.on_shutdown pid=%s ppid=%s writer_id=%s "
+            "flush_on_shutdown=%s buffered=%r status=%s",
+            os.getpid(),
+            os.getppid(),
+            id(self),
+            self._flush_on_shutdown,
+            _writer_debug_client_state(self._clients),
+            self.status,
+        )
         try:
-            self.periodic()
+            if self._flush_on_shutdown:
+                self.periodic()
         finally:
             self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
 
