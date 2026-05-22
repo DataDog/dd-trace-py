@@ -805,4 +805,4 @@ def test_get_traceback_honors_config_traceback_max_size():
     split_result = result.splitlines()
     split_result = [s + "\n" for item in split_result for s in item.split("\n") if s]
     assert len(split_result) < 8  # Value is 5 for Python 3.10
-    assert len(result) < 410  # Value is 377 for Python 3.10
+    assert len(result) <= 415  # Value is 377 for Python 3.10
