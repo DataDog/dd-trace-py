@@ -678,7 +678,13 @@ class SessionManager:
                 uploaded_files += 1
 
         TelemetryAPI.get().record_git_pack_data(uploaded_files, uploaded_bytes)
-        self._mark_upload_done()
+        # Only advertise success to peers if we actually shipped something — if
+        # `pack_objects` failed silently or every `send_git_pack_file` returned None,
+        # peers should fall through and retry instead of trusting our sentinel.
+        if uploaded_files > 0:
+            self._mark_upload_done()
+        else:
+            log.debug("No packfiles uploaded successfully; leaving sentinel unset so peers can retry")
 
     def is_skippable_test(self, test_ref: TestRef) -> bool:
         if not self.settings.skipping_enabled:

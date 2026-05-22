@@ -703,19 +703,20 @@ class TestUploadSentinel:
         assert data["head_sha"] == "head-sha"
 
     def test_upload_git_data_writes_sentinel_after_pack_upload(self, tmp_path) -> None:
-        """The sentinel is written after the pack-upload path completes."""
+        """The sentinel is written after the pack-upload path completes successfully."""
         import json as _json
+        from pathlib import Path as _Path
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
         sm.api_client.get_known_commits.return_value = []
-        sm.api_client.send_git_pack_file.return_value = 0
+        sm.api_client.send_git_pack_file.return_value = 123  # bytes uploaded
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
         mock_git.is_shallow_repository.return_value = False
         mock_git.get_filtered_revisions.return_value = ["commit-1"]
-        mock_git.pack_objects.return_value = iter([])
+        mock_git.pack_objects.return_value = iter([_Path("/tmp/fake.pack")])
 
         with (
             patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
@@ -725,6 +726,49 @@ class TestUploadSentinel:
 
         data = _json.loads((tmp_path / ".git" / "dd-trace-py.upload-done").read_text())
         assert data["head_sha"] == "head-sha"
+
+    def test_upload_git_data_does_not_write_sentinel_when_pack_objects_yields_nothing(self, tmp_path) -> None:
+        """If pack_objects fails silently (yields no files), don't trust peers with our sentinel."""
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        (tmp_path / ".git").mkdir()
+        sm.api_client.get_known_commits.return_value = []
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1"]
+        mock_git.is_shallow_repository.return_value = False
+        mock_git.get_filtered_revisions.return_value = ["commit-1"]
+        mock_git.pack_objects.return_value = iter([])  # nothing yielded
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        assert not (tmp_path / ".git" / "dd-trace-py.upload-done").exists()
+
+    def test_upload_git_data_does_not_write_sentinel_when_all_uploads_fail(self, tmp_path) -> None:
+        """If every send_git_pack_file returns None, peers should retry rather than skip."""
+        from pathlib import Path as _Path
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        (tmp_path / ".git").mkdir()
+        sm.api_client.get_known_commits.return_value = []
+        sm.api_client.send_git_pack_file.return_value = None  # upload failure
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1"]
+        mock_git.is_shallow_repository.return_value = False
+        mock_git.get_filtered_revisions.return_value = ["commit-1"]
+        mock_git.pack_objects.return_value = iter([_Path("/tmp/fake.pack")])
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        assert not (tmp_path / ".git" / "dd-trace-py.upload-done").exists()
 
     def test_upload_git_data_does_not_write_sentinel_on_search_commits_failure(self, tmp_path) -> None:
         """If search_commits fails, no sentinel is written so peers can retry."""
