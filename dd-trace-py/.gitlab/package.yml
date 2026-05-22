@@ -89,7 +89,7 @@ variables:
     SCCACHE_REGION: "us-east-1"
   artifacts:
     paths:
-      - "pywheels/*.tar.gz"  # passthrough dependency source distribution
+      - "pywheels/*.tar.gz"
   script:
     - cd dd-trace-py
     - .gitlab/scripts/build-sdist.sh
@@ -278,6 +278,8 @@ variables:
     DD_DISABLE_VPA: true
   needs:
     - job: "build sdist"
+      artifacts: true
+    - job: "ddtrace-internal build sdist"
       artifacts: true
   script:
     - ls ${CI_PROJECT_DIR}/pywheels
