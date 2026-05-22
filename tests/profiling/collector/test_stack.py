@@ -699,8 +699,10 @@ def test_gevent_cpu_time_total_accuracy() -> None:
     p = profiler.Profiler()
     p.start()
     try:
-        # Stagger workers by CPU_BURN_S so their bursts interleave instead of
-        # clumping; matches the layout used in the experimental measurement.
+        # Stagger workers by CPU_BURN_S so their CPU bursts interleave with
+        # each other's sleep, which spreads the on-CPU greenlet across the
+        # unordered_map iteration order. Without staggering, the same greenlet
+        # tends to win the on-CPU position each sample, masking the bug.
         workers = []
         cpu_start_ns = time.process_time_ns()
         for i in range(NUM_WORKERS):
@@ -725,13 +727,17 @@ def test_gevent_cpu_time_total_accuracy() -> None:
     ratio = profile_cpu_ns / actual_cpu_ns
 
     # Bounds picked from measured ratios across local Mac (n=10) and CI Linux
-    # py3.9-3.14 (n=6). Observed range with the fix applied: 0.975 - 1.058;
-    # observed range without the fix (bug): 1.61 - 1.63 (n=5 CI). 1.20 upper
-    # leaves ~13% headroom above the worst observed fixed value and rejects the
-    # ~1.6x bug with ~25% margin; 0.85 lower leaves ~13% below the worst
-    # observed fixed value and rejects a regression that drops real CPU
-    # (e.g. reintroducing the is_running() gate removed in PR #16273) which
-    # would push the ratio toward 0.
+    # py3.9-3.14 (n=6). With the fix applied: observed range was 0.975 - 1.058.
+    # Without the fix (bug): observed range was 1.61 - 1.63 (CI, n=5).
+    #
+    # Upper bound 1.20:
+    #   - ~14% above the worst observed fixed value (1.058)
+    #   - ~25% below the smallest observed bug value (1.61)
+    # Lower bound 0.85:
+    #   - ~13% below the worst observed fixed value (0.975)
+    #   - rejects a regression that drops real CPU (e.g. reintroducing the
+    #     is_running() gate removed in PR #16273) which would push the ratio
+    #     toward 0.
     #
     # These bounds exist to catch regressions while staying flake-safe across
     # CI runners. They are NOT a claim about the profiler's CPU attribution
