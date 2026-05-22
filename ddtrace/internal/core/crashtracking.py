@@ -1,3 +1,4 @@
+# pyright: reportPossiblyUnboundVariable=false
 import importlib.util
 import platform
 import sys
@@ -19,7 +20,8 @@ from ddtrace.internal.settings.profiling import config_str
 
 log = get_logger(__name__)
 
-is_available = True
+# Native bindings exist only when this import succeeds. Call sites gate on ``is_available``
+# or return immediately from ``_get_args`` when native is absent (pyright cannot prove that).
 try:
     from ddtrace.internal.native._native import CrashtrackerConfiguration
     from ddtrace.internal.native._native import CrashtrackerMetadata
@@ -29,7 +31,9 @@ try:
     from ddtrace.internal.native._native import crashtracker_init
     from ddtrace.internal.native._native import crashtracker_on_fork
     from ddtrace.internal.native._native import crashtracker_status
-except ImportError:
+
+    is_available = True
+except ImportError:  # pragma: no cover
     is_available = False
 
 
@@ -83,6 +87,9 @@ def _get_tags(additional_tags: Optional[dict[str, str]]) -> dict[str, str]:
 
 
 def _get_args(additional_tags: Optional[dict[str, str]]):
+    if not is_available:
+        return (None, None, None)
+
     # Instead of searching PATH for the receiver binary, invoke the receiver script
     # directly with the current Python interpreter. This is more reliable and doesn't
     # depend on PATH configuration.
@@ -120,6 +127,8 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         crashtracker_config.use_alt_stack,
         5000,  # timeout_ms
         stacktrace_resolver,
+        crashtracker_config.collect_all_threads,
+        crashtracker_config.max_threads,
         crashtracker_config.debug_url or agent_config.trace_agent_url,
         None,  # unix_socket_path
         crashtracker_config._test_token,
@@ -129,9 +138,9 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
 
     # Don't pass all env vars to the receiver process, because there are
     # conflicts with export location derivation
-    crashtracking_enabled = env.get("DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED")
-    if crashtracking_enabled is not None:
-        receiver_env["DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"] = crashtracking_enabled
+    receiver_env["DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"] = (
+        "true" if crashtracker_config.errors_intake_enabled else "false"
+    )
 
     # Crashtracker is supported only on Linux and macOS, so we only need to inherit
     # these library path environment variables.

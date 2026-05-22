@@ -6,7 +6,7 @@
       {
         "Name": "child_stats",
         "Resource": "child_stats",
-        "Service": null,
+        "Service": "tests.integration",
         "Type": "",
         "HTTPStatusCode": 0,
         "Synthetics": false,
@@ -14,13 +14,13 @@
         "TopLevelHits": 0,
         "Duration": 9999999990,
         "Errors": 0,
-        "OkSummary": 1046,
-        "ErrorSummary": 15
+        "OkSummary": 37,
+        "ErrorSummary": 24
       },
       {
         "Name": "parent",
         "Resource": "parent",
-        "Service": null,
+        "Service": "tests.integration",
         "Type": "",
         "HTTPStatusCode": 0,
         "Synthetics": false,
@@ -28,8 +28,8 @@
         "TopLevelHits": 20,
         "Duration": 19999999980,
         "Errors": 0,
-        "OkSummary": 1046,
-        "ErrorSummary": 15
+        "OkSummary": 37,
+        "ErrorSummary": 24
       }
     ]
   }

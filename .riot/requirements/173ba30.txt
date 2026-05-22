@@ -24,10 +24,10 @@ importlib-metadata==8.7.1
 iniconfig==2.1.0
 mock==5.2.0
 opentracing==2.4.0
-packaging==26.0
+packaging==26.1
 pluggy==1.6.0
-pydantic==2.12.5
-pydantic-core==2.41.5
+pydantic==2.13.2
+pydantic-core==2.46.2
 pygments==2.20.0
 pytest==8.4.2
 pytest-asyncio==0.21.1
@@ -43,4 +43,4 @@ tomli==2.4.1
 typing-extensions==4.15.0
 typing-inspection==0.4.2
 urllib3==2.6.3
-zipp==3.23.0
+zipp==3.23.1

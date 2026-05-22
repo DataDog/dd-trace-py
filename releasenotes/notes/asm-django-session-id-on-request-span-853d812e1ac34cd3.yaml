@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    AAP: This fix resolves an issue where the ``usr.session_id`` tag was missing from
+    the entry span of authenticated follow-up Django requests when automatic user
+    instrumentation was enabled. They now also carry ``usr.session_id``, matching other
+    authenticated user-tagging paths.

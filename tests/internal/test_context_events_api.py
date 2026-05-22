@@ -26,6 +26,10 @@ def with_config_raise_value(raise_value: bool):
 
 
 class TestContextEventsApi(unittest.TestCase):
+    def setUp(self):
+        core.reset_listeners()
+        core._reset_context()
+
     def tearDown(self):
         core.reset_listeners()
         core._reset_context()
@@ -235,6 +239,124 @@ class TestContextEventsApi(unittest.TestCase):
             with core.context_with_data("my.cool.context"):
                 pass
 
+    def test_core_dispatch_args_list_coerced_to_tuple(self):
+        """dispatch gracefully accepts a list in place of a tuple."""
+        received = []
+
+        def listener(a, b):
+            received.append((a, b))
+
+        core.on("my.cool.event", listener)
+        core.dispatch("my.cool.event", [1, 2])  # type: ignore[arg-type]  # ast-grep-ignore: core-dispatch-list-args-multi
+        assert received == [(1, 2)]
+
+    def test_core_dispatch_args_invalid_type_does_not_raise(self):
+        """dispatch with a non-iterable args value calls listener with no args and does not crash."""
+        called = []
+
+        def listener():
+            called.append(True)
+
+        core.on("my.cool.event", listener)
+        # An integer is not iterable — coerce_to_tuple falls back to empty tuple.
+        core.dispatch("my.cool.event", 42)  # type: ignore[arg-type]
+        assert called == [True]
+
+    def test_core_dispatch_with_results_args_list_coerced_to_tuple(self):
+        """dispatch_with_results gracefully accepts a list in place of a tuple."""
+        core.on("my.cool.event", lambda a, b: a + b, "res")
+        results = core.dispatch_with_results("my.cool.event", [3, 4])  # type: ignore[arg-type]
+        assert results.res.value == 7
+
+    @with_config_raise_value(raise_value=False)
+    def test_core_dispatch_allow_raise_propagates_exception(self):
+        def on_runtime_error(*_):
+            raise RuntimeError("OH NO!")
+
+        core.on("my.cool.event", on_runtime_error)
+
+        # Default allow_raise=False: Exception is swallowed
+        assert core.dispatch("my.cool.event", (1,)) is None
+
+        # allow_raise=True: Exception propagates
+        with pytest.raises(RuntimeError):
+            core.dispatch("my.cool.event", (1,), allow_raise=True)
+
+    @with_config_raise_value(raise_value=False)
+    def test_core_dispatch_allow_raise_short_circuits_listeners(self):
+        calls = []
+
+        def first(*_):
+            calls.append("first")
+            raise RuntimeError("first failed")
+
+        def second(*_):
+            calls.append("second")
+
+        core.on("my.cool.event", first, "first")
+        core.on("my.cool.event", second, "second")
+
+        with pytest.raises(RuntimeError):
+            core.dispatch("my.cool.event", (), allow_raise=True)
+        assert calls == ["first"]
+
+    @with_config_raise_value(raise_value=False)
+    def test_core_dispatch_ddblockexception_always_propagates(self):
+        from ddtrace.internal._exceptions import DDBlockException
+
+        class FakeBlock(DDBlockException):
+            pass
+
+        def on_block(*_):
+            raise FakeBlock()
+
+        core.on("my.cool.event", on_block)
+
+        # allow_raise=False (default): BaseException-derived block still propagates
+        # (it's not caught by the internal `except Exception:`)
+        with pytest.raises(DDBlockException):
+            core.dispatch("my.cool.event", ())
+
+        # allow_raise=True: also propagates
+        with pytest.raises(DDBlockException):
+            core.dispatch("my.cool.event", (), allow_raise=True)
+
+    @with_config_raise_value(raise_value=False)
+    def test_core_dispatch_event_allow_raise_propagates(self):
+        from ddtrace.internal.core.event_hub import dispatch_event
+
+        class FakeEvent:
+            event_name = "my.cool.event"
+
+        def listener(_):
+            raise RuntimeError("evt boom")
+
+        core.on("my.cool.event", listener)
+
+        # Default allow_raise=False: swallowed
+        assert dispatch_event(FakeEvent()) is None
+
+        # allow_raise=True: propagates
+        with pytest.raises(RuntimeError):
+            dispatch_event(FakeEvent(), allow_raise=True)
+
+    def test_ddblockexception_inheritance(self):
+        from ddtrace.internal._exceptions import BlockingException
+        from ddtrace.internal._exceptions import DDBlockException
+
+        # DDBlockException is BaseException-derived only, not Exception
+        assert issubclass(DDBlockException, BaseException)
+        assert not issubclass(DDBlockException, Exception)
+
+        # BlockingException inherits the new base class
+        assert issubclass(BlockingException, DDBlockException)
+
+        # AIGuardAbortError inherits from DDBlockException
+        from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
+
+        assert issubclass(AIGuardAbortError, DDBlockException)
+        assert not issubclass(AIGuardAbortError, Exception)
+
     def test_core_dispatch_context_ended(self):
         context_id = "my.cool.context"
         event_name = "context.ended.%s" % context_id
@@ -394,3 +516,285 @@ def test_core_in_threads(nb_threads):
         assert all(s is witness for s in res)
         loop.close()
         assert core.find_item("global_counter")["value"] == nb_threads
+
+
+# ── event hub unit tests ──────────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=False)
+def clean_event_hub():
+    core.reset_listeners()
+    yield
+    core.reset_listeners()
+
+
+def test_event_result_bool(clean_event_hub):
+    core.on("test.event", lambda: 42, "ok_res")
+    results = core.dispatch_with_results("test.event", ())
+    assert bool(results.ok_res) is True
+    assert bool(results.nonexistent_key) is False
+
+
+def test_event_result_dict_missing_key_returns_sentinel(clean_event_hub):
+    core.on("test.event", lambda: 1, "res")
+    results = core.dispatch_with_results("test.event", ())
+    missing = results["no_such_key"]
+    assert missing.response_type == core.event_hub.ResultType.RESULT_UNDEFINED
+    assert missing.value is None
+    assert bool(missing) is False
+
+
+def test_dispatch_with_results_no_listeners_returns_empty_dict(clean_event_hub):
+    results = core.dispatch_with_results("test.event.noop", ())
+    assert len(results) == 0
+    missing = results["anything"]
+    assert missing.response_type == core.event_hub.ResultType.RESULT_UNDEFINED
+
+
+def test_on_name_deduplication(clean_event_hub):
+    calls = []
+    core.on("test.event", lambda: calls.append("first"), "my_listener")
+    core.on("test.event", lambda: calls.append("second"), "my_listener")
+    core.dispatch("test.event", ())
+    assert calls == ["second"]
+
+
+def test_on_unnamed_same_func_deduplicates(clean_event_hub):
+    """Registering the same callable twice without a name replaces the first entry."""
+    calls = []
+
+    def listener():
+        calls.append(1)
+
+    core.on("test.event", listener)
+    core.on("test.event", listener)  # same object → replace, not append
+    core.dispatch("test.event", ())
+    assert calls == [1]
+
+
+def test_on_unnamed_different_funcs_not_deduplicated(clean_event_hub):
+    """Two different callables without a name are both registered."""
+    calls = []
+    core.on("test.event", lambda: calls.append("first"))
+    core.on("test.event", lambda: calls.append("second"))
+    core.dispatch("test.event", ())
+    assert calls == ["first", "second"]
+
+
+def test_on_bound_method_without_name_deduplicates(clean_event_hub):
+    """Registering the same bound method twice without a name deduplicates.
+    Python creates a new object on every attribute access (a.m is not a.m), but
+    bound methods compare equal via __eq__ (__func__ + __self__), so the second
+    registration replaces the first and only one listener fires.
+    """
+
+    class Component:
+        def __init__(self):
+            self.calls = 0
+
+        def handle(self):
+            self.calls += 1
+
+    obj = Component()
+    core.on("test.event", obj.handle)  # bound method object A
+    core.on("test.event", obj.handle)  # bound method object B — same logical method
+    core.dispatch("test.event", ())
+    assert obj.calls == 1  # deduped — called exactly once
+
+
+def test_reset_listeners_removes_bound_method(clean_event_hub):
+    """reset_listeners must remove a bound method even though Python creates a new
+    object on every attribute access (a.method is not a.method).  Using pointer
+    identity instead of Python equality silently no-ops the reset, causing
+    listeners to accumulate across disable/enable cycles.
+    """
+
+    class Listener:
+        def __init__(self):
+            self.calls = []
+
+        def handle(self):
+            self.calls.append(True)
+
+    obj = Listener()
+
+    # Register via one bound-method object, reset via a different one — same
+    # logical method, different Python objects.
+    core.on("test.event", obj.handle)
+    assert core.has_listeners("test.event")
+
+    core.reset_listeners("test.event", obj.handle)  # different object, same method
+    assert not core.has_listeners("test.event")
+
+    core.dispatch("test.event", ())
+    assert obj.calls == [], "listener was not removed; reset used pointer identity"
+
+
+def test_dispatch_base_exception_propagates_regardless_of_raise_flag(clean_event_hub):
+    """BaseException subclasses must propagate even when config._raise is False.
+    Dispatch uses `except Exception:` semantics — BaseException is never swallowed.
+    """
+
+    class BlockingException(BaseException):
+        pass
+
+    def listener():
+        raise BlockingException("blocked!")
+
+    core.on("test.event", listener)
+    original = config._raise
+    config._raise = False
+    try:
+        with pytest.raises(BlockingException, match="blocked!"):
+            core.dispatch("test.event", ())
+    finally:
+        config._raise = original
+
+
+def test_dispatch_with_results_base_exception_propagates_regardless_of_raise_flag(clean_event_hub):
+    """BaseException subclasses must propagate from dispatch_with_results even when
+    config._raise is False — they are never stored as EventResult.exception.
+    """
+
+    class BlockingException(BaseException):
+        pass
+
+    def listener():
+        raise BlockingException("blocked!")
+
+    core.on("test.event", listener, "res")
+    original = config._raise
+    config._raise = False
+    try:
+        with pytest.raises(BlockingException, match="blocked!"):
+            core.dispatch_with_results("test.event", ())
+    finally:
+        config._raise = original
+
+
+def test_on_unnamed_reentrant_eq_does_not_deadlock(clean_event_hub):
+    """__eq__ called during listener registration must not hold the hub lock.
+    Both read (has_listeners) and write (on) hub operations from inside __eq__
+    must succeed — they would deadlock if __eq__ were called under the write lock.
+    """
+    eq_called = []
+    done = threading.Event()
+
+    class ReentrantListener:
+        def __call__(self, *_):
+            pass
+
+        def __eq__(self, other):
+            # Both of these would deadlock if the hub write lock were held here.
+            core.has_listeners("reentrant.eq.event")
+            core.on("inner.reentrant.event", lambda: None)
+            eq_called.append(True)
+            return NotImplemented
+
+        def __hash__(self):
+            return id(self)
+
+    first = ReentrantListener()
+    core.on("reentrant.eq.event", first)
+
+    def register():
+        core.on("reentrant.eq.event", ReentrantListener())
+        done.set()
+
+    t = threading.Thread(target=register, daemon=True)
+    t.start()
+    assert done.wait(timeout=2.0), "on() deadlocked while __eq__ reentered the hub"
+    assert eq_called, "__eq__ must be called (and must not deadlock)"
+
+
+def test_core_dispatch_concurrent_same_event(clean_event_hub):
+    """N threads all dispatching the same event simultaneously — no lost dispatches."""
+    calls = [0]
+
+    def listener(*_):
+        calls[0] += 1
+
+    core.on("concurrent.event", listener)
+
+    threads = 10
+    iters = 1000
+    exceptions = []
+
+    def worker():
+        try:
+            for _ in range(iters):
+                core.dispatch("concurrent.event", ())
+        except Exception as e:
+            exceptions.append(e)
+
+    ts = [threading.Thread(target=worker) for _ in range(threads)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+
+    assert exceptions == []
+    assert calls[0] == threads * iters
+
+
+def test_listener_calls_core_api_reentrantly(clean_event_hub):
+    """A listener may call core.on / core.dispatch / core.reset without deadlocking."""
+    nested_called = []
+
+    def outer_listener(*_):
+        # Register, dispatch, then remove a nested listener from inside a dispatch.
+        core.on("inner.event", lambda *_: nested_called.append(True))
+        core.dispatch("inner.event", ())
+        core.reset_listeners("inner.event")
+
+    core.on("outer.event", outer_listener)
+    core.dispatch("outer.event", ())
+
+    assert nested_called == [True]
+    assert not core.has_listeners("inner.event")
+
+
+def test_listener_dispatches_same_event_does_not_deadlock(clean_event_hub):
+    """A listener that dispatches the same event it's registered on must not deadlock.
+    The read lock is dropped before listeners are invoked, so nested acquisition is safe.
+    Bounded by a depth counter to avoid RecursionError.
+    """
+    depth = [0]
+
+    def listener(*_):
+        depth[0] += 1
+        if depth[0] < 3:
+            core.dispatch("reentrant.event", ())
+
+    core.on("reentrant.event", listener)
+    core.dispatch("reentrant.event", ())
+
+    assert depth[0] == 3
+
+
+def test_reset_listeners_simulate_disable_enable_cycle(clean_event_hub):
+    """Simulate what LLMObs does on every test: disable() → reset_listeners(),
+    enable() → on().  If reset silently fails, listeners accumulate and fire
+    multiple times, corrupting any state that depends on exactly one call.
+    """
+
+    class Component:
+        def __init__(self, tag):
+            self.calls = []
+            self.tag = tag
+
+        def on_event(self):
+            self.calls.append(self.tag)
+
+    c1 = Component("first")
+    c2 = Component("second")
+
+    # Cycle 1: register c1, then "disable" (reset), then "enable" c2
+    core.on("test.event", c1.on_event)
+    core.reset_listeners("test.event", c1.on_event)
+    core.on("test.event", c2.on_event)
+
+    core.dispatch("test.event", ())
+
+    assert c1.calls == [], "stale listener from cycle 1 still firing"
+    assert c2.calls == ["second"]

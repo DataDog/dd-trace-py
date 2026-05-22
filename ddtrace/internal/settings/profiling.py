@@ -339,6 +339,15 @@ class ProfilingConfigStack(DDConfig):
         help="Whether to enable native function call tracking in stack profiling (Python 3.12+)",
     )
 
+    fast_copy = DDConfig.v(
+        bool,
+        "fast_copy",
+        default=False,
+        help_type="Boolean",
+        help="Whether to use fast memory copying (safe_memcpy) instead of process_vm_readv for stack sampling.",
+        private=True,
+    )
+
 
 class ProfilingConfigLock(DDConfig):
     __item__ = __prefix__ = "lock"
@@ -362,6 +371,43 @@ class ProfilingConfigLock(DDConfig):
         ),
     )
 
+    exclude_modules = DDConfig.v(
+        frozenset,
+        "exclude_modules",
+        parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
+        default=frozenset(
+            {
+                # Datadog internals (profiling our own profileris noise)
+                "ddtrace",
+                "ddsketch",
+                "datadog",
+                "envier",
+                "bytecode",
+                "wrapt",
+                # ── Server / ASGI plumbing
+                "uvicorn",
+                "gunicorn",
+                "werkzeug",
+                "h11",  # HTTP/1.1 protocol parser; no real contention
+                "anyio",  # async abstraction; locks are bookkeeping
+                # Stdlib internal lock allocations
+                "asyncio",
+                "threading",
+                "concurrent",  # also covers concurrent.futures.ThreadPoolExecutor's work queue
+                "logging",  # per-handler Handler.lock; almost never user-actionable
+                "http",  # http.client connection-handling internals
+            }
+        ),
+        help_type="String",
+        help=(
+            "Comma-separated list of module or package names to exclude from lock profiling. "
+            "Locks created from these modules are not profiled. Setting this environment variable "
+            "REPLACES the in-tree default rather than appending to it; users who only need to add "
+            "an entry should reproduce the full default list and append to it. "
+            "Examples: ``ddtrace`` (excludes profiler overhead), ``django.db,sqlalchemy.pool,urllib3``"
+        ),
+    )
+
 
 class ProfilingConfigMemory(DDConfig):
     __item__ = __prefix__ = "memory"
@@ -381,6 +427,20 @@ class ProfilingConfigMemory(DDConfig):
         validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help="",
+    )
+
+    mem_domain_enabled = DDConfig.v(
+        bool,
+        "mem_domain_enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Hook PyMem_Malloc/Calloc/Realloc in the heap profiler to capture C-level "
+            "Python allocations (list internal buffers, array.array data) in addition "
+            "to PyObject_Malloc allocations. Requires Python 3.12 or later. Disabled "
+            "by default for incremental rollout; will be enabled by default once the "
+            "feature is GA."
+        ),
     )
 
 

@@ -47,12 +47,14 @@ from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.ext import git
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import get_asyncio
+from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_tags_list
 from ddtrace.version import __version__
@@ -1722,6 +1724,11 @@ class Experiment:
         self._tags["project_name"] = project_name
         self._tags["dataset_name"] = dataset.name
         self._tags["experiment_name"] = name
+        repository_url, commit_sha = resolve_llmobs_git_metadata()
+        if repository_url and git.REPOSITORY_URL not in self._tags:
+            self._tags[git.REPOSITORY_URL] = repository_url
+        if commit_sha and git.COMMIT_SHA not in self._tags:
+            self._tags[git.COMMIT_SHA] = commit_sha
         self._config: dict[str, JSONType] = config or {}
         # Write dataset tags to experiment config
         if dataset.filter_tags:
@@ -2000,7 +2007,7 @@ class Experiment:
             record: DatasetRecord = self._dataset[idx]
             inputs.append(record["input_data"])
             expected_outputs.append(record["expected_output"])
-            record_metadata = record.get("metadata", {})
+            record_metadata = record.get("metadata") or {}
             metadata_list.append({**record_metadata, "experiment_config": self._config})
 
             eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
@@ -2206,6 +2213,7 @@ class Experiment:
                 run_id=str(run._id),
                 run_iteration=run._run_iteration,
                 dataset_name=self._dataset.name,
+                dataset_id=str(self._dataset._id),
                 project_name=self._project_name,
                 project_id=self._project_id,
                 experiment_name=self.name,
@@ -2237,7 +2245,7 @@ class Experiment:
                     tags["dataset_record_canonical_id"] = canonical_id
                 output_data = None
                 last_exc_info = None
-                record_metadata = record.get("metadata", {})
+                record_metadata = record.get("metadata") or {}
                 task_args: list = [input_data, self._config]
                 if self._task_accepts_metadata:
                     task_args.append(record_metadata)

@@ -10,11 +10,21 @@ import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import LLMObsExportMode
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import request_token
+
+
+@pytest.fixture(autouse=True)
+def reset_agentless_cache():
+    import ddtrace.llmobs._writer as _llmobs_writer
+
+    _llmobs_writer._SHOULD_USE_AGENTLESS = None
+    yield
+    _llmobs_writer._SHOULD_USE_AGENTLESS = None
 
 
 @pytest.fixture(autouse=True)
@@ -222,12 +232,19 @@ def llmobs_backend(_llmobs_backend):
 
         def wait_for_num_events(self, num, attempts=1000):
             for _ in range(attempts):
-                if len(reqs) == num:
-                    return [json.loads(r["body"]) for r in reqs]
+                # Filter to only LLMObs events to ignore other requests
+                # (e.g. telemetry heartbeats from the native TraceExporter).
+                llmobs_reqs = [r for r in reqs if "/evp_proxy/" in r["path"] or "/api/v2/llmobs" in r["path"]]
+                if len(llmobs_reqs) == num:
+                    return [json.loads(r["body"]) for r in llmobs_reqs]
                 # time.sleep will yield the GIL so the server can process the request
                 time.sleep(0.001)
             else:
-                raise TimeoutError(f"Expected {num} events, got {len(reqs)}: {pprint.pprint(reqs)}")
+                llmobs_reqs = [r for r in reqs if "/evp_proxy/" in r["path"] or "/api/v2/llmobs" in r["path"]]
+                raise TimeoutError(
+                    f"Expected {num} LLMObs events, got {len(llmobs_reqs)} "
+                    f"({len(reqs)} total requests): {pprint.pformat(reqs)}"
+                )
 
     return _LLMObsBackend()
 
@@ -256,12 +273,17 @@ def llmobs(
 ):
     for env, val in llmobs_env.items():
         monkeypatch.setenv(env, val)
+    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     global_config = default_global_config()
     global_config.update(dict(_llmobs_ml_app=llmobs_env.get("DD_LLMOBS_ML_APP")))
     global_config.update(ddtrace_global_config)
     # TODO: remove once rest of tests are moved off of global config tampering
     with override_global_config(global_config):
         llmobs_service.enable(_tracer=tracer, **llmobs_enable_opts)
+        # Force direct-writer mode: the fixture injects a test span writer and asserts
+        # against its events, so data must go through LLMObsSpanWriter rather than
+        # riding the APM trace.
+        llmobs_service._instance._export_mode = LLMObsExportMode.LLMOBS_DIRECT
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
         llmobs_service._instance._dne_client._intake = llmobs_api_proxy_url

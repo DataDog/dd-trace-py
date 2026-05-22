@@ -790,14 +790,14 @@ class TestXdistWorkerCrashRestart:
 
 
 class TestXdistPartialFlush:
-    """Verify that DD_TRACE_PARTIAL_FLUSH_MIN_SPANS mitigates crash data loss.
+    """Verify that _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS mitigates crash data loss.
 
     These tests prove the workaround works by running the same crash scenario
     with and without the env var and comparing the outcomes.
     """
 
     def test_partial_flush_before_and_after(self, test_project: Path) -> None:
-        """Same crash scenario, two runs: without and with DD_TRACE_PARTIAL_FLUSH_MIN_SPANS=1.
+        """Same crash scenario, two runs: without and with _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS=1.
 
         Run 1 (no env var): the passing test's event is LOST because it was
         buffered on the same worker that crashed.
@@ -834,7 +834,7 @@ class TestXdistPartialFlush:
             (test_project / "test_crash_sequence.py").write_text(test_code)
             _git_commit(test_project, message="re-commit for second run")
 
-            env = _make_env(server_with.url, extra={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"})
+            env = _make_env(server_with.url, extra={"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"})
             _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart", "1", "-p", "no:randomly", env=env)
 
             names_with = [e["content"]["meta"]["test.name"] for e in server_with.get_test_events()]
@@ -847,7 +847,7 @@ class TestXdistPartialFlush:
 
         # With eager flushing: the passing test is saved.
         assert "test_passes_before_crash" in names_with, (
-            f"With DD_TRACE_PARTIAL_FLUSH_MIN_SPANS=1, the event should be saved. Got: {names_with}"
+            f"With _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS=1, the event should be saved. Got: {names_with}"
         )
 
     def test_partial_flush_preserves_all_healthy_tests_with_crashes(
@@ -872,7 +872,7 @@ class TestXdistPartialFlush:
             )
         _git_commit(test_project)
 
-        env = _make_env(mock_server.url, extra={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"})
+        env = _make_env(mock_server.url, extra={"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"})
         result = _run_pytest_subprocess(test_project, "-n", "2", "--max-worker-restart", "4", env=env)
 
         test_events = mock_server.get_test_events()

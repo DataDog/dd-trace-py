@@ -1,4 +1,5 @@
 from functools import partial
+from inspect import unwrap
 from pathlib import Path
 import typing as t
 
@@ -18,9 +19,11 @@ class MockSpanCodeOriginProcessorEntry(SpanCodeOriginProcessorEntry):
     def enable(cls):
         super().enable()
 
-        @partial(core.on, "service_entrypoint.patch")
-        def _(f: t.Callable) -> None:
-            cls.instrument_view(f)
+        for event_id in ("service_entrypoint.patch", "tracer.wrap"):
+
+            @partial(core.on, event_id)
+            def _(f: t.Callable) -> None:
+                cls.instrument_view(f)
 
     @classmethod
     def get_uploader(cls) -> MockSignalUploader:
@@ -43,7 +46,9 @@ class SpanProbeTestCase(TracerTestCase):
         super(SpanProbeTestCase, self).tearDown()
 
         MockSpanCodeOriginProcessorEntry.disable()
-        core.reset_listeners(event_id="service_entrypoint.patch")
+
+        for event_id in ("service_entrypoint.patch", "tracer.wrap"):
+            core.reset_listeners(event_id=event_id)
 
     def test_span_origin(self):
         def entry_call():
@@ -202,6 +207,86 @@ class SpanProbeTestCase(TracerTestCase):
             entry.get_tag("_dd.code_origin.frames.0.method")
             == "SpanProbeTestCase.test_span_origin_entry_method.<locals>.App.entry_call"
         )
+
+    def test_span_origin_tracer_wrap(self):
+        @self.tracer.wrap("entry")
+        def entry_call():
+            pass
+
+        # tracer.wrap preserves the original via functools.wraps, which is
+        # what gets dispatched and instrumented.
+        original = unwrap(entry_call)
+
+        entry_call()
+
+        self.assert_span_count(1)
+        (entry,) = self.get_spans()
+
+        assert entry.get_tag("_dd.code_origin.type") == "entry"
+        assert entry.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
+        assert entry.get_tag("_dd.code_origin.frames.0.line") == str(original.__code__.co_firstlineno)
+        assert entry.get_tag("_dd.code_origin.frames.0.type") == __name__
+        assert (
+            entry.get_tag("_dd.code_origin.frames.0.method")
+            == "SpanProbeTestCase.test_span_origin_tracer_wrap.<locals>.entry_call"
+        )
+
+    def test_span_origin_tracer_wrap_method(self):
+        class App:
+            @self.tracer.wrap("entry")
+            def entry_call(self):
+                pass
+
+        app = App()
+        original = unwrap(App.entry_call)
+
+        app.entry_call()
+
+        self.assert_span_count(1)
+        (entry,) = self.get_spans()
+
+        assert entry.get_tag("_dd.code_origin.type") == "entry"
+        assert entry.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
+        assert entry.get_tag("_dd.code_origin.frames.0.line") == str(original.__code__.co_firstlineno)
+        assert entry.get_tag("_dd.code_origin.frames.0.type") == __name__
+        assert (
+            entry.get_tag("_dd.code_origin.frames.0.method")
+            == "SpanProbeTestCase.test_span_origin_tracer_wrap_method.<locals>.App.entry_call"
+        )
+
+    def test_span_origin_tracer_wrap_nested(self):
+        """
+        When entry-point functions are nested, the outer one owns the code
+        origin tags on the root span; the inner one must not overwrite them.
+        """
+
+        @self.tracer.wrap("inner")
+        def inner():
+            pass
+
+        @self.tracer.wrap("outer")
+        def outer():
+            inner()
+
+        outer_original = unwrap(outer)
+
+        outer()
+
+        self.assert_span_count(2)
+        outer_span, inner_span = self.get_spans()
+
+        # The outer span (also the root) keeps its own code origin tags.
+        assert outer_span.get_tag("_dd.code_origin.type") == "entry"
+        assert outer_span.get_tag("_dd.code_origin.frames.0.line") == str(outer_original.__code__.co_firstlineno)
+        assert (
+            outer_span.get_tag("_dd.code_origin.frames.0.method")
+            == "SpanProbeTestCase.test_span_origin_tracer_wrap_nested.<locals>.outer"
+        )
+
+        # The inner span did not tag the root with its own location, and it
+        # also did not tag itself because the root already carries an entry.
+        assert inner_span.get_tag("_dd.code_origin.type") is None
+        assert inner_span.get_tag("_dd.code_origin.frames.0.file") is None
 
 
 def test_instrument_view_benchmark(benchmark):

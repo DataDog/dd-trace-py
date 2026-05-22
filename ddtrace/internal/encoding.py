@@ -98,11 +98,11 @@ class _EncoderBase(object):
         if span.span_type:
             d["type"] = span.span_type
 
-        if span._links:
-            d["span_links"] = [link.to_dict() for link in span._links]
+        if span._has_links():
+            d["span_links"] = [link.to_dict() for link in span._get_links()]
 
-        if span._events and agent_config.trace_native_span_events:
-            d["span_events"] = [dict(event) for event in span._events]
+        if span._has_events() and agent_config.trace_native_span_events:
+            d["span_events"] = [dict(event) for event in span._get_events()]
 
         return d
 
@@ -240,7 +240,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             item._set_attribute("_top_level", 1)
 
         span_dict = JSONEncoderV2._convert_span(item)
-        span_dict["meta_struct"] = item._meta_struct
+        span_dict["meta_struct"] = item._get_meta_structs()
         # Intake Requires ids to be in lowercase
         span_dict["trace_id"] = span_dict["trace_id"].lower()
         span_dict["parent_id"] = span_dict["parent_id"].lower()

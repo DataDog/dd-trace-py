@@ -103,7 +103,7 @@ def test_product_manager_start():
     assert a.started
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
 def test_product_manager_restart():
     import os
 

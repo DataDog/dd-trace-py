@@ -22,7 +22,7 @@ importlib-metadata==8.7.1
 iniconfig==2.1.0
 mock==5.2.0
 opentracing==2.4.0
-packaging==26.0
+packaging==26.1
 pluggy==1.6.0
 pydantic==1.10.26
 pygments==2.20.0
@@ -39,4 +39,4 @@ starlette==0.23.1
 tomli==2.4.1
 typing-extensions==4.15.0
 urllib3==2.6.3
-zipp==3.23.0
+zipp==3.23.1

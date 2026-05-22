@@ -313,10 +313,10 @@ class TelemetryWriter(PeriodicService):
         if time.monotonic() - self._extended_time > self._extended_heartbeat_interval:
             payload["configuration"] = self._sent_configs
             if config.DEPENDENCY_COLLECTION:
-                payload["dependencies"] = [
-                    entry.to_telemetry_dict(include_all_metadata=True)
-                    for entry in self._dependency_tracker.get_all_dependencies()
-                ]
+                # Serialize under the tracker lock — concurrent SCA mutations on
+                # DependencyEntry.metadata or ReachabilityMetadata.value["reached"]
+                # would otherwise race list iteration inside json.dumps.
+                payload["dependencies"] = self._dependency_tracker.snapshot_for_heartbeat()
             self._extended_time += self._extended_heartbeat_interval
         return payload
 
@@ -411,6 +411,8 @@ class TelemetryWriter(PeriodicService):
         """Creates and queues the name, origin, value of a configuration"""
         if isinstance(configuration_value, dict):
             configuration_value = ",".join(":".join((k, str(v))) for k, v in configuration_value.items())
+        elif isinstance(configuration_value, (set, frozenset)):
+            configuration_value = ",".join(sorted(str(v) for v in configuration_value))
         elif isinstance(configuration_value, (list, tuple)):
             configuration_value = ",".join(str(v) for v in configuration_value)
         elif not isinstance(configuration_value, (bool, str, int, float, type(None))):

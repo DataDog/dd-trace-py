@@ -5,6 +5,7 @@ from inspect import getmodule
 import os
 from pathlib import Path
 import sys
+import threading as _threading
 from types import CodeType
 from types import ModuleType
 import typing as t
@@ -27,9 +28,21 @@ log = get_logger(__name__)
 
 _original_exec = exec
 
+# Bytecode for an empty module — used to detect empty __init__.py files.
+# Compiled at import time so it matches the running Python version.
+_EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
+
+_PY_GE_312 = sys.version_info >= (3, 12)
+_PY_GE_313 = sys.version_info >= (3, 13)
+_PY_GE_314 = sys.version_info >= (3, 14)
+
 ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
+
+# Python 3.14+ sys.monitoring callbacks run in a snapshot context and don't see ContextVar changes
+# made within the current thread. Use threading.local() as a fallback for context-level coverage.
+_tls_coverage = _threading.local()
 
 
 def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
@@ -37,6 +50,12 @@ def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
         if context_stack := ctx_covered.get():
             return context_stack[-1]
         log.debug("_get_ctx_covered_lines() called but ctx_covered stack is empty")
+
+    # Fallback for Python 3.14+ where sys.monitoring callbacks can't see ContextVars
+    if _PY_GE_314:
+        tls_covered = getattr(_tls_coverage, "covered", None)
+        if tls_covered is not None:
+            return tls_covered
 
     return defaultdict(CoverageLines)
 
@@ -109,7 +128,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             lines = self.covered[path]
             lines.add(line)
 
-        if ctx_coverage_enabled.get():
+        if ctx_coverage_enabled.get() or (_PY_GE_314 and getattr(_tls_coverage, "covered", None) is not None):
             # Import-time contexts store their lines in a non-context variable to be aggregated on request when
             # reporting coverage
             ctx_lines = _get_ctx_covered_lines()[path]
@@ -232,9 +251,14 @@ class ModuleCodeCollector(ModuleWatchdog):
             if self.is_import_coverage:
                 ctx_is_import_coverage.set(self.is_import_coverage)
 
+            # Python 3.14+ sys.monitoring callbacks can't see ContextVar changes,
+            # so also store in thread-local as a fallback for the hook.
+            if _PY_GE_314:
+                _tls_coverage.covered = ctx_covered.get()[-1]
+
             # For Python 3.12+, re-enable monitoring that was disabled by previous contexts
             # This ensures each test/suite gets accurate coverage data
-            if sys.version_info >= (3, 12):
+            if _PY_GE_312:
                 sys.monitoring.restart_events()
 
             return self
@@ -246,6 +270,10 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Stop coverage if we're exiting the last context
             if len(covered_lines_stack) == 0:
                 ctx_coverage_enabled.set(False)
+                if _PY_GE_314:
+                    _tls_coverage.covered = None
+            elif _PY_GE_314:
+                _tls_coverage.covered = covered_lines_stack[-1]
 
         def get_covered_lines(self) -> dict[str, CoverageLines]:
             covered_lines = _get_ctx_covered_lines()
@@ -348,6 +376,14 @@ class ModuleCodeCollector(ModuleWatchdog):
             module_context = self.CollectInContext(is_import_coverage=True)
             module_context.__enter__()
             self._import_time_contexts[code.co_filename] = module_context
+
+        # Python 3.13+ doesn't fire sys.monitoring LINE events for empty modules.
+        # Call hook directly after the import-time context is set up so coverage is
+        # recorded in the correct context.
+        if _PY_GE_313 and code.co_code == _EMPTY_MODULE_BYTES:
+            package = _module.__package__ if _module is not None else ""
+            import_info = (package, ("",)) if package else None
+            self.hook((0, code.co_filename, import_info))
 
         return retval
 

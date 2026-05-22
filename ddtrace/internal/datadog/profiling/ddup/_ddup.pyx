@@ -19,6 +19,7 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.datadog.profiling._types import StringType
 from ddtrace.internal.datadog.profiling.code_provenance import get_code_provenance_file
 from ddtrace.internal.datadog.profiling.util import sanitize_string
+from ddtrace.internal.runtime import get_process_role
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import config as agent_config
 
@@ -60,6 +61,7 @@ cdef extern from "ddup_interface.hpp":
 
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
+    void ddup_set_profiler_settings_json(string_view settings_json)
 
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
@@ -399,6 +401,10 @@ def start() -> None:
     ddup_start()
 
 
+def set_profiler_settings_json(settings_json: StringType) -> None:
+    call_func_with_str(ddup_set_profiler_settings_json, settings_json)
+
+
 def _get_endpoint(tracer)-> str:
     # DEV: ddtrace.profiling.utils has _get_endpoint but importing that function
     # leads to a circular import, so re-implementing it here.
@@ -414,6 +420,10 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
 
     call_func_with_str(ddup_set_runtime_id, get_runtime_id())
     ddup_set_process_id()
+
+    role = get_process_role()
+    if role is not None:
+        call_ddup_config_user_tag("process_type", role)
 
     processor = tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()

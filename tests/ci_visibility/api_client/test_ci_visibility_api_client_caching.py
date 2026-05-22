@@ -9,7 +9,7 @@ import pytest
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility._api_client import _CONFIGURATIONS_TYPE
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
-from ddtrace.internal.ci_visibility._api_responses_cache import _API_RESPONSE_CACHE_DIR
+import ddtrace.internal.ci_visibility._api_responses_cache as _api_responses_cache
 from ddtrace.internal.ci_visibility._api_responses_cache import _get_cache_file_path
 from ddtrace.internal.ci_visibility._api_responses_cache import _get_normalized_cache_key
 from ddtrace.internal.ci_visibility._api_responses_cache import _read_from_cache
@@ -41,7 +41,14 @@ class TestAPIClientCaching:
             "runtime.version": "11.5.2",
         }
 
-        yield
+        # _api_responses_cache._API_RESPONSE_CACHE_DIR is a module-level constant computed at import time, so
+        # os.chdir() above has no effect on it. Patch it explicitly to point at the temp
+        # directory so each test gets an isolated, automatically-cleaned-up cache location.
+        # Without this, xdist workers (which skip the atexit cleanup) leave cache files on
+        # disk and cause cross-run cache hits that make tests flaky.
+        isolated_cache_dir = os.path.join(self.test_cwd, ".ddtrace_api_cache")
+        with patch("ddtrace.internal.ci_visibility._api_responses_cache._API_RESPONSE_CACHE_DIR", isolated_cache_dir):
+            yield
 
         # Cleanup
         os.chdir(self.original_cwd)
@@ -112,7 +119,7 @@ class TestAPIClientCaching:
         cache_key = "abc123def456"
         cache_path = _get_cache_file_path(cache_key)
 
-        expected_dir = _API_RESPONSE_CACHE_DIR
+        expected_dir = _api_responses_cache._API_RESPONSE_CACHE_DIR
         expected_path = os.path.join(expected_dir, f"{cache_key}.json")
 
         assert cache_path == expected_path
@@ -314,17 +321,17 @@ class TestAPIClientCaching:
         """Test that cache directory is created if it doesn't exist"""
 
         # Remove directory if it exists
-        if os.path.exists(_API_RESPONSE_CACHE_DIR):
-            shutil.rmtree(_API_RESPONSE_CACHE_DIR)
+        if os.path.exists(_api_responses_cache._API_RESPONSE_CACHE_DIR):
+            shutil.rmtree(_api_responses_cache._API_RESPONSE_CACHE_DIR)
 
-        assert not os.path.exists(_API_RESPONSE_CACHE_DIR)
+        assert not os.path.exists(_api_responses_cache._API_RESPONSE_CACHE_DIR)
 
         # client = self._get_test_client()
         # Calling _get_cache_file_path should create the directory
         _get_cache_file_path("test_key")
 
-        assert os.path.exists(_API_RESPONSE_CACHE_DIR)
-        assert os.path.isdir(_API_RESPONSE_CACHE_DIR)
+        assert os.path.exists(_api_responses_cache._API_RESPONSE_CACHE_DIR)
+        assert os.path.isdir(_api_responses_cache._API_RESPONSE_CACHE_DIR)
 
     def test_cache_works_across_multiple_client_instances(self):
         """Test that cache is shared across different client instances in same directory"""

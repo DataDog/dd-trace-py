@@ -212,6 +212,7 @@ class TestSQLite(TracerTestCase):
             dict(name="sqlite.connection.rollback", service="sqlite"),
         )
 
+    @pytest.mark.snapshot()
     def test_patch_unpatch(self):
         # Test patch idempotence
         patch()

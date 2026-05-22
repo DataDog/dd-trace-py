@@ -88,7 +88,6 @@ components:
     - ddtrace/internal/wrapping/*
     - ddtrace/__init__.py
     - ddtrace/py.typed
-    - ddtrace/version.py
     - ddtrace/internal/settings/_config.py
     - src/native/*
 suites:
@@ -137,7 +136,6 @@ suites:
       - '@tracing'
       - '@vendor'
       - benchmarks/set_http_meta/*
-      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   telemetry_add_metric:
@@ -146,6 +144,8 @@ suites:
       - '@core'
       - '@tracing'
       - '@vendor'
+      - ddtrace/internal/telemetry/constants.py
+      - ddtrace/internal/telemetry/metrics_namespaces.py*
       - benchmarks/telemetry_add_metric/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1

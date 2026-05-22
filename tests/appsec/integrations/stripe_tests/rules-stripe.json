@@ -37,67 +37,67 @@
           "appsec.events.payments.integration": {
             "value": "stripe"
           },
-          "appsec.events.payments.create.id": {
+          "appsec.events.payments.creation.id": {
             "address": "server.business_logic.payment.creation",
             "key_path": [
               "id"
             ]
           },
-          "appsec.events.payments.create.amount_total": {
+          "appsec.events.payments.creation.amount_total": {
             "address": "server.business_logic.payment.creation",
             "key_path": [
               "amount_total"
             ]
           },
-          "appsec.events.payments.create.client_reference_id": {
+          "appsec.events.payments.creation.client_reference_id": {
             "address": "server.business_logic.payment.creation",
             "key_path": [
               "client_reference_id"
             ]
           },
-          "appsec.events.payments.create.currency": {
+          "appsec.events.payments.creation.currency": {
             "address": "server.business_logic.payment.creation",
             "key_path": [
               "currency"
             ]
           },
-          "appsec.events.payments.create.discounts.coupon": {
+          "appsec.events.payments.creation.discounts.coupon": {
             "address": "server.business_logic.payment.creation",
             "key_path": [
               "discounts.coupon"
             ]
           },
-          "appsec.events.payments.create.discounts.promotion_code": {
+          "appsec.events.payments.creation.discounts.promotion_code": {
             "address": "server.business_logic.payment.creation",
             "key_path": [
               "discounts.promotion_code"
             ]
           },
-          "appsec.events.payments.create.livemode": {
+          "appsec.events.payments.creation.livemode": {
             "address": "server.business_logic.payment.creation",
             "key_path": [
               "livemode"
             ]
           },
-          "appsec.events.payments.create.total_details.amount_discount": {
+          "appsec.events.payments.creation.total_details.amount_discount": {
             "address": "server.business_logic.payment.creation",
             "key_path": [
               "total_details.amount_discount"
             ]
           },
-          "appsec.events.payments.create.total_details.amount_shipping": {
+          "appsec.events.payments.creation.total_details.amount_shipping": {
             "address": "server.business_logic.payment.creation",
             "key_path": [
               "total_details.amount_shipping"
             ]
           },
-          "appsec.events.payments.create.amount": {
+          "appsec.events.payments.creation.amount": {
             "address": "server.business_logic.payment.creation",
             "key_path": [
               "amount"
             ]
           },
-          "appsec.events.payments.create.payment_method": {
+          "appsec.events.payments.creation.payment_method": {
             "address": "server.business_logic.payment.creation",
             "key_path": [
               "payment_method"

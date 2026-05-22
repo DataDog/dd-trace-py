@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from ddtrace._trace.span import SpanEvent
+from ddtrace.internal.native._native import SpanEvent
 
 
 def test_construction_full():
@@ -27,6 +27,21 @@ def test_none_attributes_defaults_to_empty():
     assert event.attributes == {}
 
 
+def test_negative_time_unix_nano_defaults_to_zero():
+    event = SpanEvent("myevent", {}, -1)
+    assert event.time_unix_nano == 0
+
+
+def test_zero_time_unix_nano_accepted():
+    event = SpanEvent("myevent", {}, 0)
+    assert event.time_unix_nano == 0
+
+
+def test_invalid_type_time_unix_nano_defaults_to_zero():
+    event = SpanEvent("myevent", {}, "not-a-number")
+    assert event.time_unix_nano == 0
+
+
 def test_mapping_attributes_accepted():
     from types import MappingProxyType
 
@@ -35,8 +50,8 @@ def test_mapping_attributes_accepted():
     assert event.attributes == {"k": "v"}
 
 
-def test_import_from_span_module():
-    from ddtrace._trace.span import SpanEvent as SE  # noqa: F401
+def test_import_from_native_module():
+    from ddtrace.internal.native._native import SpanEvent as SE  # noqa: F401
 
 
 def test_frozen_name():
