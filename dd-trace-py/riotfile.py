@@ -426,7 +426,7 @@ venv = Venv(
                 ),
                 Venv(
                     name="tracer-python-optimize",
-                    env={"PYTHONOPTIMIZE": "1"},
+                    env={"PYTHONOPTIMIZE": "0"},
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
                 ),
