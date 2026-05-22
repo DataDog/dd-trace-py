@@ -15,7 +15,18 @@ GetSetDescriptor = type(type.__dict__["__dict__"])  # type: ignore[index]  # noq
 def get_args(frame: FrameType) -> Iterator[tuple[str, Any]]:
     code = frame.f_code
     _locals = frame.f_locals
-    nargs = code.co_argcount + bool(code.co_flags & CO_VARARGS) + bool(code.co_flags & CO_VARKEYWORDS)
+    # co_varnames lays out arguments as: positional, then keyword-only,
+    # then *args (if CO_VARARGS), then **kwargs (if CO_VARKEYWORDS).
+    # Without co_kwonlyargcount in the offset, keyword-only args were
+    # captured as positional and *args / **kwargs were missed entirely
+    # (and then leaked into get_locals as if they were function-local
+    # variables).
+    nargs = (
+        code.co_argcount
+        + code.co_kwonlyargcount
+        + bool(code.co_flags & CO_VARARGS)
+        + bool(code.co_flags & CO_VARKEYWORDS)
+    )
     arg_names = code.co_varnames[:nargs]
     return ((name, _locals.get(name)) for name in arg_names)
 
@@ -23,7 +34,12 @@ def get_args(frame: FrameType) -> Iterator[tuple[str, Any]]:
 def get_locals(frame: FrameType) -> Iterator[tuple[str, Any]]:
     code = frame.f_code
     _locals = frame.f_locals
-    nargs = code.co_argcount + bool(code.co_flags & CO_VARARGS) + bool(code.co_flags & CO_VARKEYWORDS)
+    nargs = (
+        code.co_argcount
+        + code.co_kwonlyargcount
+        + bool(code.co_flags & CO_VARARGS)
+        + bool(code.co_flags & CO_VARKEYWORDS)
+    )
     return (
         (name, _locals.get(name)) for name in chain(code.co_varnames[nargs:], code.co_freevars, code.co_cellvars)
     )  # include freevars and cellvars
