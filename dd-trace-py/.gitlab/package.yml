@@ -89,7 +89,7 @@ variables:
     SCCACHE_REGION: "us-east-1"
   artifacts:
     paths:
-      - "pywheels/*.whl"  # passthrough dependency wheels
+      - "pywheels/*.tar.gz"  # passthrough dependency source distribution
   script:
     - cd dd-trace-py
     - .gitlab/scripts/build-sdist.sh
