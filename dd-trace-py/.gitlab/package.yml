@@ -282,6 +282,8 @@ variables:
     KUBERNETES_MEMORY_LIMIT: "10Gi"
     DD_DISABLE_VPA: true
   needs:
+    - job: "build sdist"
+      artifacts: true
     - job: "ddtrace-internal build_sdist"
       artifacts: true
   script:
