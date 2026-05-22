@@ -452,20 +452,21 @@ class SessionManager:
 
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
-        if len(commits_not_in_backend) > 0 and git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0):
+        if git.is_shallow_repository() and git.get_git_version() >= (2, 27, 0):
             log.debug("Shallow repository detected on git > 2.27 detected, unshallowing")
             unshallow_successful = git.try_all_unshallow_repository_methods()
             if unshallow_successful:
-                log.debug("Unshallow successful, getting latest commits from backend based on unshallowed commits")
-                latest_commits = git.get_latest_commits()
-                backend_commits = self.api_client.get_known_commits(latest_commits)
-                if backend_commits is None:
-                    log.warning("search_commits failed after unshallow, aborting git metadata upload")
-                    TelemetryAPI.get().record_git_pack_data(0, 0)
-                    return
+                if len(commits_not_in_backend) > 0:
+                    log.debug("Unshallow successful, getting latest commits from backend based on unshallowed commits")
+                    latest_commits = git.get_latest_commits()
+                    backend_commits = self.api_client.get_known_commits(latest_commits)
+                    if backend_commits is None:
+                        log.warning("search_commits failed after unshallow, aborting git metadata upload")
+                        TelemetryAPI.get().record_git_pack_data(0, 0)
+                        return
 
-                commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
-            else:
+                    commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
+            elif len(commits_not_in_backend) > 0:
                 log.warning("Failed to unshallow repository, continuing to send pack data")
 
         # Compute the true PR merge-base now that the repo has been unshallowed (if needed).
