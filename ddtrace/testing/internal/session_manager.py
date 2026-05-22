@@ -1,10 +1,19 @@
 import atexit
+import contextlib
 import json
 import logging
 from pathlib import Path
 import re
 import time
 import typing as t
+
+
+try:
+    import fcntl
+
+    _FCNTL_AVAILABLE = True
+except ImportError:  # pragma: no cover — Windows / restricted environments
+    _FCNTL_AVAILABLE = False
 
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.api_client import APIClient
@@ -49,6 +58,12 @@ log = logging.getLogger(__name__)
 # can skip re-running the same git probe + pack-objects + upload work.
 _UPLOAD_SENTINEL_FILENAME = "dd-trace-py.upload-done"
 _UPLOAD_SENTINEL_TTL_SECONDS = 300
+
+# Cross-process lock so concurrent xdist workers don't all race into the same
+# upload work; the holder writes the sentinel, peers see it on lock release.
+_UPLOAD_LOCK_FILENAME = "dd-trace-py.upload.lock"
+_UPLOAD_LOCK_TIMEOUT_SECONDS = 60.0
+_UPLOAD_LOCK_RETRY_INTERVAL_SECONDS = 0.5
 
 
 def _parse_line_number(value: str) -> t.Optional[int]:
@@ -490,6 +505,75 @@ class SessionManager:
         except OSError as e:
             log.debug("Could not write git upload sentinel %s: %s", sentinel, e)
 
+    def _upload_lock_path(self) -> t.Optional[Path]:
+        """Return the path to the cross-process upload lock, or None if unavailable."""
+        workspace_path = getattr(self, "workspace_path", None)
+        if workspace_path is None:
+            return None
+        return Path(workspace_path) / ".git" / _UPLOAD_LOCK_FILENAME
+
+    @contextlib.contextmanager
+    def _upload_lock(self) -> t.Iterator[bool]:
+        """Acquire a cross-process exclusive lock around upload_git_data.
+
+        Yields ``True`` if the lock was acquired (this process is the elected
+        uploader), or ``False`` if locking is unavailable (no fcntl, no writable
+        ``.git/`` directory, or the holder exceeded the timeout). When ``False``,
+        callers should proceed without coordination — the backend dedupes
+        commits, so duplicate uploads are wasteful but not incorrect.
+        """
+        if not _FCNTL_AVAILABLE:
+            yield False
+            return
+
+        lock_path = self._upload_lock_path()
+        if lock_path is None:
+            yield False
+            return
+
+        try:
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            log.debug("Could not create directory for upload lock %s: %s", lock_path, e)
+            yield False
+            return
+
+        try:
+            lock_file = open(lock_path, "w")
+        except OSError as e:
+            log.debug("Could not open upload lock %s: %s", lock_path, e)
+            yield False
+            return
+
+        try:
+            deadline = time.monotonic() + _UPLOAD_LOCK_TIMEOUT_SECONDS
+            while True:
+                try:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        log.debug(
+                            "Upload lock timeout after %ss, proceeding without coordination",
+                            _UPLOAD_LOCK_TIMEOUT_SECONDS,
+                        )
+                        yield False
+                        return
+                    time.sleep(_UPLOAD_LOCK_RETRY_INTERVAL_SECONDS)
+                except OSError as e:
+                    log.debug("flock on %s failed: %s", lock_path, e)
+                    yield False
+                    return
+            try:
+                yield True
+            finally:
+                try:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                except OSError:
+                    pass
+        finally:
+            lock_file.close()
+
     def _update_pr_merge_base(self, git: Git) -> None:
         """Compute PULL_REQUEST_BASE_BRANCH_SHA via git merge-base if not already set.
 
@@ -513,14 +597,26 @@ class SessionManager:
             log.debug("Skipping git data upload in offline/payload-files mode")
             return
 
-        # If a sibling xdist worker already uploaded for this HEAD, skip the whole flow
-        # (git probe, search_commits round trip, pack-objects, pack upload) and recover
-        # whatever state the sibling left for us (e.g. PR merge-base SHA).
+        # Fast path: a sibling worker already uploaded for this HEAD.
         if (sentinel_data := self._read_upload_sentinel()) is not None:
             log.debug("Git data upload already completed by another worker for this HEAD, skipping")
             self._apply_upload_sentinel(sentinel_data)
             return
 
+        # Cross-process lock: only one xdist worker per workspace runs the upload at a time.
+        # If the lock is unavailable (no fcntl, no .git/, etc.) we fall through and run
+        # without coordination — duplicate uploads are wasteful but the backend dedupes
+        # commits, so they remain correct.
+        with self._upload_lock():
+            # Re-check the sentinel: a peer may have finished while we waited.
+            if (sentinel_data := self._read_upload_sentinel()) is not None:
+                log.debug("Git data upload completed by peer while waiting for lock, skipping")
+                self._apply_upload_sentinel(sentinel_data)
+                return
+            self._do_upload_git_data()
+
+    def _do_upload_git_data(self) -> None:
+        """Run the actual upload flow; the caller should already hold the upload lock."""
         # Missing `git` in minimal containers should not abort pytest startup.
         try:
             git = Git()

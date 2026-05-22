@@ -809,3 +809,131 @@ class TestUploadSentinel:
 
         mock_git_cls.assert_not_called()
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "peer-merge-base"
+
+
+class TestUploadLock:
+    """Tests for the cross-process lock around upload_git_data."""
+
+    def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> SessionManager:
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = workspace_path
+        sm.env_tags = {GitTag.COMMIT_SHA: head_sha} if head_sha else {}
+        sm.api_client = Mock()
+        sm.api_client.get_known_commits.return_value = []
+        return sm
+
+    def test_lock_acquired_when_no_contention(self, tmp_path) -> None:
+        """Single process: lock yields True and runs the upload body."""
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+
+        with sm._upload_lock() as acquired:
+            assert acquired is True
+
+    def test_lock_yields_false_when_path_unavailable(self) -> None:
+        """Without workspace_path, the lock can't be acquired and yields False."""
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {}
+
+        with sm._upload_lock() as acquired:
+            assert acquired is False
+
+    def test_lock_yields_false_when_fcntl_unavailable(self, tmp_path) -> None:
+        """If fcntl is unavailable (e.g. Windows), the lock is a no-op yielding False."""
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+
+        with patch("ddtrace.testing.internal.session_manager._FCNTL_AVAILABLE", False):
+            with sm._upload_lock() as acquired:
+                assert acquired is False
+
+    def test_lock_yields_false_on_timeout(self, tmp_path) -> None:
+        """If flock keeps raising BlockingIOError past the deadline, yield False."""
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+
+        # Force flock to always say "would block" and drive time forward past the deadline.
+        with (
+            patch("ddtrace.testing.internal.session_manager.fcntl.flock", side_effect=BlockingIOError()),
+            patch("ddtrace.testing.internal.session_manager.time.monotonic", side_effect=[0.0, 9999.0]),
+            patch("ddtrace.testing.internal.session_manager.time.sleep"),
+        ):
+            with sm._upload_lock() as acquired:
+                assert acquired is False
+
+    def test_upload_git_data_runs_under_lock(self, tmp_path) -> None:
+        """upload_git_data acquires the lock and proceeds to the upload work."""
+        from ddtrace.testing.internal.git import GitTag
+
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.api_client.get_known_commits.return_value = ["c1"]
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["c1"]
+        mock_git.is_shallow_repository.return_value = False
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git) as mock_git_cls,
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git_cls.assert_called_once()
+        # Sentinel should be there now — a second call should short-circuit.
+        sentinel_path = tmp_path / ".git" / "dd-trace-py.upload-done"
+        assert sentinel_path.exists()
+        assert sm.env_tags.get(GitTag.COMMIT_SHA) == "head-sha"
+
+    def test_upload_git_data_rechecks_sentinel_after_lock(self, tmp_path) -> None:
+        """If a peer writes the sentinel while we wait for the lock, we skip on re-check."""
+        import time as _time
+
+        from ddtrace.testing.internal.git import GitTag
+
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+
+        @contextmanager
+        def fake_lock_with_peer_completion():
+            # Simulate: while we waited for the lock, a peer finished and wrote the sentinel.
+            (tmp_path / ".git" / "dd-trace-py.upload-done").write_text(
+                _json.dumps({"head_sha": "head-sha", "timestamp": _time.time(), "merge_base_sha": "peer-mb"})
+            )
+            yield True
+
+        import json as _json
+
+        with (
+            patch.object(sm, "_upload_lock", fake_lock_with_peer_completion),
+            patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls,
+        ):
+            sm.upload_git_data()
+
+        mock_git_cls.assert_not_called()
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "peer-mb"
+
+    def test_upload_git_data_proceeds_when_lock_unavailable(self, tmp_path) -> None:
+        """If the lock can't be acquired (timeout / no fcntl), the upload runs unlocked."""
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.api_client.get_known_commits.return_value = ["c1"]
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["c1"]
+        mock_git.is_shallow_repository.return_value = False
+
+        @contextmanager
+        def no_lock():
+            yield False  # timeout / fcntl unavailable
+
+        with (
+            patch.object(sm, "_upload_lock", no_lock),
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git) as mock_git_cls,
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git_cls.assert_called_once()
