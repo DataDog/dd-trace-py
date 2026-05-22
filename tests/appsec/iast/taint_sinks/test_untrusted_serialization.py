@@ -147,7 +147,7 @@ def test_untrusted_serialization__pickle_unpickler_load(iast_context_defaults):
     _assert_no_untrusted_vuln()
 
 
-def test_pickle_unpickler_load_class_access_does_not_raise():
+def test_pickle_unpickler_load_class_access_does_not_raise(iast_context_defaults):
     """Regression for the 4.9 CI failure of
     test_django_untrusted_serialization_dill_smoke[py3.9].
 
