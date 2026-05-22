@@ -282,6 +282,7 @@ variables:
   script:
     - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
     - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
+    - mv ${CI_PROJECT_DIR}/pywheels/ddtrace_internal*.tar.gz .
     - twine check ${SDIST_FILE}
     - pip install ${SDIST_FILE}
     - python ${CI_PROJECT_DIR}/dd-trace-py/tests/smoke_test.py

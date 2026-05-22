@@ -31,5 +31,5 @@ install_requires = [
     "wrapt>=1,<3",
 ]
 
-if __name__ == "__main__":
-    print(install_requires)
+for requirement in install_requires:
+    print(requirement)
