@@ -10,14 +10,22 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
+try:
+    # moto 1.x: direct backend API (no HTTP; works with pynamodb 5.x)
+    from moto.dynamodb import dynamodb_backend as _moto_dynamodb_backend
 
-def _create_table(name: str = "Test") -> None:
-    boto3.client("dynamodb", region_name="us-east-1").create_table(
-        TableName=name,
-        KeySchema=[{"AttributeName": "content", "KeyType": "HASH"}],
-        AttributeDefinitions=[{"AttributeName": "content", "AttributeType": "S"}],
-        ProvisionedThroughput={"ReadCapacityUnits": 1, "WriteCapacityUnits": 1},
-    )
+    def _create_table(name: str = "Test") -> None:
+        _moto_dynamodb_backend.create_table(name, hash_key_attr="content", hash_key_type="S")
+
+except ImportError:
+    # moto 4.x+: use boto3 (works with pynamodb 6.x / botocore-backed)
+    def _create_table(name: str = "Test") -> None:  # type: ignore[misc]
+        boto3.client("dynamodb", region_name="us-east-1").create_table(
+            TableName=name,
+            KeySchema=[{"AttributeName": "content", "KeyType": "HASH"}],
+            AttributeDefinitions=[{"AttributeName": "content", "AttributeType": "S"}],
+            ProvisionedThroughput={"ReadCapacityUnits": 1, "WriteCapacityUnits": 1},
+        )
 
 
 class PynamodbTest(TracerTestCase):
