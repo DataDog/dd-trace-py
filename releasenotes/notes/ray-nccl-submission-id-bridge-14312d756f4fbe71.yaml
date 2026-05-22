@@ -1,0 +1,17 @@
+---
+features:
+  - |
+    Ray: Adds a runtime bridge that mirrors ``ray.submission_id`` onto the
+    ``DD_NCCL_EXTRA_TAGS`` environment variable so the NCCL profiler plugin
+    (which runs in NCCL's C++ profiler thread with no Python interpreter
+    access) can tag ``nccl.collective.*`` metrics with the user-facing Ray
+    job submission id. The bridge fires from
+    ``ddtrace.contrib.internal.ray.core.utils._set_runtime_context_attributes``,
+    is gated on ``NCCL_PROFILER_PLUGIN`` being set in the pod environment
+    (no-op otherwise), is idempotent + thread-safe, and supports a
+    four-source fallback (``_RAY_SUBMISSION_ID``,
+    ``RAY_SUBMISSION_ID_FROM_DRIVER``, the
+    ``RAY_JOB_CONFIG_JSON_ENV_VAR`` JSON blob's
+    ``metadata.job_submission_id`` field, and
+    ``ray.runtime_context.get_job_submission_id()`` on Ray >= 2.50) so it
+    works across Ray versions and driver/actor process roles.
