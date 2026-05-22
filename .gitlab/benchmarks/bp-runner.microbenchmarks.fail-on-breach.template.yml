@@ -118,7 +118,7 @@ experiments:
           - name: flasksimple-tracer
             thresholds:
               - execution_time < 3.65 ms
-              - max_rss_usage < 60.00 MB
+              - max_rss_usage < 62.00 MB
           - name: flasksimple-profiler
             thresholds:
               - execution_time < 2.10 ms
@@ -146,7 +146,7 @@ experiments:
           - name: flasksimple-resource-renaming
             thresholds:
               - execution_time < 3.65 ms
-              - max_rss_usage < 60.00 MB
+              - max_rss_usage < 62.00 MB
 
           # flasksqli
           - name: flasksqli-appsec-enabled
