@@ -865,7 +865,7 @@ class TestLLMObsClaudeAgentSdk:
             error={"type": "ToolError", "message": MOCK_TOOL_ERROR_MESSAGE, "stack": ANY},
             tags=COMMON_TAGS,
         )
-    
+
     async def test_llmobs_client_sequential_queries(self, mock_client, claude_agent_sdk_llmobs, test_spans):
         """Two sequential ClaudeSDKClient.query() + receive_response() calls produce two
         separate root agent spans. Regression test for spans nesting under a prior
@@ -882,8 +882,6 @@ class TestLLMObsClaudeAgentSdk:
         assert all(s.name == "claude_agent_sdk.ClaudeSDKClient.query" for s in agent_spans)
         assert all(s.parent_id is None for s in agent_spans)
         assert agent_spans[0].trace_id != agent_spans[1].trace_id
-
-    
 
 
 def test_shadow_tags_llm_with_cache_tokens(tracer):
