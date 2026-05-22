@@ -2,7 +2,7 @@
   - "cp314-cp314"
 .X86_64_IMAGES: &X86_64_IMAGES
   - "v113741238-d2b8243-manylinux2014_x86_64"
-"ddtrace-internal build sdist":
+"ddtrace-internal build_sdist":
   extends: .build_base
   needs: []
   stage: "ddtrace-internal:package"

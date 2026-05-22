@@ -34,7 +34,7 @@ variables:
   needs:
     - job: "ddtrace-internal build linux"
       artifacts: true
-    - job: "ddtrace-internal build sdist"
+    - job: "ddtrace-internal build_sdist"
       artifacts: true
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
@@ -80,7 +80,7 @@ variables:
   image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
   tags: [ "arch:${ARCH_TAG}" ]
   needs:
-    - job: "ddtrace-internal build sdist"
+    - job: "ddtrace-internal build_sdist"
       artifacts: true
   variables:
     DD_CYTHONIZE: "0"
@@ -284,7 +284,7 @@ variables:
   needs:
     - job: "build sdist"
       artifacts: true
-    - job: "ddtrace-internal build sdist"
+    - job: "ddtrace-internal build_sdist"
       artifacts: true
   script:
     - ls ${CI_PROJECT_DIR}/pywheels
