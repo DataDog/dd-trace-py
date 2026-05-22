@@ -130,8 +130,7 @@ class SharedStringFile:
                 if not written:
                     # ``put_unlocked`` seeked to EOF, so ``f.tell()`` is the file size.
                     log.warning(
-                        "SharedStringFile.put: write to %s skipped, file full "
-                        "(size=%d, attempted=%d, max=%d)",
+                        "SharedStringFile.put: write to %s skipped, file full (size=%d, attempted=%d, max=%d)",
                         self.filename,
                         f.tell(),
                         len(data) + 1,
