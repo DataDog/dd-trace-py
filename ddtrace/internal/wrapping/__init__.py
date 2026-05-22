@@ -136,7 +136,7 @@ else:
 def _generate_update_map(name: str, code: CodeType, lineno: int) -> Iterator[Any]:
     """Yield opcodes to call ``dict.update(name)`` where ``name`` may be a cell var."""
     if PY >= (3, 11) and name in code.co_cellvars:
-        yield from _UPDATE_MAP_DEREF.bind({"varkwargsname": bc.CellVar(name)}, lineno=lineno)
+        yield from _UPDATE_MAP_DEREF.bind({"varkwargsname": bc.CellVar(name)}, lineno=lineno)  # type: ignore[attr-defined]
     else:
         yield from _UPDATE_MAP_FAST.bind({"varkwargsname": name}, lineno=lineno)
 
@@ -178,7 +178,7 @@ def _load_var(name: str, code: CodeType, lineno: int) -> Instr:
     variables and must be loaded with LOAD_DEREF instead of LOAD_FAST.
     """
     if PY >= (3, 11) and name in code.co_cellvars:
-        return Instr("LOAD_DEREF", bc.CellVar(name), lineno=lineno)
+        return Instr("LOAD_DEREF", bc.CellVar(name), lineno=lineno)  # type: ignore[attr-defined]
     return Instr("LOAD_FAST", name, lineno=lineno)
 
 
