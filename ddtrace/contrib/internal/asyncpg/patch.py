@@ -179,11 +179,17 @@ def _unpatch(asyncpg: ModuleType) -> None:
     if iswrapped(asyncpg, "connect"):
         unwrap(asyncpg, "connect")
     for method in _PROTOCOL_METHODS:
-        # DEV: Use delattr rather than unwrap()/setattr to avoid leaving a Cython descriptor
-        # shadow in Protocol.__dict__. unwrap() calls setattr which places the BaseProtocol
-        # descriptor directly into Protocol.__dict__; a subsequent patch() call then re-wraps
-        # that shadow instead of resolving the method naturally via MRO from BaseProtocol.
-        if iswrapped(asyncpg.protocol.Protocol, method):
+        # DEV: Use vars(cls) + delattr rather than iswrapped(cls.attr) + unwrap.
+        # iswrapped/getattr access reads the descriptor; under wrapt 2.2.0,
+        # FunctionWrapper.__get__ calls the inner Cython method_descriptor's tp_descr_get
+        # with Py_None instead of NULL, raising:
+        #   TypeError: descriptor 'execute' for 'asyncpg.protocol.protocol.BaseProtocol'
+        #              objects doesn't apply to a 'NoneType' object
+        # vars()/__dict__ lookup and delattr bypass the descriptor entirely.
+        # Using delattr (rather than setattr to the original) also avoids leaving a Cython
+        # descriptor shadow in Protocol.__dict__ that a later patch() would re-wrap instead
+        # of resolving the method naturally via MRO from BaseProtocol.
+        if method in asyncpg.protocol.Protocol.__dict__:
             delattr(asyncpg.protocol.Protocol, method)
 
 
