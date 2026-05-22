@@ -1103,7 +1103,7 @@ def test_span_id_in_profile_after_fork() -> None:
             while time.monotonic() < end:
                 time.sleep(0.05)
 
-            bootstrap.profiler._profiler._scheduler.flush()
+            bootstrap.profiler._profiler._scheduler.flush()  # type: ignore[attr-defined]
 
             child_output = pprof_prefix + "." + str(os.getpid())
             profile = pprof_utils.parse_newest_profile(child_output)

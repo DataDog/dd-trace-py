@@ -49,12 +49,10 @@ def test_asyncio_coroutines() -> None:
         math_task = loop.create_task(background_math_function(), name="background_math")
         assert background_task is not None
 
-        result = await main_coro()
+        await main_coro()
 
         await background_task
         await math_task
-
-        return result
 
     p = profiler.Profiler()
     p.start()

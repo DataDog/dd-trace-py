@@ -39,6 +39,23 @@ def test_get_args():
         assert_args({"ars"})
         assert_locals(set())
 
+    # `co_varnames` lays out keyword-only arguments BEFORE
+    # `*args` / `**kwargs`. The previous nargs offset
+    # `co_argcount + VARARGS + VARKEYWORDS` omitted `co_kwonlyargcount`,
+    # so for `def f(a, *args, c, **kwargs)` keyword-only `c` was
+    # mis-classified as positional and the actual `args` / `kwargs`
+    # objects fell out of `get_args` entirely (and got reported by
+    # `get_locals` instead).
+    def kwonly_and_args_and_kwargs(a, *ars, c, **kwars):
+        local = 1  # noqa
+        assert_args({"a", "ars", "c", "kwars"})
+        assert_locals({"local"})
+
+    def kwonly_only(a, *, c, d):
+        local = 1  # noqa
+        assert_args({"a", "c", "d"})
+        assert_locals({"local"})
+
     def referenced_globals():
         global GLOBAL_VALUE
         a = GLOBAL_VALUE >> 1  # noqa
@@ -49,6 +66,8 @@ def test_get_args():
     arg_and_args_and_kwargs(1, 42, b=2)
     args_and_kwargs()
     args()
+    kwonly_and_args_and_kwargs(1, 42, c=3, extra=9)
+    kwonly_only(1, c=3, d=4)
     referenced_globals()
 
 

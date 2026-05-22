@@ -14,8 +14,8 @@ config._add(
     "celery",
     {
         "distributed_tracing": asbool(env.get("DD_CELERY_DISTRIBUTED_TRACING", default=False)),
-        "producer_service_name": env.get("DD_CELERY_PRODUCER_SERVICE_NAME", default=PRODUCER_SERVICE),
-        "worker_service_name": env.get("DD_CELERY_WORKER_SERVICE_NAME", default=WORKER_SERVICE),
+        "producer_service_name": env.get("DD_CELERY_PRODUCER_SERVICE", default=PRODUCER_SERVICE),
+        "worker_service_name": env.get("DD_CELERY_WORKER_SERVICE", default=WORKER_SERVICE),
         "_default_service_producer": PRODUCER_SERVICE,
         "_default_service_worker": WORKER_SERVICE,
     },
