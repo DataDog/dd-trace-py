@@ -101,15 +101,17 @@ class ProfilerState
     std::atomic<ddog_CancellationToken> upload_cancel{ { .inner = nullptr } };
     std::atomic<uint64_t> upload_seq{ 0 };
 
-    // Cached profile exporter, reused across upload cycles. Each construction
-    // allocates a tokio runtime, TLS connector and HTTP client on the Rust side
-    // (~10-15 native allocations), so we build it once and keep it.
-    // Lifetime: created lazily on first upload, dropped in prefork() (parent side,
-    // while tokio threads are still alive) and in cleanup(). Always accessed under
-    // upload_lock — except in cleanup(), which runs single-threaded at exit.
-    // Config snapshot: baked from ProfilerState at first build; later set_* calls
-    // do not retroactively update it.
-    ddog_prof_ProfileExporter cached_exporter{ .inner = nullptr };
+    // Profile exporter, reused across upload cycles. Each construction allocates
+    // a tokio runtime, TLS connector and HTTP client on the Rust side (~10-15
+    // native allocations), so we build it once and keep it.
+    // Lifetime: created lazily on first upload, dropped in prefork (parent side,
+    // while tokio threads are still alive) and in cleanup. Always accessed under
+    // upload_lock — except in cleanup, which runs single-threaded at exit.
+    // The exporter bakes the endpoint (URL + timeout) and the static identity
+    // tags (env, service, version, runtime_id, process_id, etc.). Per-upload
+    // user tags are passed via optional_additional_tags on send instead of
+    // being baked here, so they can change without rebuilding the exporter.
+    ddog_prof_ProfileExporter exporter{ .inner = nullptr };
     void drop_exporter();
 
     // ========================================================================

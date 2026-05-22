@@ -132,44 +132,44 @@ join(const std::vector<std::string>& vec, const std::string& delim)
 }
 
 namespace {
+using namespace Datadog;
 
-// Create the cached exporter if it does not already exist.
+// Create the exporter if it does not already exist.
 // Caller must hold ProfilerState::upload_lock.
+//
+// Only the static identity tags (env, service, version, language, runtime,
+// runtime_id, runtime_version, profiler_version, process_id) are baked into
+// the exporter here. User-defined tags are passed per-send via
+// optional_additional_tags so they can change without rebuilding the exporter.
 std::optional<std::string>
-ensure_cached_exporter(Datadog::ProfilerState& state)
+ensure_exporter(ProfilerState& state)
 {
-    if (state.cached_exporter.inner != nullptr) {
+    if (state.exporter.inner != nullptr) {
         return std::nullopt;
     }
 
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
 
-    // Add the tags. We collect all errors so the user can fix them in one pass.
+    // Collect all tag errors so the user can fix them in one pass.
     std::vector<std::string> reasons{};
-    const std::vector<std::pair<Datadog::ExportTagKey, std::string_view>> tag_data = {
-        { Datadog::ExportTagKey::dd_env, state.dd_env },
-        { Datadog::ExportTagKey::service, state.service },
-        { Datadog::ExportTagKey::version, state.version },
-        { Datadog::ExportTagKey::language, g_language_name },
-        { Datadog::ExportTagKey::runtime, state.runtime },
-        { Datadog::ExportTagKey::runtime_id, state.runtime_id },
-        { Datadog::ExportTagKey::runtime_version, state.runtime_version },
-        { Datadog::ExportTagKey::profiler_version, state.profiler_version },
-        { Datadog::ExportTagKey::process_id, state.process_id }
+    const std::vector<std::pair<ExportTagKey, std::string_view>> tag_data = {
+        { ExportTagKey::dd_env, state.dd_env },
+        { ExportTagKey::service, state.service },
+        { ExportTagKey::version, state.version },
+        { ExportTagKey::language, g_language_name },
+        { ExportTagKey::runtime, state.runtime },
+        { ExportTagKey::runtime_id, state.runtime_id },
+        { ExportTagKey::runtime_version, state.runtime_version },
+        { ExportTagKey::profiler_version, state.profiler_version },
+        { ExportTagKey::process_id, state.process_id }
     };
 
     for (const auto& [tag, data] : tag_data) {
         if (!data.empty()) {
             std::string errmsg;
-            if (!Datadog::add_tag(tags, tag, data, errmsg)) {
-                reasons.push_back(std::string(Datadog::to_string(tag)) + ": " + errmsg);
+            if (!add_tag(tags, tag, data, errmsg)) {
+                reasons.push_back(std::string(to_string(tag)) + ": " + errmsg);
             }
-        }
-    }
-    for (const auto& tag : state.user_tags) {
-        std::string errmsg;
-        if (!Datadog::add_tag(tags, tag.first, tag.second, errmsg)) {
-            reasons.push_back(std::string(tag.first) + ": " + errmsg);
         }
     }
 
@@ -179,25 +179,39 @@ ensure_cached_exporter(Datadog::ProfilerState& state)
     }
 
     ddog_prof_ProfileExporter_Result res = ddog_prof_Exporter_new(
-      Datadog::to_slice("dd-trace-py"),
-      Datadog::to_slice(state.profiler_version),
-      Datadog::to_slice(g_language_name),
+      to_slice("dd-trace-py"),
+      to_slice(state.profiler_version),
+      to_slice(g_language_name),
       &tags,
-      ddog_prof_Endpoint_agent(Datadog::to_slice(state.url), state.max_timeout_ms, /*use_system_resolver=*/false));
+      ddog_prof_Endpoint_agent(to_slice(state.url), state.max_timeout_ms, /*use_system_resolver=*/false));
     ddog_Vec_Tag_drop(tags);
 
     if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
         auto& err = res.err;
-        std::string errmsg = Datadog::err_to_msg(&err, "Error initializing exporter");
+        std::string errmsg = err_to_msg(&err, "Error initializing exporter");
         ddog_Error_drop(&err);
         return errmsg;
     }
 
-    state.cached_exporter = res.ok;
+    state.exporter = res.ok;
     return std::nullopt;
 }
 
 } // namespace
+
+ddog_Vec_Tag
+Datadog::UploaderBuilder::build_user_tag_vec(std::vector<std::string>& reasons)
+{
+    auto& state = ProfilerState::get();
+    ddog_Vec_Tag tags = ddog_Vec_Tag_new();
+    for (const auto& tag : state.user_tags) {
+        std::string errmsg;
+        if (!add_tag(tags, tag.first, tag.second, errmsg)) {
+            reasons.push_back(std::string(tag.first) + ": " + errmsg);
+        }
+    }
+    return tags;
+}
 
 std::variant<Datadog::Uploader, std::string>
 Datadog::UploaderBuilder::build()
@@ -206,8 +220,8 @@ Datadog::UploaderBuilder::build()
 
     // Lazily create the exporter on first build. Subsequent builds reuse it.
     // The caller (ddup_upload) holds upload_lock, so this is serialized with
-    // prefork() / cleanup() — the only places that drop the exporter.
-    if (auto err = ensure_cached_exporter(state)) {
+    // prefork / cleanup — the only places that drop the exporter.
+    if (auto err = ensure_exporter(state)) {
         return std::move(*err);
     }
 
@@ -229,7 +243,7 @@ Datadog::UploaderBuilder::build()
             auto err = encoded.err;
             std::string errmsg = Datadog::err_to_msg(&err, "Error serializing profile");
             ddog_Error_drop(&err);
-            // cached_exporter is intentionally kept; encoding failure is not the exporter's fault.
+            // exporter is intentionally kept; encoding failure is not the exporter's fault.
             return errmsg;
         }
     }

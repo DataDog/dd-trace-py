@@ -136,9 +136,9 @@ ProfilerState::start()
 void
 ProfilerState::drop_exporter()
 {
-    if (cached_exporter.inner != nullptr) {
-        ddog_prof_Exporter_drop(&cached_exporter);
-        cached_exporter = { .inner = nullptr };
+    if (exporter.inner != nullptr) {
+        ddog_prof_Exporter_drop(&exporter);
+        exporter = { .inner = nullptr };
     }
 }
 
@@ -176,12 +176,12 @@ ProfilerState::prefork()
     }
     // upload_lock is now held - will be released in postfork_parent/child
 
-    // Drop the cached exporter while we are still in the parent. The exporter
-    // owns Rust state (tokio runtime, TLS, HTTP client) whose worker threads
-    // do not survive fork(); dropping it post-fork in the child can deadlock or
-    // touch dead-thread state. Dropping it here — under upload_lock with no
-    // upload in flight — is safe. Parent and child both re-create it lazily on
-    // the next upload via UploaderBuilder::build().
+    // Drop the exporter while we are still in the parent. It owns Rust state
+    // (tokio runtime, TLS, HTTP client) whose worker threads do not survive
+    // fork; dropping post-fork in the child can deadlock or touch dead-thread
+    // state. Dropping here — under upload_lock with no upload in flight — is
+    // safe. Parent and child both re-create it lazily on the next upload via
+    // UploaderBuilder::build.
     drop_exporter();
 
     // Lock the profile mutex so the sampling thread cannot be mid-allocation
