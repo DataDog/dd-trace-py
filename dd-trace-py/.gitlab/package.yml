@@ -87,9 +87,11 @@ variables:
     SCCACHE_BUCKET: "dd-trace-py-builds"
     SCCACHE_S3_KEY_PREFIX: "sccache"
     SCCACHE_REGION: "us-east-1"
+  artifacts:
+    paths:
+      - "pywheels/*.whl"  # passthrough dependency wheels
   script:
-    - cd dd-trace-py
-    - .gitlab/scripts/build-sdist.sh
+    - dd-trace-py/.gitlab/scripts/build-sdist.sh
 
 "build linux":
   extends: .build_base
