@@ -85,14 +85,19 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_response_chunk: Any = None  # deferred AssistantMessage for steps with tool calls
         self._step_input_snapshot: Optional[list[Message]] = None  # input captured before llm extension
         self._accumulated_input_messages: Optional[list[Message]] = None
+        self._is_finalized = False
         self._create_step_span()
 
     async def process_chunk(self, chunk, iterator=None):
         self.chunks.append(chunk)
         chunk_type = type(chunk).__name__
 
-        if chunk_type == "ResultMessage" and self.instance and self.context is None:
-            self.context = await _retrieve_context(self.instance)
+        if chunk_type == "ResultMessage":
+            if self.instance and self.context is None:
+                self.context = await _retrieve_context(self.instance)
+            # eagerly finish when the result message is received since 
+            # receive_response() may leave the generator open indefinitely
+            self.finalize_stream()
 
         content = getattr(chunk, "content", []) or []
 
@@ -104,6 +109,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             self._handle_user_message(chunk, content)
 
     def finalize_stream(self, exception=None):
+        if self._is_finalized:
+            return
+        self._is_finalized = True
         try:
             # Finalize any open llm span first.
             if self.current_llm_span is not None:
