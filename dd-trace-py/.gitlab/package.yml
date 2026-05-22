@@ -89,7 +89,7 @@ variables:
     SCCACHE_REGION: "us-east-1"
   artifacts:
     paths:
-      - "pywheels/*.tar.gz"
+      - "pywheels/ddtrace*.tar.gz"
   script:
     - cd dd-trace-py
     - .gitlab/scripts/build-sdist.sh
@@ -267,7 +267,7 @@ variables:
 
 "test sdist":
   image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
-  tags: [ "arch:amd64" ]
+  tags: [ "arch:arm64" ]
   stage: package
   variables:
     CARGO_BUILD_JOBS: "12"
