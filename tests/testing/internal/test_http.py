@@ -10,8 +10,8 @@ from unittest.mock import patch
 
 import pytest
 
-import ddtrace.testing.internal.http as _http_module
 from ddtrace.testing.internal.errors import SetupError
+import ddtrace.testing.internal.http as _http_module
 from ddtrace.testing.internal.http import DEFAULT_TIMEOUT_SECONDS
 from ddtrace.testing.internal.http import MAX_RETRY_AFTER_SECONDS
 from ddtrace.testing.internal.http import BackendConnector
