@@ -1962,7 +1962,15 @@
       "auto_instrumented": true,
       "tested_versions": [
         {
-          "version": "26.5.0",
+          "version": "21.1.2",
+          "python_version": "3.9"
+        },
+        {
+          "version": "21.12.0",
+          "python_version": "3.10"
+        },
+        {
+          "version": "25.9.1",
           "python_version": "3.10"
         },
         {
@@ -1970,8 +1978,20 @@
           "python_version": "3.11"
         },
         {
-          "version": "26.5.0",
+          "version": "25.9.1",
           "python_version": "3.11"
+        },
+        {
+          "version": "25.9.1",
+          "python_version": "3.12"
+        },
+        {
+          "version": "25.9.1",
+          "python_version": "3.13"
+        },
+        {
+          "version": "25.9.1",
+          "python_version": "3.14"
         }
       ]
     },

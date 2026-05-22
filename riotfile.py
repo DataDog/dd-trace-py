@@ -647,7 +647,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/gevent",
             pkgs={
                 "elasticsearch": latest,
-                "pynamodb": latest,
+                "pynamodb": "<6.0",
                 "pytest-randomly": latest,
             },
             venvs=[
