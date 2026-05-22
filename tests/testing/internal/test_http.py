@@ -1,6 +1,8 @@
 """Tests for ddtrace.testing.internal.http module."""
 
 import http.client
+import importlib
+import logging
 import os
 from unittest.mock import Mock
 from unittest.mock import call
@@ -8,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+import ddtrace.testing.internal.http as _http_module
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.http import DEFAULT_TIMEOUT_SECONDS
 from ddtrace.testing.internal.http import MAX_RETRY_AFTER_SECONDS
@@ -1095,6 +1098,46 @@ class TestUnixDomainSocketTimeout:
 
             mock_sock.settimeout.assert_called_once_with(3.5)
             mock_sock.connect.assert_called_once_with("/tmp/nonexistent.sock")
+
+
+class TestBackendTimeoutEnvVar:
+    """Tests for _DD_CIVISIBILITY_BACKEND_REQUEST_TIMEOUT env var."""
+
+    _ENV_VAR = "_DD_CIVISIBILITY_BACKEND_REQUEST_TIMEOUT"
+
+    @pytest.fixture(autouse=True)
+    def restore_module(self):
+        yield
+        os.environ.pop(self._ENV_VAR, None)
+        importlib.reload(_http_module)
+
+    def test_default_timeout_when_env_unset(self) -> None:
+        os.environ.pop(self._ENV_VAR, None)
+        importlib.reload(_http_module)
+        assert _http_module.DEFAULT_TIMEOUT_SECONDS == 15.0
+
+    def test_integer_string_is_accepted(self) -> None:
+        with patch.dict(os.environ, {self._ENV_VAR: "60"}):
+            importlib.reload(_http_module)
+        assert _http_module.DEFAULT_TIMEOUT_SECONDS == 60.0
+
+    def test_float_string_is_accepted(self) -> None:
+        with patch.dict(os.environ, {self._ENV_VAR: "30.5"}):
+            importlib.reload(_http_module)
+        assert _http_module.DEFAULT_TIMEOUT_SECONDS == 30.5
+
+    def test_non_numeric_value_falls_back_to_default(self, caplog: pytest.LogCaptureFixture) -> None:
+        with patch.dict(os.environ, {self._ENV_VAR: "fast"}):
+            with caplog.at_level(logging.WARNING, logger="ddtrace.testing.internal.http"):
+                importlib.reload(_http_module)
+        assert _http_module.DEFAULT_TIMEOUT_SECONDS == 15.0
+        assert self._ENV_VAR in caplog.text
+        assert "fast" in caplog.text
+
+    def test_non_numeric_value_does_not_raise(self) -> None:
+        with patch.dict(os.environ, {self._ENV_VAR: "not-a-number"}):
+            importlib.reload(_http_module)
+        assert _http_module.DEFAULT_TIMEOUT_SECONDS == 15.0
 
 
 class TestRequestFailureWarning:
