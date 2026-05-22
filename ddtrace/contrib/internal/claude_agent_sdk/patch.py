@@ -28,34 +28,24 @@ def _supported_versions() -> dict[str, str]:
 
 
 def _make_dd_precompact_hook(instance):
-    """Return an async PreCompact hook that records compaction events on the active query.
-
-    The active agent span is looked up via instance._dd_query_args, which traced_client_query
-    populates for the duration of a ClaudeSDKClient.query() call.
-    """
     async def _hook(input_data, tool_use_id, context):
         try:
-            query_args = getattr(instance, "_dd_query_args", None)
-            if query_args is None:
+            handler = getattr(instance, "_dd_streaming_handler", None)
+            if handler is None:
                 return {}
 
-            # Schema matches dd-apm-test-agent claude_hooks._handle_pre_compact:
-            # both fields always present, custom_instructions defaults to "".
             event = {
                 "trigger": (input_data or {}).get("trigger") or "",
                 "custom_instructions": (input_data or {}).get("custom_instructions") or "",
             }
 
-            # Also stamp on the currently-active step span (if any) so it shows
-            # up directly on that span as "compaction happened during this step".
-            handler = getattr(instance, "_dd_streaming_handler", None)
-            step_span = getattr(handler, "current_step_span", None) if handler else None
-            if step_span is not None:
-                step_bag = step_span._get_ctx_item("_dd_compactions") or []
-                step_bag.append(event)
-                step_span._set_ctx_item("_dd_compactions", step_bag)
-
-            query_args.setdefault("compactions", []).append(event)
+            # stamp compaction events on both the agent span and the active step span
+            for span in (handler.primary_span, handler.current_step_span):
+                if span is None:
+                    continue
+                bag = span._get_ctx_item("_dd_compactions") or []
+                bag.append(event)
+                span._set_ctx_item("_dd_compactions", bag)
         except Exception:
             log.warning("Error recording claude_agent_sdk PreCompact event", exc_info=True)
         return {}
@@ -142,7 +132,6 @@ async def traced_client_query(func, instance, args, kwargs):
         "args": args,
         "kwargs": kwargs,
         "before_context": before_context,
-        "compactions": [],
     }
 
     try:
@@ -167,17 +156,10 @@ def traced_receive_messages(func, instance, args, kwargs):
     query_args = query_args_dict.get("args")
     query_kwargs = query_args_dict.get("kwargs") or {}
     before_context = query_args_dict.get("before_context")
-    # Keep _dd_query_args alive (don't reset to None here) so the PreCompact
-    # hook can still append to the compactions list during streaming, which is
-    # when compactions actually fire. The next traced_client_query call will
-    # overwrite it with fresh per-query state.
-    compactions = query_args_dict.setdefault("compactions", [])
+    instance._dd_query_args = None
 
     if before_context is not None:
         query_kwargs["_dd_before_context"] = before_context
-    # Pass the list reference (not a snapshot) so finalize sees any events
-    # appended by the hook during the stream that follows.
-    query_kwargs["_dd_compactions"] = compactions
 
     if span is None:
         return func(*args, **kwargs)

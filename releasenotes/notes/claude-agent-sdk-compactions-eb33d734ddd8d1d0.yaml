@@ -1,4 +1,5 @@
 ---
 features:
   - |
-    LLM Observability: This introduces capture of context compaction events from the Claude Agent SDK integration. ``ClaudeSDKClient`` queries now record each ``PreCompact`` hook invocation (with ``trigger`` of ``"auto"`` or ``"manual"``, and ``custom_instructions`` when present) on the agent span under ``metadata._dd.compactions``.
+    LLM Observability: This introduces capture of context compaction events from the Claude Agent SDK integration for 
+    ``ClaudeSDKClient`` queries. Compactions are inferred from the ``PreCompact`` hook invocation.
