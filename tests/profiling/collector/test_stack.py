@@ -735,8 +735,7 @@ def test_gevent_cpu_time_total_accuracy() -> None:
     #
     # These bounds exist to catch regressions while staying flake-safe across
     # CI runners. They are NOT a claim about the profiler's CPU attribution
-    # accuracy; see DataDog/experimental#10595 for the underlying accuracy
-    # characterization.
+    # accuracy.
     assert 0.85 <= ratio <= 1.20, (
         f"profile cpu-time total ({profile_cpu_ns / 1e9:.3f}s) does not match "
         f"actual process CPU time ({actual_cpu_ns / 1e9:.3f}s); ratio={ratio:.2f} "
