@@ -30,11 +30,25 @@ from ddtrace.testing.internal.telemetry import TelemetryAPIRequestMetrics
 from ddtrace.testing.internal.utils import asbool
 
 
-DEFAULT_TIMEOUT_SECONDS = float(env.get("_DD_CIVISIBILITY_BACKEND_REQUEST_TIMEOUT") or 15.0)
+log = logging.getLogger(__name__)
+
+_DEFAULT_TIMEOUT_SECONDS = 15.0
+_raw_timeout = env.get("_DD_CIVISIBILITY_BACKEND_REQUEST_TIMEOUT")
+if _raw_timeout:
+    try:
+        DEFAULT_TIMEOUT_SECONDS = float(_raw_timeout)
+    except ValueError:
+        log.warning(
+            "Invalid value for _DD_CIVISIBILITY_BACKEND_REQUEST_TIMEOUT: %r; using default %.1fs",
+            _raw_timeout,
+            _DEFAULT_TIMEOUT_SECONDS,
+        )
+        DEFAULT_TIMEOUT_SECONDS = _DEFAULT_TIMEOUT_SECONDS
+else:
+    DEFAULT_TIMEOUT_SECONDS = _DEFAULT_TIMEOUT_SECONDS
+
 MAX_ATTEMPTS = 5
 MAX_RETRY_AFTER_SECONDS = 120.0
-
-log = logging.getLogger(__name__)
 
 T = t.TypeVar("T")
 
