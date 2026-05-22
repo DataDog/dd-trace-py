@@ -3,5 +3,7 @@ fixes:
   - |
     CI Visibility: Fixes spurious ``git`` warnings when running tests with pytest-xdist.
     Simultaneous ``git fetch --update-shallow`` calls now retry with exponential back-off
-    on ``.git/shallow.lock`` contention, and ``git merge-base`` is deferred until after
-    unshallowing so the required commits are available locally.
+    on ``.git/shallow.lock`` contention, skip the fetch entirely once a sibling worker has
+    already unshallowed the repository, and run under the ``C`` locale so the contention
+    check is robust against non-English git messages. ``git merge-base`` is deferred until
+    after unshallowing so the required commits are available locally.
