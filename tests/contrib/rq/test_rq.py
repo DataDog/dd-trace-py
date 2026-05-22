@@ -77,7 +77,7 @@ def test_queue_failing_job(sync_queue):
         sync_queue.enqueue(job_fail)
 
 
-@snapshot(ignores=snapshot_ignores)
+@snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})
 def test_sync_worker(queue):
     job = queue.enqueue(job_add1, 1)
     worker = rq.SimpleWorker([queue], connection=queue.connection)
@@ -85,7 +85,7 @@ def test_sync_worker(queue):
     assert job.result == 2
 
 
-@snapshot(ignores=snapshot_ignores)
+@snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})
 def test_sync_worker_ttl(queue):
     # queue a job where the result expires immediately
     job = queue.enqueue(job_add1, 1, result_ttl=0)
@@ -100,7 +100,7 @@ def test_sync_worker_ttl(queue):
     assert job.result is None
 
 
-@snapshot(ignores=snapshot_ignores)
+@snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})
 def test_sync_worker_multiple_jobs(queue):
     jobs = []
     for i in range(3):
@@ -110,7 +110,7 @@ def test_sync_worker_multiple_jobs(queue):
     assert [job.result for job in jobs] == [1, 2, 3]
 
 
-@snapshot(ignores=snapshot_ignores)
+@snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})
 def test_sync_worker_config_service(queue):
     job = queue.enqueue(job_add1, 10)
     with override_config("rq_worker", dict(service="my-worker-svc")):
@@ -126,7 +126,7 @@ def test_worker_failing_job(queue):
     worker.work(burst=True)
 
 
-@snapshot(ignores=snapshot_ignores)
+@snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})
 def test_worker_class_job(queue):
     queue.enqueue(JobClass().job_on_class, 2)
     queue.enqueue(JobClass(), 4)
@@ -143,9 +143,11 @@ def test_custom_job_id_in_span_tags(sync_queue):
 @pytest.mark.parametrize("distributed_tracing_enabled", [False, None])
 @pytest.mark.parametrize("worker_service_name", [None, "custom-worker-service"])
 def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
-    token = "tests.contrib.rq.test_rq.test_enqueue_distributed_tracing_enabled_%s_worker_service_%s" % (
+    variant_suffix = "_pre_1_10_1" if rq_version < (1, 10, 1) else ""
+    token = "tests.contrib.rq.test_rq.test_enqueue_distributed_tracing_enabled_%s_worker_service_%s%s" % (
         distributed_tracing_enabled,
         worker_service_name,
+        variant_suffix,
     )
     num_traces_expected = 2 if distributed_tracing_enabled is False else 1
     with snapshot_context(token, ignores=snapshot_ignores, wait_for_num_traces=num_traces_expected):
