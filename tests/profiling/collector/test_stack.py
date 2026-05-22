@@ -724,12 +724,20 @@ def test_gevent_cpu_time_total_accuracy() -> None:
 
     ratio = profile_cpu_ns / actual_cpu_ns
 
-    # Reject the ~1.6x over-count this test exists to catch. 1.25x gives ~25pp
-    # of slack above the expected 1.0x for noise.
-    # Lower bound guards against a regression that drops real CPU (e.g.
-    # reintroducing the is_running() gate from before PR #16273) and would
-    # report ~0x.
-    assert 0.7 <= ratio <= 1.25, (
+    # Bounds picked from measured ratios across local Mac (n=10) and CI Linux
+    # py3.9-3.14 (n=6). Observed range with the fix applied: 0.975 - 1.058;
+    # observed range without the fix (bug): 1.61 - 1.63 (n=5 CI). 1.20 upper
+    # leaves ~13% headroom above the worst observed fixed value and rejects the
+    # ~1.6x bug with ~25% margin; 0.85 lower leaves ~13% below the worst
+    # observed fixed value and rejects a regression that drops real CPU
+    # (e.g. reintroducing the is_running() gate removed in PR #16273) which
+    # would push the ratio toward 0.
+    #
+    # These bounds exist to catch regressions while staying flake-safe across
+    # CI runners. They are NOT a claim about the profiler's CPU attribution
+    # accuracy; see DataDog/experimental#10595 for the underlying accuracy
+    # characterization.
+    assert 0.85 <= ratio <= 1.20, (
         f"profile cpu-time total ({profile_cpu_ns / 1e9:.3f}s) does not match "
         f"actual process CPU time ({actual_cpu_ns / 1e9:.3f}s); ratio={ratio:.2f} "
         f"(expected ~1.0, bug produces ~1.6)"
