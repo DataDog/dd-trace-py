@@ -34,6 +34,8 @@ variables:
   needs:
     - job: "ddtrace-internal build linux"
       artifacts: true
+    - job: "ddtrace-internal build sdist"
+      artifacts: true
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"
@@ -77,6 +79,9 @@ variables:
   extends: .build_base
   image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
   tags: [ "arch:${ARCH_TAG}" ]
+  needs:
+    - job: "ddtrace-internal build sdist"
+      artifacts: true
   variables:
     DD_CYTHONIZE: "0"
     ARCH_TAG: "amd64"
@@ -89,7 +94,7 @@ variables:
     SCCACHE_REGION: "us-east-1"
   artifacts:
     paths:
-      - "pywheels/ddtrace*.tar.gz"
+      - "pywheels/*.tar.gz"
   script:
     - cd dd-trace-py
     - .gitlab/scripts/build-sdist.sh
