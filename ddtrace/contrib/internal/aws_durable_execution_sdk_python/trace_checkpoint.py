@@ -146,12 +146,17 @@ def mark_trace_context_checkpoints_visited(state: ExecutionState) -> None:
     start.  ``track_replay`` itself acquires ``_replay_status_lock`` and
     runs the subset check, so we don't need to touch SDK internals.
     """
+    op_id = None
     try:
         for op_id, op in list(state.operations.items()):
             if op.name and op.name.startswith(_CHECKPOINT_NAME_PREFIX):
                 state.track_replay(op_id)
     except Exception as e:
-        log.debug("mark_trace_context_checkpoints_visited failed", exc_info=True)
+        log.debug(
+            "mark_trace_context_checkpoints_visited failed at op_id=%s",
+            op_id,
+            exc_info=True,
+        )
         _record_integration_error(e, "mark_visited")
 
 
@@ -172,7 +177,12 @@ def _allocate_checkpoint_n(state) -> int:
         try:
             setattr(state, _STATE_NEXT_N_ATTR, n + 1)
         except Exception as e:
-            log.debug("Could not advance checkpoint counter", exc_info=True)
+            log.debug(
+                "Could not advance checkpoint counter to N=%d on %s",
+                n + 1,
+                type(state).__name__,
+                exc_info=True,
+            )
             _record_integration_error(e, "allocate_n")
             return -1
         return n
@@ -276,7 +286,11 @@ def maybe_save_trace_context_checkpoint(durable_context: DurableContext, span: S
         try:
             _inject_datadog_headers(span, headers)
         except Exception as e:
-            log.debug("Datadog header injection failed", exc_info=True)
+            log.debug(
+                "Datadog header injection failed for span_id=%s",
+                getattr(span, "span_id", None),
+                exc_info=True,
+            )
             _record_integration_error(e, "inject")
             return
         if not headers:
@@ -322,9 +336,18 @@ def maybe_save_trace_context_checkpoint(durable_context: DurableContext, span: S
         try:
             state.create_checkpoint(update, is_sync=True)
         except Exception as e:
-            log.debug("Failed to write trace-context checkpoint", exc_info=True)
+            log.debug(
+                "Failed to write trace-context checkpoint name=%s op_id=%s",
+                name,
+                operation_id,
+                exc_info=True,
+            )
             _record_integration_error(e, "create_checkpoint")
     except Exception as e:
-        log.debug("maybe_save_trace_context_checkpoint failed", exc_info=True)
+        log.debug(
+            "maybe_save_trace_context_checkpoint failed for span_id=%s",
+            getattr(span, "span_id", None),
+            exc_info=True,
+        )
         # Outer catch-all: anything we didn't anticipate inside the writer.
         _record_integration_error(e, "save_unknown")
