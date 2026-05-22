@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    aap: Adds instrumentation telemetry distributions for WAF and RASP execution
+    durations, including ``waf.duration``, ``waf.duration_ext``,
+    ``rasp.duration``, and ``rasp.duration_ext``.

@@ -5,6 +5,7 @@ import asyncpg
 import mock
 import pytest
 
+from ddtrace.contrib.internal.asyncpg.patch import _PROTOCOL_METHODS
 from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
 from ddtrace.contrib.internal.trace_utils import iswrapped
@@ -377,6 +378,58 @@ def test_patch_unpatch_asyncpg():
     assert not iswrapped(asyncpg.protocol.Protocol.bind_execute)
     assert not iswrapped(asyncpg.protocol.Protocol.query)
     assert not iswrapped(asyncpg.protocol.Protocol.bind_execute_many)
+
+
+def test_unpatch_removes_method_shadow():
+    # Regression: unpatch must not leave Cython descriptor shadows in Protocol.__dict__.
+    # unwrap() used setattr which placed the BaseProtocol descriptor directly into
+    # Protocol.__dict__, causing a subsequent patch() call to re-wrap the shadow instead
+    # of resolving the method naturally via MRO.
+    for method in _PROTOCOL_METHODS:
+        assert method in asyncpg.protocol.Protocol.__dict__
+
+    unpatch()
+
+    for method in _PROTOCOL_METHODS:
+        assert method not in asyncpg.protocol.Protocol.__dict__, (
+            f"Protocol.__dict__ has residual shadow for '{method}' after unpatch; "
+            "re-patching will wrap the shadow instead of the natural MRO method"
+        )
+
+
+def test_patch_unpatch_patch_cycle():
+    # Regression: patch/unpatch/patch must produce correctly wrapped Protocol methods
+    # without double-wrapping.
+    unpatch()
+    patch()
+
+    for method in _PROTOCOL_METHODS:
+        assert iswrapped(asyncpg.protocol.Protocol, method), (
+            f"Protocol.{method} not wrapped after patch/unpatch/patch cycle"
+        )
+        wrapper = asyncpg.protocol.Protocol.__dict__[method]
+        assert not iswrapped(wrapper.__wrapped__), (
+            f"Protocol.{method} is double-wrapped after patch/unpatch/patch cycle"
+        )
+
+
+@pytest.mark.asyncio
+async def test_execute_after_patch_unpatch_patch():
+    # Regression: executing a query must succeed after patch/unpatch/patch.
+    unpatch()
+    patch()
+
+    conn = await asyncpg.connect(
+        host=POSTGRES_CONFIG["host"],
+        port=POSTGRES_CONFIG["port"],
+        user=POSTGRES_CONFIG["user"],
+        database=POSTGRES_CONFIG["dbname"],
+        password=POSTGRES_CONFIG["password"],
+    )
+    try:
+        await conn.execute("SELECT 1")
+    finally:
+        await conn.close()
 
 
 class AsyncPgTestCase(AsyncioTestCase):
