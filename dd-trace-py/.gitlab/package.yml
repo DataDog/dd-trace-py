@@ -267,7 +267,7 @@ variables:
 
 "test sdist":
   image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
-  tags: [ "arch:arm64" ]
+  tags: [ "arch:amd64" ]
   stage: package
   variables:
     CARGO_BUILD_JOBS: "12"
