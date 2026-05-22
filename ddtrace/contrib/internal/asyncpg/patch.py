@@ -176,7 +176,8 @@ def patch() -> None:
 
 
 def _unpatch(asyncpg: ModuleType) -> None:
-    unwrap(asyncpg, "connect")
+    if iswrapped(asyncpg, "connect"):
+        unwrap(asyncpg, "connect")
     for method in _PROTOCOL_METHODS:
         # DEV: Use delattr rather than unwrap()/setattr to avoid leaving a Cython descriptor
         # shadow in Protocol.__dict__. unwrap() calls setattr which places the BaseProtocol
