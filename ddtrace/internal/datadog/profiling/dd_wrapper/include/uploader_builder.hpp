@@ -14,9 +14,6 @@ namespace Datadog {
 // Configuration state is stored in the ProfilerState singleton.
 class UploaderBuilder
 {
-    static constexpr std::string_view language{ g_language_name };
-    static constexpr std::string_view family{ g_language_name };
-
   public:
     static void set_env(std::string_view _dd_env);
     static void set_service(std::string_view _service);

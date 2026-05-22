@@ -179,9 +179,9 @@ ensure_exporter(ProfilerState& state)
     }
 
     ddog_prof_ProfileExporter_Result res = ddog_prof_Exporter_new(
-      to_slice("dd-trace-py"),
+      to_slice(g_library_name),
       to_slice(state.profiler_version),
-      to_slice(g_language_name),
+      to_slice(g_family_name),
       &tags,
       ddog_prof_Endpoint_agent(to_slice(state.url), state.max_timeout_ms, /*use_system_resolver=*/false));
     ddog_Vec_Tag_drop(tags);

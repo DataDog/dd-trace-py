@@ -21,6 +21,11 @@ constexpr std::string_view g_runtime_name = "CPython";
 // Name of the language we support
 constexpr std::string_view g_language_name = "python";
 
+// Profile family — generally different from `g_language_name` (e.g. an eBPF
+// profiler may run in family `native` while sampling `python` code), but for
+// this profiler they happen to coincide.
+constexpr std::string_view g_family_name = "python";
+
 // Name of the library
 constexpr std::string_view g_library_name = "dd-trace-py";
 
