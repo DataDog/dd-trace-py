@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 namespace Datadog {
 
@@ -32,6 +33,12 @@ class UploaderBuilder
     static void set_max_timeout_ms(uint64_t _max_timeout_ms);
 
     static std::variant<Uploader, std::string> build();
+
+    // Build a tag vector from ProfilerState::user_tags, for use as
+    // optional_additional_tags on send. Caller owns the returned vector and
+    // must drop it with ddog_Vec_Tag_drop. Tags that fail validation are
+    // omitted and their reason appended to `reasons`.
+    static ddog_Vec_Tag build_user_tag_vec(std::vector<std::string>& reasons);
 };
 
 } // namespace Datadog

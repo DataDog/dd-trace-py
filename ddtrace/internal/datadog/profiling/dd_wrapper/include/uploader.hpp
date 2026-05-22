@@ -13,7 +13,7 @@ namespace Datadog {
 
 // Uploader handles uploading encoded profiles to the Datadog backend.
 // The ddog_prof_ProfileExporter is owned by ProfilerState and reused across
-// upload cycles (see ProfilerState::cached_exporter).
+// upload cycles (see ProfilerState::exporter).
 // Upload state (lock, cancellation token, sequence number) is stored in the ProfilerState singleton.
 class Uploader
 {

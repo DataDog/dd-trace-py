@@ -4,6 +4,7 @@
 #include "libdatadog_helpers.hpp"
 #include "profiler_state.hpp"
 #include "profiler_stats.hpp"
+#include "uploader_builder.hpp"
 
 #include <fstream>  // ofstream
 #include <sstream>  // ostringstream
@@ -138,15 +139,30 @@ Datadog::Uploader::upload_unlocked()
 
     // The exporter is owned by ProfilerState and reused across uploads.
     // Caller holds upload_lock, so this access is serialized with prefork/cleanup
-    // (the only places that drop the exporter).
-    auto& cached_exporter = ProfilerState::get().cached_exporter;
+    // (the only places that drop the exporter) and with other uploads.
+    auto& exporter = ProfilerState::get().exporter;
 
-    // Build and send the request in one call
-    auto init_runtime_res = ddog_prof_Exporter_init_runtime(&cached_exporter);
+    // User-defined tags can change between uploads (e.g. manual Profiler usage
+    // setting per-task tags), so we build them per-send rather than baking
+    // them into the long-lived exporter.
+    std::vector<std::string> tag_reasons;
+    ddog_Vec_Tag user_tag_vec = UploaderBuilder::build_user_tag_vec(tag_reasons);
+    if (!tag_reasons.empty()) {
+        std::cerr << "Bad user tag(s); skipping upload: ";
+        for (const auto& r : tag_reasons) {
+            std::cerr << r << "; ";
+        }
+        std::cerr << std::endl;
+        ddog_Vec_Tag_drop(user_tag_vec);
+        return false;
+    }
+
+    auto init_runtime_res = ddog_prof_Exporter_init_runtime(&exporter);
     if (init_runtime_res.tag != DDOG_VOID_RESULT_OK) {
         std::cerr << "Error initializing runtime: " << err_to_msg(&init_runtime_res.err, "Error initializing runtime")
                   << std::endl;
         ddog_Error_drop(&init_runtime_res.err);
+        ddog_Vec_Tag_drop(user_tag_vec);
         return false;
     }
 
@@ -165,10 +181,10 @@ Datadog::Uploader::upload_unlocked()
         ddog_CancellationToken_drop(&current_cancel);
     }
 
-    auto res = ddog_prof_Exporter_send_blocking(&cached_exporter,
+    auto res = ddog_prof_Exporter_send_blocking(&exporter,
                                                 &encoded_profile,
                                                 files_to_compress,
-                                                nullptr, // optional_additional_tags
+                                                &user_tag_vec,
                                                 optional_process_tags_ptr,
                                                 &internal_metadata_json_slice,
                                                 optional_info_json_ptr,
@@ -183,7 +199,7 @@ Datadog::Uploader::upload_unlocked()
         ret = false;
     }
     ddog_CancellationToken_drop(&new_cancel_clone_for_request);
-    // cached_exporter intentionally NOT dropped: it is reused across uploads.
+    ddog_Vec_Tag_drop(user_tag_vec);
 
     return ret;
 }
