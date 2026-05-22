@@ -326,6 +326,31 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
         assert span.get_tag(FLASK_URL_RULE) == "/users"
         assert span.get_tag(FLASK_RESOURCE_FULL) == expected_full
 
+    def test_flask_resource_full_tag_e2e(self, interface, root_span, get_tag):
+        # Pin the asymmetric tag contract end-to-end: ``find_resource`` matches on either
+        # ``span.resource`` or FLASK_RESOURCE_FULL, so a regression that misplaces the tag
+        # between flat and subapp modes would pass silently in every other e2e test.
+        from werkzeug.middleware.dispatcher import DispatcherMiddleware
+
+        from ddtrace.internal.constants import FLASK_RESOURCE_FULL
+        from ddtrace.internal.constants import FLASK_URL_RULE
+        from tests.utils import override_global_config
+
+        with override_global_config(dict(_asm_enabled=True)):
+            self.update_tracer(interface)
+            response = interface.client.get("/asm/123/foo")
+            assert self.status(response) == 200
+
+        span = root_span()
+        if isinstance(interface.framework.wsgi_app, DispatcherMiddleware):
+            assert span.get_tag(FLASK_URL_RULE) == "/<int:param_int>/<string:param_str>"
+            assert span.resource == "GET /<int:param_int>/<string:param_str>"
+            assert get_tag(FLASK_RESOURCE_FULL) == "GET /asm/<int:param_int>/<string:param_str>"
+        else:
+            assert span.get_tag(FLASK_URL_RULE) == "/asm/<int:param_int>/<string:param_str>"
+            assert span.resource == "GET /asm/<int:param_int>/<string:param_str>"
+            assert get_tag(FLASK_RESOURCE_FULL) is None
+
 
 class Test_Flask_RC(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats_RC):
     pass
