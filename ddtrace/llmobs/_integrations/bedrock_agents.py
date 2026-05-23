@@ -156,11 +156,9 @@ def _get_or_create_bedrock_trace_step_span(
 def _propagate_inner_io_to_step_span(step_span: Span, inner_span: Span) -> None:
     """Copy first non-empty input and last output from inner_span onto step_span.
 
-    MUST be called before inner_span.finish() in case LLMObs scrubs meta_struct on the
-    inner span: in LLMOBS_DIRECT mode (DD_APM_TRACING_ENABLED=false) the scrub fires
-    immediately in LLMObs._on_span_finish; in APM_AGENT_PROXY / APM_AGENTLESS modes the
-    scrub fires later in the LLMObsSamplingFallbackProcessor when the trace is predicted
-    to be dropped. Either way the safe contract is "read before finish".
+    MUST be called before inner_span.finish(): LLMObs may scrub meta_struct on the inner
+    span either at finish (LLMOBS_DIRECT) or later in the sampling fallback processor
+    (APM modes, on predicted-drop).
     """
     kwargs: dict[str, Any] = {}
     if not get_llmobs_input(step_span):

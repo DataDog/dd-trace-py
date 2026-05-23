@@ -22,14 +22,9 @@ from tests.utils import request_token
 
 
 class _TestAlwaysEnqueueLLMObsProcessor(TraceProcessor):
-    """Test-only variant of ``LLMObsSamplingFallbackProcessor`` that enqueues every LLM
-    span's cached event to the test writer regardless of sampling priority and never
-    scrubs meta_struct.
-
-    Production rescue only fires for predicted-drop traces and scrubs meta_struct to
-    keep ingest single-write. Tests want both: the cached event landing on the writer
-    (so ``llmobs_events`` fixture sees it) and meta_struct staying on the span (so
-    ``_get_llmobs_data_metastruct`` reads the rendered payload).
+    """Test-only variant of ``LLMObsSamplingFallbackProcessor``: always enqueue and
+    never scrub meta_struct. Lets tests assert against both the LLMObs writer events
+    and the rendered payload that intake would extract from meta_struct.
     """
 
     def __init__(self, llmobs_span_writer) -> None:
@@ -312,17 +307,11 @@ def llmobs(
     global_config.update(ddtrace_global_config)
     # TODO: remove once rest of tests are moved off of global config tampering
     with override_global_config(global_config):
-        # agentless_enabled=False forces APM_AGENT_PROXY mode so the APM trace writer
-        # (a DummyWriter installed by the ``tracer`` fixture) is preserved. Without this
-        # the auto-detect probes the Agent /info endpoint; a missing/unreachable Agent
-        # silently flips LLMObs to agentless, swaps the trace writer to an
-        # AgentlessTraceWriter, and breaks the ``test_spans`` fixture's DummyWriter
-        # invariant.
+        # Pin agentless_enabled=False: the default probes the Agent /info endpoint and
+        # silently flips to agentless when the Agent is unreachable, which swaps the
+        # ``tracer`` fixture's DummyWriter for an AgentlessTraceWriter and breaks the
+        # ``test_spans`` fixture invariant.
         llmobs_service.enable(_tracer=tracer, agentless_enabled=False, **llmobs_enable_opts)
-        # APM_AGENT_PROXY preserves meta_struct["_llmobs"] on the span so tests can read
-        # it via _get_llmobs_data_metastruct. The fixture installs an always-enqueue
-        # rescue variant so the test LLMObsSpanWriter is also exercised on every LLM
-        # span finish (production only enqueues on predicted-drop and scrubs).
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
         llmobs_service._instance._dne_client._intake = llmobs_api_proxy_url

@@ -625,11 +625,9 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
     3. Platform / product default (``v0.4`` on Windows, GCP Functions, Azure Functions,
        ASM, IAST, or AI Guard; ``v0.5`` otherwise).
 
-    Note: when ``DD_TRACE_NATIVE_SPAN_EVENTS`` is enabled, or when LLM Observability is
-    enabled (``config._llmobs_enabled``), the resolved version is **unconditionally forced
-    to ``v0.4``**, overriding even an explicit ``api_version`` argument. v0.5 does not
-    support native span events nor the ``meta_struct`` field LLM Observability rides on
-    (the v0.5 msgpack encoder strips ``meta_struct``).
+    Note: ``DD_TRACE_NATIVE_SPAN_EVENTS`` and LLM Observability both force ``v0.4`` even
+    over an explicit ``api_version``; the v0.5 msgpack encoder strips ``meta_struct`` and
+    does not support native span events.
     """
     is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     default = "v0.5"

@@ -571,21 +571,18 @@ class LLMObs(Service):
             self._evaluator_runner.enqueue(span_event, span)
 
         if self._export_mode == LLMObsExportMode.LLMOBS_DIRECT or not self.tracer.enabled:
-            # APM tracing is disabled (DD_APM_TRACING_ENABLED=false or DD_TRACE_ENABLED=0).
-            # The APM trace is either dropped by APMTracingEnabledFilter or never flushed
-            # because the tracer's on_span_finish path early-returns, so the rescue chain
-            # in LLMObsSamplingFallbackProcessor never runs — submit directly via the writer
-            # and scrub meta_struct so nothing accidentally rides a partial / leaked trace.
-            # Stamp + scrub before enqueue so a writer failure cannot leave the payload on
-            # the span (matches LLMObsSamplingFallbackProcessor for symmetry).
+            # APM trace is dropped (APMTracingEnabledFilter) or the tracer's on_span_finish
+            # path early-returns, so the rescue chain never runs — ship via the writer here.
+            # Tag + scrub before enqueue: a writer failure must not leave the payload on the
+            # span (would cause APM-side extract to duplicate).
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             self._llmobs_span_writer.enqueue(span_event)
             return
 
-        # APM_AGENT_PROXY and APM_AGENTLESS both ride the APM trace via meta_struct["_llmobs"].
-        # Stash the prepared event on the span so LLMObsSamplingFallbackProcessor can re-ship it
-        # via the writer (without rebuilding) when the SDK predicts the trace will be dropped.
+        # APM_AGENT_PROXY / APM_AGENTLESS: payload rides the APM trace via meta_struct.
+        # Cache the rendered event so LLMObsSamplingFallbackProcessor can re-ship it without
+        # rebuilding when the SDK predicts the trace will be dropped.
         span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
@@ -752,10 +749,9 @@ class LLMObs(Service):
         # prevent disable() from incorrectly reverting it in the child process.
         self._apm_writer_switched_to_agentless = False
         if self.enabled:
-            # Rebind the rescue processor to the *new* post-fork LLMObsSpanWriter; the
-            # processor instance captured the pre-fork writer at enable() time and its
-            # background worker thread does not survive fork() — enqueuing to it would
-            # silently buffer events forever in the child.
+            # Rebind the rescue processor: it captured the pre-fork writer whose worker
+            # thread does not survive fork(); leaving it in place would silently buffer
+            # rescued events in the child.
             self.tracer._span_aggregator.llmobs_fallback_processor = LLMObsSamplingFallbackProcessor(
                 self._llmobs_span_writer
             )
@@ -925,13 +921,8 @@ class LLMObs(Service):
                     cls._instance.tracer._span_aggregator.configure_agentless_writer(enable=True)
                 )
             else:
-                # Force the APM trace writer to v0.4 so LLM Observability meta_struct payloads
-                # ride along with APM spans. v0.5 does not support meta_struct. AppSec uses the
-                # same recreate(...) hook for the same reason.
+                # Recreate the APM writer at v0.4; v0.5 strips meta_struct.
                 cls._instance.tracer._span_aggregator.reset(llmobs_enabled=True, reset_buffer=False)
-            # Install the predicted-drop rescue processor in SpanAggregator's hardcoded
-            # chain. The LLMObsSpanWriter is reused for both the LLMOBS_DIRECT immediate
-            # ship path and the rescue path so we keep a single egress channel.
             cls._instance.tracer._span_aggregator.llmobs_fallback_processor = LLMObsSamplingFallbackProcessor(
                 cls._instance._llmobs_span_writer
             )
@@ -1657,8 +1648,6 @@ class LLMObs(Service):
         cls._instance.stop()
         if cls._instance._apm_writer_switched_to_agentless:
             cls._instance.tracer._span_aggregator.configure_agentless_writer(enable=False)
-        # Reinstate the no-op rescue slot so the processor chain stays zero-cost when
-        # LLM Observability is off.
         cls._instance.tracer._span_aggregator.llmobs_fallback_processor = _NoopTraceProcessor()
         cls.enabled = False
         # Align config._llmobs_enabled with effective state for user-initiated calls.

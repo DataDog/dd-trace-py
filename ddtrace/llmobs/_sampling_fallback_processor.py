@@ -1,21 +1,15 @@
-"""Predicted-drop rescue for LLMObs span events that ride APM traces.
+"""Predicted-drop rescue for LLMObs payloads riding APM traces in APM_AGENT_PROXY /
+APM_AGENTLESS modes.
 
-When LLM Observability is enabled in ``APM_AGENT_PROXY`` or ``APM_AGENTLESS`` mode the
-LLMObs payload is attached to the APM span via ``meta_struct["_llmobs"]`` so it rides
-the APM trace to intake, where the LLMObs processor extracts it. That path works as
-long as the trace actually reaches intake.
+When the SDK predicts the APM trace will be dropped (root ``sampling_priority <= 0``)
+the Agent / libdatadog can drop the chunk before it reaches intake, taking the
+``meta_struct["_llmobs"]`` payload with it. This processor re-ships the cached event
+via ``LLMObsSpanWriter``, scrubs the meta_struct entry, and stamps
+``_dd.llmobs.submitted=1`` so intake-side dedup can drop the APM extract if the Agent
+unexpectedly keeps the trace.
 
-When the SDK predicts the trace will be dropped (root ``sampling_priority <= 0``) the
-Datadog Agent's local sampler can remove the chunk before it reaches trace-edge, and
-client-side stats / libdatadog can drop the trace before the wire. To avoid losing the
-LLMObs event in those cases this processor re-ships the cached event via the existing
-``LLMObsSpanWriter`` and scrubs ``meta_struct["_llmobs"]`` from the APM span, then
-stamps ``_dd.llmobs.submitted=1`` so the rescue can never fire twice for the same span
-(idempotency) and so the writer-side intake can de-dup with the APM-side extract if the
-Agent unexpectedly keeps the trace.
-
-The processor never mutates ``sampling_priority`` and never adds sampling rules — LLM
-Observability has zero impact on APM sampling decisions or billing.
+The processor never mutates ``sampling_priority`` — LLMObs has no influence on APM
+sampling or billing.
 """
 
 from typing import Optional
@@ -37,15 +31,14 @@ __all__ = ["LLMObsSamplingFallbackProcessor"]
 
 
 class LLMObsSamplingFallbackProcessor(TraceProcessor):
-    """Re-ships LLMObs events for spans whose APM trace the SDK predicts will be dropped.
+    """Re-ships LLMObs events when the SDK predicts the APM trace will be dropped.
 
-    Inserted into ``SpanAggregator``'s hardcoded processor chain immediately after
-    ``TraceSamplingProcessor`` and immediately before ``TraceTagsProcessor`` so the
-    sampling decision has been computed and ``meta_struct["_llmobs"]`` is still present
-    on the span.
+    Slotted between ``TraceSamplingProcessor`` and ``TraceTagsProcessor`` in
+    ``SpanAggregator``'s chain so it runs after sampling decides priority but before
+    tags processing mutates the span.
 
-    The processor relies on the cached event stashed by ``LLMObs._on_span_finish`` to
-    avoid re-running the (potentially expensive) span-to-event conversion.
+    Relies on ``LLMObs._on_span_finish`` having cached the rendered event on the span
+    (avoids re-running the span-to-event conversion).
     """
 
     def __init__(self, llmobs_span_writer: LLMObsSpanWriter) -> None:
@@ -53,8 +46,6 @@ class LLMObsSamplingFallbackProcessor(TraceProcessor):
         self._llmobs_span_writer = llmobs_span_writer
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
-        # Always return the trace unchanged from the APM perspective; per-span mutations
-        # only strip the LLMObs payload and stamp the idempotency tag.
         if not trace:
             return trace
         for span in trace:
@@ -71,31 +62,22 @@ class LLMObsSamplingFallbackProcessor(TraceProcessor):
     def _maybe_rescue(self, span: Span) -> None:
         if span.span_type != SpanTypes.LLM:
             return
-        # Idempotency: another path (e.g. LLMOBS_DIRECT hook) or a previous flush already
-        # submitted this span.
         if span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1":
             return
-        # Read priority from the local root so propagated upstream decisions are honored
-        # (distributed-trace case where the upstream service set priority <= 0).
+        # Read priority from the local root: in distributed traces the upstream
+        # service's reject decision is what reaches the Agent.
         root = span._local_root or span
-        context = root.context
-        priority = context.sampling_priority
+        priority = root.context.sampling_priority
         if priority is None or priority > 0:
-            # No prediction available, or SDK plans to keep the trace — meta_struct rides
-            # the APM trace and intake extracts the LLMObs payload. No rescue needed.
             return
         event = span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
         if event is None:
-            # The hook either never built the event (kind not LLMObs) or the build failed.
-            # No payload to rescue; ensure meta_struct stays scrubbed so we don't ship a
-            # partial event to intake.
+            # No event was built (non-LLMObs span_kind or build failure). Scrub any
+            # half-built payload so it never rides the APM trace partial.
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             return
-        # Order matches the LLMOBS_DIRECT immediate-ship path in LLMObs._on_span_finish:
-        # stamp the idempotency tag and scrub meta_struct *before* enqueue so that a writer
-        # failure cannot leave a partial state where the APM trace still carries the
-        # payload (would cause a duplicate via APM-side extract) without the tag intake
-        # uses to de-dup.
+        # Tag + scrub before enqueue: a writer failure must not leave the payload on
+        # the span (APM-side extract would duplicate without the dedup tag).
         span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
         span._remove_struct_tag(LLMOBS_STRUCT.KEY)
         self._llmobs_span_writer.enqueue(event)

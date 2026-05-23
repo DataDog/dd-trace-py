@@ -55,13 +55,8 @@ class TraceProcessor(metaclass=abc.ABCMeta):
 
 
 class _NoopTraceProcessor(TraceProcessor):
-    """Identity processor used as a default slot in ``SpanAggregator``'s chain.
-
-    Some processor slots are dynamically swapped in by a product (e.g. LLMObs's
-    ``LLMObsSamplingFallbackProcessor`` replaces this when ``LLMObs.enable()`` runs).
-    Keeping a no-op in the chain by default lets the swap be a simple attribute write
-    rather than a chain rebuild and keeps the cost of the chain near zero when the
-    product is not enabled.
+    """Default slot occupant in ``SpanAggregator``'s chain. Lets products (LLMObs, ...)
+    swap in their processor via a single attribute write instead of rebuilding the chain.
     """
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
@@ -339,9 +334,6 @@ class SpanAggregator(SpanProcessor):
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
         self.service_name_processor = ServiceNameProcessor()
-        # Slot for LLMObsSamplingFallbackProcessor. Defaults to a no-op so the chain stays
-        # zero-cost when LLM Observability is not enabled. LLMObs.enable() swaps this slot
-        # for the real processor; LLMObs.disable() restores the no-op.
         self.llmobs_fallback_processor: TraceProcessor = _NoopTraceProcessor()
         self.writer = create_trace_writer(
             response_callback=self._agent_response_callback,
@@ -424,8 +416,8 @@ class SpanAggregator(SpanProcessor):
             self.user_processors,
             [
                 self.sampling_processor,
-                # Runs after sampling so the priority is decided and meta_struct is still
-                # present; runs before tags / service-name so a no-op chain stays cheap.
+                # MUST sit between sampling_processor (decides priority) and tags_processor
+                # (mutates span). LLMObsSamplingFallbackProcessor reads both.
                 self.llmobs_fallback_processor,
                 self.tags_processor,
                 self.service_name_processor,

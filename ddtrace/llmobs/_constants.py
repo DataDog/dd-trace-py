@@ -5,18 +5,15 @@ from typing import Final
 class LLMObsExportMode(str, Enum):
     """How LLMObs span data is submitted to Datadog.
 
-    LLMOBS_DIRECT  — span events go through LLMObsSpanWriter directly. The APM
-                     trace is dropped by APMTracingEnabledFilter. Used when
-                     DD_APM_TRACING_ENABLED=false.
-    APM_AGENTLESS  — span data rides the APM trace via meta_struct["_llmobs"];
-                     the APM trace writer switches to AgentlessTraceWriter and
-                     POSTs to /v1/input. Intake extracts the LLMObs payload.
-    APM_AGENT_PROXY  — span data rides the APM trace via meta_struct["_llmobs"]
-                       and is forwarded by the Datadog Agent to /api/v0.2/traces;
-                       intake extracts the LLMObs payload. When the SDK predicts
-                       the trace will be sampled out the LLMObsSamplingFallbackProcessor
-                       re-ships the LLMObs event via LLMObsSpanWriter and scrubs
-                       the meta_struct entry to keep ingest single-write.
+    LLMOBS_DIRECT   — span events go through LLMObsSpanWriter directly. Selected when
+                      DD_APM_TRACING_ENABLED=false (APM trace is dropped by
+                      APMTracingEnabledFilter).
+    APM_AGENTLESS   — payload rides the APM trace as meta_struct["_llmobs"]; APM
+                      writer is swapped to AgentlessTraceWriter (POSTs to /v1/input).
+    APM_AGENT_PROXY — payload rides the APM trace as meta_struct["_llmobs"] via the
+                      Datadog Agent (/api/v0.2/traces). On predicted-drop traces the
+                      ``LLMObsSamplingFallbackProcessor`` re-ships the cached event via
+                      LLMObsSpanWriter to avoid data loss.
     """
 
     LLMOBS_DIRECT = "llmobs_direct"
