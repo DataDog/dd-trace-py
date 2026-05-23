@@ -3,7 +3,6 @@ from http.server import HTTPServer
 import json
 import threading
 import time
-from unittest import mock
 
 from mcp.server.fastmcp import FastMCP
 from mcp.shared.memory import create_connected_server_and_client_session
@@ -13,6 +12,7 @@ from ddtrace.contrib.internal.mcp.patch import patch
 from ddtrace.contrib.internal.mcp.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import SPAN_ENDPOINT as LLMOBS_SPAN_ENDPOINT
+from tests.llmobs._processors import install_mock_llmobs_writer
 from tests.utils import override_global_config
 
 
@@ -65,11 +65,8 @@ def mcp_llmobs(tracer, monkeypatch):
             "service": "mcptest",
         }
     ):
-        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
-        # Replace the real LLMObsSpanWriter with a mock so we don't keep a
-        # background flush thread alive trying to ship spans during the test.
-        LLMObs._instance._llmobs_span_writer.stop()
-        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
+        install_mock_llmobs_writer(tracer)
         yield LLMObs
     LLMObs.disable()
 

@@ -241,6 +241,7 @@ def test_export_mode_apm_agent_when_agentless_disabled():
     env={
         "DD_APM_TRACING_ENABLED": "false",
         "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_API_KEY": "<not-a-real-key>",
     },
     err=None,
 )
@@ -1175,6 +1176,7 @@ def test_tag_dot_keys_sanitized_on_agentless_apm_path():
     env={
         "DD_APM_TRACING_ENABLED": "false",
         "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_API_KEY": "<not-a-real-key>",
     },
     err=None,
 )
@@ -1185,8 +1187,7 @@ def test_tag_dot_keys_preserved_on_direct_llmobs_path():
 
     llmobs_service.enable()
     with llmobs_service.task(name="test_task") as span:
-        pass
-    tags = get_llmobs_tags(span)
+        tags = get_llmobs_tags(span)
     assert tags is not None and "ddtrace.version" in tags
     llmobs_service.disable()
 
