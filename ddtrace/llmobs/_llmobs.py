@@ -576,9 +576,11 @@ class LLMObs(Service):
             # because the tracer's on_span_finish path early-returns, so the rescue chain
             # in LLMObsSamplingFallbackProcessor never runs — submit directly via the writer
             # and scrub meta_struct so nothing accidentally rides a partial / leaked trace.
+            # Stamp + scrub before enqueue so a writer failure cannot leave the payload on
+            # the span (matches LLMObsSamplingFallbackProcessor for symmetry).
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
-            self._llmobs_span_writer.enqueue(span_event)
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            self._llmobs_span_writer.enqueue(span_event)
             return
 
         # APM_AGENT_PROXY and APM_AGENTLESS both ride the APM trace via meta_struct["_llmobs"].
@@ -750,6 +752,13 @@ class LLMObs(Service):
         # prevent disable() from incorrectly reverting it in the child process.
         self._apm_writer_switched_to_agentless = False
         if self.enabled:
+            # Rebind the rescue processor to the *new* post-fork LLMObsSpanWriter; the
+            # processor instance captured the pre-fork writer at enable() time and its
+            # background worker thread does not survive fork() — enqueuing to it would
+            # silently buffer events forever in the child.
+            self.tracer._span_aggregator.llmobs_fallback_processor = LLMObsSamplingFallbackProcessor(
+                self._llmobs_span_writer
+            )
             self._start_service()
 
     def _start_service(self) -> None:

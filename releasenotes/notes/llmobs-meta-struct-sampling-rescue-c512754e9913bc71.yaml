@@ -16,3 +16,10 @@ upgrade:
     Users who explicitly configure ``DD_TRACE_API_VERSION=v0.5`` and enable LLMObs
     will see a warning and the writer will silently downgrade to ``v0.4``. No
     user action is required.
+  - |
+    tracing: agentless APM tracing (``_DD_APM_TRACING_AGENTLESS_ENABLED=true``)
+    now honors ``DD_TRACE_SAMPLE_RATE``, ``DD_TRACE_SAMPLING_RULES``, and
+    ``DD_TRACE_RATE_LIMIT``. Previously agentless mode silently forced an
+    unlimited rate limit and cleared sampling rules, keeping every APM trace.
+    Users who relied on this implicit keep-all should configure sampling
+    explicitly to preserve the prior volume.

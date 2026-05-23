@@ -282,6 +282,114 @@ class TestProcessorChainOrdering:
             llmobs_service.disable()
             assert isinstance(tracer._span_aggregator.llmobs_fallback_processor, _NoopTraceProcessor)
 
+    def test_chain_positions_rescue_between_sampling_and_tags(self, tracer):
+        """Pin the rescue slot's exact position: it must run after sampling (so
+        sampling_priority is decided) and before tags / service-name (so it sees an
+        unmodified meta_struct["_llmobs"]).
+        """
+        agg = tracer._span_aggregator
+        # Replicates the hardcoded list at SpanAggregator.on_span_finish so the test
+        # fails loudly if the chain is reshuffled.
+        chain_order = [
+            agg.sampling_processor,
+            agg.llmobs_fallback_processor,
+            agg.tags_processor,
+            agg.service_name_processor,
+        ]
+        positions = {type(p).__name__: i for i, p in enumerate(chain_order)}
+        rescue_pos = next(i for i, p in enumerate(chain_order) if p is agg.llmobs_fallback_processor)
+        assert positions["TraceSamplingProcessor"] < rescue_pos
+        assert rescue_pos < positions["TraceTagsProcessor"]
+        assert positions["TraceTagsProcessor"] < positions["ServiceNameProcessor"]
+
+
+class TestRescueEdgeCases:
+    """Edge cases that the rescue path must handle without losing data or shipping
+    partials.
+    """
+
+    def test_predicted_drop_without_cached_event_scrubs_meta_struct(self):
+        """If the LLMObs hook never produced an event (e.g. annotation raised mid-build)
+        but the trace is predicted-dropped, the rescue must still scrub meta_struct so a
+        half-built payload never rides the APM trace -- and must NOT call the writer.
+        """
+        from ddtrace._trace.span import Span
+        from ddtrace.llmobs._constants import LLMOBS_STRUCT
+
+        mock_writer = mock.MagicMock()
+        processor = LLMObsSamplingFallbackProcessor(mock_writer)
+
+        span = Span(name="llm-span", span_type=SpanTypes.LLM)
+        # Simulate a half-built payload sitting on meta_struct with no cached event.
+        span._set_struct_tag(LLMOBS_STRUCT.KEY, {"trace_id": "abc", "span_id": "1"})
+        span.context.sampling_priority = USER_REJECT
+        # Crucially: no _set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, ...) call.
+        assert span._get_struct_tag(LLMOBS_STRUCT.KEY) is not None
+
+        result = processor.process_trace([span])
+
+        assert result == [span]
+        mock_writer.enqueue.assert_not_called()
+        # Meta struct scrubbed even on the no-cached-event branch.
+        assert span._get_struct_tag(LLMOBS_STRUCT.KEY) is None
+        # No submitted tag because nothing was actually submitted.
+        assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
+
+    def test_rescue_returns_trace_unchanged(self):
+        """The processor must not drop, reorder, or replace spans -- it only mutates
+        per-span tags/meta_struct. APM trace structure / order is invariant.
+        """
+        from ddtrace._trace.span import Span
+
+        mock_writer = mock.MagicMock()
+        processor = LLMObsSamplingFallbackProcessor(mock_writer)
+        root = Span(name="root-apm-span")
+        child_llm = Span(name="llm-child", span_type=SpanTypes.LLM)
+        unrelated = Span(name="apm-child")
+        root.context.sampling_priority = USER_REJECT
+        child_llm.context = root.context  # share trace context
+        unrelated.context = root.context
+
+        trace = [root, child_llm, unrelated]
+        result = processor.process_trace(trace)
+
+        assert result is trace
+        assert [s.name for s in result] == ["root-apm-span", "llm-child", "apm-child"]
+
+
+class TestTracerDisabledImmediateShip:
+    """When DD_TRACE_ENABLED=0 the tracer's on_span_finish early-returns and the
+    processor chain (incl. the rescue) never runs, so _on_span_finish must immediately
+    ship the LLMObs event via the writer just like LLMOBS_DIRECT mode.
+    """
+
+    def test_tracer_disabled_enqueues_at_finish_hook(self, tracer):
+        llmobs_service.disable()
+        with override_global_config(
+            {
+                "_llmobs_ml_app": "test-ml-app",
+                "_dd_api_key": "<not-a-real-key>",
+                "service": "tests.llmobs",
+            }
+        ):
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
+            # Mode is APM_AGENT_PROXY but the tracer is disabled, so the chain never fires.
+            assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT_PROXY
+            llmobs_service._instance._llmobs_span_writer.stop()
+            mock_writer = mock.MagicMock()
+            llmobs_service._instance._llmobs_span_writer = mock_writer
+            tracer.enabled = False
+            try:
+                with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
+                    _annotate_llm_span(span)
+                # Immediate-ship path executed in _on_span_finish.
+                mock_writer.enqueue.assert_called_once()
+                assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
+                assert not _get_llmobs_data_metastruct(span)
+            finally:
+                tracer.enabled = True
+                llmobs_service.disable()
+
 
 class TestSamplingPriorityKeyPresent:
     """Sanity: the sampling priority value is stored on the context under the documented

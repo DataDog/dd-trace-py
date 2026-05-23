@@ -91,6 +91,11 @@ class LLMObsSamplingFallbackProcessor(TraceProcessor):
             # partial event to intake.
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             return
-        self._llmobs_span_writer.enqueue(event)
+        # Order matches the LLMOBS_DIRECT immediate-ship path in LLMObs._on_span_finish:
+        # stamp the idempotency tag and scrub meta_struct *before* enqueue so that a writer
+        # failure cannot leave a partial state where the APM trace still carries the
+        # payload (would cause a duplicate via APM-side extract) without the tag intake
+        # uses to de-dup.
         span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
         span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+        self._llmobs_span_writer.enqueue(event)
