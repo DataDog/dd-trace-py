@@ -737,9 +737,7 @@ class Config(object):
                 "Hostnames will be resolved by ddtrace; spans will be sent directly to the Datadog intake, "
                 "bypassing the agent.",
             )
-            self._trace_rate_limit = -1
             self._trace_compute_stats = False
-            setattr(self, "_trace_sampling_rules", "")
             self._report_hostname = True
             self._health_metrics_enabled = False
 
