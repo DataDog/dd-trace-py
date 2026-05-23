@@ -86,7 +86,6 @@ def bedrock_client_proxy(boto3):
 
 @pytest.fixture
 def bedrock_llmobs(tracer, monkeypatch):
-    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     LLMObs.disable()
     with override_global_config(
         {
@@ -103,7 +102,6 @@ def bedrock_llmobs(tracer, monkeypatch):
 
 @pytest.fixture
 def bedrock_agents_llmobs(tracer, monkeypatch):
-    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     LLMObs.disable()
     with override_global_config(
         {

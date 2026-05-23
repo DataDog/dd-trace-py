@@ -225,7 +225,6 @@ def test_export_mode_apm_agentless_when_agentless_enabled():
     env={
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
         "DD_LLMOBS_ML_APP": "test-ml-app",
-        "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
     },
     err=None,
 )
@@ -1176,7 +1175,6 @@ def test_tag_dot_keys_sanitized_on_agentless_apm_path():
     env={
         "DD_APM_TRACING_ENABLED": "false",
         "DD_LLMOBS_ML_APP": "test-ml-app",
-        "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
     },
     err=None,
 )
@@ -1197,7 +1195,6 @@ def test_tag_dot_keys_preserved_on_direct_llmobs_path():
     env={
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
         "DD_LLMOBS_ML_APP": "test-ml-app",
-        "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
     },
     err=None,
 )

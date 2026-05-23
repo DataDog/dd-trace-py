@@ -20,6 +20,7 @@ from ddtrace import config
 from ddtrace import patch
 from ddtrace._trace.apm_filter import APMTracingEnabledFilter
 from ddtrace._trace.context import Context
+from ddtrace._trace.processor import _NoopTraceProcessor
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.constants import ERROR_MSG
@@ -48,6 +49,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
+from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
@@ -128,6 +130,7 @@ from ddtrace.llmobs._prompt_optimization import validate_test_dataset
 from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
+from ddtrace.llmobs._sampling_fallback_processor import LLMObsSamplingFallbackProcessor
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -501,12 +504,6 @@ class LLMObs(Service):
             self._export_mode = LLMObsExportMode.APM_AGENTLESS
         else:
             self._export_mode = LLMObsExportMode.APM_AGENT_PROXY
-        # Test-only: when set, _on_span_finish skips the meta_struct["_llmobs"] scrub
-        # so spans captured by tests' DummyWriter retain LLMObsSpanData for assertion.
-        # Set by integration test conftests via the _DD_LLMOBS_TEST_KEEP_META_STRUCT env
-        # var. Remove once agent-mode also stops scrubbing meta_struct (post APM/LLMObs
-        # convergence rollout).
-        self._test_mode_keep_meta_struct = asbool(_env.get("_DD_LLMOBS_TEST_KEEP_META_STRUCT", False))
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
@@ -573,14 +570,21 @@ class LLMObs(Service):
         if self._evaluator_runner and span_kind == "llm":
             self._evaluator_runner.enqueue(span_event, span)
 
-        if self._export_mode != LLMObsExportMode.APM_AGENTLESS:
-            # LLMOBS_DIRECT and APM_AGENT_PROXY both route through the LLMObs span writer
-            # (direct intake or agent EVP proxy respectively), preserving origin/main behavior.
-            # APM_AGENTLESS is the only mode where data rides the APM trace instead.
+        if self._export_mode == LLMObsExportMode.LLMOBS_DIRECT or not self.tracer.enabled:
+            # APM tracing is disabled (DD_APM_TRACING_ENABLED=false or DD_TRACE_ENABLED=0).
+            # The APM trace is either dropped by APMTracingEnabledFilter or never flushed
+            # because the tracer's on_span_finish path early-returns, so the rescue chain
+            # in LLMObsSamplingFallbackProcessor never runs — submit directly via the writer
+            # and scrub meta_struct so nothing accidentally rides a partial / leaked trace.
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
-            if not self._test_mode_keep_meta_struct:
-                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            return
+
+        # APM_AGENT_PROXY and APM_AGENTLESS both ride the APM trace via meta_struct["_llmobs"].
+        # Stash the prepared event on the span so LLMObsSamplingFallbackProcessor can re-ship it
+        # via the writer (without rebuilding) when the SDK predicts the trace will be dropped.
+        span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
@@ -911,6 +915,17 @@ class LLMObs(Service):
                 cls._instance._apm_writer_switched_to_agentless = (
                     cls._instance.tracer._span_aggregator.configure_agentless_writer(enable=True)
                 )
+            else:
+                # Force the APM trace writer to v0.4 so LLM Observability meta_struct payloads
+                # ride along with APM spans. v0.5 does not support meta_struct. AppSec uses the
+                # same recreate(...) hook for the same reason.
+                cls._instance.tracer._span_aggregator.reset(llmobs_enabled=True, reset_buffer=False)
+            # Install the predicted-drop rescue processor in SpanAggregator's hardcoded
+            # chain. The LLMObsSpanWriter is reused for both the LLMOBS_DIRECT immediate
+            # ship path and the rescue path so we keep a single egress channel.
+            cls._instance.tracer._span_aggregator.llmobs_fallback_processor = LLMObsSamplingFallbackProcessor(
+                cls._instance._llmobs_span_writer
+            )
             cls._instance.start()
 
             # Register hooks for span events
@@ -1633,6 +1648,9 @@ class LLMObs(Service):
         cls._instance.stop()
         if cls._instance._apm_writer_switched_to_agentless:
             cls._instance.tracer._span_aggregator.configure_agentless_writer(enable=False)
+        # Reinstate the no-op rescue slot so the processor chain stays zero-cost when
+        # LLM Observability is off.
+        cls._instance.tracer._span_aggregator.llmobs_fallback_processor = _NoopTraceProcessor()
         cls.enabled = False
         # Align config._llmobs_enabled with effective state for user-initiated calls.
         # When _auto=True, the caller (RC handler) has already written _rc_value;

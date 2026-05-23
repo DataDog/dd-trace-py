@@ -9,13 +9,47 @@ import time
 import mock
 import pytest
 
+from ddtrace._trace.processor import TraceProcessor
+from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._constants import LLMObsExportMode
+from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import request_token
+
+
+class _TestAlwaysEnqueueLLMObsProcessor(TraceProcessor):
+    """Test-only variant of ``LLMObsSamplingFallbackProcessor`` that enqueues every LLM
+    span's cached event to the test writer regardless of sampling priority and never
+    scrubs meta_struct.
+
+    Production rescue only fires for predicted-drop traces and scrubs meta_struct to
+    keep ingest single-write. Tests want both: the cached event landing on the writer
+    (so ``llmobs_events`` fixture sees it) and meta_struct staying on the span (so
+    ``_get_llmobs_data_metastruct`` reads the rendered payload).
+    """
+
+    def __init__(self, llmobs_span_writer) -> None:
+        super().__init__()
+        self._llmobs_span_writer = llmobs_span_writer
+
+    def process_trace(self, trace):
+        if not trace:
+            return trace
+        for span in trace:
+            if span.span_type != SpanTypes.LLM:
+                continue
+            if span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1":
+                continue
+            event = span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
+            if event is None:
+                continue
+            self._llmobs_span_writer.enqueue(event)
+            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
+        return trace
 
 
 @pytest.fixture(autouse=True)
@@ -273,20 +307,26 @@ def llmobs(
 ):
     for env, val in llmobs_env.items():
         monkeypatch.setenv(env, val)
-    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     global_config = default_global_config()
     global_config.update(dict(_llmobs_ml_app=llmobs_env.get("DD_LLMOBS_ML_APP")))
     global_config.update(ddtrace_global_config)
     # TODO: remove once rest of tests are moved off of global config tampering
     with override_global_config(global_config):
-        llmobs_service.enable(_tracer=tracer, **llmobs_enable_opts)
-        # Force direct-writer mode: the fixture injects a test span writer and asserts
-        # against its events, so data must go through LLMObsSpanWriter rather than
-        # riding the APM trace.
-        llmobs_service._instance._export_mode = LLMObsExportMode.LLMOBS_DIRECT
+        # agentless_enabled=False forces APM_AGENT_PROXY mode so the APM trace writer
+        # (a DummyWriter installed by the ``tracer`` fixture) is preserved. Without this
+        # the auto-detect probes the Agent /info endpoint; a missing/unreachable Agent
+        # silently flips LLMObs to agentless, swaps the trace writer to an
+        # AgentlessTraceWriter, and breaks the ``test_spans`` fixture's DummyWriter
+        # invariant.
+        llmobs_service.enable(_tracer=tracer, agentless_enabled=False, **llmobs_enable_opts)
+        # APM_AGENT_PROXY preserves meta_struct["_llmobs"] on the span so tests can read
+        # it via _get_llmobs_data_metastruct. The fixture installs an always-enqueue
+        # rescue variant so the test LLMObsSpanWriter is also exercised on every LLM
+        # span finish (production only enqueues on predicted-drop and scrubs).
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
         llmobs_service._instance._dne_client._intake = llmobs_api_proxy_url
+        tracer._span_aggregator.llmobs_fallback_processor = _TestAlwaysEnqueueLLMObsProcessor(llmobs_span_writer)
         yield llmobs_service
     tracer.shutdown()
     llmobs_service.disable()

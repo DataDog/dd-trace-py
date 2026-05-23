@@ -1,0 +1,18 @@
+---
+fixes:
+  - |
+    LLM Observability: prevents LLM span data loss when the APM trace carrying the
+    LLMObs payload (in ``meta_struct["_llmobs"]``) is predicted to be dropped by
+    sampling. A new ``LLMObsSamplingFallbackProcessor`` runs after the trace
+    sampling processor and re-ships the cached LLMObs event via the
+    ``LLMObsSpanWriter`` when the root sampling priority is non-positive, then
+    stamps ``_dd.llmobs.submitted=1`` and scrubs ``meta_struct["_llmobs"]`` to
+    guarantee at-most-once intake delivery. LLMObs never mutates ``sampling_priority``
+    and has zero impact on APM sampling decisions or billing.
+upgrade:
+  - |
+    LLM Observability: when LLMObs is enabled the APM trace writer is forced to
+    use the ``v0.4`` wire format because ``v0.5`` does not carry ``meta_struct``.
+    Users who explicitly configure ``DD_TRACE_API_VERSION=v0.5`` and enable LLMObs
+    will see a warning and the writer will silently downgrade to ``v0.4``. No
+    user action is required.

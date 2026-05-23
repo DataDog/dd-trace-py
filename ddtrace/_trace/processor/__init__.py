@@ -54,6 +54,20 @@ class TraceProcessor(metaclass=abc.ABCMeta):
         pass
 
 
+class _NoopTraceProcessor(TraceProcessor):
+    """Identity processor used as a default slot in ``SpanAggregator``'s chain.
+
+    Some processor slots are dynamically swapped in by a product (e.g. LLMObs's
+    ``LLMObsSamplingFallbackProcessor`` replaces this when ``LLMObs.enable()`` runs).
+    Keeping a no-op in the chain by default lets the swap be a simple attribute write
+    rather than a chain rebuild and keeps the cost of the chain near zero when the
+    product is not enabled.
+    """
+
+    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
+        return trace
+
+
 class SpanProcessor(metaclass=abc.ABCMeta):
     """A Processor is used to process spans as they are created and finished by a tracer."""
 
@@ -325,6 +339,10 @@ class SpanAggregator(SpanProcessor):
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
         self.service_name_processor = ServiceNameProcessor()
+        # Slot for LLMObsSamplingFallbackProcessor. Defaults to a no-op so the chain stays
+        # zero-cost when LLM Observability is not enabled. LLMObs.enable() swaps this slot
+        # for the real processor; LLMObs.disable() restores the no-op.
+        self.llmobs_fallback_processor: TraceProcessor = _NoopTraceProcessor()
         self.writer = create_trace_writer(
             response_callback=self._agent_response_callback,
             agentless=_resolve_apm_trace_agentless(),
@@ -404,7 +422,14 @@ class SpanAggregator(SpanProcessor):
         for tp in chain(
             self.dd_processors,
             self.user_processors,
-            [self.sampling_processor, self.tags_processor, self.service_name_processor],
+            [
+                self.sampling_processor,
+                # Runs after sampling so the priority is decided and meta_struct is still
+                # present; runs before tags / service-name so a no-op chain stays cheap.
+                self.llmobs_fallback_processor,
+                self.tags_processor,
+                self.service_name_processor,
+            ],
         ):
             try:
                 spans = tp.process_trace(spans) or []
@@ -532,6 +557,7 @@ class SpanAggregator(SpanProcessor):
         compute_stats: Optional[bool] = None,
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
     ) -> None:
         """
@@ -546,7 +572,7 @@ class SpanAggregator(SpanProcessor):
             # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
+        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
 
         if compute_stats is not None:
             self.sampling_processor._compute_stats_enabled = compute_stats
