@@ -1,28 +1,17 @@
 """Persist Datadog trace context as a STEP operation in the durable execution log.
 
-When a durable handler suspends (``SuspendExecution``) the integration appends
-a synthetic STEP operation named ``_datadog_{N}`` whose payload is a JSON dict
-of the propagation headers for the current trace context.  On the next
-invocation, ``datadog-lambda-python`` reads the highest ``N`` out of
-``InitialExecutionState.Operations`` and re-activates the trace.
+On ``SuspendExecution``, appends a synthetic STEP ``_datadog_{N}`` whose payload
+is the Datadog propagation headers for the current trace.  The next invocation
+reads the highest N from ``InitialExecutionState.Operations`` to re-activate the trace.
 
-The save runs only on the suspend path: a workflow that returns or fails for
-good has no further invocations to read the checkpoint, so writing one would
-be wasted work and would be rejected by the SDK's terminating checkpointer.
-The save is also a no-op when the new headers match the most recent prior
-checkpoint (after stripping the per-span ``x-datadog-parent-id``) — every
-replay would otherwise rewrite identical context and pile up redundant
-operations.
+Only runs on the suspend path; no-op when stable headers (``x-datadog-parent-id``
+excluded) match the most recent prior checkpoint.
 
-AIDEV-NOTE: only Datadog-style headers are written.  Both ends of this
-checkpoint are Datadog code (this integration writes, ``datadog-lambda-python``
-reads), so we ignore ``DD_TRACE_PROPAGATION_STYLE_INJECT`` entirely.  A
-customer running ``b3`` or ``tracecontext`` upstream still gets a Datadog
-checkpoint here — they don't need W3C/B3 inside the durable log.
+AIDEV-NOTE: only Datadog-style headers are written — both writer and reader are
+Datadog code (this integration and ``datadog-lambda-python``), so W3C/B3 headers
+would just bloat the payload.
 
-AIDEV-NOTE: ``_datadog_*`` is a reserved step name. Users must not create
-steps with this prefix; the SDK does not enforce this — we rely on it being
-unusual enough not to collide.
+AIDEV-NOTE: ``_datadog_*`` is a reserved step name; the SDK does not enforce this.
 """
 
 from __future__ import annotations
@@ -52,17 +41,10 @@ _INTEGRATION_NAME = "aws_durable_execution_sdk_python"
 
 
 def _record_integration_error(exc: BaseException, location: str) -> None:
-    """Emit an ``integration_errors`` count metric for a swallowed exception.
+    """Emit an ``integration_errors`` count metric to Datadog internal telemetry.
 
-    Goes to Datadog internal telemetry (visible to us), not customer logs.
-    Paired with ``log.debug`` everywhere we catch-and-continue so the failure
-    is observable to Datadog without exposing internal exceptions to the
-    customer's log pipeline.  Must never raise — telemetry is best-effort.
-
-    ``location`` is a short, low-cardinality identifier for the call site
-    (e.g. ``"inject"``, ``"create_checkpoint"``) so the metric tells us
-    *which* code path failed without us having to fish through customer
-    logs.  Keep the set of values bounded — it becomes a metric tag.
+    Paired with ``log.debug`` at each catch-and-continue site.  Must never raise.
+    ``location`` is a low-cardinality call-site tag — keep the value set bounded.
     """
     try:
         telemetry_writer.add_count_metric(
@@ -81,23 +63,17 @@ def _record_integration_error(exc: BaseException, location: str) -> None:
 
 _CHECKPOINT_NAME_PREFIX = "_datadog_"
 _STATE_NEXT_N_ATTR = "_dd_next_checkpoint_n"
-# Module-global lock serializing checkpoint-N allocation across all states.
-# ExecutionState is shared across worker threads (parallel/map), so two threads
-# can race on the counter.  The critical section is microseconds and the SDK
-# already serializes per-state work in practice, so a single lock is simpler
-# than per-state locks and not a measurable bottleneck.
+# Module-global lock serializing N allocation. ExecutionState is shared across
+# worker threads (parallel/map); the critical section is microseconds, so a
+# single lock is simpler than per-state locks and not a measurable bottleneck.
 _COUNTER_LOCK = threading.Lock()
 
 
 def _inject_datadog_headers(span: Span, headers: dict) -> None:
-    """Inject only Datadog-style propagation headers, ignoring the customer's
-    ``DD_TRACE_PROPAGATION_STYLE_INJECT`` setting.
+    """Inject only Datadog headers (ignores ``DD_TRACE_PROPAGATION_STYLE_INJECT``).
 
-    Both ends of this checkpoint are Datadog code (this integration writes,
-    ``datadog-lambda-python`` reads), so emitting W3C/B3 alongside would just
-    bloat the payload and complicate the diff layer.  We still route through
-    ``_get_sampled_injection_context`` so a sampling decision is triggered
-    before the trace id / sampling priority are read out.
+    Routes through ``_get_sampled_injection_context`` to force a sampling
+    decision before trace_id / sampling_priority are read.
     """
     span_context = HTTPPropagator._get_sampled_injection_context(span, None)
     _DatadogMultiHeader._inject(span_context, headers)
@@ -133,18 +109,11 @@ def _max_existing_checkpoint_n(state) -> int:
 def mark_trace_context_checkpoints_visited(state: ExecutionState) -> None:
     """Tell the SDK our ``_datadog_*`` ops are already visited.
 
-    The SDK's ``track_replay`` transitions REPLAY → NEW only when every
-    completed op in ``state.operations`` is in ``_visited_operations``.
-    Our checkpoints are completed STEP ops that user code never visits,
-    so without this they would keep the SDK in REPLAY for the rest of the
-    invocation — which silently suppresses ``context.logger`` output and
-    anything else gated on ``is_replaying()``.
-
-    Mirrors what would happen if the customer had written these steps:
-    ``DurableContext.*`` methods all call ``state.track_replay(op_id)``
-    before doing anything else; we do the same for our ops at invocation
-    start.  ``track_replay`` itself acquires ``_replay_status_lock`` and
-    runs the subset check, so we don't need to touch SDK internals.
+    ``track_replay`` only transitions REPLAY → NEW when every completed op in
+    ``state.operations`` is in ``_visited_operations``. Our checkpoints are
+    completed STEP ops that user code never visits, so without this they pin
+    the SDK in REPLAY for the rest of the invocation — silently suppressing
+    ``context.logger`` and anything else gated on ``is_replaying()``.
     """
     op_id = None
     try:
@@ -163,12 +132,11 @@ def mark_trace_context_checkpoints_visited(state: ExecutionState) -> None:
 def _allocate_checkpoint_n(state) -> int:
     """Atomically reserve the next ``N`` for a checkpoint write.
 
-    The SDK batches checkpoints for up to ~1s before sending; if two threads
-    both reuse the same ``N`` the resulting blake2b operation_ids collide and
-    AWS rejects the batch with "Cannot update the same operation twice in a
-    single request".  Counting only ``state.operations`` would also collide,
-    because AWS doesn't update that until the batch lands.  So we keep a
-    process-local counter on the state itself.
+    Process-local counter on the state — ``state.operations`` only updates
+    after the SDK's ~1s checkpoint batch lands, so counting from it would let
+    racing threads pick the same ``N`` and produce colliding blake2b op_ids
+    (AWS then rejects: "Cannot update the same operation twice in a single
+    request").
     """
     with _COUNTER_LOCK:
         n = getattr(state, _STATE_NEXT_N_ATTR, None)
@@ -197,15 +165,10 @@ def _step_id(name: str, execution_arn: str) -> str:
 def _read_prior_checkpoint_payload(state) -> Optional[dict]:
     """Parsed headers dict from the highest-N ``_datadog_*`` operation, or ``None``.
 
-    On replay invocations, ``state.operations`` already contains the
-    checkpoints written by previous invocations. We use the highest-numbered
-    one for two purposes:
-
-    - **Parent id reuse** — its ``x-datadog-parent-id`` is the value to stamp
-      into the new save (so all checkpoints across all invocations parent off
-      the same execute-span anchor; see ``_resolve_override_parent_id``).
-    - **Diff suppression** — comparing its stable headers to ours tells us
-      whether the trace context actually changed since the last save.
+    On replay invocations the highest-N checkpoint serves two purposes: its
+    ``x-datadog-parent-id`` becomes the stamped anchor parent for the new save
+    (see ``_resolve_override_parent_id``), and its stable headers are diffed
+    against ours to suppress redundant writes.
     """
     operations = getattr(state, "operations", None) or {}
     best_op = None
@@ -238,12 +201,9 @@ def _read_prior_checkpoint_payload(state) -> Optional[dict]:
 def _resolve_override_parent_id(span, prior_payload: Optional[dict]) -> Optional[str]:
     """Resolve the parent id to stamp into the saved checkpoint.
 
-    1. **Prior checkpoint** — if any ``_datadog_*`` already exists on the
-       state (i.e. this is a replay invocation), reuse its saved parent id
-       verbatim. Across all invocations of the same durable execution this
-       stays stable.
-    2. **Current execute span** — on the very first save, anchor to the
-       current ``aws.durable.execute`` span id.
+    Reuse the prior checkpoint's saved parent id verbatim (stable across all
+    invocations of the same durable execution), or anchor to the current
+    ``aws.durable.execute`` span id on the very first save.
     """
     if prior_payload is not None:
         pid = prior_payload.get("x-datadog-parent-id")
@@ -254,11 +214,7 @@ def _resolve_override_parent_id(span, prior_payload: Optional[dict]) -> Optional
 
 
 def _override_parent_id(headers: dict, parent_id: str) -> None:
-    """Stamp ``parent_id`` into ``x-datadog-parent-id``.
-
-    The injector writes the *current* span id; we replace it with the resolved
-    anchor id so every checkpoint across replays parents off the same span.
-    """
+    """Replace the injector's current span id with the resolved anchor id."""
     if "x-datadog-parent-id" in headers:
         headers["x-datadog-parent-id"] = parent_id
 
@@ -266,13 +222,9 @@ def _override_parent_id(headers: dict, parent_id: str) -> None:
 def maybe_save_trace_context_checkpoint(durable_context: DurableContext, span: Span) -> None:
     """Append a ``_datadog_{N}`` STEP if propagation headers changed.
 
-    Called once per invocation, on the ``SuspendExecution`` path of the
-    durable-execution wrapper.  No-op when the propagation headers match the
-    most recent existing ``_datadog_*`` operation in ``state.operations``
-    (after stripping per-span volatile fields), so identical context across
-    replays does not pile up redundant checkpoints.
-
-    Failure here must never break the workflow; all errors are swallowed.
+    Called once per invocation on the ``SuspendExecution`` path. No-op when the
+    stable headers match the most recent existing ``_datadog_*`` checkpoint.
+    All errors are swallowed — failure here must never break the workflow.
     """
     try:
         state = getattr(durable_context, "state", None)
@@ -298,10 +250,8 @@ def maybe_save_trace_context_checkpoint(durable_context: DurableContext, span: S
 
         prior_payload = _read_prior_checkpoint_payload(state)
 
-        # ``_stable_headers`` strips ``x-datadog-parent-id`` and the
-        # ``dd=p:`` segment, so the override does not affect the diff —
-        # defer it until we know we're actually saving.  Suppress when prior
-        # matches: trace context hasn't changed.
+        # Diff on stable headers (parent-id stripped); skip writing if unchanged.
+        # The parent-id override is applied later, only when we actually save.
         stable = _stable_headers(headers)
         if prior_payload is not None and _stable_headers(prior_payload) == stable:
             return
@@ -320,11 +270,9 @@ def maybe_save_trace_context_checkpoint(durable_context: DurableContext, span: S
         name = f"{_CHECKPOINT_NAME_PREFIX}{n}"
         operation_id = _step_id(name, execution_arn)
 
-        # AWS validates parent_id against real operations in the execution,
-        # so we mirror what the SDK does for the user's own steps: parent off
-        # the current durable context's parent (None at the top level, which
-        # AWS accepts as "child of the EXECUTION").  Using a Datadog span id
-        # here would fail with InvalidParameterValueException.
+        # AWS validates parent_id against real operations — use the durable
+        # context's parent (None at top level = "child of the EXECUTION"); a
+        # Datadog span id here would raise InvalidParameterValueException.
         parent_id: Optional[str] = getattr(durable_context, "_parent_id", None)
 
         identifier = OperationIdentifier(operation_id=operation_id, parent_id=parent_id, name=name)

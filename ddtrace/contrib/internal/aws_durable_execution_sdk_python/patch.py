@@ -98,8 +98,8 @@ def _read_execution_state(state):
 
 
 def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
-    # Parameterized decorator @durable_execution(boto3_client=...) calls us with
-    # us with no user function and returns a functools.partial, let it re-enter.
+    # Parameterized form @durable_execution(boto3_client=...) calls us with no
+    # user func and returns a functools.partial — let it re-enter.
     user_func = get_argument_value(args, kwargs, 0, "func", optional=True)
     if user_func is None or not callable(user_func):
         return wrapped(*args, **kwargs)
@@ -116,17 +116,11 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
         state = durable_context.state
         arn, is_replay = _read_execution_state(state)
 
-        # Pre-visit our prior ``_datadog_*`` checkpoints so the SDK's
-        # replay tracker can transition out of REPLAY when the user code
-        # catches up.  Without this, our synthetic ops sit in
-        # state.operations as completed-but-unvisited and the SDK never
-        # un-suppresses context.logger.
-        #
-        # AIDEV-NOTE: kept always-on (independent of cross_invocation_tracing).
-        # If a customer flips the writer off AFTER previously persisting
-        # _datadog_* ops, those ops are still loaded on resume — skipping the
-        # mark here would pin the SDK into REPLAY forever. The mark is a
-        # no-op when no _datadog_* ops exist (see trace_checkpoint tests).
+        # Mark our _datadog_* checkpoints visited so the SDK's replay tracker
+        # transitions REPLAY → NEW; without this it stays stuck in REPLAY.
+        # AIDEV-NOTE: always-on even when cross_invocation_tracing is off — if
+        # the writer was previously enabled, those ops still exist on resume and
+        # must be marked or the SDK pins to REPLAY forever.
         mark_trace_context_checkpoints_visited(state)
 
         event = AwsDurableExecuteEvent(
