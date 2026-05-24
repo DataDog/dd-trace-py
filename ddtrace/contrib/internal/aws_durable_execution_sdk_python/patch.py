@@ -91,8 +91,6 @@ class TracedThreadPoolExecutor(ThreadPoolExecutor):
 
 def _read_execution_state(state):
     """Return (execution_arn, is_replay_execution) from an ExecutionState."""
-    if state is None:
-        return None, None
     arn = getattr(state, "durable_execution_arn", None) or None
     status_enum = getattr(state, "_replay_status", None)
     is_replay = (status_enum.name == "REPLAY") if status_enum is not None else None
@@ -114,8 +112,8 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
 
     @functools.wraps(user_func)
     def traced_user_func(*inner_args, **inner_kwargs):
-        durable_context = get_argument_value(inner_args, inner_kwargs, 1, "durable_context", optional=True)
-        state = getattr(durable_context, "state", None)
+        durable_context = get_argument_value(inner_args, inner_kwargs, 1, "durable_context")
+        state = durable_context.state
         arn, is_replay = _read_execution_state(state)
 
         # Pre-visit our prior ``_datadog_*`` checkpoints so the SDK's
@@ -129,8 +127,7 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
         # _datadog_* ops, those ops are still loaded on resume — skipping the
         # mark here would pin the SDK into REPLAY forever. The mark is a
         # no-op when no _datadog_* ops exist (see trace_checkpoint tests).
-        if state is not None:
-            mark_trace_context_checkpoints_visited(state)
+        mark_trace_context_checkpoints_visited(state)
 
         event = AwsDurableExecuteEvent(
             component=config.aws_durable_execution_sdk_python.integration_name,
