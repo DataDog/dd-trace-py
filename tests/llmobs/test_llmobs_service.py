@@ -1532,7 +1532,19 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
         llmobs_service.disable()
 
 
-@pytest.mark.subprocess(env={"_DD_LLMOBS_WRITER_INTERVAL": "5.0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
+@pytest.mark.subprocess(
+    env={
+        "_DD_LLMOBS_WRITER_INTERVAL": "5.0",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+        # Force LLMOBS_DIRECT export mode so ``_on_span_finish`` enqueues into
+        # ``_llmobs_span_writer`` directly. The default APM_AGENT_PROXY mode now caches
+        # events on the span for ``LLMObsSamplingFallbackProcessor`` to ship via the
+        # rescue chain, leaving the writer buffer empty — which would defeat this test's
+        # assertions about per-process buffer contents post-fork.
+        "DD_APM_TRACING_ENABLED": "false",
+        "DD_API_KEY": "<not-a-real-key>",
+    }
+)
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
