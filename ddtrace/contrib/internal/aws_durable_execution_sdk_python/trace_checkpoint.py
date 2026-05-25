@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import threading
 from typing import Optional
 
 from aws_durable_execution_sdk_python.context import DurableContext
@@ -30,6 +29,7 @@ from ddtrace._trace.span import Span
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.threads import Lock
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _DatadogMultiHeader
 
@@ -66,7 +66,7 @@ _STATE_NEXT_N_ATTR = "_dd_next_checkpoint_n"
 # Module-global lock serializing N allocation. ExecutionState is shared across
 # worker threads (parallel/map); the critical section is microseconds, so a
 # single lock is simpler than per-state locks and not a measurable bottleneck.
-_COUNTER_LOCK = threading.Lock()
+_COUNTER_LOCK = Lock()
 
 
 def _inject_datadog_headers(span: Span, headers: dict) -> None:
