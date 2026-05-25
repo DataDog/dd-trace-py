@@ -80,11 +80,7 @@ def _inject_datadog_headers(span: Span, headers: dict) -> None:
 
 
 def _stable_headers(headers: dict) -> dict:
-    """Drop the per-span ``x-datadog-parent-id`` so the diff is meaningful.
-
-    That is the only field that rotates per span across replays; everything
-    else in the Datadog header set is stable for a given trace context.
-    """
+    """Drop the ``x-datadog-parent-id`` from the dict for stable comparison."""
     return {k: v for k, v in headers.items() if k.lower() != "x-datadog-parent-id"}
 
 
