@@ -29,6 +29,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.azure_cosmos.utils import normalize_resource_uri as _normalize_cosmos_resource_uri
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_registered as _ensure_pubsub_config
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path as _parse_pubsub_resource_path
@@ -1629,7 +1630,7 @@ def _set_azure_cosmos_request_tags(
     if parsed.path:
         resource_link = parsed.path
 
-    span.resource = request_params.operation_type + " " + resource_link
+    span.resource = request_params.operation_type + " " + _normalize_cosmos_resource_uri(resource_link)
     if (
         request_params.operation_type == "Create"
         and request_params.resource_type == "dbs"
