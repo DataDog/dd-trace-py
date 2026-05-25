@@ -4,7 +4,7 @@ On ``SuspendExecution``, appends a synthetic STEP ``_datadog_{N}`` whose payload
 is the Datadog propagation headers for the current trace.  The next invocation
 reads the highest N from ``InitialExecutionState.Operations`` to re-activate the trace.
 
-Only runs on the suspend path; no-op when stable headers (``x-datadog-parent-id``
+Only runs on the suspend path; no-op when stable headers (``HTTP_HEADER_PARENT_ID``
 excluded) match the most recent prior checkpoint.
 
 AIDEV-NOTE: only Datadog-style headers are written — both writer and reader are
@@ -30,6 +30,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.threads import Lock
+from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _DatadogMultiHeader
 
@@ -80,8 +81,8 @@ def _inject_datadog_headers(span: Span, headers: dict) -> None:
 
 
 def _stable_headers(headers: dict) -> dict:
-    """Drop the ``x-datadog-parent-id`` from the dict for stable comparison."""
-    return {k: v for k, v in headers.items() if k.lower() != "x-datadog-parent-id"}
+    """Drop the ``HTTP_HEADER_PARENT_ID`` from the dict for stable comparison."""
+    return {k: v for k, v in headers.items() if k.lower() != HTTP_HEADER_PARENT_ID}
 
 
 def _max_existing_checkpoint_n(state) -> int:
@@ -162,7 +163,7 @@ def _read_prior_checkpoint_payload(state) -> Optional[dict]:
     """Parsed headers dict from the highest-N ``_datadog_*`` operation, or ``None``.
 
     On replay invocations the highest-N checkpoint serves two purposes: its
-    ``x-datadog-parent-id`` becomes the stamped anchor parent for the new save
+    ``HTTP_HEADER_PARENT_ID`` becomes the stamped anchor parent for the new save
     (see ``_resolve_override_parent_id``), and its stable headers are diffed
     against ours to suppress redundant writes.
     """
@@ -202,7 +203,7 @@ def _resolve_override_parent_id(span, prior_payload: Optional[dict]) -> Optional
     ``aws.durable.execute`` span id on the very first save.
     """
     if prior_payload is not None:
-        pid = prior_payload.get("x-datadog-parent-id")
+        pid = prior_payload.get(HTTP_HEADER_PARENT_ID)
         if pid is not None:
             return str(pid)
     anchor_span_id = getattr(span, "span_id", None)
@@ -211,8 +212,8 @@ def _resolve_override_parent_id(span, prior_payload: Optional[dict]) -> Optional
 
 def _override_parent_id(headers: dict, parent_id: str) -> None:
     """Replace the injector's current span id with the resolved anchor id."""
-    if "x-datadog-parent-id" in headers:
-        headers["x-datadog-parent-id"] = parent_id
+    if HTTP_HEADER_PARENT_ID in headers:
+        headers[HTTP_HEADER_PARENT_ID] = parent_id
 
 
 def maybe_save_trace_context_checkpoint(durable_context: DurableContext, span: Span) -> None:
