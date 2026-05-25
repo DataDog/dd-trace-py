@@ -13,8 +13,9 @@ def normalize_resource_uri(resource_uri: str) -> str:
         return resource_uri
 
     parts = resource_uri.split("/")
+    start = 2 if parts[0] == "" else 1
     changed = False
-    for i in range(2, len(parts), 2):
+    for i in range(start, len(parts), 2):
         if not parts[i] or parts[i - 1].lower() in _KEEP_ID_KEYS:
             continue
         parts[i] = "?"
