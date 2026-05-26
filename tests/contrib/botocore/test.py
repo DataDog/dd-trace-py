@@ -63,6 +63,7 @@ snapshot_ignores = [
     "meta.aws.response.body.HTTPHeaders.x-amzn-requestid",
     "meta.error.stack",
     "meta.aws.response.body.HTTPHeaders.x-amz-crc32",
+    "metrics.retry_attempts",
 ]
 
 
@@ -85,6 +86,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sqs
     def setUp(self):
+        super(BotocoreTest, self).setUp()
         patch()
         patch_submodules(True)
 
@@ -100,7 +102,6 @@ class BotocoreTest(TracerTestCase):
 
         self.sqs_test_queue = self.sqs_client.create_queue(QueueName=self.queue_name)
 
-        super(BotocoreTest, self).setUp()
         # Clear any spans that might have been generated during setUp before DummyWriter was active
         self.reset()
 

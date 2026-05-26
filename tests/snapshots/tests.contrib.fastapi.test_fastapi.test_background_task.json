@@ -12,7 +12,6 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69de531200000000",
       "_dd.span_links": "[{\"trace_id\": \"69de531200000000428252973eaf1842\", \"span_id\": \"bb6f224cb84fb9c8\", \"tracestate\": \"dd=s:1;t.dm:-0\", \"flags\": 1}]",
-      "_dd.svc_src": "tests.contrib.fastapi",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.fastapi",
       "language": "python",
       "runtime-id": "dadd78cb1d684e1e85f172be729d1a20"

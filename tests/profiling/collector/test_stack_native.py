@@ -17,12 +17,12 @@ def test_start_native_monitoring_raises_runtime_error() -> None:
     """start_native_monitoring raises RuntimeError when PROFILER_ID is already claimed."""
     from ddtrace.internal.datadog.profiling.stack._stack import start_native_monitoring
 
-    sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "conflict")
+    sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "conflict")  # type: ignore[attr-defined]
     try:
         with pytest.raises(RuntimeError, match="sys.monitoring PROFILER_ID is already claimed"):
             start_native_monitoring()
     finally:
-        sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
+        sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)  # type: ignore[attr-defined]
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -34,7 +34,7 @@ def test_start_catches_runtime_error(caplog: pytest.LogCaptureFixture) -> None:
 
     native_call_monitor._started = False
 
-    sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "conflict")
+    sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "conflict")  # type: ignore[attr-defined]
     try:
         with caplog.at_level(logging.ERROR, logger="ddtrace.internal.datadog.profiling.native_call_monitor"):
             native_call_monitor.start()
@@ -42,7 +42,7 @@ def test_start_catches_runtime_error(caplog: pytest.LogCaptureFixture) -> None:
         assert "conflict" in caplog.text
         assert "sys.monitoring already claimed by another tool" in caplog.text
     finally:
-        sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
+        sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)  # type: ignore[attr-defined]
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")

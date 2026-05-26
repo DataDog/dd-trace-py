@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Flare: Fixes a bug where the live tracer configuration was mutated when redacting the API key
+    before writing the flare diagnostic file.

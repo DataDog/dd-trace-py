@@ -42,6 +42,7 @@ class ProfilingConfigLock(DDConfig):
 class ProfilingConfigMemory(DDConfig):
     enabled: bool
     events_buffer: int
+    mem_domain_enabled: bool
 
 class ProfilingConfigHeap(DDConfig):
     enabled: bool

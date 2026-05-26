@@ -10,7 +10,7 @@
         "dependency": "aiohttp",
         "integration": "aiohttp",
         "minimum_tracer_supported": "3.7.4.post0",
-        "max_tracer_supported": "3.13.4",
+        "max_tracer_supported": "3.13.5",
         "auto-instrumented": true
     },
     {
@@ -91,6 +91,13 @@
         "integration": "avro",
         "minimum_tracer_supported": "1.12.1",
         "max_tracer_supported": "1.12.1",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "aws-durable-execution-sdk-python",
+        "integration": "aws_durable_execution_sdk_python",
+        "minimum_tracer_supported": "1.4.0",
+        "max_tracer_supported": "1.4.0",
         "auto-instrumented": true
     },
     {
@@ -215,7 +222,7 @@
         "dependency": "django",
         "integration": "django",
         "minimum_tracer_supported": "2.2.28",
-        "max_tracer_supported": "5.2.13",
+        "max_tracer_supported": "5.2.14",
         "auto-instrumented": true
     },
     {
@@ -675,7 +682,7 @@
         "dependency": "requests",
         "integration": "requests",
         "minimum_tracer_supported": "2.25.1",
-        "max_tracer_supported": "2.32.5",
+        "max_tracer_supported": "2.34.1",
         "auto-instrumented": true
     },
     {
