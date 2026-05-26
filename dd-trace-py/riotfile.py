@@ -277,7 +277,7 @@ venv = Venv(
                 "pytest-django[testing]": "==3.10.0",
             },
             env={
-                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "DD_TRACE_AGENT_URL": "http://localhost:9126",
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
