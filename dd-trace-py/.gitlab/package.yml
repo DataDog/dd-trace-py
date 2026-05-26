@@ -34,8 +34,6 @@ variables:
   needs:
     - job: "ddtrace-internal build linux"
       artifacts: true
-    - job: "ddtrace-internal build_sdist"
-      artifacts: true
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
     CARGO_BUILD_JOBS: "12"
