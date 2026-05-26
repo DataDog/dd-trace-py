@@ -1006,3 +1006,29 @@ class TestUploadLock:
 
         mock_git_cls.assert_not_called()
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "peer-mb"
+
+    def test_cleanup_removes_sentinel_and_lock(self, tmp_path) -> None:
+        """cleanup_upload_artifacts() deletes both files when present."""
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sentinel = tmp_path / ".git" / "dd-trace-py.upload-done"
+        lock = tmp_path / ".git" / "dd-trace-py.upload.lock"
+        sentinel.write_text("{}")
+        lock.write_text("")
+
+        sm.cleanup_upload_artifacts()
+
+        assert not sentinel.exists()
+        assert not lock.exists()
+
+    def test_cleanup_is_noop_when_files_absent(self, tmp_path) -> None:
+        """cleanup_upload_artifacts() does not raise when files are already gone."""
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.cleanup_upload_artifacts()  # no files present — must not raise
+
+    def test_cleanup_is_noop_without_workspace_path(self) -> None:
+        """cleanup_upload_artifacts() does not raise when workspace_path is unset."""
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {}
+        sm.cleanup_upload_artifacts()  # no workspace_path — must not raise

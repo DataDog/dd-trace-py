@@ -512,6 +512,22 @@ class SessionManager:
             return None
         return Path(workspace_path) / ".git" / _UPLOAD_LOCK_FILENAME
 
+    def cleanup_upload_artifacts(self) -> None:
+        """Delete the upload sentinel and lock files left in .git/.
+
+        Safe to call once the session is finishing — by that point all workers
+        have already run upload_git_data() during their __init__, so neither
+        file is needed any more. Should be called only from the controller
+        process (not xdist workers) so we don't race with a slow-starting peer.
+        """
+        for path in (self._upload_sentinel_path(), self._upload_lock_path()):
+            if path is None:
+                continue
+            try:
+                path.unlink(missing_ok=True)
+            except OSError as e:
+                log.debug("Could not remove upload artifact %s: %s", path, e)
+
     @contextlib.contextmanager
     def _upload_lock(self) -> t.Iterator[bool]:
         """Acquire a cross-process exclusive lock around upload_git_data.
