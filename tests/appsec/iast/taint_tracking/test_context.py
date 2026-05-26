@@ -1,3 +1,4 @@
+from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -168,3 +169,55 @@ def test_copy_ranges_to_string_without_context_is_noop():
     out = copy_ranges_to_string("zzz", ranges)
     assert out == "zzz"
     assert is_pyobject_tainted(out) is False
+
+
+def test_is_pyobject_tainted_does_not_leak_across_request_slots():
+    """Regression for cross-slot taint leak (unvalidated_redirect secure-header false positive).
+
+    Reproduces the production bug observed in system tests where
+    /iast/unvalidated_redirect/test_secure_header reports a vulnerability for a
+    safe literal Location header. Root cause: api_is_tainted / api_get_ranges
+    resolve the active map via TaintEngineContext::get_tainted_object_map, which
+    iterates every request_context_slot. A tainted PyObject held in request A's
+    slot is therefore visible to is_pyobject_tainted called from request B,
+    even though IAST_CONTEXT points to B.
+    """
+    clear_all_request_context_slots()
+    _end_iast_context_and_oce()
+
+    ctx_a = start_request_context()
+    assert ctx_a is not None
+
+    # Request A taints a form-parameter value. _taint_pyobject_base calls
+    # new_pyobject_id internally so `tainted_in_a` is a fresh PyObject; we keep
+    # the reference alive (as werkzeug/Flask do via the request object) so its
+    # pointer survives the check in request B.
+    tainted_in_a = _taint_pyobject_base(
+        "http://dummy.location.com",
+        "location",
+        "http://dummy.location.com",
+        OriginType.PARAMETER,
+        contextid=ctx_a,
+    )
+    IAST_CONTEXT.set(ctx_a)
+    assert is_pyobject_tainted(tainted_in_a) is True
+
+    # Request B starts concurrently — request A has not been finished.
+    ctx_b = start_request_context()
+    assert ctx_b is not None and ctx_b != ctx_a
+    IAST_CONTEXT.set(ctx_b)
+
+    # Inside request B, querying any PyObject must consult only ctx_b's map.
+    # Today this fails: the cross-slot scan finds tainted_in_a in ctx_a's map
+    # and reports the object as tainted, which in the unvalidated_redirect
+    # sink translates into a false positive report against the secure view.
+    assert is_pyobject_tainted(tainted_in_a) is False, (
+        "Cross-request taint leak: object tainted in ctx_a is visible from ctx_b. "
+        "is_in_taint_map / get_ranges must be scoped to the current request slot."
+    )
+    assert len(get_tainted_ranges(tainted_in_a)) == 0
+
+    # Cleanup
+    finish_request_context(ctx_a)
+    finish_request_context(ctx_b)
+    IAST_CONTEXT.set(None)
