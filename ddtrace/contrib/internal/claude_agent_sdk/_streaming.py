@@ -90,12 +90,13 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._is_finalized = False
         # AIDEV-NOTE: Span-link state lives on the handler because each handler is bound to a
         # single agent invocation, so there is no cross-invocation concurrency to defend against.
-        # Refs are (span_id, trace_id) snapshots captured at finalize time — never raw Span refs,
-        # since the tracer may mutate or recycle Span state after .finish().
+        # Refs are (span_id, trace_id) snapshots — plain strings so we can reference a span
+        # safely after .finish() without holding a live Span object.
         # AIDEV-NOTE: Links are emitted at two layers per the LLMObs Execution Graph design:
         # (1) a step-level chain (agent → step₁ → step₂ → … → agent) for the high-level turn
-        # flow, and (2) a leaf-level chain (agent → llm → tool → next-llm → … → agent) for the
-        # detailed data flow. Both layers carry distinct information and are not redundant.
+        # flow, and (2) a leaf-level chain (llm₁ → tool → llm₂ → … → agent) for the detailed
+        # data flow. The leaf chain enters via step-level (no explicit agent → llm₁ link) to
+        # avoid redundancy with the step-level chain.
         self._last_llm_span_ref: Optional[dict[str, str]] = None
         self._last_step_span_ref: Optional[dict[str, str]] = None
         self._step_tool_span_refs: list[dict[str, str]] = []
