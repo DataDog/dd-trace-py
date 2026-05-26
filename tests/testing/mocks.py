@@ -48,6 +48,7 @@ def get_mock_git_instance() -> Mock:
     mock_git_instance.get_latest_commits.return_value = []
     mock_git_instance.get_filtered_revisions.return_value = []
     mock_git_instance.pack_objects.return_value = iter([])
+    mock_git_instance.is_shallow_repository.return_value = False
     return mock_git_instance
 
 

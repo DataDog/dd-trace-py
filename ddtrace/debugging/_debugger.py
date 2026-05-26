@@ -468,7 +468,7 @@ class Debugger(Service):
                 probes_for_function: dict[FullyNamedContextWrappedFunction, list[LineProbe]] = defaultdict(list)
                 for probe in probes:
                     if not isinstance(probe, LineLocationMixin):
-                        continue
+                        continue  # type: ignore[unreachable]
                     line = probe.line
                     assert line is not None, probe  # nosec
                     functions = FunctionDiscovery.from_module(module).at_line(line)
