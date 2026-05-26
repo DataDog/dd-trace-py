@@ -294,7 +294,9 @@ class BaseWrappingContext(ABC):
 
     def __init__(self, f: FunctionType):
         self.__wrapped__ = f
-        self._storage: ContextVar[t.Optional[dict]] = ContextVar(f"{type(self).__name__}__storage", default=None)
+        self._storage: ContextVar[t.Optional[dict[str, t.Any]]] = ContextVar(
+            f"{type(self).__name__}__storage", default=None
+        )
 
     def __getstate__(self) -> dict[str, t.Any]:
         state = self.__dict__.copy()
@@ -315,7 +317,7 @@ class BaseWrappingContext(ABC):
         return self
 
     def _pop_storage(self) -> dict[str, t.Any]:
-        storage = t.cast(dict, self._storage.get())
+        storage = t.cast(dict[str, t.Any], self._storage.get())
         self._storage.set(storage.pop("__dd_wrapping_context_prev__"))
         return storage
 
@@ -332,10 +334,10 @@ class BaseWrappingContext(ABC):
         self._pop_storage()
 
     def get(self, key: str) -> t.Any:
-        return t.cast(dict, self._storage.get())[key]
+        return t.cast(dict[str, t.Any], self._storage.get())[key]
 
     def set(self, key: str, value: T) -> T:
-        t.cast(dict, self._storage.get())[key] = value
+        t.cast(dict[str, t.Any], self._storage.get())[key] = value
         return value
 
     @classmethod
@@ -368,7 +370,7 @@ class WrappingContext(BaseWrappingContext):
     @property
     def __frame__(self) -> FrameType:
         try:
-            return _UniversalWrappingContext.extract(self.__wrapped__).get("__frame__")
+            return t.cast(FrameType, _UniversalWrappingContext.extract(self.__wrapped__).get("__frame__"))
         except ValueError:
             raise AttributeError("Wrapping context not entered")
 
@@ -437,7 +439,7 @@ class LazyWrappingContext(WrappingContext):
                 super().wrap()
                 return
 
-            def trampoline(_: t.Any, args: tuple, kwargs: dict) -> t.Any:
+            def trampoline(_: t.Any, args: tuple[t.Any, ...], kwargs: dict[str, t.Any]) -> t.Any:
                 with tl:
                     f = t.cast(WrappedFunction, self.__wrapped__)
                     if is_wrapped_with(self.__wrapped__, trampoline):
@@ -526,7 +528,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             self.unwrap()
 
     def is_registered(self, context: WrappingContext) -> bool:
-        return type(context) in self._contexts
+        return any(isinstance(c, type(context)) for c in self._contexts)
 
     def registered(self, context_type: type[WrappingContext]) -> WrappingContext:
         for context in self._contexts:
@@ -700,12 +702,8 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # Remove the head of the try block
             wc = wrapped.__dd_context_wrapped__
             for i, instr in enumerate(bc):
-                try:
-                    if instr.name == "LOAD_CONST" and instr.arg is wc:
-                        break
-                except AttributeError:
-                    # Not an instruction
-                    pass
+                if isinstance(instr, bytecode.Instr) and instr.name == "LOAD_CONST" and instr.arg is wc:
+                    break
 
             # Search for the RESUME instruction
             for i, instr in enumerate(bc, 1):
@@ -760,29 +758,19 @@ class _UniversalWrappingContext(BaseWrappingContext):
             i = 0
             while i < len(bc):
                 instr = bc[i]
-                try:
+                if isinstance(instr, bytecode.Instr):
                     if instr.name == "RETURN_VALUE":
                         return_code = CONTEXT_RETURN.bind({"context": self}, lineno=instr.lineno)
-                    else:
-                        return_code = []
-
-                    bc[i:i] = return_code
-                    i += len(return_code)
-                except AttributeError:
-                    # Not an instruction
-                    pass
+                        bc[i:i] = return_code
+                        i += len(return_code)
                 i += 1
 
             # Search for the GEN_START instruction, which needs to stay on top.
             i = 0
             if sys.version_info >= (3, 10) and (iscoroutinefunction(f) or isgeneratorfunction(f)):
                 for i, instr in enumerate(bc, 1):
-                    try:
-                        if instr.name == "GEN_START":
-                            break
-                    except AttributeError:
-                        # Not an instruction
-                        pass
+                    if isinstance(instr, bytecode.Instr) and instr.name == "GEN_START":
+                        break
 
             *bc[i:i], except_label = CONTEXT_HEAD.bind({"context": self}, lineno=code.co_firstlineno)
 
@@ -815,12 +803,8 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # Remove the head of the try block
             wc = wrapped.__dd_context_wrapped__
             for i, instr in enumerate(bc):
-                try:
-                    if instr.name == "LOAD_CONST" and instr.arg is wc:
-                        break
-                except AttributeError:
-                    # Not an instruction
-                    pass
+                if isinstance(instr, bytecode.Instr) and instr.name == "LOAD_CONST" and instr.arg is wc:
+                    break
 
             bc[i : i + len(CONTEXT_HEAD) - 1] = []
 
@@ -828,13 +812,9 @@ class _UniversalWrappingContext(BaseWrappingContext):
             i = 0
             while i < len(bc):
                 instr = bc[i]
-                try:
-                    if instr.name == "RETURN_VALUE":
-                        bc[i - len(CONTEXT_RETURN) : i] = []
-                        i -= len(CONTEXT_RETURN)
-                except AttributeError:
-                    # Not an instruction
-                    pass
+                if isinstance(instr, bytecode.Instr) and instr.name == "RETURN_VALUE":
+                    bc[i - len(CONTEXT_RETURN) : i] = []
+                    i -= len(CONTEXT_RETURN)
                 i += 1
 
             # Recreate the code object

@@ -96,18 +96,18 @@ class TestAnyVersionMatches:
 
 class TestLoadCveTargets:
     def test_loads_applicable_targets(self):
-        """CVE-2024-35195 applies to requests < 2.32.0."""
+        """GHSA-652x-xj99-gmcc applies to requests < 2.32.0."""
         installed = {"requests": "2.28.0"}
         targets = load_cve_targets(installed)
-        cve_ids = [t["cve_id"] for t in targets]
-        assert "CVE-2024-35195" in cve_ids
+        advisory_ids = [t["cve_id"] for t in targets]
+        assert "GHSA-652x-xj99-gmcc" in advisory_ids
 
     def test_skips_non_matching_version(self):
-        """requests 2.32.5 is not vulnerable to CVE-2024-35195."""
+        """requests 2.32.5 is not vulnerable to GHSA-652x-xj99-gmcc."""
         installed = {"requests": "2.32.5"}
         targets = load_cve_targets(installed)
-        cve_ids = [t["cve_id"] for t in targets]
-        assert "CVE-2024-35195" not in cve_ids
+        advisory_ids = [t["cve_id"] for t in targets]
+        assert "GHSA-652x-xj99-gmcc" not in advisory_ids
 
     def test_skips_uninstalled_packages(self):
         """Packages not in installed dict are skipped."""
@@ -116,20 +116,20 @@ class TestLoadCveTargets:
         assert targets == []
 
     def test_multiple_cves_for_same_package(self):
-        """jinja2 < 3.1.3 is vulnerable to both CVE-2024-22195 and CVE-2024-56201."""
+        """jinja2 < 3.1.3 is vulnerable to both vuln-003 and vuln-004."""
         installed = {"jinja2": "3.1.2"}
         targets = load_cve_targets(installed)
-        cve_ids = {t["cve_id"] for t in targets}
-        assert "CVE-2024-22195" in cve_ids
-        assert "CVE-2024-56201" in cve_ids
+        advisory_ids = {t["cve_id"] for t in targets}
+        assert "vuln-003" in advisory_ids
+        assert "vuln-004" in advisory_ids
 
     def test_partial_version_match(self):
         """jinja2 3.1.4 matches <3.1.5 but not <3.1.3."""
         installed = {"jinja2": "3.1.4"}
         targets = load_cve_targets(installed)
-        cve_ids = {t["cve_id"] for t in targets}
-        assert "CVE-2024-22195" not in cve_ids  # fixed in 3.1.3
-        assert "CVE-2024-56201" in cve_ids  # fixed in 3.1.5
+        advisory_ids = {t["cve_id"] for t in targets}
+        assert "vuln-003" not in advisory_ids  # fixed in 3.1.3
+        assert "vuln-004" in advisory_ids  # fixed in 3.1.5
 
     def test_target_has_expected_fields(self):
         installed = {"requests": "2.28.0"}
@@ -192,7 +192,7 @@ class TestLoadCveTargets:
         assert len(targets) == 2
         target_names = {t["target"] for t in targets}
         assert target_names == {"mod.a:func_a", "mod.b:func_b"}
-        assert all(t["cve_id"] == "CVE-TEST-MULTI" for t in targets)
+        assert all(t["cve_id"] == "vuln-test" for t in targets)
 
     def test_multiple_version_constraints(self, tmp_path):
         """An entry with multiple version constraints uses OR logic."""

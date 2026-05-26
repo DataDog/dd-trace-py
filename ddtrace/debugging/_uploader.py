@@ -108,7 +108,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
         self._flush_full = False
 
-    def info_check(self, agent_info: Optional[dict]) -> bool:
+    def info_check(self, agent_info: Optional[dict[str, Any]]) -> bool:
         if agent_info is None:
             # Agent is unreachable
             return False
