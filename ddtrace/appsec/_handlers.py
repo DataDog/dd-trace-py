@@ -98,6 +98,13 @@ def _on_set_http_meta_for_normalized_route(
         return
     if not route:
         return
+    # No active ASM context → appsec/api-sec inactive for this request, nothing to do. The flag also gives us
+    # idempotency for repeat dispatches (Django's sync path fires twice).
+    from ddtrace.appsec._asm_request_context import get_active_asm_context
+
+    asm_env = get_active_asm_context()
+    if asm_env is None or asm_env.normalized_route_emitted:
+        return
     integration_config = core.find_item("integration_config")
     integration_name = getattr(integration_config, "integration_name", None)
     if not isinstance(integration_name, str):
@@ -108,6 +115,7 @@ def _on_set_http_meta_for_normalized_route(
     normalized = normalizer(route, request_path_params)
     if normalized is not None:
         span._set_attribute(API_SECURITY.NORMALIZED_ROUTE, normalized)
+        asm_env.normalized_route_emitted = True
 
 
 def _on_telemetry_periodic() -> None:
