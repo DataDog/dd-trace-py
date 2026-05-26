@@ -83,12 +83,12 @@ class TestLLMObsClaudeAgentSdk:
         _assert_span_link(agent_span, step_span, "input", "input")
         _assert_span_link(step_span, agent_span, "output", "output")
 
-        # Nicole's tweak: leaf chain enters via step-level (agent → step₁),
+        # Dual-layer design: leaf chain enters via step-level (agent → step₁),
         # so the first llm has NO incoming leaf-level link. A regression that
         # adds the redundant agent → llm₁ link would fire here.
         llm1_links = get_llmobs_span_links(llm_span) or []
         assert not any(link["span_id"] == str(agent_span.span_id) for link in llm1_links), (
-            "Unexpected agent → llm₁ link — Nicole's no-entry-leaf-link design"
+            "Unexpected agent → llm₁ link — leaf chain entry is via step-level only"
         )
 
     async def test_llmobs_query_with_options(

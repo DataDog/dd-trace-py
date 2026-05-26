@@ -169,7 +169,13 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                     "output",
                 )
 
-            # Fallback to handle any incomplete tool spans (tools that didn't have a ToolResultBlock)
+            # Fallback to handle any incomplete tool spans (tools that didn't have a ToolResultBlock).
+            # AIDEV-NOTE: We still route through _finalize_tool_span so incomplete tools get the same
+            # finalization path as completed ones (including the _step_tool_span_refs append). The
+            # appended refs are intentionally orphaned on the error path — no subsequent
+            # _create_step_span runs to consume them — so incomplete tools end up with an incoming
+            # llm → tool link (emitted at tool-open time) but no outgoing link, correctly
+            # terminating the leaf chain at the point of failure.
             if self._active_tool_spans:
                 log.debug(
                     "Finishing %d incomplete tool spans without results",
