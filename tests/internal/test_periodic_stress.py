@@ -223,8 +223,14 @@ def test_periodic_thread_lifecycle_stress():
 
     start_ts = time.monotonic()
     step = 0
-    while step < iterations:
-        if deadline and time.monotonic() >= deadline:
+    # When DD_STRESS_SECONDS is set, the wall-clock deadline drives the loop
+    # and the iteration cap is ignored — otherwise DD_STRESS_SECONDS=120 would
+    # exit after the default 200 iterations (~10s).
+    while True:
+        if deadline:
+            if time.monotonic() >= deadline:
+                break
+        elif step >= iterations:
             break
         step += 1
 
@@ -357,6 +363,17 @@ def test_periodic_thread_concurrent_dealloc_race():
             with shared_lock:
                 batch = shared[:]
                 shared.clear()
+            # Stop each thread before releasing the last Python ref. Without
+            # this, running threads stay alive via the native periodic_threads
+            # map and we leak ~one OS thread per iteration (2000 over the run),
+            # which can exhaust the per-process thread limit on smaller CI
+            # hosts. The race we want — concurrent ref drop against an
+            # in-flight start() / dealloc — is preserved.
+            for t in batch:
+                try:
+                    t.stop()
+                except Exception:
+                    pass
             del batch  # Drop refs — may race with an in-flight start.
             gc.collect()
 
