@@ -59,11 +59,12 @@ class TestConvertAnthropicMessages:
     def test_system_as_block_list(self):
         system = [
             {"type": "text", "text": "Be concise."},
-            {"type": "text", "text": " Always."},
+            {"type": "text", "text": "Always."},
         ]
         result = _convert_anthropic_messages(system, [{"role": "user", "content": "Hi"}])
         assert result[0]["role"] == "system"
-        assert result[0]["content"] == "Be concise. Always."
+        # System text blocks join with "\n" to match the dd-source reference.
+        assert result[0]["content"] == "Be concise.\nAlways."
 
     def test_system_empty_list_skipped(self):
         result = _convert_anthropic_messages([], [{"role": "user", "content": "Hi"}])
@@ -110,6 +111,22 @@ class TestConvertAnthropicMessages:
         assert tc["id"] == "toolu_1"
         assert tc["function"]["name"] == "get_weather"
         assert tc["function"]["arguments"] == '{"location": "NYC"}'
+
+    def test_assistant_tool_use_only(self):
+        """A tool-only assistant turn must still emit tool_calls."""
+        messages = [
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "tool_use", "id": "toolu_only", "name": "fn", "input": {"x": 1}},
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        assert result[0]["role"] == "assistant"
+        assert "content" not in result[0]
+        assert result[0]["tool_calls"][0]["id"] == "toolu_only"
 
     def test_assistant_tool_use_non_serializable_input(self):
         """Non-JSON-serializable values in tool input fall back to str()."""
@@ -206,22 +223,362 @@ class TestConvertAnthropicMessages:
         assert result[4]["tool_call_id"] == "toolu_w"
         assert result[4]["content"] == "72F"
 
-    def test_image_document_thinking_dropped(self):
+    def test_document_and_redacted_thinking_dropped(self):
+        """``document`` and ``redacted_thinking`` are intentionally non-scannable;
+        only the surrounding text/thinking parts must survive.
+        """
         messages = [
             {
-                "role": "user",
+                "role": "assistant",
                 "content": [
                     {"type": "text", "text": "Look:"},
-                    {"type": "image", "source": {"type": "base64", "data": "..."}},
                     {"type": "document", "source": {"type": "base64", "data": "..."}},
+                    {"type": "redacted_thinking", "data": "encrypted-blob"},
                     {"type": "thinking", "thinking": "hmm"},
                 ],
             }
         ]
         result = _convert_anthropic_messages(None, messages)
         assert len(result) == 1
-        assert result[0]["content"] == "Look:"
+        # Thinking + text both survive as scannable content, document and
+        # redacted_thinking are dropped.
+        assert result[0]["content"] == "Look:hmm"
         assert "tool_calls" not in result[0]
+
+    @pytest.mark.parametrize(
+        "block",
+        [
+            {"type": "document", "source": {"type": "text", "media_type": "text/plain", "data": "hello"}},
+            {"type": "container_upload", "file_id": "file_abc123"},
+            {"type": "tool_reference", "tool_name": "web_search"},
+        ],
+    )
+    def test_skipped_block_types_preserve_surrounding_text(self, block):
+        """dd-source skipped block types are ignored without dropping text."""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Check this out"},
+                    block,
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        assert result[0]["role"] == "user"
+        assert result[0]["content"] == "Check this out"
+
+    # ---------------------------------------------------------------------------
+    # Image blocks -- dd-source alignment
+    # ---------------------------------------------------------------------------
+
+    def test_image_block_base64(self):
+        """Base64 image -> image_url ContentPart with data URI."""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "what's in this image?"},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": "iVBORw0KGgo=",
+                        },
+                    },
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        assert result[0]["role"] == "user"
+        # Mixed text + image -> content stays as a list of ContentParts.
+        content = result[0]["content"]
+        assert isinstance(content, list)
+        assert content[0]["type"] == "text"
+        assert content[0]["text"] == "what's in this image?"
+        assert content[1]["type"] == "image_url"
+        assert content[1]["image_url"]["url"] == "data:image/png;base64,iVBORw0KGgo="
+
+    def test_image_block_url(self):
+        """URL image -> image_url ContentPart with the raw URL."""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {"type": "url", "url": "https://example.com/img.png"},
+                    },
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        content = result[0]["content"]
+        assert isinstance(content, list)
+        assert content[0]["type"] == "image_url"
+        assert content[0]["image_url"]["url"] == "https://example.com/img.png"
+
+    def test_image_block_missing_source_dropped(self):
+        """An image block with no usable source is dropped silently."""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Hi"},
+                    {"type": "image", "source": {"type": "base64", "data": "..."}},  # no media_type
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        # Only the text survived; the broken image was dropped without raising.
+        assert result[0]["content"] == "Hi"
+
+    # ---------------------------------------------------------------------------
+    # Thinking blocks
+    # ---------------------------------------------------------------------------
+
+    def test_thinking_block_extracted_as_text(self):
+        """``thinking`` blocks carry model reasoning that must be scanned."""
+        messages = [
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "Let me reason.", "signature": "sig"},
+                    {"type": "text", "text": "The answer is 4."},
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        # Both text parts collapse to a string since neither is multimodal.
+        assert result[0]["content"] == "Let me reason.The answer is 4."
+
+    def test_thinking_block_only(self):
+        """A turn with only a thinking block still emits the message text."""
+        messages = [
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "raw reasoning", "signature": "sig"},
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        assert result[0]["content"] == "raw reasoning"
+
+    # ---------------------------------------------------------------------------
+    # Server tool use + server tool results
+    # ---------------------------------------------------------------------------
+
+    def test_server_tool_use_mapped_like_tool_use(self):
+        """``server_tool_use`` -> ToolCall identically to a regular tool_use."""
+        messages = [
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "server_tool_use",
+                        "id": "srv_1",
+                        "name": "web_search",
+                        "input": {"query": "AI Guard docs"},
+                    }
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        assert result[0]["role"] == "assistant"
+        assert result[0]["tool_calls"][0]["id"] == "srv_1"
+        assert result[0]["tool_calls"][0]["function"]["name"] == "web_search"
+        assert result[0]["tool_calls"][0]["function"]["arguments"] == '{"query": "AI Guard docs"}'
+
+    def test_server_tool_pattern_split(self):
+        """An assistant turn with server_tool_use + result + text splits into
+        tool_call -> tool_result -> synthesis messages.
+        """
+        messages = [
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "let me check"},
+                    {"type": "server_tool_use", "id": "srv_2", "name": "web_search", "input": {"q": "x"}},
+                    {
+                        "type": "web_search_tool_result",
+                        "tool_use_id": "srv_2",
+                        "content": [
+                            {"type": "web_search_result", "title": "T1", "url": "https://a"},
+                            {"type": "web_search_result", "title": "T2", "url": "https://b"},
+                        ],
+                    },
+                    {"type": "text", "text": "summary"},
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert [m["role"] for m in result] == ["assistant", "tool", "assistant"]
+        # 1) assistant tool_call carries the pre-tool text.
+        assert result[0]["content"] == "let me check"
+        assert result[0]["tool_calls"][0]["function"]["name"] == "web_search"
+        # 2) tool result has the rendered titles+URLs.
+        assert result[1]["tool_call_id"] == "srv_2"
+        assert result[1]["content"] == "T1: https://a\nT2: https://b"
+        # 3) synthesis text is a separate assistant message.
+        assert result[2]["content"] == "summary"
+
+    def test_code_execution_tool_result(self):
+        """code_execution result extracts stdout / stderr lines."""
+        messages = [
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "server_tool_use", "id": "srv_3", "name": "code_execution", "input": {}},
+                    {
+                        "type": "code_execution_tool_result",
+                        "tool_use_id": "srv_3",
+                        "content": {"stdout": "hello", "stderr": "warn"},
+                    },
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        # tool result is the second message.
+        tool_msg = [m for m in result if m["role"] == "tool"][0]
+        assert tool_msg["content"] == "STDOUT: hello\nSTDERR: warn"
+
+    def test_bash_code_execution_tool_result(self):
+        """bash_code_execution result follows the same stdout/stderr mapping."""
+        messages = [
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "server_tool_use", "id": "srv_bash", "name": "bash", "input": {"command": "pwd"}},
+                    {
+                        "type": "bash_code_execution_tool_result",
+                        "tool_use_id": "srv_bash",
+                        "content": {"stdout": "/tmp", "stderr": ""},
+                    },
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        tool_msg = [m for m in result if m["role"] == "tool"][0]
+        assert tool_msg["content"] == "STDOUT: /tmp"
+
+    def test_server_tool_result_without_matching_tool_use_is_dropped(self):
+        """Server tool result blocks alone do not create orphan tool messages."""
+        messages = [
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "Here are the results."},
+                    {
+                        "type": "web_search_tool_result",
+                        "tool_use_id": "srv_orphan",
+                        "content": [{"type": "web_search_result", "title": "Example", "url": "https://e.com"}],
+                    },
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        assert result[0]["role"] == "assistant"
+        assert result[0]["content"] == "Here are the results."
+
+    # ---------------------------------------------------------------------------
+    # tool_result with image content (dd-source parity)
+    # ---------------------------------------------------------------------------
+
+    def test_tool_result_with_image_content(self):
+        """tool_result with mixed text + image content yields a list[ContentPart]."""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_img",
+                        "content": [
+                            {"type": "text", "text": "Screenshot captured"},
+                            {
+                                "type": "image",
+                                "source": {"type": "base64", "media_type": "image/png", "data": "iVB="},
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        tool_msg = result[0]
+        assert tool_msg["role"] == "tool"
+        assert tool_msg["tool_call_id"] == "toolu_img"
+        content = tool_msg["content"]
+        assert isinstance(content, list)
+        assert content[0]["type"] == "text"
+        assert content[1]["type"] == "image_url"
+        assert content[1]["image_url"]["url"] == "data:image/png;base64,iVB="
+
+    def test_tool_result_with_is_error_still_scanned(self):
+        """``is_error`` is status metadata; content still reaches AI Guard."""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_err",
+                        "content": "Command failed with exit code 1",
+                        "is_error": True,
+                    }
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        assert result[0]["role"] == "tool"
+        assert result[0]["tool_call_id"] == "toolu_err"
+        assert result[0]["content"] == "Command failed with exit code 1"
+
+    # ---------------------------------------------------------------------------
+    # Role mapping matrix
+    # ---------------------------------------------------------------------------
+
+    def test_role_mapping_matrix(self):
+        """Verify Anthropic role -> AI Guard role mapping across all message types.
+
+        Anthropic surfaces only ``user`` and ``assistant`` roles plus the
+        top-level ``system`` kwarg; ``tool_result`` blocks (carried inside
+        user messages) become standalone ``role="tool"`` messages. AI Guard's
+        own role vocabulary is ``{"system", "user", "assistant", "tool"}``.
+        """
+        messages = [
+            {"role": "user", "content": "what's the weather?"},
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "tool_use", "id": "tc1", "name": "get_weather", "input": {"city": "NYC"}},
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "tc1", "content": "72F"},
+                ],
+            },
+            {"role": "assistant", "content": "It's 72F"},
+        ]
+        result = _convert_anthropic_messages("Be concise", messages)
+        # system, user (prompt), assistant (tool_call), tool (result), assistant (answer)
+        assert [m["role"] for m in result] == ["system", "user", "assistant", "tool", "assistant"]
+        # AI Guard must only see roles from the documented set.
+        assert {m["role"] for m in result} <= {"system", "user", "assistant", "tool"}
 
     # ---------------------------------------------------------------------------
     # Regression: non-list Iterable content (generator/tuple bypass fix)
@@ -289,10 +646,10 @@ class TestConvertAnthropicMessages:
 
     def test_system_as_tuple_extracted(self):
         """Tuple system prompt is handled like a list."""
-        system = ({"type": "text", "text": "First."}, {"type": "text", "text": " Second."})
+        system = ({"type": "text", "text": "First."}, {"type": "text", "text": "Second."})
         result = _convert_anthropic_messages(system, [{"role": "user", "content": "Hi"}])
         assert result[0]["role"] == "system"
-        assert result[0]["content"] == "First. Second."
+        assert result[0]["content"] == "First.\nSecond."
 
     def test_malformed_entry_tolerated(self):
         messages = [None, {"role": "user", "content": "Valid"}]
@@ -355,6 +712,20 @@ class TestConvertAnthropicResponse:
         assert result[0]["tool_calls"][0]["id"] == "toolu_r"
         assert result[0]["tool_calls"][0]["function"]["arguments"] == '{"x": 1}'
 
+    def test_server_tool_use_with_text(self):
+        resp = {
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "Let me search for that."},
+                {"type": "server_tool_use", "id": "srv_resp", "name": "web_search", "input": {"query": "news"}},
+            ],
+        }
+        result = _convert_anthropic_response(resp)
+        assert len(result) == 1
+        assert result[0]["role"] == "assistant"
+        assert result[0]["content"] == "Let me search for that."
+        assert result[0]["tool_calls"][0]["id"] == "srv_resp"
+
 
 # ---------------------------------------------------------------------------
 # Listener input handling — non-list iterables
@@ -384,6 +755,33 @@ def test_before_hook_materializes_iterator_messages():
     assert isinstance(kwargs["messages"], list)
     assert kwargs["messages"] == [{"role": "user", "content": "Hello"}]
     assert client.evaluated and client.evaluated[0]["role"] == "user"
+
+
+def test_before_hook_materializes_iterator_system():
+    """Iterable system blocks are written back so the SDK receives them too."""
+
+    class _RecordingClient:
+        def __init__(self):
+            self.evaluated = None
+
+        def evaluate(self, messages, options):
+            self.evaluated = list(messages)
+            return None
+
+    def _system_blocks():
+        yield {"type": "text", "text": "Be concise."}
+        yield {"type": "text", "text": "Use JSON."}
+
+    client = _RecordingClient()
+    kwargs = {"system": _system_blocks(), "messages": [{"role": "user", "content": "Hello"}]}
+    result = _anthropic_messages_create_before(client, kwargs)
+    assert result is None
+    assert kwargs["system"] == [
+        {"type": "text", "text": "Be concise."},
+        {"type": "text", "text": "Use JSON."},
+    ]
+    assert client.evaluated and client.evaluated[0]["role"] == "system"
+    assert client.evaluated[0]["content"] == "Be concise.\nUse JSON."
 
 
 def test_before_hook_evaluates_final_assistant_prefill():
@@ -713,7 +1111,14 @@ def _iter_anthropic_request_bodies():
     """Yield ``(cassette_name, parsed_json_body)`` for every recorded request."""
     yaml = pytest.importorskip("yaml")
     if not os.path.isdir(_ANTHROPIC_CASSETTES_DIR):
-        pytest.skip("anthropic cassettes directory not available")
+        # Fail loudly: the contrib cassette directory is a known path inside
+        # this repo's tree, not an optional fixture. A silent skip here would
+        # mask a contrib reorg from CI.
+        pytest.fail(
+            f"anthropic cassette directory {_ANTHROPIC_CASSETTES_DIR!r} not found. "
+            "The contrib test suite may have moved its fixtures -- update "
+            "_ANTHROPIC_CASSETTES_DIR or copy a curated subset locally."
+        )
     for name in sorted(os.listdir(_ANTHROPIC_CASSETTES_DIR)):
         if not name.endswith(".yaml"):
             continue
@@ -738,8 +1143,8 @@ def _iter_anthropic_request_bodies():
 def test_cassettes_convert_without_error():
     """Smoke test: every recorded Anthropic request body parses cleanly.
 
-    Mirrors the reviewer ask in PR #18130 -- if Anthropic ever ships a new
-    content-block shape, the cassette corpus is our cheapest canary.
+    If Anthropic ever ships a new content-block shape, the cassette corpus
+    is the cheapest canary we have for catching converter drift.
     """
     seen = 0
     converted = 0
@@ -810,7 +1215,11 @@ def _iter_anthropic_response_bodies():
     """Yield ``(cassette_name, parsed_response)`` for every decodable response."""
     yaml = pytest.importorskip("yaml")
     if not os.path.isdir(_ANTHROPIC_CASSETTES_DIR):
-        pytest.skip("anthropic cassettes directory not available")
+        pytest.fail(
+            f"anthropic cassette directory {_ANTHROPIC_CASSETTES_DIR!r} not found. "
+            "The contrib test suite may have moved its fixtures -- update "
+            "_ANTHROPIC_CASSETTES_DIR or copy a curated subset locally."
+        )
     for name in sorted(os.listdir(_ANTHROPIC_CASSETTES_DIR)):
         if not name.endswith(".yaml"):
             continue
@@ -875,37 +1284,47 @@ def test_cassette_responses_convert_without_error():
 # skip rather than fail, so the suite is resilient to fixture renames.
 _E2E_REPLAY_CASSETTES = [
     "anthropic_completion.yaml",
+    "anthropic_create_image.yaml",
     "anthropic_completion_multi_prompt.yaml",
     "anthropic_completion_multi_prompt_with_chat_history.yaml",
     "anthropic_completion_multi_system_prompt.yaml",
+    "anthropic_completion_thinking.yaml",
     "anthropic_completion_tools.yaml",
     "anthropic_completion_tools_call_with_tool_result.yaml",
+    "anthropic_completion_tools_server_tool_use.yaml",
 ]
 
 
 def _load_cassette_replay(cassette_name):
     """Return ``(request_kwargs, response_bytes)`` for the first interaction.
 
-    Skips if the cassette is missing, has no JSON request body, or has no
-    non-streaming JSON response that the Anthropic SDK can parse.
+    Fails if the cassette is missing or unusable. ``_E2E_REPLAY_CASSETTES`` is
+    a curated list we control; an entry that no longer round-trips through
+    the SDK is fixture drift we want CI to surface, not silently skip.
     """
     yaml = pytest.importorskip("yaml")
     path = os.path.join(_ANTHROPIC_CASSETTES_DIR, cassette_name)
     if not os.path.isfile(path):
-        pytest.skip(f"cassette {cassette_name} not present")
+        pytest.fail(
+            f"curated cassette {cassette_name!r} not found at {path!r}. "
+            "Either restore the cassette or drop it from _E2E_REPLAY_CASSETTES."
+        )
     with open(path) as fh:
         doc = yaml.safe_load(fh)
     if not doc or "interactions" not in doc:
-        pytest.skip(f"cassette {cassette_name} has no interactions")
+        pytest.fail(f"curated cassette {cassette_name!r} has no interactions block.")
     interaction = doc["interactions"][0]
     try:
         request = json.loads(interaction["request"]["body"])
-    except (KeyError, TypeError, ValueError):
-        pytest.skip(f"cassette {cassette_name} has no JSON request body")
+    except (KeyError, TypeError, ValueError) as exc:
+        pytest.fail(f"curated cassette {cassette_name!r} has no JSON request body: {exc!r}")
     raw = ((interaction.get("response") or {}).get("body") or {}).get("string")
     parsed = _decode_cassette_response_body(raw)
     if parsed is None:
-        pytest.skip(f"cassette {cassette_name} has no decodable response body")
+        pytest.fail(
+            f"curated cassette {cassette_name!r} has no decodable JSON response body "
+            "(streaming or error cassettes should not be in _E2E_REPLAY_CASSETTES)."
+        )
     # Re-serialise as plain JSON so the SDK does not have to negotiate gzip.
     return request, json.dumps(parsed).encode()
 
@@ -960,3 +1379,165 @@ def test_cassette_replay_end_to_end(mock_execute_request, cassette_name, anthrop
     assert mock_execute_request.call_count == 2, (
         f"{cassette_name}: expected before+after to both fire, got {mock_execute_request.call_count} calls"
     )
+
+
+# ---------------------------------------------------------------------------
+# Converter failure: telemetry log + listener fail-open
+#
+# Converter exceptions must be telemetry-logged AND must not let a
+# half-converted payload reach AI Guard. Listeners catch the failure and
+# fail-open so the Anthropic SDK call proceeds.
+# ---------------------------------------------------------------------------
+
+
+class _ExplodingMessage(dict):
+    """``dict`` subclass whose ``.get('content')`` raises.
+
+    Because we inherit from ``dict``, :func:`_get` recognises this as a
+    ``Mapping`` and calls ``.get(...)`` — which is the production path. The
+    raise then propagates up through ``_convert_anthropic_messages``'s broad
+    ``except`` so we can assert the telemetry log + re-raise contract.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self["role"] = "user"
+
+    def get(self, key, default=None):
+        if key == "content":
+            raise RuntimeError("simulated converter failure")
+        return super().get(key, default)
+
+
+def test_converter_failure_reraises_and_emits_telemetry():
+    """A raw converter failure raises and emits an error telemetry log."""
+    with patch("ddtrace.appsec._ai_guard._anthropic.telemetry.telemetry_writer.add_error_log") as mock_log:
+        with pytest.raises(RuntimeError):
+            _convert_anthropic_messages(None, [_ExplodingMessage()])
+        assert mock_log.called, "converter must emit an error telemetry log on failure"
+
+
+def test_before_listener_fails_open_on_converter_error():
+    """When the converter raises, the listener swallows it -- no AI Guard call."""
+
+    class _SpyClient:
+        def __init__(self):
+            self.calls = 0
+
+        def evaluate(self, messages, options):
+            self.calls += 1
+
+    from ddtrace.appsec._ai_guard import _anthropic as anthropic_mod
+    from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_before
+
+    client = _SpyClient()
+    # Monkey-patch the converter to raise; the listener must catch and
+    # short-circuit so ``evaluate`` is never called with a half-built payload.
+    with patch.object(
+        anthropic_mod,
+        "_convert_anthropic_messages",
+        side_effect=RuntimeError("boom"),
+    ):
+        result = _anthropic_messages_create_before(client, {"messages": [{"role": "user", "content": "Hi"}]})
+    assert result is None
+    assert client.calls == 0
+
+
+def test_before_listener_empty_messages_emits_telemetry():
+    """An empty ``messages`` kwarg is logged as an integration anomaly."""
+
+    class _SpyClient:
+        def __init__(self):
+            self.calls = 0
+
+        def evaluate(self, messages, options):
+            self.calls += 1
+
+    from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_before
+
+    client = _SpyClient()
+    with patch("ddtrace.appsec._ai_guard._anthropic.telemetry.telemetry_writer.add_log") as mock_log:
+        result = _anthropic_messages_create_before(client, {"messages": []})
+        assert result is None
+        assert client.calls == 0
+        # Telemetry was emitted -- the empty-payload case is not silent.
+        assert mock_log.called
+
+
+def test_assistant_with_dropped_blocks_only_emits_no_empty_wrapper():
+    """An assistant turn whose blocks are all dropped (document only) emits nothing.
+
+    We must not synthesise empty ``assistant`` wrappers carrying neither
+    text nor tool_calls.
+    """
+    messages = [
+        {"role": "user", "content": "Hi"},
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "document", "source": {"type": "base64", "data": "x"}},
+            ],
+        },
+    ]
+    result = _convert_anthropic_messages(None, messages)
+    # The assistant wrapper is suppressed; only the user message remains.
+    assert [m["role"] for m in result] == ["user"]
+
+
+# ---------------------------------------------------------------------------
+# Response converter -- dd-source alignment
+# ---------------------------------------------------------------------------
+
+
+def test_response_thinking_extracted():
+    """``thinking`` blocks in a response are scanned as text."""
+    resp = {
+        "role": "assistant",
+        "content": [
+            {"type": "thinking", "thinking": "Let me reason.", "signature": "sig"},
+            {"type": "text", "text": "4"},
+        ],
+    }
+    result = _convert_anthropic_response(resp)
+    assert len(result) == 1
+    assert result[0]["content"] == "Let me reason.4"
+
+
+def test_response_server_tool_pattern_split():
+    """Server-tool patterns in responses split tool_call -> result -> synthesis."""
+    resp = {
+        "role": "assistant",
+        "content": [
+            {"type": "text", "text": "searching"},
+            {"type": "server_tool_use", "id": "s1", "name": "web_search", "input": {"q": "x"}},
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "s1",
+                "content": [{"type": "web_search_result", "title": "T", "url": "https://example.com"}],
+            },
+            {"type": "text", "text": "synthesis"},
+        ],
+    }
+    result = _convert_anthropic_response(resp)
+    assert [m["role"] for m in result] == ["assistant", "tool", "assistant"]
+    assert result[0]["tool_calls"][0]["function"]["name"] == "web_search"
+    assert result[0]["content"] == "searching"
+    assert result[1]["tool_call_id"] == "s1"
+    assert result[1]["content"] == "T: https://example.com"
+    assert result[2]["content"] == "synthesis"
+
+
+def test_response_text_and_image():
+    """A response with text + image emits a list[ContentPart] content."""
+    resp = {
+        "role": "assistant",
+        "content": [
+            {"type": "text", "text": "see this:"},
+            {"type": "image", "source": {"type": "url", "url": "https://e.com/i.png"}},
+        ],
+    }
+    result = _convert_anthropic_response(resp)
+    assert len(result) == 1
+    assert isinstance(result[0]["content"], list)
+    assert result[0]["content"][0]["type"] == "text"
+    assert result[0]["content"][1]["type"] == "image_url"

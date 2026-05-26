@@ -7,18 +7,28 @@ non-streaming + streaming. For streaming responses only the
 ``.before`` event fires (request inputs are evaluated before the SDK call);
 ``.after`` is gated at the contrib dispatch site on
 ``not is_streaming_operation(resp)``.
+
+The converter accepts every Anthropic Messages-API content block shape we
+expect to encounter at the SDK boundary; the mapping mirrors the dd-source
+``format_messages`` reference (``domains/appsec/shared/libs/py/aiguard``).
+Shapes outside the recognised set are dropped with a telemetry log rather
+than silently passed through, so support can spot integration drift.
 """
 
 import json
 from typing import Any
+from typing import NamedTuple
 from typing import Optional
+from typing import Union
 
 from ddtrace.appsec._ai_guard._common import _get
 from ddtrace.appsec._ai_guard._common import wrap_abort_error
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
 from ddtrace.appsec.ai_guard._api_client import AIGuardClient
+from ddtrace.appsec.ai_guard._api_client import ContentPart
 from ddtrace.appsec.ai_guard._api_client import Function
+from ddtrace.appsec.ai_guard._api_client import ImageURL
 from ddtrace.appsec.ai_guard._api_client import Message
 from ddtrace.appsec.ai_guard._api_client import Options
 from ddtrace.appsec.ai_guard._api_client import ToolCall
@@ -49,9 +59,6 @@ def _report_converter_error(message: str, exc: Optional[BaseException] = None) -
         logger.debug("AI Guard anthropic: telemetry log emission failed", exc_info=True)
 
 
-__all__ = ["_wrap_abort_error"]
-
-
 def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:
     """Wrap *cause* so it satisfies both ``except AIGuardAbortError`` and
     ``except anthropic.UnprocessableEntityError``.
@@ -77,20 +84,81 @@ def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:
     return wrap_abort_error(cause, exception_class)
 
 
+# ---------------------------------------------------------------------------
+# Content-block parsing
+# ---------------------------------------------------------------------------
+
+
+class _ParsedBlocks(NamedTuple):
+    """Result of parsing a list of Anthropic content blocks.
+
+    ``pre_tool_parts`` / ``post_tool_parts`` split text + image content around
+    server-tool boundaries so an assistant turn that interleaves
+    ``server_tool_use`` blocks, server tool results, and synthesis text can be
+    emitted as three distinct AI Guard messages (tool_call -> tool_result ->
+    synthesis), matching the dd-source reference.
+    """
+
+    pre_tool_parts: list[ContentPart]
+    post_tool_parts: list[ContentPart]
+    tool_calls: list[ToolCall]
+    tool_results: list[Message]
+    server_tool_results: list[Message]
+
+
+def _reduce_parts(parts: list[ContentPart]) -> Union[str, list[ContentPart]]:
+    """Collapse a content-part list to a plain string when every part is text.
+
+    Keeps AI Guard payloads compact for the common text-only case while still
+    supporting multi-modal ``list[ContentPart]`` shapes (image + text) when an
+    image is present.
+    """
+    if not parts:
+        return ""
+    if all(p.get("type") == "text" for p in parts):
+        return "".join(p.get("text", "") or "" for p in parts)
+    return parts
+
+
+def _format_image_block(block: Any) -> Optional[ContentPart]:
+    """Convert an Anthropic ``image`` block to an ``image_url`` ContentPart.
+
+    Supports both base64 (``source.type == "base64"``) and URL
+    (``source.type == "url"``) sources. Returns ``None`` when the source is
+    missing required fields -- silently dropping a partial image avoids
+    surfacing garbage URLs to AI Guard's classifier.
+    """
+    source = _get(block, "source")
+    if not source:
+        return None
+    source_type = _get(source, "type", "") or ""
+    if source_type == "url":
+        url = _get(source, "url", "") or ""
+    else:
+        media_type = _get(source, "media_type", "") or ""
+        data = _get(source, "data", "") or ""
+        url = f"data:{media_type};base64,{data}" if media_type and data else ""
+    if not url:
+        return None
+    return ContentPart(type="image_url", image_url=ImageURL(url=url))
+
+
 def _tool_call_from_block(block: Any) -> ToolCall:
-    """Convert a single Anthropic ``tool_use`` content block to an AI Guard ``ToolCall``.
+    """Convert a single Anthropic ``tool_use`` / ``server_tool_use`` block.
 
     Anthropic delivers ``input`` as a parsed dict; AI Guard's schema is
     JSON-string-typed, so serialise once via ``json.dumps(..., default=str)``
     to tolerate non-JSON-serializable values (datetimes, custom classes)
-    without breaking the converter.
+    without breaking the converter. A serialisation failure is telemetry-logged
+    and re-raised: a converter that drops tool calls silently would let
+    AI Guard score a request that is missing the model's actual intent.
     """
     tool_input = _get(block, "input", {})
     try:
         arguments = json.dumps(tool_input, default=str)
     except Exception as exc:
         _report_converter_error(
-            "AI Guard anthropic: failed to serialize tool_use input to JSON; falling back to str()",
+            "AI Guard anthropic: failed to serialize tool_use input to JSON",
             exc,
         )
         raise
@@ -100,68 +168,253 @@ def _tool_call_from_block(block: Any) -> ToolCall:
     )
 
 
-def _flatten_text_blocks(value: Any) -> str:
-    """Join ``text`` fields from a list of Anthropic content blocks (str or list).
+def _format_tool_result_block(block: Any) -> list[Message]:
+    """Convert a user-side ``tool_result`` block to AI Guard tool message(s).
 
-    - ``str`` → returned as-is.
-    - ``list[block]`` / ``Iterable[block]`` → text fields from
-      ``{"type": "text", "text": ...}`` blocks are concatenated.
-    - Anything else → ``str(value)``.
+    Anthropic ``tool_result.content`` is either a string or a list of
+    ``text`` / ``image`` blocks. When images are present, the message uses
+    a ``list[ContentPart]`` content; otherwise the parts collapse to a plain
+    string for compactness. ``is_error`` is intentionally not mapped --
+    AI Guard scans content regardless of error status.
     """
-    if value is None:
-        return ""
-    if isinstance(value, str):
-        return value
-    # Anthropic declares system as Union[str, Iterable[TextBlockParam]].
-    # Materialise generators/tuples so the block-iteration path handles them;
-    # bytes/bytearray are excluded (Iterable[int], not valid here).
-    if not isinstance(value, (list, bytes, bytearray)):
+    tool_use_id = _get(block, "tool_use_id", "") or ""
+    content = _get(block, "content", "")
+    msg = Message(role="tool", tool_call_id=tool_use_id)
+
+    if isinstance(content, str):
+        if content:
+            msg["content"] = content
+        return [msg]
+
+    # MessageParam tool_result.content is typed Iterable[...]; materialise
+    # generators / tuples so the block-iteration path handles them. dict and
+    # bytes/bytearray are not valid container shapes here.
+    if not isinstance(content, (list, bytes, bytearray, dict)):
         try:
-            value = list(value)
+            content = list(content)
         except TypeError:
             pass
-    if isinstance(value, list):
-        parts = []
-        for block in value:
-            block_type = _get(block, "type", "")
-            if block_type == "text":
-                text = _get(block, "text", "")
+
+    if isinstance(content, list):
+        parts: list[ContentPart] = []
+        for inner in content:
+            inner_type = _get(inner, "type", "") or ""
+            if inner_type == "text":
+                text = _get(inner, "text", "") or ""
                 if text:
-                    parts.append(text)
-        return "".join(parts)
-    return str(value)
+                    parts.append(ContentPart(type="text", text=text))
+            elif inner_type == "image":
+                img = _format_image_block(inner)
+                if img:
+                    parts.append(img)
+        if parts:
+            msg["content"] = _reduce_parts(parts)
+        return [msg]
+
+    # Anything else: telemetry-log and keep the tool turn (with no content).
+    _report_converter_error("AI Guard anthropic: unexpected tool_result content type %r" % (type(content).__name__,))
+    return [msg]
+
+
+def _format_server_tool_result_block(block: Any) -> Message:
+    r"""Convert a server-managed tool result block to an AI Guard tool message.
+
+    AI Guard sees the ``tool_use_id`` boundary plus whatever readable content
+    the server tool produced:
+
+    - ``web_search_tool_result``: ``"title: url"`` lines joined by ``"\n"``.
+    - ``bash_code_execution_tool_result`` / ``code_execution_tool_result``:
+      ``"STDOUT: ..."`` / ``"STDERR: ..."`` lines joined by ``"\n"``.
+    - Other server tool result types: empty content (structural placeholder).
+    """
+    tool_use_id = _get(block, "tool_use_id", "") or ""
+    block_type = _get(block, "type", "") or ""
+    content = ""
+
+    if block_type == "web_search_tool_result":
+        results = _get(block, "content", []) or []
+        parts = []
+        for r in results:
+            if _get(r, "type", "") == "web_search_result":
+                title = _get(r, "title", "") or ""
+                url = _get(r, "url", "") or ""
+                if title:
+                    parts.append(f"{title}: {url}" if url else title)
+        content = "\n".join(parts)
+    elif block_type in ("bash_code_execution_tool_result", "code_execution_tool_result"):
+        inner = _get(block, "content")
+        if inner is not None:
+            stdout = _get(inner, "stdout", "") or ""
+            stderr = _get(inner, "stderr", "") or ""
+            parts = []
+            if stdout:
+                parts.append(f"STDOUT: {stdout}")
+            if stderr:
+                parts.append(f"STDERR: {stderr}")
+            content = "\n".join(parts)
+
+    msg = Message(role="tool", tool_call_id=tool_use_id)
+    if content:
+        msg["content"] = content
+    return msg
+
+
+# AIDEV-NOTE: Anthropic block types that are intentionally NOT mapped to AI
+# Guard content -- ``redacted_thinking`` is an encrypted blob, ``document``
+# carries binary/PDF data, ``container_upload`` / ``tool_reference`` are bare
+# identifiers, and the remaining ``*_tool_result`` variants are server-managed
+# wrappers around content AI Guard cannot inspect. Skipping is correct; we
+# only log unknown types at debug-level so support can spot integration drift.
+_DROPPED_BLOCK_TYPES = frozenset(
+    [
+        "redacted_thinking",
+        "document",
+        "container_upload",
+        "tool_reference",
+        "search_result",
+        "web_fetch_tool_result",
+        "text_editor_code_execution_tool_result",
+        "tool_search_tool_result",
+    ]
+)
+
+
+def _format_content_blocks(blocks: list[Any]) -> _ParsedBlocks:
+    """Walk a list of Anthropic content blocks once and bucket them by role.
+
+    The split around server-tool boundaries lets the caller preserve the
+    tool_call -> tool_result -> synthesis flow AI Guard expects when an
+    assistant message interleaves a ``server_tool_use``, its result, and
+    synthesis text.
+    """
+    pre_tool_parts: list[ContentPart] = []
+    post_tool_parts: list[ContentPart] = []
+    tool_calls: list[ToolCall] = []
+    tool_results: list[Message] = []
+    server_tool_results: list[Message] = []
+    seen_server_tool = False
+
+    for block in blocks:
+        block_type = _get(block, "type", "")
+        if block_type == "text":
+            text = _get(block, "text", "")
+            if text:
+                part = ContentPart(type="text", text=text)
+                (post_tool_parts if seen_server_tool else pre_tool_parts).append(part)
+        elif block_type == "image":
+            img_part = _format_image_block(block)
+            if img_part is not None:
+                (post_tool_parts if seen_server_tool else pre_tool_parts).append(img_part)
+        elif block_type in ("tool_use", "server_tool_use"):
+            tool_calls.append(_tool_call_from_block(block))
+            if block_type == "server_tool_use":
+                seen_server_tool = True
+        elif block_type == "tool_result":
+            tool_results.extend(_format_tool_result_block(block))
+        elif block_type == "thinking":
+            # Extended-thinking blocks carry model reasoning text that AI Guard
+            # should scan; the ``signature`` field is a verification token and
+            # is intentionally not included.
+            text = _get(block, "thinking", "") or ""
+            if text:
+                part = ContentPart(type="text", text=text)
+                (post_tool_parts if seen_server_tool else pre_tool_parts).append(part)
+        elif block_type in (
+            "web_search_tool_result",
+            "bash_code_execution_tool_result",
+            "code_execution_tool_result",
+        ):
+            server_tool_results.append(_format_server_tool_result_block(block))
+        elif block_type in _DROPPED_BLOCK_TYPES:
+            logger.debug("AI Guard anthropic: dropping non-scannable block type %r", block_type)
+        else:
+            # Unknown shape -- the SDK or Anthropic may have introduced a new
+            # block type. Telemetry-log so support sees the drift instead of a
+            # silent gap in the scanned payload.
+            _report_converter_error("AI Guard anthropic: dropping unrecognised content block type %r" % (block_type,))
+
+    return _ParsedBlocks(pre_tool_parts, post_tool_parts, tool_calls, tool_results, server_tool_results)
+
+
+def _format_system(system: Any) -> Optional[Message]:
+    r"""Convert Anthropic's top-level ``system`` kwarg to an AI Guard message.
+
+    System can be a string or an ``Iterable[TextBlockParam]``; text blocks are
+    joined by ``"\n"`` so multi-block prompts read as one coherent system
+    message (matches dd-source). Returns ``None`` when nothing scannable
+    survives -- AI Guard does not need an empty system turn.
+    """
+    if not system:
+        return None
+    if isinstance(system, str):
+        return Message(role="system", content=system)
+    if not isinstance(system, (list, bytes, bytearray)):
+        try:
+            system = list(system)
+        except TypeError:
+            return None
+    if not isinstance(system, list):
+        return None
+    text_parts = [(_get(b, "text", "") or "") for b in system if _get(b, "type", "") == "text"]
+    text = "\n".join(p for p in text_parts if p)
+    if not text:
+        return None
+    return Message(role="system", content=text)
+
+
+def _emit_assistant_with_server_tool(
+    parsed: _ParsedBlocks,
+) -> list[Message]:
+    """Split an assistant turn that interleaves ``server_tool_use`` + results.
+
+    AI Guard expects ``tool_call`` -> ``tool_result`` -> synthesis ordering, so
+    we emit (a) one assistant message carrying the tool_calls and any pre-tool
+    text, (b) the server tool result message(s), and (c) optionally a
+    follow-up assistant message with the post-tool synthesis text.
+    """
+    pre_text = "".join((p.get("text") or "") for p in parsed.pre_tool_parts if p.get("type") == "text")
+    ai_msg = Message(role="assistant", tool_calls=parsed.tool_calls)
+    if pre_text:
+        ai_msg["content"] = pre_text
+    result: list[Message] = [ai_msg]
+    result.extend(parsed.server_tool_results)
+    post_text = "".join((p.get("text") or "") for p in parsed.post_tool_parts if p.get("type") == "text")
+    if post_text:
+        result.append(Message(role="assistant", content=post_text))
+    return result
 
 
 def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
-    """Convert Anthropic messages + ``system`` prompt to AI Guard ``Message`` format.
+    """Convert Anthropic ``messages`` + ``system`` to an AI Guard message list.
 
-    Anthropic exposes ``system`` as a separate top-level kwarg (``str`` or a
-    list of ``{"type": "text", ...}`` blocks). It is prepended as a synthetic
-    ``Message(role="system")`` so AI Guard sees the full conversation.
+    Role mapping (Anthropic -> AI Guard):
 
-    Handles both dict-shaped (user-supplied) and SDK-object-shaped (response)
-    entries via :func:`_get`.
+    - ``system`` (top-level kwarg) -> synthetic ``role="system"`` message.
+    - user message with ``content`` str/text blocks -> ``role="user"``.
+    - assistant message with text -> ``role="assistant"`` (content as text).
+    - assistant message with ``tool_use`` blocks -> ``role="assistant"`` with
+      ``tool_calls``.
+    - assistant message with ``server_tool_use`` + server result blocks ->
+      assistant ``tool_calls`` message, then ``role="tool"`` result(s), then
+      an optional synthesis assistant message (see
+      :func:`_emit_assistant_with_server_tool`).
+    - user message with ``tool_result`` blocks -> separate ``role="tool"``
+      messages keyed by ``tool_use_id``; the user wrapper is suppressed when
+      it would carry no text of its own.
 
-    Content blocks:
-      - ``text`` → accumulated into the message's ``content`` string.
-      - ``tool_use`` (assistant) → translated to ``ToolCall(id, function=...)``;
-        ``input`` is serialised via ``json.dumps(..., default=str)`` to tolerate
-        non-JSON-serializable values without breaking the converter.
-      - ``tool_result`` (user) → emitted as a separate ``Message(role="tool",
-        tool_call_id=...)``. Nested ``content`` (str or list of text blocks) is
-        flattened to a string.
-      - ``image`` / ``document`` / ``thinking`` → dropped (AI Guard evaluates
-        text/tool semantics only).
+    Returns an empty list when there is nothing to evaluate. Raises on
+    converter failure (telemetry-logged); callers should fail-open by
+    catching the exception and skipping evaluation rather than sending a
+    half-converted payload to AI Guard.
     """
-    result = []
-    try:
-        if system:
-            system_text = _flatten_text_blocks(system)
-            if system_text:
-                result.append(Message(role="system", content=system_text))
+    if not messages:
+        return []
 
-        if not messages:
-            return result
+    result: list[Message] = []
+    try:
+        sys_msg = _format_system(system)
+        if sys_msg is not None:
+            result.append(sys_msg)
 
         for msg in messages:
             if msg is None:
@@ -172,16 +425,14 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
             content = _get(msg, "content")
 
             if isinstance(content, str):
-                ai_msg = Message(role=role, content=content)
-                result.append(ai_msg)
+                result.append(Message(role=role, content=content))
                 continue
 
             # MessageParam.content is typed Iterable[...] not list[...].
-            # Materialise generators/tuples; without this a generator stringifies
-            # to "<generator object ...>" and bypasses AI Guard evaluation while
-            # the SDK still sends the real blocks. Write back so the SDK does not
-            # receive an exhausted generator. bytes/bytearray/dict are not valid
-            # content shapes — leave them for the stringify fallback below.
+            # Materialise generators / tuples; without this a generator
+            # stringifies to "<generator object ...>" and bypasses AI Guard
+            # while the SDK still sends the real blocks. Write back so the
+            # SDK does not receive an exhausted generator.
             if not isinstance(content, (list, bytes, bytearray, dict)):
                 try:
                     content = list(content)
@@ -194,11 +445,6 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
                         pass
 
             if not isinstance(content, list):
-                # Unknown shape — emit a best-effort message so AI Guard still
-                # sees the role/turn boundary; stringify whatever was provided.
-                # AIDEV-NOTE: this branch indicates an integration mismatch
-                # (bytes, bytearray, dict, or other non-iterable); telemetry-log
-                # the offending type so support can spot the regression.
                 _report_converter_error(
                     "AI Guard anthropic: unexpected 'content' type %r on role=%r; "
                     "stringifying as best-effort fallback" % (type(content).__name__, role)
@@ -209,80 +455,108 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
                 result.append(ai_msg)
                 continue
 
-            text_parts = []
-            tool_calls_out = []
-            tool_result_msgs = []
-            for block in content:
-                block_type = _get(block, "type", "")
-                if block_type == "text":
-                    text = _get(block, "text", "")
-                    if text:
-                        text_parts.append(text)
-                elif block_type == "tool_use":
-                    tool_calls_out.append(_tool_call_from_block(block))
-                elif block_type == "tool_result":
-                    tool_use_id = _get(block, "tool_use_id", "") or ""
-                    tool_content = _flatten_text_blocks(_get(block, "content"))
-                    tool_msg = Message(role="tool", tool_call_id=tool_use_id)
-                    if tool_content:
-                        tool_msg["content"] = tool_content
-                    tool_result_msgs.append(tool_msg)
-                else:
-                    logger.debug("AI Guard anthropic: dropping unsupported content block type %r", block_type)
+            parsed = _format_content_blocks(content)
 
-            if text_parts or tool_calls_out or not tool_result_msgs:
-                ai_msg = Message(role=role)
-                if text_parts:
-                    ai_msg["content"] = "".join(text_parts)
-                if tool_calls_out:
-                    ai_msg["tool_calls"] = tool_calls_out
+            # Server tool pattern: split into tool_call -> server result(s)
+            # -> optional synthesis. tool_results from user-side blocks (rare
+            # in this branch but possible) are appended last to preserve
+            # ordering.
+            if role == "assistant" and parsed.tool_calls and parsed.server_tool_results:
+                result.extend(_emit_assistant_with_server_tool(parsed))
+                result.extend(parsed.tool_results)
+                continue
+
+            content_parts = parsed.pre_tool_parts + parsed.post_tool_parts
+
+            if role == "assistant" and parsed.tool_calls:
+                ai_msg = Message(role=role, tool_calls=parsed.tool_calls)
+                if content_parts:
+                    ai_msg["content"] = _reduce_parts(content_parts)
                 result.append(ai_msg)
+            elif content_parts:
+                result.append(Message(role=role, content=_reduce_parts(content_parts)))
+            # else: emit nothing. A user wrapper that only contained
+            # tool_result blocks is suppressed -- those become standalone
+            # role="tool" messages below.
 
-            result.extend(tool_result_msgs)
-    except Exception:
-        logger.debug("Failed to convert Anthropic message", exc_info=True)
+            result.extend(parsed.tool_results)
+    except AIGuardAbortError:
+        # Block decisions surface unchanged; only converter bugs are wrapped.
+        raise
+    except Exception as exc:
+        _report_converter_error("AI Guard anthropic: failed to convert messages", exc)
+        raise
+
     return result
 
 
 def _convert_anthropic_response(resp: Any) -> list[Message]:
-    """Convert a non-streaming Anthropic ``Message`` response to AI Guard ``Message`` list.
+    """Convert a non-streaming Anthropic ``Message`` response to AI Guard messages.
 
-    Anthropic responses expose ``role`` (always ``"assistant"``) and a
-    ``content`` list of ``text`` and/or ``tool_use`` blocks. Emits a single
-    assistant ``Message`` carrying the concatenated text and any tool_calls.
-    Returns ``[]`` when nothing convertible was produced.
+    Mirrors :func:`_convert_anthropic_messages` for the response path: a
+    standard assistant turn becomes a single message; a turn that interleaves
+    ``server_tool_use`` blocks gets split into tool_call + result + synthesis
+    messages. Returns ``[]`` when the response is empty / malformed; raises
+    only on a real converter bug (telemetry-logged).
     """
     if resp is None:
         return []
     try:
-        role = _get(resp, "role", "assistant") or "assistant"
         content = _get(resp, "content")
         if not isinstance(content, list):
             return []
 
-        text_parts = []
-        tool_calls_out = []
-        for block in content:
-            block_type = _get(block, "type", "")
-            if block_type == "text":
-                text = _get(block, "text", "")
-                if text:
-                    text_parts.append(text)
-            elif block_type == "tool_use":
-                tool_calls_out.append(_tool_call_from_block(block))
+        parsed = _format_content_blocks(content)
 
-        if not text_parts and not tool_calls_out:
-            return []
+        if parsed.tool_calls and parsed.server_tool_results:
+            return _emit_assistant_with_server_tool(parsed)
 
-        ai_msg = Message(role=role)
-        if text_parts:
-            ai_msg["content"] = "".join(text_parts)
-        if tool_calls_out:
-            ai_msg["tool_calls"] = tool_calls_out
-        return [ai_msg]
-    except Exception:
-        logger.debug("Failed to convert Anthropic response", exc_info=True)
+        content_parts = parsed.pre_tool_parts + parsed.post_tool_parts
+
+        if parsed.tool_calls:
+            ai_msg = Message(role="assistant", tool_calls=parsed.tool_calls)
+            if content_parts:
+                ai_msg["content"] = _reduce_parts(content_parts)
+            return [ai_msg]
+
+        if content_parts:
+            return [Message(role="assistant", content=_reduce_parts(content_parts))]
+
         return []
+    except AIGuardAbortError:
+        raise
+    except Exception as exc:
+        _report_converter_error("AI Guard anthropic: failed to convert response", exc)
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Listeners
+# ---------------------------------------------------------------------------
+
+
+def _safe_convert_messages(system: Any, messages: Any) -> Optional[list[Message]]:
+    """Run :func:`_convert_anthropic_messages` with a fail-open catch.
+
+    Converter failures must remain visible (telemetry, emitted from inside
+    the converter) AND must not let a half-converted payload reach AI Guard.
+    Returning ``None`` signals the listener to skip evaluation entirely so
+    the Anthropic SDK call proceeds normally.
+    """
+    try:
+        return _convert_anthropic_messages(system, messages)
+    except Exception:
+        # _report_converter_error already emitted telemetry in the converter.
+        logger.debug("AI Guard anthropic: failing open after converter error", exc_info=True)
+        return None
+
+
+def _safe_convert_response(resp: Any) -> Optional[list[Message]]:
+    try:
+        return _convert_anthropic_response(resp)
+    except Exception:
+        logger.debug("AI Guard anthropic: failing open after response converter error", exc_info=True)
+        return None
 
 
 def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:
@@ -308,12 +582,25 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
             return None
         kwargs["messages"] = messages
     if not messages:
-        logger.debug("AI Guard anthropic before-hook skipped: messages is empty")
+        # An empty messages array is not a valid Anthropic request (the SDK
+        # will reject it) and is never a valid AI Guard evaluation either.
+        _report_converter_error("AI Guard anthropic: empty 'messages' kwarg; skipping evaluation")
         return None
 
     system = kwargs.get("system")
-    ai_guard_messages = _convert_anthropic_messages(system, messages)
-    if len(ai_guard_messages) == 0:
+    # AIDEV-NOTE: Top-level ``system`` may be an Iterable[TextBlockParam].
+    # Materialise generators before conversion and write them back, otherwise
+    # AI Guard consumes the iterator and the SDK later serializes an exhausted
+    # prompt.
+    if system is not None and not isinstance(system, (str, list, bytes, bytearray, dict)):
+        try:
+            system = list(system)
+        except TypeError:
+            pass
+        else:
+            kwargs["system"] = system
+    ai_guard_messages = _safe_convert_messages(system, messages)
+    if not ai_guard_messages:
         logger.debug("AI Guard anthropic before-hook skipped: no convertible messages")
         return None
 
@@ -356,12 +643,17 @@ def _anthropic_messages_create_after(client: AIGuardClient, kwargs: dict[str, An
 
     # Convert response first: if the model produced nothing convertible
     # (e.g. an empty content list), skip request-side conversion entirely.
-    response_messages = _convert_anthropic_response(resp)
+    response_messages = _safe_convert_response(resp)
     if not response_messages:
         logger.debug("AI Guard anthropic after-hook skipped: no convertible response messages")
         return None
 
-    request_messages = _convert_anthropic_messages(kwargs.get("system"), kwargs.get("messages", []))
+    request_messages = _safe_convert_messages(kwargs.get("system"), kwargs.get("messages", []))
+    if request_messages is None:
+        # Converter blew up on the request side; do not feed AI Guard a
+        # response-only payload that misses the prompt context.
+        logger.debug("AI Guard anthropic after-hook skipped: request converter failed")
+        return None
     all_messages = request_messages + response_messages
 
     try:
