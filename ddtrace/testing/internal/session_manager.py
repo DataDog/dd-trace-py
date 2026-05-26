@@ -727,9 +727,7 @@ class SessionManager:
         # (some packfiles sent, others failed) must not suppress peer retries —
         # the missing packs would never be uploaded if we did.
         if failed_files > 0:
-            log.debug(
-                "%d packfile(s) failed to upload; leaving sentinel unset so peers can retry", failed_files
-            )
+            log.debug("%d packfile(s) failed to upload; leaving sentinel unset so peers can retry", failed_files)
         elif uploaded_files > 0:
             self._mark_upload_done()
         else:
