@@ -34,22 +34,25 @@ log = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT_SECONDS = 30.0
 _MAX_TIMEOUT_SECONDS = 300.0  # 5 minutes
-_raw_timeout = env.get("DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS")
-if _raw_timeout:
-    try:
-        _parsed = float(_raw_timeout) / 1000.0
-        if not (0 < _parsed <= _MAX_TIMEOUT_SECONDS):
-            raise ValueError("must be between 1 ms and 300 000 ms")
-        DEFAULT_TIMEOUT_SECONDS = _parsed
-    except ValueError:
-        log.warning(
-            "Invalid value for DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS: %r; using default %.1fs",
-            _raw_timeout,
-            _DEFAULT_TIMEOUT_SECONDS,
-        )
-        DEFAULT_TIMEOUT_SECONDS = _DEFAULT_TIMEOUT_SECONDS
-else:
-    DEFAULT_TIMEOUT_SECONDS = _DEFAULT_TIMEOUT_SECONDS
+
+
+def _parse_timeout_millis(raw: t.Optional[str]) -> float:
+    if raw:
+        try:
+            _parsed = float(raw) / 1000.0
+            if not (0 < _parsed <= _MAX_TIMEOUT_SECONDS):
+                raise ValueError("must be between 1 ms and 300 000 ms")
+            return _parsed
+        except ValueError:
+            log.warning(
+                "Invalid value for DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS: %r; using default %.1fs",
+                raw,
+                _DEFAULT_TIMEOUT_SECONDS,
+            )
+    return _DEFAULT_TIMEOUT_SECONDS
+
+
+DEFAULT_TIMEOUT_SECONDS = _parse_timeout_millis(env.get("DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS"))
 
 MAX_ATTEMPTS = 5
 MAX_RETRY_AFTER_SECONDS = 120.0

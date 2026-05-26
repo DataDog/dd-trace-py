@@ -1,7 +1,6 @@
 """Tests for ddtrace.testing.internal.http module."""
 
 import http.client
-import importlib
 import logging
 import os
 from unittest.mock import Mock
@@ -1101,55 +1100,40 @@ class TestUnixDomainSocketTimeout:
 
 
 class TestBackendTimeoutEnvVar:
-    """Tests for DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS env var."""
+    """Tests for DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS parsing via _parse_timeout_millis."""
 
-    _ENV_VAR = "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS"
+    # AIDEV-NOTE: Tests call _parse_timeout_millis() directly to avoid importlib.reload, which
+    # mutates the module's __dict__ in place and breaks isinstance checks in other test classes
+    # (old imported class objects see new reloaded classes via shared __globals__).
 
-    @pytest.fixture(autouse=True)
-    def restore_module(self):
-        yield
-        os.environ.pop(self._ENV_VAR, None)
-        importlib.reload(_http_module)
+    def test_default_when_unset(self) -> None:
+        assert _http_module._parse_timeout_millis(None) == 30.0
 
-    def test_default_timeout_when_env_unset(self) -> None:
-        os.environ.pop(self._ENV_VAR, None)
-        importlib.reload(_http_module)
-        assert _http_module.DEFAULT_TIMEOUT_SECONDS == 30.0
+    def test_default_when_empty_string(self) -> None:
+        assert _http_module._parse_timeout_millis("") == 30.0
 
     def test_integer_string_is_accepted(self) -> None:
-        with patch.dict(os.environ, {self._ENV_VAR: "60000"}):
-            importlib.reload(_http_module)
-        assert _http_module.DEFAULT_TIMEOUT_SECONDS == 60.0
+        assert _http_module._parse_timeout_millis("60000") == 60.0
 
     def test_float_string_is_accepted(self) -> None:
-        with patch.dict(os.environ, {self._ENV_VAR: "30500"}):
-            importlib.reload(_http_module)
-        assert _http_module.DEFAULT_TIMEOUT_SECONDS == 30.5
+        assert _http_module._parse_timeout_millis("30500") == 30.5
 
     def test_non_numeric_value_falls_back_to_default(self) -> None:
-        # patch.object on the logger instance (not the module attr) survives importlib.reload
-        # because logging.getLogger always returns the same cached object by name.
-        # caplog is unreliable for module-level code reloaded under --ddtrace -n auto.
         http_logger = logging.getLogger("ddtrace.testing.internal.http")
         with patch.object(http_logger, "warning") as mock_warning:
-            with patch.dict(os.environ, {self._ENV_VAR: "fast"}):
-                importlib.reload(_http_module)
-        assert _http_module.DEFAULT_TIMEOUT_SECONDS == 30.0
+            result = _http_module._parse_timeout_millis("fast")
+        assert result == 30.0
         mock_warning.assert_called_once()
         fmt_string, bad_value = mock_warning.call_args[0][0], mock_warning.call_args[0][1]
-        assert self._ENV_VAR in fmt_string
+        assert "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS" in fmt_string
         assert bad_value == "fast"
 
     def test_non_numeric_value_does_not_raise(self) -> None:
-        with patch.dict(os.environ, {self._ENV_VAR: "not-a-number"}):
-            importlib.reload(_http_module)
-        assert _http_module.DEFAULT_TIMEOUT_SECONDS == 30.0
+        assert _http_module._parse_timeout_millis("not-a-number") == 30.0
 
     @pytest.mark.parametrize("bad_value", ["0", "-5000", "inf", "-inf", "nan", "300001"])
-    def test_non_positive_or_non_finite_falls_back_to_default(self, bad_value: str) -> None:
-        with patch.dict(os.environ, {self._ENV_VAR: bad_value}):
-            importlib.reload(_http_module)
-        assert _http_module.DEFAULT_TIMEOUT_SECONDS == 30.0
+    def test_non_positive_or_out_of_range_falls_back_to_default(self, bad_value: str) -> None:
+        assert _http_module._parse_timeout_millis(bad_value) == 30.0
 
 
 class TestRequestFailureWarning:
