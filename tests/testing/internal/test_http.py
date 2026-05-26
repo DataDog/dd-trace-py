@@ -1145,6 +1145,12 @@ class TestBackendTimeoutEnvVar:
             importlib.reload(_http_module)
         assert _http_module.DEFAULT_TIMEOUT_SECONDS == 30.0
 
+    @pytest.mark.parametrize("bad_value", ["0", "-5000", "inf", "-inf", "nan"])
+    def test_non_positive_or_non_finite_falls_back_to_default(self, bad_value: str) -> None:
+        with patch.dict(os.environ, {self._ENV_VAR: bad_value}):
+            importlib.reload(_http_module)
+        assert _http_module.DEFAULT_TIMEOUT_SECONDS == 30.0
+
 
 class TestRequestFailureWarning:
     """Regression test: request() must log a warning when giving up with an error."""

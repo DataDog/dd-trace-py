@@ -8,6 +8,7 @@ import http.client
 import io
 import json
 import logging
+import math
 import os
 import random
 import socket
@@ -36,7 +37,10 @@ _DEFAULT_TIMEOUT_SECONDS = 30.0
 _raw_timeout = env.get("DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS")
 if _raw_timeout:
     try:
-        DEFAULT_TIMEOUT_SECONDS = float(_raw_timeout) / 1000.0
+        _parsed = float(_raw_timeout) / 1000.0
+        if not math.isfinite(_parsed) or _parsed <= 0:
+            raise ValueError("must be a positive finite number of milliseconds")
+        DEFAULT_TIMEOUT_SECONDS = _parsed
     except ValueError:
         log.warning(
             "Invalid value for DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS: %r; using default %.1fs",
