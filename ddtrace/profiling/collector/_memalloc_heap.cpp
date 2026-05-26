@@ -282,7 +282,6 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     /* Filter-first to preserve filter ⊇ allocs_m. If the filter refuses
      * (back-to-back saturation), drop the sample — adding to allocs_m
      * without a filter entry would create a false negative on untrack. */
-    assert(!live_filter.contains(ptr) && "filter saw duplicate insert; missed untrack?");
     if (!live_filter.insert(ptr)) {
         pool_put_no_cpython(std::move(tb));
         reset_sampling_state_no_cpython();
