@@ -1,5 +1,5 @@
 {
-  "tracer_version": "4.10.0",
+  "tracer_version": "4.11.0",
   "entries": [
     {
       "dependency_name": "aiobotocore",
