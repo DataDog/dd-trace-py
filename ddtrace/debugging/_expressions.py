@@ -122,7 +122,7 @@ class DDCompiler:
         abstract_code = Bytecode([*instrs, Instr("RETURN_VALUE")])
 
         abstract_code.argcount = len(args)
-        abstract_code.argnames = args
+        abstract_code.argnames = list(args)
         abstract_code.name = name
 
         if sys.version_info >= (3, 11):
@@ -188,7 +188,7 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % b)
 
             short_circuit = Label()
-            return ca + short_circuit_instrs(_type, short_circuit) + cb + [short_circuit]
+            return ca + short_circuit_instrs(_type, short_circuit) + cb + cast(list[Instr], [short_circuit])
 
         if _type in {"eq", "ge", "gt", "le", "lt", "ne"}:
             a, b = args
