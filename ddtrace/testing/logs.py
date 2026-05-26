@@ -33,7 +33,13 @@ Subclass :class:`CorrelationFilter` and implement ``get_trace_id()`` /
 ``get_span_id()``.  The base class handles writing the values onto each
 record under the ``dd.trace_id`` / ``dd.span_id`` attribute names.  How
 the IDs are stored, and the signature of any setter, is up to the
-subclass.  For asyncio, for example::
+subclass.
+
+For asyncio, back the storage with :class:`contextvars.ContextVar` so each
+:class:`asyncio.Task` sees its own correlation IDs — the asyncio event loop
+propagates the active :class:`~contextvars.Context` across ``await``
+boundaries automatically.  ``set()`` and ``get()`` on a ``ContextVar`` are
+synchronous, so the filter itself stays sync::
 
     import contextvars
 
@@ -54,6 +60,16 @@ subclass.  For asyncio, for example::
 
         def get_span_id(self):
             return self._span_id.get()
+
+    correlation = ContextVarCorrelationFilter()
+
+    async def run_one(job):
+        # Each task gets its own copy of the ContextVar values.
+        correlation.set_context(trace_id=job.trace_id, span_id=job.span_id)
+        await run_test(job.item)  # log records emitted here see this task's IDs
+
+    async def main():
+        await asyncio.gather(*(run_one(job) for job in jobs))
 
 Configuration
 -------------
