@@ -1,6 +1,8 @@
+from time import monotonic
 from time import time_ns
 
 import aiokafka
+from aiokafka.protocol.metadata import MetadataRequest_v5
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -8,6 +10,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import kafka as kafkax
 from ddtrace.ext.kafka import CONSUME
 from ddtrace.ext.kafka import GROUP_ID
 from ddtrace.ext.kafka import HOST_LIST
@@ -18,6 +21,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_SYSTEM
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -27,6 +31,9 @@ from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
+
+
+log = get_logger(__name__)
 
 
 config._add(
@@ -67,6 +74,42 @@ def common_consume_aiokafka_tags(topic, bootstrap_servers, group_id):
     return tags
 
 
+async def _get_cluster_id(client, topic):
+    """Fetch and cache the Kafka cluster ID from the broker.
+
+    Uses a 5 minute failure cache to avoid repeated slow calls when the broker
+    is unreachable.
+    """
+    if client is None:
+        return ""
+    cached = getattr(client, "_dd_cluster_id", None)
+    if cached:
+        return cached
+
+    last_failure = getattr(client, "_dd_cluster_id_failure_time", 0)
+    if monotonic() - last_failure < 300:
+        return ""
+
+    try:
+        node_id = client.get_random_node()
+        if node_id is None:
+            await client.force_metadata_update()
+            node_id = client.get_random_node()
+        if node_id is None:
+            client._dd_cluster_id_failure_time = monotonic()
+            return ""
+        request = MetadataRequest_v5([topic] if topic else [], False)
+        response = await client.send(node_id, request)
+        cluster_id = getattr(response, "cluster_id", "") or ""
+        if cluster_id:
+            client._dd_cluster_id = cluster_id
+        return cluster_id
+    except Exception:
+        client._dd_cluster_id_failure_time = monotonic()
+        log.debug("Failed to get Kafka cluster ID, will retry after 5 minutes")
+        return ""
+
+
 def parse_send(instance, args, kwargs):
     topic = get_argument_value(args, kwargs, 0, "topic")
     value = get_argument_value(args, kwargs, 1, "value", True)
@@ -80,6 +123,7 @@ def parse_send(instance, args, kwargs):
 
 async def traced_send(func, instance, args, kwargs):
     topic, value, headers, partition, key, bootstrap_servers = parse_send(instance, args, kwargs)
+    cluster_id = await _get_cluster_id(instance.client, topic)
 
     with core.context_with_data(
         "aiokafka.send",
@@ -89,6 +133,9 @@ async def traced_send(func, instance, args, kwargs):
         tags=common_aiokafka_tags(topic, bootstrap_servers),
         integration_config=config.aiokafka,
     ) as ctx:
+        core.set_item("kafka_cluster_id", cluster_id)
+        if cluster_id and ctx.span is not None:
+            ctx.span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
         core.dispatch("aiokafka.send.start", (topic, value, key, headers, ctx, partition))
         args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
 
@@ -133,6 +180,8 @@ async def traced_getone(func, instance, args, kwargs):
         err = e
         raise err
     finally:
+        topic = getattr(message, "topic", None)
+        cluster_id = await _get_cluster_id(instance._client, topic)
         with core.context_with_data(
             "aiokafka.getone",
             call_trace=False,
@@ -140,9 +189,12 @@ async def traced_getone(func, instance, args, kwargs):
             span_type=SpanTypes.WORKER,
             service=trace_utils.ext_service(None, config.aiokafka),
             distributed_context=parent_ctx,
-            tags=common_consume_aiokafka_tags(getattr(message, "topic", None), bootstrap_servers, group_id),
+            tags=common_consume_aiokafka_tags(topic, bootstrap_servers, group_id),
             integration_config=config.aiokafka,
         ) as ctx:
+            core.set_item("kafka_cluster_id", cluster_id)
+            if cluster_id and ctx.span is not None:
+                ctx.span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
             core.dispatch("aiokafka.getone.message", (instance, ctx, start_ns, message, err))
     return message
 
@@ -162,6 +214,17 @@ async def traced_getmany(func, instance, args, kwargs):
     ) as ctx:
         messages = await func(*args, **kwargs)
 
+        topic = None
+        if messages:
+            for records in messages.values():
+                if records:
+                    topic = records[0].topic
+                    break
+        cluster_id = await _get_cluster_id(instance._client, topic)
+        core.set_item("kafka_cluster_id", cluster_id)
+        if cluster_id and ctx.span is not None:
+            ctx.span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
+
         core.dispatch("aiokafka.getmany.message", (instance, ctx, messages))
 
         return messages
@@ -169,6 +232,8 @@ async def traced_getmany(func, instance, args, kwargs):
 
 async def traced_commit(func, instance, args, kwargs):
     result = await func(*args, **kwargs)
+    cluster_id = await _get_cluster_id(getattr(instance, "_client", None), None)
+    core.set_item("kafka_cluster_id", cluster_id)
     core.dispatch("aiokafka.commit.end", (instance, args, kwargs))
     return result
 
