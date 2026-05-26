@@ -507,6 +507,10 @@ class TestLLMObsClaudeAgentSdk:
             metrics=EXPECTED_QUERY_USAGE,
             tags=COMMON_TAGS,
         )
+        _assert_span_link(llm_span, tool_span, "output", "input")
+        _assert_span_link(llm_span, agent_span, "output", "output")
+        _assert_span_link(agent_span, step_span, "input", "input")
+        _assert_span_link(step_span, agent_span, "output", "output")
 
     async def test_llmobs_query_with_grep_tool_use(
         self, claude_agent_sdk, mock_internal_client_grep_tool, claude_agent_sdk_llmobs, test_spans
@@ -588,6 +592,10 @@ class TestLLMObsClaudeAgentSdk:
             metrics=EXPECTED_QUERY_USAGE,
             tags=COMMON_TAGS,
         )
+        _assert_span_link(llm_span, tool_span, "output", "input")
+        _assert_span_link(llm_span, agent_span, "output", "output")
+        _assert_span_link(agent_span, step_span, "input", "input")
+        _assert_span_link(step_span, agent_span, "output", "output")
 
     async def test_llmobs_query_with_async_iterable_prompt(
         self, claude_agent_sdk, mock_internal_client, claude_agent_sdk_llmobs, test_spans
