@@ -4825,8 +4825,112 @@ def test_prepare_summary_evaluator_data_handles_none_metadata():
         }
     ]
     eval_results = [{"idx": 0, "evaluations": {"dummy_evaluator": {"value": True, "error": None}}}]
-    _, _, _, metadata_list, _ = exp._prepare_summary_evaluator_data(task_results, eval_results)
+    _, _, _, metadata_list, _, task_errors, eval_details = exp._prepare_summary_evaluator_data(
+        task_results, eval_results
+    )
     assert metadata_list == [{"experiment_config": {}}]
+    assert task_errors == [{"message": None, "type": None, "stack": None}]
+    assert eval_details["dummy_evaluator"] == [
+        {
+            "value": True,
+            "error": None,
+            "status": "OK",
+            "source": "customer_evaluator",
+        }
+    ]
+
+
+def test_prepare_summary_evaluator_data_includes_remote_error_details():
+    dataset = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hi"}, "expected_output": "hello", "metadata": {}},
+        ]
+    )
+    exp = Experiment(
+        name="test",
+        task=dummy_task,
+        dataset=dataset,
+        evaluators=[dummy_evaluator],
+        project_name="test-project",
+        summary_evaluators=[dummy_summary_evaluator],
+    )
+    exp._remote_evaluator_names = {"remote_eval"}
+
+    task_results = [
+        {
+            "idx": 0,
+            "span_id": "1",
+            "trace_id": "1",
+            "timestamp": 0,
+            "output": "hello",
+            "metadata": {},
+            "error": {"message": "task failed", "type": "ValueError", "stack": "trace"},
+        }
+    ]
+    eval_results = [
+        {
+            "idx": 0,
+            "evaluations": {
+                "remote_eval": {
+                    "value": None,
+                    "error": {
+                        "type": "RATE_LIMIT_EXCEEDED",
+                        "message": "Rate limit exceeded for OpenAI API",
+                        "recommended_resolution": "Wait before retrying",
+                    },
+                    "status": "WARN",
+                }
+            },
+        }
+    ]
+
+    _, _, _, _, _, task_errors, eval_details = exp._prepare_summary_evaluator_data(task_results, eval_results)
+    assert task_errors == [{"message": "task failed", "type": "ValueError", "stack": "trace"}]
+    assert eval_details["remote_eval"] == [
+        {
+            "value": None,
+            "error": {
+                "type": "RATE_LIMIT_EXCEEDED",
+                "message": "Rate limit exceeded for OpenAI API",
+                "recommended_resolution": "Wait before retrying",
+            },
+            "status": "WARN",
+            "source": "datadog_managed_evaluator",
+        }
+    ]
+
+
+def test_summary_evaluator_receives_optional_error_details(llmobs, test_dataset_one_record):
+    captured = {}
+
+    def summary_with_optional_details(
+        inputs,
+        outputs,
+        expected_outputs,
+        evaluators_results,
+        task_errors,
+        evaluation_details,
+    ):
+        captured["task_errors"] = task_errors
+        captured["evaluation_details"] = evaluation_details
+        return len(inputs)
+
+    exp = llmobs.experiment(
+        "test_experiment",
+        faulty_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+        summary_evaluators=[summary_with_optional_details],
+    )
+
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    summary_eval_results = asyncio.run(exp._experiment._run_summary_evaluators(task_results, eval_results))
+
+    assert summary_eval_results[0]["evaluations"]["summary_with_optional_details"]["value"] == 1
+    assert captured["task_errors"][0]["message"] == "This is a test error"
+    assert captured["evaluation_details"]["dummy_evaluator"][0]["status"] == "OK"
+    assert captured["evaluation_details"]["dummy_evaluator"][0]["source"] == "customer_evaluator"
 
 
 @pytest.mark.parametrize(
