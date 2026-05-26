@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_ASSISTANT_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_QUERY_USAGE
@@ -81,6 +82,14 @@ class TestLLMObsClaudeAgentSdk:
         _assert_span_link(llm_span, agent_span, "output", "output")
         _assert_span_link(agent_span, step_span, "input", "input")
         _assert_span_link(step_span, agent_span, "output", "output")
+
+        # Nicole's tweak: leaf chain enters via step-level (agent → step₁),
+        # so the first llm has NO incoming leaf-level link. A regression that
+        # adds the redundant agent → llm₁ link would fire here.
+        llm1_links = get_llmobs_span_links(llm_span) or []
+        assert not any(link["span_id"] == str(agent_span.span_id) for link in llm1_links), (
+            "Unexpected agent → llm₁ link — Nicole's no-entry-leaf-link design"
+        )
 
     async def test_llmobs_query_with_options(
         self, claude_agent_sdk, mock_internal_client, claude_agent_sdk_llmobs, test_spans
@@ -898,12 +907,12 @@ class TestLLMObsClaudeAgentSdk:
             error={"type": "ToolError", "message": MOCK_TOOL_ERROR_MESSAGE, "stack": ANY},
             tags=COMMON_TAGS,
         )
+        assert len(step_spans) == 2
         _assert_span_link(llm_spans[0], tool_span, "output", "input")
         _assert_span_link(tool_span, llm_spans[-1], "output", "input")
         _assert_span_link(llm_spans[-1], agent_span, "output", "output")
         _assert_span_link(agent_span, step_spans[0], "input", "input")
-        if len(step_spans) > 1:
-            _assert_span_link(step_spans[0], step_spans[1], "output", "input")
+        _assert_span_link(step_spans[0], step_spans[1], "output", "input")
         _assert_span_link(step_spans[-1], agent_span, "output", "output")
 
     async def test_llmobs_parallel_tool_use_links_all_tools_to_assistant(
@@ -976,8 +985,6 @@ class TestLLMObsClaudeAgentSdk:
         # production code ever started chaining them, this assertion would fire
         # (the for-loop body never raises because get_llmobs_span_links can
         # return None or an empty list).
-        from ddtrace.llmobs._utils import get_llmobs_span_links
-
         for tool_span in tool_spans:
             for link in get_llmobs_span_links(tool_span) or []:
                 assert link["span_id"] not in {str(s.span_id) for s in tool_spans}, (

@@ -213,8 +213,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                     add_span_link(self.current_llm_span, tool_ref["span_id"], tool_ref["trace_id"], "output", "input")
                 self._step_tool_span_refs.clear()
             else:
-                # Prior step had no tools (e.g., an empty preamble llm). Link directly
-                # from the prior llm so the leaf chain stays connected through the wait.
+                # Prior step produced an AssistantMessage with no tool_use blocks
+                # (back-to-back text-only assistants). Bridge directly from the prior
+                # llm to keep the leaf chain connected without a tool hop in between.
                 add_span_link(
                     self.current_llm_span,
                     self._last_llm_span_ref["span_id"],
