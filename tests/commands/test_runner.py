@@ -568,7 +568,9 @@ def test_ddtrace_auto_atexit():
     assert unregistered_funcs, "No unregistered functions"
 
 
-@pytest.mark.subprocess(ddtrace_run=True, status=1, err=lambda s: "wrap_signals" not in s)
+# Python 3.14 re-raises SIGINT after an uncaught KeyboardInterrupt escapes __main__,
+# so the process exits with signal -2 instead of status 1 (see CPython gh-118260).
+@pytest.mark.subprocess(ddtrace_run=True, status=(1, -2), err=lambda s: "wrap_signals" not in s)
 def test_ddtrace_run_asyncio_sigint():
     """ddtrace-run should not cause asyncio.run() to produce a traceback on keyboard interrupt."""
     import asyncio
@@ -584,7 +586,7 @@ def test_ddtrace_run_asyncio_sigint():
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    status=1,
+    status=(1, -2),
     err=lambda s: "wrap_signals" not in s and "KeyboardInterrupt" in s,
 )
 def test_ddtrace_run_sync_sigint():

@@ -26,6 +26,18 @@ def _decode_datastreams_payload(payload):
     return decoded
 
 
+# DSM now flushes on atexit; in CI the test agent may reject the payload, which
+# logs an error to stderr. Tests that don't exercise the flush path should ignore it.
+def _ignore_dsm_flush_err(stderr):
+    for line in stderr.splitlines():
+        if not line.strip():
+            continue
+        if "failed to send data stream stats payload" in line:
+            continue
+        return False
+    return True
+
+
 def test_periodic_payload_process_tags():
     processor = DataStreamsProcessor("http://localhost:8126")
     try:
@@ -97,7 +109,7 @@ def test_data_streams_processor():
     assert processor._buckets[bucket_time_ns].pathway_stats[aggr_key_2].full_pathway_latency.count == 1
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=_ignore_dsm_flush_err)
 def test_new_pathway_uses_container_tags_hash():
     from ddtrace.internal.datastreams.processor import DataStreamsProcessor
     from ddtrace.internal.process_tags import compute_base_hash
@@ -117,7 +129,7 @@ def test_new_pathway_uses_container_tags_hash():
     assert hash_without_base != hash_with_base
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=_ignore_dsm_flush_err)
 def test_new_pathway_uses_process_tags_hash_without_compute_base_hash():
     from ddtrace.internal import process_tags
     from ddtrace.internal.datastreams.processor import DataStreamsProcessor
