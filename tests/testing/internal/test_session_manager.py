@@ -770,6 +770,30 @@ class TestUploadSentinel:
 
         assert not (tmp_path / ".git" / "dd-trace-py.upload-done").exists()
 
+    def test_upload_git_data_does_not_write_sentinel_on_partial_upload_failure(self, tmp_path) -> None:
+        """Partial success (some packfiles sent, some failed) must not suppress peer retries."""
+        from pathlib import Path as _Path
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        (tmp_path / ".git").mkdir()
+        sm.api_client.get_known_commits.return_value = []
+        # First packfile succeeds, second fails.
+        sm.api_client.send_git_pack_file.side_effect = [123, None]
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1"]
+        mock_git.is_shallow_repository.return_value = False
+        mock_git.get_filtered_revisions.return_value = ["commit-1"]
+        mock_git.pack_objects.return_value = iter([_Path("/tmp/fake1.pack"), _Path("/tmp/fake2.pack")])
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        assert not (tmp_path / ".git" / "dd-trace-py.upload-done").exists()
+
     def test_upload_git_data_does_not_write_sentinel_on_search_commits_failure(self, tmp_path) -> None:
         """If search_commits fails, no sentinel is written so peers can retry."""
         sm = self._make_sm(tmp_path, head_sha="head-sha")

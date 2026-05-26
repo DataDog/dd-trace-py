@@ -711,6 +711,7 @@ class SessionManager:
         )
 
         uploaded_files = 0
+        failed_files = 0
         uploaded_bytes = 0
 
         for packfile in git.pack_objects(revisions_to_send):
@@ -718,12 +719,18 @@ class SessionManager:
             if nbytes is not None:
                 uploaded_bytes += nbytes
                 uploaded_files += 1
+            else:
+                failed_files += 1
 
         TelemetryAPI.get().record_git_pack_data(uploaded_files, uploaded_bytes)
-        # Only advertise success to peers if we actually shipped something — if
-        # `pack_objects` failed silently or every `send_git_pack_file` returned None,
-        # peers should fall through and retry instead of trusting our sentinel.
-        if uploaded_files > 0:
+        # Only write the sentinel when every packfile succeeded. Partial success
+        # (some packfiles sent, others failed) must not suppress peer retries —
+        # the missing packs would never be uploaded if we did.
+        if failed_files > 0:
+            log.debug(
+                "%d packfile(s) failed to upload; leaving sentinel unset so peers can retry", failed_files
+            )
+        elif uploaded_files > 0:
             self._mark_upload_done()
         else:
             log.debug("No packfiles uploaded successfully; leaving sentinel unset so peers can retry")
