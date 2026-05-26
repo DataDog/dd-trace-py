@@ -304,6 +304,41 @@ os.kill(os.getpid(), signal.SIGINT)
     assert b"wrap_signals" not in err
 
 
+def test_processor_flushes_on_sigint_asyncio(ddtrace_run_python_code_in_subprocess):
+    """DataStreamsProcessor must flush via atexit when SIGINT interrupts asyncio.run().
+
+    Under asyncio.Runner, SIGINT is consumed by asyncio's own handler rather than
+    Python's default_int_handler, so the flush relies on the atexit.register hook
+    added alongside register_on_exit_signal.
+    """
+    code = """
+import asyncio
+import os
+import signal
+import time
+from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+
+def fake_flush(*args, **kwargs):
+    print("Fake flush called", flush=True)
+
+processor = DataStreamsProcessor("http://localhost:8126")
+processor._flush_stats_with_backoff = fake_flush
+now = time.time()
+processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:test", "type:kafka"], now, 1, 1)
+
+async def main():
+    asyncio.get_event_loop().call_later(0.1, os.kill, os.getpid(), signal.SIGINT)
+    await asyncio.sleep(10)
+
+asyncio.run(main())
+"""
+    env = os.environ.copy()
+    env["DD_DATA_STREAMS_ENABLED"] = "True"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    assert "Fake flush called" in out.decode()
+    assert b"wrap_signals" not in err
+
+
 def test_threaded_import(ddtrace_run_python_code_in_subprocess):
     code = """
 import pytest
