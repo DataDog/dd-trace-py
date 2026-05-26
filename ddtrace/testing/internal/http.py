@@ -32,14 +32,14 @@ from ddtrace.testing.internal.utils import asbool
 
 log = logging.getLogger(__name__)
 
-_DEFAULT_TIMEOUT_SECONDS = 15.0
-_raw_timeout = env.get("_DD_CIVISIBILITY_BACKEND_REQUEST_TIMEOUT")
+_DEFAULT_TIMEOUT_SECONDS = 30.0
+_raw_timeout = env.get("DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS")
 if _raw_timeout:
     try:
-        DEFAULT_TIMEOUT_SECONDS = float(_raw_timeout)
+        DEFAULT_TIMEOUT_SECONDS = float(_raw_timeout) / 1000.0
     except ValueError:
         log.warning(
-            "Invalid value for _DD_CIVISIBILITY_BACKEND_REQUEST_TIMEOUT: %r; using default %.1fs",
+            "Invalid value for DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS: %r; using default %.1fs",
             _raw_timeout,
             _DEFAULT_TIMEOUT_SECONDS,
         )
