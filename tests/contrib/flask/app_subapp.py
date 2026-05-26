@@ -3,6 +3,7 @@
 Verifies that ``flask.resource.full`` appears on spans when a sub-app
 is mounted under a prefix.
 """
+
 import sys
 
 from flask import Flask
