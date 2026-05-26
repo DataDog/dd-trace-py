@@ -153,9 +153,21 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             )
 
             if self._last_llm_span_ref is not None:
-                self._safe_add_link(self.primary_span, self._last_llm_span_ref, "output", "output")
+                add_span_link(
+                    self.primary_span,
+                    self._last_llm_span_ref["span_id"],
+                    self._last_llm_span_ref["trace_id"],
+                    "output",
+                    "output",
+                )
             if self._last_step_span_ref is not None:
-                self._safe_add_link(self.primary_span, self._last_step_span_ref, "output", "output")
+                add_span_link(
+                    self.primary_span,
+                    self._last_step_span_ref["span_id"],
+                    self._last_step_span_ref["trace_id"],
+                    "output",
+                    "output",
+                )
 
             # Fallback to handle any incomplete tool spans (tools that didn't have a ToolResultBlock)
             if self._active_tool_spans:
@@ -175,15 +187,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             self.primary_span.finish()
 
     def _snapshot(self, span) -> dict[str, str]:
-        """Capture span_id and trace_id as plain strings — safe to reference after the span finishes."""
+        """Capture span_id and trace_id as plain strings — decoupled from the Span object lifetime."""
         return {"span_id": str(span.span_id), "trace_id": format_trace_id(span.trace_id)}
-
-    def _safe_add_link(self, target_span, from_ref: dict[str, str], from_io: str, to_io: str) -> None:
-        # AIDEV-NOTE: Link emission must never break instrumentation. Swallow + debug-log.
-        try:
-            add_span_link(target_span, from_ref["span_id"], from_ref["trace_id"], from_io, to_io)
-        except Exception:
-            log.debug("Error adding span link for claude_agent_sdk", exc_info=True)
 
     def _create_step_span(self) -> None:
         """Open a step span and an llm child span for the next inference cycle."""
@@ -205,18 +210,31 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         if self._last_llm_span_ref is not None:
             if self._step_tool_span_refs:
                 for tool_ref in self._step_tool_span_refs:
-                    self._safe_add_link(self.current_llm_span, tool_ref, "output", "input")
+                    add_span_link(self.current_llm_span, tool_ref["span_id"], tool_ref["trace_id"], "output", "input")
                 self._step_tool_span_refs.clear()
             else:
                 # Prior step had no tools (e.g., an empty preamble llm). Link directly
                 # from the prior llm so the leaf chain stays connected through the wait.
-                self._safe_add_link(self.current_llm_span, self._last_llm_span_ref, "output", "input")
+                add_span_link(
+                    self.current_llm_span,
+                    self._last_llm_span_ref["span_id"],
+                    self._last_llm_span_ref["trace_id"],
+                    "output",
+                    "input",
+                )
 
         # Step-level chain (agent → step₁ → step₂ → … → agent).
         if self._last_step_span_ref is None:
-            self._safe_add_link(self.current_step_span, self._snapshot(self.primary_span), "input", "input")
+            primary_ref = self._snapshot(self.primary_span)
+            add_span_link(self.current_step_span, primary_ref["span_id"], primary_ref["trace_id"], "input", "input")
         else:
-            self._safe_add_link(self.current_step_span, self._last_step_span_ref, "output", "input")
+            add_span_link(
+                self.current_step_span,
+                self._last_step_span_ref["span_id"],
+                self._last_step_span_ref["trace_id"],
+                "output",
+                "input",
+            )
 
     def _finalize_llm_span(self, chunk: Any, exception: BaseException | None = None) -> None:
         """Close the llm span with the AssistantMessage data."""
@@ -358,7 +376,13 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             span_name=f"claude_agent_sdk.tool.{tool_name}",
         )
         if self._last_llm_span_ref is not None:
-            self._safe_add_link(tool_span, self._last_llm_span_ref, "output", "input")
+            add_span_link(
+                tool_span,
+                self._last_llm_span_ref["span_id"],
+                self._last_llm_span_ref["trace_id"],
+                "output",
+                "input",
+            )
         self._active_tool_spans[tool_id] = {
             "tool_span": tool_span,
             "tool_input": tool_input,
