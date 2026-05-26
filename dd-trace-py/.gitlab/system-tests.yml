@@ -14,6 +14,7 @@
     KUBERNETES_CPU_LIMIT: "4"
     KUBERNETES_MEMORY_REQUEST: "8Gi"
     KUBERNETES_MEMORY_LIMIT: "8Gi"
+    DEPENDENCY_WHEEL_PATH: "/binaries/ddtrace_internal-0.0.0.tar.gz"
   needs:
     - job: "ddtrace-internal build linux"
       artifacts: true

@@ -9,8 +9,8 @@ build_extensions = ("whl", "tar.gz")
 ddtrace_internal_builds = []
 for ext in build_extensions:
     ddtrace_internal_builds.extend(list(HERE.rglob(f"**/ddtrace_internal*.{ext}")))
-internal_wheel_path = None
-if ddtrace_internal_builds:
+internal_wheel_path = os.getenv("DEPENDENCY_WHEEL_PATH")
+if not internal_wheel_path and ddtrace_internal_builds:
     internal_wheel_path = str(ddtrace_internal_builds[-1])
 
 
