@@ -727,6 +727,12 @@ def _on_django_after_request_headers_post(
         peer_ip=core.get_item("http.request.remote_ip"),
         headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive")),
         response_cookies=response_cookies,
+        # Forward ``http.route`` so the AppSec normalized-route listener can fire from this hook. ``_set_resolver_tags``
+        # ran earlier inside ``_after_request_tags`` and put the route on the span already. The async path
+        # (``traced_get_response_async``) only reaches this hook — there's no equivalent of the sync
+        # ``django.finalize_response.pre`` dispatch — so without this forward Django/ASGI deployments would miss the
+        # tag. Sync requests fire the listener twice (here + finalize_response.pre) with the same value — idempotent.
+        route=span.get_tag("http.route"),
     )
 
 
