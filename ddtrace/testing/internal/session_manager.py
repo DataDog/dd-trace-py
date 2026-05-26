@@ -445,7 +445,7 @@ class SessionManager:
             return None
         return Path(workspace_path) / ".git" / _UPLOAD_SENTINEL_FILENAME
 
-    def _read_upload_sentinel(self) -> t.Optional[t.Dict[str, t.Any]]:
+    def _read_upload_sentinel(self) -> t.Optional[dict[str, t.Any]]:
         """Return the sentinel payload if it is fresh and matches our HEAD, else None.
 
         Matches require the sentinel to be present, well-formed JSON, written within
@@ -473,7 +473,7 @@ class SessionManager:
             return None
         return data
 
-    def _apply_upload_sentinel(self, data: t.Dict[str, t.Any]) -> None:
+    def _apply_upload_sentinel(self, data: dict[str, t.Any]) -> None:
         """Recover state from a sibling worker's sentinel into our own env_tags.
 
         Currently this carries the PR merge-base SHA: a worker that skips its own

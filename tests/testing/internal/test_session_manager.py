@@ -885,7 +885,7 @@ class TestUploadLock:
             assert acquired is True
 
     def test_lock_yields_true_when_fcntl_unavailable(self, tmp_path) -> None:
-        """If fcntl is unavailable (e.g. Windows), no coordination is possible; yield True (proceed as sole uploader)."""
+        """If fcntl is unavailable (e.g. Windows), no coordination is possible; yield True (sole uploader)."""
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
 
