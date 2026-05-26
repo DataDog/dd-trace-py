@@ -26,7 +26,7 @@ EXCEPTIONS = {
     "ddtrace/appsec/_iast/_logs.py:41",
     "ddtrace/appsec/_iast/_logs.py:45",
     # the non constant part is an object type
-    "ddtrace/appsec/_iast/_taint_tracking/_taint_objects_base.py:74",
+    "ddtrace/appsec/_iast/_taint_tracking/_taint_objects_base.py:75",
     # _safelog wrapper function dispatches to log methods with variable message
     "ddtrace/internal/writer/writer.py:103",
 }
