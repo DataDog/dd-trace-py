@@ -525,6 +525,15 @@ class SessionManager:
         process is alive and actively holding the lock. Crashed processes release
         flock locks immediately on fd close, so timeout == live peer uploading.
         The caller should skip the upload in that case.
+
+        **Windows note**: ``fcntl`` is not available on Windows, so this lock is
+        a no-op there (always yields ``True``). Cross-worker coordination on
+        Windows relies solely on the upload sentinel file: workers that arrive
+        after the first successful upload see the sentinel and skip. Workers that
+        all start simultaneously may each attempt an upload, but the backend
+        deduplicates commits so duplicate uploads are wasteful but not incorrect.
+        If full coordination on Windows becomes necessary, replacing this with a
+        ``filelock``-based implementation would be the cleanest path.
         """
         if not _FCNTL_AVAILABLE:
             yield True
