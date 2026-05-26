@@ -635,11 +635,20 @@ class SessionManager:
         # Cross-process lock: only one xdist worker per workspace runs the upload at a time.
         with self._upload_lock() as lock_acquired:
             if not lock_acquired:
-                # Timed out or lock unavailable — a peer is alive and uploading (crashed
-                # processes release flock locks immediately). Re-check the sentinel for
-                # the merge-base side effect, then bail; the peer will write it on success.
+                # Timed out — a peer is alive and still uploading (crashed processes
+                # release flock locks immediately on fd close).
                 if (sentinel_data := self._read_upload_sentinel()) is not None:
+                    # Peer finished just before our timeout fired — recover merge-base.
                     self._apply_upload_sentinel(sentinel_data)
+                else:
+                    # Peer is still uploading; sentinel not yet written. Compute the
+                    # merge-base directly so this worker's events aren't missing
+                    # git.pull_request.base_branch_sha. This is a single git command
+                    # (no upload, no lock needed).
+                    try:
+                        self._update_pr_merge_base(Git())
+                    except RuntimeError:
+                        log.debug("git binary unavailable, skipping merge-base computation on lock timeout")
                 return
             # Re-check the sentinel: a peer may have finished while we waited for the lock.
             if (sentinel_data := self._read_upload_sentinel()) is not None:

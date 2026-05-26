@@ -978,7 +978,34 @@ class TestUploadLock:
         ):
             sm.upload_git_data()
 
-        mock_git_cls.assert_not_called()
+        # Full upload skipped, but Git() was still instantiated to compute merge-base.
+        mock_git_cls.assert_called_once()
+
+    def test_upload_git_data_computes_merge_base_on_lock_timeout(self, tmp_path) -> None:
+        """On lock timeout with no sentinel, merge-base is computed directly (no upload)."""
+        from ddtrace.testing.internal.git import GitTag
+        from tests.testing.mocks import get_mock_git_instance
+
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] = "base"
+        sm.env_tags[GitTag.COMMIT_HEAD_SHA] = "head"
+
+        mock_git = get_mock_git_instance()
+        mock_git.get_merge_base.return_value = "merge-base-sha"
+
+        @contextmanager
+        def no_lock():
+            yield False
+
+        with (
+            patch.object(sm, "_upload_lock", no_lock),
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "merge-base-sha"
 
     def test_upload_git_data_applies_sentinel_on_lock_timeout(self, tmp_path) -> None:
         """When the lock times out but the peer wrote the sentinel while we waited, apply it."""
