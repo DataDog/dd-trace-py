@@ -156,8 +156,20 @@ def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict)
             if isinstance(event, AwsDurableOperationEvent) and event.operation in _RETRYABLE_OPERATIONS:
                 operation = checkpoint.operation
                 if operation is not None and operation.step_details is not None:
-                    event.operation_attempt = max(1, operation.step_details.attempt)
+                    raw_attempt = operation.step_details.attempt
+                    log.debug(
+                        "aws_durable operation_attempt: operation=%s operation_id=%s raw step_details.attempt=%d",
+                        event.operation,
+                        operation_id,
+                        raw_attempt,
+                    )
+                    event.operation_attempt = max(1, raw_attempt)
                 else:
+                    log.debug(
+                        "aws_durable operation_attempt: operation=%s operation_id=%s no step_details, defaulting to 1",
+                        event.operation,
+                        operation_id,
+                    )
                     event.operation_attempt = 1
     return wrapped(*args, **kwargs)
 
