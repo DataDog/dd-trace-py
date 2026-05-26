@@ -1,6 +1,7 @@
 ---
 other:
   - |
-    CI Visibility: add internal ``_DD_CIVISIBILITY_BACKEND_REQUEST_TIMEOUT`` environment variable to
-    override the default 15-second HTTP timeout used when communicating with the Datadog backend.
+    CI Visibility: add ``DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS`` environment variable to
+    override the default 30-second HTTP timeout used when communicating with the Datadog backend.
+    The value is expressed in milliseconds (e.g. ``60000`` for 60 seconds), matching the Java tracer.
     This is an unsupported diagnostic knob intended to help investigate network timeout issues.
