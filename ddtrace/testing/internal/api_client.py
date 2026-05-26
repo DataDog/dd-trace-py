@@ -147,7 +147,7 @@ class APIClient:
             # AIDEV-NOTE: `page_info` is reused below to hold the *response* page_info after
             # the request is sent. To fix: rename this to `request_page_info` and the response
             # assignment to `response_page_info` (same pattern as _api_client.py fetch_known_tests).
-            page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
+            page_info: dict[str, t.Any] = {"has_next": False} if page_state is None else {"page_state": page_state}
             log.warning("Known tests request page %d: sending page_info=%r", page_number, page_info)
 
             try:
