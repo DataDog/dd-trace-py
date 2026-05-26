@@ -52,11 +52,6 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
     # AIDEV-NOTE: For streaming, dispatch_end_event=False defers the ended event
     # until the stream handler calls ctx.dispatch_ended_event() in finalize_stream().
     # For errors, we must manually dispatch so the span finishes with error info.
-    # AI Guard ``.before`` / ``.after`` dispatches live INSIDE the try block so
-    # block exceptions (AnthropicAIGuardAbortError extends
-    # anthropic.UnprocessableEntityError, which is Exception-derived) reach the
-    # ctx.dispatch_ended_event(*sys.exc_info()) arm and finalize the span with
-    # error info before re-raising.
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             core.dispatch("anthropic.messages.create.before", (kwargs,), allow_raise=True)
@@ -91,11 +86,6 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
         instance=instance,
     )
 
-    # AIDEV-NOTE: Unlike OpenAI's async patch, we do NOT need to catch
-    # DDBlockException + call result.close() here. OpenAI's flow creates an
-    # unstarted SDK coroutine (``result = func(...)``) *before* dispatching, so
-    # a block leaks an unawaited coroutine; here ``await func(...)`` happens
-    # AFTER dispatch, so no unstarted coroutine exists to clean up.
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
             core.dispatch("anthropic.messages.create.before", (kwargs,), allow_raise=True)
