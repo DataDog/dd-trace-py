@@ -7,6 +7,7 @@ from typing import Union
 from ddtrace._trace.span import Span
 from ddtrace.appsec._api_security._normalized_route import normalize_route
 from ddtrace.appsec._api_security._normalized_route import normalize_route_django
+from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -100,8 +101,6 @@ def _on_set_http_meta_for_normalized_route(
         return
     # No active ASM context → appsec/api-sec inactive for this request, nothing to do. The flag also gives us
     # idempotency for repeat dispatches (Django's sync path fires twice).
-    from ddtrace.appsec._asm_request_context import get_active_asm_context
-
     asm_env = get_active_asm_context()
     if asm_env is None or asm_env.normalized_route_emitted:
         return
