@@ -221,3 +221,47 @@ def test_is_pyobject_tainted_does_not_leak_across_request_slots():
     finish_request_context(ctx_a)
     finish_request_context(ctx_b)
     IAST_CONTEXT.set(None)
+
+
+def test_get_ranges_public_api_does_not_leak_across_request_slots():
+    """Direct ``get_ranges`` callers (taint sinks, aspects) must also be scoped.
+
+    ``taint_sinks/_base.py::VulnerabilityBase.has_taint_ranges`` and
+    ``taint_sinks/ssrf.py`` call ``get_ranges`` from the public
+    ``_taint_tracking`` package without going through ``is_pyobject_tainted``.
+    Before this fix, those sites resolved the active map by scanning every
+    request slot, so a taint from a concurrent request could trigger a
+    vulnerability report on a benign literal in another request.
+    """
+    from ddtrace.appsec._iast._taint_tracking import get_ranges
+
+    clear_all_request_context_slots()
+    _end_iast_context_and_oce()
+
+    ctx_a = start_request_context()
+    assert ctx_a is not None
+    tainted_in_a = _taint_pyobject_base(
+        "http://dummy.location.com",
+        "location",
+        "http://dummy.location.com",
+        OriginType.PARAMETER,
+        contextid=ctx_a,
+    )
+    IAST_CONTEXT.set(ctx_a)
+    assert len(get_ranges(tainted_in_a)) > 0
+
+    ctx_b = start_request_context()
+    assert ctx_b is not None and ctx_b != ctx_a
+    IAST_CONTEXT.set(ctx_b)
+
+    # This is the call shape used by sinks (`if len(ranges := get_ranges(x)) == 0`)
+    # and unconditional aspect propagation sites.
+    assert get_ranges(tainted_in_a) == [], (
+        "Cross-request taint leak via direct get_ranges(): object tainted in "
+        "ctx_a is visible from ctx_b. Sinks and aspects calling get_ranges must "
+        "be scoped to the current request slot."
+    )
+
+    finish_request_context(ctx_a)
+    finish_request_context(ctx_b)
+    IAST_CONTEXT.set(None)
