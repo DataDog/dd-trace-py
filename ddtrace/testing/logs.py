@@ -3,33 +3,20 @@
 Ships log records to the Datadog logs intake, correlated with test traces.
 
 Correlation IDs are read from record attributes ``dd.trace_id`` and
-``dd.span_id`` at emit time.  Attach a ``logging.Filter`` to set these
-attributes however suits your concurrency model (thread-local, async,
-global, etc.).
+``dd.span_id`` at emit time.  Attach a :class:`CorrelationFilter` subclass
+to set these attributes however suits your concurrency model (thread-local,
+async, global, etc.).  A ready-made :class:`ThreadLocalCorrelationFilter`
+is provided for the common case.
 
 Example usage::
 
     import logging
-    import threading
 
     from ddtrace.testing.logs import DDTestLogsHandler
-
-    class CorrelationFilter(logging.Filter):
-        def __init__(self):
-            super().__init__()
-            self._local = threading.local()
-
-        def set_context(self, trace_id, span_id):
-            self._local.trace_id = trace_id
-            self._local.span_id = span_id
-
-        def filter(self, record):
-            setattr(record, "dd.trace_id", getattr(self._local, "trace_id", "0"))
-            setattr(record, "dd.span_id", getattr(self._local, "span_id", "0"))
-            return True
+    from ddtrace.testing.logs import ThreadLocalCorrelationFilter
 
     handler = DDTestLogsHandler(service="my-service")
-    correlation = CorrelationFilter()
+    correlation = ThreadLocalCorrelationFilter()
     handler.addFilter(correlation)
     logging.getLogger().addHandler(handler)
 
@@ -39,6 +26,34 @@ Example usage::
         run_test(job.item)
 
     handler.close()
+
+Custom concurrency models
+-------------------------
+Subclass :class:`CorrelationFilter` and implement ``get_trace_id()`` /
+``get_span_id()``.  The base class handles writing the values onto each
+record under the ``dd.trace_id`` / ``dd.span_id`` attribute names.  How
+the IDs are stored, and the signature of any setter, is up to the
+subclass.  For asyncio, for example::
+
+    import contextvars
+
+    from ddtrace.testing.logs import CorrelationFilter
+
+    class ContextVarCorrelationFilter(CorrelationFilter):
+        def __init__(self):
+            super().__init__()
+            self._trace_id = contextvars.ContextVar("dd_trace_id", default=None)
+            self._span_id = contextvars.ContextVar("dd_span_id", default=None)
+
+        def set_context(self, trace_id, span_id):
+            self._trace_id.set(trace_id)
+            self._span_id.set(span_id)
+
+        def get_trace_id(self):
+            return self._trace_id.get()
+
+        def get_span_id(self):
+            return self._span_id.get()
 
 Configuration
 -------------
@@ -59,10 +74,73 @@ Agent/EVP proxy mode (default):
 from __future__ import annotations
 
 import logging
+import threading
+from typing import Optional
 
+from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.logs import LogsHandler
 from ddtrace.testing.internal.logs import LogsWriter
+
+
+class CorrelationFilter(logging.Filter):
+    """Base class for filters that stamp ``dd.trace_id`` / ``dd.span_id`` onto log records.
+
+    Subclasses implement :meth:`get_trace_id` and :meth:`get_span_id` to
+    return the current correlation IDs from whatever storage their concurrency
+    model uses.  The base class owns only the contract with
+    :class:`DDTestLogsHandler`: it writes those IDs onto each record under
+    the ``dd.trace_id`` / ``dd.span_id`` attribute names that the handler
+    reads at emit time, defaulting to ``"0"`` when either getter returns
+    ``None``.
+
+    Setter shape (e.g. ``set_context``) is intentionally not defined on the
+    base — different concurrency models need different signatures (sync vs.
+    ``async def``, contextvars vs. thread-local, etc.).
+    """
+
+    def get_trace_id(self) -> Optional[str]:
+        """Return the current trace ID, or ``None`` if no context is active."""
+        raise NotImplementedError
+
+    def get_span_id(self) -> Optional[str]:
+        """Return the current span ID, or ``None`` if no context is active."""
+        raise NotImplementedError
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        setattr(record, "dd.trace_id", self.get_trace_id() or LOG_ATTR_VALUE_ZERO)
+        setattr(record, "dd.span_id", self.get_span_id() or LOG_ATTR_VALUE_ZERO)
+        return True
+
+
+class ThreadLocalCorrelationFilter(CorrelationFilter):
+    """:class:`CorrelationFilter` backed by :class:`threading.local` storage.
+
+    Call :meth:`set_context` from the same thread that will emit the records;
+    each thread sees its own ``(trace_id, span_id)``.  Threads that never call
+    :meth:`set_context` produce records with the default ``"0"`` correlation
+    IDs.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._local = threading.local()
+
+    def set_context(self, trace_id: str, span_id: str) -> None:
+        """Set the correlation IDs for the calling thread."""
+        self._local.trace_id = trace_id
+        self._local.span_id = span_id
+
+    def clear_context(self) -> None:
+        """Clear the correlation IDs for the calling thread."""
+        self._local.__dict__.pop("trace_id", None)
+        self._local.__dict__.pop("span_id", None)
+
+    def get_trace_id(self) -> Optional[str]:
+        return getattr(self._local, "trace_id", None)
+
+    def get_span_id(self) -> Optional[str]:
+        return getattr(self._local, "span_id", None)
 
 
 class DDTestLogsHandler(LogsHandler):

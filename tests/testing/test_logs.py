@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import logging
+import threading
+from typing import Optional
 from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
 
 from ddtrace.testing.internal.errors import SetupError
+from ddtrace.testing.logs import CorrelationFilter
 from ddtrace.testing.logs import DDTestLogsHandler
+from ddtrace.testing.logs import ThreadLocalCorrelationFilter
 
 
 def _make_handler(service: str = "test-service", shutdown_timeout: float = 5.0) -> tuple[DDTestLogsHandler, Mock]:
@@ -156,3 +160,199 @@ class TestDDTestLogsHandlerEmit:
         event = mock_writer.put_event.call_args[0][0]
         assert event["dd.trace_id"] == "0"
         assert event["dd.span_id"] == "0"
+
+
+def _make_record(msg: str = "msg") -> logging.LogRecord:
+    return logging.LogRecord("test", logging.WARNING, "", 0, msg, (), None)
+
+
+class TestCorrelationFilterBase:
+    def test_base_class_get_methods_raise_not_implemented(self) -> None:
+        filt = CorrelationFilter()
+        with pytest.raises(NotImplementedError):
+            filt.get_trace_id()
+        with pytest.raises(NotImplementedError):
+            filt.get_span_id()
+
+    def test_subclass_writes_dd_attrs_onto_record(self) -> None:
+        class Static(CorrelationFilter):
+            def get_trace_id(self) -> Optional[str]:
+                return "abc"
+
+            def get_span_id(self) -> Optional[str]:
+                return "def"
+
+        record = _make_record()
+        assert Static().filter(record) is True
+        assert getattr(record, "dd.trace_id") == "abc"
+        assert getattr(record, "dd.span_id") == "def"
+
+    def test_none_from_subclass_defaults_to_zero(self) -> None:
+        class Empty(CorrelationFilter):
+            def get_trace_id(self) -> Optional[str]:
+                return None
+
+            def get_span_id(self) -> Optional[str]:
+                return None
+
+        record = _make_record()
+        Empty().filter(record)
+        assert getattr(record, "dd.trace_id") == "0"
+        assert getattr(record, "dd.span_id") == "0"
+
+    def test_empty_string_from_subclass_defaults_to_zero(self) -> None:
+        """Falsy values (not just None) fall back to the zero sentinel."""
+
+        class Blank(CorrelationFilter):
+            def get_trace_id(self) -> Optional[str]:
+                return ""
+
+            def get_span_id(self) -> Optional[str]:
+                return ""
+
+        record = _make_record()
+        Blank().filter(record)
+        assert getattr(record, "dd.trace_id") == "0"
+        assert getattr(record, "dd.span_id") == "0"
+
+    def test_filter_always_returns_true(self) -> None:
+        """The filter never drops records — it only stamps attributes."""
+
+        class Empty(CorrelationFilter):
+            def get_trace_id(self) -> Optional[str]:
+                return None
+
+            def get_span_id(self) -> Optional[str]:
+                return None
+
+        assert Empty().filter(_make_record()) is True
+
+    def test_subclass_with_arbitrary_setter_signature(self) -> None:
+        """The base does not constrain how subclasses accept new context."""
+
+        class GlobalFilter(CorrelationFilter):
+            def __init__(self) -> None:
+                super().__init__()
+                self._ids = (None, None)
+
+            def update(self, ids: tuple) -> None:  # any signature works
+                self._ids = ids
+
+            def get_trace_id(self) -> Optional[str]:
+                return self._ids[0]
+
+            def get_span_id(self) -> Optional[str]:
+                return self._ids[1]
+
+        filt = GlobalFilter()
+        filt.update(("t", "s"))
+        record = _make_record()
+        filt.filter(record)
+        assert getattr(record, "dd.trace_id") == "t"
+        assert getattr(record, "dd.span_id") == "s"
+
+
+class TestThreadLocalCorrelationFilter:
+    def test_defaults_to_zero_before_set_context(self) -> None:
+        filt = ThreadLocalCorrelationFilter()
+        record = _make_record()
+        filt.filter(record)
+        assert getattr(record, "dd.trace_id") == "0"
+        assert getattr(record, "dd.span_id") == "0"
+
+    def test_set_context_stamps_record(self) -> None:
+        filt = ThreadLocalCorrelationFilter()
+        filt.set_context(trace_id="111", span_id="222")
+        record = _make_record()
+        filt.filter(record)
+        assert getattr(record, "dd.trace_id") == "111"
+        assert getattr(record, "dd.span_id") == "222"
+
+    def test_clear_context_resets_to_zero(self) -> None:
+        filt = ThreadLocalCorrelationFilter()
+        filt.set_context(trace_id="111", span_id="222")
+        filt.clear_context()
+        record = _make_record()
+        filt.filter(record)
+        assert getattr(record, "dd.trace_id") == "0"
+        assert getattr(record, "dd.span_id") == "0"
+
+    def test_clear_context_is_safe_when_never_set(self) -> None:
+        filt = ThreadLocalCorrelationFilter()
+        filt.clear_context()  # must not raise
+        record = _make_record()
+        filt.filter(record)
+        assert getattr(record, "dd.trace_id") == "0"
+
+    def test_threads_have_independent_context(self) -> None:
+        filt = ThreadLocalCorrelationFilter()
+        filt.set_context(trace_id="main-t", span_id="main-s")
+
+        seen: dict[str, tuple] = {}
+        started = threading.Event()
+        proceed = threading.Event()
+
+        def worker(name: str, trace_id: str, span_id: str) -> None:
+            # Each worker sets its own context, then reads back via filter().
+            filt.set_context(trace_id=trace_id, span_id=span_id)
+            started.set()
+            proceed.wait(timeout=2.0)
+            record = _make_record()
+            filt.filter(record)
+            seen[name] = (getattr(record, "dd.trace_id"), getattr(record, "dd.span_id"))
+
+        t1 = threading.Thread(target=worker, args=("a", "a-t", "a-s"))
+        t2 = threading.Thread(target=worker, args=("b", "b-t", "b-s"))
+        t1.start()
+        t2.start()
+
+        # Confirm the main thread still sees its own context while workers are alive.
+        started.wait(timeout=2.0)
+        main_record = _make_record()
+        filt.filter(main_record)
+        assert getattr(main_record, "dd.trace_id") == "main-t"
+        assert getattr(main_record, "dd.span_id") == "main-s"
+
+        proceed.set()
+        t1.join(timeout=2.0)
+        t2.join(timeout=2.0)
+
+        assert seen["a"] == ("a-t", "a-s")
+        assert seen["b"] == ("b-t", "b-s")
+
+    def test_set_context_overwrites_previous_values(self) -> None:
+        filt = ThreadLocalCorrelationFilter()
+        filt.set_context(trace_id="first-t", span_id="first-s")
+        filt.set_context(trace_id="second-t", span_id="second-s")
+        record = _make_record()
+        filt.filter(record)
+        assert getattr(record, "dd.trace_id") == "second-t"
+        assert getattr(record, "dd.span_id") == "second-s"
+
+
+class TestCorrelationFilterWithHandler:
+    """End-to-end-ish: the filter feeds the handler the attributes it reads in emit()."""
+
+    def test_filter_stamps_record_that_handler_then_reads(self) -> None:
+        mock_writer = Mock()
+        mock_writer.hostname = "h"
+        mock_writer.service = "svc"
+
+        with patch("ddtrace.testing.logs.BackendConnectorSetup.detect_standard_setup"):
+            with patch("ddtrace.testing.logs.LogsWriter", return_value=mock_writer):
+                handler = DDTestLogsHandler(service="svc")
+
+        correlation = ThreadLocalCorrelationFilter()
+        correlation.set_context(trace_id="trace-xyz", span_id="span-xyz")
+        handler.addFilter(correlation)
+
+        logger = logging.getLogger("ddtrace.testing.logs.test_correlation_handler")
+        logger.setLevel(logging.DEBUG)
+        # Calling handler.handle() (not emit() directly) ensures the filter runs first,
+        # matching what stdlib logging does in production.
+        record = _make_record("hello")
+        handler.handle(record)
+
+        event = mock_writer.put_event.call_args[0][0]
+        assert event["dd.trace_id"] == "trace-xyz"
+        assert event["dd.span_id"] == "span-xyz"
