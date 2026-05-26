@@ -532,7 +532,7 @@ def test_ddtrace_auto_atexit():
     """When ddtrace-run is used, ensure atexit hooks are registered exactly once"""
     import sys
 
-    from mock import patch
+    from mock import patch  # type: ignore[import-untyped]
 
     registered_funcs = set()
     unregistered_funcs = set()
@@ -580,3 +580,21 @@ def test_ddtrace_run_asyncio_sigint():
         await asyncio.sleep(10)
 
     asyncio.run(main())
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    status=1,
+    err=lambda s: "wrap_signals" not in s and "KeyboardInterrupt" in s,
+)
+def test_ddtrace_run_sync_sigint():
+    """ddtrace-run must not swallow SIGINT in plain synchronous code: KeyboardInterrupt should
+    surface normally without a ddtrace-internal `wrap_signals` traceback.
+    """
+    import os
+    import signal
+    import threading
+    import time
+
+    threading.Timer(0.1, lambda: os.kill(os.getpid(), signal.SIGINT)).start()
+    time.sleep(10)
