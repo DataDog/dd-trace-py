@@ -139,9 +139,8 @@ endif()
 # Install the extension
 install(TARGETS ${FULL_EXTENSION_NAME} LIBRARY DESTINATION ${LIB_INSTALL_DIR})
 
-# Optional unit tests for the cuckoo filter. Off by default; enable with
-# -DBUILD_TESTING=ON. Self-contained executable (no gtest dependency); fails
-# via assert() if any invariant is violated.
+# Optional unit tests for the cuckoo filter. Off by default; enable with -DBUILD_TESTING=ON. Self-contained executable
+# (no gtest dependency); fails via assert() if any invariant is violated.
 if(BUILD_TESTING)
     enable_testing()
     add_executable(test_cuckoo test/test_cuckoo.cpp)
