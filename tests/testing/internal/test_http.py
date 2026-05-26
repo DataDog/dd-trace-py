@@ -1126,13 +1126,19 @@ class TestBackendTimeoutEnvVar:
             importlib.reload(_http_module)
         assert _http_module.DEFAULT_TIMEOUT_SECONDS == 30.5
 
-    def test_non_numeric_value_falls_back_to_default(self, caplog: pytest.LogCaptureFixture) -> None:
-        with patch.dict(os.environ, {self._ENV_VAR: "fast"}):
-            with caplog.at_level(logging.WARNING, logger="ddtrace.testing.internal.http"):
+    def test_non_numeric_value_falls_back_to_default(self) -> None:
+        # patch.object on the logger instance (not the module attr) survives importlib.reload
+        # because logging.getLogger always returns the same cached object by name.
+        # caplog is unreliable for module-level code reloaded under --ddtrace -n auto.
+        http_logger = logging.getLogger("ddtrace.testing.internal.http")
+        with patch.object(http_logger, "warning") as mock_warning:
+            with patch.dict(os.environ, {self._ENV_VAR: "fast"}):
                 importlib.reload(_http_module)
         assert _http_module.DEFAULT_TIMEOUT_SECONDS == 30.0
-        assert self._ENV_VAR in caplog.text
-        assert "fast" in caplog.text
+        mock_warning.assert_called_once()
+        fmt_string, bad_value = mock_warning.call_args[0][0], mock_warning.call_args[0][1]
+        assert self._ENV_VAR in fmt_string
+        assert bad_value == "fast"
 
     def test_non_numeric_value_does_not_raise(self) -> None:
         with patch.dict(os.environ, {self._ENV_VAR: "not-a-number"}):
