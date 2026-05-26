@@ -28,7 +28,7 @@ install_requires = [
     f"ddtrace-internal{ddtrace_internal_spec}",
     "envier~=0.6.1",
     "opentelemetry-api>=1,<2",
-    "wrapt>=1,<3",
+    "wrapt>=1,!=2.2.0,<3",
 ]
 
 for requirement in install_requires:
