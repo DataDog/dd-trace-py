@@ -8,7 +8,6 @@ import http.client
 import io
 import json
 import logging
-import math
 import os
 import random
 import socket
@@ -34,12 +33,13 @@ from ddtrace.testing.internal.utils import asbool
 log = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT_SECONDS = 30.0
+_MAX_TIMEOUT_SECONDS = 300.0  # 5 minutes
 _raw_timeout = env.get("DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS")
 if _raw_timeout:
     try:
         _parsed = float(_raw_timeout) / 1000.0
-        if not math.isfinite(_parsed) or _parsed <= 0:
-            raise ValueError("must be a positive finite number of milliseconds")
+        if not (0 < _parsed <= _MAX_TIMEOUT_SECONDS):
+            raise ValueError("must be between 1 ms and 300 000 ms")
         DEFAULT_TIMEOUT_SECONDS = _parsed
     except ValueError:
         log.warning(
