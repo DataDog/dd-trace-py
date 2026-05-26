@@ -70,7 +70,7 @@ _STATE_NEXT_N_ATTR = "_dd_next_checkpoint_n"
 _COUNTER_LOCK = Lock()
 
 
-def _inject_datadog_headers(span: Span, headers: dict) -> None:
+def _inject_datadog_headers(span: Span, headers: dict[str, str]) -> None:
     """Inject only Datadog headers (ignores ``DD_TRACE_PROPAGATION_STYLE_INJECT``).
 
     Routes through ``_get_sampled_injection_context`` to force a sampling
@@ -80,12 +80,12 @@ def _inject_datadog_headers(span: Span, headers: dict) -> None:
     _DatadogMultiHeader._inject(span_context, headers)
 
 
-def _stable_headers(headers: dict) -> dict:
+def _stable_headers(headers: dict[str, str]) -> dict[str, str]:
     """Drop the ``HTTP_HEADER_PARENT_ID`` from the dict for stable comparison."""
     return {k: v for k, v in headers.items() if k.lower() != HTTP_HEADER_PARENT_ID}
 
 
-def _max_existing_checkpoint_n(state) -> int:
+def _max_existing_checkpoint_n(state: ExecutionState) -> int:
     """The highest ``N`` already present in ``state.operations``, or -1 if none."""
     operations = getattr(state, "operations", None) or {}
     highest = -1
@@ -126,7 +126,7 @@ def mark_trace_context_checkpoints_visited(state: ExecutionState) -> None:
         _record_integration_error(e, "mark_visited")
 
 
-def _allocate_checkpoint_n(state) -> int:
+def _allocate_checkpoint_n(state: ExecutionState) -> int:
     """Atomically reserve the next ``N`` for a checkpoint write.
 
     Process-local counter on the state — ``state.operations`` only updates
@@ -159,7 +159,7 @@ def _step_id(name: str, execution_arn: str) -> str:
     return digest
 
 
-def _read_prior_checkpoint_payload(state) -> Optional[dict]:
+def _read_prior_checkpoint_payload(state: ExecutionState) -> Optional[dict[str, str]]:
     """Parsed headers dict from the highest-N ``_datadog_*`` operation, or ``None``.
 
     On replay invocations the highest-N checkpoint serves two purposes: its
@@ -195,7 +195,7 @@ def _read_prior_checkpoint_payload(state) -> Optional[dict]:
     return payload if isinstance(payload, dict) else None
 
 
-def _resolve_override_parent_id(span, prior_payload: Optional[dict]) -> Optional[str]:
+def _resolve_override_parent_id(span: Span, prior_payload: Optional[dict[str, str]]) -> Optional[str]:
     """Resolve the parent id to stamp into the saved checkpoint.
 
     Reuse the prior checkpoint's saved parent id verbatim (stable across all
@@ -210,7 +210,7 @@ def _resolve_override_parent_id(span, prior_payload: Optional[dict]) -> Optional
     return str(anchor_span_id) if anchor_span_id is not None else None
 
 
-def _override_parent_id(headers: dict, parent_id: str) -> None:
+def _override_parent_id(headers: dict[str, str], parent_id: str) -> None:
     """Replace the injector's current span id with the resolved anchor id."""
     if HTTP_HEADER_PARENT_ID in headers:
         headers[HTTP_HEADER_PARENT_ID] = parent_id
@@ -231,7 +231,7 @@ def maybe_save_trace_context_checkpoint(durable_context: DurableContext, span: S
         if not execution_arn:
             return
 
-        headers: dict = {}
+        headers: dict[str, str] = {}
         try:
             _inject_datadog_headers(span, headers)
         except Exception as e:
