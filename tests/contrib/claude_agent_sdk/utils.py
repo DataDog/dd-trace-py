@@ -102,6 +102,27 @@ def create_mock_assistant_message_with_tool_use(
     )
 
 
+def create_mock_assistant_message_with_parallel_tool_use(
+    tool_calls: list[tuple[str, dict, str]],
+    model: str = MOCK_MODEL,
+) -> AssistantMessage:
+    """Create a mock AssistantMessage with multiple ToolUseBlocks in one message.
+
+    This simulates Claude issuing parallel tool calls in a single assistant turn,
+    e.g. three independent Bash invocations dispatched together.
+
+    Args:
+        tool_calls: list of (tool_name, tool_input, tool_use_id) tuples.
+    """
+    return AssistantMessage(
+        content=[
+            ToolUseBlock(id=tool_use_id, name=tool_name, input=tool_input)
+            for tool_name, tool_input, tool_use_id in tool_calls
+        ],
+        model=model,
+    )
+
+
 def create_mock_result_message(
     subtype: str = "success",
     duration_ms: int = 2021,
@@ -253,6 +274,38 @@ MOCK_TOOL_USE_WITH_FOLLOWUP_SEQUENCE = [
     MOCK_FINAL_ASSISTANT,  # AssistantMessage with text → LLM span #2
     MOCK_MULTI_TURN_RESULT_MESSAGE,
 ]
+
+# AIDEV-NOTE: Three ToolUseBlocks inside a single AssistantMessage — exercises
+# the parallel-tool path in ClaudeAgentSdkAsyncStreamHandler. Every parallel
+# tool span should link from the same llm span (output→input) and every tool
+# span should link to the next llm span (output→input), with no tool→tool edge.
+MOCK_PARALLEL_BASH_TOOL_IDS = (
+    "toolu_parallel_01_aaaaaaaaaaaaaaaaaa",
+    "toolu_parallel_02_bbbbbbbbbbbbbbbbbb",
+    "toolu_parallel_03_cccccccccccccccccc",
+)
+MOCK_PARALLEL_BASH_TOOL_USE_ASSISTANT = create_mock_assistant_message_with_parallel_tool_use(
+    [
+        ("Bash", {"command": "echo first"}, MOCK_PARALLEL_BASH_TOOL_IDS[0]),
+        ("Bash", {"command": "echo second"}, MOCK_PARALLEL_BASH_TOOL_IDS[1]),
+        ("Bash", {"command": "echo third"}, MOCK_PARALLEL_BASH_TOOL_IDS[2]),
+    ],
+)
+MOCK_PARALLEL_TOOL_RESULT_USER = UserMessage(
+    content=[
+        ToolResultBlock(tool_use_id=MOCK_PARALLEL_BASH_TOOL_IDS[0], content="first"),
+        ToolResultBlock(tool_use_id=MOCK_PARALLEL_BASH_TOOL_IDS[1], content="second"),
+        ToolResultBlock(tool_use_id=MOCK_PARALLEL_BASH_TOOL_IDS[2], content="third"),
+    ]
+)
+MOCK_PARALLEL_TOOL_USE_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_PARALLEL_BASH_TOOL_USE_ASSISTANT,
+    MOCK_PARALLEL_TOOL_RESULT_USER,
+    MOCK_FINAL_ASSISTANT,
+    MOCK_MULTI_TURN_RESULT_MESSAGE,
+]
+
 
 MOCK_TOOL_ERROR_MESSAGE = "Permission denied: /etc/hostname"
 MOCK_TOOL_ERROR_USER_READ = UserMessage(
