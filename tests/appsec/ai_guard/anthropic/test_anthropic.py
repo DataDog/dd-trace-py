@@ -12,6 +12,7 @@ from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_befor
 from ddtrace.appsec._ai_guard._anthropic import _convert_anthropic_messages
 from ddtrace.appsec._ai_guard._anthropic import _convert_anthropic_response
 from ddtrace.appsec.ai_guard import AIGuardAbortError
+from ddtrace.contrib.internal.anthropic.patch import ANTHROPIC_VERSION
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import override_ai_guard_config
 
@@ -1278,20 +1279,43 @@ def test_cassette_responses_convert_without_error():
 # ---------------------------------------------------------------------------
 
 
-# A small curated subset of cassettes that exercise distinct request shapes
-# while staying inside the non-streaming, plain-JSON envelope the SDK expects.
-# Each cassette is referenced by basename; missing files cause the test to
-# skip rather than fail, so the suite is resilient to fixture renames.
+# Cassettes whose request body uses only kwargs/tool types supported by every
+# Anthropic SDK version in the CI matrix (down to the pinned ``anthropic==0.28.0``
+# venv). The base replay test runs these unconditionally; a TypeError or
+# other failure here is a real regression in the converter, dispatch glue, or
+# contrib patch.
 _E2E_REPLAY_CASSETTES = [
     "anthropic_completion.yaml",
     "anthropic_create_image.yaml",
     "anthropic_completion_multi_prompt.yaml",
     "anthropic_completion_multi_prompt_with_chat_history.yaml",
     "anthropic_completion_multi_system_prompt.yaml",
-    "anthropic_completion_thinking.yaml",
     "anthropic_completion_tools.yaml",
     "anthropic_completion_tools_call_with_tool_result.yaml",
-    "anthropic_completion_tools_server_tool_use.yaml",
+]
+
+
+# Cassettes whose request body uses kwargs / tool types introduced in newer
+# Anthropic SDK releases. Each entry embeds a ``pytest.mark.skipif`` tied to
+# the minimum SDK version that accepts the shape. Latest-SDK CI venvs run the
+# full end-to-end replay; older pinned venvs skip per-cassette with a clear
+# reason. The cassette is still exercised against the converter on every venv
+# via ``test_cassettes_convert_without_error``.
+_E2E_REPLAY_CASSETTES_MODERN = [
+    pytest.param(
+        "anthropic_completion_thinking.yaml",
+        marks=pytest.mark.skipif(
+            ANTHROPIC_VERSION < (0, 50),
+            reason="anthropic SDK < 0.50 does not accept the 'thinking' kwarg",
+        ),
+    ),
+    pytest.param(
+        "anthropic_completion_tools_server_tool_use.yaml",
+        marks=pytest.mark.skipif(
+            ANTHROPIC_VERSION < (0, 50),
+            reason="anthropic SDK < 0.50 does not expose the tool_search_tool_regex tool type",
+        ),
+    ),
 ]
 
 
@@ -1376,6 +1400,29 @@ def test_cassette_replay_end_to_end(mock_execute_request, cassette_name, anthrop
 
     assert resp is not None
     # Before + after evaluations both fire for non-streaming responses.
+    assert mock_execute_request.call_count == 2, (
+        f"{cassette_name}: expected before+after to both fire, got {mock_execute_request.call_count} calls"
+    )
+
+
+@pytest.mark.parametrize("cassette_name", _E2E_REPLAY_CASSETTES_MODERN)
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_cassette_replay_end_to_end_modern_sdk(mock_execute_request, cassette_name, anthropic_client_replay):
+    """Replay cassettes that require a recent Anthropic SDK version.
+
+    Each entry in :data:`_E2E_REPLAY_CASSETTES_MODERN` carries its own
+    ``pytest.mark.skipif`` keyed to the installed Anthropic SDK version, so
+    older pinned venvs skip the case with a clear reason while the
+    latest-SDK venv exercises the full replay path. A failure here on a
+    supported SDK is a real regression -- there is no blanket try/except.
+    """
+    request_kwargs, response_bytes = _load_cassette_replay(cassette_name)
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    client = anthropic_client_replay(response_bytes)
+    resp = client.messages.create(**request_kwargs)
+
+    assert resp is not None
     assert mock_execute_request.call_count == 2, (
         f"{cassette_name}: expected before+after to both fire, got {mock_execute_request.call_count} calls"
     )
