@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Optional
+
 from ddtrace.appsec._iast._taint_tracking._native import initialize_native_state  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native import ops  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native import reset_native_state  # noqa: F401
@@ -48,7 +51,7 @@ log = get_logger(__name__)
 _CACHE_GET_IAST_CONTEXT_ID = None
 
 
-def get_ranges(string_input, context_id=None):
+def get_ranges(string_input: Any, context_id: Optional[int] = None) -> Any:
     if context_id is None:
         global _CACHE_GET_IAST_CONTEXT_ID
         if _CACHE_GET_IAST_CONTEXT_ID is None:
