@@ -144,7 +144,11 @@ class APIClient:
         for page_number in range(max_pages):
             # First page: empty page_info lets backend use its default max (10k).
             # Subsequent pages: only send page_state.
+            # AIDEV-NOTE: `page_info` is reused below to hold the *response* page_info after
+            # the request is sent. To fix: rename this to `request_page_info` and the response
+            # assignment to `response_page_info` (same pattern as _api_client.py fetch_known_tests).
             page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
+            log.debug("Known tests request page %d: sending page_info=%r", page_number, page_info)
 
             try:
                 request_data: dict[str, t.Any] = {
@@ -188,6 +192,7 @@ class APIClient:
                             known_test_ids.add(TestRef(suite_ref, test))
 
                 page_info = attributes.get("page_info")
+                log.debug("Known tests response page %d: received page_info=%r", page_number, page_info)
                 if not page_info:
                     break
                 if not isinstance(page_info, dict):

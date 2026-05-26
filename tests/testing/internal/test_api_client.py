@@ -461,6 +461,85 @@ class TestAPIClientGetKnownTests:
             TestRef(SuiteRef(ModuleRef("mod2"), "suite2.py"), "test_b"),
         }
 
+    def test_get_known_tests_pagination_full_request_payload(self, mock_telemetry: Mock) -> None:
+        """Second-page request must carry the same fields as the first, with only page_info differing."""
+        page1_response = {
+            "data": {
+                "attributes": {
+                    "tests": {"mod1": {"suite1.py": ["test_a"]}},
+                    "page_info": {"has_next": True, "cursor": "cursor-abc"},
+                },
+                "id": "page1-id",
+                "type": "ci_app_libraries_tests",
+            }
+        }
+        page2_response = {
+            "data": {
+                "attributes": {
+                    "tests": {"mod2": {"suite2.py": ["test_b"]}},
+                },
+                "id": "page2-id",
+                "type": "ci_app_libraries_tests",
+            }
+        }
+        mock_connector = mock_backend_connector().build()
+        mock_connector.post_json.side_effect = [
+            BackendResult(response=Mock(status=200), parsed_response=page1_response),
+            BackendResult(response=Mock(status=200), parsed_response=page2_response),
+        ]
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="my-service",
+            env="my-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/org/repo.git",
+                GitTag.COMMIT_SHA: "deadbeef",
+                GitTag.BRANCH: "main",
+                GitTag.COMMIT_MESSAGE: "a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={"os.platform": "Linux", "os.architecture": "x86_64"},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            known_tests = api_client.get_known_tests()
+
+        assert len(mock_connector.post_json.call_args_list) == 2
+
+        expected_shared_attributes = {
+            "service": "my-service",
+            "env": "my-env",
+            "repository_url": "http://github.com/org/repo.git",
+            "configurations": {"os.platform": "Linux", "os.architecture": "x86_64"},
+        }
+
+        page1_payload = mock_connector.post_json.call_args_list[0][0][1]
+        assert page1_payload == {
+            "data": {
+                "id": "00000000-0000-0000-0000-000000000000",
+                "type": "ci_app_libraries_tests_request",
+                "attributes": {**expected_shared_attributes, "page_info": {}},
+            }
+        }
+
+        page2_payload = mock_connector.post_json.call_args_list[1][0][1]
+        assert page2_payload == {
+            "data": {
+                "id": "00000000-0000-0000-0000-000000000000",
+                "type": "ci_app_libraries_tests_request",
+                "attributes": {**expected_shared_attributes, "page_info": {"page_state": "cursor-abc"}},
+            }
+        }
+
+        assert known_tests == {
+            TestRef(SuiteRef(ModuleRef("mod1"), "suite1.py"), "test_a"),
+            TestRef(SuiteRef(ModuleRef("mod2"), "suite2.py"), "test_b"),
+        }
+
     def test_get_known_tests_max_pages_limit_bails_and_disables_known_tests(
         self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
