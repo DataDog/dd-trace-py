@@ -808,6 +808,87 @@ class TestPluginHookDiscovery:
 
 
 # ---------------------------------------------------------------------------
+# APMSP-3088 regression: end-to-end @hook dispatch
+# ---------------------------------------------------------------------------
+
+
+class TestPluginEndToEndDispatch:
+    """APMSP-3088 regression: drive ``HookRegistry.invoke_callbacks`` to catch class-identity drift."""
+
+    HOOKS_TO_EVENTS = (
+        ("on_before_invocation", BeforeInvocationEvent),
+        ("on_after_invocation", AfterInvocationEvent),
+        ("on_before_model_call", BeforeModelCallEvent),
+        ("on_after_model_call", AfterModelCallEvent),
+        ("on_before_tool_call", BeforeToolCallEvent),
+        ("on_after_tool_call", AfterToolCallEvent),
+    )
+
+    @staticmethod
+    def _register_plugin_hooks(plugin):
+        registry = HookRegistry()
+        for callback in plugin.hooks:
+            for event_type in callback._hook_event_types:
+                registry.add_callback(event_type, callback)
+        return registry
+
+    def test_hook_event_types_match_public_strands_classes(self, ai_guard_strands_plugin):
+        for method_name, public_event_cls in self.HOOKS_TO_EVENTS:
+            method = getattr(ai_guard_strands_plugin, method_name)
+            event_types = getattr(method, "_hook_event_types", None)
+            assert event_types, f"{method_name} missing _hook_event_types"
+            # Identity (`is`), not equality: Strands keys the registry by class identity, so a
+            # stale duplicate of the event dataclass silently bypasses AI Guard (APMSP-3088).
+            assert event_types[0] is public_event_cls, (
+                f"{method_name} bound to {event_types[0]!r}, agent dispatches {public_event_cls!r}"
+            )
+
+    def test_plugin_discovers_hook_for_every_event(self, ai_guard_strands_plugin):
+        registry = self._register_plugin_hooks(ai_guard_strands_plugin)
+        for _, public_event_cls in self.HOOKS_TO_EVENTS:
+            assert registry._registered_callbacks.get(public_event_cls), (
+                f"No callback registered for {public_event_cls.__name__}"
+            )
+
+    @pytest.mark.parametrize(
+        "event_factory",
+        [
+            lambda: before_model_event(messages=[{"role": "user", "content": [{"text": "Hi"}]}]),
+            lambda: after_model_event(
+                response_message={"role": "assistant", "content": [{"text": "Answer"}]},
+            ),
+            lambda: before_tool_event(
+                tool_use={"toolUseId": "tc1", "name": "calc", "input": {}},
+                messages=[],
+            ),
+            lambda: after_tool_event(
+                tool_use={"toolUseId": "tc1", "name": "calc", "input": {}},
+                tool_result={"toolUseId": "tc1", "content": [{"text": "4"}], "status": "success"},
+                messages=[],
+            ),
+        ],
+        ids=["before_model", "after_model", "before_tool", "after_tool"],
+    )
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_hook_fires_via_registry_dispatch(self, mock_execute_request, ai_guard_strands_plugin, event_factory):
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        registry = self._register_plugin_hooks(ai_guard_strands_plugin)
+
+        registry.invoke_callbacks(event_factory())
+
+        mock_execute_request.assert_called_once()
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_before_model_call_blocks_via_registry_dispatch(self, mock_execute_request, ai_guard_strands_plugin):
+        mock_execute_request.return_value = mock_evaluate_response("DENY")
+        registry = self._register_plugin_hooks(ai_guard_strands_plugin)
+        event = before_model_event(messages=[{"role": "user", "content": [{"text": "bad"}]}])
+
+        with pytest.raises(AIGuardAbortError):
+            registry.invoke_callbacks(event)
+
+
+# ---------------------------------------------------------------------------
 # Error handling
 # ---------------------------------------------------------------------------
 
