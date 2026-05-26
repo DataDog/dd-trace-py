@@ -1,4 +1,5 @@
 import boto3
+import moto as _moto
 from moto import mock_dynamodb
 import pynamodb.connection.base
 from pynamodb.connection.base import Connection
@@ -10,8 +11,6 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
-
-import moto as _moto
 
 if int(_moto.__version__.split(".")[0]) < 4:
     # moto 1.x: direct backend API (no HTTP; compatible with pynamodb 5.x)
