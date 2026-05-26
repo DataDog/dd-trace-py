@@ -183,9 +183,17 @@ class DDTestLogsHandler(LogsHandler):
         super().emit(record)
 
     def close(self) -> None:
-        # Gate new emits out before signalling the writer so that records
-        # accepted before close() cannot queue into a writer that will never flush.
-        self._closed = True
+        # Set the closed flag under the handler lock so we wait for any in-flight
+        # emit() to finish: logging.Handler.handle() takes self.lock around emit(),
+        # so acquiring it here means no thread can be mid-emit when we drain the
+        # writer.  Without this, a thread that read _closed == False before close()
+        # ran could still call put_event() after wait_finish() returned, queuing
+        # into a writer that will never flush.
+        self.acquire()
+        try:
+            self._closed = True
+        finally:
+            self.release()
         self._writer.signal_finish()
         self._writer.wait_finish(timeout=self._shutdown_timeout)
         super().close()

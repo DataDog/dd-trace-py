@@ -98,6 +98,56 @@ class TestDDTestLogsHandlerClose:
 
         assert closed_at_signal_time == [True]
 
+    def test_close_waits_for_in_flight_emit_under_handler_lock(self) -> None:
+        """close() must acquire the handler lock so it cannot race with a thread mid-emit().
+
+        logging.Handler.handle() runs emit() under self.lock.  If close() flipped
+        _closed and drained the writer without that lock, a thread already inside
+        emit() (past the _closed check) could still call put_event() after the
+        writer thread had exited, silently losing records.
+        """
+        handler, mock_writer = _make_handler()
+
+        # Simulate a thread mid-emit by holding the handler lock from this thread.
+        handler.acquire()
+
+        close_returned = threading.Event()
+        signal_finish_called_before_release: list[bool] = []
+        # Track whether signal_finish() ran before we released the lock; if close()
+        # is correctly serialized, it must not have.
+        lock_released = threading.Event()
+
+        def record_call(*_args, **_kwargs):
+            signal_finish_called_before_release.append(not lock_released.is_set())
+
+        mock_writer.signal_finish.side_effect = record_call
+
+        def closer() -> None:
+            handler.close()
+            close_returned.set()
+
+        closer_thread = threading.Thread(target=closer)
+        closer_thread.start()
+
+        # Give the closer a moment to reach handler.acquire() and block on it.
+        # If close() is not properly serialized, it will race past acquire() and
+        # signal_finish() will run while we still hold the lock.
+        close_returned.wait(timeout=0.2)
+        assert not close_returned.is_set(), "close() did not block on the handler lock"
+        mock_writer.signal_finish.assert_not_called()
+
+        # Release the lock — close() should now proceed.
+        lock_released.set()
+        handler.release()
+
+        close_returned.wait(timeout=2.0)
+        assert close_returned.is_set(), "close() did not return after lock release"
+        closer_thread.join(timeout=2.0)
+
+        mock_writer.signal_finish.assert_called_once()
+        # signal_finish() must have been observed after we released the lock.
+        assert signal_finish_called_before_release == [False]
+
 
 class TestDDTestLogsHandlerContextManager:
     def test_enter_returns_handler(self) -> None:
