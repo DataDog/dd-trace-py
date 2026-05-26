@@ -118,6 +118,7 @@ class SessionManager:
                 telemetry_api=self.telemetry_api,
             )
         self.settings = self.api_client.get_settings()
+        self.settings.known_tests_enabled = True  # DEBUG
         self.override_settings_with_env_vars()
 
         # Manifest mode disables test skipping: cached skippable decisions should not
