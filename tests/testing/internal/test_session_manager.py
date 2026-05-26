@@ -876,22 +876,22 @@ class TestUploadLock:
         with sm._upload_lock() as acquired:
             assert acquired is True
 
-    def test_lock_yields_false_when_path_unavailable(self) -> None:
-        """Without workspace_path, the lock can't be acquired and yields False."""
+    def test_lock_yields_true_when_path_unavailable(self) -> None:
+        """Without workspace_path there is no peer coordination possible; yield True (proceed as sole uploader)."""
         sm = SessionManager.__new__(SessionManager)
         sm.env_tags = {}
 
         with sm._upload_lock() as acquired:
-            assert acquired is False
+            assert acquired is True
 
-    def test_lock_yields_false_when_fcntl_unavailable(self, tmp_path) -> None:
-        """If fcntl is unavailable (e.g. Windows), the lock is a no-op yielding False."""
+    def test_lock_yields_true_when_fcntl_unavailable(self, tmp_path) -> None:
+        """If fcntl is unavailable (e.g. Windows), no coordination is possible; yield True (proceed as sole uploader)."""
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
 
         with patch("ddtrace.testing.internal.session_manager._FCNTL_AVAILABLE", False):
             with sm._upload_lock() as acquired:
-                assert acquired is False
+                assert acquired is True
 
     def test_lock_yields_false_on_timeout(self, tmp_path) -> None:
         """If flock keeps raising BlockingIOError past the deadline, yield False."""
@@ -959,25 +959,50 @@ class TestUploadLock:
         mock_git_cls.assert_not_called()
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "peer-mb"
 
-    def test_upload_git_data_proceeds_when_lock_unavailable(self, tmp_path) -> None:
-        """If the lock can't be acquired (timeout / no fcntl), the upload runs unlocked."""
+    def test_upload_git_data_skips_when_lock_times_out(self, tmp_path) -> None:
+        """If the lock times out (peer is alive and uploading), the upload is skipped.
+
+        A timeout means a peer is alive and uploading; a crashed peer would have
+        released the flock lock immediately. We bail rather than duplicate the work.
+        """
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        sm.api_client.get_known_commits.return_value = ["c1"]
-
-        mock_git = Mock()
-        mock_git.get_latest_commits.return_value = ["c1"]
-        mock_git.is_shallow_repository.return_value = False
 
         @contextmanager
         def no_lock():
-            yield False  # timeout / fcntl unavailable
+            yield False  # timeout: live peer holds the lock
 
         with (
             patch.object(sm, "_upload_lock", no_lock),
-            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git) as mock_git_cls,
-            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+            patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls,
         ):
             sm.upload_git_data()
 
-        mock_git_cls.assert_called_once()
+        mock_git_cls.assert_not_called()
+
+    def test_upload_git_data_applies_sentinel_on_lock_timeout(self, tmp_path) -> None:
+        """When the lock times out but the peer wrote the sentinel while we waited, apply it."""
+        import json as _json
+        import time as _time
+
+        from ddtrace.testing.internal.git import GitTag
+
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+
+        @contextmanager
+        def no_lock():
+            # Simulate: peer finished and wrote the sentinel just before our timeout fired.
+            (tmp_path / ".git" / "dd-trace-py.upload-done").write_text(
+                _json.dumps({"head_sha": "head-sha", "timestamp": _time.time(), "merge_base_sha": "peer-mb"})
+            )
+            yield False  # timeout: live peer holds the lock
+
+        with (
+            patch.object(sm, "_upload_lock", no_lock),
+            patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls,
+        ):
+            sm.upload_git_data()
+
+        mock_git_cls.assert_not_called()
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "peer-mb"

@@ -445,7 +445,7 @@ class SessionManager:
             return None
         return Path(workspace_path) / ".git" / _UPLOAD_SENTINEL_FILENAME
 
-    def _read_upload_sentinel(self) -> t.Optional[dict]:
+    def _read_upload_sentinel(self) -> t.Optional[t.Dict[str, t.Any]]:
         """Return the sentinel payload if it is fresh and matches our HEAD, else None.
 
         Matches require the sentinel to be present, well-formed JSON, written within
@@ -473,7 +473,7 @@ class SessionManager:
             return None
         return data
 
-    def _apply_upload_sentinel(self, data: dict) -> None:
+    def _apply_upload_sentinel(self, data: t.Dict[str, t.Any]) -> None:
         """Recover state from a sibling worker's sentinel into our own env_tags.
 
         Currently this carries the PR merge-base SHA: a worker that skips its own
@@ -516,33 +516,37 @@ class SessionManager:
     def _upload_lock(self) -> t.Iterator[bool]:
         """Acquire a cross-process exclusive lock around upload_git_data.
 
-        Yields ``True`` if the lock was acquired (this process is the elected
-        uploader), or ``False`` if locking is unavailable (no fcntl, no writable
-        ``.git/`` directory, or the holder exceeded the timeout). When ``False``,
-        callers should proceed without coordination — the backend dedupes
-        commits, so duplicate uploads are wasteful but not incorrect.
+        Yields ``True`` if this process is the elected uploader. This covers
+        two cases: the lock was acquired successfully, or lock infrastructure
+        is unavailable (no fcntl, no writable ``.git/`` directory, flock error)
+        — in those cases no coordination is possible so we proceed as sole uploader.
+
+        Yields ``False`` only when the lock timeout is exceeded, meaning a peer
+        process is alive and actively holding the lock. Crashed processes release
+        flock locks immediately on fd close, so timeout == live peer uploading.
+        The caller should skip the upload in that case.
         """
         if not _FCNTL_AVAILABLE:
-            yield False
+            yield True
             return
 
         lock_path = self._upload_lock_path()
         if lock_path is None:
-            yield False
+            yield True
             return
 
         try:
             lock_path.parent.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             log.debug("Could not create directory for upload lock %s: %s", lock_path, e)
-            yield False
+            yield True
             return
 
         try:
             lock_file = open(lock_path, "w")
         except OSError as e:
             log.debug("Could not open upload lock %s: %s", lock_path, e)
-            yield False
+            yield True
             return
 
         try:
@@ -554,7 +558,7 @@ class SessionManager:
                 except BlockingIOError:
                     if time.monotonic() >= deadline:
                         log.debug(
-                            "Upload lock timeout after %ss, proceeding without coordination",
+                            "Upload lock timeout after %ss, skipping upload (peer is uploading)",
                             _UPLOAD_LOCK_TIMEOUT_SECONDS,
                         )
                         yield False
@@ -562,7 +566,7 @@ class SessionManager:
                     time.sleep(_UPLOAD_LOCK_RETRY_INTERVAL_SECONDS)
                 except OSError as e:
                     log.debug("flock on %s failed: %s", lock_path, e)
-                    yield False
+                    yield True
                     return
             try:
                 yield True
@@ -604,11 +608,15 @@ class SessionManager:
             return
 
         # Cross-process lock: only one xdist worker per workspace runs the upload at a time.
-        # If the lock is unavailable (no fcntl, no .git/, etc.) we fall through and run
-        # without coordination — duplicate uploads are wasteful but the backend dedupes
-        # commits, so they remain correct.
-        with self._upload_lock():
-            # Re-check the sentinel: a peer may have finished while we waited.
+        with self._upload_lock() as lock_acquired:
+            if not lock_acquired:
+                # Timed out or lock unavailable — a peer is alive and uploading (crashed
+                # processes release flock locks immediately). Re-check the sentinel for
+                # the merge-base side effect, then bail; the peer will write it on success.
+                if (sentinel_data := self._read_upload_sentinel()) is not None:
+                    self._apply_upload_sentinel(sentinel_data)
+                return
+            # Re-check the sentinel: a peer may have finished while we waited for the lock.
             if (sentinel_data := self._read_upload_sentinel()) is not None:
                 log.debug("Git data upload completed by peer while waiting for lock, skipping")
                 self._apply_upload_sentinel(sentinel_data)
