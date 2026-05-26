@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Stats computation: Adds a new experimental option to enable client-side stats obfuscation.
