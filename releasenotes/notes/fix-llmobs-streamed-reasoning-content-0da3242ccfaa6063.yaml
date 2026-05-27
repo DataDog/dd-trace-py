@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where ``reasoning_content`` was dropped from streamed chat completions
+    in the OpenAI and LiteLLM integrations when an OpenAI-compatible reasoning provider (e.g. DeepSeek, Qwen)
+    emitted ``delta.reasoning_content`` chunks. The aggregated message now captures reasoning text and
+    emits it as a ``role: "reasoning"`` output message, matching the non-streaming behavior.
