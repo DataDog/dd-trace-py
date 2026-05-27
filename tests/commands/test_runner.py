@@ -532,7 +532,7 @@ def test_ddtrace_auto_atexit():
     """When ddtrace-run is used, ensure atexit hooks are registered exactly once"""
     import sys
 
-    from mock import patch  # type: ignore[import-untyped]
+    from mock import patch
 
     registered_funcs = set()
     unregistered_funcs = set()
