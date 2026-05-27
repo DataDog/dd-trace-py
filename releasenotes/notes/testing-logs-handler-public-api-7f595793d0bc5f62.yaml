@@ -9,3 +9,23 @@ features:
     ready-made ``ddtrace.testing.logs.ThreadLocalCorrelationFilter`` for the common
     thread-local case. Subclass ``CorrelationFilter`` to plug in other concurrency
     models (asyncio ``ContextVar``, global state, etc.).
+
+    Example::
+
+      import logging
+      
+      from ddtrace.testing.logs import DDTestLogsHandler
+      from ddtrace.testing.logs import ThreadLocalCorrelationFilter
+      
+      handler = DDTestLogsHandler(service="my-service")
+      correlation = ThreadLocalCorrelationFilter()
+      handler.addFilter(correlation)
+      logging.getLogger().addHandler(handler)
+      
+      while True:
+          job = queue.get()
+          correlation.set_context(trace_id=job.trace_id, span_id=job.span_id)
+          run_test(job.item)
+      
+      handler.close()
+      
