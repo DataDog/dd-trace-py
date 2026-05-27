@@ -65,6 +65,11 @@ class RayExecutionEvent(TracingEvent):
     method_args: tuple[Any] = event_field()
     method_kwargs: dict[str, Any] = event_field()
 
+    # Actor identity metadata — populated only for actor-method executions.
+    actor_class_name: Optional[str] = event_field(default=None)
+    actor_module_name: Optional[str] = event_field(default=None)
+    actor_method_name: Optional[str] = event_field(default=None)
+
     _end_span: bool = False
 
     def __post_init__(self) -> None:
@@ -123,6 +128,22 @@ class RaySubmissionEvent(TracingEvent):
     method_kwargs: object = event_field(default=None)
     is_actor_method: bool = event_field(default=False)
     is_task_submission: bool = event_field(default=False)
+
+    # Scheduling kwargs from _remote(...) — populated only for task submissions.
+    task_num_cpus: Optional[float] = event_field(default=None)
+    task_num_gpus: Optional[float] = event_field(default=None)
+    task_num_returns: Optional[int] = event_field(default=None)
+    task_max_retries: Optional[int] = event_field(default=None)
+    task_resources: Optional[dict] = event_field(default=None)
+    task_scheduling_strategy: Optional[str] = event_field(default=None)
+    task_accelerator_type: Optional[str] = event_field(default=None)
+    task_function_module: Optional[str] = event_field(default=None)
+    task_function_qualname: Optional[str] = event_field(default=None)
+
+    # Actor identity metadata — populated only for actor-method submissions.
+    actor_class_name: Optional[str] = event_field(default=None)
+    actor_module_name: Optional[str] = event_field(default=None)
+    actor_method_name: Optional[str] = event_field(default=None)
 
     def __post_init__(self) -> None:
         self.operation_name = "task.submit" if self.is_task_submission else "actor_method.submit"

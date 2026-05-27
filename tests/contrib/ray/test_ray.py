@@ -21,6 +21,9 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.ray.task_id",
     "meta.ray.submission_id",
     "meta.ray.hostname",
+    "meta.ray.namespace",
+    "meta.ray.gcs_address",
+    "meta.ray.version",
     "meta.ray.pid",
     "meta.tracestate",
     "meta.traceparent",
@@ -37,6 +40,9 @@ RAY_SNAPSHOT_IGNORES = [
     "meta._dd.hostname",
     "metrics._dd.partial_version",
     "metrics._dd.was_long_running",
+    # Task scheduling-hint tags are function-specific and vary across tests/environments
+    "meta.ray.task.function_module",
+    "meta.ray.task.function_qualname",
 ]
 
 

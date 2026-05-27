@@ -1,0 +1,73 @@
+---
+features:
+  - |
+    ray: ``ray.train.fit`` spans now include ``ScalingConfig`` fields
+    (``num_workers``, ``use_gpu``, ``placement_strategy``,
+    ``accelerator_type``, ``resources_per_worker``, ``trainer_resources``),
+    ``RunConfig`` fields (``storage_path``, ``max_failures``), and
+    ``CheckpointConfig`` fields (``num_to_keep``, ``frequency``,
+    ``score_attribute``, ``score_order``).
+  - |
+    ray: ``ray.train.worker`` spans now include ``local_rank``,
+    ``node_rank``, and ``local_world_size`` from
+    ``ray.train.get_context()``, plus the standard ``ray.hostname``,
+    ``ray.job_id``, ``ray.node_id``, and ``ray.worker_id`` runtime
+    invariants that other Ray spans already carried.
+  - |
+    ray: ``ray.task.submit`` spans now include ``_remote()`` scheduling
+    kwargs (``num_cpus``, ``num_gpus``, ``num_returns``, ``max_retries``,
+    ``resources``, ``scheduling_strategy``, ``accelerator_type``) and
+    function metadata (``function_module``, ``function_qualname``).
+  - |
+    ray: Actor-method submission and execution spans now include
+    ``ray.actor.class_name``, ``ray.actor.module_name``,
+    ``ray.actor.method_name``.
+  - |
+    ray: ``ray.job`` spans now include ``start_time_ms``, ``end_time_ms``,
+    ``driver_node_id``, ``driver_agent_http_address``, and
+    ``has_runtime_env`` on close, plus ``ray.namespace``,
+    ``ray.gcs_address``, ``ray.dashboard_url``, and ``ray.version`` on all
+    Ray spans.
+  - |
+    ray: Adds instrumentation for ``ray.train.torch.TorchTrainer``. A
+    driver-side ``ray.train.fit`` span is opened for the duration of
+    ``TorchTrainer.fit()``, tagged with ``training_job.id``,
+    ``training_job.status`` (running/succeeded/failed), ``world_size``, and
+    Ray submission metadata. Each worker emits a ``ray.train.worker`` span
+    tagged with ``rank``, ``world_size``, and the same ``training_job.id``.
+
+    W3C trace context is injected into the ``train_loop_per_worker`` callable
+    before Ray Train cloudpickles it to workers, so driver and worker spans are
+    parented correctly across the cloudpickle boundary.
+
+    When the PyTorch distributed instrumentation is also enabled, the combined
+    trace tree is: ``ray.train.fit`` → ``ray.train.worker`` [rank=N] →
+    ``pytorch.step`` → ``pytorch.forward`` / ``pytorch.backward`` /
+    ``pytorch.optimizer`` / collective spans.
+
+    ``ray.train.fit`` nests under an existing ``ray.job`` span when the job
+    was submitted via the Datadog Ray dashboard integration; otherwise it
+    becomes a trace root.
+
+upgrade:
+  - |
+    ray: Ray Train instrumentation is enabled by default when the Ray
+    contrib is loaded. Set ``DD_TRACE_RAY_TRAIN_ENABLED=false`` to disable
+    ``ray.train.fit`` and ``ray.train.worker`` span emission.
+
+  - |
+    ray: The ``training_job.id`` tag on ``ray.train.fit`` and
+    ``ray.train.worker`` spans is resolved with this priority chain:
+    ``DD_PYTORCH_JOB_ID`` → Ray submission id (``_RAY_SUBMISSION_ID`` env) →
+    Ray ``RuntimeContext.get_job_id()`` → ``RAY_JOB_ID`` →
+    ``TORCHELASTIC_RUN_ID`` → ``KUBEFLOW_TRAINING_JOB_ID`` → ``SLURM_JOB_ID``.
+    The id is resolved once at ``TorchTrainer.__init__`` and reused for the
+    lifetime of the trainer — back-to-back runs with the same trainer instance
+    share the same ``training_job.id``.
+
+  - |
+    ray: Set ``DD_TRACE_RAY_TRAIN_PER_RANK_TRACE=true`` to open each
+    ``ray.train.worker`` span as an independent trace root with a span link back
+    to ``ray.train.fit``, rather than nesting it under the fit span. Use this
+    for large clusters where the per-rank span count would exceed Datadog's
+    per-trace limit.

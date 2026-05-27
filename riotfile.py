@@ -3151,6 +3151,24 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pytorch",
+            command="pytest {cmdargs} tests/contrib/pytorch",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
+                    pkgs={
+                        "torch": ["~=2.0.0", "~=2.1.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={
+                        "torch": ["~=2.2.0", "~=2.3.0"],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="vertexai",
             command="pytest {cmdargs} tests/contrib/vertexai",
             pys=select_pys(min_version="3.9", max_version="3.12"),

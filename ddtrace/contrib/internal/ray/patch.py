@@ -25,6 +25,7 @@ from ddtrace.internal.utils.formats import asbool
 
 from .constants import DEFAULT_JOB_NAME
 from .constants import RAY_JOB_NAME
+from .constants import RAY_SUBMISSION_ID
 from .core.utils import get_dd_job_name_from_entrypoint
 from .core.utils import redact_paths
 
@@ -77,12 +78,21 @@ def _parse_ignored_actors(value: Any) -> dict[str, frozenset[str]]:
 config._add(
     "ray",
     dict(
+        _default_service="ray",
+        # Lets DD_RAY_SERVICE override the per-integration service name.
+        # When unset, ddtrace falls back to DD_SERVICE (the global), then
+        # to the integration's _default_service. So setting DD_SERVICE
+        # makes ray.* spans report under the operator's service name
+        # automatically — useful for keeping spans in one APM service.
+        service=env.get("DD_RAY_SERVICE"),
         use_entrypoint_as_service_name=asbool(env.get("DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME", default=False)),
         redact_entrypoint_paths=asbool(env.get("DD_TRACE_RAY_REDACT_ENTRYPOINT_PATHS", default=True)),
         trace_core_api=_get_config("DD_TRACE_RAY_CORE_API", default=False, modifier=asbool),
         trace_args_kwargs=_get_config("DD_TRACE_RAY_ARGS_KWARGS", default=False, modifier=asbool),
         submission_spans=_get_config("DD_TRACE_RAY_SUBMISSION_SPANS_ENABLED", default=False, modifier=asbool),
         ignored_actors=_get_config("DD_TRACE_RAY_IGNORED_ACTORS", default={}, modifier=_parse_ignored_actors),
+        train_enabled=_get_config("DD_TRACE_RAY_TRAIN_ENABLED", default=True, modifier=asbool),
+        train_per_rank_trace=_get_config("DD_TRACE_RAY_TRAIN_PER_RANK_TRACE", default=False, modifier=asbool),
     ),
 )
 
@@ -138,6 +148,30 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     # This prevents inferred services (for example "ray.dashboard") from being
     # attached as _dd.base_service on worker spans.
     env_vars.setdefault("DD_SERVICE", job_name)
+    # Surface the submission id and job name to every Ray worker actor (and
+    # the driver entrypoint). Ray doesn't propagate these as env vars by
+    # default; without this, downstream contribs like pytorch can't pin the
+    # ``training_job.id`` tag to the operator-meaningful ``raysubmit_…``
+    # value and have to fall back to Ray's internal short id from
+    # RuntimeContext.get_job_id().
+    env_vars.setdefault(RAY_SUBMISSION_ID, submission_id)
+    env_vars.setdefault(RAY_JOB_NAME, job_name)
+
+    # The Ray job entrypoint runs in a fresh runtime_env Python process
+    # whose environment is built from runtime_env.env_vars — system-wide
+    # DD_* env vars set on the dashboard process (DD_TRACE_ENABLED,
+    # DD_PATCH_MODULES, DD_ENV, DD_AGENT_HOST, etc.) are NOT inherited
+    # automatically. Without DD_PATCH_MODULES the entrypoint's
+    # ``ddtrace.auto`` would never enable the ray contrib's patches, so
+    # ``ray.train.fit`` / ``ray.train.worker`` spans never get emitted
+    # even though sitecustomize loaded ddtrace. Propagate the operator-
+    # configured DD_* env so the entrypoint's tracer mirrors the
+    # dashboard's. Use setdefault so explicit per-job overrides win.
+    import os as _os  # noqa: PLC0415
+
+    for _k, _v in _os.environ.items():
+        if _k.startswith("DD_") and _v is not None:
+            env_vars.setdefault(_k, _v)
 
     with core.context_with_event(
         RayJobEvent(
@@ -211,6 +245,11 @@ def patch():
     def _(m):
         _w(m.RemoteFunction, "_remote", traced_submit_task)
 
+    if config.ray.train_enabled:
+        from ddtrace.contrib.internal.ray.train import _install_train
+
+        _install_train()
+
     _w(ray, "get", traced_get)
     _w(ray, "wait", traced_wait)
     _w(ray, "put", traced_put)
@@ -231,5 +270,9 @@ def unpatch():
     _u(ray, "get")
     _u(ray, "wait")
     _u(ray, "put")
+
+    from ddtrace.contrib.internal.ray.train import _uninstall_train
+
+    _uninstall_train()
 
     ray._datadog_patch = False

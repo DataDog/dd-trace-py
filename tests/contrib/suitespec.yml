@@ -171,6 +171,8 @@ components:
   pyramid:
     - ddtrace/contrib/pyramid.py
     - ddtrace/contrib/internal/pyramid/*
+  pytorch:
+    - ddtrace/contrib/internal/pytorch/*
   ray:
     - ddtrace/contrib/internal/ray/*
     - ddtrace/contrib/ray.py
@@ -1102,6 +1104,17 @@ suites:
       - '@pyramid'
       - tests/contrib/pyramid/*
       - tests/snapshots/tests.contrib.pyramid.*
+    snapshot: true
+  pytorch:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytorch'
+      - tests/contrib/pytorch/*
+      - tests/snapshots/tests.contrib.pytorch.*
     snapshot: true
   ray:
     parallelism: 3

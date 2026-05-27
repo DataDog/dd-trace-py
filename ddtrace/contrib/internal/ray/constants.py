@@ -13,6 +13,10 @@ RAY_ACTOR_ID = "ray.actor_id"
 RAY_SUBMISSION_ID_TAG = "ray.submission_id"
 RAY_HOSTNAME = "ray.hostname"
 RAY_ENTRYPOINT = "ray.entrypoint"
+RAY_NAMESPACE = "ray.namespace"
+RAY_GCS_ADDRESS = "ray.gcs_address"
+RAY_DASHBOARD_URL = "ray.dashboard_url"
+RAY_VERSION = "ray.version"
 
 # Default job name if not set by the user
 DEFAULT_JOB_NAME = "unnamed.ray.job"
@@ -34,6 +38,11 @@ RAY_ACTOR_METHOD_SUBMIT_STATUS = "ray.actor_method.submit_status"
 RAY_JOB_STATUS = "ray.job.status"
 RAY_JOB_SUBMIT_STATUS = "ray.job.submit_status"
 RAY_JOB_MESSAGE = "ray.job.message"
+RAY_JOB_START_TIME_MS = "ray.job.start_time_ms"
+RAY_JOB_END_TIME_MS = "ray.job.end_time_ms"
+RAY_JOB_DRIVER_NODE_ID = "ray.job.driver_node_id"
+RAY_JOB_DRIVER_AGENT_HTTP_ADDRESS = "ray.job.driver_agent_http_address"
+RAY_JOB_HAS_RUNTIME_ENV = "ray.job.has_runtime_env"
 RAY_WAIT_TIMEOUT = "ray.wait.timeout_s"
 RAY_WAIT_NUM_RETURNS = "ray.wait.num_returns"
 RAY_WAIT_FETCH_LOCAL = "ray.wait.fetch_local"
@@ -49,3 +58,43 @@ DD_WAS_LONG_RUNNING = "_dd.was_long_running"
 # Special values
 REDACTED_VALUE = "<redacted>"
 REDACTED_PATH = "<redacted/path/to>"
+
+# Task submission scheduling-hint tags (from _remote(...) kwargs)
+RAY_TASK_FUNCTION_MODULE = "ray.task.function_module"
+RAY_TASK_FUNCTION_QUALNAME = "ray.task.function_qualname"
+RAY_TASK_NUM_CPUS = "ray.task.num_cpus"
+RAY_TASK_NUM_GPUS = "ray.task.num_gpus"
+RAY_TASK_NUM_RETURNS = "ray.task.num_returns"
+RAY_TASK_MAX_RETRIES = "ray.task.max_retries"
+RAY_TASK_ACCELERATOR_TYPE = "ray.task.accelerator_type"
+RAY_TASK_SCHEDULING_STRATEGY = "ray.task.scheduling_strategy"
+RAY_TASK_RESOURCES_PREFIX = "ray.task.resources."
+
+# Actor-method identity tags
+RAY_ACTOR_CLASS_NAME = "ray.actor.class_name"
+RAY_ACTOR_MODULE_NAME = "ray.actor.module_name"
+RAY_ACTOR_METHOD_NAME = "ray.actor.method_name"
+
+# Ray Train integration — operation names
+RAY_TRAIN_FIT_OPERATION = "ray.train.fit"
+RAY_TRAIN_WORKER_OPERATION = "ray.train.worker"
+
+# Ray Train integration — span tags
+RAY_TRAIN_RANK_TAG = "rank"
+RAY_TRAIN_WORLD_SIZE_TAG = "world_size"
+
+# Canonical ML training-job tags shared with the PyTorch contrib.
+TRAINING_JOB_ID_TAG = "training_job.id"
+TRAINING_JOB_FRAMEWORK_TAG = "training_job.framework"
+TRAINING_JOB_TRAINER_TAG = "training_job.trainer"
+TRAINING_JOB_STATUS_TAG = "training_job.status"
+
+TRAINING_JOB_STATUS_RUNNING = "running"
+TRAINING_JOB_STATUS_SUCCEEDED = "succeeded"
+TRAINING_JOB_STATUS_FAILED = "failed"
+
+# Marker tag set when `DD_TRACE_RAY_TRAIN_PER_RANK_TRACE=true` rewrites
+# the fit span as a parent that workers reference via span_link instead of
+# parent_id.
+RAY_TRAIN_TRACE_MODE_TAG = "dd.trace_mode"
+RAY_TRAIN_TRACE_MODE_PER_RANK = "per_rank"

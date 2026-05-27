@@ -6,6 +6,7 @@ import os
 import re
 import socket
 import sys
+import threading
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -27,14 +28,18 @@ from ddtrace.propagation.http import _TraceContext
 from ..constants import DD_RAY_TRACE_CTX
 from ..constants import DEFAULT_JOB_NAME
 from ..constants import RAY_ACTOR_ID
+from ..constants import RAY_DASHBOARD_URL
+from ..constants import RAY_GCS_ADDRESS
 from ..constants import RAY_HOSTNAME
 from ..constants import RAY_JOB_ID
 from ..constants import RAY_JOB_NAME
 from ..constants import RAY_METADATA_PREFIX
+from ..constants import RAY_NAMESPACE
 from ..constants import RAY_NODE_ID
 from ..constants import RAY_SUBMISSION_ID
 from ..constants import RAY_SUBMISSION_ID_TAG
 from ..constants import RAY_TASK_ID
+from ..constants import RAY_VERSION
 from ..constants import RAY_WORKER_ID
 from ..constants import REDACTED_PATH
 from ..constants import REDACTED_VALUE
@@ -47,6 +52,19 @@ JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$
 # for example, if the entrypoint is python3 woof.py --breed mutt
 # then the job name will be woof
 ENTRY_POINT_REGEX = re.compile(r"([^\s\/\\]+)\.py")
+
+# ---------------------------------------------------------------------------
+# Module-level cache state for process-invariant accessors.
+# All of these are reset in `_reset_child_state()`, which is registered as
+# an `after_in_child` fork handler so that forked workers start clean.
+# ---------------------------------------------------------------------------
+_cache_lock = threading.Lock()
+_cached_service_name: Optional[str] = None
+_cached_hostname: Optional[str] = None
+_cached_runtime_invariants: Optional[dict] = None
+_cached_tracing_context: Optional[Context] = None
+_cached_tracing_context_keys: Optional[tuple] = None
+_last_injected_keys: Optional[tuple] = None
 
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
@@ -69,29 +87,65 @@ def _inject_context_in_kwargs(context: Context, kwargs: dict[str, Any]) -> None:
 
 
 def _inject_context_in_env(context: Context) -> None:
-    headers = {}
+    """Inject W3C headers into env. Lock-protected skip-rewrite avoids
+    races between concurrent Ray task submissions on the driver thread.
+    """
+    global _last_injected_keys
+    headers: dict = {}
     _TraceContext._inject(context, headers)
-    # Environment variables are used as a process-boundary fallback channel for
-    # context propagation when workers have no active in-process parent span.
-    env["traceparent"] = headers.get("traceparent", "")
-    env["tracestate"] = headers.get("tracestate", "")
+    tp = headers.get("traceparent", "")
+    ts = headers.get("tracestate", "")
+    with _cache_lock:
+        if (tp, ts) == _last_injected_keys:
+            return
+        # Environment variables are used as a process-boundary fallback channel for
+        # context propagation when workers have no active in-process parent span.
+        env["traceparent"] = tp
+        env["tracestate"] = ts
+        _last_injected_keys = (tp, ts)
 
 
 def _extract_tracing_context_from_env() -> Optional[Context]:
-    # Best-effort extraction: missing either field means there is no usable
-    # distributed context to restore.
-    if env.get("traceparent") is not None and env.get("tracestate") is not None:
-        return _TraceContext._extract(
-            {
-                "traceparent": env.get("traceparent"),
-                "tracestate": env.get("tracestate"),
-            }
-        )
-    return None
+    """Memoized parse of `traceparent` / `tracestate` env vars.
+
+    AIDEV-NOTE: Cache key is the (traceparent, tracestate) tuple read
+    from env. Any env change invalidates the cache via key mismatch on
+    the next call, so the inject-then-extract sequence is safe: a
+    fresh inject changes the env, the next extract observes a
+    different key tuple and re-parses.
+
+    Cache rebind is lock-protected to match the inject path's
+    discipline. Without the lock, two concurrent extracts can each
+    observe a key mismatch and concurrently rebind to different parsed
+    contexts.
+    """
+    global _cached_tracing_context, _cached_tracing_context_keys
+    tp = env.get("traceparent")
+    ts = env.get("tracestate")
+    keys = (tp, ts)
+    with _cache_lock:
+        if keys == _cached_tracing_context_keys:
+            return _cached_tracing_context
+        _cached_tracing_context_keys = keys
+        # Best-effort extraction: missing either field means there is no usable
+        # distributed context to restore.
+        if tp is None or ts is None:
+            _cached_tracing_context = None
+            return None
+        _cached_tracing_context = _TraceContext._extract({"traceparent": tp, "tracestate": ts})
+        return _cached_tracing_context
 
 
 def _get_ray_service_name() -> str:
-    return env.get(RAY_JOB_NAME) or DEFAULT_JOB_NAME
+    """Memoized service-name read. `RAY_JOB_NAME` is set once by the
+    dashboard for the driver entrypoint and inherited via env by
+    workers — process-invariant.
+    """
+    global _cached_service_name
+    if _cached_service_name is not None:
+        return _cached_service_name
+    _cached_service_name = env.get(RAY_JOB_NAME) or DEFAULT_JOB_NAME
+    return _cached_service_name
 
 
 def _set_dist_ai_metrics(span: Span) -> None:
@@ -102,33 +156,102 @@ def _set_dist_ai_metrics(span: Span) -> None:
     span._set_attribute(_SAMPLING_PRIORITY_KEY, 2)
 
 
+def _get_cached_hostname() -> str:
+    global _cached_hostname
+    if _cached_hostname is not None:
+        return _cached_hostname
+    try:
+        _cached_hostname = socket.gethostname()
+    except Exception:
+        _cached_hostname = "unknown-host"
+    return _cached_hostname
+
+
+def _get_runtime_invariants() -> dict:
+    """Cache process-invariant fields from RuntimeContext.
+
+    `worker_id`, `node_id`, `job_id` do not change during the lifetime
+    of a Ray worker process. `task_id` and `actor_id` ARE per-call and
+    are read fresh in `_set_runtime_context_attributes`.
+    """
+    global _cached_runtime_invariants
+    if _cached_runtime_invariants is not None:
+        return _cached_runtime_invariants
+    snap: dict = {}
+    try:
+        if ray.is_initialized():
+            rc = get_runtime_context()
+            snap[RAY_JOB_ID] = rc.get_job_id()
+            snap[RAY_NODE_ID] = rc.get_node_id()
+            wid = rc.get_worker_id()
+            if wid is not None:
+                snap[RAY_WORKER_ID] = wid
+            # Capture additional process-invariant fields from RuntimeContext
+            # (defensive getattr for compatibility with older Ray versions)
+            ns = getattr(rc, "namespace", None)
+            if ns:
+                snap[RAY_NAMESPACE] = str(ns)
+            gcs = getattr(rc, "gcs_address", None)
+            if gcs:
+                snap[RAY_GCS_ADDRESS] = str(gcs)
+            dash = getattr(rc, "dashboard_url", None)
+            if dash:
+                snap[RAY_DASHBOARD_URL] = str(dash)
+            # Ray version is available on the module itself
+            try:
+                ver = getattr(ray, "__version__", None)
+                if ver:
+                    snap[RAY_VERSION] = str(ver)
+            except Exception:
+                pass
+    except Exception:
+        return {}  # do not cache failures; retry on next call
+    _cached_runtime_invariants = snap
+    return snap
+
+
+def _reset_child_state() -> None:
+    """Fork-safe reset for every cached accessor in this module."""
+    global _cached_service_name, _cached_hostname, _cached_runtime_invariants
+    global _cached_tracing_context, _cached_tracing_context_keys
+    global _last_injected_keys, _cache_lock
+    _cached_service_name = None
+    _cached_hostname = None
+    _cached_runtime_invariants = None
+    _cached_tracing_context = None
+    _cached_tracing_context_keys = None
+    _last_injected_keys = None
+    _cache_lock = threading.Lock()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_child_state)
+
+
 def _set_runtime_context_attributes(span: Span, submission_id: Optional[str] = None) -> None:
-    span._set_attribute(RAY_HOSTNAME, socket.gethostname())
+    span._set_attribute(RAY_HOSTNAME, _get_cached_hostname())
 
     if not submission_id:
         submission_id = env.get(RAY_SUBMISSION_ID)
-
     if submission_id:
         span._set_attribute(RAY_SUBMISSION_ID_TAG, submission_id)
 
-    if ray.is_initialized():
-        runtime_context = get_runtime_context()
+    invariants = _get_runtime_invariants()
+    for k, v in invariants.items():
+        span._set_attribute(k, v)
 
-        span._set_attribute(RAY_JOB_ID, runtime_context.get_job_id())
-        span._set_attribute(RAY_NODE_ID, runtime_context.get_node_id())
-
-        worker_id = runtime_context.get_worker_id()
-        if worker_id is not None:
-            span._set_attribute(RAY_WORKER_ID, worker_id)
-
-        if runtime_context.worker.mode == ray._private.worker.WORKER_MODE:
-            task_id = runtime_context.get_task_id()
-            if task_id is not None:
-                span._set_attribute(RAY_TASK_ID, task_id)
-
-        actor_id = runtime_context.get_actor_id()
-        if actor_id is not None:
-            span._set_attribute(RAY_ACTOR_ID, actor_id)
+    try:
+        if ray.is_initialized():
+            rc = get_runtime_context()
+            if rc.worker.mode == ray._private.worker.WORKER_MODE:
+                task_id = rc.get_task_id()
+                if task_id is not None:
+                    span._set_attribute(RAY_TASK_ID, task_id)
+            actor_id = rc.get_actor_id()
+            if actor_id is not None:
+                span._set_attribute(RAY_ACTOR_ID, actor_id)
+    except Exception:
+        pass
 
 
 def set_tag_or_truncate(span: Span, tag_name: str, tag_value: Any = None) -> None:

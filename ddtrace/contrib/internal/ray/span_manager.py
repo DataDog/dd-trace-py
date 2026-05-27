@@ -18,7 +18,12 @@ from ddtrace.internal.threads import Lock
 
 from .constants import DD_PARTIAL_VERSION
 from .constants import DD_WAS_LONG_RUNNING
+from .constants import RAY_JOB_DRIVER_AGENT_HTTP_ADDRESS
+from .constants import RAY_JOB_DRIVER_NODE_ID
+from .constants import RAY_JOB_END_TIME_MS
+from .constants import RAY_JOB_HAS_RUNTIME_ENV
 from .constants import RAY_JOB_MESSAGE
+from .constants import RAY_JOB_START_TIME_MS
 from .constants import RAY_JOB_STATUS
 from .constants import RAY_STATUS_FAILED
 from .constants import RAY_STATUS_FINISHED
@@ -172,6 +177,41 @@ class RaySpanManager:
             if str(job_info.status) == RAY_STATUS_FAILED:
                 span.error = 1
                 span.set_tag(ERROR_MSG, job_info.message)
+
+            try:
+                start_time = getattr(job_info, "start_time", None)
+                if start_time is not None:
+                    span._set_attribute(RAY_JOB_START_TIME_MS, int(start_time))
+            except Exception:
+                log.debug("Failed to set ray.job.start_time_ms", exc_info=True)
+
+            try:
+                end_time = getattr(job_info, "end_time", None)
+                if end_time is not None:
+                    span._set_attribute(RAY_JOB_END_TIME_MS, int(end_time))
+            except Exception:
+                log.debug("Failed to set ray.job.end_time_ms", exc_info=True)
+
+            try:
+                driver_node = getattr(job_info, "driver_node_id", None)
+                if driver_node:
+                    span.set_tag(RAY_JOB_DRIVER_NODE_ID, str(driver_node))
+            except Exception:
+                log.debug("Failed to set ray.job.driver_node_id", exc_info=True)
+
+            try:
+                driver_http = getattr(job_info, "driver_agent_http_address", None)
+                if driver_http:
+                    span.set_tag(RAY_JOB_DRIVER_AGENT_HTTP_ADDRESS, str(driver_http))
+            except Exception:
+                log.debug("Failed to set ray.job.driver_agent_http_address", exc_info=True)
+
+            try:
+                runtime_env = getattr(job_info, "runtime_env", None)
+                span.set_tag(RAY_JOB_HAS_RUNTIME_ENV, "true" if runtime_env else "false")
+            except Exception:
+                log.debug("Failed to set ray.job.has_runtime_env", exc_info=True)
+
         span.finish()
 
     def add_span(self, span: Span) -> None:
