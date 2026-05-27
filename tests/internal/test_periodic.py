@@ -390,6 +390,27 @@ def test_periodic_thread_preserves_awake_during_restart_window():
     awaker.join(timeout=1)
 
 
+def test_timer_fires_only_once():
+    count = 0
+    fired = Event()
+
+    class TestTimer(periodic.Timer):
+        def timeout(self):
+            nonlocal count
+            count += 1
+            fired.set()
+
+    T = 0.05
+    t = TestTimer(T)
+    t.start()
+
+    assert fired.wait(timeout=5.0), "Timer did not fire within 5s"
+    sleep(T * 5)
+
+    assert count == 1, f"Timer fired {count} times but should have fired exactly once"
+    t.join(timeout=1.0)
+
+
 def test_timer():
     end = 0
 

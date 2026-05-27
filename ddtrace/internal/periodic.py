@@ -3,6 +3,7 @@ import typing  # noqa:F401
 
 from ddtrace.internal import forksafe
 from ddtrace.internal import service
+from ddtrace.internal._threads import PERIODIC_STOP
 from ddtrace.internal.threads import PeriodicThread
 
 
@@ -138,7 +139,7 @@ class Timer:
 
     def _periodic(self):
         self.timeout()
-        self.stop()
+        return PERIODIC_STOP
 
     def reset(self) -> None:
         self.stop()
