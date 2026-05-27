@@ -119,10 +119,14 @@ IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "ddup"
 STACK_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "stack"
 VENDOR_DIR = DDTRACE_DIR / "vendor"
+BUILD_METADATA_FILE = DDTRACE_DIR / "_build_metadata.py"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
+
+GIT_COMMIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
+
 
 CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
@@ -133,6 +137,26 @@ LIBDDWAF_VERSION = "1.30.1"
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
 RUST_MINIMUM_VERSION = "1.78"
+
+
+def get_build_git_commit_sha() -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=HERE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=True,
+        )
+    except Exception:
+        return ""
+
+    commit_sha = result.stdout.strip()
+    if GIT_COMMIT_SHA_RE.fullmatch(commit_sha):
+        return commit_sha.lower()
+
+    return ""
 
 
 def interpose_sccache():
@@ -669,7 +693,20 @@ class LibraryDownloader(BuildPyCommand):
             CleanLibraries.remove_artifacts()
         LibDDWafDownload.run()
         BuildPyCommand.run(self)
+        self._write_build_metadata()
         self._strip_build_artifacts()
+
+    def _write_build_metadata(self) -> None:
+        if not self.build_lib:
+            return
+
+        build_metadata_file = Path(self.build_lib) / BUILD_METADATA_FILE.relative_to(HERE)
+        build_metadata_file.parent.mkdir(parents=True, exist_ok=True)
+        build_metadata_file.write_text(
+            '"""Build metadata for the installed ddtrace package."""\n\n'
+            f'GIT_COMMIT_SHA = "{get_build_git_commit_sha()}"\n',
+            encoding="utf-8",
+        )
 
     def find_data_files(self, package, src_dir):
         """Strip build/source artifacts from wheel data files."""
