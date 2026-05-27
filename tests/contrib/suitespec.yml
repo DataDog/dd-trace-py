@@ -109,6 +109,7 @@ components:
     - ddtrace/contrib/internal/gevent/*
   google_cloud_pubsub:
     - ddtrace/contrib/internal/google_cloud_pubsub/*
+    - ddtrace/internal/datastreams/google_cloud_pubsub.py
   graphql:
     - ddtrace/contrib/internal/graphql/*
   grpc:

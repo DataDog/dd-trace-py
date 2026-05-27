@@ -1,3 +1,5 @@
+from typing import Any, Dict, Optional, Tuple
+
 from ddtrace import config
 from ddtrace.internal import core
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
@@ -12,11 +14,11 @@ log = get_logger(__name__)
 _PUBLISH_RESERVED_KWARGS = frozenset({"data", "ordering_key", "retry", "timeout"})
 
 
-def _extract_publish_attributes(kwargs):
+def _extract_publish_attributes(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in kwargs.items() if k not in _PUBLISH_RESERVED_KWARGS}
 
 
-def dsm_pubsub_send(args, kwargs, span):
+def dsm_pubsub_send(args: Tuple[Any, ...], kwargs: Dict[str, Any], span: Optional[Any]) -> None:
     from . import data_streams_processor as processor
 
     topic = get_argument_value(args, kwargs, 0, "topic")
@@ -39,7 +41,7 @@ def dsm_pubsub_send(args, kwargs, span):
     DsmPathwayCodec.encode(ctx, kwargs)
 
 
-def dsm_pubsub_receive(subscription, message, span):
+def dsm_pubsub_receive(subscription: str, message: Any, span: Optional[Any]) -> None:
     from . import data_streams_processor as processor
 
     attributes = dict(message.attributes) if message.attributes else {}
