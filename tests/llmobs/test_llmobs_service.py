@@ -9,6 +9,7 @@ import pytest
 
 import ddtrace
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
@@ -23,6 +24,7 @@ from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_cost_tags
 from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -36,16 +38,17 @@ from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_output_documents
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_output_value
+from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_links
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs.types import Prompt
 from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import assert_llmobs_span_data
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -71,17 +74,19 @@ def test_service_enable_proxy(tracer, test_spans):
         llmobs_service.disable()
 
 
-def test_enable_agentless(tracer, test_spans):
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="<ml-app-name>")):
-        llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
-        llmobs_instance = llmobs_service._instance
-        assert llmobs_instance is not None
-        assert llmobs_service.enabled
-        assert llmobs_instance.tracer == tracer
-        assert llmobs_instance._llmobs_span_writer._agentless is True
-        assert run_llmobs_trace_filter(tracer, test_spans) is not None
+@pytest.mark.subprocess(
+    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_ML_APP": "<ml-app-name>"},
+)
+def test_enable_agentless():
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
 
-        llmobs_service.disable()
+    llmobs_service.enable(agentless_enabled=True)
+    assert llmobs_service.enabled
+    assert llmobs_service._instance._llmobs_span_writer._agentless is True
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.disable()
 
 
 def test_enable_agent_proxy_when_agent_is_available(tracer, agent):
@@ -128,6 +133,126 @@ def test_enable_agentless_when_agent_does_not_have_proxy(tracer, agent_missing_p
         llmobs_service.disable()
 
 
+@pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1"})
+def test_llmobs_apm_trace_agentless_enabled_no_api_key():
+    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
+
+    assert llmobs_apm_trace_agentless_enabled() is False
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+    }
+)
+def test_llmobs_apm_trace_agentless_enabled_explicitly_disabled():
+    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
+
+    assert llmobs_apm_trace_agentless_enabled() is False
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+    }
+)
+def test_llmobs_apm_trace_agentless_enabled_via_llmobs_flag():
+    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
+
+    assert llmobs_apm_trace_agentless_enabled() is True
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
+    }
+)
+def test_llmobs_apm_trace_agentless_enabled_via_trace_flag():
+    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
+
+    assert llmobs_apm_trace_agentless_enabled() is True
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>"})
+def test_configure_agentless_writer_swaps_writer():
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    llmobs_service.enable(agentless_enabled=False)
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.disable()
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.enable(agentless_enabled=True)
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.disable()
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1"})
+def test_enable_without_api_key_does_not_swap_apm_writer():
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    try:
+        llmobs_service.enable()
+    except ValueError:
+        pass
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    },
+    err=None,
+)
+def test_export_mode_apm_agentless_when_agentless_enabled():
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMObsExportMode
+
+    llmobs_service.enable()
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENTLESS
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
+    },
+    err=None,
+)
+def test_export_mode_apm_agent_when_agentless_disabled():
+    """When agentless is explicitly disabled and APM tracing is on, data rides the APM trace via agent."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMObsExportMode
+
+    llmobs_service.enable(agentless_enabled=False)
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT_PROXY
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_APM_TRACING_ENABLED": "false",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    },
+    err=None,
+)
+def test_export_mode_llmobs_direct_when_apm_tracing_disabled():
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMObsExportMode
+
+    llmobs_service.enable()
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.LLMOBS_DIRECT
+
+
 def test_service_disable(tracer):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable(_tracer=tracer)
@@ -136,6 +261,48 @@ def test_service_disable(tracer):
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    }
+)
+def test_disable_reverts_agentless_writer_when_llmobs_enabled_it():
+    """disable() reverts the APM writer when enable() was the one that switched it to agentless."""
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.enable()
+    assert llmobs_service._instance._apm_writer_switched_to_agentless is True
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.disable()
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    }
+)
+def test_disable_does_not_revert_agentless_writer_when_already_agentless():
+    """disable() leaves the APM writer alone when the writer was already agentless before enable()."""
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.enable()
+    assert llmobs_service._instance._apm_writer_switched_to_agentless is False
+    llmobs_service.disable()
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
 
 
 def test_enable_disable_keeps_global_config_llmobs_enabled_in_sync(tracer):
@@ -343,35 +510,29 @@ def test_start_span_with_session_id(llmobs):
         assert get_llmobs_session_id(span) == "test_session_id"
 
 
-def test_session_id_becomes_top_level_field(llmobs, llmobs_events):
+def test_session_id_becomes_top_level_field(llmobs):
     session_id = "test_session_id"
     with llmobs.task(session_id=session_id) as span:
         pass
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "task", session_id=session_id)
+    assert get_llmobs_session_id(span) == session_id
 
 
-def test_llm_span(llmobs, llmobs_events):
+def test_llm_span(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
-        assert get_llmobs_span_kind(span) == "llm"
-        assert get_llmobs_model_name(span) == "test_model"
-        assert get_llmobs_model_provider(span) == "test_provider"
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "llm", model_name="test_model", model_provider="test_provider"
-    )
+    assert get_llmobs_span_kind(span) == "llm"
+    assert get_llmobs_model_name(span) == "test_model"
+    assert get_llmobs_model_provider(span) == "test_provider"
 
 
-def test_llm_span_no_model_sets_default(llmobs, llmobs_events):
+def test_llm_span_no_model_sets_default(llmobs):
     with llmobs.llm(name="test_llm_call", model_provider="test_provider") as span:
-        assert get_llmobs_model_name(span) == UNKNOWN_MODEL_NAME
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "llm", model_name=UNKNOWN_MODEL_NAME, model_provider="test_provider"
-    )
+        pass
+    assert get_llmobs_span_kind(span) == "llm"
+    assert get_llmobs_model_name(span) == UNKNOWN_MODEL_NAME
+    assert get_llmobs_model_provider(span) == "test_provider"
 
 
 def test_default_model_provider_set_to_unknown(llmobs):
@@ -384,53 +545,44 @@ def test_default_model_provider_set_to_unknown(llmobs):
         assert get_llmobs_model_provider(span) == UNKNOWN_MODEL_PROVIDER
 
 
-def test_tool_span(llmobs, llmobs_events):
+def test_tool_span(llmobs):
     with llmobs.tool(name="test_tool") as span:
         assert span.name == "test_tool"
         assert span.resource == "tool"
         assert span.span_type == "llm"
-        assert get_llmobs_span_kind(span) == "tool"
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "tool")
+    assert get_llmobs_span_kind(span) == "tool"
 
 
-def test_task_span(llmobs, llmobs_events):
+def test_task_span(llmobs):
     with llmobs.task(name="test_task") as span:
         assert span.name == "test_task"
         assert span.resource == "task"
         assert span.span_type == "llm"
-        assert get_llmobs_span_kind(span) == "task"
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "task")
+    assert get_llmobs_span_kind(span) == "task"
 
 
-def test_workflow_span(llmobs, llmobs_events):
+def test_workflow_span(llmobs):
     with llmobs.workflow(name="test_workflow") as span:
         assert span.name == "test_workflow"
         assert span.resource == "workflow"
         assert span.span_type == "llm"
-        assert get_llmobs_span_kind(span) == "workflow"
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow")
+    assert get_llmobs_span_kind(span) == "workflow"
 
 
-def test_agent_span(llmobs, llmobs_events):
+def test_agent_span(llmobs):
     with llmobs.agent(name="test_agent") as span:
         assert span.name == "test_agent"
         assert span.resource == "agent"
         assert span.span_type == "llm"
-        assert get_llmobs_span_kind(span) == "agent"
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_llm_span_event(span, "agent")
+    assert get_llmobs_span_kind(span) == "agent"
 
 
-def test_embedding_span_no_model_sets_default(llmobs, llmobs_events):
+def test_embedding_span_no_model_sets_default(llmobs):
     with llmobs.embedding(name="test_embedding", model_provider="test_provider") as span:
-        assert get_llmobs_model_name(span) == UNKNOWN_MODEL_NAME
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "embedding", model_name=UNKNOWN_MODEL_NAME, model_provider="test_provider"
-    )
+        pass
+    assert get_llmobs_span_kind(span) == "embedding"
+    assert get_llmobs_model_name(span) == UNKNOWN_MODEL_NAME
+    assert get_llmobs_model_provider(span) == "test_provider"
 
 
 def test_embedding_default_model_provider_set_to_unknown(llmobs):
@@ -443,18 +595,14 @@ def test_embedding_default_model_provider_set_to_unknown(llmobs):
         assert get_llmobs_model_provider(span) == UNKNOWN_MODEL_PROVIDER
 
 
-def test_embedding_span(llmobs, llmobs_events):
+def test_embedding_span(llmobs):
     with llmobs.embedding(model_name="test_model", name="test_embedding", model_provider="test_provider") as span:
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
-        assert get_llmobs_span_kind(span) == "embedding"
-        assert get_llmobs_model_name(span) == "test_model"
-        assert get_llmobs_model_provider(span) == "test_provider"
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span, "embedding", model_name="test_model", model_provider="test_provider"
-    )
+    assert get_llmobs_span_kind(span) == "embedding"
+    assert get_llmobs_model_name(span) == "test_model"
+    assert get_llmobs_model_provider(span) == "test_provider"
 
 
 def test_annotate_no_active_span_logs_warning(llmobs):
@@ -971,18 +1119,20 @@ def test_annotate_linked_spans(llmobs):
         ]
 
 
-def test_span_error_sets_error(llmobs, llmobs_events):
+def test_span_error_sets_error(llmobs):
     with pytest.raises(ValueError):
         with llmobs.llm(model_name="test_model", model_provider="test_model_provider") as span:
             raise ValueError("test error message")
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_llm_span_event(
-        span,
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="llm",
         model_name="test_model",
         model_provider="test_model_provider",
-        error="builtins.ValueError",
-        error_message="test error message",
-        error_stack=span.get_tag("error.stack"),
+        error={
+            "type": "builtins.ValueError",
+            "message": "test error message",
+            "stack": span.get_tag("error.stack"),
+        },
     )
 
 
@@ -990,50 +1140,114 @@ def test_span_error_sets_error(llmobs, llmobs_events):
     "ddtrace_global_config",
     [dict(version="1.2.3", env="test_env", service="test_service", _llmobs_ml_app="test_app_name")],
 )
-def test_tags(ddtrace_global_config, llmobs, llmobs_events, monkeypatch):
+def test_tags(ddtrace_global_config, llmobs, monkeypatch):
     with llmobs.task(name="test_task") as span:
         pass
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
-        span,
-        "task",
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="task",
         tags={"version": "1.2.3", "env": "test_env", "service": "test_service", "ml_app": "test_app_name"},
     )
 
 
-def test_ml_app_override(llmobs, llmobs_events):
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    },
+    err=None,
+)
+def test_tag_dot_keys_sanitized_on_agentless_apm_path():
+    """APM agentless path: dots in tag keys are replaced with underscores before encoding."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._utils import get_llmobs_tags
+
+    llmobs_service.enable()
+    with llmobs_service.task(name="test_task") as span:
+        pass
+    tags = get_llmobs_tags(span)
+    assert all("." not in k for k in tags), f"Dot in tag key on agentless path: {tags}"
+    assert tags is not None and "ddtrace_version" in tags
+    llmobs_service.disable()
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_APM_TRACING_ENABLED": "false",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
+    },
+    err=None,
+)
+def test_tag_dot_keys_preserved_on_direct_llmobs_path():
+    """LLMOBS_DIRECT path (DD_APM_TRACING_ENABLED=false): dots in tag keys are not modified."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._utils import get_llmobs_tags
+
+    llmobs_service.enable()
+    with llmobs_service.task(name="test_task") as span:
+        pass
+    tags = get_llmobs_tags(span)
+    assert tags is not None and "ddtrace.version" in tags
+    llmobs_service.disable()
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
+    },
+    err=None,
+)
+def test_tag_dot_keys_preserved_on_apm_agent_path():
+    """APM_AGENT_PROXY path: dots in tag keys are not modified (agent handles encoding)."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._utils import get_llmobs_tags
+
+    llmobs_service.enable(agentless_enabled=False)
+    with llmobs_service.task(name="test_task") as span:
+        pass
+    tags = get_llmobs_tags(span)
+    assert tags is not None and "ddtrace.version" in tags
+    llmobs_service.disable()
+
+
+def test_ml_app_override(llmobs):
     with llmobs.task(name="test_task", ml_app="test_app") as span:
         pass
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "task", tags={"ml_app": "test_app"})
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="task", tags={"ml_app": "test_app"})
     with llmobs.tool(name="test_tool", ml_app="test_app") as span:
         pass
-    assert len(llmobs_events) == 2
-    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(span, "tool", tags={"ml_app": "test_app"})
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="tool", tags={"ml_app": "test_app"})
     with llmobs.llm(model_name="model_name", name="test_llm", ml_app="test_app") as span:
         pass
-    assert len(llmobs_events) == 3
-    assert llmobs_events[2] == _expected_llmobs_llm_span_event(
-        span, "llm", model_name="model_name", model_provider=UNKNOWN_MODEL_PROVIDER, tags={"ml_app": "test_app"}
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="llm",
+        model_name="model_name",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_app"},
     )
     with llmobs.embedding(model_name="model_name", name="test_embedding", ml_app="test_app") as span:
         pass
-    assert len(llmobs_events) == 4
-    assert llmobs_events[3] == _expected_llmobs_llm_span_event(
-        span, "embedding", model_name="model_name", model_provider=UNKNOWN_MODEL_PROVIDER, tags={"ml_app": "test_app"}
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="embedding",
+        model_name="model_name",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_app"},
     )
     with llmobs.workflow(name="test_workflow", ml_app="test_app") as span:
         pass
-    assert len(llmobs_events) == 5
-    assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(span, "workflow", tags={"ml_app": "test_app"})
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="workflow", tags={"ml_app": "test_app"})
     with llmobs.agent(name="test_agent", ml_app="test_app") as span:
         pass
-    assert len(llmobs_events) == 6
-    assert llmobs_events[5] == _expected_llmobs_llm_span_event(span, "agent", tags={"ml_app": "test_app"})
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="agent", tags={"ml_app": "test_app"})
     with llmobs.retrieval(name="test_retrieval", ml_app="test_app") as span:
         pass
-    assert len(llmobs_events) == 7
-    assert llmobs_events[6] == _expected_llmobs_non_llm_span_event(span, "retrieval", tags={"ml_app": "test_app"})
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="retrieval", tags={"ml_app": "test_app"})
 
 
 def test_export_span_specified_span_is_incorrect_type_raises(llmobs):
@@ -1568,7 +1782,7 @@ def test_annotation_context_nested_overrides_name(llmobs):
                 assert span.name == "expected"
 
 
-def test_annotation_context_nested_maintains_trace_structure(llmobs, llmobs_events):
+def test_annotation_context_nested_maintains_trace_structure(llmobs):
     """This test makes sure starting/stopping annotation contexts do not modify the llmobs trace structure"""
     with llmobs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
         with llmobs.agent(name="parent_span") as parent_span:
@@ -1577,29 +1791,27 @@ def test_annotation_context_nested_maintains_trace_structure(llmobs, llmobs_even
                     assert {"foo": "baz", "boo": "bar"}.items() <= get_llmobs_tags(child_span).items()
                     assert {"foo": "bar", "boo": "bar"}.items() <= get_llmobs_tags(parent_span).items()
 
-    assert len(llmobs_events) == 2
-    parent_span, child_span = llmobs_events[1], llmobs_events[0]
-    assert child_span["trace_id"] == parent_span["trace_id"]
-    assert child_span["span_id"] != parent_span["span_id"]
-    assert child_span["parent_id"] == parent_span["span_id"]
-    assert parent_span["parent_id"] == "undefined"
-    assert child_span["_dd"]["apm_trace_id"] == parent_span["_dd"]["apm_trace_id"]
-    assert parent_span["_dd"]["apm_trace_id"] != parent_span["trace_id"]
+    assert get_llmobs_trace_id(child_span) == get_llmobs_trace_id(parent_span)
+    assert child_span.span_id != parent_span.span_id
+    assert get_llmobs_parent_id(child_span) == str(parent_span.span_id)
+    assert get_llmobs_parent_id(parent_span) == "undefined"
+    parent_apm_trace_id = format_trace_id(parent_span.trace_id)
+    child_apm_trace_id = format_trace_id(child_span.trace_id)
+    assert child_apm_trace_id == parent_apm_trace_id
+    assert parent_apm_trace_id != get_llmobs_trace_id(parent_span)
 
 
-def test_annotation_context_separate_traces_maintained(llmobs, llmobs_events):
+def test_annotation_context_separate_traces_maintained(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
-        with llmobs.agent(name="parent_span"):
+        with llmobs.agent(name="parent_span") as agent_span:
             pass
-        with llmobs.workflow(name="child_span"):
+        with llmobs.workflow(name="child_span") as workflow_span:
             pass
 
-    assert len(llmobs_events) == 2
-    agent_span, workflow_span = llmobs_events[1], llmobs_events[0]
-    assert agent_span["trace_id"] != workflow_span["trace_id"]
-    assert agent_span["span_id"] != workflow_span["span_id"]
-    assert workflow_span["parent_id"] == "undefined"
-    assert agent_span["parent_id"] == "undefined"
+    assert get_llmobs_trace_id(agent_span) != get_llmobs_trace_id(workflow_span)
+    assert agent_span.span_id != workflow_span.span_id
+    assert get_llmobs_parent_id(workflow_span) == "undefined"
+    assert get_llmobs_parent_id(agent_span) == "undefined"
 
 
 def test_annotation_context_persists_across_multiple_root_span_operations(llmobs):
@@ -2218,32 +2430,31 @@ def test_submit_evaluation_enqueues_writer_with_reasoning(llmobs, mock_llmobs_ev
     mock_llmobs_eval_metric_writer.enqueue.assert_not_called()
 
 
-def test_llmobs_parenting_with_root_apm_span(llmobs, tracer, llmobs_events):
+def test_llmobs_parenting_with_root_apm_span(llmobs, tracer):
     # orphaned llmobs spans with apm root have undefined parent_id
     with tracer.trace("no_llm_span"):
-        with llmobs.task("llm_span"):
+        with llmobs.task("llm_span") as llm_span:
             pass
-        with llmobs.task("llm_span_2"):
+        with llmobs.task("llm_span_2") as llm_span_2:
             pass
-    assert len(llmobs_events) == 2
-    assert llmobs_events[0]["name"] == "llm_span"
-    assert llmobs_events[0]["parent_id"] == "undefined"
-    assert llmobs_events[1]["name"] == "llm_span_2"
-    assert llmobs_events[1]["parent_id"] == "undefined"
+    assert get_llmobs_span_name(llm_span) == "llm_span"
+    assert get_llmobs_parent_id(llm_span) == "undefined"
+    assert get_llmobs_span_name(llm_span_2) == "llm_span_2"
+    assert get_llmobs_parent_id(llm_span_2) == "undefined"
     # document buggy `trace_id` behavior
-    assert llmobs_events[0]["_dd"]["apm_trace_id"] == llmobs_events[1]["_dd"]["apm_trace_id"]
-    assert llmobs_events[0]["trace_id"] != llmobs_events[1]["trace_id"]
+    assert format_trace_id(llm_span.trace_id) == format_trace_id(llm_span_2.trace_id)
+    assert get_llmobs_trace_id(llm_span) != get_llmobs_trace_id(llm_span_2)
 
 
-def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer, llmobs_events):
-    with llmobs.task("level_1_llm"):
+def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer):
+    with llmobs.task("level_1_llm") as level_1_span:
         with tracer.trace("intermediate_apm"):  # APM span
             with tracer.trace("intermediate_apm_2"):  # APM span
-                with llmobs.task("level_2_llm_a"):
+                with llmobs.task("level_2_llm_a") as level_2_a_span:
                     with tracer.trace("intermediate_apm_3"):  # APM span
-                        with llmobs.task("level_3_llm"):
+                        with llmobs.task("level_3_llm") as level_3_span:
                             pass
-                with llmobs.task("level_2_llm_b"):
+                with llmobs.task("level_2_llm_b") as level_2_b_span:
                     pass
     """
     Expected LLM Obs trace structure;
@@ -2252,23 +2463,24 @@ def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer, llmobs_event
                 level_3_llm
             level_2_llm_b
     """
-    assert len(llmobs_events) == 4
-    assert llmobs_events[0]["name"] == "level_3_llm"
-    assert llmobs_events[0]["parent_id"] == llmobs_events[1]["span_id"]
+    assert get_llmobs_span_name(level_3_span) == "level_3_llm"
+    assert get_llmobs_parent_id(level_3_span) == str(level_2_a_span.span_id)
 
-    assert llmobs_events[1]["name"] == "level_2_llm_a"
-    assert llmobs_events[1]["parent_id"] == llmobs_events[3]["span_id"]
+    assert get_llmobs_span_name(level_2_a_span) == "level_2_llm_a"
+    assert get_llmobs_parent_id(level_2_a_span) == str(level_1_span.span_id)
 
-    assert llmobs_events[2]["name"] == "level_2_llm_b"
-    assert llmobs_events[2]["parent_id"] == llmobs_events[3]["span_id"]
+    assert get_llmobs_span_name(level_2_b_span) == "level_2_llm_b"
+    assert get_llmobs_parent_id(level_2_b_span) == str(level_1_span.span_id)
 
-    assert llmobs_events[3]["name"] == "level_1_llm"
-    assert llmobs_events[3]["parent_id"] == "undefined"
+    assert get_llmobs_span_name(level_1_span) == "level_1_llm"
+    assert get_llmobs_parent_id(level_1_span) == "undefined"
 
-    assert llmobs_events[0]["_dd"]["apm_trace_id"] != llmobs_events[0]["trace_id"]
-    for event in llmobs_events:
-        assert event["trace_id"] == llmobs_events[0]["trace_id"]
-        assert event["_dd"]["apm_trace_id"] == llmobs_events[0]["_dd"]["apm_trace_id"]
+    level_3_apm_trace_id = format_trace_id(level_3_span.trace_id)
+    level_3_trace_id = get_llmobs_trace_id(level_3_span)
+    assert level_3_apm_trace_id != level_3_trace_id
+    for span in (level_1_span, level_2_a_span, level_2_b_span, level_3_span):
+        assert get_llmobs_trace_id(span) == level_3_trace_id
+        assert format_trace_id(span.trace_id) == level_3_apm_trace_id
 
 
 def test_submit_evaluation_enqueues_writer_with_boolean_metric(llmobs, mock_llmobs_eval_metric_writer):
@@ -2427,7 +2639,7 @@ def test_get_spans_paginates(mock_get_connection, llmobs):
 
 
 class TestBuildSpanEventFromMetaStructE2E:
-    def test_llm_span_with_messages(self, llmobs, llmobs_events):
+    def test_llm_span_with_messages(self, llmobs):
         with llmobs.llm(model_name="test_model", model_provider="test_provider", name="test_llm") as span:
             _annotate_llmobs_span_data(
                 span,
@@ -2438,31 +2650,33 @@ class TestBuildSpanEventFromMetaStructE2E:
                 metadata={"temperature": 0.5},
                 metrics={"input_tokens": 5, "output_tokens": 3},
             )
-        assert len(llmobs_events) == 1
-        event = llmobs_events[0]
-        assert event["meta"]["span"]["kind"] == "llm"
-        assert event["meta"]["model_name"] == "test_model"
-        assert event["meta"]["model_provider"] == "test_provider"
-        assert event["meta"]["input"]["messages"] == [{"role": "user", "content": "hello"}]
-        assert event["meta"]["output"]["messages"] == [{"role": "assistant", "content": "hi"}]
-        assert event["meta"]["metadata"] == {"temperature": 0.5}
-        assert event["metrics"] == {"input_tokens": 5, "output_tokens": 3}
-        assert event["status"] == "ok"
+        assert span.error == 0
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(span),
+            span_kind="llm",
+            model_name="test_model",
+            model_provider="test_provider",
+            input_messages=[{"role": "user", "content": "hello"}],
+            output_messages=[{"role": "assistant", "content": "hi"}],
+            metadata={"temperature": 0.5},
+            metrics={"input_tokens": 5, "output_tokens": 3},
+        )
 
-    def test_task_span_with_value(self, llmobs, llmobs_events):
+    def test_task_span_with_value(self, llmobs):
         with llmobs.task(name="test_task") as span:
             _annotate_llmobs_span_data(
                 span,
                 input_value="some input",
                 output_value="some output",
             )
-        assert len(llmobs_events) == 1
-        event = llmobs_events[0]
-        assert event["meta"]["span"]["kind"] == "task"
-        assert event["meta"]["input"]["value"] == "some input"
-        assert event["meta"]["output"]["value"] == "some output"
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(span),
+            span_kind="task",
+            input_value="some input",
+            output_value="some output",
+        )
 
-    def test_embedding_span_with_documents(self, llmobs, llmobs_events):
+    def test_embedding_span_with_documents(self, llmobs):
         with llmobs.embedding(model_name="text-embedding-3", model_provider="openai", name="test_embedding") as span:
             _annotate_llmobs_span_data(
                 span,
@@ -2471,21 +2685,22 @@ class TestBuildSpanEventFromMetaStructE2E:
                 input_documents=[{"text": "embed this"}],
                 output_value="[0.1, 0.2]",
             )
-        assert len(llmobs_events) == 1
-        event = llmobs_events[0]
-        assert event["meta"]["span"]["kind"] == "embedding"
-        assert event["meta"]["input"]["documents"] == [{"text": "embed this"}]
-        assert event["meta"]["output"]["value"] == "[0.1, 0.2]"
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(span),
+            span_kind="embedding",
+            input_documents=[{"text": "embed this"}],
+            output_value="[0.1, 0.2]",
+        )
 
-    def test_error_span(self, llmobs, llmobs_events):
+    def test_error_span(self, llmobs):
         with pytest.raises(ValueError):
-            with llmobs.llm(name="test_error"):
+            with llmobs.llm(name="test_error") as span:
                 raise ValueError("something went wrong")
-        assert len(llmobs_events) == 1
-        event = llmobs_events[0]
-        assert event["status"] == "error"
-        assert event["meta"]["error"]["type"] == "builtins.ValueError"
-        assert event["meta"]["error"]["message"] == "something went wrong"
+        assert span.error == 1
+        data = _get_llmobs_data_metastruct(span)
+        error = data["meta"]["error"]
+        assert error["type"] == "builtins.ValueError"
+        assert error["message"] == "something went wrong"
 
 
 class TestExperimentScope:

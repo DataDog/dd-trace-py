@@ -6,8 +6,8 @@ use pyo3::{
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 
+use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use crate::py_string::PyBackedString;
-use crate::utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 
 #[pyo3::pyclass(frozen, name = "SpanLink", module = "ddtrace.internal.native._native")]
 pub struct SpanLink {
@@ -135,6 +135,19 @@ impl SpanLink {
                 .unwrap_or("None"),
             self.flags.map_or("None".to_string(), |f| f.to_string()),
         ))
+    }
+
+    // Cyclic GC traversal: `attributes: Py<PyDict>` is user-controlled and may
+    // hold references that close cycles back to spans. Without `__traverse__`,
+    // such cycles are invisible to CPython's GC. This class is frozen so we
+    // cannot implement `__clear__`, but traversal alone is enough for the GC
+    // to break the cycle on the other (mutable) side.
+    fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        visit.call(&self.attributes)?;
+        if let Some(ts) = &self.tracestate {
+            ts.traverse(&visit)?;
+        }
+        Ok(())
     }
 
     fn __reduce__(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {

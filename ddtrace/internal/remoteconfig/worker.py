@@ -213,7 +213,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         """
         self._client.disable_product(product)
 
-    def unregister_callback(self, product):
+    def unregister_callback(self, product: str) -> None:
         """Unregister a product callback.
 
         This removes the callback but does not disable the product. To also

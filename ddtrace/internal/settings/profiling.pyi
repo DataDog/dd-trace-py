@@ -37,10 +37,12 @@ class ProfilingConfigStack(DDConfig):
 class ProfilingConfigLock(DDConfig):
     enabled: bool
     name_inspect_dir: bool
+    exclude_modules: frozenset[str]
 
 class ProfilingConfigMemory(DDConfig):
     enabled: bool
     events_buffer: int
+    mem_domain_enabled: bool
 
 class ProfilingConfigHeap(DDConfig):
     enabled: bool

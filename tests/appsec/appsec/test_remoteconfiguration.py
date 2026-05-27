@@ -308,7 +308,7 @@ def test_load_new_configurations_dispatch_applied_configs(mock_appsec_rules_data
             ),
         }
         list_callbacks = []
-        rc_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+        rc_poller._client._reconcile_configurations(list_callbacks, {}, client_configs, payload=payload)
         assert list_callbacks
         rc_poller._client._publish_configuration(list_callbacks)
         rc_poller.poll()
@@ -360,7 +360,7 @@ def test_load_new_configurations_empty_config(mock_appsec_rules_data, rc_poller,
             ),
         }
         list_callbacks = []
-        rc_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+        rc_poller._client._reconcile_configurations(list_callbacks, {}, client_configs, payload=payload)
         rc_poller._client._publish_configuration(list_callbacks)
 
         rc_poller.poll()
@@ -416,7 +416,10 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
 
         rc_poller._client._applied_configs = client_configs
         list_callbacks = []
-        rc_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, {})
+        # Empty client_configs means every previously-applied target is
+        # considered unassigned; _reconcile_configurations queues a disable
+        # payload (content=None) for each.
+        rc_poller._client._reconcile_configurations(list_callbacks, {}, {}, payload=payload)
         rc_poller._client._publish_configuration(list_callbacks)
 
         rc_poller.poll()
@@ -430,11 +433,10 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
 
         mock_appsec_rules_data.reset_mock()
 
-        # Not called because with this configuration the above condition is True:
-        # applied_config = self._applied_configs.get(target)
-        # if applied_config == config:
-        #     continue
-        rc_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+        # Not called because the previously-applied configs match the
+        # incoming client_configs exactly, so the unchanged branch carries
+        # them over without emitting payloads.
+        rc_poller._client._reconcile_configurations(list_callbacks, {}, client_configs, payload=payload)
         rc_poller._client._publish_configuration(list_callbacks)
         rc_poller.poll()
         # Should not be called again since configs haven't changed
@@ -445,7 +447,7 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs(
 def test_load_new_configurations_remove_config_and_dispatch_applied_configs_error(rc_poller):
     """
     The previous code raises a key error in `self._products[config.product_name]` when appsec features is disabled
-    with ASM_FEATURES product and then loops over the config in _load_new_configurations
+    with ASM_FEATURES product and then loops over the config in _reconcile_configurations.
     """
     with override_global_config(dict(_remote_config_enabled=True)):
         enable_appsec_rc()
@@ -475,10 +477,10 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs_erro
     }
     list_callbacks = []
     rc_poller._client._applied_configs = client_configs
-    rc_poller._client._remove_previously_applied_configurations(list_callbacks, {}, {}, {})
+    rc_poller._client._reconcile_configurations(list_callbacks, {}, {}, payload=payload)
     rc_poller._client._publish_configuration(list_callbacks)
 
-    rc_poller._client._load_new_configurations(list_callbacks, {}, client_configs, payload=payload)
+    rc_poller._client._reconcile_configurations(list_callbacks, {}, client_configs, payload=payload)
     rc_poller._client._publish_configuration(list_callbacks)
     disable_appsec_rc()
 

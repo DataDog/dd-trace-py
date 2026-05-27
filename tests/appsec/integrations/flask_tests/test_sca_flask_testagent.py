@@ -6,7 +6,7 @@ Verifies that when DD_APPSEC_SCA_ENABLED=true:
 3. When a vulnerable function is called, reachability metadata is attached
    with the caller info in the reached array.
 
-These tests require requests==2.31.0 (vulnerable to CVE-2024-35195) and
+These tests require requests==2.31.0 (vulnerable to GHSA-652x-xj99-gmcc) and
 use the /sca-test-requests endpoint in tests/appsec/app.py which calls
 requests.Session.send (the instrumented target).
 """
@@ -47,6 +47,26 @@ def _get_dependency_events(token):
                 if sub.get("request_type") == "app-dependencies-loaded":
                     events.append(sub)
         elif body.get("request_type") == "app-dependencies-loaded":
+            events.append({"payload": body["payload"], "request_type": body["request_type"]})
+    return events
+
+
+def _get_extended_heartbeat_events(token):
+    """Extract app-extended-heartbeat events from the test agent session."""
+    requests = _get_telemetry_requests(token)
+    events = []
+    for req in requests:
+        if "apmtelemetry" not in req.get("url", ""):
+            continue
+        try:
+            body = json.loads(base64.b64decode(req["body"]))
+        except Exception:
+            continue
+        if body.get("request_type") == "message-batch":
+            for sub in body.get("payload", []):
+                if sub.get("request_type") == "app-extended-heartbeat":
+                    events.append(sub)
+        elif body.get("request_type") == "app-extended-heartbeat":
             events.append({"payload": body["payload"], "request_type": body["request_type"]})
     return events
 
@@ -165,7 +185,7 @@ class TestSCAFlaskTelemetry:
         1. Starts Flask with SCA enabled and requests==2.31.0 (vulnerable)
         2. Hits /sca-test-requests which calls requests.Session.send
         3. Waits for telemetry to flush
-        4. Verifies CVE-2024-35195 appears with reached array containing caller info
+        4. Verifies GHSA-652x-xj99-gmcc appears with reached array containing caller info
         """
         with flask_server(
             appsec_enabled="false",
@@ -190,14 +210,15 @@ class TestSCAFlaskTelemetry:
         events = _get_dependency_events(iast_test_token)
         assert len(events) > 0, "No app-dependencies-loaded events found"
 
-        # Look for CVE-2024-35195 in the requests dependency metadata
-        dep, cve_value = _find_dep_with_cve(events, "requests", "CVE-2024-35195")
+        # Look for GHSA-652x-xj99-gmcc in the requests dependency metadata
+        dep, cve_value = _find_dep_with_cve(events, "requests", "GHSA-652x-xj99-gmcc")
 
         assert dep is not None, (
-            f"CVE-2024-35195 not found in requests dependency metadata. Events: {json.dumps(events, indent=2)[:2000]}"
+            "GHSA-652x-xj99-gmcc not found in requests dependency metadata. "
+            f"Events: {json.dumps(events, indent=2)[:2000]}"
         )
         assert dep["name"] == "requests"
-        assert cve_value["id"] == "CVE-2024-35195"
+        assert cve_value["id"] == "GHSA-652x-xj99-gmcc"
         # AIDEV-NOTE: RFC v3 — reached is now an array of {path, method, line} objects.
         assert isinstance(cve_value["reached"], list)
         assert len(cve_value["reached"]) >= 1
@@ -214,7 +235,7 @@ class TestSCAFlaskTelemetry:
         """Same CVE triggered from two different functions — first hit wins (max reached=1).
 
         /sca-test-requests and /sca-test-requests-alt both call
-        requests.Session.send (CVE-2024-35195) but from different functions.
+        requests.Session.send (GHSA-652x-xj99-gmcc) but from different functions.
         Per RFC v3, only the first occurrence is reported in the reached array.
         """
         with flask_server(
@@ -243,9 +264,9 @@ class TestSCAFlaskTelemetry:
         events = _get_dependency_events(iast_test_token)
         assert len(events) > 0, "No app-dependencies-loaded events found"
 
-        all_cve_entries = _find_all_cve_metadata(events, "requests", "CVE-2024-35195")
+        all_cve_entries = _find_all_cve_metadata(events, "requests", "GHSA-652x-xj99-gmcc")
         assert len(all_cve_entries) >= 1, (
-            f"Expected at least 1 metadata entry for CVE-2024-35195, got {len(all_cve_entries)}: {all_cve_entries}"
+            f"Expected at least 1 metadata entry for GHSA-652x-xj99-gmcc, got {len(all_cve_entries)}: {all_cve_entries}"
         )
 
         # Per RFC v3, each CVE entry has max 1 reached entry (first hit wins)
@@ -288,8 +309,8 @@ class TestSCAFlaskTelemetry:
         events = _get_dependency_events(iast_test_token)
         assert len(events) > 0, "No app-dependencies-loaded events found"
 
-        all_cve_entries = _find_all_cve_metadata(events, "requests", "CVE-2024-35195")
-        assert len(all_cve_entries) >= 1, "Expected at least one CVE-2024-35195 metadata entry"
+        all_cve_entries = _find_all_cve_metadata(events, "requests", "GHSA-652x-xj99-gmcc")
+        assert len(all_cve_entries) >= 1, "Expected at least one GHSA-652x-xj99-gmcc metadata entry"
 
         # All entries should have at most 1 reached entry
         for entry in all_cve_entries:
@@ -323,16 +344,258 @@ class TestSCAFlaskTelemetry:
         events = _get_dependency_events(iast_test_token)
         assert len(events) > 0, "No app-dependencies-loaded events found"
 
-        # Look for CVE-2024-35195 registered with reached=[]
-        dep, cve_value = _find_dep_with_cve(events, "requests", "CVE-2024-35195")
+        # Look for GHSA-652x-xj99-gmcc registered with reached=[]
+        dep, cve_value = _find_dep_with_cve(events, "requests", "GHSA-652x-xj99-gmcc")
 
         assert dep is not None, (
-            f"CVE-2024-35195 not found in requests dependency metadata at load time. "
+            f"GHSA-652x-xj99-gmcc not found in requests dependency metadata at load time. "
             f"Events: {json.dumps(events, indent=2)[:2000]}"
         )
-        assert cve_value["id"] == "CVE-2024-35195"
+        assert cve_value["id"] == "GHSA-652x-xj99-gmcc"
         assert isinstance(cve_value["reached"], list)
         # reached should be empty — no vulnerable endpoint was called
         assert len(cve_value["reached"]) == 0, (
             f"Expected reached=[] for CVE registered at load time (no vulnerable call), got: {cve_value['reached']}"
+        )
+
+
+_SCA_EXTENDED_HEARTBEAT_ENV = {
+    "DD_APPSEC_SCA_ENABLED": "true",
+    "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
+    "DD_TELEMETRY_HEARTBEAT_INTERVAL": "2",
+    # Force the extended-heartbeat payload to fire on every heartbeat tick so we
+    # can inspect it within the test's lifetime instead of waiting 24h.
+    "_DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL": "1",
+}
+
+
+def _find_dep_with_cve_in_extended(events, dep_name, cve_id):
+    """Find a dependency carrying a specific CVE in the most recent extended-heartbeat event.
+
+    Iterates events newest-first so an early heartbeat that snapshots the CVE
+    pre-vulnerable-call (with reached=[]) does not shadow a later heartbeat
+    that captured the populated reached entry.
+    """
+    for event in reversed(events):
+        for dep in event.get("payload", {}).get("dependencies", []):
+            if dep.get("name") != dep_name:
+                continue
+            for meta_entry in dep.get("metadata", []):
+                if meta_entry.get("type") != "reachability":
+                    continue
+                try:
+                    value = json.loads(meta_entry["value"])
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    continue
+                if value.get("id") == cve_id:
+                    return dep, value
+    return None, None
+
+
+def _wait_for_extended_heartbeat_events(token, min_count=1, timeout=20.0, interval=0.5):
+    """Poll the test agent until ``min_count`` app-extended-heartbeat events have arrived.
+
+    Replaces fixed ``time.sleep`` waits so slow CI runners (where SCA-enabled
+    subprocess startup can eat several seconds) do not race the heartbeat
+    interval. Returns whatever events are available at timeout — callers must
+    still assert on the result.
+    """
+    deadline = time.monotonic() + timeout
+    events: list = []
+    while time.monotonic() < deadline:
+        events = _get_extended_heartbeat_events(token)
+        if len(events) >= min_count:
+            return events
+        time.sleep(interval)
+    return events
+
+
+def _wait_for_cve_reached_in_extended(token, dep_name, cve_id, timeout=20.0, interval=0.5):
+    """Poll until an extended-heartbeat carries ``cve_id`` on ``dep_name`` with a non-empty reached list.
+
+    A heartbeat that fires before the vulnerable call would snapshot the CVE
+    with ``reached=[]``; this waits for a tick that captures the populated
+    entry. Returns ``(events, dep, cve_value)``; ``dep``/``cve_value`` may be
+    ``None`` on timeout so the caller can produce a useful assertion message.
+    """
+    deadline = time.monotonic() + timeout
+    events: list = []
+    while time.monotonic() < deadline:
+        events = _get_extended_heartbeat_events(token)
+        dep, cve_value = _find_dep_with_cve_in_extended(events, dep_name, cve_id)
+        if dep is not None and cve_value and len(cve_value.get("reached", [])) >= 1:
+            return events, dep, cve_value
+        time.sleep(interval)
+    return events, None, None
+
+
+def _wait_for_extended_snapshot_covers_delta(token, timeout=20.0, interval=0.5):
+    """Poll until the latest extended-heartbeat snapshot is a superset of the delta channel.
+
+    Within a single ``periodic()`` tick, ``_report_dependencies`` (delta) and
+    ``_report_heartbeat`` (snapshot) hold the same DependencyTracker lock and
+    run sequentially, so the snapshot is at least as fresh as the delta. This
+    poll waits for at least one such tick to have fired AFTER the in-test
+    requests so the latest snapshot reflects every dep the deltas reported.
+
+    Returns ``(delta_events, extended_events)`` — possibly stale on timeout.
+    """
+    deadline = time.monotonic() + timeout
+    delta_events: list = []
+    extended_events: list = []
+    while time.monotonic() < deadline:
+        delta_events = _get_dependency_events(token)
+        extended_events = _get_extended_heartbeat_events(token)
+        if delta_events and extended_events:
+            delta_names = {d["name"] for d in _collect_all_deps(delta_events) if d.get("name")}
+            latest = extended_events[-1].get("payload", {}).get("dependencies", [])
+            latest_names = {d["name"] for d in latest if d.get("name")}
+            if delta_names and delta_names <= latest_names:
+                return delta_events, extended_events
+        time.sleep(interval)
+    return delta_events, extended_events
+
+
+class TestSCAFlaskExtendedHeartbeat:
+    """SCA telemetry e2e tests asserting the app-extended-heartbeat payload.
+
+    The extended heartbeat is meant to be a *complete* snapshot of the
+    application's dependencies and SCA reachability findings, re-sent on a
+    long interval so the backend can recover from missed deltas. These tests
+    pin down that contract end-to-end.
+    """
+
+    def test_extended_heartbeat_includes_dependencies_with_metadata_key(self, iast_test_token):
+        """SCA on: extended heartbeat carries dependencies and metadata key is preserved."""
+        with flask_server(
+            appsec_enabled="false",
+            iast_enabled="false",
+            token=iast_test_token,
+            port=8056,
+            env=_SCA_EXTENDED_HEARTBEAT_ENV,
+        ) as context:
+            _, flask_client, pid = context
+            response = flask_client.get("/", headers={"X-Datadog-Test-Session-Token": iast_test_token})
+            assert response.status_code == 200
+            # Wait for at least one extended-heartbeat tick — bounded poll
+            # avoids racing slow-CI startup against a fixed sleep window.
+            events = _wait_for_extended_heartbeat_events(iast_test_token, min_count=1, timeout=20.0)
+
+        assert len(events) > 0, "No app-extended-heartbeat events found"
+
+        # Configuration must always be present in the extended payload.
+        for event in events:
+            assert "configuration" in event["payload"], (
+                f"app-extended-heartbeat missing configuration: {event['payload']}"
+            )
+
+        all_deps = _collect_all_deps(events)
+        assert len(all_deps) > 0, (
+            f"Expected dependencies in app-extended-heartbeat with SCA enabled, got none. Events: {events[:1]}"
+        )
+
+        deps_with_metadata_key = [d for d in all_deps if "metadata" in d]
+        assert len(deps_with_metadata_key) > 0, (
+            f"Expected SCA-tracked deps to carry the 'metadata' key in extended heartbeat. Sample deps: {all_deps[:3]}"
+        )
+
+    def test_extended_heartbeat_includes_cve_metadata_after_vulnerable_call(self, iast_test_token):
+        """After a vulnerable call, CVE reachability shows up in app-extended-heartbeat too.
+
+        This is the contract-critical scenario: even if the backend missed the
+        original app-dependencies-loaded delta, the next extended heartbeat
+        must re-send the full snapshot including the attached CVE metadata.
+        """
+        with flask_server(
+            appsec_enabled="false",
+            iast_enabled="false",
+            token=iast_test_token,
+            port=8057,
+            env=_SCA_EXTENDED_HEARTBEAT_ENV,
+        ) as context:
+            _, flask_client, pid = context
+
+            response = flask_client.get("/", headers={"X-Datadog-Test-Session-Token": iast_test_token})
+            assert response.status_code == 200
+
+            # Trigger the vulnerable code path to attach reachability metadata.
+            response = flask_client.get("/sca-test-requests", headers={"X-Datadog-Test-Session-Token": iast_test_token})
+            assert response.status_code == 200
+
+            # Wait for a heartbeat tick AFTER the vulnerable call that captures
+            # the populated reached entry. Polls instead of sleeping a fixed
+            # window so a slow CI runner doesn't miss the post-call tick.
+            events, dep, cve_value = _wait_for_cve_reached_in_extended(
+                iast_test_token, "requests", "GHSA-652x-xj99-gmcc", timeout=20.0
+            )
+
+        assert len(events) > 0, "No app-extended-heartbeat events found"
+        assert dep is not None, (
+            "GHSA-652x-xj99-gmcc not present in any app-extended-heartbeat dependency metadata. "
+            f"Extended events: {json.dumps(events, indent=2)[:2000]}"
+        )
+        assert dep["name"] == "requests"
+        assert cve_value["id"] == "GHSA-652x-xj99-gmcc"
+        assert isinstance(cve_value["reached"], list)
+        assert len(cve_value["reached"]) >= 1, (
+            f"Expected reached entry in extended heartbeat after vulnerable call, got: {cve_value['reached']}"
+        )
+        hit = cve_value["reached"][0]
+        assert "app.py" in hit["path"], f"Expected caller path containing 'app.py', got: {hit['path']}"
+        assert "sca_test_requests" in hit.get("symbol", "")
+        assert hit.get("line", 0) > 0
+
+    def test_extended_heartbeat_dependency_list_is_full_snapshot(self, iast_test_token):
+        """The extended-heartbeat dependency list must be a superset of the delta channel.
+
+        Compares the union of dependencies seen across app-dependencies-loaded
+        (the per-tick delta) against a single app-extended-heartbeat payload
+        (the latest one received). The contract is that one extended-heartbeat
+        event must contain at least every dep ever reported via the delta
+        channel, so the backend can reconcile state from any single such
+        payload without needing to accumulate prior deltas. Asserting against
+        the aggregate of all extended events would mask the exact regression
+        we want to catch: per-event partial slices would still union to the
+        full set.
+        """
+        with flask_server(
+            appsec_enabled="false",
+            iast_enabled="false",
+            token=iast_test_token,
+            port=8058,
+            env=_SCA_EXTENDED_HEARTBEAT_ENV,
+        ) as context:
+            _, flask_client, pid = context
+
+            response = flask_client.get("/", headers={"X-Datadog-Test-Session-Token": iast_test_token})
+            assert response.status_code == 200
+
+            # Hit a route that imports more modules so the dep set grows over
+            # time, increasing the chance of catching a delta-vs-snapshot drift.
+            response = flask_client.get("/sca-test-requests", headers={"X-Datadog-Test-Session-Token": iast_test_token})
+            assert response.status_code == 200
+
+            # Poll for a heartbeat tick AFTER the request that already shows
+            # delta ⊆ latest extended snapshot. Within a tick, both reports run
+            # under the same DependencyTracker lock, so this is the natural
+            # synchronization point — superior to a fixed sleep that can miss
+            # the post-request tick on slow runners.
+            delta_events, extended_events = _wait_for_extended_snapshot_covers_delta(iast_test_token, timeout=20.0)
+
+        assert len(delta_events) > 0, "No app-dependencies-loaded events to compare against"
+        assert len(extended_events) > 0, "No app-extended-heartbeat events found"
+
+        delta_names = {d["name"] for d in _collect_all_deps(delta_events) if d.get("name")}
+
+        # Pick the latest extended heartbeat — by contract, it alone must be a
+        # complete snapshot of what was reported via the delta channel.
+        latest_snapshot = extended_events[-1]
+        latest_snapshot_deps = latest_snapshot.get("payload", {}).get("dependencies", [])
+        latest_snapshot_names = {d["name"] for d in latest_snapshot_deps if d.get("name")}
+
+        missing = delta_names - latest_snapshot_names
+        assert not missing, (
+            f"Dependencies reported via app-dependencies-loaded are missing from the latest "
+            f"app-extended-heartbeat payload — extended heartbeat is not a full snapshot. "
+            f"Missing: {sorted(missing)[:20]}"
         )

@@ -102,10 +102,10 @@ def _capture_expressions(
             "captureExpressions": {
                 e.name: utils.capture_value(
                     e.expr.eval(scope),
-                    e.limits.max_level,
-                    e.limits.max_len,
-                    e.limits.max_size,
-                    e.limits.max_fields,
+                    e.capture.max_level,
+                    e.capture.max_len,
+                    e.capture.max_size,
+                    e.capture.max_fields,
                     timeout,
                 )
                 for e in exprs
@@ -125,10 +125,10 @@ class Snapshot(LogSignal):
 
     __track__: ClassVar[SignalTrack] = SignalTrack.SNAPSHOT
 
-    entry_capture: Optional[dict] = field(default=None)
-    return_capture: Optional[dict] = field(default=None)
-    line_capture: Optional[dict] = field(default=None)
-    _stack: Optional[list] = field(default=None)
+    entry_capture: Optional[dict[str, Any]] = field(default=None)
+    return_capture: Optional[dict[str, Any]] = field(default=None)
+    line_capture: Optional[dict[str, Any]] = field(default=None)
+    _stack: Optional[list[dict[str, Any]]] = field(default=None)
     _message: Optional[str] = field(default=None)
     duration: Optional[int] = field(default=None)  # nanoseconds
 

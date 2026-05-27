@@ -5235,3 +5235,113 @@ class TestPullExperiment:
         exp = _make_pulled_experiment(llmobs, evaluators=[dummy_evaluator])
         with pytest.raises(ValueError, match="task and dataset are required to run an experiment from scratch"):
             exp.run()
+
+
+@pytest.mark.parametrize(
+    "gitmetadata_tags,fallback_url,fallback_sha,expected",
+    [
+        # gitmetadata wins outright; fallback would not be consulted
+        (
+            ("https://github.com/from-env", "envsha", ""),
+            "ignored",
+            "ignored",
+            ("https://github.com/from-env", "envsha"),
+        ),
+        # gitmetadata empty, fallback supplies both
+        (("", "", ""), "https://github.com/from-shell", "shellsha", ("https://github.com/from-shell", "shellsha")),
+        # gitmetadata partial, fallback fills the missing field
+        (
+            ("https://github.com/from-env", "", ""),
+            "https://github.com/from-shell",
+            "shellsha",
+            ("https://github.com/from-env", "shellsha"),
+        ),
+    ],
+    ids=["gitmetadata-wins", "fallback-only", "partial-merge"],
+)
+def test_resolve_llmobs_git_metadata(gitmetadata_tags, fallback_url, fallback_sha, expected):
+    from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
+
+    with (
+        mock.patch("ddtrace.llmobs._utils.gitmetadata.get_git_tags", return_value=gitmetadata_tags),
+        mock.patch("ddtrace.llmobs._utils._git.extract_commit_sha", return_value=fallback_sha),
+        mock.patch("ddtrace.llmobs._utils._git.extract_repository_url", return_value=fallback_url),
+    ):
+        assert resolve_llmobs_git_metadata() == expected
+
+
+def test_resolve_llmobs_git_metadata_returns_empty_when_fallback_fails():
+    from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
+
+    with (
+        mock.patch("ddtrace.llmobs._utils.gitmetadata.get_git_tags", return_value=("", "", "")),
+        mock.patch("ddtrace.llmobs._utils._git.extract_commit_sha", side_effect=ValueError("not a git repo")),
+        mock.patch("ddtrace.llmobs._utils._git.extract_repository_url", side_effect=ValueError("not a git repo")),
+    ):
+        assert resolve_llmobs_git_metadata() == ("", "")
+
+
+def test_resolve_llmobs_git_metadata_strips_url_credentials():
+    from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
+
+    with (
+        mock.patch("ddtrace.llmobs._utils.gitmetadata.get_git_tags", return_value=("", "", "")),
+        mock.patch("ddtrace.llmobs._utils._git.extract_commit_sha", return_value="abc"),
+        mock.patch(
+            "ddtrace.llmobs._utils._git.extract_repository_url",
+            return_value="https://x-token:secret@github.com/example/repo.git",
+        ),
+    ):
+        url, _ = resolve_llmobs_git_metadata()
+    assert "secret" not in url
+
+
+def test_resolve_llmobs_git_metadata_honors_disable_flag():
+    """Setting DD_TRACE_GIT_METADATA_ENABLED=false must suppress both the env-var read and the git-CLI fallback."""
+    from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
+
+    with (
+        mock.patch("ddtrace.llmobs._utils.gitmetadata.config.enabled", False),
+        mock.patch("ddtrace.llmobs._utils.gitmetadata.get_git_tags") as gm_mock,
+        mock.patch("ddtrace.llmobs._utils._git.extract_commit_sha") as sha_mock,
+        mock.patch("ddtrace.llmobs._utils._git.extract_repository_url") as url_mock,
+    ):
+        assert resolve_llmobs_git_metadata() == ("", "")
+    gm_mock.assert_not_called()
+    sha_mock.assert_not_called()
+    url_mock.assert_not_called()
+
+
+def test_experiment_tags_pick_up_resolver_output():
+    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
+    with mock.patch(
+        "ddtrace.llmobs._experiment.resolve_llmobs_git_metadata",
+        return_value=("https://github.com/example/repo", "abc123"),
+    ):
+        exp = Experiment(
+            name="test",
+            task=dummy_task,
+            dataset=dataset,
+            evaluators=[dummy_evaluator],
+            project_name="test-project",
+        )
+    assert exp._tags["git.commit.sha"] == "abc123"
+    assert exp._tags["git.repository_url"] == "https://github.com/example/repo"
+
+
+def test_experiment_user_supplied_git_tags_take_precedence():
+    dataset = _make_dataset_with_records([{"input_data": {"prompt": "hi"}}])
+    with mock.patch(
+        "ddtrace.llmobs._experiment.resolve_llmobs_git_metadata",
+        return_value=("https://github.com/example/repo", "abc123"),
+    ):
+        exp = Experiment(
+            name="test",
+            task=dummy_task,
+            dataset=dataset,
+            evaluators=[dummy_evaluator],
+            project_name="test-project",
+            tags={"git.commit.sha": "user-override"},
+        )
+    assert exp._tags["git.commit.sha"] == "user-override"
+    assert exp._tags["git.repository_url"] == "https://github.com/example/repo"

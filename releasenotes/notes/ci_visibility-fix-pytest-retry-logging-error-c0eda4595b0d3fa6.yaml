@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue in the pytest plugin where a malformed log call emitted a ``--- Logging error ---`` traceback to stderr during Attempt to Fix retries, polluting pytest output and contributing to spurious test failures.
