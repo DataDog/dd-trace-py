@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import inspect
 from typing import Any
 from typing import Optional
@@ -18,6 +19,12 @@ from ddtrace.llmobs.types import Message
 
 
 log = get_logger(__name__)
+
+
+@dataclass
+class _SpanRef:
+    span_id: str
+    trace_id: str
 
 
 class CapturingAsyncIterable(wrapt.ObjectProxy):
@@ -88,18 +95,11 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_input_snapshot: Optional[list[Message]] = None  # input captured before llm extension
         self._accumulated_input_messages: Optional[list[Message]] = None
         self._is_finalized = False
-        # AIDEV-NOTE: Span-link state lives on the handler because each handler is bound to a
-        # single agent invocation, so there is no cross-invocation concurrency to defend against.
-        # Refs are (span_id, trace_id) snapshots — plain strings so we can reference a span
-        # safely after .finish() without holding a live Span object.
-        # AIDEV-NOTE: Links are emitted at two layers per the LLMObs Execution Graph design:
-        # (1) a step-level chain (agent → step₁ → step₂ → … → agent) for the high-level turn
-        # flow, and (2) a leaf-level chain (llm₁ → tool → llm₂ → … → agent) for the detailed
-        # data flow. The leaf chain enters via step-level (no explicit agent → llm₁ link) to
-        # avoid redundancy with the step-level chain.
-        self._last_llm_span_ref: Optional[dict[str, str]] = None
-        self._last_step_span_ref: Optional[dict[str, str]] = None
-        self._step_tool_span_refs: list[dict[str, str]] = []
+        # Refs are (span_id, trace_id) snapshots and are used to chain together
+        # step spans as well as llm → tool → llm spans.
+        self._last_llm_span_ref: Optional[_SpanRef] = None
+        self._last_step_span_ref: Optional[_SpanRef] = None
+        self._step_tool_span_refs: list[_SpanRef] = []
         self._create_step_span()
 
     async def process_chunk(self, chunk, iterator=None):
@@ -152,30 +152,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 operation=self.operation,
             )
 
-            if self._last_llm_span_ref is not None:
-                add_span_link(
-                    self.primary_span,
-                    self._last_llm_span_ref["span_id"],
-                    self._last_llm_span_ref["trace_id"],
-                    "output",
-                    "output",
-                )
-            if self._last_step_span_ref is not None:
-                add_span_link(
-                    self.primary_span,
-                    self._last_step_span_ref["span_id"],
-                    self._last_step_span_ref["trace_id"],
-                    "output",
-                    "output",
-                )
-
-            # Fallback to handle any incomplete tool spans (tools that didn't have a ToolResultBlock).
-            # AIDEV-NOTE: We still route through _finalize_tool_span so incomplete tools get the same
-            # finalization path as completed ones (including the _step_tool_span_refs append). The
-            # appended refs are intentionally orphaned on the error path — no subsequent
-            # _create_step_span runs to consume them — so incomplete tools end up with an incoming
-            # llm → tool link (emitted at tool-open time) but no outgoing link, correctly
-            # terminating the leaf chain at the point of failure.
+            # Finalize incomplete tools so they emit the same span data as completed ones.
             if self._active_tool_spans:
                 log.debug(
                     "Finishing %d incomplete tool spans without results",
@@ -192,9 +169,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         finally:
             self.primary_span.finish()
 
-    def _snapshot(self, span) -> dict[str, str]:
+    def _snapshot(self, span) -> _SpanRef:
         """Capture span_id and trace_id as plain strings — decoupled from the Span object lifetime."""
-        return {"span_id": str(span.span_id), "trace_id": format_trace_id(span.trace_id)}
+        return _SpanRef(span_id=str(span.span_id), trace_id=format_trace_id(span.trace_id))
 
     def _create_step_span(self) -> None:
         """Open a step span and an llm child span for the next inference cycle."""
@@ -210,35 +187,26 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             span_name="claude_agent_sdk.llm",
             instance=self.instance,
         )
-        # Leaf-level chain (llm → tool → next-llm → … → agent). The agent entry is
-        # carried by the step-level chain (agent → step₁), so the first llm has no
-        # incoming leaf-level link — avoids redundancy with the step-level chain.
-        if self._last_llm_span_ref is not None:
-            if self._step_tool_span_refs:
-                for tool_ref in self._step_tool_span_refs:
-                    add_span_link(self.current_llm_span, tool_ref["span_id"], tool_ref["trace_id"], "output", "input")
-                self._step_tool_span_refs.clear()
-            else:
-                # Prior step produced an AssistantMessage with no tool_use blocks
-                # (back-to-back text-only assistants). Bridge directly from the prior
-                # llm to keep the leaf chain connected without a tool hop in between.
-                add_span_link(
-                    self.current_llm_span,
-                    self._last_llm_span_ref["span_id"],
-                    self._last_llm_span_ref["trace_id"],
-                    "output",
-                    "input",
-                )
+        # Leaf chain: llm → tool → next-llm. Back-to-back text-only assistants bridge llm → llm directly.
+        if self._step_tool_span_refs:
+            for tool_ref in self._step_tool_span_refs:
+                add_span_link(self.current_llm_span, tool_ref.span_id, tool_ref.trace_id, "output", "input")
+            self._step_tool_span_refs.clear()
+        elif self._last_llm_span_ref is not None:
+            add_span_link(
+                self.current_llm_span,
+                self._last_llm_span_ref.span_id,
+                self._last_llm_span_ref.trace_id,
+                "output",
+                "input",
+            )
 
-        # Step-level chain (agent → step₁ → step₂ → … → agent).
-        if self._last_step_span_ref is None:
-            primary_ref = self._snapshot(self.primary_span)
-            add_span_link(self.current_step_span, primary_ref["span_id"], primary_ref["trace_id"], "input", "input")
-        else:
+        # Step chain: step → next-step.
+        if self._last_step_span_ref is not None:
             add_span_link(
                 self.current_step_span,
-                self._last_step_span_ref["span_id"],
-                self._last_step_span_ref["trace_id"],
+                self._last_step_span_ref.span_id,
+                self._last_step_span_ref.trace_id,
                 "output",
                 "input",
             )
@@ -335,11 +303,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             )
         self._step_input_snapshot = list(self._accumulated_input_messages)
 
-        # AIDEV-NOTE: Order matters. _finalize_llm_span MUST run before the
-        # ToolUseBlock loop below — finalizing the llm span sets
-        # _last_llm_span_ref, which _handle_tool_use_block reads to emit the
-        # llm → tool leaf-level link. Reordering would silently link tools to
-        # the *previous* turn's llm instead of failing loudly.
+        # _finalize_llm_span must run before the ToolUseBlock loop so
+        # _last_llm_span_ref is set when _handle_tool_use_block emits the
+        # llm → tool link.
         self._finalize_llm_span(chunk)
 
         if isinstance(content, list):
@@ -385,8 +351,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         if self._last_llm_span_ref is not None:
             add_span_link(
                 tool_span,
-                self._last_llm_span_ref["span_id"],
-                self._last_llm_span_ref["trace_id"],
+                self._last_llm_span_ref.span_id,
+                self._last_llm_span_ref.trace_id,
                 "output",
                 "input",
             )
