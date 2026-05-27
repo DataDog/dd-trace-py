@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where periodic background workers could remain
+    stopped in the parent process during repeated forks, allowing queued
+    in-memory work to accumulate until the fork loop ended.
