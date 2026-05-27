@@ -11,9 +11,9 @@ non-streaming + streaming. For streaming responses only the
 The converter accepts every Anthropic Messages-API content block shape we
 expect to encounter at the SDK boundary; the mapping mirrors the dd-source
 ``format_messages`` reference (``domains/appsec/shared/libs/py/aiguard``).
-Shapes outside the recognised set (e.g. raw bytes, a bare block dict,
-generators) are telemetry-logged and emitted as a ``str()`` best-effort
-fallback so AI Guard still scans the request rather than silently bypassing
+Shapes outside the recognised set are telemetry-logged and replaced with a
+placeholder (``[GENERATOR]`` for single-use iterators, ``str(content)`` for
+the rest) so AI Guard still scans the request rather than silently bypassing
 it, and support can spot integration drift.
 """
 
@@ -432,15 +432,12 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
                 result.append(Message(role=role, content=content))
                 continue
 
-            # MessageParam.content is Iterable[BlockParam] per type, but in
-            # practice always list or tuple. Anything else is malformed:
-            # telemetry-log and emit a placeholder so AI Guard still scans
-            # the request instead of silently bypassing it. Generators are
-            # marked with a clean ``[GENERATOR]`` sentinel rather than the
-            # ``"<generator object ... at 0x...>"`` noise from ``str()``.
-            # NOTE: this does NOT materialise the generator, so the SDK
-            # still iterates the original blocks downstream -- AI Guard's
-            # view diverges from what Anthropic receives in that edge case.
+            # In practice content is always list or tuple. Anything else is
+            # malformed; emit a placeholder so AI Guard still scans something
+            # rather than silently bypassing the request. NOTE: generators
+            # are NOT materialised, so the SDK still iterates the original
+            # blocks downstream -- AI Guard's view diverges from what
+            # Anthropic actually receives in that edge case.
             if not isinstance(content, (list, tuple)):
                 _report_converter_error(
                     "AI Guard anthropic: unexpected 'content' type %r on role=%r" % (type(content).__name__, role)
