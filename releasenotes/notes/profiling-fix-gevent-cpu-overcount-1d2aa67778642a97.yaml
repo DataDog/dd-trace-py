@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: fixed an issue where the stack sampler over-counted total
+    CPU time for gevent workloads.
