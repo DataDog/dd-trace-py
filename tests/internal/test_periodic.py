@@ -1,10 +1,12 @@
 import ctypes
+import gc
 import os
 import platform
 from threading import Event
 from threading import Thread
 from time import monotonic
 from time import sleep
+import weakref
 
 import pytest
 
@@ -48,6 +50,51 @@ def test_periodic_double_start():
     t.join()
 
 
+def _collect_until_cleared(ref, attempts=5):
+    for _ in range(attempts):
+        gc.collect()
+        if ref() is None:
+            return True
+        sleep(0.01)
+    return ref() is None
+
+
+def test_periodic_thread_bound_method_cycle_is_collectible_before_start():
+    class Owner:
+        def __init__(self):
+            self.thread = periodic.PeriodicThread(60.0, self.periodic)
+
+        def periodic(self):
+            pass
+
+    owner = Owner()
+    owner_ref = weakref.ref(owner)
+
+    del owner
+
+    assert _collect_until_cleared(owner_ref), "unstarted PeriodicThread bound-method cycle was not collected"
+
+
+def test_periodic_thread_bound_method_cycle_is_collectible_after_join():
+    class Owner:
+        def __init__(self):
+            self.thread = periodic.PeriodicThread(60.0, self.periodic)
+
+        def periodic(self):
+            pass
+
+        def run_and_stop(self):
+            self.thread.start()
+            self.thread.stop()
+            self.thread.join()
+
+    owner = Owner()
+    owner_ref = weakref.ref(owner)
+    owner.run_and_stop()
+
+    del owner
+
+    assert _collect_until_cleared(owner_ref), "stopped PeriodicThread bound-method cycle was not collected"
 def test_periodic_error():
     x = {"OK": False}
 
