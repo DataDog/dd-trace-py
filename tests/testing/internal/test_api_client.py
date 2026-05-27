@@ -388,7 +388,7 @@ class TestAPIClientGetKnownTests:
                             "env": "some-env",
                             "repository_url": "http://github.com/DataDog/some-repo.git",
                             "configurations": {"os.platform": "Linux"},
-                            "page_info": {},
+                            "page_info": {"page_size": 2000},
                         },
                     }
                 },
@@ -462,12 +462,15 @@ class TestAPIClientGetKnownTests:
         }
 
     def test_get_known_tests_pagination_full_request_payload(self, mock_telemetry: Mock) -> None:
-        """Second-page request must carry the same fields as the first, with only page_info differing."""
+        """Second-page request carries the same fields as the first, with page_info updated.
+
+        The response 'size' field must be echoed back as 'page_size' in the next request.
+        """
         page1_response = {
             "data": {
                 "attributes": {
                     "tests": {"mod1": {"suite1.py": ["test_a"]}},
-                    "page_info": {"has_next": True, "cursor": "cursor-abc"},
+                    "page_info": {"has_next": True, "cursor": "cursor-abc", "size": 500},
                 },
                 "id": "page1-id",
                 "type": "ci_app_libraries_tests",
@@ -531,7 +534,10 @@ class TestAPIClientGetKnownTests:
             "data": {
                 "id": "00000000-0000-0000-0000-000000000000",
                 "type": "ci_app_libraries_tests_request",
-                "attributes": {**expected_shared_attributes, "page_info": {"page_state": "cursor-abc"}},
+                "attributes": {
+                    **expected_shared_attributes,
+                    "page_info": {"page_state": "cursor-abc", "page_size": 500},
+                },
             }
         }
 

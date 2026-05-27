@@ -577,12 +577,19 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         known_test_ids: set[TestId] = set()
         page_state: t.Optional[str] = None
+        page_size: t.Optional[int] = None
         max_pages = _get_known_tests_max_pages()
 
         for page_number in range(max_pages):
             # First page: empty page_info lets backend use its default max (10k).
-            # Subsequent pages: only send page_state.
-            request_page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
+            # Subsequent pages: send page_state cursor and echo back the page size the
+            # server reported (response field "size" → request field "page_size").
+            if page_state is None:
+                request_page_info: dict[str, t.Any] = {}
+            else:
+                request_page_info = {"page_state": page_state}
+                if page_size is not None:
+                    request_page_info["page_size"] = page_size
 
             payload = {
                 "data": {
@@ -646,6 +653,8 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 log.debug("Known tests response missing pagination cursor on page %d", page_number + 1)
                 record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
                 return None
+
+            page_size = response_page_info.get("size")
         else:
             log.debug("Known tests pagination exceeded max pages: %d", max_pages)
             record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)

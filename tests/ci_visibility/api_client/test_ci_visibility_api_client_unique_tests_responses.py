@@ -124,3 +124,34 @@ class TestTestVisibilityAPIClientKnownTestResponses(TestTestVisibilityAPIClientB
             assert client.fetch_known_tests(read_from_cache=False) == set(
                 _make_fqdn_test_ids([("module1", "suite1.py", "test1"), ("module1", "suite1.py", "test2")])
             )
+
+    def test_civisibility_api_client_known_tests_page_size_forwarded(self):
+        """Response 'size' is echoed back as 'page_size' in the next request's page_info."""
+        import json
+
+        client = self._get_test_client()
+        response_page_1 = _get_tests_api_response(
+            {"module1": {"suite1.py": ["test1"]}},
+            page_info={"cursor": "page-2", "size": 250, "has_next": True},
+        )
+        response_page_2 = _get_tests_api_response(
+            {"module1": {"suite1.py": ["test2"]}},
+        )
+
+        captured_payloads = []
+
+        def fake_do_request_with_telemetry(method, endpoint, payload, metric_names, **kwargs):
+            captured_payloads.append(payload)
+            if len(captured_payloads) == 1:
+                return json.loads(response_page_1.body)
+            return json.loads(response_page_2.body)
+
+        with mock.patch.object(client, "_do_request_with_telemetry", side_effect=fake_do_request_with_telemetry):
+            client.fetch_known_tests(read_from_cache=False)
+
+        assert len(captured_payloads) == 2
+        assert captured_payloads[0]["data"]["attributes"]["page_info"] == {"page_size": 2000}
+        assert captured_payloads[1]["data"]["attributes"]["page_info"] == {
+            "page_state": "page-2",
+            "page_size": 250,
+        }

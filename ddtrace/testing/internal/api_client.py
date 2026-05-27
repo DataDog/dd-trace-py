@@ -138,17 +138,24 @@ class APIClient:
         )
 
         page_state: t.Optional[str] = None
+        page_size: t.Optional[int] = None
         known_test_ids: set[TestRef] = set()
         max_pages = _get_known_tests_max_pages()
 
         for page_number in range(max_pages):
             # First page: empty page_info lets backend use its default max (10k).
-            # Subsequent pages: only send page_state.
+            # Subsequent pages: send page_state cursor and echo back the page size the
+            # server reported (response field "size" → request field "page_size").
             # AIDEV-NOTE: `page_info` is reused below to hold the *response* page_info after
             # the request is sent. To fix: rename this to `request_page_info` and the response
             # assignment to `response_page_info` (same pattern as _api_client.py fetch_known_tests).
-            page_info: dict[str, t.Any] = {"page_size": 2_000} if page_state is None else {"page_state": page_state}
-            log.warning("Known tests request page %d: sending page_info=%r", page_number, page_info)
+            if page_state is None:
+                page_info: dict[str, t.Any] = {"page_size": 2_000}
+            else:
+                page_info = {"page_state": page_state}
+                if page_size is not None:
+                    page_info["page_size"] = page_size
+            log.debug("Known tests request page %d: sending page_info=%r", page_number, page_info)
 
             try:
                 request_data: dict[str, t.Any] = {
@@ -211,6 +218,8 @@ class APIClient:
                     telemetry.record_error(ErrorType.BAD_JSON)
                     self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS] = "true"
                     return set()
+
+                page_size = page_info.get("size")
 
             except Exception:
                 log.warning("Error getting known tests from API")
