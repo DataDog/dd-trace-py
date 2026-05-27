@@ -194,3 +194,86 @@ def async_openai_client_mock(openai_sdk):
         api_key="<not-a-real-key>",
         http_client=httpx.AsyncClient(transport=_AsyncChatMockTransport()),
     )
+
+
+# ---------------------------------------------------------------------------
+# Responses API mock transport
+#
+# The Responses API uses a different request/response shape than Chat
+# Completions (``input`` instead of ``messages``, ``output`` list of typed
+# items instead of ``choices``). Tests exercise the AI Guard dispatch path
+# without requiring a real OpenAI Responses cassette or a live API call.
+# ---------------------------------------------------------------------------
+
+
+def _fake_response_body() -> bytes:
+    # Full payload shape (metadata, parallel_tool_calls, tool_choice, …) — the
+    # OpenAI SDK validates response payloads against pydantic models that
+    # tighten across releases, so we mirror the real wire format rather than a
+    # minimal stub.
+    return json.dumps(
+        {
+            "id": "resp-test",
+            "object": "response",
+            "created_at": 0,
+            "model": "gpt-4o-mini",
+            "status": "completed",
+            "output": [
+                {
+                    "id": "msg-test",
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [{"type": "output_text", "text": "ok", "annotations": []}],
+                }
+            ],
+            "usage": {
+                "input_tokens": 1,
+                "output_tokens": 1,
+                "total_tokens": 2,
+                "input_tokens_details": {"cached_tokens": 0},
+                "output_tokens_details": {"reasoning_tokens": 0},
+            },
+            "metadata": {},
+            "parallel_tool_calls": True,
+            "previous_response_id": None,
+            "temperature": 1.0,
+            "tool_choice": "auto",
+            "tools": [],
+            "top_p": 1.0,
+        }
+    ).encode()
+
+
+def _fake_response_http() -> httpx.Response:
+    return httpx.Response(
+        status_code=200,
+        headers={"content-type": "application/json"},
+        content=_fake_response_body(),
+    )
+
+
+class _ResponseMockTransport(httpx.BaseTransport):
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        return _fake_response_http()
+
+
+class _AsyncResponseMockTransport(httpx.AsyncBaseTransport):
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        return _fake_response_http()
+
+
+@pytest.fixture
+def openai_responses_client_mock(openai_sdk):
+    return openai_sdk.OpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.Client(transport=_ResponseMockTransport()),
+    )
+
+
+@pytest.fixture
+def async_openai_responses_client_mock(openai_sdk):
+    return openai_sdk.AsyncOpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.AsyncClient(transport=_AsyncResponseMockTransport()),
+    )

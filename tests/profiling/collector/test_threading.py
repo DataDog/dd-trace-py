@@ -33,7 +33,7 @@ from tests.profiling.collector.lock_test_common import assert_pep604_type_union_
 from tests.profiling.collector.lock_utils import LineNo
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
-from tests.profiling.collector.pprof_utils import pprof_pb2
+from tests.profiling.collector.pprof_utils import pprof_pb2  # type: ignore[attr-defined]
 from tests.profiling.collector.test_utils import init_ddup
 
 
@@ -611,6 +611,7 @@ def test_flush_sample_handles_shallow_stack() -> None:
     """
     import threading
     import time
+    from typing import cast
 
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -623,8 +624,7 @@ def test_flush_sample_handles_shallow_stack() -> None:
         lock = threading.Lock()
 
     # Access the wrapped _ProfiledLock
-    profiled_lock = lock
-    assert isinstance(profiled_lock, _ProfiledLock)
+    profiled_lock = cast(_ProfiledLock, lock)
 
     # Simulate acquired state
     profiled_lock.acquired_time = time.monotonic_ns()
@@ -926,7 +926,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         assert isinstance(obj, wrapped_type)
         unpickled = pickle.loads(pickle.dumps(obj))
         assert not isinstance(unpickled, wrapped_type)
-        return unpickled
+        return unpickled  # type: ignore[no-any-return]
 
     def test_lock_class_pickle(self) -> None:
         """Test that the wrapped lock class can be pickled (Python 3.14+ forkserver compat)."""
@@ -1940,7 +1940,7 @@ class BaseSemaphoreTest(LockCollectorTestBase):
             assert isinstance(self.lock_class, LockAllocatorWrapper)
 
             # This should NOT raise TypeError
-            class CustomLock(self.lock_class):  # type: ignore[name-defined]
+            class CustomLock(self.lock_class):  # type: ignore[unreachable, name-defined]
                 def __init__(self) -> None:
                     super().__init__()
 
@@ -2237,7 +2237,7 @@ def test_exclude_modules_skips_wrapping() -> None:
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
-        assert not isinstance(lock, _ProfiledLock), "Lock from excluded module should be native, got _ProfiledLock"
+        assert not isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="some.nonexistent.module"))
@@ -2253,7 +2253,7 @@ def test_exclude_modules_wraps_non_excluded() -> None:
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
-        assert isinstance(lock, _ProfiledLock), f"Lock should be profiled, got {type(lock)}"
+        assert isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]
 
 
 @pytest.mark.subprocess()
@@ -2272,7 +2272,7 @@ def test_exclude_modules_empty_is_backward_compatible() -> None:
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
-        assert isinstance(lock, _ProfiledLock)
+        assert isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="__main"))
@@ -2288,7 +2288,7 @@ def test_exclude_modules_prefix_requires_dot_boundary() -> None:
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
-        assert isinstance(lock, _ProfiledLock), "Prefix without dot boundary should not exclude"
+        assert isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="__main__,some.other.module"))
@@ -2304,4 +2304,4 @@ def test_exclude_modules_multiple() -> None:
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
-        assert not isinstance(lock, _ProfiledLock), "Lock from excluded module should be native"
+        assert not isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]

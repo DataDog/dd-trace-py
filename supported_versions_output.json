@@ -10,7 +10,7 @@
         "dependency": "aiohttp",
         "integration": "aiohttp",
         "minimum_tracer_supported": "3.7.4.post0",
-        "max_tracer_supported": "3.13.4",
+        "max_tracer_supported": "3.13.5",
         "auto-instrumented": true
     },
     {
@@ -222,7 +222,7 @@
         "dependency": "django",
         "integration": "django",
         "minimum_tracer_supported": "2.2.28",
-        "max_tracer_supported": "5.2.13",
+        "max_tracer_supported": "5.2.14",
         "auto-instrumented": true
     },
     {
