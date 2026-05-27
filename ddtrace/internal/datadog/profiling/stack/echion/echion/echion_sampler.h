@@ -4,9 +4,11 @@
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include <echion/cache.h>
 #include <echion/frame.h>
+#include <echion/greenlets.h>
 #include <echion/strings.h>
 #include <echion/threads.h>
 
@@ -40,6 +42,15 @@ class EchionSampler
     std::optional<Frame::Key> asyncio_frame_cache_key_;
     std::optional<Frame::Key> uvloop_frame_cache_key_;
     std::unordered_set<PyObject*> previous_task_objects_;
+
+    // Sampling-thread scratch buffers. Only the single sampling thread
+    // (Sampler::sampling_thread) touches these. Functions clear/reset them
+    // between uses to amortize allocator churn that would otherwise dominate
+    // native heap-live-size (see unwind_greenlets in particular).
+    std::vector<GreenletSnapshot> greenlet_snapshots_scratch_;
+    std::unordered_set<GreenletInfo::ID> greenlet_parents_scratch_;
+    std::unordered_set<GreenletInfo::ID> greenlet_visited_scratch_;
+    std::unordered_set<PyObject*> seen_frames_scratch_;
 
     // Accumulated asyncio task count across sampled threads in the current sampling cycle.
     // When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), this only
@@ -88,6 +99,11 @@ class EchionSampler
     std::optional<Frame::Key>& uvloop_frame_cache_key() { return uvloop_frame_cache_key_; }
     std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
+    std::vector<GreenletSnapshot>& greenlet_snapshots_scratch() { return greenlet_snapshots_scratch_; }
+    std::unordered_set<GreenletInfo::ID>& greenlet_parents_scratch() { return greenlet_parents_scratch_; }
+    std::unordered_set<GreenletInfo::ID>& greenlet_visited_scratch() { return greenlet_visited_scratch_; }
+    std::unordered_set<PyObject*>& seen_frames_scratch() { return seen_frames_scratch_; }
+
     void reset_asyncio_task_count() { asyncio_task_count_ = 0; }
     void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
     size_t asyncio_task_count() const { return asyncio_task_count_; }
@@ -121,6 +137,11 @@ class EchionSampler
         greenlet_info_map_.clear();
         greenlet_parent_map_.clear();
         greenlet_thread_map_.clear();
+
+        greenlet_snapshots_scratch_.clear();
+        greenlet_parents_scratch_.clear();
+        greenlet_visited_scratch_.clear();
+        seen_frames_scratch_.clear();
 
         // Clear renderer caches to avoid using stale interned IDs from the
         // parent's Profiles Dictionary

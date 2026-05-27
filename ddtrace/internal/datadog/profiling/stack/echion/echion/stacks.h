@@ -7,7 +7,8 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include <deque>
+#include <unordered_set>
+#include <vector>
 
 #include <echion/config.h>
 #include <echion/frame.h>
@@ -22,10 +23,18 @@ class EchionSampler;
 // FrameStack owns the Frames so that they stay valid across cache evictions
 // (asyncio unwind_tasks precomputes per-task stacks via Frame::get, which can
 // evict entries still referenced from an earlier thread-stack capture).
-class FrameStack : public std::deque<Frame>
+//
+// Backed by std::vector<Frame> rather than std::deque<Frame>: every call site
+// uses only push_back, forward iteration, size(), clear(), and integer
+// indexing, and none retains references across mutations. Vector avoids the
+// per-instance chunk-map allocation that previously dominated native
+// heap-live-size for the gevent sampling path.
+class FrameStack : public std::vector<Frame>
 {
   public:
     using Key = Frame::Key;
+
+    FrameStack() { reserve(max_frames); }
 
     void render(EchionSampler& echion);
 };
@@ -34,6 +43,18 @@ class FrameStack : public std::deque<Frame>
 class EchionSampler;
 
 // ----------------------------------------------------------------------------
+// Scratch-buffer-reusing variant. Callers on the sampling thread should pass
+// EchionSampler::seen_frames_scratch() to avoid per-call hash-table allocation.
+// `seen_frames` is cleared on entry.
+size_t
+unwind_frame(EchionSampler& echion,
+             PyObject* frame_addr,
+             FrameStack& stack,
+             std::unordered_set<PyObject*>& seen_frames,
+             size_t max_depth = max_frames);
+
+// Convenience wrapper that owns a local scratch set (used by fuzz harnesses
+// and other callers outside the sampling thread).
 size_t
 unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, size_t max_depth = max_frames);
 
