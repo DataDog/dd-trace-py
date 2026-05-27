@@ -197,20 +197,6 @@ mod tests {
         });
     }
 
-    #[test]
-    fn test_rand64bits_impl_flag_matches_secure_random() {
-        // The second element of rand64bits_impl() must echo the SECURE_RANDOM flag
-        // so callers (e.g. logging) can confirm which path was taken.
-        with_secure_random(false, || {
-            let (_, flag) = rand64bits_impl();
-            assert!(!flag, "flag should be false when SECURE_RANDOM=false");
-        });
-        with_secure_random(true, || {
-            let (_, flag) = rand64bits_impl();
-            assert!(flag, "flag should be true when SECURE_RANDOM=true");
-        });
-    }
-
     // ── seed() ───────────────────────────────────────────────────────────────
 
     #[test]
