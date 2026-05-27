@@ -116,3 +116,23 @@ def test_flask_stream(flask_client: Client) -> None:
 @pytest.mark.parametrize("flask_env_arg", (flask_default_env,))
 def test_flask_get_user(flask_client: Client) -> None:
     assert flask_client.get("/identify").status_code == 200
+
+
+def flask_subapp_env(flask_wsgi_application: str) -> dict[str, str]:
+    env = os.environ.copy()
+    env.update(
+        {
+            "DD_TRACE_SQLITE3_ENABLED": "0",
+            "FLASK_APP": "tests.contrib.flask.app_subapp:app",
+        }
+    )
+    return env
+
+
+@pytest.mark.snapshot(
+    ignores=["meta.flask.version"],
+    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
+)
+@pytest.mark.parametrize("flask_env_arg", (flask_subapp_env,))
+def test_flask_subapp_mounted(flask_client: Client) -> None:
+    assert flask_client.get("/api/users", headers=DEFAULT_HEADERS).status_code == 200
