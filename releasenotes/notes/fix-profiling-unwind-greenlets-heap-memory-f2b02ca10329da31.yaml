@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    profiling: Reduced native heap memory used by the stack collector during
+    gevent workloads. Previously each sampling iteration allocated a fresh
+    ``StackInfo`` (with an internal ``std::deque<Frame>``) per tracked
+    greenlet and a fresh cycle-detection set per frame walk, which dominated
+    native heap live size in long-running services. Per-sample buffers are
+    now reused across samples, dropping the steady-state allocation rate for
+    this code path to near zero.
