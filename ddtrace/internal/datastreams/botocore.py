@@ -69,7 +69,7 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, message):
         payload_size = calculate_eventbridge_payload_size(message, trace_data)
 
     if not dsm_identifier:
-        log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
+        log.debug("pathway being generated with unrecognized service: %r", dsm_identifier)
     ctx = processor().set_checkpoint(
         ["direction:out", "topic:{}".format(dsm_identifier), path_type], payload_size=payload_size
     )
@@ -226,7 +226,7 @@ def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_j
     stream = get_stream(params)
 
     if not stream:
-        log.debug("Unable to determine StreamARN and/or StreamName for request with params: ", params)
+        log.debug("Unable to determine StreamARN and/or StreamName for request with params: %r", params)
         raise StreamMetadataNotFound()
 
     payload_size = calculate_kinesis_payload_size(record)

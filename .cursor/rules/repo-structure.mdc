@@ -1,6 +1,6 @@
 ---
 description: dd-trace-py repository structure
-globs: 
+globs:
 alwaysApply: false
 ---
 # Repository Structure
@@ -130,7 +130,6 @@ dd-trace-py/
 ├── setup.py              # Package build configuration
 ├── pyproject.toml        # Modern Python project configuration
 ├── riotfile.py           # Multi-version testing with Riot
-├── hatch.toml            # Hatch build system configuration
 ├── docker-compose.yml    # Development environment setup
 └── conftest.py           # Global PyTest configuration
 ```
@@ -161,7 +160,7 @@ dd-trace-py/
 
 ### Build & Distribution
 - **Native Code**: C/C++ extensions for performance-critical components
-- **Multiple Build Systems**: Support for setuptools, hatch, and modern Python packaging
+- **Build Systems**: setuptools with native extensions (C/C++/Cython/Rust) and modern Python packaging
 - **Release Management**: Automated release notes and versioning
 
 ### Documentation & Contributing

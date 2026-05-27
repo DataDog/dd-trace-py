@@ -138,9 +138,9 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
 
     # Don't pass all env vars to the receiver process, because there are
     # conflicts with export location derivation
-    crashtracking_enabled = env.get("DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED")
-    if crashtracking_enabled is not None:
-        receiver_env["DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"] = crashtracking_enabled
+    receiver_env["DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED"] = (
+        "true" if crashtracker_config.errors_intake_enabled else "false"
+    )
 
     # Crashtracker is supported only on Linux and macOS, so we only need to inherit
     # these library path environment variables.

@@ -17,7 +17,7 @@ integrations:
   tested_versions_by_dependency:
     aiohttp:
       min: 3.7.4.post0
-      max: 3.13.4
+      max: 3.13.5
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -305,7 +305,7 @@ integrations:
   tested_versions_by_dependency:
     django:
       min: 2.2.28
-      max: 5.2.13
+      max: 5.2.14
 
 - integration_name: dogpile_cache
   is_external_package: true
@@ -881,7 +881,7 @@ integrations:
   tested_versions_by_dependency:
     requests:
       min: 2.25.1
-      max: 2.32.5
+      max: 2.34.1
 
 - integration_name: rq
   is_external_package: true
