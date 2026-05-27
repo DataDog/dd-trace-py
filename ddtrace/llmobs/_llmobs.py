@@ -1940,7 +1940,7 @@ class LLMObs(Service):
     def update_prompt_version(
         cls,
         prompt_id: str,
-        version: str,
+        version: int,
         *,
         labels: Optional[list[PromptLabel]] = None,
         description: Optional[str] = None,
@@ -1949,7 +1949,7 @@ class LLMObs(Service):
 
         Args:
             prompt_id: The prompt identifier.
-            version: The version string to update.
+            version: The numeric version number (auto-incremented by the API, e.g. 1, 2, 3).
             labels: New labels for the version.
             description: New description for the version.
 

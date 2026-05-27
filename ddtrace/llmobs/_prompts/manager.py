@@ -399,7 +399,7 @@ class PromptManager:
     def update_prompt_version(
         self,
         prompt_id: str,
-        version: str,
+        version: int,
         *,
         labels: Optional[list[PromptLabel]] = None,
         description: Optional[str] = None,
