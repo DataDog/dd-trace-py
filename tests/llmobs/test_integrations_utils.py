@@ -377,14 +377,12 @@ class TestOpenAIConstructMessageFromStreamedChunks:
         assert message["content"] == ""
 
     def test_no_reasoning_key_when_absent(self):
-        # Regular (non-reasoning) streams should not gain a reasoning_content key.
         chunks = [_chunk(role="assistant"), _chunk(content="hello")]
         message = openai_construct_message_from_streamed_chunks(chunks)
         assert "reasoning_content" not in message
         assert message["content"] == "hello"
 
     def test_interleaved_reasoning_and_content_in_same_chunk(self):
-        # Defensive: if a provider emits both fields in the same chunk, both are kept.
         chunks = [
             _chunk(role="assistant"),
             _chunk(reasoning_content="r", content="c"),
