@@ -22,8 +22,10 @@ from types import CodeType
 from types import FunctionType
 from types import ModuleType
 import typing as t
+import uuid
 
 from ddtrace import config
+from ddtrace.internal import forksafe
 from ddtrace.internal import packages
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
@@ -497,16 +499,41 @@ class ScopeContext:
         self._scopes: list[Scope] = scopes if scopes is not None else []
         self._scopes_lock = RLock()
 
-        self._event_data = {
+        self._timer: t.Optional[Timer] = None
+        self._timer_lock = RLock()
+
+        # upload_id is stable for the lifetime of this process; all batches
+        # uploaded by the process share it. A forked child gets a fresh
+        # upload_id and batch counter via _reset_on_fork below.
+        self._upload_id: str = str(uuid.uuid4())
+        self._batch_counter: int = 0
+
+        # Static portion of the event message. Dynamic fields (batchNum,
+        # attachmentSize) are set per upload. uploadId/runtimeId/parentId
+        # are refreshed by _reset_on_fork in forked children.
+        self._event_data: dict = {
             "ddsource": "python",
             "service": config.service or DEFAULT_SERVICE_NAME,
+            "version": config.version or "",
+            "language": "python",
             "runtimeId": get_runtime_id(),
             "parentId": get_ancestor_runtime_id(),
             "type": "symdb",
+            "uploadId": self._upload_id,
+            "final": False,
         }
 
-        self._timer: t.Optional[Timer] = None
-        self._timer_lock = RLock()
+        forksafe.register(self._reset_on_fork)
+
+    def _reset_on_fork(self) -> None:
+        # Runs after fork in the child. The runtime module's own forksafe
+        # hook regenerates the runtime_id first (registered earlier at
+        # import time), so the calls below return the post-fork values.
+        self._upload_id = str(uuid.uuid4())
+        self._batch_counter = 0
+        self._event_data["uploadId"] = self._upload_id
+        self._event_data["runtimeId"] = get_runtime_id()
+        self._event_data["parentId"] = get_ancestor_runtime_id()
 
     def _set_timer(self) -> None:
         with self._timer_lock:
@@ -514,12 +541,13 @@ class ScopeContext:
 
                 class BatchTimer(Timer):
                     def timeout(_timer) -> None:
-                        log.debug(
-                            "[PID %d] SymDB: Flushing batch of %d module scopes due to timeout",
-                            os.getpid(),
-                            len(self._scopes),
-                        )
-                        self.upload()
+                        with self._scopes_lock:
+                            log.debug(
+                                "[PID %d] SymDB: Flushing batch of %d module scopes due to timeout",
+                                os.getpid(),
+                                len(self._scopes),
+                            )
+                            self._upload_locked()
 
                         with self._timer_lock:
                             self._timer = None
@@ -535,7 +563,7 @@ class ScopeContext:
             # Flush the scopes if we reached the size limit.
             if (n := len(self._scopes)) >= self.__scope_limit__:
                 log.debug("[PID %d] SymDB: Flushing batch of %d module scopes due to size limit", os.getpid(), n)
-                self.upload()
+                self._upload_locked()
 
             # Add the new scope.
             self._scopes.append(scope)
@@ -554,13 +582,32 @@ class ScopeContext:
                 "scopes": [_.to_json() for _ in self._scopes],
             }
 
-    def upload(self) -> None:
+    # The caller must hold _scopes_lock.
+    def _upload_locked(self) -> None:
+        self._batch_counter += 1
+        batch_num = self._batch_counter
+
+        payload = self.to_json()
+        # Embed the upload metadata in the attachment too, so the
+        # attachment is self-contained.
+        payload["upload_id"] = self._upload_id
+        payload["batch_num"] = batch_num
+        payload["final"] = False
+        n = len(self._scopes)
+        self._scopes.clear()
+
+        compressed = gzip.compress(json.dumps(payload).encode("utf-8"))
+
+        self._event_data["batchNum"] = batch_num
+        self._event_data["attachmentSize"] = len(compressed)
+        event_json = json.dumps(self._event_data)
+
         body, headers = multipart(
             parts=[
                 FormData(
                     name="event",
                     filename="event.json",
-                    data=json.dumps(self._event_data),
+                    data=event_json,
                     content_type="json",
                 ),
                 FormData(
@@ -572,15 +619,10 @@ class ScopeContext:
             ]
         )
 
-        with self._scopes_lock:
-            payload = self.to_json()
-            n = len(self._scopes)
-            self._scopes.clear()
-
         # DEV: The as_bytes method ends up writing the data line by line, which
         # breaks the final payload. We add a placeholder instead and manually
         # replace it with the compressed JSON.
-        body = body.replace(b"[symbols_placeholder]", gzip.compress(json.dumps(payload).encode("utf-8")))
+        body = body.replace(b"[symbols_placeholder]", compressed)
 
         with connector(agent_config.trace_agent_url, timeout=5.0)() as conn:
             log.debug("[PID %d] SymDB: Uploading symbols payload", os.getpid())
