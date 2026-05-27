@@ -1,11 +1,14 @@
-name: Generate Supported Integration Versions
+name: Update riot lockfiles
 
 on:
   workflow_dispatch: # can be triggered manually
+  schedule:
+    - cron: "0 0 * * *" # daily at midnight
 
 jobs:
-  generate-supported-versions:
-    name: Generate supported integration versions
+  update-riot-lockfiles:
+    name: Update riot lockfiles
+    if: github.event_name != 'schedule' || github.event.repository.fork == false
     runs-on: ubuntu-22.04
     permissions:
       actions: read
@@ -53,6 +56,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
+      - name: Install Docker Compose
+        run: |
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          docker compose --version
+
+      - name: Start docker service
+        run: cd dd-trace-py && docker compose up -d testagent
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -64,31 +76,37 @@ jobs:
         run: |
           curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
-      - run: python scripts/freshvenvs.py generate
+      - name: Run regenerate-riot-latest
+        run: dd-trace-py/scripts/regenerate-riot-latest.sh
 
-      - name: Generate table
-        run: python scripts/generate_table.py
+      - name: Run integration registry update
+        run: python dd-trace-py/scripts/integration_registry/update_and_format_registry.py
 
-      - run: git diff
+      - name: Get latest version
+        id: new-latest
+        run: |
+          NEW_LATEST=$(python dd-trace-py/scripts/get_latest_version.py ${{ env.VENV_NAME }})
+          echo "NEW_LATEST=$NEW_LATEST" >> $GITHUB_ENV
 
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
         id: octo-sts
         with:
           scope: DataDog/dd-trace-py
-          policy: self.generate-supported-versions.create-pr
+          policy: self.generate-package-versions.create-pr
 
       - name: Create Pull Request
         id: pr
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
           token: ${{ steps.octo-sts.outputs.token }}
-          branch: "update-supported-versions"
-          commit-message: "Update supported versions table"
+          branch: "upgrade-latest-${{ env.VENV_NAME }}-version"
+          commit-message: "Update package version"
           delete-branch: true
           base: main
-          title: "chore: update supported versions"
+          title: "chore: update ${{ env.VENV_NAME }} latest version to ${{ env.NEW_LATEST }}"
           labels: changelog/no-changelog
           body: |
-            Generates / updates the supported versions table for integrations.
-            This should be tied to releases, or triggered manually.
-            Workflow runs: [Generate Supported Integration Versions](https://github.com/DataDog/dd-trace-py/actions/workflows/generate-supported-versions.yml)
+            Update ${{ env.VENV_NAME }} lockfiles and dependency package lockfiles.
+            This performs the following updates:
+              1) Some ${{ env.VENV_NAME }} lockfiles use ${{ env.VENV_NAME }} `latest`. This will update ${{ env.VENV_NAME }} and dependencies.
+              2) Some ${{ env.VENV_NAME }} lockfiles use a pinned (non-latest) version of ${{ env.VENV_NAME }}, but require the `latest` version of another package. This will update all such packages.

@@ -6,10 +6,10 @@ on:
     branches:
       - main
     paths:
-      - docker/Dockerfile.windows
+      - dd-trace-py/docker/Dockerfile.windows
   pull_request:
     paths:
-      - docker/Dockerfile.windows
+      - dd-trace-py/docker/Dockerfile.windows
 
 jobs:
   build-and-publish:
@@ -42,7 +42,7 @@ jobs:
           docker build `
             -t ghcr.io/datadog/dd-trace-py/windows-build:${{ github.sha }} `
             -t ghcr.io/datadog/dd-trace-py/windows-build:latest `
-            -f docker/Dockerfile.windows `
+            -f dd-trace-py/docker/Dockerfile.windows `
             .
         shell: powershell
 

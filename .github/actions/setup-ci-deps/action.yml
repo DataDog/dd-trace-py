@@ -34,4 +34,4 @@ runs:
 
     - name: Install CI dependencies
       shell: bash
-      run: pip install -r ci/requirements/ci.txt
+      run: pip install -r dd-trace-py/ci/requirements/ci.txt
