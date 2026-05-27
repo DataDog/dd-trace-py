@@ -1,6 +1,8 @@
 #include <string_view>
 
 #include "_memalloc_frame.h"
+
+#include "_memalloc_code_cache.h"
 #include "_memalloc_tb.h"
 
 /* Extract a UTF-8 string_view from a Python unicode object without any
@@ -99,12 +101,40 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
         if (code == NULL) {
             continue;
         }
-
-        std::string_view name_sv = unicode_to_sv_no_alloc(DataDog::get_code_name(code));
-        std::string_view filename_sv = unicode_to_sv_no_alloc(code->co_filename);
         int line = memalloc_get_lineno(frame, code);
 
-        sample.push_frame(name_sv, filename_sv, 0, line);
+        /* Cache lookup short-circuits the three libdd calls (insert_str x2 +
+         * insert_function) Sample::push_frame would otherwise make. */
+        Datadog::CodeFunctionCache* cache = Datadog::CodeFunctionCache::instance;
+        if (cache != nullptr) {
+            std::optional<Datadog::function_id> cached = cache->lookup(code);
+            if (cached) {
+                sample.push_frame(*cached, 0, line);
+                ++pushed_frames;
+                continue;
+            }
+        }
+
+        /* Cache miss: intern explicitly so we can cache the resulting
+         * function_id. Drops the frame on intern failure to match the
+         * silent-skip behavior of Sample::push_frame_impl. */
+        std::string_view name_sv = unicode_to_sv_no_alloc(DataDog::get_code_name(code));
+        std::string_view filename_sv = unicode_to_sv_no_alloc(code->co_filename);
+
+        std::optional<Datadog::string_id> name_id = Datadog::intern_string(name_sv);
+        std::optional<Datadog::string_id> filename_id = Datadog::intern_string(filename_sv);
+        if (!name_id || !filename_id) {
+            continue;
+        }
+        std::optional<Datadog::function_id> func_id = Datadog::intern_function(*name_id, *filename_id);
+        if (!func_id) {
+            continue;
+        }
+
+        if (cache != nullptr) {
+            cache->insert(code, *func_id);
+        }
+        sample.push_frame(*func_id, 0, line);
         ++pushed_frames;
     }
 }

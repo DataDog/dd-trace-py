@@ -8,6 +8,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "_memalloc_code_cache.h"
 #include "_memalloc_debug.h"
 #include "_memalloc_gc_guard.hpp"
 #include "_memalloc_heap.h"
@@ -327,6 +328,11 @@ heap_tracker_t::postfork_child()
 
     cap_drops = 0;
 
+    // PyCodeObject pointers from the parent may have been reused for unrelated
+    // code objects in the child. Drop the cache entirely; rebuilding it is
+    // cheap relative to risking misattribution.
+    Datadog::memalloc_code_cache_clear();
+
     // Reset the sampling state to start fresh after fork.
     reset_sampling_state_no_cpython();
 }
@@ -342,6 +348,7 @@ memalloc_heap_tracker_init_no_cpython(uint32_t sample_size)
     // TODO(dsn): what should we do if this was already initialized?
     if (!heap_tracker_t::instance) {
         heap_tracker_t::instance = new heap_tracker_t(sample_size);
+        Datadog::memalloc_code_cache_init();
         return true;
     }
     return false;
@@ -355,6 +362,10 @@ memalloc_heap_tracker_deinit_no_cpython(void)
     heap_tracker_t* old_instance = heap_tracker_t::instance;
     heap_tracker_t::instance = nullptr;
     delete old_instance;
+
+    // Tear down the code-object cache. function_ids held by it become stale
+    // once the heap tracker's allocs_m is gone.
+    Datadog::memalloc_code_cache_deinit();
 }
 
 void
