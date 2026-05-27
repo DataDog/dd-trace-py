@@ -150,7 +150,7 @@ class TestTestVisibilityAPIClientKnownTestResponses(TestTestVisibilityAPIClientB
             client.fetch_known_tests(read_from_cache=False)
 
         assert len(captured_payloads) == 2
-        assert captured_payloads[0]["data"]["attributes"]["page_info"] == {"page_size": 2000}
+        assert captured_payloads[0]["data"]["attributes"]["page_info"] == {}
         assert captured_payloads[1]["data"]["attributes"]["page_info"] == {
             "page_state": "page-2",
             "page_size": 250,
