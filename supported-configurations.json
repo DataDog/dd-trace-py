@@ -5981,6 +5981,14 @@
         "default": "false",
         "internal": true
       }
+    ],
+    "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED": [
+      {
+        "version": "B",
+        "type": "boolean",
+        "default": "false",
+        "propertyKeys": ["trace_stats_computation_experimental_client_obfuscation_enabled"]
+      }
     ]
   }
 }
