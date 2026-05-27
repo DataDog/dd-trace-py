@@ -7,6 +7,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "_memalloc_code_cache.h"
 #include "_memalloc_debug.h"
 #include "_memalloc_heap.h"
 #include "_memalloc_reentrant.h"
@@ -451,11 +452,87 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     Py_RETURN_NONE;
 }
 
-static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
-                                        { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
-                                        { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
-                                        /* sentinel */
-                                        { NULL, NULL, 0, NULL } };
+PyDoc_STRVAR(memalloc_code_cache_stats__doc__,
+             "code_cache_stats($module, /)\n"
+             "--\n"
+             "\n"
+             "Return a dict with PyCodeObject* -> function_id cache telemetry: "
+             "{'hits', 'misses', 'evictions', 'capacity'}. Returns None when the "
+             "cache is not initialized.\n");
+static PyObject*
+memalloc_code_cache_stats(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    Datadog::CodeFunctionCache* cache = Datadog::CodeFunctionCache::instance;
+    if (cache == nullptr) {
+        Py_RETURN_NONE;
+    }
+    return Py_BuildValue("{s:K,s:K,s:K,s:n}",
+                         "hits",
+                         (unsigned long long)cache->hits(),
+                         "misses",
+                         (unsigned long long)cache->misses(),
+                         "evictions",
+                         (unsigned long long)cache->evictions(),
+                         "capacity",
+                         (Py_ssize_t)cache->capacity());
+}
+
+PyDoc_STRVAR(memalloc_code_cache_reset_counters__doc__,
+             "code_cache_reset_counters($module, /)\n"
+             "--\n"
+             "\n"
+             "Zero hits/misses/evictions counters without clearing cache entries.\n");
+static PyObject*
+memalloc_code_cache_reset_counters(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    Datadog::CodeFunctionCache* cache = Datadog::CodeFunctionCache::instance;
+    if (cache != nullptr) {
+        cache->reset_counters();
+    }
+    Py_RETURN_NONE;
+}
+
+PyDoc_STRVAR(memalloc_code_cache_disable__doc__,
+             "code_cache_disable($module, /)\n"
+             "--\n"
+             "\n"
+             "Tear down the singleton cache. After this call, frame walks take the "
+             "slow path (intern_string x2 + intern_function per frame). For tests "
+             "and A/B microbenches only.\n");
+static PyObject*
+memalloc_code_cache_disable(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    Datadog::memalloc_code_cache_deinit();
+    Py_RETURN_NONE;
+}
+
+PyDoc_STRVAR(memalloc_code_cache_enable__doc__,
+             "code_cache_enable($module, /)\n"
+             "--\n"
+             "\n"
+             "(Re-)create the singleton cache, reading capacity from "
+             "DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE. No-op if already enabled.\n");
+static PyObject*
+memalloc_code_cache_enable(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    Datadog::memalloc_code_cache_init();
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef module_methods[] = {
+    { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
+    { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
+    { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
+    { "code_cache_stats", (PyCFunction)memalloc_code_cache_stats, METH_NOARGS, memalloc_code_cache_stats__doc__ },
+    { "code_cache_reset_counters",
+      (PyCFunction)memalloc_code_cache_reset_counters,
+      METH_NOARGS,
+      memalloc_code_cache_reset_counters__doc__ },
+    { "code_cache_disable", (PyCFunction)memalloc_code_cache_disable, METH_NOARGS, memalloc_code_cache_disable__doc__ },
+    { "code_cache_enable", (PyCFunction)memalloc_code_cache_enable, METH_NOARGS, memalloc_code_cache_enable__doc__ },
+    /* sentinel */
+    { NULL, NULL, 0, NULL }
+};
 
 PyDoc_STRVAR(module_doc, "Module to trace memory blocks allocated by Python.");
 
