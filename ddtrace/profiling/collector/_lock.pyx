@@ -3,6 +3,8 @@
 # as C type declarations. Without this, annotations like `Optional[str]` or `Callable[..., Any]`
 # would cause Cython compilation errors since they aren't valid C types.
 
+from __future__ import annotations
+
 import _thread
 import functools
 import os.path
@@ -14,6 +16,7 @@ from types import ModuleType
 from types import TracebackType
 from typing import Any
 from typing import Callable
+from typing import ClassVar
 from typing import Optional
 from typing import Union
 from typing import cast
@@ -472,49 +475,48 @@ class LockCollector(collector.CaptureSamplerCollector):
     MODULE: ModuleType  # e.g., threading module
     PATCHED_LOCK_NAME: str  # e.g., "Lock", "RLock", "Semaphore"
 
-    _active_collectors: set = set()
-    _gevent_hook_registered: bool = False
-    _gevent_monkey_wrapped: bool = False
+    _active_collectors: ClassVar[set[LockCollector]] = set()
+    _gevent_hook_registered: ClassVar[bool] = False
+    _gevent_monkey_wrapped: ClassVar[bool] = False
 
     @classmethod
     def _ensure_gevent_monkey_hook(cls) -> None:
         """Register a one-time hook to detect gevent monkey-patching.
 
-        When gevent.monkey.patch_all() or patch_thread() runs, it replaces
-        threading.Lock (and friends) in-place, destroying our _LockAllocatorWrapper.
+        When gevent.monkey.patch_all or patch_thread runs, it replaces
+        threading lock primitives in-place, destroying our _LockAllocatorWrapper.
         This hook wraps those functions so we can re-apply lock profiling afterwards.
         """
-        if cls._gevent_hook_registered:
+        if not cls._gevent_hook_registered:
             return
-        cls._gevent_hook_registered = True
 
-        def _on_gevent_monkey_imported(gevent_monkey_module: ModuleType) -> None:
-            cls._wrap_gevent_monkey(gevent_monkey_module)
+        cls._gevent_hook_registered = True
 
         if "gevent.monkey" in sys.modules:
             cls._wrap_gevent_monkey(sys.modules["gevent.monkey"])
 
-        ModuleWatchdog.register_module_hook("gevent.monkey", _on_gevent_monkey_imported)
+        ModuleWatchdog.register_module_hook("gevent.monkey", cls._wrap_gevent_monkey)
 
     @classmethod
     def _wrap_gevent_monkey(cls, gevent_monkey: ModuleType) -> None:
         """Wrap gevent.monkey.patch_all and patch_thread with a post-callback."""
         if cls._gevent_monkey_wrapped:
             return
+
         cls._gevent_monkey_wrapped = True
 
-        original_patch_all = gevent_monkey.patch_all
-        original_patch_thread = gevent_monkey.patch_thread
+        original_patch_all: Callable[..., Any] = gevent_monkey.patch_all
+        original_patch_thread: Callable[..., Any] = gevent_monkey.patch_thread
 
         @functools.wraps(original_patch_all)
         def _wrapped_patch_all(*args: Any, **kwargs: Any) -> Any:
-            result = original_patch_all(*args, **kwargs)
+            result: Any = original_patch_all(*args, **kwargs)
             cls._repatch_after_gevent_monkey()
             return result
 
         @functools.wraps(original_patch_thread)
         def _wrapped_patch_thread(*args: Any, **kwargs: Any) -> Any:
-            result = original_patch_thread(*args, **kwargs)
+            result: Any = original_patch_thread(*args, **kwargs)
             cls._repatch_after_gevent_monkey()
             return result
 
@@ -527,16 +529,17 @@ class LockCollector(collector.CaptureSamplerCollector):
     @classmethod
     def _repatch_after_gevent_monkey(cls) -> None:
         """Re-apply lock profiling patches on any collector whose wrapper was overwritten."""
-        for collector_inst in list(cls._active_collectors):
-            current = collector_inst._get_patch_target()
+        collector: LockCollector
+        for collector in list(cls._active_collectors):
+            current: Callable[..., Any] = collector._get_patch_target()
             if not isinstance(current, _LockAllocatorWrapper):
                 log.debug(
                     "%s: gevent monkey-patching overwrote lock profiler wrapper on %s.%s; re-applying.",
-                    type(collector_inst).__name__,
-                    collector_inst.MODULE.__name__,
-                    collector_inst.PATCHED_LOCK_NAME,
+                    type(collector).__name__,
+                    collector.MODULE.__name__,
+                    collector.PATCHED_LOCK_NAME,
                 )
-                collector_inst.patch()
+                collector.patch()
 
     def __init__(
         self,
