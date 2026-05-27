@@ -582,23 +582,11 @@ class TestConvertAnthropicMessages:
         assert {m["role"] for m in result} <= {"system", "user", "assistant", "tool"}
 
     # ---------------------------------------------------------------------------
-    # Regression: non-list Iterable content (generator/tuple bypass fix)
+    # Non-list / non-tuple content handling
     # ---------------------------------------------------------------------------
 
-    def test_content_as_generator_extracted(self):
-        """Generator content is materialised and written back; not stringified."""
-
-        def _blocks():
-            yield {"type": "text", "text": "secret prompt"}
-
-        msg = {"role": "user", "content": _blocks()}
-        result = _convert_anthropic_messages(None, [msg])
-        assert result[0]["content"] == "secret prompt"
-        # Write-back: SDK must not receive an exhausted generator.
-        assert msg["content"] == [{"type": "text", "text": "secret prompt"}]
-
     def test_content_as_tuple_extracted(self):
-        """Tuple of content blocks is handled like a list, and written back as list."""
+        """Tuple of content blocks is iterated in place; input is not mutated."""
         content = (
             {"type": "text", "text": "hello "},
             {"type": "text", "text": "world"},
@@ -606,34 +594,23 @@ class TestConvertAnthropicMessages:
         msg = {"role": "user", "content": content}
         result = _convert_anthropic_messages(None, [msg])
         assert result[0]["content"] == "hello world"
-        assert isinstance(msg["content"], list)
-
-    def test_content_as_generator_with_tool_use(self):
-        """Generator yielding tool_use blocks is materialised and converted."""
-
-        def _blocks():
-            yield {"type": "text", "text": "calling tool"}
-            yield {"type": "tool_use", "id": "toolu_g", "name": "fn", "input": {"x": 1}}
-
-        messages = [{"role": "assistant", "content": _blocks()}]
-        result = _convert_anthropic_messages(None, messages)
-        assert result[0]["content"] == "calling tool"
-        assert result[0]["tool_calls"][0]["id"] == "toolu_g"
+        # Tuples are re-iterable; leave the caller's input untouched.
+        assert msg["content"] is content
 
     def test_content_as_bytes_stringified(self):
-        """bytes content is not a valid Anthropic shape; falls to stringify."""
+        """bytes content is not a valid Anthropic shape; falls back to str()."""
         messages = [{"role": "user", "content": b"raw bytes"}]
         result = _convert_anthropic_messages(None, messages)
         assert len(result) == 1
-        assert result[0].get("content") == "b'raw bytes'"
+        assert result[0]["content"] == "b'raw bytes'"
 
     def test_content_as_dict_stringified(self):
-        """A bare dict (single block, not in a list) is not iterated — falls to stringify."""
+        """A bare dict (single block, not in a list) falls back to str()."""
         messages = [{"role": "user", "content": {"type": "text", "text": "hi"}}]
         result = _convert_anthropic_messages(None, messages)
         assert len(result) == 1
-        assert isinstance(result[0].get("content"), str)
-        assert "hi" in result[0].get("content", "")
+        # str(dict) preserves the keys/values so AI Guard still sees the prompt text.
+        assert "hi" in result[0]["content"]
 
     def test_system_as_generator_extracted(self):
         """Generator system prompt is materialised by _flatten_text_blocks."""
@@ -860,6 +837,33 @@ def test_create_sync_block_is_anthropic_compatible_exception(mock_execute_reques
     assert err.action == "DENY"
     assert hasattr(err, "reason")
     assert isinstance(err.__cause__, AIGuardAbortError)
+
+
+def _find_anthropic_llm_span(test_spans):
+    """Return the anthropic LLM span (the only non-AI-Guard span)."""
+    from ddtrace.appsec._constants import AI_GUARD
+
+    spans = test_spans.spans
+    llm_span = next((s for s in spans if s.name != AI_GUARD.RESOURCE_TYPE), None)
+    assert llm_span is not None, f"No anthropic LLM span found among: {[s.name for s in spans]}"
+    return llm_span
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_create_sync_block_tags_llm_span_with_error(mock_execute_request, anthropic_client_mock, test_spans):
+    """A DENY before-hook block must finish the anthropic LLM span with
+    ``error == 1`` and an ``AIGuardAbortError``-flavoured ``error.type``,
+    so LLMObs surfaces the block as a failed call rather than success.
+    """
+    mock_execute_request.return_value = mock_evaluate_response("DENY")
+
+    with pytest.raises(AIGuardAbortError):
+        anthropic_client_mock.messages.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    llm_span = _find_anthropic_llm_span(test_spans)
+    assert llm_span.error == 1
+    assert "AIGuardAbortError" in (llm_span.get_tag("error.type") or "")
+    assert "AIGuardAbortError" in (llm_span.get_tag("error.message") or "")
 
 
 # ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import AnthropicIntegration
@@ -56,14 +57,14 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
         try:
             core.dispatch("anthropic.messages.create.before", (kwargs,), allow_raise=True)
             resp = func(*args, **kwargs)
-        except Exception:
+        except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
         try:
             core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
-        except Exception:
+        except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         event.response = resp
@@ -90,14 +91,14 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
         try:
             core.dispatch("anthropic.messages.create.before", (kwargs,), allow_raise=True)
             resp = await func(*args, **kwargs)
-        except Exception:
+        except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
         try:
             core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
-        except Exception:
+        except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         event.response = resp

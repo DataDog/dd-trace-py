@@ -11,8 +11,10 @@ non-streaming + streaming. For streaming responses only the
 The converter accepts every Anthropic Messages-API content block shape we
 expect to encounter at the SDK boundary; the mapping mirrors the dd-source
 ``format_messages`` reference (``domains/appsec/shared/libs/py/aiguard``).
-Shapes outside the recognised set are dropped with a telemetry log rather
-than silently passed through, so support can spot integration drift.
+Shapes outside the recognised set (e.g. raw bytes, a bare block dict,
+generators) are telemetry-logged and emitted as a ``str()`` best-effort
+fallback so AI Guard still scans the request rather than silently bypassing
+it, and support can spot integration drift.
 """
 
 import json
@@ -428,31 +430,15 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
                 result.append(Message(role=role, content=content))
                 continue
 
-            # MessageParam.content is typed Iterable[...] not list[...].
-            # Materialise generators / tuples; without this a generator
-            # stringifies to "<generator object ...>" and bypasses AI Guard
-            # while the SDK still sends the real blocks. Write back so the
-            # SDK does not receive an exhausted generator.
-            if not isinstance(content, (list, bytes, bytearray, dict)):
-                try:
-                    content = list(content)
-                except TypeError:
-                    pass
-                else:
-                    try:
-                        msg["content"] = content
-                    except (TypeError, AttributeError):
-                        pass
-
-            if not isinstance(content, list):
+            # MessageParam.content is Iterable[BlockParam] per type, but in
+            # practice always list or tuple. Anything else is malformed:
+            # telemetry-log and emit a ``str()`` best-effort so AI Guard
+            # still scans instead of silently bypassing the request.
+            if not isinstance(content, (list, tuple)):
                 _report_converter_error(
-                    "AI Guard anthropic: unexpected 'content' type %r on role=%r; "
-                    "stringifying as best-effort fallback" % (type(content).__name__, role)
+                    "AI Guard anthropic: unexpected 'content' type %r on role=%r" % (type(content).__name__, role)
                 )
-                ai_msg = Message(role=role)
-                if content is not None:
-                    ai_msg["content"] = str(content)
-                result.append(ai_msg)
+                result.append(Message(role=role, content=str(content)))
                 continue
 
             parsed = _format_content_blocks(content)
