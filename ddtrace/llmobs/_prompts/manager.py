@@ -296,7 +296,7 @@ class PromptManager:
         log.debug("Using user-provided fallback for prompt %s", prompt_id)
         return ManagedPrompt.from_fallback(prompt_id, fallback)
 
-    # --- Prompt management (write) methods ---
+    # --- Prompt CRUD API methods ---
 
     def _request(
         self,
