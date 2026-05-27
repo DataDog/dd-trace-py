@@ -101,10 +101,10 @@ cdef extern from "ddup_interface.hpp":
     void ddup_drop_sample(Sample *sample)
 
     ctypedef struct ProfilerRuntimeStats:
-        size_t sample_count
-        size_t sampling_event_count
-        size_t copy_memory_error_count
-        size_t sample_capture_cpu_time_us
+        int64_t sample_count
+        int64_t sampling_event_count
+        int64_t copy_memory_error_count
+        int64_t sample_capture_cpu_time_us
         int64_t sampling_interval_us
         int64_t asyncio_task_count
         int64_t greenlet_count
@@ -629,7 +629,7 @@ cdef class SampleHandle:
             self.ptr = NULL
 
 
-def get_profiler_runtime_stats():
+def get_profiler_runtime_stats() -> Optional[dict]:
     """Returns a dict of profiler operational stats, or None if the profiler is not running.
 
     Counter values (sample_count, sampling_event_count, copy_memory_error_count,
@@ -640,7 +640,7 @@ def get_profiler_runtime_stats():
     if not ddup_get_profiler_runtime_stats(&stats):
         return None
 
-    result = {
+    cdef dict result = {
         "sample_count": stats.sample_count,
         "sampling_event_count": stats.sampling_event_count,
         "copy_memory_error_count": stats.copy_memory_error_count,

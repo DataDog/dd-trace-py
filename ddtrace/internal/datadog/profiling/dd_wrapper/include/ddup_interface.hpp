@@ -106,10 +106,10 @@ extern "C"
     // Gauge fields are the latest snapshot; -1 means not yet available.
     struct ProfilerRuntimeStats
     {
-        size_t sample_count;
-        size_t sampling_event_count;
-        size_t copy_memory_error_count;
-        size_t sample_capture_cpu_time_us;
+        int64_t sample_count;
+        int64_t sampling_event_count;
+        int64_t copy_memory_error_count;
+        int64_t sample_capture_cpu_time_us;
         int64_t sampling_interval_us;
         int64_t asyncio_task_count;
         int64_t greenlet_count;
@@ -119,8 +119,6 @@ extern "C"
         int64_t fast_copy_memory_enabled;
     };
 
-    // Populate *out with current profiler stats.
-    // Returns false if profiler not initialized.
     bool ddup_get_profiler_runtime_stats(ProfilerRuntimeStats* out);
 #ifdef __cplusplus
 } // extern "C"

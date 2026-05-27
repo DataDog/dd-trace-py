@@ -1,6 +1,7 @@
 import os
 from typing import Callable
 from typing import Optional
+from typing import Union
 
 from .collector import ValueCollector
 from .constants import CPU_PERCENT
@@ -39,11 +40,11 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
 
     required_modules = ["gc"]
 
-    def collect_fn(self, keys):
+    def collect_fn(self, keys: set[str]) -> list[tuple[str, Union[int, float]]]:
         gc = self.modules.get("gc")
 
-        counts = gc.get_count()
-        metrics = [
+        counts: tuple[int, int, int] = gc.get_count()
+        metrics: list[tuple[str, Union[int, float]]] = [
             (GC_COUNT_GEN0, counts[0]),
             (GC_COUNT_GEN1, counts[1]),
             (GC_COUNT_GEN2, counts[2]),
@@ -73,26 +74,24 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
         CPU_PERCENT: lambda p: p.cpu_percent(),
     }
 
-    def _on_modules_load(self):
+    def _on_modules_load(self) -> None:
         self.proc = self.modules["ddtrace.vendor.psutil"].Process(os.getpid())
-        self.stored_values = {key: 0 for key in self.delta_funs.keys()}
+        self.stored_values: dict[str, Union[int, float]] = {key: 0 for key in self.delta_funs.keys()}
 
-    def collect_fn(self, keys):
+    def collect_fn(self, keys: set[str]) -> list[tuple[str, Union[int, float]]]:
         with self.proc.oneshot():
-            metrics = {}
+            metrics: dict[str, Union[int, float]] = {}
 
-            # Populate metrics for which we compute delta values
             for metric, delta_fun in self.delta_funs.items():
                 try:
-                    value = delta_fun(self.proc)
+                    value: Union[int, float] = delta_fun(self.proc)
                 except Exception:
                     value = 0
 
-                delta = value - self.stored_values.get(metric, 0)
+                delta: Union[int, float] = value - self.stored_values.get(metric, 0)
                 self.stored_values[metric] = value
                 metrics[metric] = delta
 
-            # Populate metrics that just take instantaneous reading
             for metric, abs_fun in self.abs_funs.items():
                 try:
                     value = abs_fun(self.proc)
@@ -128,7 +127,7 @@ class ProfilerRuntimeMetricCollector(RuntimeMetricCollector):
         "fast_copy_memory_enabled": PROFILER_FAST_COPY_MEMORY_ENABLED,
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._get_stats: Optional[Callable[[], Optional[dict[str, int]]]] = None
         self._stored_values: dict[str, int] = {key: 0 for key in self._COUNTER_KEYS}
@@ -144,23 +143,23 @@ class ProfilerRuntimeMetricCollector(RuntimeMetricCollector):
         except ImportError:
             return False
 
-    def collect_fn(self, keys):
+    def collect_fn(self, keys: set[str]) -> list[tuple[str, int]]:
         if not self._ensure_stats_fn():
             return []
 
-        get_stats = self._get_stats
+        get_stats: Optional[Callable[[], Optional[dict[str, int]]]] = self._get_stats
         if get_stats is None:
             return []
-        stats = get_stats()
+        stats: Optional[dict[str, int]] = get_stats()
         if stats is None:
             return []
 
-        metrics = []
+        metrics: list[tuple[str, int]] = []
 
         for raw_key, metric_name in self._COUNTER_KEYS.items():
-            cumulative = stats.get(raw_key, 0)
-            prev = self._stored_values.get(raw_key, 0)
-            delta = cumulative - prev
+            cumulative: int = stats.get(raw_key, 0)
+            prev: int = self._stored_values.get(raw_key, 0)
+            delta: int = cumulative - prev
             if delta < 0:
                 delta = cumulative
             self._stored_values[raw_key] = cumulative

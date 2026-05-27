@@ -93,15 +93,13 @@ class ProfilerState
 
     // ========================================================================
     // Runtime metrics state
-    // Cumulative counters for runtime.python.profiler.* DogStatsD metrics.
-    // Unlike ProfilerStats (which resets on every upload swap), these
-    // accumulate for the lifetime of the process so the RuntimeWorker
-    // can compute accurate per-interval deltas.
+    // Cumulative counters for runtime.python.profiler.* DogStatsD metrics,
+    // accumulating for the lifetime of the process to compute accurate per-interval deltas.
     // ========================================================================
-    std::atomic<size_t> cumulative_sample_count{ 0 };
-    std::atomic<size_t> cumulative_sampling_event_count{ 0 };
-    std::atomic<size_t> cumulative_copy_memory_error_count{ 0 };
-    std::atomic<size_t> cumulative_sample_capture_cpu_time_us{ 0 };
+    std::atomic<int64_t> cumulative_sample_count{ 0 };
+    std::atomic<int64_t> cumulative_sampling_event_count{ 0 };
+    std::atomic<int64_t> cumulative_copy_memory_error_count{ 0 };
+    std::atomic<int64_t> cumulative_sample_capture_cpu_time_us{ 0 };
 
     // ========================================================================
     // Upload state
