@@ -106,17 +106,17 @@ extern "C"
     // Gauge fields are the latest snapshot; -1 means not yet available.
     struct ProfilerRuntimeStats
     {
-        int64_t sample_count;
-        int64_t sampling_event_count;
-        int64_t copy_memory_error_count;
-        int64_t sample_capture_cpu_time_us;
-        int64_t sampling_interval_us;
-        int64_t asyncio_task_count;
-        int64_t greenlet_count;
-        int64_t heap_tracker_count;
-        int64_t string_table_count;
-        int64_t string_table_ephemeral_count;
-        int64_t fast_copy_memory_enabled;
+        int64_t sample_count = 0;
+        int64_t sampling_event_count = 0;
+        int64_t copy_memory_error_count = 0;
+        int64_t sample_capture_cpu_time_us = 0;
+        int64_t sampling_interval_us = -1;
+        int64_t asyncio_task_count = -1;
+        int64_t greenlet_count = -1;
+        int64_t heap_tracker_count = -1;
+        int64_t string_table_count = -1;
+        int64_t string_table_ephemeral_count = -1;
+        int64_t fast_copy_memory_enabled = -1;
     };
 
     bool ddup_get_profiler_runtime_stats(ProfilerRuntimeStats* out);

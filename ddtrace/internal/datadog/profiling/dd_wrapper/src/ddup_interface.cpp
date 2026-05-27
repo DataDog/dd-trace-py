@@ -397,30 +397,31 @@ ddup_get_profiler_runtime_stats(ProfilerRuntimeStats* out) // cppcheck-suppress 
     out->copy_memory_error_count = state.cumulative_copy_memory_error_count.load(std::memory_order_relaxed);
     out->sample_capture_cpu_time_us = state.cumulative_sample_capture_cpu_time_us.load(std::memory_order_relaxed);
 
-    // Gauge values from the live ProfilerStats (borrow acquires the profile mutex)
+    // Gauge values from the live ProfilerStats (borrow acquires the profile mutex).
+    // Optional gauges keep their -1 default when not yet set.
     auto borrowed = state.profile_state.borrow();
     auto& stats = borrowed.stats();
 
-    auto interval = stats.get_sampling_interval_us();
-    out->sampling_interval_us = interval.has_value() ? static_cast<int64_t>(interval.value()) : -1;
+    if (auto v = stats.get_sampling_interval_us())
+        out->sampling_interval_us = static_cast<int64_t>(*v);
 
-    auto asyncio = stats.get_asyncio_task_count();
-    out->asyncio_task_count = asyncio.has_value() ? static_cast<int64_t>(asyncio.value()) : -1;
+    if (auto v = stats.get_asyncio_task_count())
+        out->asyncio_task_count = static_cast<int64_t>(*v);
 
-    auto greenlets = stats.get_greenlet_count();
-    out->greenlet_count = greenlets.has_value() ? static_cast<int64_t>(greenlets.value()) : -1;
+    if (auto v = stats.get_greenlet_count())
+        out->greenlet_count = static_cast<int64_t>(*v);
 
-    auto heap = stats.get_heap_tracker_size();
-    out->heap_tracker_count = heap.has_value() ? static_cast<int64_t>(heap.value()) : -1;
+    if (auto v = stats.get_heap_tracker_size())
+        out->heap_tracker_count = static_cast<int64_t>(*v);
 
-    auto str_table = stats.get_string_table_count();
-    out->string_table_count = str_table.has_value() ? static_cast<int64_t>(str_table.value()) : -1;
+    if (auto v = stats.get_string_table_count())
+        out->string_table_count = static_cast<int64_t>(*v);
 
-    auto str_ephemeral = stats.get_string_table_ephemeral_count();
-    out->string_table_ephemeral_count = str_ephemeral.has_value() ? static_cast<int64_t>(str_ephemeral.value()) : -1;
+    if (auto v = stats.get_string_table_ephemeral_count())
+        out->string_table_ephemeral_count = static_cast<int64_t>(*v);
 
-    auto fast_copy = stats.get_fast_copy_memory_enabled();
-    out->fast_copy_memory_enabled = fast_copy.has_value() ? (fast_copy.value() ? 1 : 0) : -1;
+    if (auto v = stats.get_fast_copy_memory_enabled())
+        out->fast_copy_memory_enabled = static_cast<int64_t>(*v);
 
     return true;
 }

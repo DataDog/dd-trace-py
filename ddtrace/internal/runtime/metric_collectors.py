@@ -147,10 +147,7 @@ class ProfilerRuntimeMetricCollector(RuntimeMetricCollector):
         if not self._ensure_stats_fn():
             return []
 
-        get_stats: Optional[Callable[[], Optional[dict[str, int]]]] = self._get_stats
-        if get_stats is None:
-            return []
-        stats: Optional[dict[str, int]] = get_stats()
+        stats: Optional[dict[str, int]] = get_stats() if (get_stats := self._get_stats) else None
         if stats is None:
             return []
 
