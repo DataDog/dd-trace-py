@@ -1,5 +1,5 @@
 variables:
-  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v115290588-e44777e-testrunner@sha256:d91a5a19bf89fd78b691a0152522d372562b31fca4d9190a9526795110cf1c9b
+  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v115521171-bbc5877-testrunner@sha256:a3e99a5fab74078806d5507b9743370ca375e63dd36b0a0eace4d05cfd1ecda3
 
 .testrunner:
   image:
