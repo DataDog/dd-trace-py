@@ -281,6 +281,8 @@ class BedrockIntegration(BaseLLMIntegration):
 
         text_content_blocks: dict[int, str] = {}
         tool_content_blocks: dict[int, dict[str, Any]] = {}
+        reasoning_content_blocks: dict[int, str] = {}
+        redacted_reasoning_indices: set[int] = set()
 
         current_message: Optional[dict[str, Any]] = None
 
@@ -339,9 +341,25 @@ class BedrockIntegration(BaseLLMIntegration):
                             tool_content_blocks[index].get("input", "") + delta_content["toolUse"]["input"]
                         )
 
+                    reasoning_delta = delta_content.get("reasoningContent")
+                    if isinstance(reasoning_delta, dict):
+                        # ReasoningContentBlockDelta is a union of text/signature/redactedContent.
+                        # We only surface text; signature is opaque and redacted bytes are unreadable.
+                        if isinstance(reasoning_delta.get("text"), str):
+                            reasoning_content_blocks[index] = (
+                                reasoning_content_blocks.get(index, "") + reasoning_delta["text"]
+                            )
+                        elif "redactedContent" in reasoning_delta:
+                            redacted_reasoning_indices.add(index)
+
             if "messageStop" in chunk:
-                messages.append(
-                    get_final_message_converse_stream_message(current_message, text_content_blocks, tool_content_blocks)
+                for idx in redacted_reasoning_indices:
+                    if idx not in reasoning_content_blocks:
+                        reasoning_content_blocks[idx] = "[REDACTED REASONING]"
+                messages.extend(
+                    get_final_message_converse_stream_message(
+                        current_message, text_content_blocks, tool_content_blocks, reasoning_content_blocks
+                    )
                 )
                 current_message = None
 
@@ -349,8 +367,13 @@ class BedrockIntegration(BaseLLMIntegration):
 
         # Handle the case where we didn't receive an explicit message stop event
         if current_message is not None and current_message.get("content_block_indicies"):
-            messages.append(
-                get_final_message_converse_stream_message(current_message, text_content_blocks, tool_content_blocks)
+            for idx in redacted_reasoning_indices:
+                if idx not in reasoning_content_blocks:
+                    reasoning_content_blocks[idx] = "[REDACTED REASONING]"
+            messages.extend(
+                get_final_message_converse_stream_message(
+                    current_message, text_content_blocks, tool_content_blocks, reasoning_content_blocks
+                )
             )
 
         if not messages:

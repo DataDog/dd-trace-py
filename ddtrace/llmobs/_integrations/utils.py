@@ -236,12 +236,20 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
         return []
     messages: list[Message] = []
     content_blocks = []
+    reasoning_blocks: list[str] = []
     tool_calls_info = []
     tool_messages: list[Message] = []
     unsupported_content_messages: list[Message] = []
     for content_block in content:
         if content_block.get("text") and isinstance(content_block.get("text"), str):
             content_blocks.append(content_block.get("text", ""))
+        elif isinstance(content_block.get("reasoningContent"), dict):
+            reasoning_content = content_block["reasoningContent"]
+            reasoning_text = reasoning_content.get("reasoningText")
+            if isinstance(reasoning_text, dict) and isinstance(reasoning_text.get("text"), str):
+                reasoning_blocks.append(reasoning_text["text"])
+            elif "redactedContent" in reasoning_content:
+                reasoning_blocks.append("[REDACTED REASONING]")
         elif content_block.get("toolUse") and isinstance(content_block.get("toolUse"), dict):
             toolUse = content_block.get("toolUse", {})
             tool_call_info = ToolCall(
@@ -285,6 +293,8 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
             unsupported_content_messages.append(
                 Message(content="[Unsupported content type: {}]".format(content_type), role=role)
             )
+    if reasoning_blocks:
+        messages.append(Message(content="".join(reasoning_blocks), role="reasoning"))
     message: Message = Message()
     if tool_calls_info:
         message["tool_calls"] = tool_calls_info
@@ -1510,21 +1520,32 @@ class LLMObsTraceInfo:
 
 
 def get_final_message_converse_stream_message(
-    message: dict[str, Any], text_blocks: dict[int, str], tool_blocks: dict[int, dict[str, Any]]
-) -> Message:
+    message: dict[str, Any],
+    text_blocks: dict[int, str],
+    tool_blocks: dict[int, dict[str, Any]],
+    reasoning_blocks: Optional[dict[int, str]] = None,
+) -> list[Message]:
     """Process a message and its content blocks into LLM Obs message format.
 
     Args:
         message: A message to be processed containing role and content block indices
         text_blocks: Mapping of content block indices to their text content
         tool_blocks: Mapping of content block indices to their tool usage data
+        reasoning_blocks: Mapping of content block indices to their accumulated reasoning text
 
     Returns:
-        dict containing the processed message with content and optional tool calls
+        A list of messages. When the assistant produced reasoning content, a separate
+        ``role="reasoning"`` message is emitted before the main message.
     """
     indices = sorted(message.get("content_block_indicies", []))
-    message_output = Message(role=message["role"])
+    outputs: list[Message] = []
 
+    if reasoning_blocks:
+        reasoning_text = "".join(reasoning_blocks[idx] for idx in indices if idx in reasoning_blocks)
+        if reasoning_text:
+            outputs.append(Message(content=reasoning_text, role="reasoning"))
+
+    message_output = Message(role=message["role"])
     text_contents = [text_blocks[idx] for idx in indices if idx in text_blocks]
     message_output.update({"content": "".join(text_contents)} if text_contents else {})
 
@@ -1551,7 +1572,8 @@ def get_final_message_converse_stream_message(
     if tool_calls:
         message_output["tool_calls"] = tool_calls
 
-    return message_output
+    outputs.append(message_output)
+    return outputs
 
 
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")

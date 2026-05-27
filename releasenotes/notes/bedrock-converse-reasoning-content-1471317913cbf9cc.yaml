@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Bedrock Converse and ConverseStream ``reasoningContent`` content blocks are now captured as a separate ``role="reasoning"`` message on LLM Observability ``llm`` spans. Encrypted ``redactedContent`` reasoning blocks are surfaced as ``[REDACTED REASONING]`` placeholders.
