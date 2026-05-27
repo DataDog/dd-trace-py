@@ -322,13 +322,22 @@ class PromptManager:
         status, response_body = self._http_request(method, path, body=encoded_body, headers=headers, timeout=timeout)
 
         if 200 <= status < 300:
-            return json.loads(response_body) if response_body else {}
+            if not response_body:
+                return {}
+            try:
+                return json.loads(response_body)
+            except (json.JSONDecodeError, ValueError):
+                raise PromptServerError(status, "invalid JSON in response body")
 
         detail = extract_error_detail(response_body)
         exc_cls = _STATUS_EXCEPTIONS.get(status)
         if exc_cls is None:
             exc_cls = PromptServerError if status >= 500 else PromptAPIError
         raise exc_cls(status, detail)
+
+    def _evict_prompt_caches(self, prompt_id: str) -> None:
+        self._hot_cache.evict_prompt(prompt_id)
+        self._warm_cache.evict_prompt(prompt_id)
 
     def create_prompt(
         self,
@@ -350,8 +359,7 @@ class PromptManager:
         if labels is not None:
             body["labels"] = labels
         result: PromptResponse = self._request("POST", PROMPTS_ENDPOINT, body=body)
-        self._hot_cache.evict_prompt(prompt_id)
-        self._warm_cache.evict_prompt(prompt_id)
+        self._evict_prompt_caches(prompt_id)
         return result
 
     def create_prompt_version(
@@ -372,8 +380,7 @@ class PromptManager:
         if labels is not None:
             body["labels"] = labels
         result: PromptVersionResponse = self._request("POST", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", body=body)
-        self._hot_cache.evict_prompt(prompt_id)
-        self._warm_cache.evict_prompt(prompt_id)
+        self._evict_prompt_caches(prompt_id)
         return result
 
     def update_prompt(
@@ -392,8 +399,7 @@ class PromptManager:
         if description is not None:
             body["description"] = description
         result: PromptResponse = self._request("PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}", body=body)
-        self._hot_cache.evict_prompt(prompt_id)
-        self._warm_cache.evict_prompt(prompt_id)
+        self._evict_prompt_caches(prompt_id)
         return result
 
     def update_prompt_version(
@@ -415,15 +421,13 @@ class PromptManager:
         result: PromptVersionResponse = self._request(
             "PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions/{version}", body=body
         )
-        self._hot_cache.evict_prompt(prompt_id)
-        self._warm_cache.evict_prompt(prompt_id)
+        self._evict_prompt_caches(prompt_id)
         return result
 
     def delete_prompt(self, prompt_id: str) -> DeletedPromptResponse:
         escaped_id = quote(prompt_id, safe="")
         result: DeletedPromptResponse = self._request("DELETE", f"{PROMPTS_ENDPOINT}/{escaped_id}")
-        self._hot_cache.evict_prompt(prompt_id)
-        self._warm_cache.evict_prompt(prompt_id)
+        self._evict_prompt_caches(prompt_id)
         return result
 
     def list_prompts(self, *, ml_app: Optional[str] = None) -> list[PromptResponse]:

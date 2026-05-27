@@ -136,7 +136,10 @@ class WarmCache:
             self._enabled = False
 
     def _key_to_path(self, key: str) -> Path:
-        prompt_id, _, label = key.partition(":")
+        # rsplit to handle prompt_ids containing colons (label never contains colons)
+        parts = key.rsplit(":", 1)
+        prompt_id = parts[0]
+        label = parts[1] if len(parts) > 1 and parts[1] else ""
         safe_id = prompt_id.replace("/", "_").replace("\\", "_")
         safe_label = label.replace("/", "_").replace("\\", "_") if label else "_default"
         return self._cache_dir / safe_id / f"{safe_label}.json"
