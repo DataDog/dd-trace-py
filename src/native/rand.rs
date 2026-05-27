@@ -10,6 +10,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 // load so the store is visible to threads that did not participate in module import.
 static SECURE_RANDOM: AtomicBool = AtomicBool::new(false);
 
+// Matches ddtrace's asbool() convention: "true", "True", "TRUE", and "1" are all truthy.
+fn parse_bool_env(val: Option<String>) -> bool {
+    val.map(|v| matches!(v.to_lowercase().as_str(), "true" | "1"))
+        .unwrap_or(false)
+}
+
 #[inline]
 fn secure_random() -> bool {
     SECURE_RANDOM.load(Ordering::Acquire)
@@ -129,6 +135,29 @@ mod tests {
         result.unwrap();
     }
 
+    // ── parse_bool_env() ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_bool_env_truthy_values() {
+        for val in &["true", "True", "TRUE", "1"] {
+            assert!(
+                parse_bool_env(Some(val.to_string())),
+                "expected parse_bool_env({val:?}) == true"
+            );
+        }
+    }
+
+    #[test]
+    fn test_parse_bool_env_falsy_values() {
+        for val in &["false", "False", "FALSE", "0", "yes", ""] {
+            assert!(
+                !parse_bool_env(Some(val.to_string())),
+                "expected parse_bool_env({val:?}) == false"
+            );
+        }
+        assert!(!parse_bool_env(None), "expected parse_bool_env(None) == false");
+    }
+
     // ── secure_random() ──────────────────────────────────────────────────────
 
     #[test]
@@ -197,6 +226,20 @@ mod tests {
                 any_high_bit_set,
                 "OsRng path in rand64bits never set bits above 32"
             );
+        });
+    }
+
+    #[test]
+    fn test_rand64bits_impl_flag_matches_secure_random() {
+        // The second element of rand64bits_impl() must echo the SECURE_RANDOM flag
+        // so callers (e.g. logging) can confirm which path was taken.
+        with_secure_random(false, || {
+            let (_, flag) = rand64bits_impl();
+            assert!(!flag, "flag should be false when SECURE_RANDOM=false");
+        });
+        with_secure_random(true, || {
+            let (_, flag) = rand64bits_impl();
+            assert!(flag, "flag should be true when SECURE_RANDOM=true");
         });
     }
 
@@ -284,7 +327,7 @@ pub fn register_rand(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Release store: any thread that subsequently does an Acquire load will see this value,
     // even if it was created before module import.
     SECURE_RANDOM.store(
-        std::env::var("DD_TRACE_SECURE_RANDOM").as_deref() == Ok("true"),
+        parse_bool_env(std::env::var("DD_TRACE_SECURE_RANDOM").ok()),
         Ordering::Release,
     );
 
