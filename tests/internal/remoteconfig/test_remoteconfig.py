@@ -137,6 +137,10 @@ def get_mock_encoded_msg_with_signed_errors(msg, path, signed_errors):
     }
 
 
+def _decode_capabilities(payload):
+    return int.from_bytes(base64.b64decode(payload["client"]["capabilities"]), "big")
+
+
 def test_remote_config_register_auto_enable(remote_config_worker):
     # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
     class MockCallback(RCCallback):
@@ -155,6 +159,59 @@ def test_remote_config_register_auto_enable(remote_config_worker):
         assert remoteconfig_poller._client._product_callbacks["LIVE_DEBUGGER"] is not None
 
         remoteconfig_poller.disable()
+
+
+def test_remote_config_enable_product_starts_after_product_is_in_payload(remote_config_worker):
+    class MockCallback(RCCallback):
+        def __call__(self, payloads):
+            pass
+
+    captured_payloads = []
+
+    def capture_initial_payload():
+        captured_payloads.append(remoteconfig_poller._client._build_payload({}))
+
+    with override_global_config(dict(_remote_config_enabled=True)):
+        with (
+            patch.object(remoteconfig_poller, "start", side_effect=capture_initial_payload),
+            patch.object(remoteconfig_poller._client, "start_subscriber"),
+        ):
+            remoteconfig_poller.register_callback("LIVE_DEBUGGER", MockCallback())
+
+            assert captured_payloads == []
+
+            remoteconfig_poller.enable_product("LIVE_DEBUGGER")
+
+    assert "LIVE_DEBUGGER" in captured_payloads[0]["client"]["products"]
+
+
+@pytest.mark.parametrize("ffe_enabled", [False, True])
+def test_remote_config_start_registers_initial_payload_products(remote_config_worker, ffe_enabled):
+    from ddtrace.internal.openfeature._remoteconfiguration import FFE_FLAGS_PRODUCT
+    from ddtrace.internal.openfeature._remoteconfiguration import FFECapabilities
+    from ddtrace.internal.remoteconfig.products import client as remote_config_product
+
+    captured_payloads = []
+
+    def capture_initial_payload():
+        captured_payloads.append(remoteconfig_poller._client._build_payload({}))
+
+    with override_global_config(dict(_remote_config_enabled=True, experimental_flagging_provider_enabled=ffe_enabled)):
+        with (
+            patch.object(remoteconfig_poller, "start", side_effect=capture_initial_payload),
+            patch.object(remoteconfig_poller._client, "start_subscriber"),
+        ):
+            remote_config_product.start()
+
+    assert captured_payloads
+    products = set(captured_payloads[0]["client"]["products"])
+    assert {"AGENT_CONFIG", "AGENT_TASK"} <= products
+
+    if ffe_enabled:
+        assert FFE_FLAGS_PRODUCT in products
+        assert _decode_capabilities(captured_payloads[0]) & FFECapabilities.FFE_FLAG_CONFIGURATION_RULES
+    else:
+        assert FFE_FLAGS_PRODUCT not in products
 
 
 def test_remote_config_register_validate_rc_disabled(remote_config_worker):

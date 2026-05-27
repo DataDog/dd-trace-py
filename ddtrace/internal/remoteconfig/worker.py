@@ -163,10 +163,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
             capabilities: list of capabilities to register for this product
         """
         try:
-            # Enable if this is the first product being registered
-            if not self._client._product_callbacks:
-                self.enable()
-
             self._client.register_callback(product, callback)
 
             # Check for potential conflicts in capabilities
@@ -189,7 +185,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 
-    def enable_product(self, product: str) -> None:
+    def enable_product(self, product: str, start_poller: bool = True) -> None:
         """Enable a product to be included in client payloads.
 
         When a product is enabled, it will be added to the 'products' list
@@ -198,8 +194,11 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         Args:
             product: Product name to enable
+            start_poller: Whether to start the Remote Config poller after enabling the product
         """
         self._client.enable_product(product)
+        if start_poller:
+            self.enable()
 
     def disable_product(self, product: str) -> None:
         """Disable a product, removing it from client payloads.

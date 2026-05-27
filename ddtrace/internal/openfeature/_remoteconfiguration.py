@@ -66,14 +66,14 @@ class FeatureFlagCallback(RCCallback):
 _featureflag_rc_callback = FeatureFlagCallback()
 
 
-def enable_featureflags_rc() -> None:
+def enable_featureflags_rc(start_poller: bool = True) -> None:
     log.debug("[%s][P: %s] Register FFE Remote Config Callback", os.getpid(), os.getppid())
     remoteconfig_poller.register_callback(
         FFE_FLAGS_PRODUCT,
         _featureflag_rc_callback,
         capabilities=[FFECapabilities.FFE_FLAG_CONFIGURATION_RULES],
     )
-    remoteconfig_poller.enable_product(FFE_FLAGS_PRODUCT)
+    remoteconfig_poller.enable_product(FFE_FLAGS_PRODUCT, start_poller=start_poller)
 
 
 def disable_featureflags_rc() -> None:

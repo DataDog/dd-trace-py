@@ -29,9 +29,16 @@ def _register_rc_products() -> None:
 
     # Register for both AGENT_CONFIG and AGENT_TASK products (they share the same callback)
     remoteconfig_poller.register_callback("AGENT_CONFIG", flare_callback)
-    remoteconfig_poller.enable_product("AGENT_CONFIG")
+    remoteconfig_poller.enable_product("AGENT_CONFIG", start_poller=False)
     remoteconfig_poller.register_callback("AGENT_TASK", flare_callback)
-    remoteconfig_poller.enable_product("AGENT_TASK")
+    remoteconfig_poller.enable_product("AGENT_TASK", start_poller=False)
+
+    from ddtrace.internal.settings.openfeature import config as ffe_config
+
+    if ffe_config.experimental_flagging_provider_enabled:
+        from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
+
+        enable_featureflags_rc(start_poller=False)
 
 
 def post_preload():
@@ -45,8 +52,8 @@ def enabled():
 def start():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    remoteconfig_poller.enable()
     _register_rc_products()
+    remoteconfig_poller.enable()
 
 
 def restart(join=False):

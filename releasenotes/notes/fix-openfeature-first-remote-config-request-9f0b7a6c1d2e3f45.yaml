@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    openfeature: Fixes an issue where the OpenFeature provider could miss feature flag rules in the
+    tracer's first Remote Configuration request, causing applications to use default flag values
+    until a later poll received the configuration.
