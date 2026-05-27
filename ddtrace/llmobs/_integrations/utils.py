@@ -1182,7 +1182,7 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) ->
             message["role"] = chunk.delta.role
         if _get_attr(chunk, "finish_reason", None) and not message.get("finish_reason"):
             message["finish_reason"] = chunk.finish_reason
-        chunk_reasoning = _get_attr(chunk.delta, "reasoning_content", None)
+        chunk_reasoning = _get_attr(chunk.delta, "reasoning_content", "")
         if chunk_reasoning:
             message["reasoning_content"] += chunk_reasoning
         chunk_content = _get_attr(chunk.delta, "content", "")
