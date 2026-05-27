@@ -204,18 +204,31 @@ class PromptManager:
         for thread in threads:
             thread.join(timeout=self._timeout)
 
+    def _http_request(
+        self,
+        method: str,
+        path: str,
+        body: Optional[bytes] = None,
+        headers: Optional[dict[str, str]] = None,
+        timeout: Optional[float] = None,
+    ) -> tuple[int, str]:
+        """Low-level HTTP transport. Returns (status, response_body)."""
+        conn = None
+        try:
+            conn = get_connection(self._base_url, timeout=timeout or self._timeout)
+            conn.request(method, path, body=body, headers=headers or self._headers)
+            response = conn.getresponse()
+            return response.status, response.read().decode("utf-8")
+        finally:
+            if conn is not None:
+                conn.close()
+
     def _fetch_from_registry(
         self, prompt_id: str, label: Optional[str], timeout: float
     ) -> tuple[Optional[ManagedPrompt], bool, str]:
         """Fetch from registry. Returns (prompt, not_found, reason)."""
-        conn = None
         try:
-            conn = get_connection(self._base_url, timeout=timeout)
-            conn.request("GET", self._build_path(prompt_id, label), headers=self._headers)
-            response = conn.getresponse()
-            status = response.status
-
-            body = response.read().decode("utf-8")
+            status, body = self._http_request("GET", self._build_path(prompt_id, label), timeout=timeout)
 
             if status == 200:
                 return self._parse_response(body, prompt_id, label), False, ""
@@ -232,9 +245,6 @@ class PromptManager:
         except Exception as e:
             log.warning("Prompt fetch exception: prompt_id=%s label=%s: %s", prompt_id, label, e)
             return None, False, str(e)
-        finally:
-            if conn is not None:
-                conn.close()
 
     def _build_path(self, prompt_id: str, label: Optional[str]) -> str:
         """Build the absolute request path for fetching a prompt."""
@@ -299,32 +309,25 @@ class PromptManager:
         }
         if self._app_key:
             headers["DD-APPLICATION-KEY"] = self._app_key
-        conn = None
-        try:
-            conn = get_connection(self._base_url, timeout=timeout or self._timeout)
-            encoded_body = json.dumps(body).encode("utf-8") if body else None
-            conn.request(method, path, body=encoded_body, headers=headers)
-            response = conn.getresponse()
-            response_body = response.read().decode("utf-8")
 
-            if 200 <= response.status < 300:
-                return json.loads(response_body) if response_body else {}
+        encoded_body = json.dumps(body).encode("utf-8") if body else None
+        status, response_body = self._http_request(method, path, body=encoded_body, headers=headers, timeout=timeout)
 
-            detail = extract_error_detail(response_body)
-            if response.status in (401, 403):
-                raise PromptAuthError(response.status, detail)
-            if response.status == 400:
-                raise PromptValidationError(response.status, detail)
-            if response.status == 404:
-                raise PromptNotFoundError(response.status, detail)
-            if response.status == 409:
-                raise PromptConflictError(response.status, detail)
-            if response.status >= 500:
-                raise PromptServerError(response.status, detail)
-            raise PromptAPIError(response.status, detail)
-        finally:
-            if conn is not None:
-                conn.close()
+        if 200 <= status < 300:
+            return json.loads(response_body) if response_body else {}
+
+        detail = extract_error_detail(response_body)
+        if status in (401, 403):
+            raise PromptAuthError(status, detail)
+        if status == 400:
+            raise PromptValidationError(status, detail)
+        if status == 404:
+            raise PromptNotFoundError(status, detail)
+        if status == 409:
+            raise PromptConflictError(status, detail)
+        if status >= 500:
+            raise PromptServerError(status, detail)
+        raise PromptAPIError(status, detail)
 
     def create_prompt(
         self,
